@@ -80,6 +80,6 @@ class SystemMessageTokens {
     cardMaxWidth: 400,
   );
 
-  static SystemMessageTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static SystemMessageTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

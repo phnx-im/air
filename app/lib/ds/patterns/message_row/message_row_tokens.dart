@@ -91,6 +91,5 @@ class MessageRowTokens {
     groupGap: S.s12,
   );
 
-  static MessageRowTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static MessageRowTokens get current => DeviceType.isPhone ? phone : desktop;
 }

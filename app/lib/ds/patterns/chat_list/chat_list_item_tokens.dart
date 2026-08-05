@@ -86,6 +86,5 @@ class ChatListItemTokens {
   );
 
   /// The two-pane layout is denser and keeps a selection.
-  static ChatListItemTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ChatListItemTokens get current => DeviceType.isPhone ? phone : desktop;
 }

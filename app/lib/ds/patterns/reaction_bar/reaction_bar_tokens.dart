@@ -76,6 +76,5 @@ class ReactionBarTokens {
     moreIconSize: S.s16,
   );
 
-  static ReactionBarTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionBarTokens get current => DeviceType.isPhone ? phone : desktop;
 }

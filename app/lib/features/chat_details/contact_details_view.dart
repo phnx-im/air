@@ -135,7 +135,7 @@ class _CallToActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final tokens = ButtonCTATokens.of(context);
+    final tokens = ButtonCTATokens.current;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

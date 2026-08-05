@@ -260,7 +260,7 @@ class _ServerTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       focusNode: focusNode,
       hintText: loc.introScreen_serverHint,

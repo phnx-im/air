@@ -11,8 +11,7 @@ enum ButtonSize {
   small,
   large;
 
-  static ButtonSize of(BuildContext context) =>
-      context.breakpoint.isSmall ? large : small;
+  static ButtonSize get current => DeviceType.isPhone ? large : small;
 }
 
 /// Weight of an [Button] in its surface: the one action a surface leads

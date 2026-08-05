@@ -94,6 +94,5 @@ class ListHeaderTokens {
   );
 
   /// The two-pane layout is denser and drops the title.
-  static ListHeaderTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ListHeaderTokens get current => DeviceType.isPhone ? phone : desktop;
 }

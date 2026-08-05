@@ -85,6 +85,6 @@ class ContactRequestCardTokens {
     actionsGap: S.s12,
   );
 
-  static ContactRequestCardTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ContactRequestCardTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

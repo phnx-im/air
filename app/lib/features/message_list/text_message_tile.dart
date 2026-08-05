@@ -93,7 +93,7 @@ class TextMessageTile extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = MessageRowTokens.of(context);
+    final tokens = MessageRowTokens.current;
     // Held here rather than beside the bubble it keys: the time reveal wraps
     // the whole row and lines its label up with the bubble inside it.
     final bubbleKey = useMemoized(() => GlobalKey());

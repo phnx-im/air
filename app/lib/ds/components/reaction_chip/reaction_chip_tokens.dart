@@ -53,6 +53,5 @@ class ReactionChipTokens {
     countGap: S.s4,
   );
 
-  static ReactionChipTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionChipTokens get current => DeviceType.isPhone ? phone : desktop;
 }

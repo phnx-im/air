@@ -47,8 +47,7 @@ class ChatListFadeTokens {
     bottomOpacity: 0.8,
   );
 
-  static ChatListFadeTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ChatListFadeTokens get current => DeviceType.isPhone ? phone : desktop;
 }
 
 /// Fade values for the message list, per density.
@@ -94,6 +93,6 @@ class MessageListFadeTokens {
     bottomOpacity: 0.8,
   );
 
-  static MessageListFadeTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static MessageListFadeTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

@@ -52,7 +52,7 @@ class AddContactDialog extends HookWidget {
           const SizedBox(height: S.s24),
 
           AppTextInput(
-            tokens: AppTextInputTokens.of(context),
+            tokens: AppTextInputTokens.current,
             label: loc.newConnectionDialog_inputLabel,
             autocorrect: false,
             autofocus: true,

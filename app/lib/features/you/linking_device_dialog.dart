@@ -431,7 +431,7 @@ class _NumericCodePage extends HookWidget {
         ),
         const SizedBox(height: S.s16),
         AppTextInput(
-          tokens: AppTextInputTokens.of(context),
+          tokens: AppTextInputTokens.current,
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
@@ -632,7 +632,7 @@ class _LinkDeviceName extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: textEditingController,
       maxLength: 30,
       helperText: loc.linkingDeviceScreen_linking_confirm_edit_subtitle,

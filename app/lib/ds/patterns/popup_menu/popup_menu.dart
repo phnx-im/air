@@ -78,7 +78,7 @@ Future<void> showOverlayMenu({
       anchor: anchor,
       corner: corner,
       items: items,
-      tokens: tokens ?? MenuTokens.of(context),
+      tokens: tokens ?? MenuTokens.current,
       popupTokens: popupTokens,
     ),
   );

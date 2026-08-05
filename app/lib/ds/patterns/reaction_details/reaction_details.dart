@@ -211,7 +211,7 @@ class _ReactionDetailsState extends State<ReactionDetails> {
   }
 
   Widget _reactorList(BuildContext context, List<ReactionDetailEntry> entries) {
-    final rowTokens = ListRowTokens.of(context);
+    final rowTokens = ListRowTokens.current;
     return ListView.builder(
       padding: EdgeInsets.zero,
       itemCount: entries.length,

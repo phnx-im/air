@@ -68,7 +68,7 @@ class DeleteAccountDialog extends HookWidget {
           const SizedBox(height: S.s12),
 
           AppTextInput(
-            tokens: AppTextInputTokens.of(context),
+            tokens: AppTextInputTokens.current,
             autocorrect: false,
             autofocus: true,
             controller: controller,

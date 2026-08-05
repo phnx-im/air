@@ -55,7 +55,7 @@ class ContactRequestDialog extends HookWidget {
     );
 
     final loc = AppLocalizations.of(context);
-    final tokens = ContactRequestCardTokens.of(context);
+    final tokens = ContactRequestCardTokens.current;
 
     final isAccepting = useState(false);
 

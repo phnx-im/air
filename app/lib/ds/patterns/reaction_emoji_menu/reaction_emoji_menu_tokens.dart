@@ -106,6 +106,6 @@ class ReactionEmojiMenuTokens {
     flyoutHelpGap: S.s8,
   );
 
-  static ReactionEmojiMenuTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionEmojiMenuTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

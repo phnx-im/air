@@ -34,7 +34,7 @@ class RemoveMemberButton extends StatelessWidget {
 
     final button = Button(
       onPressed: () => _confirmRemoval(context),
-      size: compact ? ButtonSize.small : ButtonSize.of(context),
+      size: compact ? ButtonSize.small : ButtonSize.current,
       type: ButtonType.secondary,
       // Compact repeats on every row of a member list, where a run of red
       // chips reads as an alarm rather than as one destructive choice. The

@@ -211,7 +211,7 @@ class _MessageComposerState extends State<MessageComposer>
     return ListenableBuilder(
       listenable: _scrollBackState,
       builder: (context, _) => MessageInput(
-        tokens: MessageInputTokens.of(context),
+        tokens: MessageInputTokens.current,
         // Cancel the edit when editing, attach otherwise.
         leadingIcon: isEditing ? AppIconType.x : AppIconType.plus,
         onLeading: isEditing

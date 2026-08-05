@@ -62,8 +62,7 @@ class ListRow extends StatelessWidget {
   final bool enabled;
 
   /// Whether a pointer paints the hover wash. Follows the device by default,
-  /// off for touch. A phone-shaped layout running at the desktop breakpoint
-  /// passes `false` to keep the wash off where the row still reads as touch.
+  /// off for touch.
   final bool? hover;
 
   @override

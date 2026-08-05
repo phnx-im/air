@@ -103,6 +103,6 @@ class ChatHeaderBarTokens {
     pillMinHeight: S.s32,
   );
 
-  static ChatHeaderBarTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ChatHeaderBarTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

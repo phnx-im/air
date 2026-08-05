@@ -49,6 +49,6 @@ class ReactionStripTokens {
     startInset: S.s8,
   );
 
-  static ReactionStripTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionStripTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

@@ -47,6 +47,5 @@ class ButtonCTATokens {
     labelGap: S.s8,
   );
 
-  static ButtonCTATokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ButtonCTATokens get current => DeviceType.isPhone ? phone : desktop;
 }

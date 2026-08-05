@@ -169,7 +169,7 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
       children: [
         Expanded(
           child: SearchField(
-            tokens: SearchFieldTokens.of(context),
+            tokens: SearchFieldTokens.current,
             hintText: widget.searchHint,
             autofocus: widget.autofocus,
             textInputAction: TextInputAction.search,

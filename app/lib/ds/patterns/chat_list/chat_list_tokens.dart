@@ -43,6 +43,5 @@ class ChatListTokens {
     fades: ChatListFadeTokens.desktop,
   );
 
-  static ChatListTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ChatListTokens get current => DeviceType.isPhone ? phone : desktop;
 }

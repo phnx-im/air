@@ -82,7 +82,7 @@ class _AppScrollbarState extends State<AppScrollbar> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = AppScrollbarTokens.of(context);
+    final tokens = AppScrollbarTokens.current;
     final color = SemanticPalette.of(context).text.quaternary;
 
     return NotificationListener<ScrollMetricsNotification>(

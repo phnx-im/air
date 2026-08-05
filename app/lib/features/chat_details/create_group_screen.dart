@@ -638,7 +638,7 @@ class _SwitchField extends StatelessWidget {
             ),
             const Spacer(),
             Toggle(
-              tokens: ToggleTokens.of(context),
+              tokens: ToggleTokens.current,
               value: value,
               onChanged: onChanged,
             ),

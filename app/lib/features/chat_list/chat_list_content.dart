@@ -82,7 +82,7 @@ class ChatListContent extends StatelessWidget {
     );
 
     final list = ChatList(
-      tokens: ChatListTokens.of(context),
+      tokens: ChatListTokens.current,
       backgroundColor: chatListBackgroundColor(context),
       header: header,
       headerHeight: headerHeight,
@@ -271,7 +271,7 @@ class _ChatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ChatListItemTokens.of(context);
+    final tokens = ChatListItemTokens.current;
     final palette = SemanticPalette.of(context);
 
     UiUserId? ownId;
@@ -380,7 +380,7 @@ class _TrailingIndicator extends StatelessWidget {
     }
 
     if (unreadMessages != null && unreadMessages > 0) {
-      return Counter(tokens: CounterTokens.of(context), count: unreadMessages);
+      return Counter(tokens: CounterTokens.current, count: unreadMessages);
     }
 
     if (lastMessage == null) return const SizedBox.shrink();

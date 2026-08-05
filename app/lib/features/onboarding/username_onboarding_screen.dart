@@ -246,7 +246,7 @@ class _UsernameTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       focusNode: focusNode,
       autofocus: true,

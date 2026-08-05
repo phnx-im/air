@@ -60,6 +60,5 @@ class AppTextInputTokens {
     helperPadding: EdgeInsets.only(left: S.s8),
   );
 
-  static AppTextInputTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static AppTextInputTokens get current => DeviceType.isPhone ? phone : desktop;
 }

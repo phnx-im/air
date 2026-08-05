@@ -32,7 +32,7 @@ class ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DialogTokens.of(context);
+    final tokens = DialogTokens.current;
     final palette = SemanticPalette.of(context);
     final cancel = this.cancel;
 

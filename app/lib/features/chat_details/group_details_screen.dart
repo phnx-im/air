@@ -162,7 +162,7 @@ class _PeopleSection extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final rowTokens = ListRowTokens.of(context);
+    final rowTokens = ListRowTokens.current;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,7 +183,7 @@ class _PeopleSection extends HookWidget {
         ),
 
         ListGroup(
-          tokens: ListGroupTokens.of(context),
+          tokens: ListGroupTokens.current,
           color: ListGroup.noFill,
           radius: CornerRadius.px12,
           children: [
@@ -269,7 +269,7 @@ class _GroupActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final size = ButtonSize.of(context);
+    final size = ButtonSize.current;
 
     return Row(
       children: [

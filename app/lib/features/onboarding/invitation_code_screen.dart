@@ -228,7 +228,7 @@ class _InvitationCodeTextField extends StatelessWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       autofocus: true,
       label: loc.invitationCodeScreen_inputLabel,
       hintText: loc.invitationCodeScreen_inputHint,
@@ -293,7 +293,7 @@ class _ServerTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       focusNode: focusNode,
       hintText: loc.signUpScreen_serverHint,

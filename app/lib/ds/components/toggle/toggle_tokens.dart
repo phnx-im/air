@@ -57,6 +57,5 @@ class ToggleTokens {
     disabledAlpha: Alpha.a80,
   );
 
-  static ToggleTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ToggleTokens get current => DeviceType.isPhone ? phone : desktop;
 }

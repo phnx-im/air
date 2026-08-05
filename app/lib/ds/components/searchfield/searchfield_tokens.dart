@@ -51,6 +51,5 @@ class SearchFieldTokens {
     clearSize: S.s12,
   );
 
-  static SearchFieldTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static SearchFieldTokens get current => DeviceType.isPhone ? phone : desktop;
 }

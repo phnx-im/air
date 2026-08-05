@@ -27,7 +27,7 @@ class DisplayMessageTile extends StatelessWidget {
         timestamp: timestamp,
       ),
       UiEventMessage_Error(field0: final message) => SystemMessage(
-        tokens: SystemMessageTokens.of(context),
+        tokens: SystemMessageTokens.current,
         tone: SystemMessageTone.danger,
         label: message.message,
         timestamp: Timestamp(timestamp),
@@ -72,7 +72,7 @@ class _SystemMessageContent extends StatelessWidget {
           ),
         ),
       _ => SystemMessage(
-        tokens: SystemMessageTokens.of(context),
+        tokens: SystemMessageTokens.current,
         content: buildSystemMessageText(context, message),
         timestamp: Timestamp(timestamp),
       ),

@@ -285,7 +285,7 @@ class _DisplayNameTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       autofocus: true,
       label: loc.signUpScreen_displayNameInputName,
@@ -321,7 +321,7 @@ class _ServerTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       focusNode: focusNode,
       hintText: loc.signUpScreen_serverHint,

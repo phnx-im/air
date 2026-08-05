@@ -68,6 +68,6 @@ class ReactionDetailsTokens {
     removeGap: S.s12,
   );
 
-  static ReactionDetailsTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionDetailsTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

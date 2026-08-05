@@ -89,6 +89,5 @@ class MenuTokens {
     elevation: Elevation.large,
   );
 
-  static MenuTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static MenuTokens get current => DeviceType.isPhone ? phone : desktop;
 }

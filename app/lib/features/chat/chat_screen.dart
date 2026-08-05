@@ -253,7 +253,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       return (chat?.id, chat?.title, hasDetails);
     });
 
-    final tokens = ChatHeaderBarTokens.of(context);
+    final tokens = ChatHeaderBarTokens.current;
     return SafeArea(
       bottom: false,
       child: ValueListenableBuilder<double>(

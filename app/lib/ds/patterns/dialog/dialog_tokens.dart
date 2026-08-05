@@ -68,6 +68,5 @@ class DialogTokens {
     bodyActionsGap: S.s16,
   );
 
-  static DialogTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static DialogTokens get current => DeviceType.isPhone ? phone : desktop;
 }

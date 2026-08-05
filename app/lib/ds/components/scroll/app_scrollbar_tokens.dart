@@ -60,6 +60,5 @@ class AppScrollbarTokens {
     rightInset: S.s2,
   );
 
-  static AppScrollbarTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static AppScrollbarTokens get current => DeviceType.isPhone ? phone : desktop;
 }

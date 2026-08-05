@@ -167,7 +167,7 @@ class _EmailForm extends HookWidget {
 
             // Email Body
             AppTextInput(
-              tokens: AppTextInputTokens.of(context),
+              tokens: AppTextInputTokens.current,
               controller: bodyController,
               label: loc.contactUsScreen_body,
               errorText: bodyError.value,

@@ -48,6 +48,5 @@ class CounterTokens {
     padding: EdgeInsets.symmetric(horizontal: S.s8),
   );
 
-  static CounterTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static CounterTokens get current => DeviceType.isPhone ? phone : desktop;
 }

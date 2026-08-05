@@ -62,6 +62,5 @@ class ListRowTokens {
     radius: CornerRadius.px12,
   );
 
-  static ListRowTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ListRowTokens get current => DeviceType.isPhone ? phone : desktop;
 }

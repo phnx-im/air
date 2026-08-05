@@ -29,7 +29,7 @@ class DeleteContactButton extends StatelessWidget {
 
     return Button(
       onPressed: () => _delete(context),
-      size: ButtonSize.of(context),
+      size: ButtonSize.current,
       type: ButtonType.secondary,
       tone: ButtonTone.danger,
       label: loc.deleteContactButton_text,

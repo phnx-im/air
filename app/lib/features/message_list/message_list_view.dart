@@ -384,7 +384,7 @@ class _MessageListViewState extends State<MessageListView>
   ) {
     // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
-    final fades = MessageListFadeTokens.of(context);
+    final fades = MessageListFadeTokens.current;
     // Height of the safe area above the toolbar. The screen extends its body
     // behind the app bar, so the bar's own height is part of this padding.
     final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);

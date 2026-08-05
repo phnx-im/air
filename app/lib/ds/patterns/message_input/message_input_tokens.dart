@@ -93,6 +93,8 @@ class MessageInputTokens {
     fieldPadding: S.s16,
   );
 
-  static MessageInputTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  /// The set for the current device. Keyed on the device rather than the
+  /// viewport: the buttons are touch targets, so they size to what taps them
+  /// and not to how wide the window happens to be.
+  static MessageInputTokens get current => DeviceType.isPhone ? phone : desktop;
 }
