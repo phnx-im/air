@@ -4,44 +4,17 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:provider/provider.dart';
 
-class ChangeUserScreen extends StatefulWidget {
-  const ChangeUserScreen({super.key});
+class ChangeUserScreen extends StatelessWidget {
+  const ChangeUserScreen({super.key, this.clientRecords});
 
-  @override
-  State<ChangeUserScreen> createState() => _ChangeUserScreenState();
-}
-
-class _ChangeUserScreenState extends State<ChangeUserScreen> {
-  Future<List<UiClientRecord>>? _clientRecords;
-
-  @override
-  void initState() {
-    super.initState();
-    loadClientRecords();
-  }
-
-  void loadClientRecords() async {
-    final clientRecords = User.loadClientRecords(dbPath: await dbPath());
-    setState(() {
-      _clientRecords = clientRecords;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ChangeUserScreenView(clientRecords: _clientRecords);
-  }
-}
-
-class ChangeUserScreenView extends StatelessWidget {
-  const ChangeUserScreenView({this.clientRecords, super.key});
-
+  /// Overrides loading the client records from the database (used in tests).
   final Future<List<UiClientRecord>>? clientRecords;
 
   @override
@@ -57,52 +30,41 @@ class ChangeUserScreenView extends StatelessWidget {
           constraints: DeviceType.isDesktop
               ? const BoxConstraints(maxWidth: Measure.m800)
               : null,
-          child: _ClientRecords(clientRecords: clientRecords),
+          child: _ClientRecordsList(clientRecords: clientRecords),
         ),
       ),
     );
   }
 }
 
-class _ClientRecords extends StatelessWidget {
-  const _ClientRecords({this.clientRecords});
+class _ClientRecordsList extends HookWidget {
+  const _ClientRecordsList({this.clientRecords});
 
   final Future<List<UiClientRecord>>? clientRecords;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<UiClientRecord>>(
-      future: clientRecords,
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return _ClientRecordsList(snapshot.data!);
-        } else if (snapshot.hasError) {
-          return const Text('Error loading contacts');
-        }
-        return const CircularProgressIndicator();
-      },
+    final ownClientRecordId = context.select(
+      (LoadableUserCubit cubit) => cubit.state.loadedUser?.clientRecordId,
     );
-  }
-}
 
-class _ClientRecordsList extends StatelessWidget {
-  const _ClientRecordsList(this.clientRecords);
-
-  final List<UiClientRecord> clientRecords;
-
-  @override
-  Widget build(BuildContext context) {
-    final ownClientId = context.select(
-      (LoadableUserCubit cubit) => cubit.state.loadedUser?.userId,
+    final clientRecordsFut = useMemoized(
+      () =>
+          clientRecords ??
+          dbPath().then((dbPath) => User.loadClientRecords(dbPath: dbPath)),
     );
+    final records = useFuture(clientRecordsFut);
+
+    final data = records.data;
+    if (data == null) return const CircularProgressIndicator();
 
     return Center(
       child: ListView(
-        children: clientRecords.map((record) {
-          final isCurrentUser = record.userId == ownClientId;
-          final currentUserSuffix = isCurrentUser ? " (current)" : "";
+        children: data.map((record) {
+          final isCurrentRecord = record.clientRecordId == ownClientRecordId;
+          final currentUserSuffix = isCurrentRecord ? " (current)" : "";
 
-          final textColor = isCurrentUser
+          final textColor = isCurrentRecord
               ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38)
               : null;
 
@@ -122,15 +84,16 @@ class _ClientRecordsList extends StatelessWidget {
             title: Text(record.userProfile.displayName + currentUserSuffix),
             subtitle: Text(
               "Domain: ${record.userId.domain}\n"
-              "ID: ${record.userId.uuid.toString()}\n"
+              "User ID: ${record.userId.uuid.toString()}\n"
+              "Record: ${record.clientRecordId.toString()}\n"
               "Created: ${record.createdAt}\n"
               "Fully registered: ${record.isFinished ? "yes" : "no"}",
             ),
-            onTap: !isCurrentUser
+            onTap: !isCurrentRecord
                 ? () {
                     final coreClient = context.read<CoreClient>();
                     coreClient.logout();
-                    coreClient.loadUser(userId: record.userId);
+                    coreClient.loadUser(clientRecordId: record.clientRecordId);
                   }
                 : null,
           );

@@ -29,6 +29,7 @@ pub mod padme;
 pub mod pow;
 pub mod time;
 pub mod utils;
+pub mod virtual_client;
 
 pub const ACCEPTED_API_VERSIONS_HEADER: &str = "x-accepted-api-versions";
 

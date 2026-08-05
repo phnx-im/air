@@ -159,7 +159,11 @@ _generate-db-certs:
 
 # Use the current test results as new reference images.
 [working-directory: 'app']
-update-goldens: (flutter "test --update-goldens")
+update-goldens:
+    # Delete existing goldens
+    rm -f **/goldens/*.{{ os() }}.png
+    # Update golden snapshots
+    just flutter test --update-goldens
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]

@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::keys::{ClientSigningKey, LeafSigningKey},
+    credentials::keys::{LeafSigningKey, UserSigningKey},
     identifiers::{QsClientId, UserId},
 };
 use chrono::Utc;
@@ -75,7 +75,7 @@ pub trait OutboundServiceWork: Clone + Send + 'static {
 
 impl OutboundServiceWork for OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
-        OutboundServiceContext::work(self, run_token).await;
+        Box::pin(OutboundServiceContext::work(self, run_token)).await;
     }
 }
 
@@ -314,14 +314,14 @@ impl OutboundServiceContext {
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");
         }
-        if let Err(error) = self.execute_timed_tasks(&run_token).await {
+        if let Err(error) = Box::pin(self.execute_timed_tasks(&run_token)).await {
             error!(%error, "Failed to execute timed tasks");
         }
 
         fetch_profiles.await;
     }
 
-    fn signing_key(&self) -> &ClientSigningKey {
+    fn signing_key(&self) -> &UserSigningKey {
         &self.key_store.signing_key
     }
 
@@ -329,7 +329,7 @@ impl OutboundServiceContext {
     ///
     /// The self group's leaves are signed with a per-device key that differs from
     /// the shared user credential key, so its messages and commits must be signed
-    /// with that key. All other groups use the shared client signing key.
+    /// with that key. All other groups use the shared user signing key.
     async fn signer_for_group(
         &self,
         group_id: &openmls::group::GroupId,
