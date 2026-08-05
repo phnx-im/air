@@ -121,6 +121,19 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        // A traditional commit on an APQ group can only be a PARTIAL
+        // self-update. Membership changes must go through the APQ endpoint so
+        // that both legs stay in sync. External commits are caught by the
+        // remove proposal they must carry.
+        if pq_group_state.is_none()
+            && self.is_apq()
+            && (staged_commit.add_proposals().next().is_some()
+                || staged_commit.remove_proposals().next().is_some())
+        {
+            warn!("Traditional membership change on an APQ group");
+            return Err(GroupOperationError::ApqMembershipChange);
+        }
+
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
             Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
