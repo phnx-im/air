@@ -13,14 +13,13 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-
-const double _bottomFadeHeight = S.s120;
 
 /// The profile tab on a phone: who you are, above the sections you can open.
 ///
@@ -47,9 +46,13 @@ class YouScreen extends StatelessWidget {
           // bottom fade reaches further down.
           contentBottomPadding: max(
             TabBarTokens.bottomInset(context),
-            _bottomFadeHeight,
+            YouFadeTokens.phone.bottomHeight,
           ),
-          bottomFadeHeight: _bottomFadeHeight,
+          topFadeHeight: YouFadeTokens.phone.topHeight,
+          bottomFadeHeight: YouFadeTokens.phone.bottomHeight,
+          topSolidStop: YouFadeTokens.topSolidStop,
+          bottomSolidStop: YouFadeTokens.bottomSolidStop,
+          bottomOpacity: YouFadeTokens.bottomOpacity,
           builder: (topPadding, bottomPadding) => SingleChildScrollView(
             padding: EdgeInsets.only(
               top: topPadding,

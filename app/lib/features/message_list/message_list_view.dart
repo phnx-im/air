@@ -18,8 +18,8 @@ import 'package:air/util/anchored_list/controller.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
-import 'package:air/ds/components/scroll/scroll_fade_tokens.dart';
 
+import 'package:air/features/message_list/message_list_fade_tokens.dart';
 import 'package:air/features/message_list/message_row_container.dart';
 import 'package:air/features/message_list/date_divider.dart';
 import 'package:air/features/message_list/floating_date_header.dart';

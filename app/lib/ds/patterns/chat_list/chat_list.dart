@@ -4,7 +4,6 @@
 
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
-import 'package:air/ds/components/scroll/scroll_fade_tokens.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
 import 'package:flutter/widgets.dart';
 
@@ -111,10 +110,8 @@ class _ChatListState extends State<ChatList> {
       edges: _edges,
       topFadeHeight: tokens.fades.topHeight,
       bottomFadeHeight: tokens.fades.bottomHeight,
-      topSolidStop: tokens.fades.topStop,
-      // The bottom strip ramps from the very edge: it has no chrome to bed,
-      // only the last row to soften.
-      bottomSolidStop: 0,
+      topSolidStop: tokens.fades.topSolidStop,
+      bottomSolidStop: ChatListFadeTokens.bottomSolidStop,
       bottomOpacity: ChatListFadeTokens.bottomOpacity,
       contentTopPadding: widget.headerHeight + tokens.headerClearance,
       contentBottomPadding: tokens.contentBottomPadding,

@@ -9,6 +9,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
@@ -63,8 +64,11 @@ class YouDetailPane extends StatelessWidget {
       child: FadedScrollFrame(
         backgroundColor: background,
         header: _PaneHeader(title: youSectionTitle(loc, section)),
-        topFadeHeight: Chrome.barHeight,
-        bottomFadeHeight: Chrome.barHeight,
+        topFadeHeight: YouFadeTokens.desktop.topHeight,
+        bottomFadeHeight: YouFadeTokens.desktop.bottomHeight,
+        topSolidStop: YouFadeTokens.topSolidStop,
+        bottomSolidStop: YouFadeTokens.bottomSolidStop,
+        bottomOpacity: YouFadeTokens.bottomOpacity,
         contentTopPadding: Chrome.barHeight,
         contentBottomPadding: Chrome.barHeight,
         builder: (topPadding, bottomPadding) => SingleChildScrollView(
