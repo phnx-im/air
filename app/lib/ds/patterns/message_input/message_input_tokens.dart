@@ -31,7 +31,7 @@ class MessageInputTokens {
   final EdgeInsets containerPadding;
 
   /// Gap between the buttons and the field.
-  static const double gap = S.s8;
+  static const double gap = Chrome.controlGap;
 
   /// Horizontal inset between the field's edge and its content. The vertical
   /// inset comes from the type metrics, see [MessageInputTokens.fieldInsetY].
@@ -78,13 +78,14 @@ class MessageInputTokens {
     containerPadding: EdgeInsets.only(left: S.s16, right: S.s16, bottom: S.s8),
   );
 
-  // Horizontal inset matches the chat header's, so the attach button and the
-  // header's back button line up on the same x instead of stepping inward down
-  // the screen.
   static const MessageInputTokens desktop = MessageInputTokens(
     buttonSize: S.s32,
     inputRadius: CornerRadius.px16,
-    containerPadding: EdgeInsets.only(left: S.s20, right: S.s20, bottom: S.s16),
+    containerPadding: EdgeInsets.only(
+      left: Chrome.edgeInset,
+      right: Chrome.edgeInset,
+      bottom: S.s16,
+    ),
   );
 
   /// The set for the current device. Keyed on the device rather than the

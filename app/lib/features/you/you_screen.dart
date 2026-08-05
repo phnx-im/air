@@ -42,7 +42,7 @@ class YouScreen extends StatelessWidget {
         child: FadedScrollFrame(
           backgroundColor: bgColor,
           header: _Header(title: loc.userSettingsScreen_title),
-          contentTopPadding: kToolbarHeight,
+          contentTopPadding: Chrome.barHeight,
           // The floating tab bar is what the last row has to clear, unless the
           // bottom fade reaches further down.
           contentBottomPadding: max(
@@ -163,7 +163,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: kToolbarHeight,
+      height: Chrome.barHeight,
       child: Center(
         child: Text(
           title,

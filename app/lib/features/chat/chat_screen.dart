@@ -210,7 +210,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: EdgeInsets.only(top: kToolbarHeight),
+                  padding: EdgeInsets.only(top: Chrome.barHeight),
                   child: _PendingCommitFailedBanner(),
                 ),
               ),
@@ -300,9 +300,8 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     }
   }
 
-  // Both density sets share the bar height.
   @override
-  Size get preferredSize => const Size.fromHeight(S.s56);
+  Size get preferredSize => const Size.fromHeight(Chrome.barHeight);
 }
 
 class _BlockedChatFooter extends StatelessWidget {

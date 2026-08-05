@@ -101,9 +101,7 @@ class DialogHeaderTokens {
   /// Diameter of the leading and trailing action buttons.
   final double actionSize;
 
-  // 56 on both densities: every header in the app shares the chat header's
-  // height, so a button centres at the same y wherever it appears.
-  static const double height = S.s56;
+  static const double height = Chrome.barHeight;
 
   /// Inset between the slots and the row's edges.
   static const EdgeInsets contentPadding = EdgeInsets.symmetric(

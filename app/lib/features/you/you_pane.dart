@@ -63,10 +63,10 @@ class YouDetailPane extends StatelessWidget {
       child: FadedScrollFrame(
         backgroundColor: background,
         header: _PaneHeader(title: youSectionTitle(loc, section)),
-        topFadeHeight: kToolbarHeight,
-        bottomFadeHeight: kToolbarHeight,
-        contentTopPadding: kToolbarHeight,
-        contentBottomPadding: kToolbarHeight,
+        topFadeHeight: Chrome.barHeight,
+        bottomFadeHeight: Chrome.barHeight,
+        contentTopPadding: Chrome.barHeight,
+        contentBottomPadding: Chrome.barHeight,
         builder: (topPadding, bottomPadding) => SingleChildScrollView(
           padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
           child: Center(
@@ -94,7 +94,7 @@ class _PaneHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: kToolbarHeight,
+      height: Chrome.barHeight,
       child: Center(
         child: Text(
           title,

@@ -30,9 +30,8 @@ class MessageRowTokens {
   /// that a change of sender reads before the name does.
   final double groupGap;
 
-  /// Gap between the avatar column and the bubble, mirroring the input's gap
-  /// between its leading button and the field.
-  static const double avatarGap = S.s8;
+  /// Gap between the avatar column and the bubble.
+  static const double avatarGap = Chrome.controlGap;
 
   /// Lift of the avatar off the foot of its column. It reads as sitting on the
   /// bubble's last line rather than hanging off its corner, so the nudge

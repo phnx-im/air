@@ -45,7 +45,7 @@ class FullscreenImageTokens {
 
   /// Shortest the header may be. It grows past this where its own padding asks
   /// for more, which is what turns the strip into a floating corner button.
-  static const double headerHeight = S.s56;
+  static const double headerHeight = Chrome.barHeight;
 
   static const double buttonSize = ButtonIconSize.s32;
   static const double buttonIconSize = S.s16;

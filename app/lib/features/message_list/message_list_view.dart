@@ -397,15 +397,14 @@ class _MessageListViewState extends State<MessageListView>
     ValueListenable<double>? composerHeightListenable,
     MessageListStateWrapper state,
   ) {
-    // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
     final fades = MessageListFadeTokens.current;
-    // Height of the safe area above the toolbar. The screen extends its body
-    // behind the app bar, so the bar's own height is part of this padding.
-    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    // Height of the safe area above the header bar. The screen extends its body
+    // behind the bar, so the bar's own height is part of this padding.
+    final statusBarHeight = max(mediaPadding.top - Chrome.barHeight, 0.0);
     // Total height of the top fade: the status bar and the header bar it has to
     // cover, plus the ramp trailing below them.
-    final fadeHeight = statusBarHeight + kToolbarHeight + fades.topTail;
+    final fadeHeight = statusBarHeight + Chrome.barHeight + fades.topTail;
     // Y-coordinate where content comes clear of the fade. Used as the list's
     // top inset so rows at rest, jumps and the unread divider all land below
     // it.

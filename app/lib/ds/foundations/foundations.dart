@@ -20,6 +20,7 @@
 library;
 
 export 'package:air/ds/foundations/breakpoint.dart';
+export 'package:air/ds/foundations/chrome.dart';
 export 'package:air/ds/foundations/device_type.dart';
 export 'package:air/ds/foundations/dimensions.dart';
 export 'package:air/ds/foundations/effects.dart';

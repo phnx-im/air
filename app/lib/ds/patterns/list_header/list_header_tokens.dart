@@ -42,8 +42,8 @@ class ListHeaderTokens {
   /// Diameter of the leading action button.
   final double actionSize;
 
-  static const double height = S.s56;
-  static const double paddingLeft = S.s20;
+  static const double height = Chrome.barHeight;
+  static const double paddingLeft = Chrome.edgeInset;
 
   /// Minimum breathing room between the title pill and the slot on either
   /// side. Doubles as the pill's width bound, so an over-long title ellipsizes

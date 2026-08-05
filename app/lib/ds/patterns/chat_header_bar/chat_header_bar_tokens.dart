@@ -29,11 +29,8 @@ class ChatHeaderBarTokens {
   /// this.
   final double pillMinHeight;
 
-  static const double height = S.s56;
-
-  // [paddingLeft] matches the list header's, so the leading button sits at the
-  // same x in both bars rather than jumping on the way into a conversation.
-  static const double paddingLeft = S.s20;
+  static const double height = Chrome.barHeight;
+  static const double paddingLeft = Chrome.edgeInset;
   static const double paddingRight = S.s16;
 
   /// Gap between the avatar and the title column.
