@@ -65,6 +65,8 @@ struct UiUserInner {
     user_id: UserId,
     usernames: Vec<Username>,
     unsupported_version: bool,
+    /// Another device of this user removed this one from the self group.
+    account_unlinked: bool,
 }
 
 impl UiUser {
@@ -86,7 +88,32 @@ impl UiUser {
                     error!(%error, "failed to load usernames");
                 }
             }
+
+            // The flag is durable, so a device that was unlinked while it was
+            // not running still reports it on the next launch.
+            Self::reload_account_unlinked(&state_tx, &core_user).await;
         });
+    }
+
+    /// Re-reads the unlinked flag and emits it if it flipped.
+    #[frb(ignore)]
+    pub(crate) async fn reload_account_unlinked(
+        state_tx: &watch::Sender<UiUser>,
+        core_user: &CoreUser,
+    ) {
+        match core_user.is_account_unlinked().await {
+            Ok(unlinked) => {
+                state_tx.send_if_modified(|state| {
+                    if state.inner.account_unlinked == unlinked {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.account_unlinked = unlinked;
+                    true
+                });
+            }
+            Err(error) => error!(%error, "failed to read the account-unlinked flag"),
+        }
     }
 
     #[frb(getter, sync)]
@@ -107,6 +134,11 @@ impl UiUser {
     #[frb(getter, sync)]
     pub fn unsupported_version(&self) -> bool {
         self.inner.unsupported_version
+    }
+
+    #[frb(getter, sync)]
+    pub fn account_unlinked(&self) -> bool {
+        self.inner.account_unlinked
     }
 }
 
@@ -145,6 +177,7 @@ impl UserCubitBase {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
             unsupported_version: false,
+            account_unlinked: false,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());

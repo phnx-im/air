@@ -215,7 +215,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       onTap: () => _confirmDialog(
                         context: context,
                         onConfirm: () =>
-                            context.read<CoreClient>().deleteUserDatabase(),
+                            context.read<CoreClient>().deleteCurrentDatabase(),
                         label: "Are you sure you want to erase the database?",
                         confirmLabel: "Erase",
                       ),
@@ -232,7 +232,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     onTap: () => _confirmDialog(
                       context: context,
                       onConfirm: () {
-                        context.read<CoreClient>().deleteDatabase();
+                        context.read<CoreClient>().deleteAllDatabases();
                         context.read<NavigationCubit>().openIntro();
                       },
                       label: "Are you sure you want to erase all databases?",

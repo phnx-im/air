@@ -422,7 +422,7 @@ impl PersistedUserState {
             db_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,
-            _event_loop_cancel: event_loop_cancel.drop_guard(),
+            event_loop_cancel: event_loop_cancel.drop_guard(),
         });
 
         event_loop.spawn(Arc::downgrade(&inner));

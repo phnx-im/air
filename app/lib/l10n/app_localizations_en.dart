@@ -522,14 +522,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Link a device';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unknown device';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Renaming failed.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Couldn\'t rename the device $deviceName. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title => 'Unlinking failed.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Unlinking the device $deviceName failed. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count devices linked.',
       one: '$count device linked.',
+      zero: 'No devices linked.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0';
   }
 
   @override
@@ -595,7 +618,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';

@@ -7,7 +7,7 @@ use anyhow::bail;
 use tracing::{error, warn};
 
 use crate::{
-    clients::{CoreUser, own_client_info::OwnClientInfo},
+    clients::CoreUser,
     db::{
         access::{WriteConnection, WriteDbTransaction},
         notification::DbEntityId,
@@ -65,18 +65,7 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         let enqueued = self
             .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<bool> {
-                let info = OwnClientInfo::load(&mut *txn).await?;
-
-                if info.self_group_id.is_none() {
-                    // Single device, never linked: store locally, nothing to
-                    // sync to.
-                    UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;
-                    return Ok(false);
-                }
-
-                SettingChanges::record(txn, value).await
-            })
+            .with_write_transaction(async |txn| persistence::set_synced_setting(txn, value).await)
             .await?;
 
         if enqueued {
@@ -253,6 +242,7 @@ impl SettingChanges {
 macro_rules! for_each_synced_setting {
     ($f:ident($($args:expr),* $(,)?)) => {
         $f::<ReadReceiptsSetting>($($args),*).await?;
+        $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
     };
 }
 
@@ -494,11 +484,14 @@ impl UserSetting for IsDeveloperSetting {
 
 pub(crate) struct UserSettingRecord {}
 
-mod persistence {
+pub(crate) mod persistence {
     use aircommon::codec::{BlobDecoded, BlobEncoded};
     use airprotos::client::self_group::SettingsUpdate;
 
-    use crate::db::access::{ReadConnection, WriteConnection};
+    use crate::{
+        clients::{own_client_info::OwnClientInfo, user_settings::SyncedUserSetting},
+        db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    };
 
     use super::{SettingChanges, UserSettingRecord};
 
@@ -586,6 +579,26 @@ mod persistence {
             Ok(())
         }
     }
+
+    /// Records a synced setting change inside an existing transaction.
+    ///
+    /// Returns whether anything was enqueued for synchronization, i.e. whether the
+    /// caller should notify the outbound service. A single-device client that was
+    /// never linked has no self-group to sync through, so the value is only stored
+    /// locally and `false` is returned.
+    pub(crate) async fn set_synced_setting<T: SyncedUserSetting>(
+        txn: &mut WriteDbTransaction<'_>,
+        value: &T,
+    ) -> anyhow::Result<bool> {
+        let info = OwnClientInfo::load(&mut *txn).await?;
+        if info.self_group_id.is_none() {
+            // Single device, never linked: store locally, nothing to sync to.
+            UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;
+            return Ok(false);
+        }
+
+        SettingChanges::record(txn, value).await
+    }
 }
 
 #[cfg(test)]
@@ -599,6 +612,7 @@ mod tests {
     fn read_receipts_update(value: bool) -> SettingsUpdate {
         SettingsUpdate {
             send_read_receipts: Some(value),
+            linked_devices: None,
         }
     }
 

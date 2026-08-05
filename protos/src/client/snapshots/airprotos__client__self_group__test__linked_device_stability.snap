@@ -1,0 +1,15 @@
+---
+source: protos/src/client/self_group.rs
+expression: diag
+---
+a4                                     # map(4)
+   01                                  #   unsigned(1)
+   50                                  #   bytes(16)
+      0102030405060708090a0b0c0d0e0f10 #     "\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10"
+   02                                  #   unsigned(2)
+   66                                  #   text(6)
+      6950686f6e65                     #     "iPhone"
+   03                                  #   unsigned(3)
+   1a 6955b900                         #   unsigned(1,767,225,600)
+   04                                  #   unsigned(4)
+   02                                  #   unsigned(2)

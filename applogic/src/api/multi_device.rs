@@ -171,8 +171,8 @@ pub async fn multi_device_provision_client(
 /// Lets Dart approve a pending multi-device link.
 #[frb(opaque)]
 pub struct MultiDeviceLinkConfirmation {
-    tx: Mutex<Option<oneshot::Sender<()>>>,
-    rx: Mutex<Option<oneshot::Receiver<()>>>,
+    tx: Mutex<Option<oneshot::Sender<String>>>,
+    rx: Mutex<Option<oneshot::Receiver<String>>>,
 }
 
 impl MultiDeviceLinkConfirmation {
@@ -186,16 +186,19 @@ impl MultiDeviceLinkConfirmation {
     }
 
     /// Approves the link, unblocking the linking task.
+    ///
+    /// `device_name` is the name to give the newly linked device. An empty name
+    /// leaves the new device's own default in place.
     #[frb(sync)]
-    pub fn confirm(&self) {
+    pub fn confirm(&self, device_name: String) {
         if let Some(tx) = self.tx.lock().unwrap().take() {
-            let _ = tx.send(());
+            let _ = tx.send(device_name);
         }
     }
 
     /// Takes the receiver to hand to the linking task.
     #[frb(ignore)]
-    fn take_receiver(&self) -> Option<oneshot::Receiver<()>> {
+    fn take_receiver(&self) -> Option<oneshot::Receiver<String>> {
         self.rx.lock().unwrap().take()
     }
 }

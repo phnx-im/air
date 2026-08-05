@@ -319,7 +319,7 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
+async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
@@ -367,7 +367,8 @@ async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()>
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn key_packages_from_sibling_upload_are_usable_by_the_sibling() -> anyhow::Result<()> {
+async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling()
+-> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;

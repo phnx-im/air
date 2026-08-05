@@ -9,7 +9,6 @@ import 'package:air/ds/components/checkbox/checkbox.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -28,9 +27,12 @@ bool get _isQrCodeScannerSupported =>
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
 
 /// A running linking session
+///
+/// [confirm] takes the name the user gave the new device. An empty name leaves
+/// the new device's own default in place.
 typedef LinkSession = ({
   Stream<MultiDeviceLinkEvent> events,
-  VoidCallback confirm,
+  ValueChanged<String> confirm,
 });
 
 /// Starts a linking session for [sessionId]. Injectable for tests.
@@ -40,7 +42,10 @@ typedef LinkSessionStarter =
 LinkSession _startLinkSession(BuildContext context, String sessionId) {
   final confirmation = MultiDeviceLinkConfirmation();
   final events = context.read<UserCubit>().linkDevice(sessionId, confirmation);
-  return (events: events, confirm: confirmation.confirm);
+  return (
+    events: events,
+    confirm: (deviceName) => confirmation.confirm(deviceName: deviceName),
+  );
 }
 
 /// Entry point for linking a new device.
@@ -496,8 +501,7 @@ class _LinkingPage extends HookWidget {
               phase.value = _LinkPhase.awaitingConfirmation;
             }
           case MultiDeviceLinkEvent_Linked():
-            // TODO: this should end the entire process later
-            if (context.mounted) _showLinkedDialog(context);
+            if (context.mounted) Navigator.of(context).pop();
           case MultiDeviceLinkEvent_SessionNotFound():
             phase.value = _LinkPhase.sessionNotFound;
           case MultiDeviceLinkEvent_Failed():
@@ -514,8 +518,8 @@ class _LinkingPage extends HookWidget {
       ),
       _LinkPhase.awaitingConfirmation => _LinkConfirmView(
         onBack: onBack,
-        onConfirm: () {
-          session.confirm();
+        onConfirm: (deviceName) {
+          session.confirm(deviceName);
           phase.value = _LinkPhase.linking;
         },
       ),
@@ -534,21 +538,6 @@ class _LinkingPage extends HookWidget {
         message: loc.linkingDevicesScreen_error_generic,
       ),
     };
-  }
-
-  /// Closes the link modal and shows a success popup.
-  void _showLinkedDialog(BuildContext context) {
-    if (!context.mounted) return;
-    final navigator = Navigator.of(context);
-    navigator.pop();
-    showDialog<void>(
-      context: navigator.context,
-      builder: (_) => const ConfirmDialog(
-        title: "Device was linked! 🎉",
-        message: "Your new device is now linked to your account.",
-        confirm: "OK",
-      ),
-    );
   }
 }
 
@@ -645,7 +634,9 @@ class _LinkConfirmView extends HookWidget {
   const _LinkConfirmView({required this.onBack, required this.onConfirm});
 
   final VoidCallback onBack;
-  final VoidCallback onConfirm;
+
+  /// Called with the name the user gave the new device.
+  final ValueChanged<String> onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -653,8 +644,7 @@ class _LinkConfirmView extends HookWidget {
     final palette = SemanticPalette.of(context);
     final checked = useState(false);
 
-    final platform = Theme.of(context).platform;
-    final deviceName = useTextEditingController(text: platform.name);
+    final deviceName = useTextEditingController();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -696,7 +686,7 @@ class _LinkConfirmView extends HookWidget {
           type: .primary,
           label: loc.linkingDeviceScreen_linking_confirm_button,
           state: checked.value ? ButtonState.active : ButtonState.disabled,
-          onPressed: onConfirm,
+          onPressed: () => onConfirm(deviceName.text),
         ),
       ],
     );
