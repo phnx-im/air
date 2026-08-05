@@ -30,7 +30,7 @@ class Counter extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(minWidth: tokens.minWidth),
       height: tokens.height,
-      padding: tokens.padding,
+      padding: CounterTokens.padding,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: CounterTokens.fill(palette),

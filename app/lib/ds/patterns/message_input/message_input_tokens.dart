@@ -15,8 +15,6 @@ class MessageInputTokens {
     required this.buttonSize,
     required this.inputRadius,
     required this.containerPadding,
-    required this.gap,
-    required this.fieldPadding,
   });
 
   /// Diameter of the round buttons, and the floor for the field height, so an
@@ -33,11 +31,11 @@ class MessageInputTokens {
   final EdgeInsets containerPadding;
 
   /// Gap between the buttons and the field.
-  final double gap;
+  static const double gap = S.s8;
 
   /// Horizontal inset between the field's edge and its content. The vertical
   /// inset comes from the type metrics, see [MessageInputTokens.fieldInsetY].
-  final double fieldPadding;
+  static const double fieldPadding = S.s16;
 
   /// Unread dot pinned to the scroll-back button's top-right corner. It sits
   /// flush with the right edge, where the glyph leaves the most room.
@@ -78,8 +76,6 @@ class MessageInputTokens {
     buttonSize: S.s40,
     inputRadius: CornerRadius.px20,
     containerPadding: EdgeInsets.only(left: S.s16, right: S.s16, bottom: S.s8),
-    gap: S.s8,
-    fieldPadding: S.s16,
   );
 
   // Horizontal inset matches the chat header's, so the attach button and the
@@ -89,8 +85,6 @@ class MessageInputTokens {
     buttonSize: S.s32,
     inputRadius: CornerRadius.px16,
     containerPadding: EdgeInsets.only(left: S.s20, right: S.s20, bottom: S.s16),
-    gap: S.s8,
-    fieldPadding: S.s16,
   );
 
   /// The set for the current device. Keyed on the device rather than the

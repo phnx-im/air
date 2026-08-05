@@ -80,7 +80,7 @@ class MessageRow extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(
                 left: inset,
-                bottom: tokens.senderNameGap,
+                bottom: MessageRowTokens.senderNameGap,
               ),
               child: _SenderName(name: name, onTap: onTapSender),
             ),
@@ -90,7 +90,7 @@ class MessageRow extends StatelessWidget {
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
                 SizedBox(width: tokens.avatarSize, child: _avatar()),
-                SizedBox(width: tokens.avatarGap),
+                const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
                 flex: MessageRowTokens.contentFlex,
@@ -110,7 +110,9 @@ class MessageRow extends StatelessWidget {
           if (footer != null)
             Padding(
               padding: outgoing
-                  ? EdgeInsets.only(right: tokens.bubbleTextInset)
+                  ? const EdgeInsets.only(
+                      right: MessageRowTokens.bubbleTextInset,
+                    )
                   : EdgeInsets.only(left: inset),
               child: footer,
             ),
@@ -125,7 +127,7 @@ class MessageRow extends StatelessWidget {
     final avatar = this.avatar;
     if (avatar == null) return null;
     return Transform.translate(
-      offset: Offset(0, -tokens.avatarBottomNudge),
+      offset: const Offset(0, -MessageRowTokens.avatarBottomNudge),
       child: avatar,
     );
   }

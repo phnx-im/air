@@ -68,7 +68,7 @@ class ListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final tileRadius = radius ?? tokens.radius;
+    final tileRadius = radius ?? ListRowTokens.radius;
 
     final decoration = switch (fill) {
       final Color color => BoxDecoration(
@@ -79,7 +79,7 @@ class ListRow extends StatelessWidget {
         border: Border(
           bottom: BorderSide(
             color: palette.separator.secondary,
-            width: tokens.separatorWidth,
+            width: ListRowTokens.separatorWidth,
           ),
         ),
       ),
@@ -88,12 +88,12 @@ class ListRow extends StatelessWidget {
 
     final content = Container(
       constraints: BoxConstraints(minHeight: tokens.height),
-      padding: tokens.padding,
+      padding: ListRowTokens.padding,
       child: Row(
         children: [
           if (leading != null) ...[
             leading!,
-            SizedBox(width: tokens.leadingGap),
+            const SizedBox(width: ListRowTokens.leadingGap),
           ],
           Expanded(
             child: Column(
@@ -114,7 +114,7 @@ class ListRow extends StatelessWidget {
                       : TextOverflow.ellipsis,
                 ),
                 if (sublabel != null) ...[
-                  SizedBox(height: tokens.sublabelGap),
+                  const SizedBox(height: ListRowTokens.sublabelGap),
                   Text(
                     sublabel!,
                     style: typeScale.body.s.style(
@@ -129,7 +129,7 @@ class ListRow extends StatelessWidget {
             ),
           ),
           if (trailing != null) ...[
-            SizedBox(width: tokens.trailingGap),
+            const SizedBox(width: ListRowTokens.trailingGap),
             trailing!,
           ],
         ],

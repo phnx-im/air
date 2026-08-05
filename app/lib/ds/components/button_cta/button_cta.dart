@@ -62,7 +62,7 @@ class ButtonCTA extends StatelessWidget {
           fill: fill,
           onPressed: onPressed,
         ),
-        SizedBox(height: tokens.labelGap),
+        const SizedBox(height: ButtonCTATokens.labelGap),
         Text(
           label,
           style: typeScale.body.regular.style(

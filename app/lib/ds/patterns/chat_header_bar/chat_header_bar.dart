@@ -62,9 +62,12 @@ class ChatHeaderBar extends StatelessWidget {
     final t = tokens;
     final palette = SemanticPalette.of(context);
     return SizedBox(
-      height: t.height,
+      height: ChatHeaderBarTokens.height,
       child: Padding(
-        padding: EdgeInsets.only(left: t.paddingLeft, right: t.paddingRight),
+        padding: const EdgeInsets.only(
+          left: ChatHeaderBarTokens.paddingLeft,
+          right: ChatHeaderBarTokens.paddingRight,
+        ),
         child: Row(
           children: [
             SizedBox(
@@ -188,7 +191,7 @@ class _TitlePill extends StatelessWidget {
         onLongPress: onLongPress,
         child: Container(
           constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
-          padding: tokens.pillPadding,
+          padding: ChatHeaderBarTokens.pillPadding,
           decoration: BoxDecoration(
             color: fill.withValues(alpha: fill.a * reveal),
             borderRadius: BorderRadius.circular(ChatHeaderBarTokens.pillRadius),
@@ -206,7 +209,7 @@ class _TitlePill extends StatelessWidget {
             children: [
               if (avatarWidget != null) ...[
                 avatarWidget,
-                SizedBox(width: tokens.gap),
+                const SizedBox(width: ChatHeaderBarTokens.gap),
               ],
               Flexible(
                 child: Column(
@@ -228,7 +231,9 @@ class _TitlePill extends StatelessWidget {
                     ),
                     if (subtitleText != null)
                       Padding(
-                        padding: EdgeInsets.only(top: tokens.titleGap),
+                        padding: const EdgeInsets.only(
+                          top: ChatHeaderBarTokens.titleGap,
+                        ),
                         child: Text(
                           subtitleText,
                           style: typeScale.body.xs.style(

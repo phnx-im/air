@@ -12,15 +12,10 @@ import 'package:flutter/widgets.dart';
 @immutable
 class ReactionBarTokens {
   const ReactionBarTokens({
-    required this.containerPadding,
     required this.itemSize,
     required this.glyphSize,
-    required this.moreSize,
     required this.moreIconSize,
   });
-
-  /// Inset inside the floating pill.
-  final EdgeInsets containerPadding;
 
   /// Square tap target around each emoji. The glyphs are small enough that the
   /// target, not the glyph, is what sets the bar's rhythm, so no gap sits
@@ -29,11 +24,18 @@ class ReactionBarTokens {
 
   final double glyphSize;
 
+  final double moreIconSize;
+
+  /// Inset inside the floating pill.
+  static const EdgeInsets containerPadding = EdgeInsets.symmetric(
+    horizontal: S.s8,
+    vertical: S.s4,
+  );
+
   /// Diameter of the trailing button that escalates to the full picker, and of
   /// its glyph. The button keeps [itemSize] as its hit target so it's no
   /// harder to hit than an emoji.
-  final double moreSize;
-  final double moreIconSize;
+  static const double moreSize = ButtonIconSize.s32;
 
   static const double radius = CornerRadius.full;
 
@@ -59,20 +61,16 @@ class ReactionBarTokens {
   /// The touch target is the platform minimum rather than a scale step: a
   /// finger on a bar of six adjacent emojis needs every pixel of it.
   static const ReactionBarTokens phone = ReactionBarTokens(
-    containerPadding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s4),
     itemSize: 44,
     glyphSize: S.s28,
-    moreSize: ButtonIconSize.s32,
     moreIconSize: S.s20,
   );
 
   /// Tighter than [phone]: a pointer hits a smaller target reliably, and the
   /// glyph follows the smaller desktop type scale.
   static const ReactionBarTokens desktop = ReactionBarTokens(
-    containerPadding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s4),
     itemSize: S.s32,
     glyphSize: S.s24,
-    moreSize: ButtonIconSize.s32,
     moreIconSize: S.s16,
   );
 

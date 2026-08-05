@@ -21,11 +21,7 @@ enum ButtonCTAType {
 /// [ButtonCTAType].
 @immutable
 class ButtonCTATokens {
-  const ButtonCTATokens({
-    required this.size,
-    required this.iconSize,
-    required this.labelGap,
-  });
+  const ButtonCTATokens({required this.size, required this.iconSize});
 
   /// Diameter of the circle.
   final double size;
@@ -33,18 +29,16 @@ class ButtonCTATokens {
   final double iconSize;
 
   /// Gap between the circle and the label under it.
-  final double labelGap;
+  static const double labelGap = S.s8;
 
   static const ButtonCTATokens phone = ButtonCTATokens(
     size: S.s64,
     iconSize: S.s32,
-    labelGap: S.s8,
   );
 
   static const ButtonCTATokens desktop = ButtonCTATokens(
     size: S.s48,
     iconSize: S.s24,
-    labelGap: S.s8,
   );
 
   static ButtonCTATokens get current => DeviceType.isPhone ? phone : desktop;

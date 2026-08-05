@@ -15,9 +15,6 @@ class ToggleTokens {
     required this.trackWidth,
     required this.trackHeight,
     required this.thumbSize,
-    required this.thumbPadding,
-    required this.motion,
-    required this.disabledAlpha,
   });
 
   final double trackWidth;
@@ -28,23 +25,20 @@ class ToggleTokens {
 
   /// Inset of the thumb from the track on every side, so it also sets how far
   /// the thumb travels.
-  final double thumbPadding;
+  static const double thumbPadding = S.s4;
 
   /// Timing of the thumb slide and the track color change.
-  final MotionPreset motion;
+  static const MotionPreset motion = MotionPreset.short;
 
   /// Track and thumb both carry the state, and the thumb needs the track's
   /// contrast to stay visible, so a disabled toggle dims as a whole rather
   /// than per layer.
-  final double disabledAlpha;
+  static const double disabledAlpha = Alpha.a80;
 
   static const ToggleTokens phone = ToggleTokens(
     trackWidth: S.s56,
     trackHeight: S.s32,
     thumbSize: S.s24,
-    thumbPadding: S.s4,
-    motion: MotionPreset.short,
-    disabledAlpha: Alpha.a80,
   );
 
   /// Denser than [phone]: a pointer hits the smaller track reliably.
@@ -52,9 +46,6 @@ class ToggleTokens {
     trackWidth: S.s48,
     trackHeight: S.s28,
     thumbSize: S.s20,
-    thumbPadding: S.s4,
-    motion: MotionPreset.short,
-    disabledAlpha: Alpha.a80,
   );
 
   static ToggleTokens get current => DeviceType.isPhone ? phone : desktop;

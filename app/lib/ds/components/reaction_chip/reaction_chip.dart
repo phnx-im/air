@@ -90,7 +90,7 @@ class ReactionChip extends StatelessWidget {
               // isn't centered within its own line box, see [CenteredEmoji].
               CenteredEmoji(emoji: emoji, style: glyphStyle()),
               if (count > 1) ...[
-                SizedBox(width: tokens.countGap),
+                const SizedBox(width: ReactionChipTokens.countGap),
                 Text('$count', style: countStyle(palette.text.tertiary)),
               ],
             ],

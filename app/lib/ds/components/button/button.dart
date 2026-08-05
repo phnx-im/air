@@ -75,13 +75,13 @@ class Button extends StatelessWidget {
                 dimension: tokens.iconSize,
                 child: CircularProgressIndicator(
                   color: colors.label,
-                  strokeWidth: tokens.spinnerWidth,
+                  strokeWidth: ButtonTokens.spinnerWidth,
                 ),
               )
             else ...[
               if (icon != null) ...[
                 icon!(Size.square(tokens.iconSize), colors.glyph),
-                SizedBox(width: tokens.iconLabelGap),
+                const SizedBox(width: ButtonTokens.iconLabelGap),
               ],
               Text(
                 label,

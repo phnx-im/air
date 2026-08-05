@@ -13,31 +13,9 @@ import 'package:flutter/widgets.dart';
 @immutable
 class DialogTokens {
   const DialogTokens({
-    required this.minWidth,
-    required this.maxWidth,
-    required this.radius,
-    required this.contentPadding,
-    required this.margin,
     required this.titleBodyGap,
     required this.bodyActionsGap,
   });
-
-  /// Floor for the card's width, so a one-word confirm still reads as a card
-  /// rather than a tooltip.
-  final double minWidth;
-
-  /// Ceiling for the card's width, keeping body text to a readable measure on
-  /// a wide window.
-  final double maxWidth;
-
-  final double radius;
-
-  /// Inset between the card edges and its content.
-  final EdgeInsets contentPadding;
-
-  /// Inset between the card and the viewport edges, so the card never sits
-  /// flush against the screen.
-  final EdgeInsets margin;
 
   /// Gap between the title and the body.
   final double titleBodyGap;
@@ -45,12 +23,24 @@ class DialogTokens {
   /// Gap between the body and the actions.
   final double bodyActionsGap;
 
+  /// Floor for the card's width, so a one-word confirm still reads as a card
+  /// rather than a tooltip.
+  static const double minWidth = S.s240;
+
+  /// Ceiling for the card's width, keeping body text to a readable measure on
+  /// a wide window.
+  static const double maxWidth = 400;
+
+  static const double radius = CornerRadius.px20;
+
+  /// Inset between the card edges and its content.
+  static const EdgeInsets contentPadding = EdgeInsets.all(S.s24);
+
+  /// Inset between the card and the viewport edges, so the card never sits
+  /// flush against the screen.
+  static const EdgeInsets margin = EdgeInsets.all(S.s24);
+
   static const DialogTokens phone = DialogTokens(
-    minWidth: S.s240,
-    maxWidth: 400,
-    radius: CornerRadius.px20,
-    contentPadding: EdgeInsets.all(S.s24),
-    margin: EdgeInsets.all(S.s24),
     titleBodyGap: S.s16,
     bodyActionsGap: S.s24,
   );
@@ -59,11 +49,6 @@ class DialogTokens {
   /// body it just read, while a pointer lands where it aims and the title can
   /// take the extra room instead.
   static const DialogTokens desktop = DialogTokens(
-    minWidth: S.s240,
-    maxWidth: 400,
-    radius: CornerRadius.px20,
-    contentPadding: EdgeInsets.all(S.s24),
-    margin: EdgeInsets.all(S.s24),
     titleBodyGap: S.s24,
     bodyActionsGap: S.s16,
   );

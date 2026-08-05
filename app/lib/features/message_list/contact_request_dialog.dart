@@ -78,7 +78,11 @@ class ContactRequestDialog extends HookWidget {
       subtitle: subtitle,
       displayName: senderProfile.displayName,
       gradientSeed: senderProfile.userId.uuid.uuid,
-      image: _picture(context, senderProfile.profilePicture, tokens.avatarSize),
+      image: _picture(
+        context,
+        senderProfile.profilePicture,
+        ContactRequestCardTokens.avatarSize,
+      ),
       pictureRevealLabel: loc.contactRequestDialog_avatarHint,
       acceptLabel: loc.contactRequestDialog_confirm,
       dismissLabel: loc.contactRequestDialog_cancel,

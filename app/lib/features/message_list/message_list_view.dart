@@ -527,7 +527,7 @@ class _MessageListViewState extends State<MessageListView>
             height: fades.bottomHeight,
             color: bgColor,
             curve: Curves.easeInOutQuad,
-            opacity: fades.bottomOpacity * reveal,
+            opacity: MessageListFadeTokens.bottomOpacity * reveal,
           );
         },
       ),

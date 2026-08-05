@@ -86,12 +86,10 @@ class ContactDetailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ModalShellTokens.of(context);
-
     return Padding(
       padding: EdgeInsets.only(
-        left: tokens.contentPaddingLeft,
-        right: tokens.contentPaddingRight,
+        left: ModalShellTokens.contentPaddingLeft,
+        right: ModalShellTokens.contentPaddingRight,
         // A full-screen modal ends above the home indicator, a card ends at its
         // own edge.
         bottom: context.breakpoint.isSmall ? S.s64 : S.s24,

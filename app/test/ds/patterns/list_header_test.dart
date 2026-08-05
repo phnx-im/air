@@ -134,7 +134,11 @@ void main() {
       // which the bar's asymmetric padding puts just off the raw center.
       final bar = tester.getRect(find.byType(ListHeader));
       final contentCenter =
-          (bar.left + tokens.paddingLeft + bar.right - tokens.paddingRight) / 2;
+          (bar.left +
+              ListHeaderTokens.paddingLeft +
+              bar.right -
+              tokens.paddingRight) /
+          2;
       final title = tester.getRect(find.text('Chats'));
       expect(title.center.dx, moreOrLessEquals(contentCenter, epsilon: 0.5));
     });

@@ -192,7 +192,7 @@ class _MenuState extends State<Menu> {
         decoration: BoxDecoration(
           color: palette.backgroundElevated.primary,
           borderRadius: BorderRadius.circular(tokens.radius),
-          boxShadow: Effect.elevation(tokens.elevation),
+          boxShadow: Effect.elevation(MenuTokens.elevation),
         ),
         child: DefaultTextStyle.merge(
           style: typeScale.body.s.style(color: palette.text.primary),
@@ -213,9 +213,9 @@ class _MenuState extends State<Menu> {
     final item = widget.items[index];
     if (item.isSeparator) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: widget.tokens.separatorGap),
+        padding: const EdgeInsets.symmetric(vertical: MenuTokens.separatorGap),
         child: SizedBox(
-          height: widget.tokens.separatorWidth,
+          height: MenuTokens.separatorWidth,
           child: ColoredBox(
             color: SemanticPalette.of(context).separator.secondary,
           ),
@@ -264,7 +264,7 @@ class _MenuRow extends StatelessWidget {
     return StateLayer(
       onTap: onTap,
       enabled: onTap != null,
-      borderRadius: tokens.itemRadius,
+      borderRadius: MenuTokens.itemRadius,
       surface: palette.backgroundElevated.primary,
       // A filled row already carries its fill, so the hover wash would double
       // up on it.
@@ -272,10 +272,10 @@ class _MenuRow extends StatelessWidget {
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: filled ? palette.fill.tertiary : null,
-          borderRadius: BorderRadius.circular(tokens.itemRadius),
+          borderRadius: BorderRadius.circular(MenuTokens.itemRadius),
         ),
       ),
-      child: Padding(padding: tokens.itemPadding, child: _content(palette)),
+      child: Padding(padding: MenuTokens.itemPadding, child: _content(palette)),
     );
   }
 
@@ -306,10 +306,13 @@ class _MenuRow extends StatelessWidget {
       // the label takes the slack. Without one the row hugs its content.
       mainAxisSize: trailing != null ? MainAxisSize.max : MainAxisSize.min,
       children: [
-        if (leading != null) ...[leading, SizedBox(width: tokens.iconGap)],
+        if (leading != null) ...[
+          leading,
+          const SizedBox(width: MenuTokens.iconGap),
+        ],
         if (trailing != null) ...[
           Expanded(child: label),
-          SizedBox(width: tokens.iconGap),
+          const SizedBox(width: MenuTokens.iconGap),
           trailing,
         ] else
           label,
@@ -431,7 +434,7 @@ class _SubmenuRowState extends State<_SubmenuRow> {
         CustomSingleChildLayout(
           delegate: _SubmenuLayout(
             anchor: _cardRect(context) ?? Rect.zero,
-            gap: widget.tokens.submenuGap,
+            gap: MenuTokens.submenuGap,
           ),
           child: Menu(
             tokens: widget.tokens,

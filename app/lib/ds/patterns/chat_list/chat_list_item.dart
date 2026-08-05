@@ -88,7 +88,7 @@ class ChatListItem extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(padding: t.avatarPadding, child: avatar),
+              Padding(padding: ChatListItemTokens.avatarPadding, child: avatar),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +205,7 @@ class _PreviewRow extends StatelessWidget {
       children: [
         Expanded(
           child: Padding(
-            padding: tokens.previewPadding,
+            padding: ChatListItemTokens.previewPadding,
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: minHeight),
               child: Align(

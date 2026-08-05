@@ -142,32 +142,32 @@ class _AppTextInputState extends State<AppTextInput> {
       children: [
         if (widget.label != null) ...[
           Padding(
-            padding: tokens.labelPadding,
+            padding: AppTextInputTokens.labelPadding,
             child: Text(
               widget.label!,
               style: typeScale.body.s.style(color: palette.text.quaternary),
             ),
           ),
-          SizedBox(height: tokens.labelGap),
+          const SizedBox(height: AppTextInputTokens.labelGap),
         ],
         Container(
           padding: widget.fieldPadding ?? tokens.fieldPadding,
           decoration: BoxDecoration(
             color: palette.fill.tertiary,
-            borderRadius: BorderRadius.circular(tokens.radius),
+            borderRadius: BorderRadius.circular(AppTextInputTokens.radius),
             // The outline is always there, transparent until it carries an
             // error, so raising one doesn't shift the text it wraps.
             border: Border.all(
               color: errored ? palette.function.danger : Colors.transparent,
-              width: tokens.borderWidth,
+              width: AppTextInputTokens.borderWidth,
             ),
           ),
           child: _buildField(palette),
         ),
         if (below != null) ...[
-          SizedBox(height: tokens.helperGap),
+          const SizedBox(height: AppTextInputTokens.helperGap),
           Padding(
-            padding: tokens.helperPadding,
+            padding: AppTextInputTokens.helperPadding,
             child: Text(
               below,
               style: typeScale.body.s.style(

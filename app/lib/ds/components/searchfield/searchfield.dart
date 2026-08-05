@@ -73,15 +73,15 @@ class _SearchFieldState extends State<SearchField> {
     );
 
     return Container(
-      padding: tokens.padding,
+      padding: SearchFieldTokens.padding,
       decoration: BoxDecoration(
         color: palette.fill.tertiary,
-        borderRadius: BorderRadius.circular(tokens.radius),
+        borderRadius: BorderRadius.circular(SearchFieldTokens.radius),
       ),
       child: Row(
         children: [
           AppIcon.search(size: tokens.iconSize, color: palette.text.tertiary),
-          SizedBox(width: tokens.gap),
+          const SizedBox(width: SearchFieldTokens.gap),
           Expanded(
             child: TextField(
               controller: _controller,
@@ -132,7 +132,7 @@ class _SearchFieldState extends State<SearchField> {
     behavior: HitTestBehavior.opaque,
     onTap: _clear,
     child: Padding(
-      padding: EdgeInsets.only(left: widget.tokens.gap),
+      padding: const EdgeInsets.only(left: SearchFieldTokens.gap),
       child: AppIcon.x(
         size: widget.tokens.clearSize,
         color: palette.text.tertiary,

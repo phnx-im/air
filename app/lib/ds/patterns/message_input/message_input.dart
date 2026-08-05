@@ -155,7 +155,7 @@ class _MessageInputState extends State<MessageInput>
               );
             },
           ),
-          SizedBox(width: t.gap),
+          const SizedBox(width: MessageInputTokens.gap),
           Expanded(
             child: Container(
               constraints: BoxConstraints(minHeight: t.buttonSize),
@@ -164,7 +164,9 @@ class _MessageInputState extends State<MessageInput>
                 borderRadius: BorderRadius.circular(t.inputRadius),
                 boxShadow: Effect.elevation(Elevation.flat),
               ),
-              padding: EdgeInsets.symmetric(horizontal: t.fieldPadding),
+              padding: const EdgeInsets.symmetric(
+                horizontal: MessageInputTokens.fieldPadding,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
@@ -185,7 +187,7 @@ class _MessageInputState extends State<MessageInput>
           ),
           _RevealSlot(
             sizeFactor: _scrollBackCurve,
-            gap: t.gap,
+            gap: MessageInputTokens.gap,
             enterScale: MessageInputTokens.scrollBackEnterScale,
             child: _UnreadDot(
               show: widget.scrollBackUnread,
@@ -198,7 +200,7 @@ class _MessageInputState extends State<MessageInput>
           ),
           _RevealSlot(
             sizeFactor: _sendCurve,
-            gap: t.gap,
+            gap: MessageInputTokens.gap,
             enterScale: MessageInputTokens.sendEnterScale,
             // Send is the one element that breaks the row's neutral chrome:
             // inverted, so the primary action reads at a glance.

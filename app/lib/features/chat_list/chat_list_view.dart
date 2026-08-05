@@ -70,7 +70,7 @@ class _ChatListViewState extends State<ChatListView> {
     // are, so the two densities can never disagree.
     final phone = DeviceType.isPhone;
     final safeTop = phone ? MediaQuery.paddingOf(context).top : 0.0;
-    final headerHeight = safeTop + ListHeaderTokens.current.height;
+    final headerHeight = safeTop + ListHeaderTokens.height;
     final container = AppScrollbar(
       // Start the track below the header rather than letting it run up behind
       // it.

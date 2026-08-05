@@ -177,7 +177,7 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
           ),
         ),
         if (tone != null) ...[
-          SizedBox(width: widget.tokens.toneGap),
+          const SizedBox(width: ReactionEmojiMenuTokens.toneGap),
           _ToneButton(
             tokens: widget.tokens,
             glyph: tone.options[tone.selected],
@@ -262,9 +262,9 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
       for (final section in widget.sections) ...[
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.only(
-              top: tokens.sectionTopGap,
-              bottom: tokens.sectionBottomGap,
+            padding: const EdgeInsets.only(
+              top: ReactionEmojiMenuTokens.sectionTopGap,
+              bottom: ReactionEmojiMenuTokens.sectionBottomGap,
             ),
             child: Text(section.title.toUpperCase(), style: titleStyle),
           ),
@@ -538,7 +538,10 @@ class _ToneCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (var i = 0; i < options.length; i++) ...[
-                  if (i > 0) SizedBox(width: tokens.flyoutItemGap),
+                  if (i > 0)
+                    const SizedBox(
+                      width: ReactionEmojiMenuTokens.flyoutItemGap,
+                    ),
                   _ToneSwatch(
                     tokens: tokens,
                     glyph: options[i],

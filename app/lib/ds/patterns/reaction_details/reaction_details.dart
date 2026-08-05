@@ -119,8 +119,6 @@ class _ReactionDetailsState extends State<ReactionDetails> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = widget.tokens;
-
     // Distinct emojis in first-seen order, with counts, for the tab strip.
     final order = <String>[];
     final counts = <String, int>{};
@@ -138,10 +136,10 @@ class _ReactionDetailsState extends State<ReactionDetails> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: tokens.tabStripPadding,
+          padding: ReactionDetailsTokens.tabStripPadding,
           child: _tabStrip(order, counts, selected),
         ),
-        SizedBox(height: tokens.tabStripBottomGap),
+        const SizedBox(height: ReactionDetailsTokens.tabStripBottomGap),
         Expanded(child: _reactorList(context, visible)),
       ],
     );
@@ -177,7 +175,7 @@ class _ReactionDetailsState extends State<ReactionDetails> {
                   ),
                 ),
                 for (final emoji in order) ...[
-                  SizedBox(width: tokens.tabGap),
+                  const SizedBox(width: ReactionDetailsTokens.tabGap),
                   _Tab(
                     tokens: tokens,
                     selected: selected == emoji,
@@ -186,7 +184,9 @@ class _ReactionDetailsState extends State<ReactionDetails> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CenteredEmoji(emoji: emoji, style: _glyphStyle),
-                        SizedBox(width: tokens.tabCountGap),
+                        const SizedBox(
+                          width: ReactionDetailsTokens.tabCountGap,
+                        ),
                         _TabText(
                           text: '${counts[emoji] ?? 0}',
                           selected: selected == emoji,

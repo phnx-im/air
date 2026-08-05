@@ -45,8 +45,6 @@ class ButtonTokens {
     required this.radius,
     required this.padding,
     required this.iconSize,
-    required this.iconLabelGap,
-    required this.spinnerWidth,
   });
 
   /// Fixed height, not a floor: the pill keeps one height across a row of
@@ -57,11 +55,12 @@ class ButtonTokens {
   final EdgeInsets padding;
 
   final double iconSize;
-  final double iconLabelGap;
+
+  static const double iconLabelGap = S.s8;
 
   /// Stroke of the [ButtonState.pending] spinner, which takes the glyph's
   /// footprint.
-  final double spinnerWidth;
+  static const double spinnerWidth = StrokeWidth.px2;
 
   /// Floor for the tap area on a touch device. The pill paints at its own
   /// height, and a shorter one takes a transparent ring so the target still
@@ -73,8 +72,6 @@ class ButtonTokens {
     radius: CornerRadius.px8,
     padding: EdgeInsets.symmetric(horizontal: S.s12),
     iconSize: S.s12,
-    iconLabelGap: S.s8,
-    spinnerWidth: StrokeWidth.px2,
   );
 
   static const ButtonTokens large = ButtonTokens(
@@ -82,8 +79,6 @@ class ButtonTokens {
     radius: CornerRadius.px12,
     padding: EdgeInsets.symmetric(horizontal: S.s16),
     iconSize: S.s16,
-    iconLabelGap: S.s8,
-    spinnerWidth: StrokeWidth.px2,
   );
 
   static ButtonTokens of(ButtonSize size) => switch (size) {

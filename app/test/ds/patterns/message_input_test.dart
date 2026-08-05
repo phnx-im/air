@@ -155,9 +155,7 @@ void main() {
 
       expect(
         tester.getSize(fieldBox()).width,
-        wide -
-            MessageInputTokens.phone.buttonSize -
-            MessageInputTokens.phone.gap,
+        wide - MessageInputTokens.phone.buttonSize - MessageInputTokens.gap,
       );
     });
 

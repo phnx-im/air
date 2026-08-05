@@ -138,8 +138,8 @@ class _Thumb extends StatelessWidget {
     // position to mark.
     if (thumb.extentRatio >= 1) return const SizedBox.shrink();
 
-    final top = trackTop + tokens.trackInset;
-    final bottom = trackBottom + tokens.trackInset;
+    final top = trackTop + AppScrollbarTokens.trackInset;
+    final bottom = trackBottom + AppScrollbarTokens.trackInset;
     final trackHeight = thumb.viewportHeight - top - bottom;
     if (trackHeight <= 0) return const SizedBox.shrink();
 
@@ -153,7 +153,7 @@ class _Thumb extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(
           top: top + thumb.offsetRatio * (trackHeight - height),
-          right: tokens.rightInset,
+          right: AppScrollbarTokens.rightInset,
         ),
         child: AnimatedOpacity(
           opacity: thumb.visible ? 1 : 0,
@@ -161,11 +161,11 @@ class _Thumb extends StatelessWidget {
               ? Duration.zero
               : AppScrollbarTokens.hideDuration,
           child: Container(
-            width: tokens.width,
+            width: AppScrollbarTokens.width,
             height: height,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(tokens.radius),
+              borderRadius: BorderRadius.circular(AppScrollbarTokens.radius),
             ),
           ),
         ),

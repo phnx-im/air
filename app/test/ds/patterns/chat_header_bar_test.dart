@@ -81,7 +81,8 @@ void main() {
       // The trailing slot is an empty spacer, so a tap in it hits nothing.
       const tokens = ChatHeaderBarTokens.phone;
       final bar = tester.getRect(find.byType(ChatHeaderBar));
-      final slotCenter = bar.right - tokens.paddingRight - tokens.slotSize / 2;
+      final slotCenter =
+          bar.right - ChatHeaderBarTokens.paddingRight - tokens.slotSize / 2;
       await tester.tapAt(Offset(slotCenter, bar.center.dy));
       expect(taps, 1);
     });
