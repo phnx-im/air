@@ -40,7 +40,7 @@ class RemoveMemberButton extends StatelessWidget {
       // chips reads as an alarm rather than as one destructive choice. The
       // danger tone is reserved for the single action on a profile.
       tone: compact ? ButtonTone.normal : ButtonTone.danger,
-      state: enabled ? ButtonState.active : ButtonState.inactive,
+      state: enabled ? ButtonState.active : ButtonState.disabled,
       label: loc.removeUserButton_text,
     );
 

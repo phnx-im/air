@@ -48,7 +48,7 @@ class ButtonCTA extends StatelessWidget {
     };
 
     final labelColor = palette.text.tertiary;
-    final fade = onPressed != null ? 1.0 : ButtonIconTokens.disabledOpacity;
+    final fade = onPressed != null ? 1.0 : StateTokens.disabledContent;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

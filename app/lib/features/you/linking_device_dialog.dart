@@ -165,7 +165,7 @@ class _LinkChooserPage extends StatelessWidget {
           label: _isQrCodeScannerSupported
               ? loc.linkedDevicesScreen_linkDialog_scanQrCode
               : loc.linkedDevicesScreen_linkDialog_scanQrCode_unavailable,
-          state: _isQrCodeScannerSupported ? .active : .inactive,
+          state: _isQrCodeScannerSupported ? .active : .disabled,
           icon: (size, color) => AppIcon.qrCode(size: size.width, color: color),
           alignment: .start,
           onPressed: onScanQrCode,
@@ -697,7 +697,7 @@ class _LinkConfirmView extends HookWidget {
         Button(
           type: .primary,
           label: loc.linkingDeviceScreen_linking_confirm_button,
-          state: checked.value ? ButtonState.active : ButtonState.inactive,
+          state: checked.value ? ButtonState.active : ButtonState.disabled,
           onPressed: onConfirm,
         ),
       ],

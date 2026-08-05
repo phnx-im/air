@@ -21,9 +21,9 @@ enum ButtonType { primary, secondary }
 /// Whether the action is destructive.
 enum ButtonTone { normal, danger }
 
-/// Interaction state of an [Button]. Only [active] takes a tap: [inactive]
+/// Interaction state of an [Button]. Only [active] takes a tap: [disabled]
 /// fades its content, [pending] swaps the content for a spinner.
-enum ButtonState { active, inactive, pending }
+enum ButtonState { active, disabled, pending }
 
 /// Label row of the typescale for a size tier. Resolved at paint time, since
 /// the scale follows the platform.
@@ -67,11 +67,6 @@ class ButtonTokens {
   /// height, and a shorter one takes a transparent ring so the target still
   /// fits a finger.
   static const double minTouchHeight = S.s48;
-
-  /// Alpha the content fades to in [ButtonState.inactive]. The fill stays,
-  /// so the pill still reads as a button rather than dissolving into the
-  /// surface behind it.
-  static const double inactiveOpacity = Alpha.a50;
 
   static const ButtonTokens small = ButtonTokens(
     height: S.s32,

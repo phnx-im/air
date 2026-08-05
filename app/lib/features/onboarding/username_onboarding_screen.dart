@@ -128,7 +128,7 @@ class UsernameOnboardingScreen extends HookWidget {
             type: ButtonType.secondary,
             size: ButtonSize.small,
             state: isSubmitting.value
-                ? ButtonState.inactive
+                ? ButtonState.disabled
                 : ButtonState.active,
           ),
         ],

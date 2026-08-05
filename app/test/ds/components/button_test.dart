@@ -24,10 +24,10 @@ void main() {
           onPressed: () {},
         ),
         Button(
-          label: "${sizeLabel(size)} Primary Inactive",
+          label: "${sizeLabel(size)} Primary Disabled",
           size: size,
           type: ButtonType.primary,
-          state: ButtonState.inactive,
+          state: ButtonState.disabled,
           onPressed: () {},
         ),
         Button(
@@ -55,10 +55,10 @@ void main() {
           onPressed: () {},
         ),
         Button(
-          label: "${sizeLabel(size)} Secondary Inactive",
+          label: "${sizeLabel(size)} Secondary Disabled",
           size: size,
           type: ButtonType.secondary,
-          state: ButtonState.inactive,
+          state: ButtonState.disabled,
           onPressed: () {},
         ),
         Button(

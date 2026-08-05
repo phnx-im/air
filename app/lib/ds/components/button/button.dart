@@ -121,7 +121,7 @@ class Button extends StatelessWidget {
     );
   }
 
-  /// The three colors the button paints with. An inactive button fades its
+  /// The three colors the button paints with. A disabled button fades its
   /// content and keeps its fill, so the pill stays a pill.
   ({Color fill, Color label, Color glyph}) _colors(SemanticPalette palette) {
     final fill = switch ((type, tone)) {
@@ -144,8 +144,8 @@ class Button extends StatelessWidget {
       ButtonType.primary => label,
     };
 
-    final fade = state == ButtonState.inactive
-        ? ButtonTokens.inactiveOpacity
+    final fade = state == ButtonState.disabled
+        ? StateTokens.disabledContent
         : Alpha.a100;
 
     return (

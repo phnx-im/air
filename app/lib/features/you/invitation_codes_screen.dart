@@ -74,7 +74,7 @@ class InvitationCodesView extends StatelessWidget {
                           size: ButtonSize.small,
                           type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_copyAll,
-                          state: anyUncopiedCode ? .active : .inactive,
+                          state: anyUncopiedCode ? .active : .disabled,
                           onPressed: () => _handleCopyAll(context),
                         );
                       },
@@ -97,7 +97,7 @@ class InvitationCodesView extends StatelessWidget {
                           size: ButtonSize.small,
                           type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_removeUsedCodes,
-                          state: anyCopiedCode ? .active : .inactive,
+                          state: anyCopiedCode ? .active : .disabled,
                           onPressed: () => _handleClearCopied(context),
                         );
                       },

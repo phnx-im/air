@@ -104,7 +104,7 @@ class DeleteAccountDialog extends HookWidget {
                   state: switch ((isDeleting.value, isConfirmed.value)) {
                     (true, _) => ButtonState.pending,
                     (false, true) => ButtonState.active,
-                    (false, false) => ButtonState.inactive,
+                    (false, false) => ButtonState.disabled,
                   },
                 ),
               ),

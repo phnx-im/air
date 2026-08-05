@@ -226,7 +226,7 @@ class _EmailForm extends HookWidget {
               label: loc.contactUsScreen_composeEmail,
               type: ButtonType.secondary,
               state: isUploadingLogs.value
-                  ? ButtonState.inactive
+                  ? ButtonState.disabled
                   : ButtonState.active,
             ),
           ],

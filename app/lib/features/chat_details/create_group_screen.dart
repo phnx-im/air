@@ -201,7 +201,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final createState = switch ((isCreating.value, isGroupNameValid)) {
       (true, _) => ButtonState.pending,
       (false, true) => ButtonState.active,
-      (false, false) => ButtonState.inactive,
+      (false, false) => ButtonState.disabled,
     };
 
     final loc = AppLocalizations.of(context);
