@@ -37,12 +37,6 @@ class MessageInputTokens {
   /// inset comes from the type metrics, see [MessageInputTokens.fieldInsetY].
   static const double fieldPadding = S.s16;
 
-  /// Unread dot pinned to the scroll-back button's top-right corner. It sits
-  /// flush with the right edge, where the glyph leaves the most room.
-  static const double dotSize = S.s8;
-  static const double dotInsetTop = S.s2;
-  static const double dotInsetRight = S.s0;
-
   /// Scale the trailing buttons grow from as they fade in. Send pops harder
   /// than scroll-back, since it answers something the user just typed while
   /// scroll-back only reports where the reader is.

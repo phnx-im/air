@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/corner_dot/corner_dot.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -75,7 +76,7 @@ class ChatHeaderBar extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: onBack != null
-                    ? _CornerDot(
+                    ? CornerDot(
                         show: backEmphasized,
                         // The pill is tappable too, so the back button and the
                         // pill share one shadow tier and read as the same kind
@@ -110,38 +111,6 @@ class ChatHeaderBar extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Pins a small circular badge to the top-right corner of [child] when [show]
-/// is true, and returns [child] untouched otherwise.
-class _CornerDot extends StatelessWidget {
-  const _CornerDot({required this.show, required this.child});
-
-  final bool show;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!show) return child;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        Positioned(
-          top: ChatHeaderBarTokens.backDotInsetTop,
-          right: ChatHeaderBarTokens.backDotInsetRight,
-          child: Container(
-            width: ChatHeaderBarTokens.backDotSize,
-            height: ChatHeaderBarTokens.backDotSize,
-            decoration: BoxDecoration(
-              color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

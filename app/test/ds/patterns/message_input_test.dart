@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/corner_dot/corner_dot_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
@@ -171,7 +172,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(dot, findsOneWidget);
-      expect(tester.getSize(dot).width, MessageInputTokens.dotSize);
+      expect(tester.getSize(dot).width, CornerDotTokens.size);
     });
 
     testWidgets('the unread dot never rides on send', (tester) async {

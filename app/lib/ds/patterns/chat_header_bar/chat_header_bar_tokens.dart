@@ -55,13 +55,6 @@ class ChatHeaderBarTokens {
 
   static const double pillRadius = CornerRadius.full;
 
-  /// Emphasis dot pinned to the back button's top-right corner. Sits flush
-  /// with the right edge, where the arrow leaves the most room. Same treatment
-  /// as the composer's unread dot, so both read as the same badge.
-  static const double backDotSize = S.s8;
-  static const double backDotInsetTop = S.s2;
-  static const double backDotInsetRight = S.s0;
-
   // The avatar sits 4px in from the pill's leading, top, and bottom edges.
   // Those insets plus the avatar are what set the pill's height, so it lands on
   // the header button's size: phone 32 + 8 = 40, desktop 24 + 8 = 32.

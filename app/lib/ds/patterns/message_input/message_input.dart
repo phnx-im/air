@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/corner_dot/corner_dot.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -189,7 +190,7 @@ class _MessageInputState extends State<MessageInput>
             sizeFactor: _scrollBackCurve,
             gap: MessageInputTokens.gap,
             enterScale: MessageInputTokens.scrollBackEnterScale,
-            child: _UnreadDot(
+            child: CornerDot(
               show: widget.scrollBackUnread,
               child: _button(
                 icon: AppIconType.chevronDown,
@@ -273,38 +274,6 @@ class _RevealSlot extends AnimatedWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Pins a small circular badge to the top-right corner of [child] when [show]
-/// is true, and returns [child] untouched otherwise.
-class _UnreadDot extends StatelessWidget {
-  const _UnreadDot({required this.show, required this.child});
-
-  final bool show;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!show) return child;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        Positioned(
-          top: MessageInputTokens.dotInsetTop,
-          right: MessageInputTokens.dotInsetRight,
-          child: Container(
-            width: MessageInputTokens.dotSize,
-            height: MessageInputTokens.dotSize,
-            decoration: BoxDecoration(
-              color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
