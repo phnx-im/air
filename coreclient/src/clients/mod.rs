@@ -345,15 +345,10 @@ impl CoreUser {
         self.inner.outbound_service.stop().await;
     }
 
-    /// Abort the outbound service without waiting for its task to terminate.
-    pub fn kill_outbound_service(&self) {
-        self.inner.outbound_service.kill();
-    }
-
     /// Stops local background work and closes this user's database connections.
     pub async fn close_local_database(&self) {
-        self.kill_outbound_service();
         self.inner.event_loop_cancel.token().cancel();
+        self.stop_outbound_service().await;
         self.inner.db.close().await;
     }
 

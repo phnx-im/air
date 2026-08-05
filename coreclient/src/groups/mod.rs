@@ -1512,12 +1512,12 @@ impl Group {
     ///
     /// Returns the [`ApqGroupOperationParamsOut`] as input for the pending chat operation
     /// processing.
+    ///
     /// `signer` signs the MLS commit (i.e. the committer's leaf), while
     /// `wai_signer` signs the WelcomeAttributionInfo. They differ only for the
     /// self group, where the leaf is signed with a fresh key but the WAI must be
     /// signed with the real user credential key so the joiner can verify it
     /// against the sender's user credential.
-    /// Stages an APQ add commit.
     ///
     /// `app_ephemeral` rides along on the same commit when set.
     pub(super) async fn stage_apq_invite(
@@ -1750,7 +1750,7 @@ impl Group {
     /// erroring, unlike [`SelfGroup::client_ids`], which is the authoritative
     /// read used for display and for the unlink precondition.
     ///
-    /// [`SelfGroup::client_ids`]: super::self_group::SelfGroup::client_ids
+    /// [`SelfGroup::client_ids`]: self_group::SelfGroup::client_ids
     pub(crate) fn self_group_client_ids(&self) -> Vec<Uuid> {
         self.mls_group
             .members()
