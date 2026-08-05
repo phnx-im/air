@@ -23,11 +23,12 @@ use aircommon::mls_group_config::{
     default_leaf_node_extensions, self_group_leaf_node_capabilities,
 };
 use airprotos::client::component::AirComponent;
-use airprotos::client::self_group::SettingsUpdate;
+use airprotos::client::self_group::{LinkedDevice, SettingsUpdate};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
+use chrono::Utc;
 use openmls::components::vc_derivation_info::EpochId;
 use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
@@ -59,6 +60,7 @@ use crate::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
         create_user::QsRegisteredUserState,
+        linked_devices::merge_device_entry_locally,
         listen_response,
         own_client_info::OwnClientInfo,
         process::process_qs::ProcessedQsMessages,
@@ -107,9 +109,25 @@ pub(crate) struct ProvisioningPackage {
     // Synced user settings snapshot so the new device starts with the
     // provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
+    // The name the confirming user gave this device. Empty means "no choice
+    // made", and the new device falls back to its own platform label.
+    pub(crate) device_name: String,
     // The higher-level groups the virtual client is already a member of, which
     // the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
+}
+
+/// What the new device sends back over the secure linking channel.
+///
+/// The metadata entry travels with the key package so the old device can publish
+/// it on the very same self-group commit that adds the new leaf. Sending it as a
+/// settings commit of its own would advance the self-group epoch behind the back
+/// of the device performing the add, breaking the next link with a wrong-epoch
+/// rejection.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct SelfGroupJoinRequest {
+    pub(crate) key_package: ApqKeyPackage,
+    pub(crate) device: LinkedDevice,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -294,14 +312,29 @@ impl CoreUser {
         // 4. old device adds us via the DS
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
         // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
+        let device_name = package.device_name.clone();
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
-        let self_group_kp = core_user.generate_self_group_key_package().await?;
-        tx.send(LinkingMessage::seal(self_group_kp, &cipher)?)
-            .await
-            .context("send self-group key package")?;
-        info!("sent self-group key package to old device");
+        // Prepare a key-package for the old device to add us to its self-group.
+        let key_package = core_user.generate_self_group_key_package().await?;
+
+        // Store our own entry locally and hand a copy to the old device, which
+        // publishes it on the add commit.
+        let device = core_user
+            .store_own_device_entry(Utc::now(), Some(&device_name))
+            .await?;
+
+        tx.send(LinkingMessage::seal(
+            SelfGroupJoinRequest {
+                key_package,
+                device,
+            },
+            &cipher,
+        )?)
+        .await
+        .context("send self-group join request")?;
+        info!("sent self-group key package and device entry to old device");
 
         core_user.join_self_group_from_queue().await?;
         info!("joined self group");
@@ -312,12 +345,12 @@ impl CoreUser {
     }
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
-    /// channels to report established connection and wait for the user's confirmation.
+    /// channels to report established connection and wait for the user's confirmation (with a device name).
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
         connected_tx: oneshot::Sender<()>,
-        confirmation_rx: oneshot::Receiver<()>,
+        confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
@@ -391,7 +424,7 @@ impl CoreUser {
             .context("send welcome")?;
 
         // Wait for the user to approve the link on this (existing) device.
-        confirmation_rx
+        let device_name = confirmation_rx
             .await
             .context("confirmation channel closed")?;
 
@@ -400,17 +433,17 @@ impl CoreUser {
 
         // Build the provisioning package (creates a fresh queue for the new
         // device) and hand it over the secure channel.
-        let package = self.build_provisioning_package().await?;
+        let package = self.build_provisioning_package(device_name).await?;
         tx.send(LinkingMessage::seal(package, &cipher)?)
             .await
             .context("send provisioning package")?;
         info!("sent provisioning package to new device");
 
-        // Receive the new device's self-group KeyPackage and add it to the self
-        // group via the DS.
+        // Receive the new device's self-group KeyPackage and its metadata entry,
+        // and add it to the self group via the DS.
         let frame = rx.next().await.context("relay connection closed")??;
-        let self_group_kp: ApqKeyPackage = LinkingMessage::open(frame.as_slice(), &cipher)?;
-        self.add_client_to_self_group(self_group_kp).await?;
+        let request: SelfGroupJoinRequest = LinkingMessage::open(frame.as_slice(), &cipher)?;
+        self.add_client_to_self_group(request).await?;
         info!("added new device to self group");
 
         // Keep the RPC alive until the relay closes our stream, which happens
@@ -423,7 +456,10 @@ impl CoreUser {
     /// Create a fresh QS queue for a new device and gather all the key material
     /// the new device needs to bootstrap a working [`CoreUser`] and join the
     /// self group.
-    async fn build_provisioning_package(&self) -> anyhow::Result<ProvisioningPackage> {
+    async fn build_provisioning_package(
+        &self,
+        device_name: String,
+    ) -> anyhow::Result<ProvisioningPackage> {
         let api_client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
 
@@ -478,6 +514,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key,
             synced_settings,
+            device_name,
             groups,
         })
     }
@@ -577,7 +614,17 @@ impl CoreUser {
             .await
     }
 
-    async fn add_client_to_self_group(&self, key_package: ApqKeyPackage) -> anyhow::Result<()> {
+    /// Adds the new device's leaf to the self group.
+    ///
+    /// The entry already carries the name the confirming user chose: it travelled
+    /// to the new device in the provisioning package, so both sides agree without
+    /// this side substituting anything.
+    async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
+        let SelfGroupJoinRequest {
+            key_package,
+            device,
+        } = request;
+
         // Sibling commits (e.g. the key-package upload cycle) may have advanced
         // the self group. Catch up on queued messages, so that the add commit
         // is built at the current epoch.
@@ -605,10 +652,20 @@ impl CoreUser {
                     .context("self group not found")?;
 
                 // Room policy is keyed on the client id, so reject a credential whose id is
-                // already in the roster before staging the add.
+                // already a member of the self group before staging the add.
                 group.validate_self_group_add(key_package.t_credential())?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
+
+                // Record the new device locally and let the add commit carry the
+                // resulting snapshot, so the siblings learn it without a second
+                // commit advancing the epoch behind our back.
+                merge_device_entry_locally(&mut *txn, device).await?;
+                let update = SettingsUpdate::collect(&mut *txn).await?;
+                let settings_proposal = group
+                    .group_mut()
+                    .self_group_settings_proposal(txn, &update)
+                    .await?;
 
                 let invitee = PreparedInvitee {
                     add_info: ContactAddInfos {
@@ -630,6 +687,7 @@ impl CoreUser {
                         &self_group_signature_key,
                         self.signing_key(),
                         vec![invitee],
+                        Some(settings_proposal),
                     )
                     .await?
                     .map_err(|validation| {
@@ -800,6 +858,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key: _,
             synced_settings,
+            device_name: _,
             groups,
         } = package;
 
@@ -882,6 +941,11 @@ impl CoreUser {
             global_lock,
         ))
     }
+
+    /// Whether a sibling device removed this device from the self group.
+    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
+        OwnClientInfo::is_account_unlinked(self.db().read().await?).await
+    }
 }
 
 #[cfg(test)]
@@ -920,6 +984,7 @@ mod tests {
             self_group_id,
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
+            device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
             user_id,
         })
@@ -931,6 +996,7 @@ mod tests {
     fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
         let package = sample_package(SettingsUpdate {
             send_read_receipts: Some(false),
+            linked_devices: None,
         })?;
         let user_id = package.user_id.clone();
 
@@ -942,9 +1008,12 @@ mod tests {
             decoded.synced_settings,
             SettingsUpdate {
                 send_read_receipts: Some(false),
+                linked_devices: None,
             }
         );
         assert_eq!(decoded.user_id, user_id);
+        // The confirming user's device name rides along in the same package.
+        assert_eq!(decoded.device_name, "Work laptop");
 
         Ok(())
     }

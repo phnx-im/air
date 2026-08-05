@@ -1231,6 +1231,13 @@ impl CoreUser {
             let past_members = group.members().collect();
             chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
                 .await?;
+
+            // Removal from the self group means a sibling device unlinked us.
+            // Record it so the app can act on it, this launch or a later one.
+            if group.group().is_self_group() {
+                error!("this device was unlinked by another device of this user");
+                OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
+            }
         }
         let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)

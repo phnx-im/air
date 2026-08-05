@@ -42,7 +42,10 @@ Stream<MultiDeviceLinkEvent> multiDeviceLinkClient({
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceLinkConfirmation>>
 abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
   /// Approves the link, unblocking the linking task.
-  void confirm();
+  ///
+  /// `device_name` is the name to give the newly linked device. An empty name
+  /// leaves the new device's own default in place.
+  void confirm({required String deviceName});
 
   factory MultiDeviceLinkConfirmation() =>
       RustLib.instance.api.crateApiMultiDeviceMultiDeviceLinkConfirmationNew();

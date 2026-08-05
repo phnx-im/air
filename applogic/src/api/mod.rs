@@ -22,6 +22,7 @@ pub mod chat_list_cubit;
 pub mod chats_repository;
 pub mod invitation_code;
 pub mod invitation_codes_cubit;
+pub mod linked_devices_cubit;
 pub mod logging;
 pub mod markdown;
 pub mod member_details_cubit;

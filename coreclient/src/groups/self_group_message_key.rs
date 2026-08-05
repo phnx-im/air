@@ -146,31 +146,44 @@ impl Group {
         Ok(key)
     }
 
+    /// Builds the `AppEphemeral` proposal carrying `update`.
+    ///
+    /// The update is encrypted under the current-epoch self-group message key,
+    /// which also enforces the self-group guard. Receivers extract it from the
+    /// staged commit before merging, i.e. still at this epoch, so they derive
+    /// the same key.
+    ///
+    /// Shared by the settings-only commit and by the self-group add, which folds
+    /// the newly linked device's entry into the same commit that adds its leaf.
+    pub(crate) async fn self_group_settings_proposal(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        update: &SettingsUpdate,
+    ) -> Result<Proposal> {
+        let key = self.self_group_message_key(txn).await?;
+
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(update.clone())]);
+        let encrypted = messages.encrypt_padded(&key)?;
+        let payload = AppEphemeralPayload::EncryptedSelfGroupMessages(encrypted);
+        let payload_bytes = PersistenceCodec::to_vec(&payload)?;
+        Ok(Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+            AIR_COMPONENT_ID,
+            payload_bytes,
+        ))))
+    }
+
     /// Stages a self-group commit that carries the given settings update.
     ///
-    /// The update is encrypted under the current-epoch self-group message key
-    /// (which enforces the self-group guard), wrapped into an
-    /// [`AppEphemeralPayload`], and committed as an `AppEphemeral` proposal on a
-    /// forced self-update. The commit shape mirrors `stage_apq_invite` minus the
-    /// invitees, so it carries no welcome or attribution infos.
+    /// The update travels as an `AppEphemeral` proposal on a forced self-update.
+    /// The commit shape mirrors `stage_apq_invite` minus the invitees, so it
+    /// carries no welcome or attribution infos.
     pub(crate) async fn stage_settings_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
         update: &SettingsUpdate,
     ) -> Result<ApqGroupOperationParamsOut> {
-        // Derive the current-epoch key. This also enforces the self-group guard.
-        let key = self.self_group_message_key(txn).await?;
-
-        // Encrypt the update and wrap it into an app-ephemeral payload.
-        let messages = SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(update.clone())]);
-        let encrypted = messages.encrypt_padded(&key)?;
-        let payload = AppEphemeralPayload::EncryptedSelfGroupMessages(encrypted);
-        let payload_bytes = PersistenceCodec::to_vec(&payload)?;
-        let proposal = Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
-            AIR_COMPONENT_ID,
-            payload_bytes,
-        )));
+        let proposal = self.self_group_settings_proposal(txn, update).await?;
 
         // Set the AAD for a group operation without any added users.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -602,6 +615,7 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
+            linked_devices: None,
         };
         group
             .stage_settings_update(&mut txn, &sg_signer, &update)
@@ -741,6 +755,7 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
+            linked_devices: None,
         };
         group
             .stage_settings_update(&mut txn, &sg_signer, &update)
@@ -792,6 +807,7 @@ mod derivation_tests {
         let ciphertext =
             SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                 send_read_receipts: Some(true),
+                linked_devices: None,
             })])
             .encrypt_padded(&foreign_key)?;
         let undecryptable_bytes =
