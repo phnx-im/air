@@ -36,13 +36,13 @@ class AppTextInput extends StatefulWidget {
     this.autocorrect = true,
     this.keyboardType,
     this.textInputAction,
-    this.textCapitalization = TextCapitalization.none,
+    this.textCapitalization = .none,
     this.inputFormatters,
     this.maxLength,
     this.minLines,
     this.maxLines = 1,
     this.style,
-    this.textAlign = TextAlign.start,
+    this.textAlign = .start,
     this.fieldPadding,
   });
 
@@ -137,8 +137,8 @@ class _AppTextInputState extends State<AppTextInput> {
     final errored = widget.hasError || error != null;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: .stretch,
+      mainAxisSize: .min,
       children: [
         if (widget.label != null) ...[
           Padding(

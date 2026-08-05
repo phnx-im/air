@@ -74,7 +74,7 @@ void main() {
     });
 
     testWidgets('renders with chats tab active (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
       useTab(HomeTab.chats);

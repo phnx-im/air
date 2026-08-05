@@ -27,7 +27,7 @@ class AppIconBadge extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: backgroundColor ?? palette.backgroundBase.tertiary,
-        shape: BoxShape.rectangle,
+        shape: .rectangle,
         borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: AppIcon(type: type, size: size),

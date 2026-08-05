@@ -47,7 +47,7 @@ class UpdateRequiredView extends StatelessWidget {
         automaticallyImplyLeading: false,
         title: Text(
           loc.appOutdatedScreen_title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: .bold),
         ),
         backgroundColor: palette.backgroundBase.secondary,
       ),
@@ -68,7 +68,7 @@ class UpdateRequiredView extends StatelessWidget {
                       'assets/images/logo.svg',
                       colorFilter: ColorFilter.mode(
                         palette.text.primary,
-                        BlendMode.srcIn,
+                        .srcIn,
                       ),
                     ),
                   ),

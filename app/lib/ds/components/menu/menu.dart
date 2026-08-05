@@ -165,8 +165,8 @@ class _MenuState extends State<Menu> {
     final tokens = widget.tokens;
 
     final column = Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         for (var i = 0; i < widget.items.length; i++)
           Padding(
@@ -301,13 +301,13 @@ class _MenuRow extends StatelessWidget {
       style: typeScale.body.s.style(color: color).copyWith(height: 1.0),
       maxLines: 1,
       softWrap: false,
-      overflow: TextOverflow.ellipsis,
+      overflow: .ellipsis,
     );
 
     return Row(
       // A trailing widget pins to the row's end, so the row fills the card and
       // the label takes the slack. Without one the row hugs its content.
-      mainAxisSize: trailing != null ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: trailing != null ? .max : .min,
       children: [
         if (leading != null) ...[leading, SizedBox(width: tokens.iconGap)],
         if (trailing != null) ...[
@@ -426,10 +426,7 @@ class _SubmenuRowState extends State<_SubmenuRow> {
         // Translucent, so the parent card behind it stays hoverable while the
         // submenu is up and a tap anywhere else closes the submenu alone.
         Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: _hide,
-          ),
+          child: GestureDetector(behavior: .translucent, onTap: _hide),
         ),
         CustomSingleChildLayout(
           delegate: _SubmenuLayout(

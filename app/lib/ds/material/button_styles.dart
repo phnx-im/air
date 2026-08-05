@@ -68,7 +68,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
              side: const BorderSide(
                color: Colors.transparent,
                width: 0,
-               style: BorderStyle.none,
+               style: .none,
              ),
              borderRadius: BorderRadius.circular(CornerRadius.px12),
            ),

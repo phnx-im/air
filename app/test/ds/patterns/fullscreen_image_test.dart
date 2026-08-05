@@ -186,7 +186,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('2 / 2'), findsOneWidget);
 
-    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final pointer = TestPointer(1, .mouse);
     final center = tester.getCenter(find.byType(FullscreenImage));
     await tester.sendEventToBinding(pointer.hover(center));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, -100)));

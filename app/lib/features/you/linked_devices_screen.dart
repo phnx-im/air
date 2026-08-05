@@ -26,7 +26,7 @@ class LinkedDevicesContent extends StatelessWidget {
     final platform = Theme.of(context).platform;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Text(
           loc.linkedDevicesScreen_thisDevice,
@@ -157,7 +157,7 @@ class _SingleDevice extends StatelessWidget {
           ),
           Expanded(
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: () => _editDeviceName(context),
               child: Column(
                 spacing: S.s4,

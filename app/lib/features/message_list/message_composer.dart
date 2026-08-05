@@ -697,7 +697,7 @@ class _ComposerField extends StatelessWidget {
         controller: controller,
         style: typeScale.body.regular
             .style(color: palette.text.primary)
-            .copyWith(leadingDistribution: TextLeadingDistribution.even),
+            .copyWith(leadingDistribution: .even),
         minLines: 1,
         maxLines: 10,
         enabled: isConfirmedChat,
@@ -708,18 +708,16 @@ class _ComposerField extends StatelessWidget {
           hintMaxLines: 1,
           hintStyle: TextStyle(
             color: palette.text.tertiary,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
           ),
         ).copyWith(filled: false),
         contextMenuBuilder: _contextMenuBuilder,
-        textInputAction: sendOnEnter
-            ? TextInputAction.send
-            : TextInputAction.newline,
+        textInputAction: sendOnEnter ? .send : .newline,
         onEditingComplete: sendOnEnter
             ? onSubmitMessage
             : () => focusNode.requestFocus(),
         keyboardType: TextInputType.multiline,
-        textCapitalization: TextCapitalization.sentences,
+        textCapitalization: .sentences,
         contentInsertionConfiguration: ContentInsertionConfiguration(
           allowedMimeTypes: const [
             'image/gif',

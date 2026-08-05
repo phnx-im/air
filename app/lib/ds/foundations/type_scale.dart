@@ -287,14 +287,14 @@ const Map<int, double> _macOSKerning = {
 };
 
 FontWeight _fontWeight(int w) => switch (w) {
-  100 => FontWeight.w100,
-  200 => FontWeight.w200,
-  300 => FontWeight.w300,
-  400 => FontWeight.w400,
-  500 => FontWeight.w500,
-  600 => FontWeight.w600,
-  700 => FontWeight.w700,
-  800 => FontWeight.w800,
-  900 => FontWeight.w900,
-  _ => FontWeight.w400,
+  100 => .w100,
+  200 => .w200,
+  300 => .w300,
+  400 => .w400,
+  500 => .w500,
+  600 => .w600,
+  700 => .w700,
+  800 => .w800,
+  900 => .w900,
+  _ => .w400,
 };

@@ -72,16 +72,14 @@ class ReplyBlock extends StatelessWidget {
       ),
       padding: EdgeInsets.only(left: tokens.accentGap),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: stretch
-            ? CrossAxisAlignment.stretch
-            : CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: stretch ? .stretch : .start,
         children: [
           if (sender != null) ...[
             Text(
               sender,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.xs.style(
                 color: palette.text.secondary,
                 weight: Weight.emphasized,
@@ -92,7 +90,7 @@ class ReplyBlock extends StatelessWidget {
           Text(
             preview,
             maxLines: ReplyBlockTokens.previewMaxLines,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
             style: typeScale.body.xs.style(color: palette.text.secondary),
           ),
         ],
@@ -114,7 +112,7 @@ class ReplyBlock extends StatelessWidget {
     Widget block = quoted;
     if (trailing != null) {
       block = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Expanded(child: quoted),
           SizedBox(width: tokens.iconGap),
@@ -138,11 +136,7 @@ class ReplyBlock extends StatelessWidget {
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: block,
-      ),
+      child: GestureDetector(behavior: .opaque, onTap: onTap, child: block),
     );
   }
 }

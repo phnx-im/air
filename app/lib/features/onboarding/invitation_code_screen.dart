@@ -66,13 +66,13 @@ class InvitationCodeScreen extends HookWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         leading: AppBarBackButton(
           backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.invitationCodeScreen_header,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: .bold),
         ),
         backgroundColor: palette.backgroundBase.secondary,
       ),
@@ -159,7 +159,7 @@ class _Body extends StatelessWidget {
           child: Text(
             loc.invitationCodeScreen_subheader,
             style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.left,
+            textAlign: .left,
           ),
         ),
         const SizedBox(height: S.s64),
@@ -177,7 +177,7 @@ class _Body extends StatelessWidget {
           Text(
             loc.signUpScreen_serverLabel,
             style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.left,
+            textAlign: .left,
           ),
           const SizedBox(height: S.s16),
 
@@ -239,7 +239,7 @@ class _InvitationCodeTextField extends StatelessWidget {
       errorText: errorText,
       maxLength: _codeLength,
       inputFormatters: [upperCaseFormatter, inputFormatter],
-      textCapitalization: TextCapitalization.characters,
+      textCapitalization: .characters,
       keyboardType: TextInputType.visiblePassword,
       onChanged: (value) {
         context.read<RegistrationCubit>().setInvitationCode(value);

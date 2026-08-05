@@ -69,7 +69,7 @@ Future<void> showMobileMessageActions({
       if (!exitListenerAttached) {
         exitListenerAttached = true;
         animation.addStatusListener((status) {
-          if (status == AnimationStatus.dismissed && pickedEmoji != null) {
+          if (status == .dismissed && pickedEmoji != null) {
             onReact?.call(pickedEmoji!);
           }
         });
@@ -247,7 +247,7 @@ class _MobileMessageActionView extends StatelessWidget {
         return Stack(
           children: [
             GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: onDismiss,
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),

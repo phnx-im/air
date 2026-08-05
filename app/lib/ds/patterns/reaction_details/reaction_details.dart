@@ -135,7 +135,7 @@ class _ReactionDetailsState extends State<ReactionDetails> {
         : widget.entries.where((entry) => entry.emoji == selected).toList();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         Padding(
           padding: tokens.tabStripPadding,
@@ -164,7 +164,7 @@ class _ReactionDetailsState extends State<ReactionDetails> {
           },
           child: SingleChildScrollView(
             controller: _tabScroll,
-            scrollDirection: Axis.horizontal,
+            scrollDirection: .horizontal,
             child: Row(
               children: [
                 _Tab(
@@ -183,7 +183,7 @@ class _ReactionDetailsState extends State<ReactionDetails> {
                     selected: selected == emoji,
                     onTap: () => setState(() => _emoji = emoji),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisSize: .min,
                       children: [
                         CenteredEmoji(emoji: emoji, style: _glyphStyle),
                         SizedBox(width: tokens.tabCountGap),
@@ -251,7 +251,7 @@ class _Tab extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: onTap,
         child: Container(
           padding: tokens.tabPadding,
@@ -360,7 +360,7 @@ class _ReactorRow extends StatelessWidget {
       trailing: onRemove == null
           ? glyph
           : Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: [
                 _RemoveAction(
                   label: removeLabel,
@@ -386,7 +386,7 @@ class _RemoveAction extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: onTap,
         child: Text(
           label,

@@ -591,7 +591,7 @@ class _MessageShell extends StatelessWidget {
                   },
             // Tap and long-press: handled via the gesture arena as usual.
             child: GestureDetector(
-              behavior: HitTestBehavior.deferToChild,
+              behavior: .deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
               // Mobile: double-tap a message to react. On desktop, the
               // recognizer must not be registered at all, otherwise it wins the
@@ -612,8 +612,8 @@ class _MessageShell extends StatelessWidget {
 
     if (affordance == null) return interactive;
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: .min,
+      crossAxisAlignment: .center,
       children: isSender
           ? [affordance, interactive]
           : [interactive, affordance],
@@ -665,7 +665,7 @@ class _MessageShell extends StatelessWidget {
             onPressed: commands.reply,
           );
           final buttons = Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             spacing: tokens.gap,
             children: isSender ? [reply, react] : [react, reply],
           );
@@ -678,7 +678,7 @@ class _MessageShell extends StatelessWidget {
             enabled: !showsStamp,
           );
           return Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: isSender ? [time, buttons] : [buttons, time],
           );
         },
@@ -1038,10 +1038,8 @@ class _MessageContent extends StatelessWidget {
         child: _capped(
           padding,
           Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: stretched
-                ? CrossAxisAlignment.stretch
-                : CrossAxisAlignment.start,
+            mainAxisSize: .min,
+            crossAxisAlignment: stretched ? .stretch : .start,
             spacing: hasMedia ? S.s0 : S.s8,
             children: [
               if (inReplyTo != null) inset(_reply(context, inReplyTo)),

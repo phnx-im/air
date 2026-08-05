@@ -128,7 +128,7 @@ class ButtonIcon extends StatelessWidget {
       // Nested detectors resolve innermost-first, so a tap on the circle
       // reaches the handler once.
       circle = GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: onPressed,
         onLongPress: onLongPress,
         child: SizedBox.square(
@@ -166,14 +166,14 @@ class _Surface extends StatelessWidget {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: fill,
-          shape: BoxShape.circle,
+          shape: .circle,
           boxShadow: shadows,
         ),
       );
     }
 
     final circleFill = DecoratedBox(
-      decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: fill, shape: .circle),
     );
 
     final frost = enableBackdropBlur
@@ -227,10 +227,10 @@ class _KnockoutShadowPainter extends CustomPainter {
         radius + shadow.spreadRadius,
         Paint()
           ..color = shadow.color
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadow.blurSigma),
+          ..maskFilter = MaskFilter.blur(.normal, shadow.blurSigma),
       );
     }
-    canvas.drawCircle(center, radius, Paint()..blendMode = BlendMode.dstOut);
+    canvas.drawCircle(center, radius, Paint()..blendMode = .dstOut);
     canvas.restore();
   }
 

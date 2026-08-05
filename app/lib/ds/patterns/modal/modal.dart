@@ -59,7 +59,7 @@ class ModalShell extends StatelessWidget {
             color: surface,
             borderRadius: BorderRadius.circular(tokens.cardRadius),
           ),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: .antiAlias,
           child: child,
         ),
       ),
@@ -155,7 +155,7 @@ class DialogHeader extends StatelessWidget {
             middle: Text(
               title,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.regular
                   .style(color: palette.text.primary, weight: Weight.emphasized)
                   .copyWith(height: 1.0),
@@ -248,7 +248,7 @@ class _ModalScaffoldState extends State<ModalScaffold> {
   bool _track(int depth, ScrollMetrics metrics) {
     // A scrollable nested inside a row reports through here too, at a depth
     // below the one this fade stands for.
-    if (depth == 0 && metrics.axis == Axis.vertical) {
+    if (depth == 0 && metrics.axis == .vertical) {
       _edges.value = ScrollEdges.of(metrics);
     }
     return false;
@@ -262,9 +262,9 @@ class _ModalScaffoldState extends State<ModalScaffold> {
       // to keep supplying the ink surface any Material descendant looks for.
       // Transparent, so the shell's own fill is what shows.
       child: Material(
-        type: MaterialType.transparency,
+        type: .transparency,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             DialogHeader(
               tokens: DialogHeaderTokens.of(context),

@@ -72,7 +72,7 @@ class AppTabBar extends StatelessWidget {
           // Scale the fixed-width pill down if the screen is too narrow, so the
           // tab row can never overflow.
           child: FittedBox(
-            fit: BoxFit.scaleDown,
+            fit: .scaleDown,
             child: Container(
               width: TabBarTokens.barWidth(tabs.length),
               height: TabBarTokens.height,
@@ -88,7 +88,7 @@ class AppTabBar extends StatelessWidget {
                 // inherit their text context from. Transparent: the fill above
                 // is ours.
                 child: Material(
-                  type: MaterialType.transparency,
+                  type: .transparency,
                   child: Stack(
                     children: [
                       // Painted back-to-front: the inactive tabs, then the

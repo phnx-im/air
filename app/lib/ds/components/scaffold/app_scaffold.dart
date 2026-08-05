@@ -26,7 +26,7 @@ class AppScaffold extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         backgroundColor: backgroundColor,
         leading: const AppBarBackButton(),
         title: title != null
@@ -35,8 +35,8 @@ class AppScaffold extends StatelessWidget {
                 child: Text(
                   title!,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  overflow: .ellipsis,
+                  style: const TextStyle(fontWeight: .bold),
                 ),
               )
             : null,

@@ -23,7 +23,7 @@ class ChangeUserScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         title: const Text('Change User'),
         leading: const AppBarBackButton(),
       ),
@@ -74,7 +74,7 @@ class _ClientRecordsList extends HookWidget {
             titleAlignment: ListTileTitleAlignment.top,
             titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: textColor,
-              fontWeight: FontWeight.bold,
+              fontWeight: .bold,
             ),
             subtitleTextStyle: Theme.of(
               context,
