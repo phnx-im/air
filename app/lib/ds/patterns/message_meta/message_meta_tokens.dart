@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:math' as math;
+
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:flutter/widgets.dart';
 
 /// Geometry for the stamp under a message bubble.
 ///
@@ -30,4 +33,19 @@ abstract final class MessageMetaTokens {
   /// text inside the bubble. Matches the bubble's content inset. A host whose
   /// content runs to the bubble edge passes zero instead.
   static const double contentOffset = S.s12;
+
+  /// The box the stamp takes: its line, whichever of glyph and type runs
+  /// taller, plus the space above and below it.
+  ///
+  /// A stamp is one line by definition, so its height is geometry rather than
+  /// a measurement, and a host that has to reserve the space before the stamp
+  /// lays out takes this. The stamp sets its type tight, so a line box is the
+  /// font size itself.
+  static double heightOf(BuildContext context) =>
+      bubbleGap +
+      math.max(
+        iconSize,
+        MediaQuery.textScalerOf(context).scale(typeScale.body.mini.fontSize),
+      ) +
+      bottomPadding;
 }

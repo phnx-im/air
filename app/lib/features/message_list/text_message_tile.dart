@@ -59,7 +59,8 @@ class TextMessageTile extends HookWidget {
     required this.contentMessage,
     required this.inReplyToMessage,
     required this.timestamp,
-    required this.flightPosition,
+    required this.startsMessageGroup,
+    required this.endsMessageGroup,
     required this.status,
     required this.isSender,
     required this.showSender,
@@ -74,7 +75,13 @@ class TextMessageTile extends HookWidget {
   final UiContentMessage contentMessage;
   final UiInReplyToMessage? inReplyToMessage;
   final DateTime timestamp;
-  final UiFlightPosition flightPosition;
+
+  /// The oldest message of a run the list shows as one block.
+  final bool startsMessageGroup;
+
+  /// The newest message of that run.
+  final bool endsMessageGroup;
+
   final UiMessageStatus status;
   final bool isSender;
   final bool showSender;
@@ -96,10 +103,10 @@ class TextMessageTile extends HookWidget {
     // An own message needs no avatar column, and a 1:1 chat has nobody to
     // name: the other party is already on screen.
     final withParticipant = showSender && !isSender;
-    // The name opens a flight and the avatar closes it: the row foots its
-    // avatar column, so an earlier row would leave it stranded mid-flight.
-    final withName = withParticipant && flightPosition.isFirst;
-    final withAvatar = withParticipant && flightPosition.isLast;
+    // The name opens a group and the avatar closes it: the row foots its
+    // avatar column, so an earlier row would leave it stranded mid-group.
+    final withName = withParticipant && startsMessageGroup;
+    final withAvatar = withParticipant && endsMessageGroup;
     final profile = withName || withAvatar
         ? context.select(
             (UsersCubit cubit) =>

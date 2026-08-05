@@ -19,7 +19,7 @@ use tracing::{debug, error};
 
 use crate::{
     StreamSink,
-    api::types::{UiChatMessage, UiFlightPosition},
+    api::types::UiChatMessage,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
@@ -34,8 +34,7 @@ pub struct MessageState {
 
 /// Provides access to a single message in a chat.
 ///
-/// Listens to changes to the message and reloads it. On reload, also the previous and next
-/// messages in the chat timeline are loaded to calculate the flight position of this message.
+/// Listens to changes to the message and reloads it.
 #[frb(opaque)]
 pub struct MessageCubitBase {
     core: CubitCore<MessageState>,
@@ -124,11 +123,7 @@ impl MessageContext {
         debug!(?message, "load_and_emit_state");
         match message {
             Ok(Some(message)) => {
-                let mut message = UiChatMessage::from_message(message, &local_attachment_ids);
-                message.position = calculate_flight_position(&self.core_user, &message)
-                    .await
-                    .inspect_err(|error| error!(?error, "Failed to calculate flight position"))
-                    .unwrap_or(UiFlightPosition::Single);
+                let message = UiChatMessage::from_message(message, &local_attachment_ids);
                 self.state_tx.send_modify(|state| state.message = message);
             }
             Ok(None) => {}
@@ -167,24 +162,4 @@ impl MessageContext {
             self.load_and_emit_state().await;
         }
     }
-}
-
-/// Calculate the flight position of a message by loading its previous and next messages.
-async fn calculate_flight_position(
-    core_user: &CoreUser,
-    message: &UiChatMessage,
-) -> anyhow::Result<UiFlightPosition> {
-    let prev_message = core_user
-        .prev_message(message.chat_id, message.id)
-        .await?
-        .map(UiChatMessage::from_message_without_attachments);
-    let next_message = core_user
-        .next_message(message.chat_id, message.id)
-        .await?
-        .map(UiChatMessage::from_message_without_attachments);
-    Ok(UiFlightPosition::calculate(
-        message,
-        prev_message.as_ref(),
-        next_message.as_ref(),
-    ))
 }

@@ -12353,7 +12353,6 @@ impl SseDecode for crate::api::types::UiChatMessage {
         let mut var_message = <crate::api::types::UiMessage>::sse_decode(deserializer);
         let mut var_inReplyToMessage =
             <Option<crate::api::types::UiInReplyToMessage>>::sse_decode(deserializer);
-        let mut var_position = <crate::api::types::UiFlightPosition>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiMessageStatus>::sse_decode(deserializer);
         let mut var_reactions = <Vec<crate::api::types::UiReaction>>::sse_decode(deserializer);
         return crate::api::types::UiChatMessage {
@@ -12362,7 +12361,6 @@ impl SseDecode for crate::api::types::UiChatMessage {
             timestamp: var_timestamp,
             message: var_message,
             in_reply_to_message: var_inReplyToMessage,
-            position: var_position,
             status: var_status,
             reactions: var_reactions,
         };
@@ -12523,20 +12521,6 @@ impl SseDecode for crate::api::types::UiEventMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseDecode for crate::api::types::UiFlightPosition {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::types::UiFlightPosition::Single,
-            1 => crate::api::types::UiFlightPosition::Start,
-            2 => crate::api::types::UiFlightPosition::Middle,
-            3 => crate::api::types::UiFlightPosition::End,
-            _ => unreachable!("Invalid variant for UiFlightPosition: {}", inner),
-        };
     }
 }
 
@@ -15190,7 +15174,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatMessage {
             self.timestamp.into_into_dart().into_dart(),
             self.message.into_into_dart().into_dart(),
             self.in_reply_to_message.into_into_dart().into_dart(),
-            self.position.into_into_dart().into_dart(),
             self.status.into_into_dart().into_dart(),
             self.reactions.into_into_dart().into_dart(),
         ]
@@ -15400,29 +15383,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiEventMessage>
     for crate::api::types::UiEventMessage
 {
     fn into_into_dart(self) -> crate::api::types::UiEventMessage {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::UiFlightPosition {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
-            Self::Single => 0.into_dart(),
-            Self::Start => 1.into_dart(),
-            Self::Middle => 2.into_dart(),
-            Self::End => 3.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::types::UiFlightPosition
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiFlightPosition>
-    for crate::api::types::UiFlightPosition
-{
-    fn into_into_dart(self) -> crate::api::types::UiFlightPosition {
         self
     }
 }
@@ -18295,7 +18255,6 @@ impl SseEncode for crate::api::types::UiChatMessage {
             self.in_reply_to_message,
             serializer,
         );
-        <crate::api::types::UiFlightPosition>::sse_encode(self.position, serializer);
         <crate::api::types::UiMessageStatus>::sse_encode(self.status, serializer);
         <Vec<crate::api::types::UiReaction>>::sse_encode(self.reactions, serializer);
     }
@@ -18427,24 +18386,6 @@ impl SseEncode for crate::api::types::UiEventMessage {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseEncode for crate::api::types::UiFlightPosition {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::types::UiFlightPosition::Single => 0,
-                crate::api::types::UiFlightPosition::Start => 1,
-                crate::api::types::UiFlightPosition::Middle => 2,
-                crate::api::types::UiFlightPosition::End => 3,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
     }
 }
 
