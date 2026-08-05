@@ -195,9 +195,8 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = self
-                .handle_task(run_token, task_kind, &mut timed_task_context)
-                .await;
+            let res =
+                Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context)).await;
 
             let interval = match res {
                 Ok(interval) => interval,
@@ -246,7 +245,7 @@ impl OutboundServiceContext {
         debug!(?task_kind, "handling task");
 
         match task_kind {
-            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
+            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await,
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -461,6 +460,7 @@ impl OutboundServiceContext {
                 );
                 return Ok(false);
             };
+
             if group.mls_group().pending_commit().is_some()
                 || group
                     .pq()

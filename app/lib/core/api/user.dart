@@ -18,14 +18,19 @@ part 'user.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
 abstract class User implements RustOpaqueInterface {
+  /// Random UUID naming this client's DB file and identifying its client record.
+  UuidValue get clientRecordId;
+
   /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount;
 
   static Future<User> load({
     required String dbPath,
-    required UiUserId userId,
-  }) =>
-      RustLib.instance.api.crateApiUserUserLoad(dbPath: dbPath, userId: userId);
+    required UuidValue clientRecordId,
+  }) => RustLib.instance.api.crateApiUserUserLoad(
+    dbPath: dbPath,
+    clientRecordId: clientRecordId,
+  );
 
   /// Loads all client records from the air database
   ///

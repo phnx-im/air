@@ -136,6 +136,14 @@ impl TryFrom<KeyPackage> for key_packages::KeyPackageIn {
     }
 }
 
+impl TryFrom<&KeyPackage> for key_packages::KeyPackageIn {
+    type Error = tls_codec::Error;
+
+    fn try_from(proto: &KeyPackage) -> Result<Self, Self::Error> {
+        DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
 impl TryFrom<apqmls::messages::ApqKeyPackage> for ApqKeyPackage {
     type Error = tls_codec::Error;
 
@@ -151,6 +159,17 @@ impl TryFrom<ApqKeyPackage> for apqmls::messages::ApqKeyPackageIn {
     type Error = tls_codec::Error;
 
     fn try_from(proto: ApqKeyPackage) -> Result<Self, Self::Error> {
+        Ok(apqmls::messages::ApqKeyPackageIn::new(
+            DeserializeBytes::tls_deserialize_exact_bytes(&proto.t_key_package_tls)?,
+            DeserializeBytes::tls_deserialize_exact_bytes(&proto.pq_key_package_tls)?,
+        ))
+    }
+}
+
+impl TryFrom<&ApqKeyPackage> for apqmls::messages::ApqKeyPackageIn {
+    type Error = tls_codec::Error;
+
+    fn try_from(proto: &ApqKeyPackage) -> Result<Self, Self::Error> {
         Ok(apqmls::messages::ApqKeyPackageIn::new(
             DeserializeBytes::tls_deserialize_exact_bytes(&proto.t_key_package_tls)?,
             DeserializeBytes::tls_deserialize_exact_bytes(&proto.pq_key_package_tls)?,

@@ -815,12 +815,12 @@ impl ImageData {
 
 /// Client record of a user
 ///
-/// Each user has a client record which identifies the users database.
+/// Each user has a client record which identifies the users database. One user can have multiple
+/// client records identifying different client in a multi-client setup.
 #[derive(Debug)]
 pub struct UiClientRecord {
+    pub(crate) client_record_id: Uuid,
     /// The unique identifier of the user
-    ///
-    /// Also used for identifying the client database path.
     pub(crate) user_id: UiUserId,
     pub(crate) created_at: DateTime<Utc>,
     pub(crate) user_profile: UiUserProfile,

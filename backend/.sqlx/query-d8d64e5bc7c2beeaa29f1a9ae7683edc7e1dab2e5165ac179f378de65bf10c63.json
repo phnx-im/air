@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT client_id FROM qs_client_record\n            WHERE user_id = $1 AND deleted_at IS NULL\n            ORDER BY client_id\n            FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "client_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "qs_client_record",
+            "name": "client_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d8d64e5bc7c2beeaa29f1a9ae7683edc7e1dab2e5165ac179f378de65bf10c63"
+}

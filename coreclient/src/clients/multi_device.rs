@@ -578,6 +578,15 @@ impl CoreUser {
     }
 
     async fn add_client_to_self_group(&self, key_package: ApqKeyPackage) -> anyhow::Result<()> {
+        // Sibling commits (e.g. the key-package upload cycle) may have advanced
+        // the self group. Catch up on queued messages, so that the add commit
+        // is built at the current epoch.
+        let messages = self.qs_fetch_messages().await?;
+        let processed = self.fully_process_qs_messages(messages).await;
+        if let Some(error) = processed.errors.first() {
+            warn!(%error, "failed to process queued messages before self-group add");
+        }
+
         let api_client = self.api_client()?;
         let self_group_signature_key = self.self_group_signature_key().await?;
         let user_id = self.user_id().clone();
@@ -770,7 +779,8 @@ impl CoreUser {
         package: ProvisioningPackage,
     ) -> anyhow::Result<CoreUser> {
         let air_db = open_air_db(db_path).await?;
-        let client_db = open_client_db(&package.user_id, db_path).await?;
+        let client_record_id = uuid::Uuid::new_v4();
+        let client_db = open_client_db(db_path, client_record_id).await?;
         let global_lock = open_lock_file(db_path)?;
 
         let ProvisioningPackage {
@@ -861,13 +871,16 @@ impl CoreUser {
         );
         final_state.store(client_db.write().await?).await?;
 
-        let mut client_record = ClientRecord::new(user_id.clone());
+        let mut client_record = ClientRecord::new(user_id.clone(), client_record_id);
         client_record.finish();
         client_record.store(air_db.write().await?).await?;
 
-        Ok(final_state
-            .final_state()?
-            .into_self_user(client_db, api_clients, global_lock))
+        Ok(final_state.final_state()?.into_self_user(
+            client_db,
+            client_record_id,
+            api_clients,
+            global_lock,
+        ))
     }
 }
 
