@@ -55,9 +55,7 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Scaffold(
-                body: LinkDeviceModal(startLinkSession: fakeSession),
-              ),
+              home: LinkDeviceModal(startLinkSession: fakeSession),
             );
           },
         ),

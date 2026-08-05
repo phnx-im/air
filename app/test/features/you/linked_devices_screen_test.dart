@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
+import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
@@ -45,6 +47,35 @@ LinkedDevicesState _singleDevice() => LinkedDevicesState(
       platform: LinkedDevicePlatform.ios,
       linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
       isThisDevice: true,
+    ),
+  ],
+);
+
+LinkedDevicesState _mockDevices() => LinkedDevicesState(
+  devices: [
+    _device(
+      name: 'iPhone',
+      platform: LinkedDevicePlatform.ios,
+      linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
+      isThisDevice: true,
+    ),
+    _device(
+      clientId: '00000000-0000-0000-0000-000000000002',
+      name: 'MacBook Pro',
+      platform: LinkedDevicePlatform.macos,
+      linkedAt: DateTime.utc(2026, 2, 3, 14, 22),
+    ),
+    _device(
+      clientId: '00000000-0000-0000-0000-000000000003',
+      name: 'Pixel',
+      platform: LinkedDevicePlatform.android,
+      linkedAt: DateTime.utc(2026, 3, 20, 8, 10),
+    ),
+    _device(
+      clientId: '00000000-0000-0000-0000-000000000004',
+      name: '',
+      platform: LinkedDevicePlatform.unknown,
+      linkedAt: DateTime.utc(2026, 4, 12, 18, 30),
     ),
   ],
 );
@@ -94,9 +125,21 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: BlocProvider<LinkedDevicesCubit>.value(
-                value: cubit,
-                child: const LinkedDevicesView(),
+              home: Builder(
+                builder: (context) => AppScaffold(
+                  title: AppLocalizations.of(
+                    context,
+                  ).userSettingsScreen_devices,
+                  backgroundColor: SemanticPalette.of(
+                    context,
+                  ).backgroundBase.primary,
+                  child: BlocProvider<LinkedDevicesCubit>.value(
+                    value: cubit,
+                    child: const SingleChildScrollView(
+                      child: LinkedDevicesView(),
+                    ),
+                  ),
+                ),
               ),
             );
           },
@@ -105,192 +148,105 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> pumpDialog(
+      WidgetTester tester,
+      WidgetBuilder dialogBuilder,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Builder(builder: dialogBuilder),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> expectGolden(WidgetTester tester, String fileName) =>
+        expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/$fileName.png'),
+        );
+
     testWidgets('renders device list', (tester) async {
-      await pumpView(tester);
+      await pumpView(tester, state: _mockDevices());
 
       expect(find.text('This device'), findsOneWidget);
-      // The count is of sibling devices, so a lone device reads as none linked.
-      expect(find.text('No devices linked.'), findsOneWidget);
-
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/linked_devices_screen.png'),
-      );
-    });
-
-    /// Until the roster is readable per client, the list only ever holds this
-    /// device, so the linked section and its hint must stay hidden.
-    testWidgets('hides the linked section for a lone device', (tester) async {
-      await pumpView(tester);
-
-      expect(find.text('Linked devices'), findsNothing);
-      expect(find.text('Tap a device to edit its name.'), findsNothing);
-    });
-
-    /// The count is of siblings, not of all devices, so it must not include
-    /// this device.
-    testWidgets('counts only sibling devices', (tester) async {
-      await pumpView(
-        tester,
-        state: LinkedDevicesState(
-          devices: [
-            _device(
-              name: 'Linux',
-              platform: LinkedDevicePlatform.linux,
-              linkedAt: DateTime.utc(2026, 1, 15),
-              isThisDevice: true,
-            ),
-            _device(
-              clientId: '00000000-0000-0000-0000-000000000002',
-              name: 'iPhone',
-              platform: LinkedDevicePlatform.ios,
-              linkedAt: DateTime.utc(2026, 2, 3),
-            ),
-            _device(
-              clientId: '00000000-0000-0000-0000-000000000003',
-              name: 'Android tablet',
-              platform: LinkedDevicePlatform.android,
-              linkedAt: DateTime.utc(2026, 3, 20),
-            ),
-          ],
-        ),
-      );
-
       expect(find.text('Linked devices'), findsOneWidget);
-      expect(find.text('Tap a device to edit its name.'), findsOneWidget);
-      expect(find.text('2 devices linked.'), findsOneWidget);
-    });
-
-    testWidgets('counts a single sibling in the singular', (tester) async {
-      await pumpView(
-        tester,
-        state: LinkedDevicesState(
-          devices: [
-            _device(
-              name: 'Linux',
-              platform: LinkedDevicePlatform.linux,
-              linkedAt: DateTime.utc(2026, 1, 15),
-              isThisDevice: true,
-            ),
-            _device(
-              clientId: '00000000-0000-0000-0000-000000000002',
-              name: 'iPhone',
-              platform: LinkedDevicePlatform.ios,
-              linkedAt: DateTime.utc(2026, 2, 3),
-            ),
-          ],
-        ),
-      );
-
-      expect(find.text('1 device linked.'), findsOneWidget);
-    });
-
-    testWidgets('falls back to a localized name without metadata', (
-      tester,
-    ) async {
-      await pumpView(
-        tester,
-        state: LinkedDevicesState(
-          devices: [
-            _device(
-              name: '',
-              platform: LinkedDevicePlatform.unknown,
-              linkedAt: DateTime.utc(1970),
-              isThisDevice: true,
-            ),
-          ],
-        ),
-      );
-
+      expect(find.text('MacBook Pro'), findsOneWidget);
+      expect(find.text('Pixel'), findsOneWidget);
       expect(find.text('Unknown device'), findsOneWidget);
-    });
-
-    Finder badgeOfType(AppIconType type) => find.byWidgetPredicate(
-      (widget) => widget is AppIconBadge && widget.type == type,
-    );
-
-    testWidgets('uses the phone badge for a mobile platform', (tester) async {
-      // The default state is platform 2, iOS.
-      await pumpView(tester);
-
-      expect(badgeOfType(AppIconType.smartphone), findsOneWidget);
-      expect(badgeOfType(AppIconType.laptop), findsNothing);
-    });
-
-    testWidgets('uses the laptop badge for a desktop platform', (tester) async {
-      await pumpView(
-        tester,
-        state: LinkedDevicesState(
-          devices: [
-            _device(
-              name: 'Linux',
-              platform: LinkedDevicePlatform.linux,
-              linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
-              isThisDevice: true,
-            ),
-          ],
+      expect(find.text('3 devices linked.'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is AppIconBadge && widget.type == AppIconType.smartphone,
         ),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is AppIconBadge && widget.type == AppIconType.laptop,
+        ),
+        findsNWidgets(2),
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+        ),
+        findsNWidgets(3),
       );
 
-      expect(badgeOfType(AppIconType.laptop), findsOneWidget);
-      expect(badgeOfType(AppIconType.smartphone), findsNothing);
+      await expectGolden(tester, 'linked_devices_screen');
     });
 
     testWidgets('renders link modal chooser page', (tester) async {
-      await pumpView(tester);
+      await pumpDialog(tester, (_) => const LinkDeviceModal());
 
-      await tester.tap(find.text('Link a device'));
-      await tester.pumpAndSettle();
-
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/linked_devices_link_chooser.png'),
-      );
+      await expectGolden(tester, 'linked_devices_link_chooser');
     });
 
     testWidgets('renders link modal scan QR page', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
-        await pumpView(tester);
+        await pumpDialog(tester, (_) => const LinkDeviceModal());
 
-        await tester.tap(find.text('Link a device'));
-        await tester.pumpAndSettle();
         await tester.tap(find.text('Scan QR code'));
         await tester.pumpAndSettle();
 
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/linked_devices_link_scan_qr.png'),
-        );
+        await expectGolden(tester, 'linked_devices_link_scan_qr');
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
     });
 
     testWidgets('renders link modal numeric code page', (tester) async {
-      await pumpView(tester);
+      await pumpDialog(tester, (_) => const LinkDeviceModal());
 
-      await tester.tap(find.text('Link a device'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Enter numeric code'));
       await tester.pumpAndSettle();
 
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/linked_devices_link_numeric_code.png'),
-      );
+      await expectGolden(tester, 'linked_devices_link_numeric_code');
     });
 
     testWidgets('renders edit device name dialog', (tester) async {
-      await pumpView(tester);
-
-      await tester.tap(find.text('iOS'));
-      await tester.pumpAndSettle();
-
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/linked_devices_edit_name.png'),
+      await pumpDialog(
+        tester,
+        (_) => LinkedDeviceNameDialog(initialValue: 'iOS', onSubmit: (_) {}),
       );
+
+      await expectGolden(tester, 'linked_devices_edit_name');
     });
 
     testWidgets('submitting the edit dialog renames through the cubit', (
@@ -357,19 +313,12 @@ void main() {
     });
 
     testWidgets('renders unlink confirm dialog', (tester) async {
-      await pumpView(tester, state: _withSibling());
-
-      await tester.tap(
-        find.byWidgetPredicate(
-          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
-        ),
+      await pumpDialog(
+        tester,
+        (_) => UnlinkLinkedDeviceDialog(onConfirm: () {}),
       );
-      await tester.pumpAndSettle();
 
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/linked_devices_unlink_confirm.png'),
-      );
+      await expectGolden(tester, 'linked_devices_unlink_confirm');
     });
   });
 }

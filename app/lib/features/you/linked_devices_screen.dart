@@ -19,8 +19,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
 AppIconType _iconFor(LinkedDevicePlatform platform) => switch (platform) {
-  LinkedDevicePlatform.android || LinkedDevicePlatform.ios =>
-    AppIconType.smartphone,
+  LinkedDevicePlatform.android ||
+  LinkedDevicePlatform.ios => AppIconType.smartphone,
   // macOS, Windows, Linux and unknown platforms.
   _ => AppIconType.laptop,
 };
@@ -225,12 +225,7 @@ class _SingleDevice extends StatelessWidget {
     final cubit = context.read<LinkedDevicesCubit>();
     showDialog(
       context: context,
-      builder: (_) => ConfirmDialog(
-        title: loc.linkedDevicesScreen_unlinkDialog_title,
-        message: loc.linkedDevicesScreen_unlinkDialog_content,
-        cancel: loc.linkedDevicesScreen_unlinkDialog_cancel,
-        confirm: loc.linkedDevicesScreen_unlinkDialog_confirm,
-        destructive: true,
+      builder: (_) => UnlinkLinkedDeviceDialog(
         onConfirm: () async {
           try {
             await cubit.unlinkDevice(clientId: device.clientId);
@@ -255,13 +250,8 @@ class _SingleDevice extends StatelessWidget {
     final navigator = Navigator.of(context);
     showDialog(
       context: context,
-      builder: (_) => EditDialog(
-        title: loc.linkedDevicesScreen_deviceName_editDialog_title,
-        cancel: loc.linkedDevicesScreen_deviceName_editDialog_cancel,
-        confirm: loc.linkedDevicesScreen_deviceName_editDialog_confirm,
+      builder: (_) => LinkedDeviceNameDialog(
         initialValue: currentName,
-        maxLength: 30,
-        validator: (value) => value.trim().isNotEmpty,
         onSubmit: (value) async {
           navigator.pop();
           try {
@@ -298,6 +288,50 @@ class _SingleDevice extends StatelessWidget {
           context,
         ).linkedDevicesScreen_errorDialog_confirm,
       ),
+    );
+  }
+}
+
+class UnlinkLinkedDeviceDialog extends StatelessWidget {
+  const UnlinkLinkedDeviceDialog({super.key, required this.onConfirm});
+
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return ConfirmDialog(
+      title: loc.linkedDevicesScreen_unlinkDialog_title,
+      message: loc.linkedDevicesScreen_unlinkDialog_content,
+      cancel: loc.linkedDevicesScreen_unlinkDialog_cancel,
+      confirm: loc.linkedDevicesScreen_unlinkDialog_confirm,
+      destructive: true,
+      onConfirm: onConfirm,
+    );
+  }
+}
+
+class LinkedDeviceNameDialog extends StatelessWidget {
+  const LinkedDeviceNameDialog({
+    super.key,
+    required this.initialValue,
+    required this.onSubmit,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return EditDialog(
+      title: loc.linkedDevicesScreen_deviceName_editDialog_title,
+      cancel: loc.linkedDevicesScreen_deviceName_editDialog_cancel,
+      confirm: loc.linkedDevicesScreen_deviceName_editDialog_confirm,
+      initialValue: initialValue,
+      maxLength: 30,
+      validator: (value) => value.trim().isNotEmpty,
+      onSubmit: onSubmit,
     );
   }
 }

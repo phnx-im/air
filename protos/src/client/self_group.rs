@@ -81,12 +81,12 @@ pub enum SelfGroupMessage {
 }
 
 /// Platform codes for [`LinkedDevice::platform`].
-const PLATFORM_UNKNOWN: u8 = 0;
-const PLATFORM_ANDROID: u8 = 1;
-const PLATFORM_IOS: u8 = 2;
-const PLATFORM_MACOS: u8 = 3;
-const PLATFORM_WINDOWS: u8 = 4;
-const PLATFORM_LINUX: u8 = 5;
+pub const PLATFORM_UNKNOWN: u8 = 0;
+pub const PLATFORM_ANDROID: u8 = 1;
+pub const PLATFORM_IOS: u8 = 2;
+pub const PLATFORM_MACOS: u8 = 3;
+pub const PLATFORM_WINDOWS: u8 = 4;
+pub const PLATFORM_LINUX: u8 = 5;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]

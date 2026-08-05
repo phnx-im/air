@@ -233,7 +233,8 @@ impl Resync {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
-        if self.shares_vc_leaf
+        let shares_vc_leaf = self.shares_vc_leaf;
+        if shares_vc_leaf
             && SelfGroup::load(&mut connection)
                 .await
                 .map_err(OutboundServiceError::recoverable)?
@@ -265,11 +266,14 @@ impl Resync {
         .await
         .map_err(OutboundServiceError::fatal)?;
 
-        let chat_id = match existing_chat_id {
-            Some(chat_id) => chat_id,
-            None => Self::create_chat(&mut txn, &group, own_user_id, ds_timestamp)
-                .await
-                .map_err(OutboundServiceError::fatal)?,
+        let (chat_id, chat_created) = match existing_chat_id {
+            Some(chat_id) => (chat_id, false),
+            None => (
+                Self::create_chat(&mut txn, &group, own_user_id, ds_timestamp)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?,
+                true,
+            ),
         };
 
         txn.commit()
@@ -281,13 +285,16 @@ impl Resync {
         // Insert a system message and mark chat as active once the commit is accepted by the DS.
         connection
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                let system_message = ChatMessage::new_system_message(
-                    chat_id,
-                    ds_timestamp,
-                    SystemMessage::Onboarded,
-                );
-                system_message.store(&mut *txn).await?;
+                if shares_vs_leaf && chat_created {
+                    let system_message = ChatMessage::new_system_message(
+                        chat_id,
+                        ds_timestamp,
+                        SystemMessage::Onboarded,
+                    );
+                    system_message.store(&mut *txn).await?;
+                }
                 Chat::update_status(txn, chat_id, &ChatStatus::Active).await?;
+
                 Ok(())
             })
             .await
