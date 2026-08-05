@@ -430,7 +430,6 @@ pub(super) fn leaf_credential_matches_flag(
     matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
 }
 
-
 fn fallback_room_state(
     members: impl Iterator<Item = mls_assist::openmls::prelude::Member>,
 ) -> VerifiedRoomState {
