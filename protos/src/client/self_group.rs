@@ -93,6 +93,19 @@ pub enum LinkedDevicePlatform {
     Linux = 5,
 }
 
+impl LinkedDevicePlatform {
+    pub fn label(&self) -> &str {
+        match self {
+            LinkedDevicePlatform::Unknown => "Unknown",
+            LinkedDevicePlatform::Android => "Android",
+            LinkedDevicePlatform::Ios => "iOS",
+            LinkedDevicePlatform::Macos => "macOS",
+            LinkedDevicePlatform::Windows => "Windows",
+            LinkedDevicePlatform::Linux => "Linux",
+        }
+    }
+}
+
 impl Serialize for LinkedDevicePlatform {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -237,6 +250,19 @@ mod test {
     }
 
     #[test]
+    fn linked_device_stability() {
+        let device = LinkedDevice {
+            client_id: Uuid::from_u128(0x0102_0304_0506_0708_090a_0b0c_0d0e_0f10),
+            name: "iPhone".to_owned(),
+            linked_at: 1_767_225_600,
+            platform: LinkedDevicePlatform::Ios,
+        };
+        let bytes = PersistenceCodec::to_vec(&device).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
     fn settings_update_with_linked_devices_roundtrip() {
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
@@ -314,6 +340,21 @@ mod test {
         assert_eq!(empty, decoded);
         // `{}`: map(0).
         assert_eq!(&bytes[1..], &[0xA0]);
+    }
+
+    #[test]
+    fn settings_update_stability() {
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: Some(vec![sample_device(
+                1,
+                "Laptop",
+                LinkedDevicePlatform::Linux,
+            )]),
+        };
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to

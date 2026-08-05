@@ -278,7 +278,7 @@ impl ChatOperation {
             .write()
             .await?
             .with_transaction(async |txn| {
-                PendingChatOperation::create_remove_clients(txn, self.chat_id, client_ids).await
+                PendingChatOperation::create_remove_clients(txn, client_ids).await
             })
             .await?;
 

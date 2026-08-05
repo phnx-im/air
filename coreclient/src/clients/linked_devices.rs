@@ -9,10 +9,7 @@
 //! joined on the client id of each leaf's `SelfGroupCredential`.
 
 use aircommon::codec::PersistenceCodec;
-use airprotos::client::self_group::{
-    LinkedDevice, LinkedDevicePlatform, PLATFORM_ANDROID, PLATFORM_IOS, PLATFORM_LINUX,
-    PLATFORM_MACOS, PLATFORM_UNKNOWN, PLATFORM_WINDOWS, SettingsUpdate,
-};
+use airprotos::client::self_group::{LinkedDevice, LinkedDevicePlatform, SettingsUpdate};
 use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
 use tracing::warn;
@@ -47,7 +44,7 @@ impl LinkedDevicesSetting {
     /// Normalizes `devices` into canonical form: sorted by client id, with
     /// duplicate ids reduced to the first occurrence.
     pub fn new(mut devices: Vec<LinkedDevice>) -> Self {
-        devices.sort_by_key(|device| device.client_id);
+        devices.sort_unstable_by_key(|device| device.client_id);
         devices.dedup_by_key(|device| device.client_id);
         Self(devices)
     }
@@ -132,7 +129,7 @@ pub(crate) async fn own_device_entry(
     let name = name
         .map(str::trim)
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| platform_label(platform));
+        .unwrap_or_else(|| platform.label());
     Ok(LinkedDevice {
         client_id,
         name: name.to_owned(),
@@ -367,7 +364,7 @@ impl CoreUser {
 #[cfg(test)]
 mod tests {
     use aircommon::identifiers::{QsClientId, QsUserId, UserId};
-    use airprotos::client::self_group::{LinkedDevice, PLATFORM_IOS, PLATFORM_LINUX};
+    use airprotos::client::self_group::LinkedDevice;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
@@ -406,7 +403,7 @@ mod tests {
         stored_devices(db.read().await?).await
     }
 
-    fn device(n: u128, name: &str, platform: u8) -> LinkedDevice {
+    fn device(n: u128, name: &str, platform: LinkedDevicePlatform) -> LinkedDevice {
         LinkedDevice {
             client_id: Uuid::from_u128(n),
             name: name.to_owned(),
@@ -421,12 +418,12 @@ mod tests {
     #[test]
     fn construction_is_canonical() {
         let a = LinkedDevicesSetting::new(vec![
-            device(2, "b", PLATFORM_IOS),
-            device(1, "a", PLATFORM_LINUX),
+            device(2, "b", LinkedDevicePlatform::Ios),
+            device(1, "a", LinkedDevicePlatform::Linux),
         ]);
         let b = LinkedDevicesSetting::new(vec![
-            device(1, "a", PLATFORM_LINUX),
-            device(2, "b", PLATFORM_IOS),
+            device(1, "a", LinkedDevicePlatform::Linux),
+            device(2, "b", LinkedDevicePlatform::Ios),
         ]);
         assert_eq!(a.encode().unwrap(), b.encode().unwrap());
         assert_eq!(a.devices()[0].client_id, Uuid::from_u128(1));
@@ -435,8 +432,8 @@ mod tests {
     #[test]
     fn duplicate_client_ids_are_dropped() {
         let setting = LinkedDevicesSetting::new(vec![
-            device(1, "first", PLATFORM_LINUX),
-            device(1, "second", PLATFORM_IOS),
+            device(1, "first", LinkedDevicePlatform::Linux),
+            device(1, "second", LinkedDevicePlatform::Ios),
         ]);
         assert_eq!(setting.devices().len(), 1);
         assert_eq!(setting.devices()[0].name, "first");
@@ -445,9 +442,9 @@ mod tests {
     #[test]
     fn pruning_keeps_self_group_members_and_incoming_device() {
         let mut devices = vec![
-            device(1, "Linked", PLATFORM_LINUX),
-            device(2, "Orphan", PLATFORM_IOS),
-            device(3, "Incoming", PLATFORM_IOS),
+            device(1, "Linked", LinkedDevicePlatform::Linux),
+            device(2, "Orphan", LinkedDevicePlatform::Ios),
+            device(3, "Incoming", LinkedDevicePlatform::Ios),
         ];
 
         prune_devices(
@@ -468,8 +465,8 @@ mod tests {
     #[test]
     fn encode_decode_round_trip() {
         let setting = LinkedDevicesSetting::new(vec![
-            device(1, "Laptop", PLATFORM_LINUX),
-            device(2, "iPhone", PLATFORM_IOS),
+            device(1, "Laptop", LinkedDevicePlatform::Linux),
+            device(2, "iPhone", LinkedDevicePlatform::Ios),
         ]);
         let bytes = setting.encode().unwrap();
         let decoded = LinkedDevicesSetting::decode(bytes).unwrap();
@@ -478,7 +475,8 @@ mod tests {
 
     #[test]
     fn update_round_trip_and_clear() {
-        let setting = LinkedDevicesSetting::new(vec![device(1, "Laptop", PLATFORM_LINUX)]);
+        let setting =
+            LinkedDevicesSetting::new(vec![device(1, "Laptop", LinkedDevicePlatform::Linux)]);
         let mut update = SettingsUpdate::default();
         setting.apply_to_update(&mut update);
         assert_eq!(
@@ -500,21 +498,12 @@ mod tests {
         let update = SettingsUpdate {
             send_read_receipts: None,
             linked_devices: Some(vec![
-                device(2, "b", PLATFORM_IOS),
-                device(1, "a", PLATFORM_LINUX),
+                device(2, "b", LinkedDevicePlatform::Android),
+                device(1, "a", LinkedDevicePlatform::Linux),
             ]),
         };
         let setting = LinkedDevicesSetting::from_update(&update).unwrap();
         assert_eq!(setting.devices()[0].client_id, Uuid::from_u128(1));
-    }
-
-    #[test]
-    fn current_platform_is_known() {
-        assert_ne!(
-            current_platform(),
-            airprotos::client::self_group::PLATFORM_UNKNOWN
-        );
-        assert!(!platform_label(current_platform()).is_empty());
     }
 
     /// Without a self group nothing is enqueued, so the caller must not notify.
@@ -533,7 +522,7 @@ mod tests {
         let stored = devices_in(&db).await?;
         assert_eq!(stored.len(), 1);
         assert_eq!(stored[0].client_id, client_id);
-        assert_eq!(stored[0].name, platform_label(current_platform()));
+        assert_eq!(stored[0].name, current_platform().label());
         assert_eq!(stored[0].platform, current_platform());
         assert!(
             stored[0].linked_at > 0,

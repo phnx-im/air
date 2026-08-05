@@ -365,7 +365,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiLinkedDevicesCubitLinkedDevicesCubitBaseRenameDevice({
     required LinkedDevicesCubitBase that,
-    required String clientId,
+    required UuidValue clientId,
     required String name,
   });
 
@@ -380,7 +380,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiLinkedDevicesCubitLinkedDevicesCubitBaseUnlinkDevice({
     required LinkedDevicesCubitBase that,
-    required String clientId,
+    required UuidValue clientId,
   });
 
   Future<void> crateApiLoggingLogWriterWriteLine({
@@ -865,6 +865,7 @@ abstract class RustLibApi extends BaseApi {
   Stream<LogEntry> crateApiLoggingCreateLogStream();
 
   Future<void> crateApiUtilsDeleteClientDatabase({
+    required User user,
     required String dbPath,
     required UuidValue clientRecordId,
   });
@@ -3160,7 +3161,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiLinkedDevicesCubitLinkedDevicesCubitBaseRenameDevice({
     required LinkedDevicesCubitBase that,
-    required String clientId,
+    required UuidValue clientId,
     required String name,
   }) {
     return handler.executeNormal(
@@ -3171,7 +3172,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(clientId, serializer);
+          sse_encode_Uuid(clientId, serializer);
           sse_encode_String(name, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -3279,7 +3280,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiLinkedDevicesCubitLinkedDevicesCubitBaseUnlinkDevice({
     required LinkedDevicesCubitBase that,
-    required String clientId,
+    required UuidValue clientId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -3289,7 +3290,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(clientId, serializer);
+          sse_encode_Uuid(clientId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -7536,6 +7537,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void> crateApiUtilsDeleteClientDatabase({
+    required User user,
     required String dbPath,
     required UuidValue clientRecordId,
   }) {
@@ -7543,6 +7545,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+            user,
+            serializer,
+          );
           sse_encode_String(dbPath, serializer);
           sse_encode_Uuid(clientRecordId, serializer);
           pdeCallFfi(
@@ -7557,7 +7563,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUtilsDeleteClientDatabaseConstMeta,
-        argValues: [dbPath, clientRecordId],
+        argValues: [user, dbPath, clientRecordId],
         apiImpl: this,
       ),
     );
@@ -7566,7 +7572,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiUtilsDeleteClientDatabaseConstMeta =>
       const TaskConstMeta(
         debugName: "delete_client_database",
-        argNames: ["dbPath", "clientRecordId"],
+        argNames: ["user", "dbPath", "clientRecordId"],
       );
 
   @override
@@ -11525,7 +11531,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 5)
       throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return UiLinkedDevice(
-      clientId: dco_decode_String(arr[0]),
+      clientId: dco_decode_Uuid(arr[0]),
       name: dco_decode_String(arr[1]),
       platform: dco_decode_linked_device_platform(arr[2]),
       linkedAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[3]),
@@ -15411,7 +15417,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiLinkedDevice sse_decode_ui_linked_device(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_clientId = sse_decode_String(deserializer);
+    var var_clientId = sse_decode_Uuid(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_platform = sse_decode_linked_device_platform(deserializer);
     var var_linkedAt = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
@@ -19407,7 +19413,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.clientId, serializer);
+    sse_encode_Uuid(self.clientId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_linked_device_platform(self.platform, serializer);
     sse_encode_opt_box_autoadd_Chrono_Utc(self.linkedAt, serializer);
@@ -20111,13 +20117,15 @@ class LinkedDevicesCubitBaseImpl extends RustOpaque
   bool get isClosed => RustLib.instance.api
       .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseIsClosed(that: this);
 
-  Future<void> renameDevice({required String clientId, required String name}) =>
-      RustLib.instance.api
-          .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseRenameDevice(
-            that: this,
-            clientId: clientId,
-            name: name,
-          );
+  Future<void> renameDevice({
+    required UuidValue clientId,
+    required String name,
+  }) => RustLib.instance.api
+      .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseRenameDevice(
+        that: this,
+        clientId: clientId,
+        name: name,
+      );
 
   LinkedDevicesState get state => RustLib.instance.api
       .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseState(that: this);
@@ -20125,7 +20133,9 @@ class LinkedDevicesCubitBaseImpl extends RustOpaque
   Stream<LinkedDevicesState> stream() => RustLib.instance.api
       .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseStream(that: this);
 
-  Future<void> unlinkDevice({required String clientId}) => RustLib.instance.api
+  Future<void> unlinkDevice({required UuidValue clientId}) => RustLib
+      .instance
+      .api
       .crateApiLinkedDevicesCubitLinkedDevicesCubitBaseUnlinkDevice(
         that: this,
         clientId: clientId,

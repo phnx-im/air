@@ -40,7 +40,7 @@ pub use crate::{
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
-        linked_devices::{LinkedDevicesSetting, current_platform, platform_label},
+        linked_devices::{LinkedDevicesSetting, current_platform},
         safety_code::SafetyCode,
         user_settings::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting},
     },

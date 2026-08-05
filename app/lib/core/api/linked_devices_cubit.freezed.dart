@@ -148,7 +148,7 @@ as List<UiLinkedDevice>,
 /// @nodoc
 mixin _$UiLinkedDevice {
 
- String get clientId; String get name; LinkedDevicePlatform get platform; DateTime? get linkedAt; bool get isThisDevice;
+ UuidValue get clientId; String get name; LinkedDevicePlatform get platform; DateTime? get linkedAt; bool get isThisDevice;
 /// Create a copy of UiLinkedDevice
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -179,7 +179,7 @@ abstract mixin class $UiLinkedDeviceCopyWith<$Res>  {
   factory $UiLinkedDeviceCopyWith(UiLinkedDevice value, $Res Function(UiLinkedDevice) _then) = _$UiLinkedDeviceCopyWithImpl;
 @useResult
 $Res call({
- String clientId, String name, LinkedDevicePlatform platform, DateTime? linkedAt, bool isThisDevice
+ UuidValue clientId, String name, LinkedDevicePlatform platform, DateTime? linkedAt, bool isThisDevice
 });
 
 
@@ -199,7 +199,7 @@ class _$UiLinkedDeviceCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') @override $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = freezed,Object? isThisDevice = null,}) {
   return _then(_self.copyWith(
 clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
-as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as UuidValue,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,platform: null == platform ? _self.platform : platform // ignore: cast_nullable_to_non_nullable
 as LinkedDevicePlatform,linkedAt: freezed == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable
@@ -218,7 +218,7 @@ class _UiLinkedDevice implements UiLinkedDevice {
   const _UiLinkedDevice({required this.clientId, required this.name, required this.platform, this.linkedAt, required this.isThisDevice});
   
 
-@override final  String clientId;
+@override final  UuidValue clientId;
 @override final  String name;
 @override final  LinkedDevicePlatform platform;
 @override final  DateTime? linkedAt;
@@ -254,7 +254,7 @@ abstract mixin class _$UiLinkedDeviceCopyWith<$Res> implements $UiLinkedDeviceCo
   factory _$UiLinkedDeviceCopyWith(_UiLinkedDevice value, $Res Function(_UiLinkedDevice) _then) = __$UiLinkedDeviceCopyWithImpl;
 @override @useResult
 $Res call({
- String clientId, String name, LinkedDevicePlatform platform, DateTime? linkedAt, bool isThisDevice
+ UuidValue clientId, String name, LinkedDevicePlatform platform, DateTime? linkedAt, bool isThisDevice
 });
 
 
@@ -274,7 +274,7 @@ class __$UiLinkedDeviceCopyWithImpl<$Res>
 @override @pragma('vm:prefer-inline') $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = freezed,Object? isThisDevice = null,}) {
   return _then(_UiLinkedDevice(
 clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
-as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as UuidValue,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,platform: null == platform ? _self.platform : platform // ignore: cast_nullable_to_non_nullable
 as LinkedDevicePlatform,linkedAt: freezed == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable

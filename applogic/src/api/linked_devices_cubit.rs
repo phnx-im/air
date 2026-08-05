@@ -48,8 +48,7 @@ pub enum _LinkedDevicePlatform {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiLinkedDevice {
-    /// Hyphenated UUID. FRB has no native `Uuid`, so it crosses as a string.
-    pub client_id: String,
+    pub client_id: Uuid,
     pub name: String,
     pub platform: LinkedDevicePlatform,
     pub linked_at: Option<DateTime<Utc>>,
@@ -76,11 +75,8 @@ impl LinkedDevicesCubitBase {
         let notifications = core_user.db_notifications();
         let core = CubitCore::new();
 
-        spawn_from_sync(devices_listener(
-            core_user.clone(),
-            notifications,
-            core.state_tx().clone(),
-            core.cancellation_token().clone(),
+        spawn_from_sync(core.cancellation_token().clone().run_until_cancelled_owned(
+            devices_listener(core_user.clone(), notifications, core.state_tx().clone()),
         ));
 
         Self { core, core_user }
@@ -104,15 +100,13 @@ impl LinkedDevicesCubitBase {
         self.core.stream(sink).await;
     }
 
-    pub async fn rename_device(&self, client_id: String, name: String) -> anyhow::Result<()> {
-        let client_id = Uuid::parse_str(&client_id)?;
+    pub async fn rename_device(&self, client_id: Uuid, name: String) -> anyhow::Result<()> {
         self.core_user.rename_device(client_id, name).await?;
         load_and_emit(&self.core_user, self.core.state_tx()).await;
         Ok(())
     }
 
-    pub async fn unlink_device(&self, client_id: String) -> anyhow::Result<()> {
-        let client_id = Uuid::parse_str(&client_id)?;
+    pub async fn unlink_device(&self, client_id: Uuid) -> anyhow::Result<()> {
         self.core_user.unlink_device(client_id).await?;
         load_and_emit(&self.core_user, self.core.state_tx()).await;
         Ok(())
@@ -127,43 +121,31 @@ async fn devices_listener(
     core_user: CoreUser,
     mut notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
     state_tx: watch::Sender<LinkedDevicesState>,
-    cancel: CancellationToken,
 ) {
     load_and_emit(&core_user, &state_tx).await;
 
-    loop {
-        let notification = tokio::select! {
-            _ = cancel.cancelled() => return,
-            notification = notifications.next() => match notification {
-                Some(notification) => notification,
-                None => return,
-            },
-        };
+    let mut self_chat_id = None;
 
-        let setting_touched = notification.ops.keys().any(|entity_id| {
-            matches!(
-                entity_id,
-                DbEntityId::UserSetting(key) if key == LinkedDevicesSetting::KEY
-            )
-        });
-        let chat_touched = if notification
-            .ops
-            .keys()
-            .any(|entity_id| matches!(entity_id, DbEntityId::Chat(_)))
-        {
-            let self_chat_id = core_user.self_chat_id().await.ok().flatten();
-            notification.ops.keys().any(|entity_id| {
-                matches!(
-                    entity_id,
-                    DbEntityId::Chat(chat_id) if Some(*chat_id) == self_chat_id
-                )
-            })
-        } else {
-            false
-        };
-        let touched = setting_touched || chat_touched;
-        if touched {
-            load_and_emit(&core_user, &state_tx).await;
+    while let Some(notification) = notifications.next().await {
+        for entity_id in notification.ops.keys() {
+            let updated = match entity_id {
+                DbEntityId::UserSetting(key) if key == LinkedDevicesSetting::KEY => true,
+                DbEntityId::Chat(chat_id) => {
+                    // The self chat id never changes once set.
+                    match self_chat_id {
+                        Some(self_chat_id) => *chat_id == self_chat_id,
+                        None => {
+                            self_chat_id = core_user.self_chat_id().await.ok().flatten();
+                            self_chat_id.as_ref().is_some_and(|id| id == chat_id)
+                        }
+                    }
+                }
+                _ => false,
+            };
+            if updated {
+                load_and_emit(&core_user, &state_tx).await;
+                break;
+            }
         }
     }
 }
@@ -197,10 +179,10 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
         .map(|client_id| {
             let entry = metadata.iter().find(|entry| &entry.client_id == client_id);
             UiLinkedDevice {
-                client_id: client_id.to_string(),
+                client_id: *client_id,
                 name: entry.map(|entry| entry.name.clone()).unwrap_or_default(),
                 platform: entry
-                    .map(|entry| entry.platform.into())
+                    .map(|entry| entry.platform)
                     .unwrap_or(LinkedDevicePlatform::Unknown),
                 linked_at: entry
                     .and_then(|entry| Utc.timestamp_opt(entry.linked_at as i64, 0).single()),
@@ -210,6 +192,6 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
         .collect();
 
     // This device first, then oldest link first for a stable order.
-    devices.sort_by_key(|device| (!device.is_this_device, device.linked_at));
+    devices.sort_unstable_by_key(|device| (!device.is_this_device, device.linked_at));
     Ok(devices)
 }

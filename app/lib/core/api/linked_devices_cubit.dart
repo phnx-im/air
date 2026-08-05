@@ -9,6 +9,7 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
 part 'linked_devices_cubit.freezed.dart';
 
@@ -26,13 +27,16 @@ abstract class LinkedDevicesCubitBase implements RustOpaqueInterface {
         userCubit: userCubit,
       );
 
-  Future<void> renameDevice({required String clientId, required String name});
+  Future<void> renameDevice({
+    required UuidValue clientId,
+    required String name,
+  });
 
   LinkedDevicesState get state;
 
   Stream<LinkedDevicesState> stream();
 
-  Future<void> unlinkDevice({required String clientId});
+  Future<void> unlinkDevice({required UuidValue clientId});
 }
 
 enum LinkedDevicePlatform { unknown, android, ios, macos, windows, linux }
@@ -53,7 +57,7 @@ sealed class LinkedDevicesState with _$LinkedDevicesState {
 @freezed
 sealed class UiLinkedDevice with _$UiLinkedDevice {
   const factory UiLinkedDevice({
-    required String clientId,
+    required UuidValue clientId,
     required String name,
     required LinkedDevicePlatform platform,
     DateTime? linkedAt,

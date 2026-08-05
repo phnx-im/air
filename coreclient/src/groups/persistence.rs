@@ -147,7 +147,7 @@ impl GroupStorageWitness for LocalGroupStorage {
 
 /// A [`Group`] loaded from local storage, with the guarantee that all
 /// leaf credentials have been previously verified against AS credentials.
-pub(crate) struct VerifiedGroup(Group);
+pub(crate) struct VerifiedGroup(pub(super) Group);
 
 impl VerifiedGroup {
     pub(crate) fn group(&self) -> &Group {

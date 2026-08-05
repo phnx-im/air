@@ -2629,7 +2629,7 @@ fn wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_rename_device_
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LinkedDevicesCubitBase>>>::sse_decode(&mut deserializer);
-let api_client_id = <String>::sse_decode(&mut deserializer);
+let api_client_id = <uuid::Uuid>::sse_decode(&mut deserializer);
 let api_name = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
@@ -2770,7 +2770,7 @@ fn wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_unlink_device_
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LinkedDevicesCubitBase>>>::sse_decode(&mut deserializer);
-let api_client_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_client_id = <uuid::Uuid>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -8720,13 +8720,34 @@ fn wire__crate__api__utils__delete_client_database_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_user = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>,
+            >>::sse_decode(&mut deserializer);
             let api_db_path = <String>::sse_decode(&mut deserializer);
             let api_client_record_id = <uuid::Uuid>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
+                        let mut api_user_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_user, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_user_guard =
+                                        Some(api_user.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_user_guard = api_user_guard.unwrap();
                         let output_ok = crate::api::utils::delete_client_database(
+                            &*api_user_guard,
                             api_db_path,
                             api_client_record_id,
                         )
@@ -13109,7 +13130,7 @@ impl SseDecode for crate::api::invitation_codes_cubit::UiInvitationCode {
 impl SseDecode for crate::api::linked_devices_cubit::UiLinkedDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_clientId = <String>::sse_decode(deserializer);
+        let mut var_clientId = <uuid::Uuid>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_platform =
             <crate::api::linked_devices_cubit::LinkedDevicePlatform>::sse_decode(deserializer);
@@ -19225,7 +19246,7 @@ impl SseEncode for crate::api::invitation_codes_cubit::UiInvitationCode {
 impl SseEncode for crate::api::linked_devices_cubit::UiLinkedDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.client_id, serializer);
+        <uuid::Uuid>::sse_encode(self.client_id, serializer);
         <String>::sse_encode(self.name, serializer);
         <crate::api::linked_devices_cubit::LinkedDevicePlatform>::sse_encode(
             self.platform,

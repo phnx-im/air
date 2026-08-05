@@ -40,7 +40,7 @@ use crate::{
     chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::{Group, openmls_provider::AirOpenMlsProvider},
+    groups::{Group, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
         indexed_keys::StorableIndexedKey,
@@ -63,6 +63,10 @@ impl SelfGroup {
 
     pub(crate) fn group_mut(&mut self) -> &mut Group {
         &mut self.group
+    }
+
+    pub(crate) fn into_verified_group(self) -> VerifiedGroup {
+        VerifiedGroup(self.group)
     }
 
     pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
@@ -161,6 +165,71 @@ impl SelfGroup {
         Ok(ApqGroupOperationParamsOut {
             bundle,
             encrypted_welcome_attribution_infos: Default::default(),
+        })
+    }
+
+    /// Stages a commit removing the self-group leaves with the given client ids.
+    pub(crate) async fn stage_apq_remove_clients(
+        &mut self,
+        mut connection: impl WriteConnection,
+        signer: &SelfGroupSigningKey,
+        mut client_ids: Vec<Uuid>,
+    ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        let mut remove_indices = Vec::with_capacity(client_ids.len());
+        for member in self.group.mls_group.members() {
+            let LeafCredential::SelfGroup(credential) =
+                LeafCredential::from_credential(&member.credential)?
+            else {
+                bail!("a self-group leaf carries a user credential");
+            };
+            if let Some(idx) = client_ids
+                .iter()
+                .position(|id| id == &credential.client_id())
+            {
+                remove_indices.push(member.index);
+                client_ids.swap_remove(idx);
+            }
+            if client_ids.is_empty() {
+                break;
+            }
+        }
+        ensure!(
+            client_ids.is_empty(),
+            "clients to remove are not in the self group: {client_ids:?}"
+        );
+
+        let vc_epoch_id = self
+            .group
+            .resolve_vc_emulation_epoch(&mut connection)
+            .await?;
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
+
+        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        });
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        t_mls_group.set_aad(aad);
+
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .propose_removals(remove_indices)
+                .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
+
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Vec::new(),
         })
     }
 }

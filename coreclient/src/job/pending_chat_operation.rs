@@ -39,6 +39,7 @@ use crate::{
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
         client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
+        self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
@@ -808,16 +809,11 @@ impl PendingChatOperation {
     /// Stages a self-group commit removing the given devices' leaves.
     pub(super) async fn create_remove_clients(
         txn: &mut WriteDbTransaction<'_>,
-        chat_id: ChatId,
         client_ids: Vec<Uuid>,
     ) -> anyhow::Result<Self> {
-        let chat = Chat::load(&mut *txn, &chat_id)
+        let mut self_group = SelfGroup::load(&mut *txn)
             .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(&mut *txn, group_id)
-            .await?
-            .with_context(|| format!("No group found for group ID {group_id:?}"))?;
+            .context("failed to load self-group")?;
 
         let own_info = OwnClientInfo::load(&mut *txn).await?;
         let signer = own_info
@@ -827,20 +823,19 @@ impl PendingChatOperation {
         // Room policy, keyed by client id rather than user id: all self-group
         // leaves share one user, so a user-keyed check could not tell them apart.
         for target in &client_ids {
-            group.verify_role_change_identity(
+            self_group.group().verify_role_change_identity(
                 &RoomPolicyIdentity::Client(own_info.client_id),
                 &RoomPolicyIdentity::Client(*target),
                 RoleIndex::Outsider,
             )?;
         }
 
-        let params = group
-            .group_mut()
+        let params = self_group
             .stage_apq_remove_clients(&mut *txn, &signer, client_ids)
             .await?;
 
         let job = Self::new(
-            group,
+            self_group.into_verified_group(),
             OperationType::SelfGroupRemove {
                 params: Box::new(params),
             },
