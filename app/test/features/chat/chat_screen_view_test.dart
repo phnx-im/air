@@ -2,13 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
@@ -53,6 +57,20 @@ UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
   position: UiFlightPosition.single,
   status: UiMessageStatus.sent,
   reactions: [],
+);
+
+UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
+  id: _chat.id,
+  status: _chat.status,
+  chatType: _chat.chatType,
+  lastUsed: _chat.lastUsed,
+  messagesCount: _chat.messagesCount,
+  unreadMessages: unreadMessages,
+  lastMessage: _chat.lastMessage,
+  draft: _chat.draft,
+  isApq: _chat.isApq,
+  mutedUntil: _chat.mutedUntil,
+  pendingCommitFailed: false,
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
@@ -345,6 +363,104 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/composer_quote.png'),
         );
+      });
+    });
+
+    group('scroll-back button', () {
+      Finder buttonWith(AppIconType icon) =>
+          find.byWidgetPredicate((w) => w is ButtonIcon && w.icon == icon);
+
+      /// The unread dot, found by the shape and fill it is the only wearer of.
+      final dot = find.byWidgetPredicate((w) {
+        if (w is! Container) return false;
+        final decoration = w.decoration;
+        return decoration is BoxDecoration &&
+            decoration.shape == BoxShape.circle &&
+            decoration.color ==
+                lightSemanticPalette.function.neutral.toggleBlack;
+      });
+
+      /// Opens the chat with [unread] messages below the read watermark, on a
+      /// phone-sized viewport, and lets the jump to the first unread settle.
+      Future<void> openWithUnread(WidgetTester tester, int unread) async {
+        tester.view.physicalSize = const Size(1170, 2532);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(chat: _chatWithUnread(unread), members: members),
+        );
+        messageListCubit.setState(
+          messages,
+          firstUnreadIndex: messages.length - unread,
+          unreadCount: unread,
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('hides once the initial unread jump settles on the newest '
+          'message', (tester) async {
+        // Four unread messages overshoot the viewport just enough that the
+        // jump parks the list above the bottom, with the newest message still
+        // in view and therefore already marked as read.
+        await openWithUnread(tester, 4);
+
+        verify(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: messages.last.id,
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        expect(buttonWith(AppIconType.chevronDown), findsNothing);
+      });
+
+      testWidgets('stays up while unread messages sit below the fold', (
+        tester,
+      ) async {
+        await openWithUnread(tester, 6);
+
+        verifyNever(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: messages.last.id,
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        );
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+      });
+
+      testWidgets('drops its dot when the chat is marked as read', (
+        tester,
+      ) async {
+        final details = StreamController<ChatDetailsState>();
+        addTearDown(details.close);
+        whenListen(
+          chatDetailsCubit,
+          details.stream,
+          initialState: ChatDetailsState(
+            chat: _chatWithUnread(3),
+            members: members,
+          ),
+        );
+        // hasNewer keeps the button up so only the dot is under test.
+        messageListCubit.setState(messages, hasNewer: true);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+        expect(dot, findsOneWidget);
+
+        details.add(
+          ChatDetailsState(chat: _chatWithUnread(0), members: members),
+        );
+        await tester.pumpAndSettle();
+
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+        expect(dot, findsNothing);
       });
     });
 

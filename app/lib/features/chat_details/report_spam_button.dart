@@ -4,7 +4,8 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
@@ -22,48 +23,28 @@ class ReportSpamButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = DeviceType.isDesktop;
-
-    return OutlinedButton(
+    return Button(
       onPressed: () => _onPressed(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-      ),
-      child: Text(
-        loc.reportSpamButton_text,
-        style: typeScale.body.regular.style(
-          color: SemanticPalette.of(context).text.primary,
-        ),
-      ),
+      size: ButtonSize.of(context),
+      type: ButtonType.secondary,
+      label: loc.reportSpamButton_text,
     );
   }
 
   void _onPressed(BuildContext context) async {
-    final confirmed = await showDialog(
+    final loc = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        final loc = AppLocalizations.of(context);
-
-        return AlertDialog(
-          title: Text(loc.reportSpamDialog_title),
-          content: Text(loc.reportSpamDialog_content),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(loc.reportSpamDialog_cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(loc.reportSpamDialog_reportSpam),
-            ),
-          ],
-        );
-      },
+      builder: (_) => ConfirmDialog(
+        title: loc.reportSpamDialog_title,
+        message: loc.reportSpamDialog_content,
+        cancel: loc.reportSpamDialog_cancel,
+        confirm: loc.reportSpamDialog_reportSpam,
+        destructive: true,
+      ),
     );
 
-    if (confirmed && context.mounted) {
+    if ((confirmed ?? false) && context.mounted) {
       try {
         await context.read<UserCubit>().reportSpam(userId);
         showSnackBarStandalone(

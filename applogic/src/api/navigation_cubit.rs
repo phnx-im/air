@@ -53,6 +53,20 @@ pub enum HomeTab {
     Profile,
 }
 
+/// Sections of the profile tab.
+///
+/// The developer settings are not a section: they keep their own screens, see
+/// [`DeveloperSettingsScreenType`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum YouSection {
+    Profile,
+    Devices,
+    Account,
+    Preferences,
+    Help,
+}
+
 /// Chats screen: main screen of the app
 ///
 /// Note: this can be represented in a better way disallowing invalid states.
@@ -76,8 +90,19 @@ pub struct HomeNavigationState {
     pub member_details: Option<UiUserId>,
     #[frb(default = "HomeTab.chats")]
     pub active_tab: HomeTab,
+    /// Open section of the profile tab.
+    ///
+    /// `None` is the section list, which is what the phone shows when the tab
+    /// is opened. The two-pane layout has no list of its own, so it falls back
+    /// to [`YouSection::Profile`] there.
+    pub you_section: Option<YouSection>,
     #[frb(default = false)]
     pub chat_details_open: bool,
+    /// Whether the safety-code view is open on top of the profile in chat
+    /// details. It is a view of whichever profile is showing, so it sits above
+    /// both the contact profile and an open member profile.
+    #[frb(default = false)]
+    pub safety_code_open: bool,
     #[frb(default = false)]
     pub add_members_open: bool,
     #[frb(default = false)]
@@ -212,6 +237,9 @@ impl NavigationCubitBase {
                 if mem::replace(&mut home.chat_details_open, false) {
                     changed = true;
                 }
+                if mem::replace(&mut home.safety_code_open, false) {
+                    changed = true;
+                }
                 if mem::replace(&mut home.add_members_open, false) {
                     changed = true;
                 }
@@ -256,6 +284,13 @@ impl NavigationCubitBase {
         });
     }
 
+    pub fn open_safety_code(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => !mem::replace(&mut home.safety_code_open, true),
+        });
+    }
+
     pub fn open_add_members(&self) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
@@ -280,7 +315,26 @@ impl NavigationCubitBase {
     pub fn switch_tab(&self, tab: HomeTab) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => mem::replace(&mut home.active_tab, tab) != tab,
+            NavigationState::Home { home } => {
+                // A tab always lands on its root, so leaving the profile tab
+                // drops the open section, and so does tapping the tab again.
+                let section_closed = home.you_section.take().is_some();
+                mem::replace(&mut home.active_tab, tab) != tab || section_closed
+            }
+        });
+    }
+
+    pub fn open_you_section(&self, section: YouSection) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => home.you_section.replace(section) != Some(section),
+        });
+    }
+
+    pub fn close_you_section(&self) {
+        self.core.state_tx().send_if_modified(|state| match state {
+            NavigationState::Intro { .. } => false,
+            NavigationState::Home { home } => home.you_section.take().is_some(),
         });
     }
 
@@ -352,8 +406,16 @@ impl NavigationCubitBase {
                     .replace(DeveloperSettingsScreenType::Root);
                 true
             }
+            NavigationState::Home { home } if home.you_section.is_some() => {
+                home.you_section.take();
+                true
+            }
             NavigationState::Home { home } if home.active_tab != HomeTab::Chats => {
                 home.active_tab = HomeTab::Chats;
+                true
+            }
+            NavigationState::Home { home } if home.safety_code_open => {
+                home.safety_code_open = false;
                 true
             }
             NavigationState::Home { home } if home.member_details.is_some() => {
@@ -374,6 +436,7 @@ impl NavigationCubitBase {
             }
             NavigationState::Home { home } if home.chat_id.is_some() && home.chat_details_open => {
                 home.chat_details_open = false;
+                home.safety_code_open = false;
                 home.group_members_open = false;
                 home.add_members_open = false;
                 true

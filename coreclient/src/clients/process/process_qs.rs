@@ -18,6 +18,7 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::removed_client,
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::group::GroupData;
 use anyhow::{Context, Result, bail, ensure};
@@ -52,7 +53,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupDataBytes, VerifiedGroup,
+        DecryptedProfileInfos, Group, GroupDataBytes, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
@@ -265,6 +266,7 @@ impl CoreUser {
             group_id,
             epoch,
             timestamp,
+            key_package_batch,
         } = commit_response;
 
         // Load the group by group_id
@@ -297,12 +299,19 @@ impl CoreUser {
             .await?
             .context("Can't find chat for commit response")?;
 
+        let pq_updated_at = group.is_apq().then_some(timestamp);
+        group
+            .group_mut()
+            .store_update(&mut *txn, Some(timestamp), pq_updated_at)
+            .await?;
+
         self.finalize_own_commit(
             txn,
             &group,
             &mut chat,
             group_data_bytes,
             &mut group_messages,
+            key_package_batch,
             timestamp,
         )
         .await?;
@@ -322,6 +331,7 @@ impl CoreUser {
     /// the commit back via fanout, so whichever arrives first must run these
     /// side effects (the loser bails early on the now-stale epoch). The caller
     /// is responsible for storing `group_messages`.
+    #[expect(clippy::too_many_arguments)]
     async fn finalize_own_commit(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -329,6 +339,7 @@ impl CoreUser {
         chat: &mut Chat,
         group_data_bytes: Option<GroupDataBytes>,
         group_messages: &mut Vec<TimestampedMessage>,
+        key_package_batch: Option<KeyPackageBatchId>,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
@@ -359,8 +370,13 @@ impl CoreUser {
             .await?;
         }
 
-        // Delete the pending chat operation
-        PendingChatOperation::delete(txn, group.group_id()).await?;
+        // Complete the pending chat operation
+        PendingChatOperation::complete_own_commit(
+            txn,
+            group.group_id(),
+            key_package_batch.as_ref(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -400,19 +416,16 @@ impl CoreUser {
         // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
         // fetching them from the AS.
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
-        let signers =
-            if let Some(self_group_signer) = own_client_info.self_group_signing_key.as_ref() {
-                vec![self.signing_key(), self_group_signer]
-            } else {
-                vec![self.signing_key()]
-            };
-
+        let signers = JoinSigners {
+            client: self.signing_key(),
+            self_group: own_client_info.self_group_signing_key.as_ref(),
+        };
         let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
             &self.inner.api_clients,
-            &signers,
+            signers,
         ))
         .await?;
 
@@ -795,7 +808,7 @@ impl CoreUser {
             .user_id(group.own_user_id())
             .clone();
 
-        let aad = processed_message.aad().to_vec();
+        let aad = processed_message.tail_aad().to_vec();
 
         let chat_id = chat.id();
 
@@ -872,9 +885,10 @@ impl CoreUser {
                 let (mut group_messages, group_data_bytes) = group
                     .merge_pending_commit(&mut *txn, None, ds_timestamp)
                     .await?;
+                let pq_updated_at = group.is_apq().then_some(ds_timestamp);
                 group
                     .group_mut()
-                    .store_update(&mut *txn, Some(ds_timestamp), None)
+                    .store_update(&mut *txn, Some(ds_timestamp), pq_updated_at)
                     .await?;
                 self.finalize_own_commit(
                     &mut *txn,
@@ -882,6 +896,7 @@ impl CoreUser {
                     &mut chat,
                     group_data_bytes,
                     &mut group_messages,
+                    None,
                     ds_timestamp,
                 )
                 .await?;
@@ -1373,13 +1388,19 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
-        // Phase 1: Load the group and the sender.
+        // Phase 1: Load the group and the sender. Self-group leaves carry a
+        // self-group credential instead of a user credential, so the sender of
+        // a self-group update is a sibling device of the own user.
         let group = Group::load_verified(&mut *txn, &params.group_id)
             .await?
             .context("No group found")?;
-        let sender_credential = group
-            .credential_at(params.sender_index)?
-            .context("No sender credential found")?;
+        let sender_credential = if group.is_self_group() {
+            self.inner.key_store.signing_key.credential().clone()
+        } else {
+            group
+                .credential_at(params.sender_index)?
+                .context("No sender credential found")?
+        };
         let sender = sender_credential.user_id();
 
         // Phase 2: Decrypt the new user profile key

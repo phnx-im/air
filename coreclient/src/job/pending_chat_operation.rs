@@ -4,7 +4,10 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    credentials::{UserCredential, keys::ClientSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{ClientSigningKey, SelfGroupSigningKey},
+    },
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
@@ -12,13 +15,14 @@ use aircommon::{
         SelfRemoveParamsOut,
     },
     time::TimeStamp,
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{group::GroupData, self_group::SettingsUpdate};
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
-use openmls::group::GroupId;
+use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
@@ -27,8 +31,8 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
-        CoreUser, api_clients::ApiClients, update_key::update_chat_attributes,
-        user_settings::SettingChanges,
+        CoreUser, api_clients::ApiClients, own_client_info::OwnClientInfo,
+        update_key::update_chat_attributes, user_settings::SettingChanges,
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
@@ -38,7 +42,10 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
     },
-    key_stores::indexed_keys::StorableIndexedKey,
+    key_stores::{
+        indexed_keys::StorableIndexedKey,
+        key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
+    },
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -81,6 +88,12 @@ pub(super) enum OperationType {
         /// sent with the still-intended value are done.
         update: SettingsUpdate,
     },
+    SelfGroupKeyPackageUpload {
+        params: Box<ApqGroupOperationParamsOut>,
+        batch_id: KeyPackageBatchId,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -92,6 +105,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
             OperationType::SettingsUpdate { .. } => "settings_update",
+            OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
         };
         f.write_str(label)
     }
@@ -126,6 +140,20 @@ impl OperationType {
         }
     }
 
+    fn self_group_key_package_upload(
+        params: ApqGroupOperationParamsOut,
+        batch_id: KeyPackageBatchId,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    ) -> Self {
+        Self::SelfGroupKeyPackageUpload {
+            params: Box::new(params),
+            batch_id,
+            plain_refs,
+            apq_refs,
+        }
+    }
+
     fn is_commit(&self) -> bool {
         match self {
             OperationType::Leave(_) => false,
@@ -133,7 +161,8 @@ impl OperationType {
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
-            | OperationType::SettingsUpdate { .. } => true,
+            | OperationType::SettingsUpdate { .. }
+            | OperationType::SelfGroupKeyPackageUpload { .. } => true,
         }
     }
 
@@ -298,6 +327,10 @@ impl PendingChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
+            // TODO: A self-group key package upload parks here until the
+            // `DsCommitResponse` arrives via the queue. If that response is
+            // lost (the DS dispatches it best-effort), the job is stuck
+            // forever and blocks all further uploads.
             info!(
                 group_id = ?self.group.group_id(),
                 "Failed to execute PendingChatOperation for group because
@@ -325,6 +358,12 @@ impl PendingChatOperation {
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().user_id().clone();
 
+        // The DS verifies request envelopes against the sender's leaf signature key: the
+        // per-device self-group key in the self group, the user key everywhere else.
+        let leaf_signer =
+            OwnClientInfo::signer_for_group(db.read().await?, self.group.group_id(), signer)
+                .await?;
+
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
         let is_commit = self.operation.is_commit();
@@ -347,7 +386,7 @@ impl PendingChatOperation {
             // different T epoch.
             let restaged = self.group.group_mut().restage_leave_group(
                 db.write().await?,
-                signer,
+                &leaf_signer,
                 leave_params,
             )?;
             **leave_params = restaged;
@@ -370,17 +409,17 @@ impl PendingChatOperation {
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
-                    .ds_self_remove(*params, signer, self.group.group_state_ear_key())
+                    .ds_self_remove(*params, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Delete(params) => {
                 api_client
-                    .ds_delete_group(*params, signer, self.group.group_state_ear_key())
+                    .ds_delete_group(*params, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::ApqDelete { commit } => {
                 api_client
-                    .ds_apq_delete_group(*commit, signer, self.group.group_state_ear_key())
+                    .ds_apq_delete_group(*commit, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Other {
@@ -395,7 +434,7 @@ impl PendingChatOperation {
                 api_client
                     .ds_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -415,16 +454,17 @@ impl PendingChatOperation {
                 api_client
                     .ds_apq_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
                     )
                     .await
             }
-            OperationType::SettingsUpdate { params, .. } => {
-                // Sent exactly like `ApqOther`: same DS call, no chat picture,
-                // no chat side effects.
+            OperationType::SettingsUpdate { params, .. }
+            | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
+                // Sent exactly like `ApqOther`: same DS call, no chat picture, no chat side
+                // effects.
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
@@ -432,7 +472,7 @@ impl PendingChatOperation {
                 api_client
                     .ds_apq_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -465,6 +505,14 @@ impl PendingChatOperation {
                 TimeStamp::now()
             }
         };
+
+        if let OperationType::SelfGroupKeyPackageUpload { .. } = &self.operation {
+            // Mark the operation as waiting for the queue response as we only accept this operation
+            // as done when we are getting an echo via the queue.
+            self.mark_as_waiting_for_queue_response(db.write().await?)
+                .await?;
+            return Ok(Vec::new());
+        }
 
         // If any of the following fails, something is very wrong.
         let messages = db
@@ -715,7 +763,8 @@ impl PendingChatOperation {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
-        let params = group.group_mut().apq_update(txn, signer).await?;
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
+        let params = group.group_mut().apq_update(txn, &signer).await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)
@@ -728,7 +777,7 @@ impl PendingChatOperation {
     /// pending commit itself to tell a transient one apart from a failure.
     pub(crate) async fn create_settings_update(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &SelfGroupSigningKey,
         mut group: VerifiedGroup,
         update: SettingsUpdate,
     ) -> anyhow::Result<Self> {
@@ -759,9 +808,10 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, signer, group_data_bytes)
+            .update(&mut *txn, &signer, group_data_bytes)
             .await?;
 
         let job = Self::new(
@@ -913,6 +963,124 @@ impl PendingChatOperation {
             })
             .await
     }
+
+    pub(crate) async fn create_self_group_key_package_upload(
+        mut txn: &mut WriteDbTransaction<'_>,
+        params: ApqGroupOperationParamsOut,
+        batch_id: KeyPackageBatchId,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    ) -> anyhow::Result<Self> {
+        let own_client_info = OwnClientInfo::load(&mut txn).await?;
+        let group_id = own_client_info
+            .self_group_id
+            .context("Self-group not found")?;
+        let group = Group::load_verified(&mut txn, &group_id)
+            .await?
+            .context("Self-group not found")?;
+
+        let operation_type =
+            OperationType::self_group_key_package_upload(params, batch_id, plain_refs, apq_refs);
+
+        let job = Self::new(group, operation_type);
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Deletes this job after a foreign commit superseded it: its own staged
+    /// commit is dead at the DS, so its side effects must not be applied.
+    ///
+    /// For a self-group key package upload this also sweeps the batch's
+    /// generated key packages: their refs exist only in this job's row, so
+    /// they become orphans the moment the row is gone.
+    pub(crate) async fn discard(&self, txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
+        Self::delete(&mut *txn, self.group.group_id()).await?;
+        if matches!(
+            self.operation,
+            OperationType::SelfGroupKeyPackageUpload { .. }
+        ) {
+            delete_orphaned_key_packages(txn).await?;
+        }
+        Ok(())
+    }
+
+    /// Completes the pending job after the queue proved that our own commit
+    /// on `group_id` was accepted by the DS.
+    ///
+    /// `key_package_batch` is the batch id carried by the `DsCommitResponse`,
+    /// which the DS extracted from the confirmed commit's SafeAAD. For
+    /// regular operations this just deletes the job. For a self-group key
+    /// package upload it decides the fate of the batch: the QS promote ran
+    /// atomically with the enqueue of the response, so a batch id matching
+    /// the job proves the job's batch is live. A missing or mismatched batch
+    /// id carries no proof the promote ran (the DS confirmed some other
+    /// commit, or local state forked); the job is abandoned without touching
+    /// liveness.
+    pub(crate) async fn complete_own_commit(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+        key_package_batch: Option<&KeyPackageBatchId>,
+    ) -> anyhow::Result<()> {
+        let Some(job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+            return Ok(());
+        };
+        match &job.operation {
+            OperationType::SelfGroupKeyPackageUpload {
+                batch_id,
+                plain_refs,
+                apq_refs,
+                ..
+            } => {
+                if key_package_batch == Some(batch_id) {
+                    Self::confirm_self_group_key_package_upload(
+                        txn, group_id, plain_refs, apq_refs,
+                    )
+                    .await?;
+                } else {
+                    error!(
+                        ?group_id,
+                        "Own self-group commit does not carry the pending upload; abandoning job"
+                    );
+                    Self::abandon_self_group_key_package_upload(txn, group_id).await?;
+                }
+            }
+            _ => {
+                Self::delete(txn, group_id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Confirms a pending self-group key package upload.
+    ///
+    /// Given refs are marked as live. The pending job for the group is deleted. Additionally,
+    /// removes orphaned key packages.
+    pub(crate) async fn confirm_self_group_key_package_upload(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+        plain_refs: &[KeyPackageRef],
+        apq_refs: &[KeyPackageRef],
+    ) -> anyhow::Result<()> {
+        mark_key_packages_as_live(txn, plain_refs, false).await?;
+        mark_key_packages_as_live(txn, apq_refs, true).await?;
+        delete_orphaned_key_packages(&mut *txn).await?;
+        Self::delete(txn, group_id).await?;
+        Ok(())
+    }
+
+    /// Abandons a pending self-group key package upload.
+    ///
+    /// The pending job for the group is deleted. Additionally, removes orphaned key packages.
+    ///
+    /// Idempotent: a missing job is a no-op.
+    pub(crate) async fn abandon_self_group_key_package_upload(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        Self::delete(&mut *txn, group_id).await?;
+        delete_orphaned_key_packages(txn).await?;
+        Ok(())
+    }
 }
 
 mod persistence {
@@ -1020,7 +1188,7 @@ mod persistence {
     }
 
     impl PendingChatOperation {
-        pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let operation_data = BlobEncoded(&self.operation);
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
@@ -1158,6 +1326,24 @@ mod persistence {
             Ok(record.row_exists == 1)
         }
 
+        pub(crate) async fn is_pending_for_group(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<bool> {
+            let group_id = group_id.as_slice();
+            let record = query!(
+                r#"
+                    SELECT EXISTS(SELECT 1
+                    FROM pending_chat_operation
+                    WHERE group_id = ?) AS row_exists
+                "#,
+                group_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await?;
+            Ok(record.row_exists == 1)
+        }
+
         /// Dequeue a PendingChatOperation for retry by the OutboundService.
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
@@ -1258,6 +1444,21 @@ pub mod test_utils {
 
             Ok(pco)
         }
+
+        pub(crate) async fn load_by_group_id(
+            connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> anyhow::Result<Option<Self>> {
+            let pco = PendingChatOperation::load_by_group_id(connection, group_id)
+                .await?
+                .map(|pco| PendingChatOperationInfo {
+                    operation_type: pco.operation.to_string(),
+                    request_status: pco.status.to_string(),
+                    number_of_attempts: pco.number_of_attempts,
+                });
+
+            Ok(pco)
+        }
     }
 
     impl PendingChatOperation {
@@ -1280,9 +1481,11 @@ pub mod test_utils {
                 .await?
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
+            let signer =
+                OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
             let params = group
                 .group_mut()
-                .update_with_air_component(&mut *txn, signer, air_component)
+                .update_with_air_component(&mut *txn, &signer, air_component)
                 .await?;
 
             let job = Self::new(group, OperationType::other(params));
@@ -1290,16 +1493,47 @@ pub mod test_utils {
             Ok(job)
         }
 
-        /// Serialized bytes of the staged commit's MLS message, i.e. the
-        /// message the DS echoes back to the committer via fanout. Feed this
-        /// back through the QS processing path to exercise the
-        /// `OwnPendingCommit` merge path.
+        /// Serialized bytes of the staged commit's MLS message. Feed this
+        /// back through the QS processing path (as a replayed or stale
+        /// delivery would arrive) to exercise the `OwnPendingCommit` merge
+        /// path.
         pub(crate) fn staged_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
             use openmls::prelude::tls_codec::Serialize as _;
             let OperationType::Other { params, .. } = &self.operation else {
                 bail!("not a group operation carrying a commit");
             };
             Ok(params.commit.mls_message().tls_serialize_detached()?)
+        }
+
+        /// Corrupts the persisted batch id of a self-group key package upload
+        /// job by bumping its generation, so the batch id delivered in the
+        /// `DsCommitResponse` no longer matches the job. Simulates a state
+        /// fork between the job and the commit the DS accepted.
+        pub(crate) async fn corrupt_self_group_upload_batch_id(
+            txn: &mut WriteDbTransaction<'_>,
+            group_id: &GroupId,
+        ) -> anyhow::Result<()> {
+            use aircommon::codec::BlobEncoded;
+
+            let mut job = Self::load_by_group_id(&mut *txn, group_id)
+                .await?
+                .context("no pending operation")?;
+            let OperationType::SelfGroupKeyPackageUpload { batch_id, .. } = &mut job.operation
+            else {
+                bail!("not a self-group key package upload");
+            };
+            batch_id.generation = batch_id.generation.wrapping_add(1);
+
+            let operation_data = BlobEncoded(&job.operation);
+            let group_id = group_id.as_slice();
+            sqlx::query(
+                "UPDATE pending_chat_operation SET operation_data = ?1 WHERE group_id = ?2",
+            )
+            .bind(operation_data)
+            .bind(group_id)
+            .execute(txn.as_mut())
+            .await?;
+            Ok(())
         }
     }
 }
@@ -1308,7 +1542,10 @@ pub mod test_utils {
 mod tests {
     use aircommon::{
         assert_matches,
-        credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
+        credentials::{
+            keys::{ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+            test_utils::create_test_credentials,
+        },
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
         mls_group_config::AppComponent,
@@ -1339,10 +1576,11 @@ mod tests {
     /// Builds a single-member APQ self-group with a pending settings-update
     /// operation, stored in the database.
     async fn setup_self_group_settings_op()
-    -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
+    -> anyhow::Result<(DbAccess, PendingChatOperation, SelfGroupSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
 
         let mut connection = pool.write().await?;
         let job = connection
@@ -1369,7 +1607,8 @@ mod tests {
                 ));
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &signing_key,
+                    &leaf_signer,
+                    user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
@@ -1473,6 +1712,90 @@ mod tests {
                     "settings op should be deleted when any commit comes in"
                 );
                 assert!(pending.group.mls_group().pending_commit().is_none());
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// A self-update staged in the self group keeps the self-group credential
+    /// type in the leaf capabilities (RFC 9420 valn0104) and the per-device
+    /// leaf signature key, even though the caller passes the user signing key.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
+        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+        use openmls::prelude::{CredentialType, SignaturePublicKey};
+
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, client_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let t_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let pq_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                OwnClientInfo {
+                    qs_user_id: QsUserId::random(),
+                    qs_client_id: QsClientId::random(&mut rand::rng()),
+                    user_id: user_id.clone(),
+                    client_id: Uuid::new_v4(),
+                    self_group_id: Some(t_group_id.clone()),
+                    self_group_signing_key: Some(self_group_signing_key.clone()),
+                }
+                .store(&mut *txn)
+                .await?;
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &leaf_signer,
+                    user_id.clone(),
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id.clone(),
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    None,
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+                let chat =
+                    Chat::new_group_chat(t_group_id, ChatAttributes::new("Notes".to_owned(), None));
+                chat.store(&mut *txn).await?;
+
+                let job = PendingChatOperation::create_apq_self_update(
+                    txn,
+                    &client_signing_key,
+                    chat.id(),
+                )
+                .await?;
+
+                let staged = job
+                    .group
+                    .mls_group()
+                    .pending_commit()
+                    .context("no staged commit")?;
+                let leaf = staged
+                    .update_path_leaf_node()
+                    .context("no update path leaf")?;
+                assert!(
+                    leaf.capabilities()
+                        .credentials()
+                        .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
+                    "self-group leaf must keep the self-group credential type in its capabilities"
+                );
+                assert_eq!(
+                    leaf.signature_key(),
+                    &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
+                    "self-group leaf must keep the per-device signature key"
+                );
                 Ok(())
             })
             .await?;

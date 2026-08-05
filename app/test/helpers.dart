@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+import 'dart:math' as math;
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/material/theme_data.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +43,45 @@ TargetPlatform _desktopTargetPlatform() {
 /// only a variant's teardown runs before that check.
 TargetPlatformVariant get desktopPlatform =>
     TargetPlatformVariant.only(_desktopTargetPlatform());
+
+/// A viewport in the small tier, where a modal takes the whole screen.
+const phoneViewSize = Size(400, 900);
+
+/// A viewport wide enough for the two-pane layout, where a modal is a card.
+const desktopViewSize = Size(1200, 900);
+
+/// Pins the test view to [size] at a 1:1 pixel ratio for the rest of the test,
+/// so a breakpoint-driven layout renders the tier the size names.
+void sizeView(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+}
+
+/// Asserts that the widget [finder] resolves to runs to the bottom edge of the
+/// modal around it.
+///
+/// That is what a non-scrolling modal body has to do: anything short of the
+/// edge means the card collapsed towards its minimum instead of filling its
+/// envelope, and the list inside it never got a height to scroll within.
+void expectFillsModal(WidgetTester tester, Finder finder, Size viewSize) {
+  final tokens = viewSize.width < Breakpoint.smallMaxWidth
+      ? ModalShellTokens.phone
+      : ModalShellTokens.desktop;
+  // The card is centered in what the container padding leaves of the viewport,
+  // clamped to the envelope.
+  final cardHeight = math.min(
+    tokens.maxHeight,
+    viewSize.height - tokens.containerPadding.vertical,
+  );
+  final rect = tester.getRect(finder);
+
+  expect(rect.height, greaterThan(0));
+  expect(rect.bottom, moreOrLessEquals((viewSize.height + cardHeight) / 2));
+}
 
 extension IntTestExtension on int {
   ChatId chatId() => ChatId(uuid: _intToUuidValue(this));

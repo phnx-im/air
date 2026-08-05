@@ -5,6 +5,7 @@
 use std::convert::Infallible;
 
 use aircommon::{
+    credentials::keys::LeafSigningKey,
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     identifiers::QsReference,
     mls_group_config::AppComponent,
@@ -144,7 +145,8 @@ impl CreateChat {
                     let disable_safe_aad = None;
                     Group::create_apq_group(
                         &mut *txn,
-                        &key_store.signing_key,
+                        &LeafSigningKey::User(key_store.signing_key.clone()),
+                        own_user_id.clone(),
                         identity_link_wrapper_key,
                         group_id,
                         pq_group_id.context("Missing PQ group ID")?,

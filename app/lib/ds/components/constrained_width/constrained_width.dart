@@ -4,8 +4,8 @@
 
 import 'package:flutter/widgets.dart';
 
-/// A widget that constrains only the width of its child to 800 logical pixels.
-/// Height remains unconstrained and is determined by the child.
+/// Constrains its child's width, leaving the height to the child. Defaults to
+/// 800 logical pixels.
 class ConstrainedWidth extends StatelessWidget {
   final Widget child;
   final double width;

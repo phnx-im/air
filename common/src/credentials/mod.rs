@@ -46,7 +46,7 @@ pub mod keys;
 mod leaf;
 mod self_group;
 
-pub use leaf::{LeafCredential, LeafCredentialError};
+pub use leaf::{LeafCredential, LeafCredentialError, RoomPolicyIdentity};
 pub use self_group::{SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, SelfGroupCredentialError};
 
 use self::keys::ClientVerifyingKey;
