@@ -195,7 +195,7 @@ class _Surface extends StatelessWidget {
 
 /// Paints [shadows] around a circle with the circle's own footprint knocked
 /// out of them: the shadows go into an isolated layer, then we clear the
-/// circle from that layer with [.dstOut]. What survives casts only
+/// circle from that layer with [BlendMode.dstOut]. What survives casts only
 /// outside the circle, so the translucent frosted fill reveals the blurred
 /// content behind the button rather than the button's own shadow.
 class _KnockoutShadowPainter extends CustomPainter {
