@@ -165,15 +165,24 @@ pub(crate) async fn merge_device_entry_locally(
     device: LinkedDevice,
 ) -> anyhow::Result<()> {
     let mut devices = stored_devices(&mut *txn).await?;
-    if devices
+    let previous = LinkedDevicesSetting::new(devices.clone());
+    let roster = match SelfGroup::load(&mut *txn).await? {
+        Some(self_group) => self_group.client_ids()?,
+        None => Vec::new(),
+    };
+    prune_devices(&mut devices, &roster, Some(device.client_id));
+    if !devices
         .iter()
         .any(|stored| stored.client_id == device.client_id)
     {
-        return Ok(());
+        devices.push(device);
     }
-    devices.push(device);
 
     let setting = LinkedDevicesSetting::new(devices);
+    if setting == previous {
+        return Ok(());
+    }
+
     UserSettingRecord::store(&mut *txn, LinkedDevicesSetting::KEY, setting.encode()?).await?;
     txn.notifier().update(DbEntityId::UserSetting(
         LinkedDevicesSetting::KEY.to_owned(),
@@ -237,21 +246,21 @@ pub(crate) async fn rename_device(
 /// the roster.
 async fn store_linked_devices(
     txn: &mut WriteDbTransaction<'_>,
-    devices: Vec<LinkedDevice>,
+    mut devices: Vec<LinkedDevice>,
 ) -> anyhow::Result<bool> {
     let roster = match SelfGroup::load(&mut *txn).await? {
         Some(self_group) => self_group.client_ids()?,
         None => Vec::new(),
     };
-    let devices = if roster.is_empty() {
-        devices
-    } else {
-        devices
-            .into_iter()
-            .filter(|device| roster.contains(&device.client_id))
-            .collect()
-    };
+    prune_devices(&mut devices, &roster, None);
     set_synced_setting(txn, &LinkedDevicesSetting::new(devices)).await
+}
+
+fn prune_devices(devices: &mut Vec<LinkedDevice>, roster: &[Uuid], retain: Option<Uuid>) {
+    if roster.is_empty() {
+        return;
+    }
+    devices.retain(|device| roster.contains(&device.client_id) || retain == Some(device.client_id));
 }
 
 impl CoreUser {
@@ -438,6 +447,29 @@ mod tests {
         ]);
         assert_eq!(setting.devices().len(), 1);
         assert_eq!(setting.devices()[0].name, "first");
+    }
+
+    #[test]
+    fn pruning_keeps_roster_and_incoming_device() {
+        let mut devices = vec![
+            device(1, "Linked", PLATFORM_LINUX),
+            device(2, "Orphan", PLATFORM_IOS),
+            device(3, "Incoming", PLATFORM_IOS),
+        ];
+
+        prune_devices(
+            &mut devices,
+            &[Uuid::from_u128(1)],
+            Some(Uuid::from_u128(3)),
+        );
+
+        assert_eq!(
+            devices
+                .into_iter()
+                .map(|device| device.client_id)
+                .collect::<Vec<_>>(),
+            vec![Uuid::from_u128(1), Uuid::from_u128(3)]
+        );
     }
 
     #[test]
