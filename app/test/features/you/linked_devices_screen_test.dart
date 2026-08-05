@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../helpers.dart';
 
@@ -24,14 +25,16 @@ class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
 
 const _testSize = Size(600, 1400);
 
+const nilValue = UuidValue.fromNamespace(Namespace.nil);
+
 UiLinkedDevice _device({
   required String name,
   required LinkedDevicePlatform platform,
   required DateTime linkedAt,
   bool isThisDevice = false,
-  String clientId = '00000000-0000-0000-0000-000000000001',
+  String clientId = "00000000-0000-0000-0000-000000000000",
 }) => UiLinkedDevice(
-  clientId: clientId,
+  clientId: UuidValue.withValidation(clientId, .strictRFC9562),
   name: name,
   platform: platform,
   linkedAt: linkedAt,
@@ -54,25 +57,26 @@ LinkedDevicesState _singleDevice() => LinkedDevicesState(
 LinkedDevicesState _mockDevices() => LinkedDevicesState(
   devices: [
     _device(
+      clientId: "00000000-0000-0000-0000-000000000001",
       name: 'iPhone',
       platform: LinkedDevicePlatform.ios,
       linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
       isThisDevice: true,
     ),
     _device(
-      clientId: '00000000-0000-0000-0000-000000000002',
+      clientId: "00000000-0000-0000-0000-000000000666",
       name: 'MacBook Pro',
       platform: LinkedDevicePlatform.macos,
       linkedAt: DateTime.utc(2026, 2, 3, 14, 22),
     ),
     _device(
-      clientId: '00000000-0000-0000-0000-000000000003',
+      clientId: '00000000-0000-0000-0000-000000000002',
       name: 'Pixel',
       platform: LinkedDevicePlatform.android,
       linkedAt: DateTime.utc(2026, 3, 20, 8, 10),
     ),
     _device(
-      clientId: '00000000-0000-0000-0000-000000000004',
+      clientId: '00000000-0000-0000-0000-000000000003',
       name: '',
       platform: LinkedDevicePlatform.unknown,
       linkedAt: DateTime.utc(2026, 4, 12, 18, 30),
@@ -269,7 +273,10 @@ void main() {
 
       verify(
         () => cubit.renameDevice(
-          clientId: '00000000-0000-0000-0000-000000000001',
+          clientId: UuidValue.withValidation(
+            '00000000-0000-0000-0000-000000000001',
+            .strictRFC9562,
+          ),
           name: 'Work phone',
         ),
       ).called(1);
@@ -307,7 +314,10 @@ void main() {
 
       verify(
         () => cubit.unlinkDevice(
-          clientId: '00000000-0000-0000-0000-000000000002',
+          clientId: UuidValue.withValidation(
+            '00000000-0000-0000-0000-000000000002',
+            .strictRFC9562,
+          ),
         ),
       ).called(1);
     });

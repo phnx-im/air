@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uuid/uuid_value.dart';
 
 class LinkedDevicesCubit implements StateStreamableSource<LinkedDevicesState> {
   LinkedDevicesCubit({required UserCubit userCubit})
@@ -31,10 +32,10 @@ class LinkedDevicesCubit implements StateStreamableSource<LinkedDevicesState> {
   Stream<LinkedDevicesState> get stream => _impl.stream();
 
   Future<void> renameDevice({
-    required String clientId,
+    required UuidValue clientId,
     required String name,
   }) async => _impl.renameDevice(clientId: clientId, name: name);
 
-  Future<void> unlinkDevice({required String clientId}) async =>
+  Future<void> unlinkDevice({required UuidValue clientId}) async =>
       _impl.unlinkDevice(clientId: clientId);
 }

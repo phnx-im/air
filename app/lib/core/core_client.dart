@@ -66,8 +66,9 @@ class CoreClient {
   }
 
   /// Tears this device down, stopping the outbound service first.
-  Future<void> deleteUserDatabase() async {
+  Future<void> deleteCurrentDatabase() async {
     await deleteClientDatabase(
+      user: user,
       dbPath: await dbPath(),
       clientRecordId: user.clientRecordId,
     );
