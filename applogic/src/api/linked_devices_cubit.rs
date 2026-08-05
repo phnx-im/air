@@ -20,7 +20,6 @@ use chrono::{DateTime, TimeZone, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 use uuid::Uuid;
 
