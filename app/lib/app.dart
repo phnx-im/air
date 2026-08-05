@@ -341,7 +341,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                 ],
-                child: UnlinkedDeviceListener(
+                child: UnlinkedDeviceHandler(
                   child: UpdateRequiredScreen(child: child),
                 ),
               ),

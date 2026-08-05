@@ -345,6 +345,11 @@ impl CoreUser {
         self.inner.outbound_service.stop().await;
     }
 
+    /// Abort the outbound service without waiting for its task to terminate.
+    pub fn kill_outbound_service(&self) {
+        self.inner.outbound_service.kill();
+    }
+
     pub(crate) fn key_store(&self) -> &MemoryUserKeyStore {
         &self.inner.key_store
     }

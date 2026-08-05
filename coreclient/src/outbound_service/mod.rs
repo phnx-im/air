@@ -15,7 +15,7 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use tokio::{sync::watch, time};
+use tokio::{sync::watch, task, time};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
@@ -58,6 +58,7 @@ const PERIODIC_WAKE_INTERVAL: Duration = Duration::from_secs(60);
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
     context: Arc<C>,
     run_token_tx: watch::Sender<RunToken>,
+    task_abort_handle: task::AbortHandle,
 }
 
 impl<C: OutboundServiceWork> Clone for OutboundService<C> {
@@ -65,6 +66,7 @@ impl<C: OutboundServiceWork> Clone for OutboundService<C> {
         Self {
             context: self.context.clone(),
             run_token_tx: self.run_token_tx.clone(),
+            task_abort_handle: self.task_abort_handle.clone(),
         }
     }
 }
@@ -110,10 +112,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
             context: context.clone(),
             wake_interval,
         };
-        tokio::spawn(task.run(run_token_rx, global_lock));
+        let task = tokio::spawn(task.run(run_token_rx, global_lock));
         Self {
             context: Arc::new(context),
             run_token_tx,
+            task_abort_handle: task.abort_handle(),
         }
     }
 
@@ -145,6 +148,15 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         });
         debug!("stopping background task");
         WaitForDoneFuture::new(done_token)
+    }
+
+    /// Kills the background task without waiting.
+    pub fn kill(&self) {
+        self.run_token_tx.send_modify(|token| {
+            token.cancel();
+            token.mark_as_done();
+        });
+        self.task_abort_handle.abort();
     }
 
     /// Notifies the background task about new work.

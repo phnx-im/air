@@ -30,7 +30,7 @@ void main() {
         value: coreClient,
         child: BlocProvider<UserCubit>.value(
           value: userCubit,
-          child: const UnlinkedDeviceListener(child: SizedBox()),
+          child: const UnlinkedDeviceHandler(child: SizedBox()),
         ),
       ),
     );

@@ -17,16 +17,16 @@ final _log = Logger('UnlinkedDeviceListener');
 /// Deletes the local client database and drops the loaded user, which lands the
 /// app back on the welcome screen. Nothing is registered or re-created: the
 /// account still exists and lives on the user's remaining devices.
-class UnlinkedDeviceListener extends StatefulWidget {
-  const UnlinkedDeviceListener({super.key, required this.child});
+class UnlinkedDeviceHandler extends StatefulWidget {
+  const UnlinkedDeviceHandler({super.key, required this.child});
 
   final Widget child;
 
   @override
-  State<UnlinkedDeviceListener> createState() => _UnlinkedDeviceListenerState();
+  State<UnlinkedDeviceHandler> createState() => _UnlinkedDeviceHandlerState();
 }
 
-class _UnlinkedDeviceListenerState extends State<UnlinkedDeviceListener> {
+class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
   bool _tearDownStarted = false;
 
   @override
@@ -57,10 +57,6 @@ class _UnlinkedDeviceListenerState extends State<UnlinkedDeviceListener> {
   }
 
   Future<void> _tearDown(CoreClient coreClient) async {
-    _log.warning(
-      'This device was unlinked by another device of this user. '
-      'Stopping background work and deleting the local client database.',
-    );
     try {
       await coreClient.deleteCurrentDatabase();
     } catch (error, stackTrace) {

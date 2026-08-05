@@ -81,10 +81,6 @@ pub enum SelfGroupMessage {
 }
 
 /// Platform codes for [`LinkedDevice::platform`].
-///
-/// A plain integer rather than a tagged union: the variants carry no payload, and
-/// an unrecognized code decodes to [`PLATFORM_UNKNOWN`] without needing macro
-/// support for unit variants.
 pub const PLATFORM_UNKNOWN: u8 = 0;
 pub const PLATFORM_ANDROID: u8 = 1;
 pub const PLATFORM_IOS: u8 = 2;

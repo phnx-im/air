@@ -14,7 +14,7 @@ pub async fn delete_databases(db_path: String) -> anyhow::Result<()> {
 /// Tears down a device that another device unlinked: stops the background work
 /// that writes to the database, then deletes it.
 pub async fn delete_client_database(user: &User, db_path: String) -> anyhow::Result<()> {
-    user.user.stop_outbound_service().await;
+    user.user.kill_outbound_service();
     aircoreclient::delete_client_database(&db_path, &user.user_id().into()).await
 }
 
