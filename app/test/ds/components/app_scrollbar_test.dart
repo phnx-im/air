@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/app_scrollbar_tokens.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -70,7 +71,7 @@ void main() {
     expect(_opacity(tester), 1);
 
     await tester.pump(AppScrollbarTokens.hideDelay);
-    await tester.pump(AppScrollbarTokens.hideDuration);
+    await tester.pump(Effect.duration(AppScrollbarTokens.hideMotion));
     await tester.pump(const Duration(milliseconds: 16));
     expect(_opacity(tester), 0);
   });

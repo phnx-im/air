@@ -152,7 +152,7 @@ class _SingleDevice extends StatelessWidget {
         children: [
           AppIconBadge(
             type: .laptop,
-            size: 24,
+            size: S.s24,
             backgroundColor: palette.backgroundBase.quaternary,
           ),
           Expanded(

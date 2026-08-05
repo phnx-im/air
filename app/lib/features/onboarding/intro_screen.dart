@@ -21,7 +21,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 
 class IntroScreen extends HookWidget {
   const IntroScreen({super.key});
@@ -90,7 +90,7 @@ class IntroScreen extends HookWidget {
             if (!isUserLoading)
               Align(
                 alignment: Alignment.bottomCenter,
-                child: ConstrainedWidth(
+                child: FixedWidth(
                   width: context.breakpoint.isSmall ? double.infinity : 320,
                   child: Padding(
                     padding: context.breakpoint.isSmall

@@ -17,6 +17,13 @@
 /// invariant field kept on the instance takes a comment arguing for the seam,
 /// the way `ListGroupTokens` does. `Button` resolves its own bag: its tier
 /// follows the `ButtonSize` its caller already passes.
+///
+/// A `TextStyle` is resolved from the typescale where it is used, so the style
+/// reads beside the text it dresses. Two exceptions: a bag that exists to be
+/// host-resolved carries resolved styles, the way `NavItemTokens` does, and a
+/// widget whose run has to be measured before it can be laid out exposes its
+/// styles as statics, so the measuring pass and the paint cannot disagree, the
+/// way `ReactionChip` and `ReactionBar` do.
 library;
 
 export 'package:air/ds/foundations/breakpoint.dart';

@@ -67,7 +67,7 @@ void showErrorBannerStandalone(
 /// This function does not require a [BuildContext] to show a snackbar.
 void showSnackBarStandalone(
   SnackBar Function(AppLocalizations) snackBar, {
-  SnackbarTone tone = SnackbarTone.neutral,
+  SnackbarTone tone = SnackbarTone.success,
 }) {
   scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
 

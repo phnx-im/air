@@ -62,8 +62,9 @@ class ReactionChip extends StatelessWidget {
   /// measurements up ahead of the first chip, see [CenteredEmoji.warmUp].
   static TextStyle glyphStyle() => typeScale.body.regular.style(tight: true);
 
-  /// Style the count and the `+N` label render at. The color is optional so
-  /// that code measuring a chip doesn't have to resolve a palette first.
+  /// Style the count and the `+N` label render at, exposed for the reason
+  /// [glyphStyle] gives. The color is optional so that code measuring a chip
+  /// doesn't have to resolve a palette first.
   static TextStyle countStyle([Color? color]) => typeScale.body.mini.style(
     color: color,
     weight: Weight.emphasized,

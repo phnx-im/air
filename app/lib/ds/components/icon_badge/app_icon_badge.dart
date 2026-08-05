@@ -2,10 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/icon_badge/app_icon_badge_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
-/// An [AppIcon] on a rounded-rectangle background.
+/// An [AppIcon] on a rounded-rectangle plate.
+///
+/// [size] is the glyph's, not the badge's: the plate insets itself around the
+/// glyph, so a host picks the size it wants the icon read at and the badge
+/// grows with it.
 class AppIconBadge extends StatelessWidget {
   const AppIconBadge({
     super.key,
@@ -23,12 +28,11 @@ class AppIconBadge extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Container(
-      padding: EdgeInsets.all(size / 2),
+      padding: AppIconBadgeTokens.padding(size),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: backgroundColor ?? palette.backgroundBase.tertiary,
-        shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(CornerRadius.px12),
+        borderRadius: BorderRadius.circular(AppIconBadgeTokens.radius),
       ),
       child: AppIcon(type: type, size: size),
     );

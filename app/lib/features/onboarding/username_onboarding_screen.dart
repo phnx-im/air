@@ -10,7 +10,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -135,7 +135,7 @@ class UsernameOnboardingScreen extends HookWidget {
       ),
       body: SafeArea(
         child: Center(
-          child: ConstrainedWidth(
+          child: FixedWidth(
             child: Column(
               children: [
                 Expanded(

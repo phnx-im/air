@@ -30,11 +30,15 @@ class AppScrollbarTokens {
 
   /// Dwell between the content settling and the thumb starting to fade, so a
   /// scroll broken into several flicks doesn't blink the thumb on and off.
+  ///
+  /// A raw duration rather than a [MotionPreset]: the scale names how long a
+  /// change takes to play, and nothing is playing here. Same exception
+  /// `DeliveryStatusTokens` makes for its own thresholds.
   static const Duration hideDelay = Duration(milliseconds: 640);
 
-  /// Fade-out duration. Appearing is instant: the thumb has to be there the
-  /// frame the content starts moving.
-  static const Duration hideDuration = Duration(milliseconds: 400);
+  /// Fade-out. Appearing is instant: the thumb has to be there the frame the
+  /// content starts moving.
+  static const MotionPreset hideMotion = MotionPreset.medium;
 
   static const AppScrollbarTokens phone = AppScrollbarTokens(
     minThumbHeight: S.s24,

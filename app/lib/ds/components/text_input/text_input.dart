@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/field/fallback_text_controller.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
@@ -116,17 +118,10 @@ class AppTextInput extends StatefulWidget {
   State<AppTextInput> createState() => _AppTextInputState();
 }
 
-class _AppTextInputState extends State<AppTextInput> {
-  TextEditingController? _fallbackController;
-
-  TextEditingController get _controller =>
-      widget.controller ?? (_fallbackController ??= TextEditingController());
-
+class _AppTextInputState extends State<AppTextInput>
+    with FallbackTextController {
   @override
-  void dispose() {
-    _fallbackController?.dispose();
-    super.dispose();
-  }
+  TextEditingController? get hostController => widget.controller;
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +191,7 @@ class _AppTextInputState extends State<AppTextInput> {
     final inputStyle = singleLine ? style.copyWith(height: 1.0) : style;
 
     return TextField(
-      controller: _controller,
+      controller: controller,
       focusNode: widget.focusNode,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
@@ -215,20 +210,8 @@ class _AppTextInputState extends State<AppTextInput> {
       strutStyle: singleLine
           ? StrutStyle.fromTextStyle(inputStyle, forceStrutHeight: true)
           : null,
-      // The chrome is the container's, so the field itself draws nothing. We
-      // spell out the borders and fill rather than let the ambient input
-      // theme add its own.
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
-        filled: false,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        counterText: '',
+      // The chrome is the container's, so the field itself draws nothing.
+      decoration: FieldChrome.plain(
         hintText: widget.hintText,
         hintStyle: inputStyle.copyWith(color: palette.text.tertiary),
       ),

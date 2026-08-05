@@ -17,7 +17,7 @@ class Snackbar extends StatelessWidget {
   const Snackbar({
     super.key,
     required this.label,
-    this.tone = SnackbarTone.neutral,
+    this.tone = SnackbarTone.success,
   });
 
   final String label;
@@ -28,7 +28,7 @@ class Snackbar extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     final fill = switch (tone) {
-      SnackbarTone.neutral => palette.function.success.primary,
+      SnackbarTone.success => palette.function.success.primary,
       SnackbarTone.danger => palette.function.danger,
     };
 

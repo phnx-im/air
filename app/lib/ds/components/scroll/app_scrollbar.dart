@@ -159,7 +159,7 @@ class _Thumb extends StatelessWidget {
           opacity: thumb.visible ? 1 : 0,
           duration: thumb.visible
               ? Duration.zero
-              : AppScrollbarTokens.hideDuration,
+              : Effect.duration(AppScrollbarTokens.hideMotion),
           child: Container(
             width: AppScrollbarTokens.width,
             height: height,

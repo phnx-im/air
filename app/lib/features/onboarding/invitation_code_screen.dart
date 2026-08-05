@@ -8,7 +8,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
@@ -79,7 +79,7 @@ class InvitationCodeScreen extends HookWidget {
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Center(
-          child: ConstrainedWidth(
+          child: FixedWidth(
             child: Column(
               crossAxisAlignment: .center,
               children: [

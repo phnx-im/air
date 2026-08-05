@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 enum SnackbarTone {
   /// Confirmation pill. For an action that went through and needs no
   /// follow-up.
-  neutral,
+  success,
 
   /// Error pill. For an action that didn't go through.
   danger,
