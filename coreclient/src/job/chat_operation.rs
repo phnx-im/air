@@ -168,8 +168,9 @@ impl ChatOperation {
                 user_ids.retain(|user_id| members.contains(user_id));
             }
             ChatOperationType::RemoveClients(client_ids) => {
-                let roster: HashSet<_> = group.self_group_client_ids().into_iter().collect();
-                client_ids.retain(|client_id| roster.contains(client_id));
+                let self_group_members: HashSet<_> =
+                    group.self_group_client_ids().into_iter().collect();
+                client_ids.retain(|client_id| self_group_members.contains(client_id));
             }
             // The following operations are always valid as long as the
             // group is active.

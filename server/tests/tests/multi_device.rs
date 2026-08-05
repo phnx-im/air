@@ -1189,9 +1189,9 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
     // commit itself, which is why nothing is left enqueued on either side (see
     // `multi_device_link_publishes_device_entry_without_extra_commit`).
     for user in [old_device, &new_device] {
-        let roster = user.self_group_client_ids().await?;
-        assert_eq!(roster.len(), 2);
-        assert!(roster.contains(&a_id) && roster.contains(&b_id));
+        let members = user.self_group_client_ids().await?;
+        assert_eq!(members.len(), 2);
+        assert!(members.contains(&a_id) && members.contains(&b_id));
 
         let devices = user.linked_devices().await?;
         let ids: Vec<_> = devices.iter().map(|d| d.client_id).collect();
@@ -1274,8 +1274,8 @@ async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()
 
     old_device.unlink_device(b_id).await?;
 
-    let roster = old_device.self_group_client_ids().await?;
-    assert_eq!(roster, vec![a_id], "only A must remain in the roster");
+    let members = old_device.self_group_client_ids().await?;
+    assert_eq!(members, vec![a_id], "only A must remain in the self group");
 
     // The removed device must be able to follow the commit that removed it,
     // which is what lets it notice and tear itself down.

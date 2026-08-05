@@ -4,8 +4,9 @@
 
 //! Cubit backing the Linked Devices screen.
 //!
-//! The list is a join: the self-group roster decides which devices are linked,
-//! the synchronized `LinkedDevicesSetting` supplies their names and dates.
+//! The list is a join: the self group's members decide which devices are
+//! linked, the synchronized `LinkedDevicesSetting` supplies their names and
+//! dates.
 
 use std::sync::Arc;
 
@@ -184,14 +185,14 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
     let own_client_id = core_user.own_client_id().await?;
     let metadata = core_user.linked_devices().await?;
 
-    let mut roster = core_user.self_group_client_ids().await?;
-    if roster.is_empty() {
+    let mut self_group_members = core_user.self_group_client_ids().await?;
+    if self_group_members.is_empty() {
         // No self group yet: this device is the only one, and it is linked by
         // definition. Without this the screen would render nothing at all.
-        roster.push(own_client_id);
+        self_group_members.push(own_client_id);
     }
 
-    let mut devices: Vec<UiLinkedDevice> = roster
+    let mut devices: Vec<UiLinkedDevice> = self_group_members
         .iter()
         .map(|client_id| {
             let entry = metadata.iter().find(|entry| &entry.client_id == client_id);

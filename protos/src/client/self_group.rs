@@ -122,8 +122,8 @@ impl From<LinkedDevicePlatform> for u8 {
 /// One of the user's devices, as advertised to its siblings.
 ///
 /// The `client_id` matches the [`SelfGroupCredential`] of the device's self-group
-/// leaf, which is what ties an entry to a roster member. `linked_at` comes from
-/// the publishing device's own clock and is a display hint only.
+/// leaf, which is what ties an entry to a self-group member. `linked_at` comes
+/// from the publishing device's own clock and is a display hint only.
 ///
 /// [`SelfGroupCredential`]: aircommon::credentials::SelfGroupCredential
 ///

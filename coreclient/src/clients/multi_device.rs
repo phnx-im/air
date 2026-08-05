@@ -652,7 +652,7 @@ impl CoreUser {
                     .context("self group not found")?;
 
                 // Room policy is keyed on the client id, so reject a credential whose id is
-                // already in the roster before staging the add.
+                // already a member of the self group before staging the add.
                 group.validate_self_group_add(key_package.t_credential())?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;

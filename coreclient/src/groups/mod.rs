@@ -1500,7 +1500,7 @@ impl Group {
     }
 
     /// Validate the leaf credential of a client about to be added to this self-group: it must be
-    /// a self-group credential whose client id is not yet used by any leaf in the roster.
+    /// a self-group credential whose client id is not yet used by any existing member.
     pub(crate) fn validate_self_group_add(&self, added: &Credential) -> Result<()> {
         validate_self_group_add_credential(
             self.mls_group.members().map(|member| member.credential),
@@ -1746,7 +1746,7 @@ impl Group {
     /// The client ids of all self-group leaves this group can parse.
     ///
     /// Infallible and in-memory, for refining a pending removal against the
-    /// current roster. A leaf that fails to parse is skipped rather than
+    /// current members. A leaf that fails to parse is skipped rather than
     /// erroring, unlike [`SelfGroup::client_ids`], which is the authoritative
     /// read used for display and for the unlink precondition.
     ///
@@ -2037,7 +2037,7 @@ impl Group {
         }
 
         // The linked-device list joins metadata with the live self-group
-        // roster. Notify its self-chat listener whenever a commit changes the
+        // members. Notify its self-chat listener whenever a commit changes the
         // locally stored self group.
         if self.is_self_group()
             && let Some(chat_id) = ChatId::load_from_group_id(&mut *txn, self.group_id()).await?
@@ -2892,15 +2892,15 @@ fn classify_member_credentials(
 /// Validate the leaf credential of a client about to be added to the self-group.
 ///
 /// The credential must be a self-group credential and its client id must not collide with a
-/// leaf already in the roster, since room policy is keyed on the client id.
+/// leaf already in the self group, since room policy is keyed on the client id.
 fn validate_self_group_add_credential(
-    roster: impl Iterator<Item = Credential>,
+    members: impl Iterator<Item = Credential>,
     added: &Credential,
 ) -> anyhow::Result<()> {
     let LeafCredential::SelfGroup(added) = LeafCredential::from_credential(added)? else {
         bail!("expected a self-group credential");
     };
-    for credential in roster {
+    for credential in members {
         match LeafCredential::from_credential(&credential)? {
             LeafCredential::SelfGroup(existing) => {
                 ensure!(
@@ -3105,7 +3105,7 @@ mod member_credential_validation_tests {
     }
 
     #[test]
-    fn self_group_roster_with_unique_client_ids_is_accepted() {
+    fn self_group_members_with_unique_client_ids_is_accepted() {
         let members = [
             (self_group_credential(Uuid::from_u128(1)), signature_key()),
             (self_group_credential(Uuid::from_u128(2)), signature_key()),
@@ -3116,7 +3116,7 @@ mod member_credential_validation_tests {
     }
 
     #[test]
-    fn duplicate_client_ids_in_self_group_roster_are_rejected() {
+    fn duplicate_client_ids_in_self_group_are_rejected() {
         let client_id = Uuid::from_u128(1);
         let members = [
             (self_group_credential(client_id), signature_key()),
@@ -3142,7 +3142,7 @@ mod member_credential_validation_tests {
     }
 
     #[test]
-    fn user_credential_in_self_group_roster_is_rejected() {
+    fn user_credential_in_self_group_is_rejected() {
         let members = [
             (user_credential(), signature_key()),
             (self_group_credential(Uuid::from_u128(1)), signature_key()),
@@ -3157,18 +3157,18 @@ mod member_credential_validation_tests {
 
     #[test]
     fn adding_a_fresh_client_id_is_accepted() {
-        let roster = [self_group_credential(Uuid::from_u128(1))];
+        let members = [self_group_credential(Uuid::from_u128(1))];
         let added = self_group_credential(Uuid::from_u128(2));
-        validate_self_group_add_credential(roster.into_iter(), &added)
+        validate_self_group_add_credential(members.into_iter(), &added)
             .expect("fresh client id should be accepted");
     }
 
     #[test]
     fn adding_a_duplicate_client_id_is_rejected() {
         let client_id = Uuid::from_u128(1);
-        let roster = [self_group_credential(client_id)];
+        let members = [self_group_credential(client_id)];
         let added = self_group_credential(client_id);
-        let error = validate_self_group_add_credential(roster.into_iter(), &added)
+        let error = validate_self_group_add_credential(members.into_iter(), &added)
             .expect_err("duplicate client id should be rejected");
         assert!(
             error.to_string().contains("already present"),
@@ -3178,9 +3178,9 @@ mod member_credential_validation_tests {
 
     #[test]
     fn adding_a_user_credential_is_rejected() {
-        let roster = [self_group_credential(Uuid::from_u128(1))];
+        let members = [self_group_credential(Uuid::from_u128(1))];
         let added = user_credential();
-        let error = validate_self_group_add_credential(roster.into_iter(), &added)
+        let error = validate_self_group_add_credential(members.into_iter(), &added)
             .expect_err("user credential should be rejected");
         assert!(
             error

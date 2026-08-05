@@ -4,8 +4,8 @@
 
 //! The user's linked devices: metadata synchronized across the self group.
 //!
-//! The self-group roster answers which devices are linked. This module carries
-//! what the roster cannot: display name, platform and linked-at. The two are
+//! The self group's members answer which devices are linked. This module
+//! carries what they cannot: display name, platform and linked-at. The two are
 //! joined on the client id of each leaf's `SelfGroupCredential`.
 
 use aircommon::codec::PersistenceCodec;
@@ -166,11 +166,11 @@ pub(crate) async fn merge_device_entry_locally(
 ) -> anyhow::Result<()> {
     let mut devices = stored_devices(&mut *txn).await?;
     let previous = LinkedDevicesSetting::new(devices.clone());
-    let roster = match SelfGroup::load(&mut *txn).await? {
+    let self_group_members = match SelfGroup::load(&mut *txn).await? {
         Some(self_group) => self_group.client_ids()?,
         None => Vec::new(),
     };
-    prune_devices(&mut devices, &roster, Some(device.client_id));
+    prune_devices(&mut devices, &self_group_members, Some(device.client_id));
     if !devices
         .iter()
         .any(|stored| stored.client_id == device.client_id)
@@ -242,25 +242,31 @@ pub(crate) async fn rename_device(
     store_linked_devices(txn, devices).await
 }
 
-/// Writes `devices` as the synchronized set, dropping entries that are not in
-/// the roster.
+/// Writes `devices` as the synchronized set, dropping entries whose device is
+/// not a member of the self group.
 async fn store_linked_devices(
     txn: &mut WriteDbTransaction<'_>,
     mut devices: Vec<LinkedDevice>,
 ) -> anyhow::Result<bool> {
-    let roster = match SelfGroup::load(&mut *txn).await? {
+    let self_group_members = match SelfGroup::load(&mut *txn).await? {
         Some(self_group) => self_group.client_ids()?,
         None => Vec::new(),
     };
-    prune_devices(&mut devices, &roster, None);
+    prune_devices(&mut devices, &self_group_members, None);
     set_synced_setting(txn, &LinkedDevicesSetting::new(devices)).await
 }
 
-fn prune_devices(devices: &mut Vec<LinkedDevice>, roster: &[Uuid], retain: Option<Uuid>) {
-    if roster.is_empty() {
+fn prune_devices(
+    devices: &mut Vec<LinkedDevice>,
+    self_group_members: &[Uuid],
+    retain: Option<Uuid>,
+) {
+    if self_group_members.is_empty() {
         return;
     }
-    devices.retain(|device| roster.contains(&device.client_id) || retain == Some(device.client_id));
+    devices.retain(|device| {
+        self_group_members.contains(&device.client_id) || retain == Some(device.client_id)
+    });
 }
 
 impl CoreUser {
@@ -272,8 +278,8 @@ impl CoreUser {
 
     /// The synchronized device metadata, sorted by client id.
     ///
-    /// Metadata only. Which devices are actually linked is decided by the
-    /// self-group roster, and callers join the two.
+    /// Metadata only. Which devices are actually linked is decided by the self
+    /// group's members, and callers join the two.
     pub async fn linked_devices(&self) -> anyhow::Result<Vec<LinkedDevice>> {
         stored_devices(self.db().read().await?).await
     }
@@ -450,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn pruning_keeps_roster_and_incoming_device() {
+    fn pruning_keeps_self_group_members_and_incoming_device() {
         let mut devices = vec![
             device(1, "Linked", PLATFORM_LINUX),
             device(2, "Orphan", PLATFORM_IOS),
