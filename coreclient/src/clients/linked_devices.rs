@@ -227,19 +227,7 @@ pub(crate) async fn rename_device(
         }
         device.name = name.to_owned();
     } else {
-        let is_linked = match SelfGroup::load(&mut *txn).await? {
-            Some(self_group) => self_group.client_ids()?.contains(&client_id),
-            None => OwnClientInfo::load(&mut *txn).await?.client_id == client_id,
-        };
-        if !is_linked {
-            bail!("no linked device with client id {client_id}");
-        }
-        devices.push(LinkedDevice {
-            client_id,
-            name: name.to_owned(),
-            created_at: 0,
-            platform: PLATFORM_UNKNOWN,
-        });
+        bail!("device not found");
     }
 
     store_linked_devices(txn, devices).await
