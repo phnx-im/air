@@ -10,6 +10,7 @@ import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
@@ -699,16 +700,13 @@ class _ComposerField extends StatelessWidget {
         minLines: 1,
         maxLines: 10,
         enabled: isConfirmedChat,
-        decoration: InputDecoration(
-          isCollapsed: true,
-          contentPadding: EdgeInsets.zero,
+        decoration: FieldChrome.plain(
           hintText: loc.composer_inputHint(chatTitle ?? ""),
-          hintMaxLines: 1,
           hintStyle: TextStyle(
             color: palette.text.tertiary,
             overflow: TextOverflow.ellipsis,
           ),
-        ).copyWith(filled: false),
+        ).copyWith(isCollapsed: true, hintMaxLines: 1),
         contextMenuBuilder: _contextMenuBuilder,
         textInputAction: sendOnEnter
             ? TextInputAction.send

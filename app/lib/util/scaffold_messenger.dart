@@ -4,6 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/snackbar/snackbar.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
@@ -38,7 +39,7 @@ void showErrorBannerStandalone(
         size: 32,
         color: palette.function.neutral.white,
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(S.s20),
       content: Text(
         errorDescription(loc),
         style: TextStyle(color: palette.function.neutral.white),
@@ -46,11 +47,10 @@ void showErrorBannerStandalone(
       actions: [
         Builder(
           builder: (context) {
-            return TextButton(
-              child: Text(
-                loc.errorBanner_ok,
-                style: TextStyle(color: palette.function.neutral.white),
-              ),
+            return Button(
+              size: ButtonSize.small,
+              type: ButtonType.secondary,
+              label: loc.errorBanner_ok,
               onPressed: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
               },

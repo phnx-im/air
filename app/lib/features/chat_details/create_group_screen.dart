@@ -13,6 +13,7 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -273,7 +274,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.displayLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
+                        decoration: FieldChrome.plain(
                           hintText: nameFocusNode.hasFocus
                               ? loc.groupCreationDetails_groupNameHintFocused
                               : loc.groupCreationDetails_groupNameHint,
@@ -282,9 +283,6 @@ class _CreateGroupDetailsStep extends HookWidget {
                                 color: palette.text.quaternary,
                                 fontWeight: FontWeight.bold,
                               ),
-                          border: InputBorder.none,
-                          fillColor: Colors.transparent,
-                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ),
