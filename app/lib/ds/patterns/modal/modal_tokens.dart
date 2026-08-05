@@ -19,8 +19,6 @@ class ModalShellTokens {
     required this.maxHeight,
     required this.cardRadius,
     required this.containerPadding,
-    required this.contentPaddingLeft,
-    required this.contentPaddingRight,
   });
 
   /// Width envelope of the card. The card hugs its content between the two,
@@ -40,8 +38,8 @@ class ModalShellTokens {
 
   /// Inset for the content the host puts below the header. The header owns its
   /// own padding, so this doesn't apply to it.
-  final double contentPaddingLeft;
-  final double contentPaddingRight;
+  static const double contentPaddingLeft = S.s16;
+  static const double contentPaddingRight = S.s16;
 
   /// Scale the card enters from, growing to 1. Static rather than per-density,
   /// as only the desktop presentation animates in as a card. Pair it with
@@ -64,19 +62,15 @@ class ModalShellTokens {
     maxHeight: double.infinity,
     cardRadius: CornerRadius.px0,
     containerPadding: EdgeInsets.zero,
-    contentPaddingLeft: S.s16,
-    contentPaddingRight: S.s16,
   );
 
   static const ModalShellTokens desktop = ModalShellTokens(
-    minWidth: 400,
-    maxWidth: 480,
-    minHeight: 240,
-    maxHeight: 600,
+    minWidth: Measure.m400,
+    maxWidth: Measure.m480,
+    minHeight: Measure.m240,
+    maxHeight: Measure.m600,
     cardRadius: CornerRadius.px24,
     containerPadding: EdgeInsets.all(S.s24),
-    contentPaddingLeft: S.s16,
-    contentPaddingRight: S.s16,
   );
 
   /// The two-pane layout has room beside the modal and shows a card, a phone
@@ -102,39 +96,28 @@ class ModalShellTokens {
 /// [ModalShellTokens.surface], the glyph and label colors from the palette.
 @immutable
 class DialogHeaderTokens {
-  const DialogHeaderTokens({
-    required this.height,
-    required this.contentPadding,
-    required this.slotWidth,
-    required this.actionSize,
-  });
-
-  final double height;
-
-  /// Inset between the slots and the row's edges.
-  final EdgeInsets contentPadding;
-
-  /// Width reserved on **both** sides of the title, so a centered title stays
-  /// optically centered even when only one slot is filled. It's a floor, not a
-  /// cap: a larger [actionSize] widens both slots.
-  final double slotWidth;
+  const DialogHeaderTokens({required this.actionSize});
 
   /// Diameter of the leading and trailing action buttons.
   final double actionSize;
 
-  // 56 on both densities: every header in the app shares the chat header's
-  // height, so a button centres at the same y wherever it appears.
+  static const double height = Chrome.barHeight;
+
+  /// Inset between the slots and the row's edges.
+  static const EdgeInsets contentPadding = EdgeInsets.symmetric(
+    horizontal: S.s12,
+  );
+
+  /// Width reserved on **both** sides of the title, so a centered title stays
+  /// optically centered even when only one slot is filled. It's a floor, not a
+  /// cap: a larger [actionSize] widens both slots.
+  static const double slotWidth = S.s40;
+
   static const DialogHeaderTokens phone = DialogHeaderTokens(
-    height: S.s56,
-    contentPadding: EdgeInsets.symmetric(horizontal: S.s12),
-    slotWidth: S.s40,
     actionSize: ButtonIconSize.s40,
   );
 
   static const DialogHeaderTokens desktop = DialogHeaderTokens(
-    height: S.s56,
-    contentPadding: EdgeInsets.symmetric(horizontal: S.s12),
-    slotWidth: S.s40,
     actionSize: ButtonIconSize.s24,
   );
 

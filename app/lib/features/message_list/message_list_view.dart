@@ -14,11 +14,12 @@ import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/anchored_list/anchored_list.dart';
 import 'package:air/util/anchored_list/controller.dart';
+import 'package:air/util/frame.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
-import 'package:air/ds/components/scroll/scroll_fade_tokens.dart';
 
+import 'package:air/features/message_list/message_list_fade_tokens.dart';
 import 'package:air/features/message_list/message_row_container.dart';
 import 'package:air/features/message_list/date_divider.dart';
 import 'package:air/features/message_list/floating_date_header.dart';
@@ -71,7 +72,7 @@ class MessageListView extends StatefulWidget {
 ///  - Marks the conversation as read up to the newest visible message.
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, FrameSafeState {
   /// Messages eligible for an entrance animation. Admitted at arrival time
   /// when the user was visually at the bottom, then evicted after
   /// [_animationWindow] so the set stays bounded and a tile that remounts
@@ -275,11 +276,12 @@ class _MessageListViewState extends State<MessageListView>
   // The list is reversed, so pixels count from the bottom and what sits under
   // the header is maxScrollExtent - pixels.
   void _updateScrollOffsets(ScrollMetrics metrics) {
-    widget.headerScrollOffset?.value = max(
-      0.0,
-      metrics.maxScrollExtent - metrics.pixels,
-    );
-    _bottomFadeOffset.value = max(0.0, metrics.pixels);
+    final headerOffset = max(0.0, metrics.maxScrollExtent - metrics.pixels);
+    final bottomOffset = max(0.0, metrics.pixels);
+    runFrameSafe(() {
+      widget.headerScrollOffset?.value = headerOffset;
+      _bottomFadeOffset.value = bottomOffset;
+    });
   }
 
   /// Shows the floating header during active scroll and hides it again
@@ -295,7 +297,7 @@ class _MessageListViewState extends State<MessageListView>
       }
     } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
-      _scrollActive.value = true;
+      runFrameSafe(() => _scrollActive.value = true);
       _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
@@ -382,15 +384,14 @@ class _MessageListViewState extends State<MessageListView>
     ValueListenable<double>? composerHeightListenable,
     MessageListStateWrapper state,
   ) {
-    // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
-    final fades = MessageListFadeTokens.of(context);
-    // Height of the safe area above the toolbar. The screen extends its body
-    // behind the app bar, so the bar's own height is part of this padding.
-    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    final fades = MessageListFadeTokens.current;
+    // Height of the safe area above the header bar. The screen extends its body
+    // behind the bar, so the bar's own height is part of this padding.
+    final statusBarHeight = max(mediaPadding.top - Chrome.barHeight, 0.0);
     // Total height of the top fade: the status bar and the header bar it has to
     // cover, plus the ramp trailing below them.
-    final fadeHeight = statusBarHeight + kToolbarHeight + fades.topTail;
+    final fadeHeight = statusBarHeight + Chrome.barHeight + fades.topTail;
     // Y-coordinate where content comes clear of the fade. Used as the list's
     // top inset so rows at rest, jumps and the unread divider all land below
     // it.
@@ -512,7 +513,7 @@ class _MessageListViewState extends State<MessageListView>
             height: fades.bottomHeight,
             color: bgColor,
             curve: Curves.easeInOutQuad,
-            opacity: fades.bottomOpacity * reveal,
+            opacity: MessageListFadeTokens.bottomOpacity * reveal,
           );
         },
       ),

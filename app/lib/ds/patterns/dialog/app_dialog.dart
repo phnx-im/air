@@ -26,20 +26,19 @@ class AppDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = DialogTokens.of(context);
     final palette = SemanticPalette.of(context);
 
     return Dialog(
       backgroundColor: backgroundColor ?? palette.backgroundElevated.primary,
-      insetPadding: tokens.margin,
+      insetPadding: DialogTokens.margin,
       constraints: BoxConstraints(
-        minWidth: tokens.minWidth,
-        maxWidth: maxWidth ?? tokens.maxWidth,
+        minWidth: DialogTokens.minWidth,
+        maxWidth: maxWidth ?? DialogTokens.maxWidth,
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(tokens.radius),
+        borderRadius: BorderRadius.circular(DialogTokens.radius),
       ),
-      child: Padding(padding: tokens.contentPadding, child: child),
+      child: Padding(padding: DialogTokens.contentPadding, child: child),
     );
   }
 }

@@ -56,16 +56,6 @@ abstract final class ButtonIconTokens {
   /// anything but a flat wash.
   static final double elevatedBlur = Effect.blur(BlurLevel.thin);
 
-  /// Alpha the glyph fades to without a handler. Content carries the disabled
-  /// read, so it's what fades hardest.
-  static const double disabledOpacity = Alpha.a40;
-
-  /// Alpha the fill recedes to without a handler. It steps back rather than
-  /// dissolving: a disabled control still has to read as a control, and the
-  /// elevated fill is already translucent, so fading it in step with the glyph
-  /// would leave nothing but a ghost.
-  static const double disabledFillOpacity = Alpha.a80;
-
   static Color fill(SemanticPalette palette, ButtonIconVariant variant) =>
       switch (variant) {
         ButtonIconVariant.elevated => palette.backgroundMaterial.primary,

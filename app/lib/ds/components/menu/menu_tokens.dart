@@ -15,15 +15,8 @@ class MenuTokens {
     required this.radius,
     required this.minWidth,
     required this.padding,
-    required this.itemPadding,
     required this.itemGap,
-    required this.itemRadius,
     required this.iconSize,
-    required this.iconGap,
-    required this.separatorWidth,
-    required this.separatorGap,
-    required this.submenuGap,
-    required this.elevation,
   });
 
   final double radius;
@@ -35,41 +28,38 @@ class MenuTokens {
   /// Inset from the card's edge to the row highlights.
   final EdgeInsets padding;
 
-  /// Inset inside a row, so the highlight sits around the icon and label
-  /// instead of flush against them.
-  final EdgeInsets itemPadding;
-
   final double itemGap;
 
-  /// Corner radius of a row's hover, press, and selected highlight.
-  final double itemRadius;
-
   final double iconSize;
-  final double iconGap;
 
-  final double separatorWidth;
+  /// Inset inside a row, so the highlight sits around the icon and label
+  /// instead of flush against them.
+  static const EdgeInsets itemPadding = EdgeInsets.symmetric(
+    horizontal: S.s12,
+    vertical: S.s8,
+  );
+
+  /// Corner radius of a row's hover, press, and selected highlight.
+  static const double itemRadius = CornerRadius.px8;
+
+  static const double iconGap = S.s8;
+
+  static const double separatorWidth = StrokeWidth.px0_5;
 
   /// Space above and below a separator.
-  final double separatorGap;
+  static const double separatorGap = S.s4;
 
   /// Space between the card and a submenu opened beside it.
-  final double submenuGap;
+  static const double submenuGap = S.s4;
 
-  final Elevation elevation;
+  static const Elevation elevation = Elevation.large;
 
   static const MenuTokens phone = MenuTokens(
     radius: CornerRadius.px20,
     minWidth: S.s192,
     padding: EdgeInsets.all(S.s12),
-    itemPadding: EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
     itemGap: S.s4,
-    itemRadius: CornerRadius.px8,
     iconSize: S.s20,
-    iconGap: S.s8,
-    separatorWidth: StrokeWidth.px0_5,
-    separatorGap: S.s4,
-    submenuGap: S.s4,
-    elevation: Elevation.large,
   );
 
   /// Denser than [phone]: a pointer hits a smaller row reliably, so the card
@@ -78,17 +68,9 @@ class MenuTokens {
     radius: CornerRadius.px12,
     minWidth: S.s160,
     padding: EdgeInsets.all(S.s8),
-    itemPadding: EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
     itemGap: S.s2,
-    itemRadius: CornerRadius.px8,
     iconSize: S.s12,
-    iconGap: S.s8,
-    separatorWidth: StrokeWidth.px0_5,
-    separatorGap: S.s4,
-    submenuGap: S.s4,
-    elevation: Elevation.large,
   );
 
-  static MenuTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static MenuTokens get current => DeviceType.isPhone ? phone : desktop;
 }

@@ -178,7 +178,7 @@ class _FullscreenImageState extends State<FullscreenImage> {
     unawaited(
       _pageController.animateToPage(
         target,
-        duration: Effect.duration(widget.tokens.chromeMotion),
+        duration: Effect.duration(FullscreenImageTokens.chromeMotion),
         curve: Effect.easeOutQuart,
       ),
     );
@@ -195,7 +195,7 @@ class _FullscreenImageState extends State<FullscreenImage> {
       _chromeTapTimer = null;
       return;
     }
-    _chromeTapTimer = Timer(widget.tokens.chromeTapDelay, () {
+    _chromeTapTimer = Timer(FullscreenImageTokens.chromeTapDelay, () {
       _chromeTapTimer = null;
       _toggleChrome();
     });
@@ -226,9 +226,9 @@ class _FullscreenImageState extends State<FullscreenImage> {
     if (event is! PointerScrollEvent) return;
     final zoom = _zoomFor(_index);
     final direction = event.scrollDelta.dy < 0 ? 1 : -1;
-    final step = 1 + widget.tokens.scrollZoomStep * direction;
+    final step = 1 + FullscreenImageTokens.scrollZoomStep * direction;
     zoom.controller.scale = (zoom.currentScale * step)
-        .clamp(_fitScale, _fitScale * widget.tokens.maxZoomScale)
+        .clamp(_fitScale, _fitScale * FullscreenImageTokens.maxZoomScale)
         .toDouble();
   }
 
@@ -243,7 +243,7 @@ class _FullscreenImageState extends State<FullscreenImage> {
   }
 
   void _handleDragEnd(DragEndDetails details) {
-    if (_dragOffset > widget.tokens.dismissThreshold) {
+    if (_dragOffset > FullscreenImageTokens.dismissThreshold) {
       widget.onClose();
       return;
     }
@@ -264,10 +264,16 @@ class _FullscreenImageState extends State<FullscreenImage> {
 
     final dragging = _canDrag;
     final backdropOpacity = dragging
-        ? (1 - _dragOffset / t.dismissFadeDistance).clamp(0.0, 1.0)
+        ? (1 - _dragOffset / FullscreenImageTokens.dismissFadeDistance).clamp(
+            0.0,
+            1.0,
+          )
         : 1.0;
     final pictureScale = dragging
-        ? math.max(t.dismissMinScale, 1 - _dragOffset / t.dismissScaleDistance)
+        ? math.max(
+            FullscreenImageTokens.dismissMinScale,
+            1 - _dragOffset / FullscreenImageTokens.dismissScaleDistance,
+          )
         : 1.0;
 
     return Focus(
@@ -380,7 +386,7 @@ class _Backdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     final tint = ColoredBox(color: color.withValues(alpha: color.a * opacity));
     if (!tokens.frostedBackdrop) return tint;
-    final blur = Effect.blur(tokens.backdropBlur);
+    final blur = Effect.blur(FullscreenImageTokens.backdropBlur);
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
       child: tint,
@@ -417,12 +423,14 @@ class _Gallery extends StatelessWidget {
   /// gallery there's no counter to clear.
   EdgeInsets get _padding => items.length > 1
       ? EdgeInsets.fromLTRB(
-          tokens.imagePadding,
-          tokens.imagePadding,
-          tokens.imagePadding,
-          tokens.counterBottom + _counterType.lineHeightPx + S.s16,
+          FullscreenImageTokens.imagePadding,
+          FullscreenImageTokens.imagePadding,
+          FullscreenImageTokens.imagePadding,
+          FullscreenImageTokens.counterBottom +
+              _counterType.lineHeightPx +
+              S.s16,
         )
-      : EdgeInsets.all(tokens.imagePadding);
+      : const EdgeInsets.all(FullscreenImageTokens.imagePadding);
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +487,8 @@ class _Gallery extends StatelessWidget {
           ? null
           : PhotoViewHeroAttributes(tag: tag, transitionOnUserGestures: true),
       minScale: PhotoViewComputedScale.contained,
-      maxScale: PhotoViewComputedScale.covered * tokens.maxZoomScale,
+      maxScale:
+          PhotoViewComputedScale.covered * FullscreenImageTokens.maxZoomScale,
       scaleStateCycle: _doubleTapScaleStateCycle,
       onTapUp: (context, details, value) => onTap(),
     );
@@ -533,7 +542,7 @@ class _Picture extends StatelessWidget {
                 error ??
                 AppIcon(
                   type: AppIconType.imageOff,
-                  size: tokens.errorIconSize,
+                  size: FullscreenImageTokens.errorIconSize,
                   color: palette.text.quaternary,
                 ),
           ),
@@ -587,7 +596,7 @@ class _Chrome extends StatelessWidget {
   Widget build(BuildContext context) => IgnorePointer(
     ignoring: !visible,
     child: AnimatedOpacity(
-      duration: Effect.duration(tokens.chromeMotion),
+      duration: Effect.duration(FullscreenImageTokens.chromeMotion),
       curve: Effect.easeOutQuart,
       opacity: visible ? opacity : 0,
       child: child,
@@ -632,7 +641,9 @@ class _Header extends StatelessWidget {
           child: ConstrainedBox(
             // A strip on a phone, and on a pointer a button floating in the
             // corner, where the padding alone is taller than the strip.
-            constraints: BoxConstraints(minHeight: tokens.headerHeight),
+            constraints: const BoxConstraints(
+              minHeight: FullscreenImageTokens.headerHeight,
+            ),
             child: Padding(
               padding: tokens.headerPadding,
               child: Row(
@@ -653,10 +664,10 @@ class _Header extends StatelessWidget {
 
   Widget _button(AppIconType icon, Color color, VoidCallback onPressed) =>
       ButtonIcon(
-        variant: tokens.buttonVariant,
-        size: tokens.buttonSize,
+        variant: FullscreenImageTokens.buttonVariant,
+        size: FullscreenImageTokens.buttonSize,
         icon: icon,
-        iconSize: tokens.buttonIconSize,
+        iconSize: FullscreenImageTokens.buttonIconSize,
         iconColor: color,
         onPressed: onPressed,
       );
@@ -696,12 +707,16 @@ class _NavArrows extends StatelessWidget {
         child: Row(
           children: [
             Padding(
-              padding: EdgeInsets.only(left: tokens.navEdgePadding),
+              padding: const EdgeInsets.only(
+                left: FullscreenImageTokens.navEdgePadding,
+              ),
               child: _arrow(AppIconType.chevronLeft, canGoBack, onBack),
             ),
             const Spacer(),
             Padding(
-              padding: EdgeInsets.only(right: tokens.navEdgePadding),
+              padding: const EdgeInsets.only(
+                right: FullscreenImageTokens.navEdgePadding,
+              ),
               child: _arrow(AppIconType.chevronRight, canGoForward, onForward),
             ),
           ],
@@ -715,14 +730,14 @@ class _NavArrows extends StatelessWidget {
   /// it neither invites a press nor swallows one.
   Widget _arrow(AppIconType icon, bool enabled, VoidCallback onPressed) =>
       AnimatedOpacity(
-        duration: Effect.duration(tokens.navFadeMotion),
+        duration: Effect.duration(FullscreenImageTokens.navFadeMotion),
         curve: Effect.easeOutQuart,
-        opacity: enabled ? tokens.navIdleOpacity : 0,
+        opacity: enabled ? FullscreenImageTokens.navIdleOpacity : 0,
         child: ButtonIcon(
-          variant: tokens.buttonVariant,
-          size: tokens.navButtonSize,
+          variant: FullscreenImageTokens.buttonVariant,
+          size: FullscreenImageTokens.navButtonSize,
           icon: icon,
-          iconSize: tokens.navIconSize,
+          iconSize: FullscreenImageTokens.navIconSize,
           iconColor: darkSemanticPalette.function.neutral.white,
           onPressed: enabled ? onPressed : null,
         ),
@@ -748,7 +763,7 @@ class _Counter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      bottom: tokens.counterBottom,
+      bottom: FullscreenImageTokens.counterBottom,
       left: 0,
       right: 0,
       child: _Chrome(

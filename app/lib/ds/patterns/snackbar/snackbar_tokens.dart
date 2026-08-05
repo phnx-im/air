@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 enum SnackbarTone {
   /// Confirmation pill. For an action that went through and needs no
   /// follow-up.
-  neutral,
+  success,
 
   /// Error pill. For an action that didn't go through.
   danger,
@@ -20,35 +20,25 @@ enum SnackbarTone {
 ///
 /// Geometry only: colors come from the palette at paint time, picked by
 /// [SnackbarTone].
-@immutable
-class SnackbarTokens {
-  const SnackbarTokens({
-    required this.radius,
-    required this.padding,
-    required this.maxWidth,
-    required this.elevation,
-    required this.insets,
-  });
-
-  final double radius;
-  final EdgeInsets padding;
+abstract final class SnackbarTokens {
+  static const double radius = CornerRadius.px8;
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: S.s16,
+    vertical: S.s8,
+  );
 
   /// Caps the pill width so a long label ellipsizes rather than spanning the
   /// viewport.
-  final double maxWidth;
+  static const double maxWidth = Measure.m360;
 
-  final Elevation elevation;
+  static const Elevation elevation = Elevation.small;
 
   /// Where the pill sits relative to the viewport edges. The bottom clearance
   /// carries the message composer, so a pill raised from a chat never lands on
   /// top of the input.
-  final EdgeInsets insets;
-
-  static const SnackbarTokens standard = SnackbarTokens(
-    radius: CornerRadius.px8,
-    padding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
-    maxWidth: S.s120 * 3,
-    elevation: Elevation.small,
-    insets: EdgeInsets.only(left: S.s16, right: S.s16, bottom: S.s96),
+  static const EdgeInsets insets = EdgeInsets.only(
+    left: S.s16,
+    right: S.s16,
+    bottom: S.s96,
   );
 }

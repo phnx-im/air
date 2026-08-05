@@ -52,7 +52,7 @@ class AddContactDialog extends HookWidget {
           const SizedBox(height: S.s24),
 
           AppTextInput(
-            tokens: AppTextInputTokens.of(context),
+            tokens: AppTextInputTokens.current,
             label: loc.newConnectionDialog_inputLabel,
             autocorrect: false,
             autofocus: true,
@@ -118,7 +118,7 @@ class AddContactDialog extends HookWidget {
                       ? .pending
                       : isInputValid.value && errorMessage.value == null
                       ? .active
-                      : .inactive,
+                      : .disabled,
                   label: usernameHash.value == null
                       ? loc.newConnectionDialog_confirm1
                       : loc.newConnectionDialog_confirm2,

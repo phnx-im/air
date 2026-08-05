@@ -4,7 +4,6 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -95,7 +94,6 @@ class MemberSelectionList extends HookWidget {
                   ),
             trailing: hasSupportedClient
                 ? AppCheckbox(
-                    tokens: CheckboxTokens.standard,
                     value: isSelected,
                     onChanged: (_) => onToggle(contact),
                   )

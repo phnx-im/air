@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -56,7 +56,7 @@ class UpdateRequiredView extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: Center(
-            child: ConstrainedWidth(
+            child: FixedWidth(
               child: Column(
                 crossAxisAlignment: .center,
                 children: [

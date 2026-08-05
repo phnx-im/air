@@ -62,14 +62,13 @@ class ListRow extends StatelessWidget {
   final bool enabled;
 
   /// Whether a pointer paints the hover wash. Follows the device by default,
-  /// off for touch. A phone-shaped layout running at the desktop breakpoint
-  /// passes `false` to keep the wash off where the row still reads as touch.
+  /// off for touch.
   final bool? hover;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final tileRadius = radius ?? tokens.radius;
+    final tileRadius = radius ?? ListRowTokens.radius;
 
     final decoration = switch (fill) {
       final Color color => BoxDecoration(
@@ -80,7 +79,7 @@ class ListRow extends StatelessWidget {
         border: Border(
           bottom: BorderSide(
             color: palette.separator.secondary,
-            width: tokens.separatorWidth,
+            width: ListRowTokens.separatorWidth,
           ),
         ),
       ),
@@ -89,12 +88,12 @@ class ListRow extends StatelessWidget {
 
     final content = Container(
       constraints: BoxConstraints(minHeight: tokens.height),
-      padding: tokens.padding,
+      padding: ListRowTokens.padding,
       child: Row(
         children: [
           if (leading != null) ...[
             leading!,
-            SizedBox(width: tokens.leadingGap),
+            const SizedBox(width: ListRowTokens.leadingGap),
           ],
           Expanded(
             child: Column(
@@ -105,21 +104,23 @@ class ListRow extends StatelessWidget {
                   label,
                   style:
                       labelStyle ??
-                      typeScale.body.regular
-                          .style(color: palette.text.primary)
-                          .copyWith(height: 1.0),
+                      typeScale.body.regular.style(
+                        color: palette.text.primary,
+                        tight: true,
+                      ),
                   maxLines: labelMaxLines,
                   overflow: labelMaxLines == null
                       ? TextOverflow.clip
                       : TextOverflow.ellipsis,
                 ),
                 if (sublabel != null) ...[
-                  SizedBox(height: tokens.sublabelGap),
+                  const SizedBox(height: ListRowTokens.sublabelGap),
                   Text(
                     sublabel!,
-                    style: typeScale.body.s
-                        .style(color: palette.text.tertiary)
-                        .copyWith(height: 1.0),
+                    style: typeScale.body.s.style(
+                      color: palette.text.tertiary,
+                      tight: true,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -128,7 +129,7 @@ class ListRow extends StatelessWidget {
             ),
           ),
           if (trailing != null) ...[
-            SizedBox(width: tokens.trailingGap),
+            const SizedBox(width: ListRowTokens.trailingGap),
             trailing!,
           ],
         ],
@@ -141,8 +142,6 @@ class ListRow extends StatelessWidget {
           : DecoratedBox(decoration: decoration, child: content);
     }
 
-    final phone = DeviceType.isPhone;
-
     return StateLayer(
       // The wash follows the look: rounded where the row paints a tile, square
       // across the whole footprint where it only carries a hairline.
@@ -150,8 +149,7 @@ class ListRow extends StatelessWidget {
       surface: fill ?? palette.backgroundBase.primary,
       enabled: enabled,
       onTap: onTap,
-      hover: hover ?? !phone,
-      pressScale: phone,
+      hover: hover,
       background: decoration == null
           ? null
           : DecoratedBox(decoration: decoration),

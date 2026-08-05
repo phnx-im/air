@@ -11,80 +11,48 @@ import 'package:flutter/widgets.dart';
 /// typescale at paint time.
 @immutable
 class ContactRequestCardTokens {
-  const ContactRequestCardTokens({
-    required this.containerPadding,
-    required this.padding,
-    required this.maxWidth,
-    required this.radius,
-    required this.subtitleGap,
-    required this.avatarSize,
-    required this.avatarPadding,
-    required this.avatarLabelGap,
-    required this.messageLabelGap,
-    required this.actionsTopGap,
-    required this.actionsGap,
-  });
+  const ContactRequestCardTokens({required this.containerPadding});
 
   /// Inset between the card and the surface it sits on.
   final EdgeInsets containerPadding;
 
   /// Inset inside the card, matching the dialog surface the card is shown on.
-  final EdgeInsets padding;
+  static const EdgeInsets padding = EdgeInsets.all(S.s24);
 
   /// Ceiling on the card's width, so a wide surface leaves it a card instead of
   /// stretching it into a banner.
-  final double maxWidth;
+  static const double maxWidth = Measure.m400;
 
-  final double radius;
+  static const double radius = CornerRadius.px20;
 
   /// Gap between the headline and the line naming where the request came from.
-  final double subtitleGap;
+  static const double subtitleGap = S.s8;
 
-  final double avatarSize;
+  static const double avatarSize = S.s96;
 
   /// Inset around the avatar block, holding it off the header above and
   /// whatever follows below.
-  final EdgeInsets avatarPadding;
+  static const EdgeInsets avatarPadding = EdgeInsets.symmetric(vertical: S.s16);
 
   /// Gap between the avatar and the prompt to uncover the picture.
-  final double avatarLabelGap;
+  static const double avatarLabelGap = S.s8;
 
   /// Gap between the attached note's label and the note itself.
-  final double messageLabelGap;
+  static const double messageLabelGap = S.s4;
 
-  final double actionsTopGap;
-  final double actionsGap;
+  static const double actionsTopGap = S.s32;
+  static const double actionsGap = S.s12;
 
   static const ContactRequestCardTokens phone = ContactRequestCardTokens(
     containerPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s16),
-    padding: EdgeInsets.all(S.s24),
-    maxWidth: 400,
-    radius: CornerRadius.px20,
-    subtitleGap: S.s8,
-    avatarSize: S.s96,
-    avatarPadding: EdgeInsets.symmetric(vertical: S.s16),
-    avatarLabelGap: S.s8,
-    messageLabelGap: S.s4,
-    actionsTopGap: S.s32,
-    actionsGap: S.s12,
   );
 
   /// Tighter around the card than [phone]: the two-pane layout already frames
   /// the message list, so the card needs less room around it.
   static const ContactRequestCardTokens desktop = ContactRequestCardTokens(
     containerPadding: EdgeInsets.symmetric(horizontal: S.s20, vertical: S.s12),
-    padding: EdgeInsets.all(S.s24),
-    maxWidth: 400,
-    radius: CornerRadius.px20,
-    subtitleGap: S.s8,
-    avatarSize: S.s96,
-    avatarPadding: EdgeInsets.symmetric(vertical: S.s16),
-    avatarLabelGap: S.s8,
-    messageLabelGap: S.s4,
-    actionsTopGap: S.s32,
-    actionsGap: S.s12,
   );
 
-  static ContactRequestCardTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ContactRequestCardTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

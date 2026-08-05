@@ -69,7 +69,7 @@ class MessageRowContainer extends StatelessWidget {
       _ => status,
     };
 
-    final rowTokens = MessageRowTokens.of(context);
+    final rowTokens = MessageRowTokens.current;
     final isContent = message is UiMessage_Content;
 
     final tile = ListTile(

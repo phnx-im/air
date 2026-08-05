@@ -17,8 +17,9 @@ import 'package:flutter/widgets.dart';
 ///
 /// The wash flips direction to stay visible: a near-white surface can't get
 /// brighter so it darkens on hover, a near-black one can't get darker so it
-/// lightens on press. The host passes us the [surface] and the feedback shape
-/// ([hover] / [pressScale]), and we handle the rest.
+/// lightens on press. The host passes us the [surface] and we handle the
+/// rest. The feedback shape ([hover] / [pressScale]) follows the device, a
+/// host only names it to deviate.
 class StateLayer extends StatefulWidget {
   const StateLayer({
     super.key,
@@ -29,10 +30,10 @@ class StateLayer extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.enabled = true,
-    this.hover = true,
+    this.hover,
     this.selected = false,
     this.press = true,
-    this.pressScale = true,
+    this.pressScale,
     this.hoverScale = false,
   });
 
@@ -55,8 +56,10 @@ class StateLayer extends StatefulWidget {
   final VoidCallback? onLongPress;
   final bool enabled;
 
-  /// Whether a pointer hover paints the hover wash. Touch surfaces pass false.
-  final bool hover;
+  /// Whether a pointer hover paints the hover wash. Defaults from the device,
+  /// on for a pointer platform and off for touch. Pass a value only to
+  /// deviate.
+  final bool? hover;
 
   /// Whether this is the selected surface. It already has its own fill, so we
   /// skip the hover wash here or it'd double up. Press still fires.
@@ -67,10 +70,14 @@ class StateLayer extends StatefulWidget {
   /// [hover].
   final bool press;
 
-  /// Whether a press dips the surface by [StateTokens.pressedScale].
-  final bool pressScale;
+  /// Whether a press dips the surface by [StateTokens.pressedScale]. Defaults
+  /// from the device, on for touch and off for a pointer platform. Pass a
+  /// value only to deviate.
+  final bool? pressScale;
 
   /// Whether a pointer hover lifts the surface to [StateTokens.hoverScale].
+  /// The lift only applies while hovered, so it is inert on touch and a call
+  /// site can pass a plain true.
   final bool hoverScale;
 
   @override
@@ -94,10 +101,13 @@ class _StateLayerState extends State<StateLayer> {
     final duration = Effect.duration(MotionPreset.short);
     final radius = BorderRadius.circular(widget.borderRadius);
 
+    // The platform default: a pointer hovers, touch dips on press.
+    final hover = widget.hover ?? !DeviceType.isPhone;
+    final pressScale = widget.pressScale ?? DeviceType.isPhone;
+
     // Only hover when the surface accepts it and isn't selected, otherwise a
     // just-selected item under the pointer would keep a stale wash.
-    final hovered =
-        widget.enabled && widget.hover && !widget.selected && _hovered;
+    final hovered = widget.enabled && hover && !widget.selected && _hovered;
     final pressed = widget.enabled && widget.press && _pressed;
 
     // Blend the (maybe translucent) surface onto the page base before reading
@@ -126,7 +136,7 @@ class _StateLayerState extends State<StateLayer> {
 
     // Touch dips on press, a pointer lifts on hover and settles back on click.
     final scale = pressed
-        ? (widget.pressScale ? StateTokens.pressedScale : 1.0)
+        ? (pressScale ? StateTokens.pressedScale : 1.0)
         : (widget.hoverScale && hovered ? StateTokens.hoverScale : 1.0);
 
     // Only grab gestures when there's actually something to tap, so an inert
@@ -138,7 +148,7 @@ class _StateLayerState extends State<StateLayer> {
       enabled: interactive,
       mouseCursor: interactive ? SystemMouseCursors.click : MouseCursor.defer,
       onShowHoverHighlight: (value) =>
-          setState(() => _hovered = widget.hover && value),
+          setState(() => _hovered = hover && value),
       onShowFocusHighlight: (value) => setState(() => _focused = value),
       child: GestureDetector(
         // Opaque when interactive so the whole footprint is tappable, not just

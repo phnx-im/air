@@ -6,7 +6,6 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
@@ -66,7 +65,7 @@ class LinkDeviceModal extends HookWidget {
     void backToChooser() => page.value = _LinkPage.chooser;
 
     return AppDialog(
-      maxWidth: 500,
+      maxWidth: Measure.m500,
       backgroundColor: palette.backgroundBase.quaternary,
       child: switch (page.value) {
         _LinkPage.chooser => _LinkChooserPage(
@@ -170,7 +169,7 @@ class _LinkChooserPage extends StatelessWidget {
           label: _isQrCodeScannerSupported
               ? loc.linkedDevicesScreen_linkDialog_scanQrCode
               : loc.linkedDevicesScreen_linkDialog_scanQrCode_unavailable,
-          state: _isQrCodeScannerSupported ? .active : .inactive,
+          state: _isQrCodeScannerSupported ? .active : .disabled,
           icon: (size, color) => AppIcon.qrCode(size: size.width, color: color),
           alignment: .start,
           onPressed: onScanQrCode,
@@ -436,7 +435,7 @@ class _NumericCodePage extends HookWidget {
         ),
         const SizedBox(height: S.s16),
         AppTextInput(
-          tokens: AppTextInputTokens.of(context),
+          tokens: AppTextInputTokens.current,
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
@@ -621,7 +620,7 @@ class _LinkDeviceName extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: textEditingController,
       maxLength: 30,
       helperText: loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
@@ -670,7 +669,6 @@ class _LinkConfirmView extends HookWidget {
             spacing: S.s12,
             children: [
               AppCheckbox(
-                tokens: CheckboxTokens.standard,
                 value: checked.value,
                 onChanged: (value) => checked.value = value,
               ),
@@ -687,7 +685,7 @@ class _LinkConfirmView extends HookWidget {
         Button(
           type: .primary,
           label: loc.linkingDeviceScreen_linking_confirm_button,
-          state: checked.value ? ButtonState.active : ButtonState.inactive,
+          state: checked.value ? ButtonState.active : ButtonState.disabled,
           onPressed: () => onConfirm(deviceName.text),
         ),
       ],

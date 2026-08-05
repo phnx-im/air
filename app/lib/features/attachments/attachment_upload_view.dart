@@ -108,11 +108,14 @@ class AttachmentUploadView extends HookWidget {
                       style: TextStyle(color: palette.text.primary),
                     ),
                     actions: [
-                      AppBarXButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        foregroundColor: palette.text.primary,
-                        backgroundColor:
-                            darkSemanticPalette.backgroundBase.secondary,
+                      Padding(
+                        padding: const EdgeInsets.only(right: S.s24),
+                        child: AppBarXButton(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          foregroundColor: palette.text.primary,
+                          backgroundColor:
+                              darkSemanticPalette.backgroundBase.secondary,
+                        ),
                       ),
                     ],
                     backgroundColor: Colors.transparent,

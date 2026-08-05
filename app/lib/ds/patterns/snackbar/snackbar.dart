@@ -16,12 +16,10 @@ import 'package:flutter/widgets.dart';
 class Snackbar extends StatelessWidget {
   const Snackbar({
     super.key,
-    required this.tokens,
     required this.label,
-    this.tone = SnackbarTone.neutral,
+    this.tone = SnackbarTone.success,
   });
 
-  final SnackbarTokens tokens;
   final String label;
   final SnackbarTone tone;
 
@@ -30,20 +28,20 @@ class Snackbar extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     final fill = switch (tone) {
-      SnackbarTone.neutral => palette.function.success.primary,
+      SnackbarTone.success => palette.function.success.primary,
       SnackbarTone.danger => palette.function.danger,
     };
 
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: tokens.maxWidth),
+      constraints: const BoxConstraints(maxWidth: SnackbarTokens.maxWidth),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(tokens.radius),
-          boxShadow: Effect.elevation(tokens.elevation),
+          borderRadius: BorderRadius.circular(SnackbarTokens.radius),
+          boxShadow: Effect.elevation(SnackbarTokens.elevation),
         ),
         child: Padding(
-          padding: tokens.padding,
+          padding: SnackbarTokens.padding,
           child: Text(
             label,
             maxLines: 1,
@@ -51,9 +49,10 @@ class Snackbar extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             // Both fills are saturated in either brightness, so the label
             // takes the mode-invariant white rather than a toggling one.
-            style: typeScale.body.s
-                .style(color: palette.function.neutral.white)
-                .copyWith(height: 1.2),
+            style: typeScale.body.s.style(
+              color: palette.function.neutral.white,
+              tight: true,
+            ),
           ),
         ),
       ),

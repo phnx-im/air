@@ -30,7 +30,7 @@ class Counter extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(minWidth: tokens.minWidth),
       height: tokens.height,
-      padding: tokens.padding,
+      padding: CounterTokens.padding,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: CounterTokens.fill(palette),
@@ -38,12 +38,11 @@ class Counter extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: typeScale.body.mini
-            .style(
-              color: CounterTokens.label(palette),
-              weight: Weight.emphasized,
-            )
-            .copyWith(height: 1.0),
+        style: typeScale.body.mini.style(
+          color: CounterTokens.label(palette),
+          weight: Weight.emphasized,
+          tight: true,
+        ),
       ),
     );
   }

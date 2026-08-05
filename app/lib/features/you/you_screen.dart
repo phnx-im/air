@@ -13,14 +13,13 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
-
-const double _bottomFadeHeight = S.s120;
 
 /// The profile tab on a phone: who you are, above the sections you can open.
 ///
@@ -42,14 +41,18 @@ class YouScreen extends StatelessWidget {
         child: FadedScrollFrame(
           backgroundColor: bgColor,
           header: _Header(title: loc.userSettingsScreen_title),
-          contentTopPadding: kToolbarHeight,
+          contentTopPadding: Chrome.barHeight,
           // The floating tab bar is what the last row has to clear, unless the
           // bottom fade reaches further down.
           contentBottomPadding: max(
             TabBarTokens.bottomInset(context),
-            _bottomFadeHeight,
+            YouFadeTokens.phone.bottomHeight,
           ),
-          bottomFadeHeight: _bottomFadeHeight,
+          topFadeHeight: YouFadeTokens.phone.topHeight,
+          bottomFadeHeight: YouFadeTokens.phone.bottomHeight,
+          topSolidStop: YouFadeTokens.topSolidStop,
+          bottomSolidStop: YouFadeTokens.bottomSolidStop,
+          bottomOpacity: YouFadeTokens.bottomOpacity,
           builder: (topPadding, bottomPadding) => SingleChildScrollView(
             padding: EdgeInsets.only(
               top: topPadding,
@@ -163,7 +166,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: kToolbarHeight,
+      height: Chrome.barHeight,
       child: Center(
         child: Text(
           title,

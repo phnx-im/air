@@ -93,7 +93,7 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
       trailing: Button(
         size: ButtonSize.small,
         state: selectedContacts.isEmpty
-            ? ButtonState.inactive
+            ? ButtonState.disabled
             : ButtonState.active,
         label: loc.addMembersScreen_done,
         onPressed: () => _addSelectedContacts(context, selectedContacts),

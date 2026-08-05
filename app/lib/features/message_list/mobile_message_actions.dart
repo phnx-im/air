@@ -135,8 +135,9 @@ class _MobileMessageActionView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
-    final barTokens = ReactionBarTokens.of(context);
-    final barHeight = barTokens.itemSize + barTokens.containerPadding.vertical;
+    final barTokens = ReactionBarTokens.current;
+    final barHeight =
+        barTokens.itemSize + ReactionBarTokens.containerPadding.vertical;
     final size = mediaQuery.size;
     final safeTop = mediaQuery.padding.top + S.s24;
     final safeBottom = mediaQuery.padding.bottom + S.s24;
@@ -349,7 +350,7 @@ class _MobileContextMenu extends StatelessWidget {
         position: slideAnimation,
         child: Align(
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
-          child: Menu(tokens: MenuTokens.of(context), items: menuItems),
+          child: Menu(tokens: MenuTokens.current, items: menuItems),
         ),
       ),
     );

@@ -61,13 +61,12 @@ Future<T?> _showBottomSheet<T>({
   bool enableDrag = true,
   Color? barrierColor,
 }) {
-  const tokens = BottomSheetTokens.standard;
   return Navigator.of(context, rootNavigator: true).push<T>(
     _BottomSheetRoute<T>(
       barrierDismissible: isDismissible,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      transitionDuration: Effect.duration(tokens.enter),
-      reverseDuration: Effect.duration(tokens.exit),
+      transitionDuration: Effect.duration(BottomSheetTokens.enter),
+      reverseDuration: Effect.duration(BottomSheetTokens.exit),
       // The page drives every part of the transition off the route animation,
       // so the route itself hands the child through untouched.
       transitionBuilder: (context, animation, secondaryAnimation, child) =>
@@ -126,9 +125,8 @@ class _BottomSheetModal extends StatefulWidget {
 
 class _BottomSheetModalState extends State<_BottomSheetModal>
     with SingleTickerProviderStateMixin {
-  static const _tokens = BottomSheetTokens.standard;
-  static final _sheetBorderRadius = BorderRadius.vertical(
-    top: Radius.circular(_tokens.topRadius),
+  static const _sheetBorderRadius = BorderRadius.vertical(
+    top: Radius.circular(BottomSheetTokens.topRadius),
   );
 
   late final CurvedAnimation _appearAnimation;
@@ -150,7 +148,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
 
     _dragResetController = AnimationController(
       vsync: this,
-      duration: Effect.duration(_tokens.dragSnapBack),
+      duration: Effect.duration(BottomSheetTokens.dragSnapBack),
     );
   }
 
@@ -211,8 +209,8 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     if (!widget.enableDrag) return;
 
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity > _tokens.dragDismissVelocity ||
-        _dragOffset > _tokens.dragDismissDistance) {
+    if (velocity > BottomSheetTokens.dragDismissVelocity ||
+        _dragOffset > BottomSheetTokens.dragDismissDistance) {
       Navigator.of(context).maybePop();
     } else {
       _animateDragReset();
@@ -267,9 +265,13 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
       mediaQuery.viewPadding.bottom,
       mediaQuery.viewInsets.bottom,
     );
-    final contentPadding = (widget.contentPadding ?? _tokens.contentPadding)
-        .add(EdgeInsets.only(bottom: bottomPadding));
-    final handleExtent = widget.enableDrag ? _tokens.handleExtent : 0.0;
+    final contentPadding =
+        (widget.contentPadding ?? BottomSheetTokens.contentPadding).add(
+          EdgeInsets.only(bottom: bottomPadding),
+        );
+    final handleExtent = widget.enableDrag
+        ? BottomSheetTokens.handleExtent
+        : 0.0;
     var cardMaxHeight = maxSheetHeight - handleExtent;
     if (cardMaxHeight <= 0) {
       cardMaxHeight = maxSheetHeight;
@@ -292,7 +294,9 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
-                    padding: EdgeInsets.only(bottom: _tokens.handleGap),
+                    padding: const EdgeInsets.only(
+                      bottom: BottomSheetTokens.handleGap,
+                    ),
                     child: _BottomSheetHandle(
                       color: palette.backgroundElevated.primary,
                     ),
@@ -329,10 +333,9 @@ class _BottomSheetHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = BottomSheetTokens.standard;
     return Container(
-      width: tokens.handleWidth,
-      height: tokens.handleHeight,
+      width: BottomSheetTokens.handleWidth,
+      height: BottomSheetTokens.handleHeight,
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(CornerRadius.full),

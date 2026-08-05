@@ -34,15 +34,12 @@ enum MessageBubbleVariant {
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
-    required this.tokens,
     required this.isSelf,
     required this.child,
     this.variant = MessageBubbleVariant.filled,
     this.padding,
     this.intrinsicWidth = false,
   });
-
-  final MessageBubbleTokens tokens;
 
   /// Own message. Picks the fill.
   final bool isSelf;
@@ -68,7 +65,7 @@ class MessageBubble extends StatelessWidget {
     final fill = isSelf
         ? palette.message.selfBackground
         : palette.message.otherBackground;
-    final corners = BorderRadius.circular(tokens.radius);
+    final corners = BorderRadius.circular(MessageBubbleTokens.radius);
 
     final decoration = switch (variant) {
       MessageBubbleVariant.filled => BoxDecoration(
@@ -76,14 +73,14 @@ class MessageBubble extends StatelessWidget {
         borderRadius: corners,
       ),
       MessageBubbleVariant.outlined => BoxDecoration(
-        border: Border.all(color: fill, width: tokens.borderWidth),
+        border: Border.all(color: fill, width: MessageBubbleTokens.borderWidth),
         borderRadius: corners,
       ),
       MessageBubbleVariant.naked => null,
     };
 
     final bubble = Container(
-      padding: padding ?? tokens.padding,
+      padding: padding ?? MessageBubbleTokens.padding,
       decoration: decoration,
       // Clipped to the bubble's own corners, so full-bleed content needs no
       // radius of its own.

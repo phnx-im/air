@@ -8,7 +8,11 @@ import 'package:air/platform/method_channel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -96,15 +100,35 @@ class LogsScreenView extends StatelessWidget {
           title: const Text('Logs'),
           leading: const AppBarBackButton(),
           actions: [
-            PopupMenuButton(
-              itemBuilder: (context) => [
-                if (DeviceType.isDesktop)
-                  PopupMenuItem(onTap: _saveLogs, child: const Text('Save')),
-                if (DeviceType.isPhone)
-                  PopupMenuItem(onTap: _shareLogs, child: const Text('Share')),
-                PopupMenuItem(onTap: reloadLogs, child: const Text('Reload')),
-                PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),
-              ],
+            Padding(
+              padding: const EdgeInsets.only(right: S.s8),
+              child: _LogsMenuButton(
+                items: (context) => [
+                  if (DeviceType.isDesktop)
+                    MenuItem(
+                      label: 'Save',
+                      icon: AppIconType.download,
+                      onPressed: _saveLogs,
+                    ),
+                  if (DeviceType.isPhone)
+                    MenuItem(
+                      label: 'Share',
+                      icon: AppIconType.share,
+                      onPressed: _shareLogs,
+                    ),
+                  MenuItem(
+                    label: 'Reload',
+                    icon: AppIconType.refreshCw,
+                    onPressed: reloadLogs,
+                  ),
+                  MenuItem(
+                    label: 'Clear',
+                    icon: AppIconType.trash,
+                    destructive: true,
+                    onPressed: clearLogs,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -161,6 +185,35 @@ class LogsScreenView extends StatelessWidget {
       data,
       mimeType: 'application/gzip',
     ).saveTo(result.path);
+  }
+}
+
+class _LogsMenuButton extends StatelessWidget {
+  const _LogsMenuButton({required this.items});
+
+  final List<MenuItem> Function(BuildContext context) items;
+
+  @override
+  Widget build(BuildContext context) {
+    return ButtonIcon(
+      variant: ButtonIconVariant.transparent,
+      icon: AppIconType.ellipsis,
+      onPressed: () => _open(context),
+    );
+  }
+
+  void _open(BuildContext context) {
+    final render = context.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return;
+
+    unawaited(
+      showOverlayMenu(
+        context: context,
+        anchor: render.localToGlobal(Offset.zero) & render.size,
+        corner: MenuCorner.topRight,
+        items: items(context),
+      ),
+    );
   }
 }
 

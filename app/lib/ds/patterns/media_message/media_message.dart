@@ -29,7 +29,6 @@ import 'package:flutter/widgets.dart';
 class MediaMessage extends StatelessWidget {
   const MediaMessage({
     super.key,
-    required this.tokens,
     required ImageProvider this.image,
     this.naturalWidth,
     this.naturalHeight,
@@ -46,7 +45,6 @@ class MediaMessage extends StatelessWidget {
   /// would.
   const MediaMessage.builder({
     super.key,
-    required this.tokens,
     required Widget Function(BoxFit fit) this.builder,
     this.naturalWidth,
     this.naturalHeight,
@@ -56,8 +54,6 @@ class MediaMessage extends StatelessWidget {
     this.onTap,
   }) : image = null,
        error = null;
-
-  final MediaMessageTokens tokens;
 
   /// The picture. Null exactly when [builder] is set.
   final ImageProvider? image;
@@ -95,7 +91,6 @@ class MediaMessage extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     Widget content = _MediaFrame(
-      tokens: tokens,
       fill: isSelf
           ? palette.message.selfBackground
           : palette.message.otherBackground,
@@ -122,7 +117,7 @@ class MediaMessage extends StatelessWidget {
         _ProviderImage(
           image: image!,
           fit: fit,
-          error: error ?? _MediaError(tokens: tokens),
+          error: error ?? const _MediaError(),
         );
 
     if (placeholder == null) return picture;
@@ -141,14 +136,12 @@ class MediaMessage extends StatelessWidget {
 /// [MediaMessage] constructors reach the same geometry.
 class _MediaFrame extends StatelessWidget {
   const _MediaFrame({
-    required this.tokens,
     required this.fill,
     required this.naturalWidth,
     required this.naturalHeight,
     required this.buildImage,
   });
 
-  final MediaMessageTokens tokens;
   final Color fill;
   final double? naturalWidth;
   final double? naturalHeight;
@@ -162,20 +155,24 @@ class _MediaFrame extends StatelessWidget {
     if (width == null || height == null) {
       return _bubble(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: tokens.maxHeight),
+          constraints: const BoxConstraints(
+            maxHeight: MediaMessageTokens.maxHeight,
+          ),
           child: buildImage(BoxFit.contain),
         ),
       );
     }
 
-    if (width < tokens.thumbnailMin && height < tokens.thumbnailMin) {
+    if (width < MediaMessageTokens.thumbnailMin &&
+        height < MediaMessageTokens.thumbnailMin) {
       return _thumbnail();
     }
 
-    if (width / height * tokens.maxHeight < tokens.minScaleWidth) {
+    if (width / height * MediaMessageTokens.maxHeight <
+        MediaMessageTokens.minScaleWidth) {
       return _bubble(
-        width: tokens.minScaleWidth,
-        height: tokens.maxHeight,
+        width: MediaMessageTokens.minScaleWidth,
+        height: MediaMessageTokens.maxHeight,
         child: buildImage(BoxFit.cover),
       );
     }
@@ -187,7 +184,7 @@ class _MediaFrame extends StatelessWidget {
             : width;
         final scale = math.min(
           1.0,
-          math.min(available / width, tokens.maxHeight / height),
+          math.min(available / width, MediaMessageTokens.maxHeight / height),
         );
         return _bubble(
           width: width * scale,
@@ -204,7 +201,7 @@ class _MediaFrame extends StatelessWidget {
         height: height,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(tokens.radius),
+          borderRadius: BorderRadius.circular(MediaMessageTokens.radius),
         ),
         clipBehavior: Clip.antiAlias,
         child: child,
@@ -214,17 +211,18 @@ class _MediaFrame extends StatelessWidget {
     // Concentric with the bubble: the inner radius drops by the inset, so the
     // two curves stay parallel instead of the picture's corners fighting the
     // frame's.
-    final inner = (tokens.radius - tokens.thumbnailPadding).clamp(
-      0.0,
-      tokens.radius,
-    );
+    final inner =
+        (MediaMessageTokens.radius - MediaMessageTokens.thumbnailPadding).clamp(
+          0.0,
+          MediaMessageTokens.radius,
+        );
     return Container(
-      width: tokens.thumbnailMin,
-      height: tokens.thumbnailMin,
-      padding: EdgeInsets.all(tokens.thumbnailPadding),
+      width: MediaMessageTokens.thumbnailMin,
+      height: MediaMessageTokens.thumbnailMin,
+      padding: const EdgeInsets.all(MediaMessageTokens.thumbnailPadding),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(tokens.radius),
+        borderRadius: BorderRadius.circular(MediaMessageTokens.radius),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(inner),
@@ -283,21 +281,19 @@ class _ProviderImage extends StatelessWidget {
 /// Stand-in for a picture that won't decode. Square at the thumbnail size
 /// where the frame has no size of its own, stretched to the frame where it has.
 class _MediaError extends StatelessWidget {
-  const _MediaError({required this.tokens});
-
-  final MediaMessageTokens tokens;
+  const _MediaError();
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     return SizedBox.square(
-      dimension: tokens.thumbnailMin,
+      dimension: MediaMessageTokens.thumbnailMin,
       child: ColoredBox(
         color: palette.fill.tertiary,
         child: Center(
           child: AppIcon(
             type: AppIconType.imageOff,
-            size: tokens.errorIconSize,
+            size: MediaMessageTokens.errorIconSize,
             color: palette.text.quaternary,
           ),
         ),

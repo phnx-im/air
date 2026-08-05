@@ -16,10 +16,8 @@ class ChatListItemTokens {
   const ChatListItemTokens({
     required this.avatarSize,
     required this.containerPadding,
-    required this.avatarPadding,
     required this.namePadding,
     required this.timePadding,
-    required this.previewPadding,
     required this.trailingPadding,
     required this.separatorPadding,
     required this.highlightActive,
@@ -32,10 +30,8 @@ class ChatListItemTokens {
   /// can run past them to the row's edge.
   final EdgeInsets containerPadding;
 
-  final EdgeInsets avatarPadding;
   final EdgeInsets namePadding;
   final EdgeInsets timePadding;
-  final EdgeInsets previewPadding;
 
   /// Inset around the unread counter or the delivery status.
   final EdgeInsets trailingPadding;
@@ -46,6 +42,13 @@ class ChatListItemTokens {
   /// holds a selection: on a phone the tapped row navigates away, so there's
   /// never a selected row left on screen to mark.
   final bool highlightActive;
+
+  static const EdgeInsets avatarPadding = EdgeInsets.only(right: S.s12);
+
+  static const EdgeInsets previewPadding = EdgeInsets.only(
+    right: S.s8,
+    bottom: S.s12,
+  );
 
   /// Glyph inline in the preview line.
   static const double previewIconSize = S.s12;
@@ -64,10 +67,8 @@ class ChatListItemTokens {
   static const ChatListItemTokens phone = ChatListItemTokens(
     avatarSize: S.s48,
     containerPadding: EdgeInsets.fromLTRB(S.s16, S.s16, S.s0, S.s0),
-    avatarPadding: EdgeInsets.only(right: S.s12),
     namePadding: EdgeInsets.only(top: S.s2, right: S.s24, bottom: S.s2),
     timePadding: EdgeInsets.only(top: S.s2, right: S.s16, bottom: S.s2),
-    previewPadding: EdgeInsets.only(right: S.s8, bottom: S.s12),
     trailingPadding: EdgeInsets.only(right: S.s16, bottom: S.s12),
     separatorPadding: EdgeInsets.only(right: S.s16),
     highlightActive: false,
@@ -76,16 +77,13 @@ class ChatListItemTokens {
   static const ChatListItemTokens desktop = ChatListItemTokens(
     avatarSize: S.s40,
     containerPadding: EdgeInsets.fromLTRB(S.s16, S.s12, S.s16, S.s0),
-    avatarPadding: EdgeInsets.only(right: S.s12),
     namePadding: EdgeInsets.only(top: S.s2, right: S.s8, bottom: S.s2),
     timePadding: EdgeInsets.only(bottom: S.s2),
-    previewPadding: EdgeInsets.only(right: S.s8, bottom: S.s12),
     trailingPadding: EdgeInsets.only(bottom: S.s8),
     separatorPadding: EdgeInsets.zero,
     highlightActive: true,
   );
 
   /// The two-pane layout is denser and keeps a selection.
-  static ChatListItemTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ChatListItemTokens get current => DeviceType.isPhone ? phone : desktop;
 }

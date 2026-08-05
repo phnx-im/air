@@ -64,7 +64,7 @@ class ReactionStrip extends StatelessWidget {
     final metrics = _ChipMetrics.measure(context, chipTokens, ordered);
 
     return _StripFootprint(
-      width: tokens.startInset + metrics.minimalWidth,
+      width: ReactionStripTokens.startInset + metrics.minimalWidth,
       height: metrics.height,
       child: Align(
         // Overrides the message column's end-alignment for own messages, so the
@@ -75,7 +75,9 @@ class ReactionStrip extends StatelessWidget {
           // bubble: the crop ring sits outside the pill, so add it back in.
           offset: Offset(0, -(tokens.overlap + ReactionChipTokens.cropWidth)),
           child: Padding(
-            padding: EdgeInsets.only(left: tokens.startInset),
+            padding: const EdgeInsets.only(
+              left: ReactionStripTokens.startInset,
+            ),
             child: LayoutBuilder(
               builder: (context, constraints) => SizedBox(
                 height: metrics.height,
@@ -212,7 +214,7 @@ class _ChipMetrics {
       content = math.max(content, glyph.height);
       if (group.count > 1) {
         final label = _measure('${group.count}', countStyle, scaler, direction);
-        width += tokens.countGap + label.width;
+        width += ReactionChipTokens.countGap + label.width;
         content = math.max(content, label.height);
       }
       widths.add(width);

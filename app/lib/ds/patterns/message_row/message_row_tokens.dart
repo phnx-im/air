@@ -14,10 +14,6 @@ class MessageRowTokens {
   const MessageRowTokens({
     required this.padding,
     required this.avatarSize,
-    required this.avatarGap,
-    required this.avatarBottomNudge,
-    required this.bubbleTextInset,
-    required this.senderNameGap,
     required this.groupGap,
   });
 
@@ -30,26 +26,25 @@ class MessageRowTokens {
   /// same density, so the two line up down the left edge of the screen.
   final double avatarSize;
 
-  /// Gap between the avatar column and the bubble, mirroring the input's gap
-  /// between its leading button and the field.
-  final double avatarGap;
+  /// Gap above the first row of a flight, which the list applies. Wide enough
+  /// that a change of sender reads before the name does.
+  final double groupGap;
+
+  /// Gap between the avatar column and the bubble.
+  static const double avatarGap = Chrome.controlGap;
 
   /// Lift of the avatar off the foot of its column. It reads as sitting on the
   /// bubble's last line rather than hanging off its corner, so the nudge
   /// follows the bubble's own bottom inset and not the avatar's diameter.
-  final double avatarBottomNudge;
+  static const double avatarBottomNudge = S.s4;
 
   /// The bubble's own horizontal text inset. The row doesn't apply it directly.
   /// It only enters [contentInset], which is what lines the sender name up with
   /// the text of the bubble under it rather than with the bubble's edge.
-  final double bubbleTextInset;
+  static const double bubbleTextInset = S.s12;
 
   /// Gap below the sender name.
-  final double senderNameGap;
-
-  /// Gap above the first row of a flight, which the list applies. Wide enough
-  /// that a change of sender reads before the name does.
-  final double groupGap;
+  static const double senderNameGap = S.s4;
 
   /// Gap between consecutive rows of the same flight, which the list applies.
   /// The bubbles of a flight read as one block, so this only keeps them apart.
@@ -72,10 +67,6 @@ class MessageRowTokens {
   static const MessageRowTokens phone = MessageRowTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s16),
     avatarSize: S.s40,
-    avatarGap: S.s8,
-    avatarBottomNudge: S.s4,
-    bubbleTextInset: S.s12,
-    senderNameGap: S.s4,
     groupGap: S.s16,
   );
 
@@ -84,13 +75,8 @@ class MessageRowTokens {
   static const MessageRowTokens desktop = MessageRowTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s20),
     avatarSize: S.s32,
-    avatarGap: S.s8,
-    avatarBottomNudge: S.s4,
-    bubbleTextInset: S.s12,
-    senderNameGap: S.s4,
     groupGap: S.s12,
   );
 
-  static MessageRowTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static MessageRowTokens get current => DeviceType.isPhone ? phone : desktop;
 }

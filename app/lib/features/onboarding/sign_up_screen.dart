@@ -9,7 +9,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/util/cached_memory_image.dart';
@@ -77,7 +77,7 @@ class SignUpScreen extends HookWidget {
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Center(
-          child: ConstrainedWidth(
+          child: FixedWidth(
             child: Column(
               children: [
                 Expanded(
@@ -285,7 +285,7 @@ class _DisplayNameTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       autofocus: true,
       label: loc.signUpScreen_displayNameInputName,
@@ -321,7 +321,7 @@ class _ServerTextField extends HookWidget {
     );
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: controller,
       focusNode: focusNode,
       hintText: loc.signUpScreen_serverHint,

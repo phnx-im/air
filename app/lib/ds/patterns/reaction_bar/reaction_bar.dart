@@ -49,7 +49,7 @@ class ReactionBar extends StatelessWidget {
         boxShadow: Effect.elevation(ReactionBarTokens.elevation),
       ),
       child: Padding(
-        padding: tokens.containerPadding,
+        padding: ReactionBarTokens.containerPadding,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -62,7 +62,7 @@ class ReactionBar extends StatelessWidget {
             ButtonIcon(
               variant: ButtonIconVariant.transparent,
               icon: AppIconType.plus,
-              size: tokens.moreSize,
+              size: ReactionBarTokens.moreSize,
               iconSize: tokens.moreIconSize,
               iconColor: palette.text.secondary,
               hitTargetSize: tokens.itemSize,

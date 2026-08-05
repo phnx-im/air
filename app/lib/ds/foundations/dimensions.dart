@@ -29,6 +29,25 @@ abstract final class S {
   static const double s240 = 240.0;
 }
 
+/// Named measures: the width and height a card, a column, or a panel clamps
+/// itself to.
+///
+/// A sibling of [S] rather than steps on it. [S] is a spacing scale, and a
+/// readable text measure has nothing to do with the gap between two buttons,
+/// so keeping the two apart stops a card cap from drifting when a rhythm
+/// changes.
+abstract final class Measure {
+  static const double m200 = 200.0;
+  static const double m240 = 240.0;
+  static const double m320 = 320.0;
+  static const double m360 = 360.0;
+  static const double m400 = 400.0;
+  static const double m480 = 480.0;
+  static const double m500 = 500.0;
+  static const double m600 = 600.0;
+  static const double m800 = 800.0;
+}
+
 /// Named corner radius tokens.
 abstract final class CornerRadius {
   static const double px0 = 0.0;

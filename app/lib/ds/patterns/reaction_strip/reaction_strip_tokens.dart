@@ -11,11 +11,7 @@ import 'package:flutter/widgets.dart';
 /// Geometry only: colors come from the palette at paint time.
 @immutable
 class ReactionStripTokens {
-  const ReactionStripTokens({
-    required this.spacing,
-    required this.overlap,
-    required this.startInset,
-  });
+  const ReactionStripTokens({required this.spacing, required this.overlap});
 
   /// Gap between adjacent chips.
   final double spacing;
@@ -28,7 +24,7 @@ class ReactionStripTokens {
 
   /// Inset from the message's leading edge to the first chip, so the run starts
   /// just inside the bubble's start.
-  final double startInset;
+  static const double startInset = S.s8;
 
   /// Rounding slack on the fit test. We measure the chip widths, the strip's
   /// own width comes from layout, and a sub-pixel disagreement between the two
@@ -38,7 +34,6 @@ class ReactionStripTokens {
   static const ReactionStripTokens phone = ReactionStripTokens(
     spacing: S.s4,
     overlap: S.s2,
-    startInset: S.s8,
   );
 
   /// A denser run that bites a little deeper, matching the smaller chips the
@@ -46,9 +41,8 @@ class ReactionStripTokens {
   static const ReactionStripTokens desktop = ReactionStripTokens(
     spacing: S.s2,
     overlap: S.s4,
-    startInset: S.s8,
   );
 
-  static ReactionStripTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionStripTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

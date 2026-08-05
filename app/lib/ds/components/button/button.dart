@@ -57,9 +57,7 @@ class Button extends StatelessWidget {
       enabled: active,
       onTap: onPressed,
       onLongPress: onLongPress,
-      hover: !phone,
-      pressScale: phone,
-      hoverScale: !phone,
+      hoverScale: true,
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.fill,
@@ -77,19 +75,17 @@ class Button extends StatelessWidget {
                 dimension: tokens.iconSize,
                 child: CircularProgressIndicator(
                   color: colors.label,
-                  strokeWidth: tokens.spinnerWidth,
+                  strokeWidth: ButtonTokens.spinnerWidth,
                 ),
               )
             else ...[
               if (icon != null) ...[
                 icon!(Size.square(tokens.iconSize), colors.glyph),
-                SizedBox(width: tokens.iconLabelGap),
+                const SizedBox(width: ButtonTokens.iconLabelGap),
               ],
               Text(
                 label,
-                style: size.labelToken
-                    .style(color: colors.label)
-                    .copyWith(height: 1.0),
+                style: size.labelToken.style(color: colors.label, tight: true),
               ),
             ],
           ],
@@ -121,7 +117,7 @@ class Button extends StatelessWidget {
     );
   }
 
-  /// The three colors the button paints with. An inactive button fades its
+  /// The three colors the button paints with. A disabled button fades its
   /// content and keeps its fill, so the pill stays a pill.
   ({Color fill, Color label, Color glyph}) _colors(SemanticPalette palette) {
     final fill = switch ((type, tone)) {
@@ -144,8 +140,8 @@ class Button extends StatelessWidget {
       ButtonType.primary => label,
     };
 
-    final fade = state == ButtonState.inactive
-        ? ButtonTokens.inactiveOpacity
+    final fade = state == ButtonState.disabled
+        ? StateTokens.disabledContent
         : Alpha.a100;
 
     return (

@@ -13,6 +13,7 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -127,7 +128,7 @@ class _MemberSelectionStep extends HookWidget {
           alignment: Alignment.topCenter,
           child: Container(
             constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: 800)
+                ? const BoxConstraints(maxWidth: Measure.m800)
                 : null,
             child: Column(
               children: [
@@ -201,7 +202,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final createState = switch ((isCreating.value, isGroupNameValid)) {
       (true, _) => ButtonState.pending,
       (false, true) => ButtonState.active,
-      (false, false) => ButtonState.inactive,
+      (false, false) => ButtonState.disabled,
     };
 
     final loc = AppLocalizations.of(context);
@@ -252,7 +253,7 @@ class _CreateGroupDetailsStep extends HookWidget {
               alignment: Alignment.topCenter,
               child: Container(
                 constraints: DeviceType.isDesktop
-                    ? const BoxConstraints(maxWidth: 800)
+                    ? const BoxConstraints(maxWidth: Measure.m800)
                     : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,7 +274,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.displayLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
+                        decoration: FieldChrome.plain(
                           hintText: nameFocusNode.hasFocus
                               ? loc.groupCreationDetails_groupNameHintFocused
                               : loc.groupCreationDetails_groupNameHint,
@@ -282,9 +283,6 @@ class _CreateGroupDetailsStep extends HookWidget {
                                 color: palette.text.quaternary,
                                 fontWeight: FontWeight.bold,
                               ),
-                          border: InputBorder.none,
-                          fillColor: Colors.transparent,
-                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ),
@@ -638,7 +636,7 @@ class _SwitchField extends StatelessWidget {
             ),
             const Spacer(),
             Toggle(
-              tokens: ToggleTokens.of(context),
+              tokens: ToggleTokens.current,
               value: value,
               onChanged: onChanged,
             ),

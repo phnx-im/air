@@ -13,18 +13,14 @@ import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/media_message/media_message.dart';
-import 'package:air/ds/patterns/media_message/media_message_tokens.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
-import 'package:air/ds/patterns/message_meta/message_meta_tokens.dart';
 import 'package:air/ds/patterns/message_row/message_row.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/ds/patterns/message_text/message_text.dart';
-import 'package:air/ds/patterns/message_text/message_text_tokens.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/reply_block/reply_block.dart';
-import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:air/features/attachments/attachment_actions.dart';
 import 'package:air/features/attachments/attachment_file.dart';
 import 'package:air/features/attachments/attachment_image.dart';
@@ -93,7 +89,7 @@ class TextMessageTile extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = MessageRowTokens.of(context);
+    final tokens = MessageRowTokens.current;
     // Held here rather than beside the bubble it keys: the time reveal wraps
     // the whole row and lines its label up with the bubble inside it.
     final bubbleKey = useMemoized(() => GlobalKey());
@@ -252,7 +248,6 @@ class _MessageStamp extends StatelessWidget {
     return MessageTimestamp(
       timestamp: timestamp,
       builder: (context, label) => MessageMeta(
-        tokens: MessageMetaTokens.standard,
         timestamp: label,
         isSelf: isSelf,
         status: status,
@@ -408,7 +403,7 @@ class _MessageShell extends StatelessWidget {
   static final HoverActionTokens _hoverTokens = HoverActionTokens(
     size:
         typeScale.body.regular.lineHeightPx +
-        MessageBubbleTokens.standard.padding.vertical,
+        MessageBubbleTokens.padding.vertical,
   );
 
   bool get _withHoverActions => !isMobilePlatform && isReplyable;
@@ -964,16 +959,14 @@ class _MessageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = MessageBubbleTokens.standard;
     final loc = AppLocalizations.of(context);
 
     if (content.isDeleted) {
       return MessageBubble(
-        tokens: tokens,
         isSelf: isSender,
         variant: MessageBubbleVariant.outlined,
         child: _capped(
-          tokens.padding,
+          MessageBubbleTokens.padding,
           _placeholder(context, _deletedBy(context, loc)),
         ),
       );
@@ -983,10 +976,9 @@ class _MessageContent extends StatelessWidget {
       return _highlighted(
         context,
         MessageBubble(
-          tokens: tokens,
           isSelf: isSender,
           child: _capped(
-            tokens.padding,
+            MessageBubbleTokens.padding,
             _placeholder(context, loc.textMessage_hiddenPlaceholder),
           ),
         ),
@@ -996,22 +988,19 @@ class _MessageContent extends StatelessWidget {
     final inReplyTo = inReplyToMessage;
     final blocks = [
       for (final inner in content.content?.elements ?? [])
-        buildBlockElement(
-          context,
-          inner.element,
-          isSender,
-          MessageTextTokens.standard,
-        ),
+        buildBlockElement(context, inner.element, isSender),
     ];
 
     // An emoji-only body stands on the conversation without a bubble under it,
     // which also means without a jump highlight around it.
     if (inReplyTo == null && isJumboEmojiMessage(content)) {
       return MessageBubble(
-        tokens: tokens,
         isSelf: isSender,
         variant: MessageBubbleVariant.naked,
-        child: _capped(tokens.padding, _selectable(_text(blocks, jumbo: true))),
+        child: _capped(
+          MessageBubbleTokens.padding,
+          _selectable(_text(blocks, jumbo: true)),
+        ),
       );
     }
 
@@ -1020,9 +1009,10 @@ class _MessageContent extends StatelessWidget {
     final hasMedia = attachment != null && imageMetadata != null;
     // A picture runs to the bubble's edge, so the blocks beside it carry the
     // inset the bubble would otherwise apply to all of them.
-    final padding = hasMedia ? EdgeInsets.zero : tokens.padding;
-    Widget inset(Widget child) =>
-        hasMedia ? Padding(padding: tokens.padding, child: child) : child;
+    final padding = hasMedia ? EdgeInsets.zero : MessageBubbleTokens.padding;
+    Widget inset(Widget child) => hasMedia
+        ? Padding(padding: MessageBubbleTokens.padding, child: child)
+        : child;
 
     // Stacked blocks only share a width where they can be measured. A picture
     // sizes itself against the available width and exposes none.
@@ -1031,7 +1021,6 @@ class _MessageContent extends StatelessWidget {
     return _highlighted(
       context,
       MessageBubble(
-        tokens: tokens,
         isSelf: isSender,
         padding: padding,
         intrinsicWidth: stretched,
@@ -1077,7 +1066,7 @@ class _MessageContent extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     return JumpHighlight(
       id: messageId,
-      borderRadius: BorderRadius.circular(MessageBubbleTokens.standard.radius),
+      borderRadius: BorderRadius.circular(MessageBubbleTokens.radius),
       baseColor: isSender
           ? palette.message.selfBackground
           : palette.message.otherBackground,
@@ -1085,12 +1074,8 @@ class _MessageContent extends StatelessWidget {
     );
   }
 
-  Widget _text(List<Widget> blocks, {required bool jumbo}) => MessageText(
-    tokens: MessageTextTokens.standard,
-    isSelf: isSender,
-    blocks: blocks,
-    jumbo: jumbo,
-  );
+  Widget _text(List<Widget> blocks, {required bool jumbo}) =>
+      MessageText(isSelf: isSender, blocks: blocks, jumbo: jumbo);
 
   Widget _placeholder(BuildContext context, String text) =>
       SelectionContainer.disabled(
@@ -1125,7 +1110,6 @@ class _MessageContent extends StatelessWidget {
   }
 
   Widget _reply(BuildContext context, UiInReplyToMessage inReplyTo) {
-    const tokens = ReplyBlockTokens.standard;
     final quote = quotedMessage(context, inReplyTo);
     final target = switch (inReplyTo) {
       UiInReplyToMessage_Resolved(:final messageId, :final mimiContent)
@@ -1139,7 +1123,7 @@ class _MessageContent extends StatelessWidget {
       senderName: quote.senderName,
       fill: SemanticPalette.of(context).fill.secondary,
       showJumpIndicator: target != null,
-      thumbnail: quotedThumbnail(context, inReplyTo, tokens),
+      thumbnail: quotedThumbnail(context, inReplyTo),
       onTap: target == null
           ? null
           : () => context.read<MessageListCubit>().jumpToMessage(
@@ -1166,7 +1150,6 @@ class _MessageContent extends StatelessWidget {
       tag: imageViewerHeroTag(attachment),
       transitionOnUserGestures: true,
       child: MediaMessage.builder(
-        tokens: MediaMessageTokens.standard,
         naturalWidth: metadata.width.toDouble(),
         naturalHeight: metadata.height.toDouble(),
         isSelf: isSender,
