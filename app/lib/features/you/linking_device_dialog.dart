@@ -645,8 +645,7 @@ class _LinkConfirmView extends HookWidget {
     final palette = SemanticPalette.of(context);
     final checked = useState(false);
 
-    final platform = Theme.of(context).platform;
-    final deviceName = useTextEditingController(text: platform.name);
+    final deviceName = useTextEditingController();
 
     return Column(
       mainAxisSize: MainAxisSize.min,

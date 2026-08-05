@@ -350,6 +350,13 @@ impl CoreUser {
         self.inner.outbound_service.kill();
     }
 
+    /// Stops local background work and closes this user's database connections.
+    pub async fn close_local_database(&self) {
+        self.kill_outbound_service();
+        self.inner._event_loop_cancel.token().cancel();
+        self.inner.db.close().await;
+    }
+
     pub(crate) fn key_store(&self) -> &MemoryUserKeyStore {
         &self.inner.key_store
     }

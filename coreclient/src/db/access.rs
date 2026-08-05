@@ -167,6 +167,11 @@ impl DbAccess {
         })
     }
 
+    /// Closes all database connections shared by this access handle's clones.
+    pub(crate) async fn close(&self) {
+        tokio::join!(self.read_write_pool.close(), self.read_only_pool.close());
+    }
+
     /// Executes a function within a read transaction.
     pub(crate) async fn with_read_transaction<T, E>(
         &self,

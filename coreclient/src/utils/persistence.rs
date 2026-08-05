@@ -6,6 +6,7 @@ use std::{
     fmt::Display,
     fs,
     future::ready,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -167,11 +168,19 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
 }
 
 pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::Result<()> {
-    // Delete the client DB
     let client_db_name = client_db_name(user_id);
-    let client_db_path = format!("{db_path}/{client_db_name}");
-    if let Err(error) = fs::remove_file(&client_db_path) {
-        error!(%error, %client_db_path, "Failed to delete client DB")
+    let client_db_path = Path::new(db_path).join(client_db_name);
+    let mut removal_error = None;
+    for path in [
+        client_db_path.clone(),
+        client_db_path.with_extension("db-shm"),
+        client_db_path.with_extension("db-wal"),
+    ] {
+        info!(path = %path.display(), "removing client DB file");
+        if let Err(error) = remove_file_if_exists(&path) {
+            error!(%error, path = %path.display(), "Failed to delete client DB file");
+            removal_error.get_or_insert_with(|| anyhow::Error::new(error));
+        }
     }
 
     // Delete the client record from the air DB
@@ -182,7 +191,15 @@ pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::
     let air_db = open_air_db(db_path).await?;
     ClientRecord::delete(air_db.write().await?, user_id).await?;
 
-    Ok(())
+    removal_error.map_or(Ok(()), Err)
+}
+
+fn remove_file_if_exists(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn client_db_name(user_id: &UserId) -> String {
@@ -246,5 +263,56 @@ pub(crate) struct GroupIdWrapper(pub(crate) GroupId);
 impl From<GroupIdWrapper> for GroupId {
     fn from(group_id: GroupIdWrapper) -> Self {
         group_id.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::clients::store::{ClientRecord, ClientRecordState};
+
+    #[tokio::test]
+    async fn closed_client_database_is_deleted_with_its_sidecars() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let db_path = directory.path().to_str().unwrap();
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse()?);
+
+        let air_db = open_air_db(db_path).await?;
+        ClientRecord {
+            user_id: user_id.clone(),
+            client_record_state: ClientRecordState::Finished,
+            created_at: Utc::now(),
+            is_default: true,
+        }
+        .store(air_db.write().await?)
+        .await?;
+
+        let client_db = open_client_db(&user_id, db_path).await?;
+        let other_handle = client_db.clone();
+        client_db.close().await;
+        assert!(other_handle.read().await.is_err());
+
+        let client_db_path = directory.path().join(client_db_name(&user_id));
+        let shm_path = client_db_path.with_extension("db-shm");
+        let wal_path = client_db_path.with_extension("db-wal");
+        fs::write(&shm_path, b"stale shm")?;
+        fs::write(&wal_path, b"stale wal")?;
+
+        delete_client_database(db_path, &user_id).await?;
+
+        assert!(!client_db_path.exists());
+        assert!(!shm_path.exists());
+        assert!(!wal_path.exists());
+        assert!(
+            ClientRecord::load(air_db.read().await?, &user_id)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
     }
 }
