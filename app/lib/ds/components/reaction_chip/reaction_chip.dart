@@ -5,6 +5,7 @@
 import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/reaction_chip/reaction_chip_tokens.dart';
+import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:flutter/widgets.dart';
@@ -94,30 +95,32 @@ class ReactionChip extends StatelessWidget {
             ],
           );
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap == null ? null : () => _handleTap(onTap!),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: cropColor(context),
-            borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(ReactionChipTokens.cropWidth),
-            child: Container(
-              constraints: BoxConstraints(minHeight: tokens.minHeight),
-              padding: tokens.padding,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                // The collapsed pill is nobody's own reaction, so it always
-                // takes the lighter fill.
-                color: selected ? palette.fill.primary : palette.fill.tertiary,
-                borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
-              ),
-              child: content,
+    // The crop ring stays outside the StateLayer so the wash never tints it
+    // and it keeps reading as a gap.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cropColor(context),
+        borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(ReactionChipTokens.cropWidth),
+        child: StateLayer(
+          borderRadius: ReactionChipTokens.radius,
+          surface: selected ? palette.fill.primary : palette.fill.tertiary,
+          onTap: onTap == null ? null : () => _handleTap(onTap!),
+          background: DecoratedBox(
+            decoration: BoxDecoration(
+              // The collapsed pill is nobody's own reaction, so it always
+              // takes the lighter fill.
+              color: selected ? palette.fill.primary : palette.fill.tertiary,
+              borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
             ),
+          ),
+          child: Container(
+            constraints: BoxConstraints(minHeight: tokens.minHeight),
+            padding: tokens.padding,
+            alignment: Alignment.center,
+            child: content,
           ),
         ),
       ),

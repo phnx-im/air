@@ -165,8 +165,6 @@ class _LanguagePicker extends StatelessWidget {
         return StateLayer(
           borderRadius: CornerRadius.full,
           surface: palette.backgroundBase.secondary,
-          hover: !DeviceType.isPhone,
-          pressScale: DeviceType.isPhone,
           onTap: onTap,
           child: Row(
             mainAxisSize: MainAxisSize.min,

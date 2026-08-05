@@ -260,18 +260,15 @@ class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final filled = highlighted || item.selected;
-    final phone = DeviceType.isPhone;
 
     return StateLayer(
       onTap: onTap,
       enabled: onTap != null,
       borderRadius: tokens.itemRadius,
       surface: palette.backgroundElevated.primary,
-      hover: !phone,
       // A filled row already carries its fill, so the hover wash would double
       // up on it.
       selected: filled,
-      pressScale: phone,
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: filled ? palette.fill.tertiary : null,

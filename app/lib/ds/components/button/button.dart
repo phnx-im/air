@@ -57,9 +57,7 @@ class Button extends StatelessWidget {
       enabled: active,
       onTap: onPressed,
       onLongPress: onLongPress,
-      hover: !phone,
-      pressScale: phone,
-      hoverScale: !phone,
+      hoverScale: true,
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.fill,

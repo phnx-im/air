@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -59,20 +60,29 @@ class ChatListItem extends StatelessWidget {
     final t = tokens;
     final palette = SemanticPalette.of(context);
     final longPress = onLongPress;
+    final active = isActive && t.highlightActive;
 
+    // StateLayer owns the tap and its feedback. The outer detector stays for
+    // the position-reporting long press and secondary tap, which StateLayer
+    // has no equivalent for.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
       onLongPressStart: longPress != null
           ? (details) => longPress(details.globalPosition)
           : null,
       onSecondaryTapUp: longPress != null
           ? (details) => longPress(details.globalPosition)
           : null,
-      child: ColoredBox(
-        color: isActive && t.highlightActive
+      child: StateLayer(
+        borderRadius: CornerRadius.px0,
+        surface: active
             ? palette.fill.tertiary
-            : const Color(0x00000000),
+            : palette.backgroundBase.primary,
+        // The active row already carries its fill, so the hover wash would
+        // double up on it.
+        selected: active,
+        onTap: onTap,
+        background: active ? ColoredBox(color: palette.fill.tertiary) : null,
         child: Padding(
           padding: t.containerPadding,
           child: Row(

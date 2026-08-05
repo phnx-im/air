@@ -81,7 +81,6 @@ class ButtonIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final enabled = onPressed != null || onLongPress != null;
-    final phone = DeviceType.isPhone;
 
     // Fade the parts rather than wrapping the button in an Opacity: an opacity
     // layer over a BackdropFilter doesn't survive every renderer.
@@ -108,9 +107,7 @@ class ButtonIcon extends StatelessWidget {
         enabled: enabled,
         onTap: onPressed,
         onLongPress: onLongPress,
-        hover: !phone,
-        pressScale: phone,
-        hoverScale: !phone,
+        hoverScale: true,
         background: _Surface(
           variant: variant,
           fill: bg,

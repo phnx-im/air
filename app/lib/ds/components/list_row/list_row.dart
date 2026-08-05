@@ -140,8 +140,6 @@ class ListRow extends StatelessWidget {
           : DecoratedBox(decoration: decoration, child: content);
     }
 
-    final phone = DeviceType.isPhone;
-
     return StateLayer(
       // The wash follows the look: rounded where the row paints a tile, square
       // across the whole footprint where it only carries a hairline.
@@ -149,8 +147,7 @@ class ListRow extends StatelessWidget {
       surface: fill ?? palette.backgroundBase.primary,
       enabled: enabled,
       onTap: onTap,
-      hover: hover ?? !phone,
-      pressScale: phone,
+      hover: hover,
       background: decoration == null
           ? null
           : DecoratedBox(decoration: decoration),

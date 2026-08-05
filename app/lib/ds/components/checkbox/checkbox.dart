@@ -51,8 +51,6 @@ class AppCheckbox extends StatelessWidget {
       tokens.disabledCheckAlpha,
     );
 
-    final phone = DeviceType.isPhone;
-
     return StateLayer(
       borderRadius: tokens.radius,
       // The wash sits on the box once it's filled, on the page base while the
@@ -60,8 +58,6 @@ class AppCheckbox extends StatelessWidget {
       surface: value ? fill : palette.backgroundBase.primary,
       enabled: enabled,
       onTap: onChanged == null ? null : () => onChanged!(!value),
-      hover: !phone,
-      pressScale: phone,
       background: AnimatedContainer(
         duration: duration,
         curve: Effect.easeOutQuart,

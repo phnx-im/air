@@ -222,7 +222,6 @@ class _MenuRow extends StatelessWidget {
           fill ??
           PanelSurface.maybeOf(context) ??
           palette.backgroundBase.primary,
-      hover: !DeviceType.isPhone,
       pressScale: false,
       background: fill != null
           ? DecoratedBox(
