@@ -64,13 +64,13 @@ class SignUpScreen extends HookWidget {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         leading: AppBarBackButton(
           backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.signUpScreen_header,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: .bold),
         ),
         backgroundColor: palette.backgroundBase.secondary,
       ),
@@ -84,8 +84,7 @@ class SignUpScreen extends HookWidget {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        keyboardDismissBehavior: .onDrag,
                         padding: const EdgeInsets.symmetric(
                           horizontal: S.s16,
                           vertical: S.s12,
@@ -156,7 +155,7 @@ class _Body extends StatelessWidget {
           Text(
             loc.signUpScreen_subheader,
             style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.left,
+            textAlign: .left,
           ),
           const SizedBox(height: S.s32),
 
@@ -180,7 +179,7 @@ class _Body extends StatelessWidget {
             Text(
               loc.signUpScreen_serverLabel,
               style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.left,
+              textAlign: .left,
             ),
             const SizedBox(height: S.s16),
 
@@ -238,7 +237,7 @@ class _UserAvatarPicker extends StatelessWidget {
               child: Image(
                 width: size,
                 height: size,
-                fit: BoxFit.cover,
+                fit: .cover,
                 image: CachedMemoryImage.fromImageData(avatar),
               ),
             ),
@@ -248,7 +247,7 @@ class _UserAvatarPicker extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                shape: .circle,
                 color: palette.fill.tertiary,
               ),
               alignment: Alignment.center,

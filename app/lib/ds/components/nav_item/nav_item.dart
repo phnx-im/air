@@ -59,14 +59,14 @@ class NavItem extends StatelessWidget {
         child: Padding(
           padding: tokens.padding,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: .center,
             children: [
               glyph,
               SizedBox(height: tokens.labelGap),
               Text(
                 label,
                 maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                overflow: .ellipsis,
                 style: active
                     ? tokens.activeLabelStyle
                     : tokens.inactiveLabelStyle,

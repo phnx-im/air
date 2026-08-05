@@ -71,7 +71,7 @@ class _UserDebugInfoBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         const _SectionHeader('User'),
         _InfoCard(
@@ -200,7 +200,7 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
@@ -253,7 +253,7 @@ class _InfoRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             SizedBox(
               width: 200,

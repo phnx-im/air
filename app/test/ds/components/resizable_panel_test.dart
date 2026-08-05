@@ -74,7 +74,7 @@ void main() {
 
       expect(handleOpacity(tester), 0);
 
-      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final pointer = await tester.createGesture(kind: .mouse);
       await pointer.addPointer(location: Offset.zero);
       addTearDown(pointer.removePointer);
 
@@ -111,7 +111,7 @@ void main() {
     ) async {
       await pumpSubject(tester);
 
-      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final pointer = await tester.createGesture(kind: .mouse);
       await pointer.addPointer(location: Offset.zero);
       addTearDown(pointer.removePointer);
 

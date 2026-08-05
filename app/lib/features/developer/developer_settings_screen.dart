@@ -107,7 +107,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         title: const Text('Developer Settings'),
         leading: const AppBarBackButton(),
       ),
@@ -140,7 +140,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       title: const Text('Push Token'),
                       subtitle: Text(deviceToken ?? "N/A"),
                       trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisSize: .min,
                         children: [
                           Tooltip(
                             message: 'Copy',
@@ -225,7 +225,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       'Erase All Databases',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Primitive.chromatic(Hue.red, Shade.s500),
-                        fontWeight: FontWeight.bold,
+                        fontWeight: .bold,
                       ),
                     ),
                     trailing: const AppIcon.trash(),
@@ -287,7 +287,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.s8, horizontal: S.s12),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      child: Text(label, style: const TextStyle(fontWeight: .bold)),
     );
   }
 }

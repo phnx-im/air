@@ -139,7 +139,7 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
 
   void _onStatusChanged(AnimationStatus status) {
     // Drop the stale chips once the exit animation settled.
-    if (status == AnimationStatus.dismissed && widget.reactions.isEmpty) {
+    if (status == .dismissed && widget.reactions.isEmpty) {
       setState(() => _reactions = const []);
     }
   }
@@ -168,7 +168,7 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
     // Constant Stack/Padding structure so the first reaction doesn't
     // reparent the bubble subtree (which would drop its state).
     return Stack(
-      clipBehavior: Clip.none,
+      clipBehavior: .none,
       children: [
         AnimatedBuilder(
           animation: _reveal,
@@ -273,7 +273,7 @@ Future<void> showQuickReactionMenu({
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: _QuickReactionMenuOverlay(
               animation: curved,
               anchorRect: anchorRect,
@@ -420,7 +420,7 @@ Future<void> showWhoReactedSheet({
         opacity: animation,
         child: Center(
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: Container(
               width: _reactorPanelSize.width,
               height: _reactorPanelSize.height,

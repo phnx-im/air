@@ -1052,9 +1052,7 @@ void main() {
         final label = stampLabel(2);
         final body = find.text('Message 2', findRichText: true);
 
-        final pointer = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final pointer = await tester.createGesture(kind: .mouse);
         await pointer.addPointer(location: Offset.zero);
         addTearDown(pointer.removePointer);
         await pointer.moveTo(tester.getCenter(body));
@@ -1129,7 +1127,7 @@ void main() {
 
       messageListCubit.setState(messages);
 
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
@@ -1647,10 +1645,7 @@ void main() {
         await tester.pumpAndSettle();
         final center = tester.getCenter(target);
 
-        final gesture = await tester.startGesture(
-          center,
-          kind: PointerDeviceKind.mouse,
-        );
+        final gesture = await tester.startGesture(center, kind: .mouse);
         addTearDown(gesture.removePointer);
         await tester.pump();
         await gesture.up();

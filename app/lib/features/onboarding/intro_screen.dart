@@ -72,10 +72,7 @@ class IntroScreen extends HookWidget {
                   },
                   child: SvgPicture.asset(
                     'assets/images/logo.svg',
-                    colorFilter: ColorFilter.mode(
-                      palette.text.primary,
-                      BlendMode.srcIn,
-                    ),
+                    colorFilter: ColorFilter.mode(palette.text.primary, .srcIn),
                   ),
                 ),
               ),
@@ -97,8 +94,8 @@ class IntroScreen extends HookWidget {
                         ? const EdgeInsets.symmetric(horizontal: S.s16)
                         : EdgeInsets.zero,
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: .min,
+                      crossAxisAlignment: .center,
                       children: [
                         _TermsOfUseText(loc: loc),
                         const SizedBox(height: S.s16),
@@ -106,7 +103,7 @@ class IntroScreen extends HookWidget {
                           Text(
                             loc.introScreen_serverLabel,
                             style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.left,
+                            textAlign: .left,
                           ),
                           const SizedBox(height: S.s16),
 
@@ -169,7 +166,7 @@ class _LanguagePicker extends StatelessWidget {
           pressScale: DeviceType.isPhone,
           onTap: onTap,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               Container(
                 width: 36,
@@ -177,7 +174,7 @@ class _LanguagePicker extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: palette.backgroundBase.tertiary,
-                  shape: BoxShape.circle,
+                  shape: .circle,
                 ),
                 child: AppIcon.globe(color: palette.text.secondary, size: 18),
               ),
@@ -212,7 +209,7 @@ class _TermsOfUseText extends StatelessWidget {
     final linkStart = agreement.indexOf(linkText);
 
     if (linkStart == -1) {
-      return Text(agreement, style: baseTextStyle, textAlign: TextAlign.center);
+      return Text(agreement, style: baseTextStyle, textAlign: .center);
     }
 
     final beforeLink = agreement.substring(0, linkStart);
@@ -241,7 +238,7 @@ class _TermsOfUseText extends StatelessWidget {
           TextSpan(text: afterLink),
         ],
       ),
-      textAlign: TextAlign.center,
+      textAlign: .center,
     );
   }
 }

@@ -274,12 +274,12 @@ class _FullscreenImageState extends State<FullscreenImage> {
       autofocus: true,
       onKeyEvent: _handleKey,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onVerticalDragUpdate: dragging ? _handleDragUpdate : null,
         onVerticalDragEnd: dragging ? _handleDragEnd : null,
         onVerticalDragCancel: dragging ? _resetDrag : null,
         child: Stack(
-          fit: StackFit.expand,
+          fit: .expand,
           children: [
             _Backdrop(
               tokens: t,
@@ -463,11 +463,7 @@ class _Gallery extends StatelessWidget {
     return PhotoViewGalleryPageOptions.customChild(
       // The frame is the picture at its fit, so a scale of 1 is the fit and
       // whatever is drawn inside it is drawn at the size it was written for.
-      childSize: applyBoxFit(
-        BoxFit.contain,
-        item.naturalSize,
-        viewport,
-      ).destination,
+      childSize: applyBoxFit(.contain, item.naturalSize, viewport).destination,
       child: _Picture(tokens: tokens, item: item, error: error),
       // No filterQuality on purpose: naming one has photo_view lay the picture
       // out anew at every scale, which only its image branch can do. The zoom
@@ -506,18 +502,14 @@ class _Picture extends StatelessWidget {
     final placeholder = item.placeholder;
 
     return Stack(
-      fit: StackFit.expand,
+      fit: .expand,
       children: [
         if (placeholder != null)
-          Image(
-            image: placeholder,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-          ),
+          Image(image: placeholder, fit: .contain, filterQuality: .medium),
         Image(
           image: item.image,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
+          fit: .contain,
+          filterQuality: .medium,
           // A stand-in already holds the frame, so the transfer runs behind the
           // picture rather than behind a spinner.
           loadingBuilder: (context, child, event) =>

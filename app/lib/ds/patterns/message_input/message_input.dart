@@ -139,7 +139,7 @@ class _MessageInputState extends State<MessageInput>
     return Padding(
       padding: t.containerPadding,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: .end,
         children: [
           // Builder so the handler receives the button's context and not this
           // one, which the row above has already laid out and padded.
@@ -166,8 +166,8 @@ class _MessageInputState extends State<MessageInput>
               ),
               padding: EdgeInsets.symmetric(horizontal: t.fieldPadding),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: .stretch,
+                mainAxisSize: .min,
                 children: [
                   ...widget.aboveField,
                   Padding(
@@ -287,7 +287,7 @@ class _UnreadDot extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!show) return child;
     return Stack(
-      clipBehavior: Clip.none,
+      clipBehavior: .none,
       children: [
         child,
         Positioned(
@@ -298,7 +298,7 @@ class _UnreadDot extends StatelessWidget {
             height: MessageInputTokens.dotSize,
             decoration: BoxDecoration(
               color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
+              shape: .circle,
             ),
           ),
         ),

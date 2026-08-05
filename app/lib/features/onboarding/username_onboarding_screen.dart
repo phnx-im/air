@@ -117,7 +117,7 @@ class UsernameOnboardingScreen extends HookWidget {
         automaticallyImplyLeading: false,
         title: Text(
           loc.usernameOnboarding_header,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: .bold),
         ),
         backgroundColor: backgroundColor,
         actionsPadding: const EdgeInsets.symmetric(horizontal: S.s16),
@@ -147,12 +147,12 @@ class UsernameOnboardingScreen extends HookWidget {
                           vertical: S.s12,
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: .stretch,
+                          mainAxisSize: .min,
                           children: [
                             Text(
                               loc.usernameOnboarding_body,
-                              textAlign: TextAlign.left,
+                              textAlign: .left,
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                             const SizedBox(height: S.s24),
@@ -250,7 +250,7 @@ class _UsernameTextField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       autofocus: true,
-      textInputAction: TextInputAction.done,
+      textInputAction: .done,
       label: loc.usernameOnboarding_usernameInputName,
       hintText: loc.usernameOnboarding_usernameInputHint,
       helperText: loc.usernameOnboarding_syntax,

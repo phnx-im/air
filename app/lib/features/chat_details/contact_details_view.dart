@@ -97,7 +97,7 @@ class ContactDetailsView extends StatelessWidget {
         bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           Center(child: UserAvatar(profile: profile, size: 192)),
 
@@ -107,7 +107,7 @@ class ContactDetailsView extends StatelessWidget {
             onLongPress: onNameLongPress,
             child: Text(
               profile.displayName,
-              textAlign: TextAlign.center,
+              textAlign: .center,
               style: typeScale.header.xl.style(weight: Weight.emphasized),
             ),
           ),
@@ -138,7 +138,7 @@ class _CallToActions extends StatelessWidget {
     final tokens = ButtonCTATokens.of(context);
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: .center,
       children: [
         // Flexible so a long label wraps under its circle rather than pushing
         // the row past the card's width.
@@ -214,7 +214,7 @@ class _Actions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         ReportSpamButton(userId: profile.userId),
 
@@ -283,8 +283,8 @@ class _AddContactDialog extends HookWidget {
 
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           Center(
             child: Text(

@@ -192,7 +192,7 @@ class SemanticAlias {
   const SemanticAlias({required this.light, required this.dark});
 
   Color resolve(Brightness brightness) =>
-      (brightness == Brightness.dark ? dark : light).resolve();
+      (brightness == .dark ? dark : light).resolve();
 }
 
 /// Typed reference to one slot in the semantic palette. Adding a case here
@@ -494,26 +494,20 @@ class SemanticPalette {
           secondary: r(SemanticColor.functionWarningSecondary),
         ),
       ),
-      message: brightness == Brightness.dark
-          ? _darkMessagePalette
-          : _lightMessagePalette,
+      message: brightness == .dark ? _darkMessagePalette : _lightMessagePalette,
     );
   }
 
   static SemanticPalette of(BuildContext context) {
-    return MediaQuery.platformBrightnessOf(context) == Brightness.dark
+    return MediaQuery.platformBrightnessOf(context) == .dark
         ? darkSemanticPalette
         : lightSemanticPalette;
   }
 }
 
-final SemanticPalette lightSemanticPalette = SemanticPalette.from(
-  Brightness.light,
-);
+final SemanticPalette lightSemanticPalette = SemanticPalette.from(.light);
 
-final SemanticPalette darkSemanticPalette = SemanticPalette.from(
-  Brightness.dark,
-);
+final SemanticPalette darkSemanticPalette = SemanticPalette.from(.dark);
 
 /// Message-bubble colors are the one bundle without aliases: they are an
 /// Air-specific extension that the reference DS carries in its message-bubble

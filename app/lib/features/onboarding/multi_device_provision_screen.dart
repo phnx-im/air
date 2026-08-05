@@ -186,13 +186,13 @@ class MultiDeviceProvisionScreen extends HookWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         leading: AppBarBackButton(
           backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.linkingDeviceScreen_header,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: .bold),
         ),
         backgroundColor: palette.backgroundBase.secondary,
       ),
@@ -264,7 +264,7 @@ class _LinkingInstructionsList extends StatelessWidget {
             spacing: S.s8,
             mainAxisAlignment: .start,
             crossAxisAlignment: .baseline,
-            textBaseline: TextBaseline.alphabetic,
+            textBaseline: .alphabetic,
             children: [
               _NumberedBullet(idx + 1),
               Flexible(
@@ -444,7 +444,7 @@ class _AwaitingLinkView extends StatelessWidget {
               const SizedBox(height: S.s16),
               Text(
                 loc.linkingDeviceScreen_separator,
-                textAlign: TextAlign.center,
+                textAlign: .center,
                 style: typeScale.body.regular.style(
                   color: palette.text.tertiary,
                 ),
@@ -452,13 +452,13 @@ class _AwaitingLinkView extends StatelessWidget {
               const SizedBox(height: S.s8),
               Text(
                 loc.linkingDeviceScreen_numericCode,
-                textAlign: TextAlign.center,
+                textAlign: .center,
                 style: typeScale.body.s.style(color: palette.text.primary),
               ),
               const SizedBox(height: S.s8),
               Text(
                 code.spacedInGroupsOf(4),
-                textAlign: TextAlign.center,
+                textAlign: .center,
                 style: typeScale.header.xl
                     .style(
                       weight: Weight.emphasized,

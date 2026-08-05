@@ -455,7 +455,7 @@ class _MessageListViewState extends State<MessageListView>
       // list, except when tapping interactive elements like e.g. links.
       if (DeviceType.isPhone) {
         list = GestureDetector(
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           onTap: () => FocusScope.of(context).unfocus(),
           child: list,
         );
@@ -520,7 +520,7 @@ class _MessageListViewState extends State<MessageListView>
 
     if (composerHeightListenable == null) {
       return Stack(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         children: [buildAnchoredList(), bottomFade, headerFade, floatingHeader],
       );
     }
@@ -542,7 +542,7 @@ class _MessageListViewState extends State<MessageListView>
           trackTop: mediaPadding.top,
           trackBottom: listBottomPadding,
           child: Stack(
-            clipBehavior: Clip.none,
+            clipBehavior: .none,
             children: [
               // Disable the auto-scrollbar, we have our own above.
               ScrollConfiguration(

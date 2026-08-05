@@ -98,7 +98,7 @@ void main() {
     });
 
     testWidgets('buttons render correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });

@@ -82,7 +82,7 @@ class ReactionChip extends StatelessWidget {
     final content = hidden != null
         ? Text('+$hidden', style: countStyle(palette.text.tertiary))
         : Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               // Ink-centered rather than a raw Text: on iOS the emoji glyph
               // isn't centered within its own line box, see [CenteredEmoji].
@@ -97,7 +97,7 @@ class ReactionChip extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: onTap == null ? null : () => _handleTap(onTap!),
         child: DecoratedBox(
           decoration: BoxDecoration(

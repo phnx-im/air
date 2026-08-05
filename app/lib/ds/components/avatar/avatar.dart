@@ -50,15 +50,15 @@ class Avatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        shape: .circle,
         gradient: image == null ? tokens.gradientFor(gradientSeed) : null,
         color: image == null ? null : palette.text.quaternary,
       ),
       foregroundDecoration: image == null
           ? null
           : BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(image: image, fit: BoxFit.cover),
+              shape: .circle,
+              image: DecorationImage(image: image, fit: .cover),
             ),
       child: Center(
         // We size the letter off the circle, so text scaling would spill it

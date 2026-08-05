@@ -182,13 +182,13 @@ class _Title extends StatelessWidget {
       // No alignment here: a Container with one expands to its parent's
       // bounded width instead of hugging its label.
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Flexible(
             child: Text(
               title,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               // Emphasized, like the modal header's: this label names the
               // screen, where the chat header's pill carries a person's name
               // and stays plain.

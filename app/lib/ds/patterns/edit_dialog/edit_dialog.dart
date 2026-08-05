@@ -60,12 +60,12 @@ class EditDialog extends HookWidget {
 
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: .min,
+        crossAxisAlignment: .stretch,
         children: [
           Text(
             title,
-            textAlign: TextAlign.center,
+            textAlign: .center,
             style: typeScale.header.regular.style(
               color: palette.text.primary,
               weight: Weight.emphasized,

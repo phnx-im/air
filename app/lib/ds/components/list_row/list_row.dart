@@ -98,8 +98,8 @@ class ListRow extends StatelessWidget {
           ],
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
               children: [
                 Text(
                   label,
@@ -109,9 +109,7 @@ class ListRow extends StatelessWidget {
                           .style(color: palette.text.primary)
                           .copyWith(height: 1.0),
                   maxLines: labelMaxLines,
-                  overflow: labelMaxLines == null
-                      ? TextOverflow.clip
-                      : TextOverflow.ellipsis,
+                  overflow: labelMaxLines == null ? .clip : .ellipsis,
                 ),
                 if (sublabel != null) ...[
                   SizedBox(height: tokens.sublabelGap),
@@ -121,7 +119,7 @@ class ListRow extends StatelessWidget {
                         .style(color: palette.text.tertiary)
                         .copyWith(height: 1.0),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                   ),
                 ],
               ],

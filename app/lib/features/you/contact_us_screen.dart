@@ -41,7 +41,7 @@ class ContactUsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         title: Text(
           loc.contactUsScreen_title,
           style: typeScale.body.regular.style(weight: Weight.emphasized),
@@ -178,7 +178,7 @@ class _EmailForm extends HookWidget {
 
             // Include logs checkbox
             GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: .opaque,
               onTap: isUploadingLogs.value ? null : onToggleLogs,
               child: SizedBox(
                 // The box paints at 20px, so the row carries the tap target.
@@ -282,5 +282,5 @@ class _UrlLauncher implements UrlLauncher {
 
 const _outlineInputBorder = OutlineInputBorder(
   borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
-  borderSide: BorderSide(width: 0, style: BorderStyle.none),
+  borderSide: BorderSide(width: 0, style: .none),
 );

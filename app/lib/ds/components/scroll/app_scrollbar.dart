@@ -63,7 +63,7 @@ class _AppScrollbarState extends State<AppScrollbar> {
   void _track(int depth, ScrollMetrics metrics, {required bool scrolling}) {
     // A scrollable nested inside a row reports through here too, at a depth
     // below the one this bar stands for.
-    if (depth != 0 || metrics.axis != Axis.vertical) return;
+    if (depth != 0 || metrics.axis != .vertical) return;
 
     _thumb.value = _ThumbState.of(
       metrics,
@@ -92,8 +92,8 @@ class _AppScrollbarState extends State<AppScrollbar> {
         child: Stack(
           // The host sizes the bar, exactly as it sized the scrollable before
           // the bar wrapped it, and its chrome may deliberately spill out.
-          fit: StackFit.passthrough,
-          clipBehavior: Clip.none,
+          fit: .passthrough,
+          clipBehavior: .none,
           children: [
             widget.child,
             Positioned.fill(

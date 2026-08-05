@@ -175,7 +175,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),
       child: SizeTransition(
-        axis: Axis.vertical,
+        axis: .vertical,
         sizeFactor: animation,
         child: ScaleTransition(
           scale: animation,

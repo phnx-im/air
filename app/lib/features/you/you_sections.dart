@@ -67,7 +67,7 @@ class ProfileSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         _UserAvatar(),
         SizedBox(height: S.s12),
@@ -130,7 +130,7 @@ class _DisplayName extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         FieldLabel(loc.userSettingsScreen_displayNameLabel),
 
@@ -172,7 +172,7 @@ class _UsernamesSection extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         SectionHeader(text: loc.userSettingsScreen_usernamesSection),
 
@@ -237,7 +237,7 @@ class AccountSection extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         const _InviteCodes(),
 
@@ -368,7 +368,7 @@ class PreferencesSection extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       spacing: S.s12,
       children: [
         const _LanguageSettings(),
@@ -450,7 +450,7 @@ class _SendOnEnterSetting extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         SwitchField(
           label: loc.userSettingsScreen_sendWithEnter,
@@ -532,7 +532,7 @@ class HelpSection extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         FieldContainer(
           onTap: () {

@@ -537,8 +537,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     var delta = sliver.childMainAxisPosition(itemBox);
     final reversed = axisDirectionIsReversed(sliver.constraints.axisDirection);
     final rightWayUp = switch (sliver.constraints.growthDirection) {
-      GrowthDirection.forward => !reversed,
-      GrowthDirection.reverse => reversed,
+      .forward => !reversed,
+      .reverse => reversed,
     };
 
     if (!rightWayUp) {
@@ -547,8 +547,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     }
 
     return switch (sliver.constraints.axis) {
-      Axis.vertical => sliverParentData.paintOffset.dy + delta,
-      Axis.horizontal => sliverParentData.paintOffset.dx + delta,
+      .vertical => sliverParentData.paintOffset.dy + delta,
+      .horizontal => sliverParentData.paintOffset.dx + delta,
     };
   }
 

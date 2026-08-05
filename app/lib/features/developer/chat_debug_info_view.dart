@@ -331,7 +331,7 @@ class _CardSectionHeader extends StatelessWidget {
         title,
         style: typeScale.body.xs
             .style(color: palette.text.tertiary)
-            .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.3),
+            .copyWith(fontWeight: .w600, letterSpacing: 0.3),
       ),
     );
   }
@@ -351,7 +351,7 @@ class _InfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           for (int i = 0; i < children.length; i++) ...[
             children[i],
@@ -402,7 +402,7 @@ class _InfoRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             SizedBox(
               width: 200,
@@ -540,7 +540,7 @@ class _MemberCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -650,7 +650,7 @@ class _ChipListRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             SizedBox(
               width: 200,

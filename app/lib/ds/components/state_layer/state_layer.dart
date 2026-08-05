@@ -144,9 +144,7 @@ class _StateLayerState extends State<StateLayer> {
         // Opaque when interactive so the whole footprint is tappable, not just
         // the child. Otherwise a nav item with a transparent child only reacts
         // right over its glyph and text.
-        behavior: interactive
-            ? HitTestBehavior.opaque
-            : HitTestBehavior.deferToChild,
+        behavior: interactive ? .opaque : .deferToChild,
         onTapDown: interactive ? (_) => _setPressed(true) : null,
         onTapUp: interactive ? (_) => _setPressed(false) : null,
         onTapCancel: interactive ? () => _setPressed(false) : null,
@@ -159,7 +157,7 @@ class _StateLayerState extends State<StateLayer> {
           child: Stack(
             // Pass constraints straight through so a component still fills a
             // tight slot instead of shrinking down to its content width.
-            fit: StackFit.passthrough,
+            fit: .passthrough,
             children: [
               // Background sits at the bottom and takes the wash. Content
               // paints on top, so it stays crisp.

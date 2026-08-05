@@ -27,7 +27,7 @@ class Button extends StatelessWidget {
     this.onLongPress,
     this.icon,
     required this.label,
-    this.alignment = MainAxisAlignment.center,
+    this.alignment = .center,
   });
 
   final ButtonSize size;
@@ -109,7 +109,7 @@ class Button extends StatelessWidget {
     // the width the pill would otherwise take, so a button in an unbounded row
     // still sizes to its label.
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: active ? onPressed : null,
       onLongPress: active ? onLongPress : null,
       child: Padding(

@@ -61,7 +61,7 @@ class GroupDetailsScreen extends StatelessWidget {
         bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           Center(
             child: ChatAvatar(
@@ -119,7 +119,7 @@ class _GroupTitle extends StatelessWidget {
       onLongPress: () => showChatDebugInfo(context, chat),
       child: Text(
         chat.title,
-        textAlign: TextAlign.center,
+        textAlign: .center,
         style: typeScale.header.xl.style(weight: Weight.emphasized),
       ),
     );
@@ -165,7 +165,7 @@ class _PeopleSection extends HookWidget {
     final rowTokens = ListRowTokens.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         ListRow(
           tokens: rowTokens,

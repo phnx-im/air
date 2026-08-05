@@ -92,7 +92,7 @@ class LogsScreenView extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          clipBehavior: Clip.none,
+          clipBehavior: .none,
           title: const Text('Logs'),
           leading: const AppBarBackButton(),
           actions: [

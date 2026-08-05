@@ -328,7 +328,7 @@ class _BlockedChatFooter extends StatelessWidget {
           const SizedBox(height: S.s16),
           Wrap(
             runSpacing: S.s8,
-            alignment: WrapAlignment.center,
+            alignment: .center,
             children: [
               SizedBox(
                 width: buttonWidth,
@@ -437,7 +437,7 @@ class _InactiveChatFooter extends StatelessWidget {
       padding: const EdgeInsets.all(S.s16),
       child: Text(
         loc.inactiveChatFooter_message,
-        textAlign: TextAlign.center,
+        textAlign: .center,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: SemanticPalette.of(context).text.tertiary,
         ),

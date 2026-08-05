@@ -128,7 +128,7 @@ class _SearchFieldState extends State<SearchField> {
   /// The gap sits inside the gesture, so the target is wider than the glyph
   /// without the glyph moving.
   Widget _buildClearButton(SemanticPalette palette) => GestureDetector(
-    behavior: HitTestBehavior.opaque,
+    behavior: .opaque,
     onTap: _clear,
     child: Padding(
       padding: EdgeInsets.only(left: widget.tokens.gap),

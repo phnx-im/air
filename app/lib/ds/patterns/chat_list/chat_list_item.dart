@@ -61,7 +61,7 @@ class ChatListItem extends StatelessWidget {
     final longPress = onLongPress;
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: onTap,
       onLongPressStart: longPress != null
           ? (details) => longPress(details.globalPosition)
@@ -76,12 +76,12 @@ class ChatListItem extends StatelessWidget {
         child: Padding(
           padding: t.containerPadding,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Padding(padding: t.avatarPadding, child: avatar),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: .start,
                   children: [
                     _TitleRow(
                       tokens: t,
@@ -146,7 +146,7 @@ class _TitleRow extends StatelessWidget {
                   child: Text(
                     title,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                     style: typeScale.body.regular.style(
                       color: palette.text.primary,
                       weight: Weight.emphasized,
@@ -191,7 +191,7 @@ class _PreviewRow extends StatelessWidget {
     final minHeight = 2 * typeScale.body.s.lineHeightPx;
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         Expanded(
           child: Padding(

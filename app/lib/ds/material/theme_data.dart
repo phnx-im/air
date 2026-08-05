@@ -9,15 +9,15 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
 
-ThemeData darkTheme = themeData(Brightness.dark);
-ThemeData lightTheme = themeData(Brightness.light);
+ThemeData darkTheme = themeData(.dark);
+ThemeData lightTheme = themeData(.light);
 
 ThemeData themeData(Brightness brightness) {
   final baselineTheme = ThemeData(brightness: brightness);
 
   final palette = switch (brightness) {
-    Brightness.dark => darkSemanticPalette,
-    Brightness.light => lightSemanticPalette,
+    .dark => darkSemanticPalette,
+    .light => lightSemanticPalette,
   };
 
   // AppBar title style
@@ -45,7 +45,7 @@ ThemeData themeData(Brightness brightness) {
       elevation: 0,
       iconTheme: IconThemeData(color: palette.text.primary),
       centerTitle: true,
-      systemOverlayStyle: brightness == Brightness.light
+      systemOverlayStyle: brightness == .light
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
@@ -118,7 +118,7 @@ ThemeData themeData(Brightness brightness) {
 }
 
 final _textInputBorder = OutlineInputBorder(
-  borderSide: const BorderSide(width: 0, style: BorderStyle.none),
+  borderSide: const BorderSide(width: 0, style: .none),
   borderRadius: BorderRadius.circular(CornerRadius.px8),
 );
 
