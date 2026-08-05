@@ -8,7 +8,7 @@ use airbackend::auth_service::user_record::UserRecord;
 use aircommon::{
     credentials::{
         AsCredential, AsIntermediateCredentialCsr, UserCredentialCsr, UserCredentialPayload,
-        keys::ClientSigningKey,
+        keys::UserSigningKey,
     },
     crypto::{
         indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
@@ -76,7 +76,7 @@ fn backend_interaction() {
     )
     .sign(&aic_sk)
     .unwrap();
-    let client_sk = ClientSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
+    let client_sk = UserSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
 
     // Now the user wants to update their profile
     // (To simulate loading it from the DB, we just create a new one here)

@@ -9,7 +9,7 @@ use std::fmt;
 
 use aircommon::{
     LibraryError,
-    credentials::keys::{ClientKeyType, ClientSignature, PreliminaryClientKeyType},
+    credentials::keys::{ClientKeyType, ClientSignature, PreliminaryUserKeyType},
     crypto::{
         aead::{AeadDecryptable, AeadEncryptable},
         indexed_aead::{
@@ -58,10 +58,10 @@ impl Signable for IndexedUserProfile {
 // User profiles need to be signable by both the user credential and the
 // preliminary user credential.
 
-impl SignedStruct<IndexedUserProfile, PreliminaryClientKeyType> for SignedUserProfile {
+impl SignedStruct<IndexedUserProfile, PreliminaryUserKeyType> for SignedUserProfile {
     fn from_payload(
         payload: IndexedUserProfile,
-        signature: Signature<PreliminaryClientKeyType>,
+        signature: Signature<PreliminaryUserKeyType>,
     ) -> Self {
         Self {
             tbs: payload,

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use aircommon::{
     LibraryError,
-    credentials::keys::{ClientKeyType, ClientSigningKey},
+    credentials::keys::{ClientKeyType, UserSigningKey},
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         signatures::{private_keys::SigningKey, signable::Signable},
@@ -160,7 +160,7 @@ impl ApiClient {
     pub async fn ds_create_group(
         &self,
         params: CreateGroupParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
         let CreateGroupParamsOut {
@@ -681,7 +681,7 @@ impl ApiClient {
     pub async fn ds_targeted_message(
         &self,
         params: TargetedMessageParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = TargetedMessagePayload {
@@ -872,7 +872,7 @@ impl ApiClient {
     /// The result is used to upload the attachment to the server.
     pub async fn ds_provision_attachment(
         &self,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         target: DsAttachmentTarget<'_>,
         content_length: i64,
         object_type: StorageObjectType,
@@ -920,7 +920,7 @@ impl ApiClient {
     pub async fn ds_get_attachment_url(
         &self,
         object_type: StorageObjectType,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         target: DsAttachmentTarget<'_>,
         remote_attachment_id: RemoteAttachmentId,
     ) -> Result<String, DsRequestError> {
