@@ -534,14 +534,39 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Gerät verknüpfen';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unbekanntes Gerät';
+
+  @override
+  String get linkedDevicesScreen_renameError_title =>
+      'Umbenennen fehlgeschlagen.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Das Gerät $deviceName konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Aufheben der Verknüpfung fehlgeschlagen.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Die Verknüpfung des Geräts $deviceName konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count Geräte verknüpft.',
       one: '$count Gerät verknüpft.',
+      zero: 'Keine Geräte verknüpft.',
     );
-    return '$_temp0 Du kannst bis zu $remaining weitere verknüpfen.';
+    return '$_temp0';
   }
 
   @override
@@ -608,7 +633,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.';
+      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Abbrechen';
@@ -790,7 +815,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';

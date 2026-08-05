@@ -15,6 +15,7 @@ import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -366,7 +367,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                 ],
-                child: UpdateRequiredScreen(child: child),
+                child: UnlinkedDeviceHandler(
+                  child: UpdateRequiredScreen(child: child),
+                ),
               ),
             ),
           ),

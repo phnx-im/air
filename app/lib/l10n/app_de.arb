@@ -167,13 +167,16 @@
   },
   "linkedDevicesScreen_editNameHint": "Tippe auf ein Gerät, um den Namen zu ändern.",
   "linkedDevicesScreen_linkDevice": "Gerät verknüpfen",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}} Du kannst bis zu {remaining} weitere verknüpfen.",
+  "linkedDevicesScreen_unknownDevice": "Unbekanntes Gerät",
+  "linkedDevicesScreen_renameError_title": "Umbenennen fehlgeschlagen.",
+  "linkedDevicesScreen_renameError": "Das Gerät {deviceName} konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_unlinkError_title": "Aufheben der Verknüpfung fehlgeschlagen.",
+  "linkedDevicesScreen_unlinkError": "Die Verknüpfung des Geräts {deviceName} konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Keine Geräte verknüpft.} one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }
@@ -200,7 +203,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändern",
   "linkedDevicesScreen_unlinkDialog_title": "Geräteverknüpfung aufheben",
-  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.",
+  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_unlinkDialog_confirm": "Verknüpfung aufheben",
 
@@ -244,6 +247,7 @@
   "systemMessage_userChangedPicture_infix": " hat das Gruppenbild geändert",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " hat die Gruppe erstellt",
+  "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.",
   "timestamp_now": "Jetzt",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Heute",
