@@ -27,6 +27,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
+import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
 
 final _appRouter = AppRouter();
@@ -34,7 +35,11 @@ final _appRouter = AppRouter();
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class App extends StatefulWidget {
-  const App({super.key});
+  const App({super.key, this.clientRecordId});
+
+  /// When set, this client record is opened at startup instead of the default
+  /// one.
+  final UuidValue? clientRecordId;
 
   @override
   State<App> createState() => _AppState();
@@ -126,6 +131,22 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
   }
 
+  /// Loads the client record given on the command line, or the default user.
+  void _loadInitialUser() {
+    final clientRecordId = widget.clientRecordId;
+    if (clientRecordId == null) {
+      _coreClient.loadDefaultUser();
+      return;
+    }
+    _log.info("Loading client record from the command line: $clientRecordId");
+    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
+      error,
+      stackTrace,
+    ) {
+      _log.severe("Error loading client record $clientRecordId: $error");
+    });
+  }
+
   Future<void> _prepareForBackground() async {
     if (!Platform.isIOS) return;
 
@@ -168,8 +189,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         ),
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
-          create: (context) =>
-              LoadableUserCubit((_coreClient..loadDefaultUser()).userStream),
+          create: (context) {
+            _loadInitialUser();
+            return LoadableUserCubit(_coreClient.userStream);
+          },
           lazy: false, // immediately try to load the user
         ),
         BlocProvider<UserSettingsCubit>(
@@ -309,7 +332,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
           LoadingUser() || UnloadedUser() => child,
           LoadedUser() when !settingsAttached => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.userId),
+            key: ValueKey(user.clientRecordId),
             child: MultiBlocProvider(
               providers: [
                 // Logged-in user and contacts are accessible everywhere inside

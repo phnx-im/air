@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default\n            FROM client_record WHERE user_uuid = ? AND user_domain = ?",
+  "query": "SELECT\n                client_record_id AS \"client_record_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default\n            FROM client_record WHERE client_record_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "user_uuid: _",
+        "name": "client_record_id: _",
         "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "client_record",
+            "name": "client_record_id"
+          }
+        }
+      },
+      {
+        "name": "user_uuid: _",
+        "ordinal": 1,
         "type_info": "Blob",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "user_domain: _",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "client_record_state: _",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "created_at: _",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Datetime",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "is_default",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Bool",
         "origin": {
           "Table": {
@@ -60,9 +71,10 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +82,5 @@
       false
     ]
   },
-  "hash": "0036a79433772cd88c583e759807e6f7a30d800df46f116b49769e44eaa82451"
+  "hash": "9368fc325ff13791a3f2c5e8113b21e515344c4fc2edad721ad080fdb498bf1f"
 }

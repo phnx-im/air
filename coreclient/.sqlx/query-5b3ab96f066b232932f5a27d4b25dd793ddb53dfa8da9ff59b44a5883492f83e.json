@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE client_record SET is_default = (client_record_id == ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5b3ab96f066b232932f5a27d4b25dd793ddb53dfa8da9ff59b44a5883492f83e"
+}

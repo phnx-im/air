@@ -128,6 +128,7 @@ pub struct CoreUser {
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
     db: DbAccess,
+    client_record_id: Uuid,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     qs_user_id: QsUserId,
@@ -183,12 +184,14 @@ impl CoreUser {
         let air_db = open_air_db(db_path).await?;
 
         // Open client specific db
-        let client_db = open_client_db(&user_id, db_path).await?;
+        let client_record_id = Uuid::new_v4();
+        let client_db = open_client_db(db_path, client_record_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
         Self::new_with_connections(
             user_id,
+            client_record_id,
             server_url,
             push_token,
             air_db,
@@ -199,8 +202,10 @@ impl CoreUser {
         .await
     }
 
+    #[expect(clippy::too_many_arguments)]
     async fn new_with_connections(
         user_id: UserId,
+        client_record_id: Uuid,
         server_url: Option<Url>,
         push_token: Option<PushToken>,
         air_db: DbAccess,
@@ -210,12 +215,18 @@ impl CoreUser {
     ) -> Result<Self> {
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state =
-            UserCreationState::new(&client_db, &air_db, user_id, push_token, invitation_code)
-                .await?;
+        let user_creation_state = UserCreationState::new(
+            &client_db,
+            &air_db,
+            user_id,
+            client_record_id,
+            push_token,
+            invitation_code,
+        )
+        .await?;
 
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
             .await?;
 
         OwnClientInfo {
@@ -229,59 +240,63 @@ impl CoreUser {
         .store(client_db.write().await?)
         .await?;
 
-        let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
+        let self_user =
+            final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
 
         Ok(self_user)
     }
 
-    /// Load a user from the database.
+    /// Load the client identified by `client_record_id` from the database.
     ///
-    /// If a user creation process with a matching `UserId` was interrupted before, this will
-    /// resume that process.
-    pub async fn load(user_id: &UserId, db_path: &str) -> Result<CoreUser> {
-        Self::load_impl(user_id, db_path, None).await
+    /// If a user creation process of this client was interrupted before, this
+    /// will resume that process.
+    pub async fn load(db_path: &str, client_record_id: Uuid) -> Result<CoreUser> {
+        Self::load_impl(db_path, client_record_id, None).await
     }
 
     /// Same as [`load`], but allows to override the server URL.
     #[cfg(feature = "test_utils")]
     pub async fn load_with_server_url(
-        user_id: &UserId,
         db_path: &str,
+        client_record_id: Uuid,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        Self::load_impl(user_id, db_path, server_url).await
+        Self::load_impl(db_path, client_record_id, server_url).await
     }
 
     async fn load_impl(
-        user_id: &UserId,
         db_path: &str,
+        client_record_id: Uuid,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        let client_db = open_client_db(user_id, db_path).await?;
+        let air_db = open_air_db(db_path).await?;
+        let record = ClientRecord::load(air_db.read().await?, client_record_id)
+            .await?
+            .context("missing client record")?;
+        let user_id = record.user_id;
+        let client_db = open_client_db(db_path, client_record_id).await?;
 
-        let user_creation_state = UserCreationState::load(client_db.read().await?, user_id)
+        let user_creation_state = UserCreationState::load(client_db.read().await?, &user_id)
             .await?
             .context("missing user creation state")?;
-
-        let air_db = open_air_db(db_path).await?;
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
             .await?;
-        ClientRecord::set_default(air_db.write().await?, user_id).await?;
+        ClientRecord::set_default(air_db.write().await?, client_record_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
-        Ok(final_state.into_self_user(client_db, api_clients, global_lock))
+        Ok(final_state.into_self_user(client_db, client_record_id, api_clients, global_lock))
     }
 
     /// Delete this user on the server and locally.
     ///
     /// The user database is also deleted. The client record is removed from the air database.
     pub async fn delete(self, db_path: &str) -> anyhow::Result<()> {
-        let user_id = self.user_id().clone();
+        let client_record_id = self.client_record_id();
         self.delete_ephemeral().await?;
-        delete_client_database(db_path, &user_id).await?;
+        delete_client_database(db_path, client_record_id).await?;
         Ok(())
     }
 
@@ -299,6 +314,11 @@ impl CoreUser {
 
     pub(crate) fn db(&self) -> &DbAccess {
         &self.inner.db
+    }
+
+    /// Random UUID naming this client's DB file and identifying its client record
+    pub fn client_record_id(&self) -> Uuid {
+        self.inner.client_record_id
     }
 
     pub(crate) fn signing_key(&self) -> &ClientSigningKey {
