@@ -144,7 +144,7 @@ pub struct LinkedDevice {
     #[tag(2)]
     pub name: String,
     #[tag(3)]
-    pub created_at: u64,
+    pub linked_at: u64,
     #[tag(4)]
     pub platform: u8,
 }
@@ -219,7 +219,7 @@ mod test {
         LinkedDevice {
             client_id: Uuid::from_u128(n),
             name: name.to_owned(),
-            created_at: n as u64,
+            linked_at: n as u64,
             platform,
         }
     }
@@ -264,7 +264,7 @@ mod test {
         let device = LinkedDevice {
             client_id: Uuid::from_u128(0x0102_0304_0506_0708_090a_0b0c_0d0e_0f10),
             name: "iPhone".to_owned(),
-            created_at: 1_767_225_600,
+            linked_at: 1_767_225_600,
             platform: PLATFORM_IOS,
         };
         let bytes = PersistenceCodec::to_vec(&device).unwrap();

@@ -167,8 +167,8 @@ impl OperationType {
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
             | OperationType::SettingsUpdate { .. }
-            | OperationType::SelfGroupKeyPackageUpload { .. } => true,
-            OperationType::SelfGroupRemove { .. } => true,
+            | OperationType::SelfGroupKeyPackageUpload { .. }
+            | OperationType::SelfGroupRemove { .. } => true,
         }
     }
 

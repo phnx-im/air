@@ -202,7 +202,7 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
                     .map(|entry| entry.platform.into())
                     .unwrap_or(LinkedDevicePlatform::Unknown),
                 linked_at: entry
-                    .and_then(|entry| Utc.timestamp_opt(entry.created_at as i64, 0).single()),
+                    .and_then(|entry| Utc.timestamp_opt(entry.linked_at as i64, 0).single()),
                 is_this_device: client_id == &own_client_id,
             }
         })

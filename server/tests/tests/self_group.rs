@@ -6,7 +6,7 @@ use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages}
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
 
-use crate::tests::multi_device::link_new_device;
+use super::multi_device::link_new_device;
 
 /// Fetches and processes a device's queue, asserting that every message was
 /// processed without error.

@@ -149,7 +149,7 @@ pub(crate) async fn own_device_entry(
     Ok(LinkedDevice {
         client_id,
         name: name.to_owned(),
-        created_at: created_at.timestamp().max(0) as u64,
+        linked_at: created_at.timestamp().max(0) as u64,
         platform,
     })
 }
@@ -408,7 +408,7 @@ mod tests {
         LinkedDevice {
             client_id: Uuid::from_u128(n),
             name: name.to_owned(),
-            created_at: n as u64,
+            linked_at: n as u64,
             platform,
         }
     }
@@ -511,7 +511,7 @@ mod tests {
         assert_eq!(stored[0].name, platform_label(current_platform()));
         assert_eq!(stored[0].platform, current_platform());
         assert!(
-            stored[0].created_at > 0,
+            stored[0].linked_at > 0,
             "linked_at must be a real timestamp"
         );
 
