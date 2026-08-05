@@ -137,7 +137,7 @@ pub(crate) struct CoreUserInner {
     db_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
-    _event_loop_cancel: DropGuard,
+    event_loop_cancel: DropGuard,
 }
 
 impl CoreUserInner {
@@ -353,7 +353,7 @@ impl CoreUser {
     /// Stops local background work and closes this user's database connections.
     pub async fn close_local_database(&self) {
         self.kill_outbound_service();
-        self.inner._event_loop_cancel.token().cancel();
+        self.inner.event_loop_cancel.token().cancel();
         self.inner.db.close().await;
     }
 
