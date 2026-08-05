@@ -32,10 +32,7 @@ use aircommon::{
     credentials::{
         GroupStorageWitness, LeafCredential, LeafCredentialError, RoomPolicyIdentity,
         UserCredential, VerifiableUserCredential,
-        keys::{
-            ClientKeyType, ClientSigningKey, LeafSigningKey,
-            SelfGroupSigningKey,
-        },
+        keys::{ClientKeyType, ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
     },
     crypto::{
         aead::{
