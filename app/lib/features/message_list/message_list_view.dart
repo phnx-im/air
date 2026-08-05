@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
@@ -275,11 +276,25 @@ class _MessageListViewState extends State<MessageListView>
   // The list is reversed, so pixels count from the bottom and what sits under
   // the header is maxScrollExtent - pixels.
   void _updateScrollOffsets(ScrollMetrics metrics) {
-    widget.headerScrollOffset?.value = max(
-      0.0,
-      metrics.maxScrollExtent - metrics.pixels,
-    );
-    _bottomFadeOffset.value = max(0.0, metrics.pixels);
+    final headerOffset = max(0.0, metrics.maxScrollExtent - metrics.pixels);
+    final bottomOffset = max(0.0, metrics.pixels);
+    _setNotifiersFrameSafe(() {
+      widget.headerScrollOffset?.value = headerOffset;
+      _bottomFadeOffset.value = bottomOffset;
+    });
+  }
+
+  /// Waits for the end of the current frame before running [mutation], in case
+  /// we're in the middle of a build.
+  void _setNotifiersFrameSafe(VoidCallback mutation) {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) mutation();
+      });
+    } else {
+      mutation();
+    }
   }
 
   /// Shows the floating header during active scroll and hides it again
@@ -295,7 +310,7 @@ class _MessageListViewState extends State<MessageListView>
       }
     } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
-      _scrollActive.value = true;
+      _setNotifiersFrameSafe(() => _scrollActive.value = true);
       _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
