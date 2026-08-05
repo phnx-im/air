@@ -285,7 +285,7 @@ impl Resync {
         // Insert a system message and mark chat as active once the commit is accepted by the DS.
         connection
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                if shares_vs_leaf && chat_created {
+                if shares_vc_leaf && chat_created {
                     let system_message = ChatMessage::new_system_message(
                         chat_id,
                         ds_timestamp,
