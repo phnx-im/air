@@ -5,6 +5,8 @@
 //! Parsed MLS leaf credentials.
 
 use mls_assist::openmls::prelude::{BasicCredentialError, Credential, CredentialType};
+use tls_codec::Serialize as _;
+use uuid::Uuid;
 
 use crate::identifiers::UserId;
 
@@ -21,6 +23,28 @@ use super::{
 pub enum LeafCredential {
     User(VerifiableUserCredential),
     SelfGroup(SelfGroupCredential),
+}
+
+/// Room-policy identity of a leaf's owner.
+///
+/// User leaves are identified by the user id, self-group leaves by the client id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RoomPolicyIdentity {
+    User(UserId),
+    Client(Uuid),
+}
+
+impl RoomPolicyIdentity {
+    /// The byte form used by the room policy.
+    ///
+    /// User ids TLS-serialize, client ids are their raw 16 uuid bytes. The two forms cannot
+    /// collide: a serialized user id is always longer than the 16 client id bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        match self {
+            Self::User(user_id) => user_id.tls_serialize_detached(),
+            Self::Client(client_id) => Ok(client_id.into_bytes().to_vec()),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +80,21 @@ impl LeafCredential {
         match self {
             LeafCredential::User(credential) => credential.user_id(),
             LeafCredential::SelfGroup(_) => own_user_id,
+        }
+    }
+
+    /// Room-policy identity of the leaf's owner.
+    ///
+    /// User credentials resolve to the user id. Self-group credentials carry no user identity and
+    /// resolve to the client id, which is unique per client.
+    pub fn room_policy_identity(&self) -> RoomPolicyIdentity {
+        match self {
+            LeafCredential::User(credential) => {
+                RoomPolicyIdentity::User(credential.user_id().clone())
+            }
+            LeafCredential::SelfGroup(credential) => {
+                RoomPolicyIdentity::Client(credential.client_id())
+            }
         }
     }
 
@@ -125,6 +164,27 @@ mod test {
             error,
             LeafCredentialError::UnsupportedCredentialType
         ));
+    }
+
+    #[test]
+    fn room_policy_identity_resolution() {
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let user_leaf = LeafCredential::User(user_credential(user_id.clone()));
+        let identity = user_leaf.room_policy_identity();
+        assert_eq!(identity, RoomPolicyIdentity::User(user_id.clone()));
+        assert_eq!(
+            identity.to_bytes().unwrap(),
+            user_id.tls_serialize_detached().unwrap()
+        );
+
+        let client_id = Uuid::new_v4();
+        let self_group_leaf = LeafCredential::SelfGroup(SelfGroupCredential::new(client_id));
+        let identity = self_group_leaf.room_policy_identity();
+        assert_eq!(identity, RoomPolicyIdentity::Client(client_id));
+        assert_eq!(
+            identity.to_bytes().unwrap(),
+            client_id.into_bytes().to_vec()
+        );
     }
 
     #[test]

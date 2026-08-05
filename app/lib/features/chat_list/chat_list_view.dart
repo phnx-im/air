@@ -3,23 +3,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
+import 'package:air/ds/components/scroll/app_scrollbar.dart';
+import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/chat_list_header.dart';
 
+/// Where the scrollbar track stops above the bottom edge, short of the fade so
+/// the thumb stays legible against it.
+const _scrollbarBottomInset = S.s64;
+
 class ChatListContainer extends StatelessWidget {
   const ChatListContainer({required this.isStandalone, super.key});
 
   final bool isStandalone;
-
-  static Color backgroundColor(BuildContext context) {
-    return SemanticPalette.of(context).backgroundBase.secondary;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,54 +50,37 @@ class ChatListView extends StatefulWidget {
 }
 
 class _ChatListViewState extends State<ChatListView> {
-  final _scrollController = ScrollController();
+  /// The list's offset, watched by the header, which reveals its title pill as
+  /// rows slide under it. Kept off `setState` so a scroll never rebuilds the
+  /// list itself.
+  final _scrollOffset = ValueNotifier<double>(0);
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _scrollOffset.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = ChatListContainer.backgroundColor(context);
-    const fadeBleeding = S.s12;
-    // Content top/bottom padding includes a small bleed below the header so
-    // chat rows don't snap right against it.
-    const contentInset = kToolbarHeight + fadeBleeding;
-    // Mobile uses taller fade gradients on both edges; desktop keeps the
-    // toolbar-height fade.
-    final topFadeHeight = widget.scaffold ? 96.0 : contentInset;
-    final bottomFadeHeight = widget.scaffold ? 120.0 : contentInset;
-    // Inset the Scrollbar's track so it aligns with the list's content padding
-    // and doesn't overlap the header or the fade regions.
-    final scrollbarPadding = MediaQuery.paddingOf(
-      context,
-    ).copyWith(top: contentInset, bottom: contentInset);
-    final container = MediaQuery(
-      data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
-      child: Scrollbar(
-        controller: _scrollController,
-        child: FadedScrollFrame(
-          backgroundColor: bgColor,
-          header: const ChatListHeader(),
-          topFadeHeight: topFadeHeight,
-          bottomFadeHeight: bottomFadeHeight,
-          contentTopPadding: contentInset,
-          // Desktop: no tab bar, pin the bottom inset to the fade height.
-          bottomInset: widget.scaffold ? null : bottomFadeHeight,
-          builder: (topPadding, bottomPadding) => ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: ChatListContent(
-              createChatDetailsCubit: widget.createChatDetailsCubit,
-              topPadding: topPadding,
-              bottomPadding: bottomPadding,
-              scrollController: _scrollController,
-            ),
-          ),
-        ),
+    final bgColor = chatListBackgroundColor(context);
+    // On a phone the list runs behind the status bar, so the header carries
+    // that inset itself and the list reserves the bar's height plus the
+    // clearance below it. Read from the same breakpoint the header's tokens
+    // are, so the two densities can never disagree.
+    final phone = context.breakpoint.isSmall;
+    final safeTop = phone ? MediaQuery.paddingOf(context).top : 0.0;
+    final headerHeight = safeTop + ListHeaderTokens.of(context).height;
+    final container = AppScrollbar(
+      // Start the track below the header rather than letting it run up behind
+      // it.
+      trackTop: headerHeight,
+      trackBottom: _scrollbarBottomInset,
+      child: ChatListContent(
+        createChatDetailsCubit: widget.createChatDetailsCubit,
+        header: _Header(scrollOffset: _scrollOffset, topInset: safeTop),
+        headerHeight: headerHeight,
+        onScrollOffset: (offset) => _scrollOffset.value = offset,
       ),
     );
     return widget.scaffold
@@ -103,7 +88,7 @@ class _ChatListViewState extends State<ChatListView> {
             backgroundColor: bgColor,
             body: Stack(
               children: [
-                SafeArea(bottom: false, child: container),
+                container,
                 const Positioned(
                   bottom: 0,
                   left: 0,
@@ -114,6 +99,28 @@ class _ChatListViewState extends State<ChatListView> {
             ),
           )
         : container;
+  }
+}
+
+/// The header, rebuilt on scroll on its own so the list behind it is not.
+class _Header extends StatelessWidget {
+  const _Header({required this.scrollOffset, required this.topInset});
+
+  final ValueListenable<double> scrollOffset;
+
+  /// Status-bar inset. The header floats over a full-bleed list, so it cannot
+  /// rely on a SafeArea to clear the notch.
+  final double topInset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: topInset),
+      child: ValueListenableBuilder<double>(
+        valueListenable: scrollOffset,
+        builder: (context, offset, _) => ChatListHeader(scrollOffset: offset),
+      ),
+    );
   }
 }
 

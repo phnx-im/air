@@ -1388,13 +1388,19 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
-        // Phase 1: Load the group and the sender.
+        // Phase 1: Load the group and the sender. Self-group leaves carry a
+        // self-group credential instead of a user credential, so the sender of
+        // a self-group update is a sibling device of the own user.
         let group = Group::load_verified(&mut *txn, &params.group_id)
             .await?
             .context("No group found")?;
-        let sender_credential = group
-            .credential_at(params.sender_index)?
-            .context("No sender credential found")?;
+        let sender_credential = if group.is_self_group() {
+            self.inner.key_store.signing_key.credential().clone()
+        } else {
+            group
+                .credential_at(params.sender_index)?
+                .context("No sender credential found")?
+        };
         let sender = sender_credential.user_id();
 
         // Phase 2: Decrypt the new user profile key

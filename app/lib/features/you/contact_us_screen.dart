@@ -3,6 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/checkbox/checkbox.dart';
+import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -99,7 +104,8 @@ class _EmailForm extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final body = useState(initialBody ?? "");
+    final bodyController = useTextEditingController(text: initialBody);
+    final bodyError = useState<String?>(null);
     final selectedSubject = useState<String?>(initialSubject);
     final isUploadingLogs = useState(false);
     final debugLogsUrl = useState<String?>(null);
@@ -160,82 +166,68 @@ class _EmailForm extends HookWidget {
             const SizedBox(height: S.s16),
 
             // Email Body
-            TextFormField(
-              initialValue: initialBody,
+            AppTextInput(
+              tokens: AppTextInputTokens.of(context),
+              controller: bodyController,
+              label: loc.contactUsScreen_body,
+              errorText: bodyError.value,
+              minLines: 6,
               maxLines: 6,
-              decoration: InputDecoration(
-                labelText: loc.contactUsScreen_body,
-                alignLabelWithHint: true,
-              ),
-              onSaved: (value) => body.value = value ?? "",
-              validator: (value) => _validateBody(value, loc),
             ),
             const SizedBox(height: S.s8),
 
             // Include logs checkbox
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: isUploadingLogs.value ? null : onToggleLogs,
-              child: Row(
-                children: [
-                  if (isUploadingLogs.value)
-                    const SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: StrokeWidth.px2,
-                          ),
+              child: SizedBox(
+                // The box paints at 20px, so the row carries the tap target.
+                height: S.s48,
+                child: Row(
+                  spacing: S.s12,
+                  children: [
+                    if (isUploadingLogs.value)
+                      const SizedBox(
+                        width: S.s20,
+                        height: S.s20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: StrokeWidth.px2,
                         ),
+                      )
+                    else
+                      AppCheckbox(
+                        tokens: CheckboxTokens.standard,
+                        value: debugLogsUrl.value != null,
+                        onChanged: (_) => onToggleLogs(),
                       ),
-                    )
-                  else
-                    Checkbox(
-                      value: debugLogsUrl.value != null,
-                      onChanged: isUploadingLogs.value
-                          ? null
-                          : (_) => onToggleLogs(),
-                    ),
-                  Text(loc.contactUsScreen_includeLogs),
-                ],
+                    Text(loc.contactUsScreen_includeLogs),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: S.s8),
 
-            // Submit Button
-            Opacity(
-              opacity: isUploadingLogs.value ? Alpha.a40 : 1.0,
-              child: OutlinedButton(
-                style: const ButtonStyle(
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(CornerRadius.px12),
-                      ),
-                    ),
-                  ),
-                ),
-                onPressed: isUploadingLogs.value
-                    ? null
-                    : () {
-                        final formState = _formKey.currentState;
-                        if (formState != null && formState.validate()) {
-                          formState.save();
-                          _launchEmail(
-                            context,
-                            selectedSubject.value,
-                            body.value,
-                            debugLogsUrl.value,
-                          );
-                        }
-                      },
-                child: Text(
-                  loc.contactUsScreen_composeEmail,
-                  style: typeScale.body.regular.style(),
-                ),
-              ),
+            // Submit Button. The log upload is a separate operation with its
+            // own spinner, so while it runs this button is merely unavailable.
+            Button(
+              onPressed: () {
+                final body = bodyController.text;
+                bodyError.value = _validateBody(body, loc);
+                final subjectValid = _formKey.currentState?.validate() ?? false;
+                if (subjectValid && bodyError.value == null) {
+                  _launchEmail(
+                    context,
+                    selectedSubject.value,
+                    body,
+                    debugLogsUrl.value,
+                  );
+                }
+              },
+              label: loc.contactUsScreen_composeEmail,
+              type: ButtonType.secondary,
+              state: isUploadingLogs.value
+                  ? ButtonState.inactive
+                  : ButtonState.active,
             ),
           ],
         ),
@@ -246,8 +238,7 @@ class _EmailForm extends HookWidget {
   String? _validateSubject(String? value, AppLocalizations loc) =>
       value == null || value.isEmpty ? loc.contactUsScreen_subject_empty : null;
 
-  String? _validateBody(String? value, AppLocalizations loc) =>
-      value == null || value.isEmpty
+  String? _validateBody(String value, AppLocalizations loc) => value.isEmpty
       ? loc.contactUsScreen_body_empty
       : value.length < 11
       ? loc.contactUsScreen_body_tooShort

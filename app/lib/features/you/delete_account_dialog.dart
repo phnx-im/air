@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/platform/haptics.dart';
@@ -26,6 +29,7 @@ class DeleteAccountDialog extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final isConfirmed = useState(this.isConfirmed);
+    final isDeleting = useState(false);
 
     final controller = useTextEditingController(
       text: (this.isConfirmed) ? _confirmationText : "",
@@ -63,27 +67,15 @@ class DeleteAccountDialog extends HookWidget {
 
           const SizedBox(height: S.s12),
 
-          TextFormField(
+          AppTextInput(
+            tokens: AppTextInputTokens.of(context),
             autocorrect: false,
             autofocus: true,
             controller: controller,
-            decoration: appDialogInputDecoration.copyWith(
-              hintText: loc.deleteAccountScreen_confirmationInputHint,
-              filled: true,
-              fillColor: palette.backgroundBase.secondary,
-            ),
+            hintText: loc.deleteAccountScreen_confirmationInputHint,
+            helperText: loc.deleteAccountScreen_confirmationInputLabel,
             onChanged: (value) =>
                 isConfirmed.value = value == _confirmationText,
-          ),
-
-          const SizedBox(height: S.s12),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: S.s8),
-            child: Text(
-              loc.deleteAccountScreen_confirmationInputLabel,
-              style: typeScale.body.xs.style(color: palette.text.tertiary),
-            ),
           ),
 
           const SizedBox(height: S.s24),
@@ -91,40 +83,29 @@ class DeleteAccountDialog extends HookWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      palette.accentBrand.quaternary,
-                    ),
-                  ),
-                  child: Text(loc.editDisplayNameScreen_cancel),
+                child: Button(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  label: loc.editDisplayNameScreen_cancel,
+                  type: ButtonType.secondary,
                 ),
               ),
 
               const SizedBox(width: S.s12),
 
               Expanded(
-                child: AppDialogProgressButton(
-                  onPressed: isConfirmed.value
-                      ? (inProgress) =>
-                            _deleteAccount(context, inProgress, controller.text)
-                      : null,
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      palette.function.danger,
-                    ),
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.disabled)
-                          ? palette.function.neutral.white.withValues(
-                              alpha: 0.7,
-                            )
-                          : palette.function.neutral.white,
-                    ),
+                child: Button(
+                  onPressed: () => _deleteAccount(
+                    context,
+                    (value) => isDeleting.value = value,
+                    controller.text,
                   ),
-                  child: Text(loc.deleteAccountScreen_confirmButtonText),
+                  label: loc.deleteAccountScreen_confirmButtonText,
+                  tone: ButtonTone.danger,
+                  state: switch ((isDeleting.value, isConfirmed.value)) {
+                    (true, _) => ButtonState.pending,
+                    (false, true) => ButtonState.active,
+                    (false, false) => ButtonState.inactive,
+                  },
                 ),
               ),
             ],
@@ -136,11 +117,11 @@ class DeleteAccountDialog extends HookWidget {
 
   Future<void> _deleteAccount(
     BuildContext context,
-    ValueNotifier<bool> isDeleting,
+    void Function(bool) setDeleting,
     String confirmationText,
   ) async {
     AppHaptics.destructive();
-    isDeleting.value = true;
+    setDeleting(true);
     final userCubit = context.read<UserCubit>();
     final coreClient = context.read<CoreClient>();
     try {
@@ -152,7 +133,7 @@ class DeleteAccountDialog extends HookWidget {
         (loc) => loc.deleteAccountScreen_deleteAccountError,
       );
     } finally {
-      isDeleting.value = false;
+      setDeleting(false);
     }
   }
 }

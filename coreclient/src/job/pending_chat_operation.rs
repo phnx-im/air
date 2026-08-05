@@ -4,7 +4,10 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    credentials::{UserCredential, keys::ClientSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{ClientSigningKey, SelfGroupSigningKey},
+    },
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
@@ -355,6 +358,12 @@ impl PendingChatOperation {
         let signer = &key_store.signing_key;
         let own_user_id = signer.credential().user_id().clone();
 
+        // The DS verifies request envelopes against the sender's leaf signature key: the
+        // per-device self-group key in the self group, the user key everywhere else.
+        let leaf_signer =
+            OwnClientInfo::signer_for_group(db.read().await?, self.group.group_id(), signer)
+                .await?;
+
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
         let is_commit = self.operation.is_commit();
@@ -377,7 +386,7 @@ impl PendingChatOperation {
             // different T epoch.
             let restaged = self.group.group_mut().restage_leave_group(
                 db.write().await?,
-                signer,
+                &leaf_signer,
                 leave_params,
             )?;
             **leave_params = restaged;
@@ -400,17 +409,17 @@ impl PendingChatOperation {
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
-                    .ds_self_remove(*params, signer, self.group.group_state_ear_key())
+                    .ds_self_remove(*params, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Delete(params) => {
                 api_client
-                    .ds_delete_group(*params, signer, self.group.group_state_ear_key())
+                    .ds_delete_group(*params, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::ApqDelete { commit } => {
                 api_client
-                    .ds_apq_delete_group(*commit, signer, self.group.group_state_ear_key())
+                    .ds_apq_delete_group(*commit, &leaf_signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Other {
@@ -425,7 +434,7 @@ impl PendingChatOperation {
                 api_client
                     .ds_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -445,7 +454,7 @@ impl PendingChatOperation {
                 api_client
                     .ds_apq_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -463,7 +472,7 @@ impl PendingChatOperation {
                 api_client
                     .ds_apq_group_operation(
                         *params,
-                        signer,
+                        &leaf_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -754,7 +763,8 @@ impl PendingChatOperation {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
-        let params = group.group_mut().apq_update(txn, signer).await?;
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
+        let params = group.group_mut().apq_update(txn, &signer).await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)
@@ -767,7 +777,7 @@ impl PendingChatOperation {
     /// pending commit itself to tell a transient one apart from a failure.
     pub(crate) async fn create_settings_update(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &SelfGroupSigningKey,
         mut group: VerifiedGroup,
         update: SettingsUpdate,
     ) -> anyhow::Result<Self> {
@@ -798,9 +808,10 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, signer, group_data_bytes)
+            .update(&mut *txn, &signer, group_data_bytes)
             .await?;
 
         let job = Self::new(
@@ -1470,9 +1481,11 @@ pub mod test_utils {
                 .await?
                 .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
+            let signer =
+                OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
             let params = group
                 .group_mut()
-                .update_with_air_component(&mut *txn, signer, air_component)
+                .update_with_air_component(&mut *txn, &signer, air_component)
                 .await?;
 
             let job = Self::new(group, OperationType::other(params));
@@ -1529,7 +1542,10 @@ pub mod test_utils {
 mod tests {
     use aircommon::{
         assert_matches,
-        credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
+        credentials::{
+            keys::{ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+            test_utils::create_test_credentials,
+        },
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
         mls_group_config::AppComponent,
@@ -1560,10 +1576,11 @@ mod tests {
     /// Builds a single-member APQ self-group with a pending settings-update
     /// operation, stored in the database.
     async fn setup_self_group_settings_op()
-    -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
+    -> anyhow::Result<(DbAccess, PendingChatOperation, SelfGroupSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
 
         let mut connection = pool.write().await?;
         let job = connection
@@ -1590,7 +1607,8 @@ mod tests {
                 ));
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &signing_key,
+                    &leaf_signer,
+                    user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
@@ -1694,6 +1712,90 @@ mod tests {
                     "settings op should be deleted when any commit comes in"
                 );
                 assert!(pending.group.mls_group().pending_commit().is_none());
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// A self-update staged in the self group keeps the self-group credential
+    /// type in the leaf capabilities (RFC 9420 valn0104) and the per-device
+    /// leaf signature key, even though the caller passes the user signing key.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
+        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+        use openmls::prelude::{CredentialType, SignaturePublicKey};
+
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, client_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let t_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let pq_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                OwnClientInfo {
+                    qs_user_id: QsUserId::random(),
+                    qs_client_id: QsClientId::random(&mut rand::rng()),
+                    user_id: user_id.clone(),
+                    client_id: Uuid::new_v4(),
+                    self_group_id: Some(t_group_id.clone()),
+                    self_group_signing_key: Some(self_group_signing_key.clone()),
+                }
+                .store(&mut *txn)
+                .await?;
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &leaf_signer,
+                    user_id.clone(),
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id.clone(),
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    None,
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+                let chat =
+                    Chat::new_group_chat(t_group_id, ChatAttributes::new("Notes".to_owned(), None));
+                chat.store(&mut *txn).await?;
+
+                let job = PendingChatOperation::create_apq_self_update(
+                    txn,
+                    &client_signing_key,
+                    chat.id(),
+                )
+                .await?;
+
+                let staged = job
+                    .group
+                    .mls_group()
+                    .pending_commit()
+                    .context("no staged commit")?;
+                let leaf = staged
+                    .update_path_leaf_node()
+                    .context("no update path leaf")?;
+                assert!(
+                    leaf.capabilities()
+                        .credentials()
+                        .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
+                    "self-group leaf must keep the self-group credential type in its capabilities"
+                );
+                assert_eq!(
+                    leaf.signature_key(),
+                    &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
+                    "self-group leaf must keep the per-device signature key"
+                );
                 Ok(())
             })
             .await?;

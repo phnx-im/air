@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
-    identifiers::QualifiedGroupId,
+    identifiers::{QualifiedGroupId, UserId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
     group::GroupId,
@@ -144,11 +144,27 @@ impl OutboundServiceContext {
 
             let group_id = resync.group_id.clone();
 
+            // The self group is rejoined with the per-device self-group key, all other
+            // groups with the user key.
+            let signer = match self.signer_for_group(&group_id).await {
+                Ok(signer) => signer,
+                Err(error) => {
+                    error!(%error, "Failed to resolve resync signer; dropping");
+                    Resync::remove(self.db.write().await?, &group_id).await?;
+                    return Err(error);
+                }
+            };
+
             let result = {
                 let mut connection = self.db.write().await?;
 
                 let result = resync
-                    .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
+                    .create_and_send_commit(
+                        &mut connection,
+                        &self.api_clients,
+                        &signer,
+                        self.user_id(),
+                    )
                     .await;
                 if let Ok((chat_id, _)) = &result {
                     info!("Got profiles infos");
@@ -211,7 +227,8 @@ impl Resync {
         self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
     ) -> Result<(ChatId, DecryptedProfileInfos), OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
@@ -238,14 +255,19 @@ impl Resync {
             .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
-        let (group, commit, member_profile_infos) =
-            Box::pin(self.create_commit(&mut txn, api_clients, signer, external_commit_info))
-                .await
-                .map_err(OutboundServiceError::fatal)?;
+        let (group, commit, member_profile_infos) = Box::pin(self.create_commit(
+            &mut txn,
+            api_clients,
+            signer,
+            own_user_id,
+            external_commit_info,
+        ))
+        .await
+        .map_err(OutboundServiceError::fatal)?;
 
         let chat_id = match existing_chat_id {
             Some(chat_id) => chat_id,
-            None => Self::create_chat(&mut txn, &group, signer, ds_timestamp)
+            None => Self::create_chat(&mut txn, &group, own_user_id, ds_timestamp)
                 .await
                 .map_err(OutboundServiceError::fatal)?,
         };
@@ -278,14 +300,14 @@ impl Resync {
     async fn create_chat(
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
-        signer: &ClientSigningKey,
+        own_user_id: &UserId,
         ds_timestamp: TimeStamp,
     ) -> Result<ChatId> {
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
         let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
-        let sender_id = signer.credential().user_id().clone();
+        let sender_id = own_user_id.clone();
 
         let picture = CoreUser::resolve_group_profile_part(
             &mut *txn,
@@ -333,7 +355,8 @@ impl Resync {
         txn: &mut WriteDbTransaction<'_>,
         // Needs api clients until we can schedule group member authentication
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
     ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
@@ -356,6 +379,7 @@ impl Resync {
                 api_clients,
                 external_commit_info,
                 signer,
+                own_user_id,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
@@ -368,6 +392,11 @@ impl Resync {
                 member_profile_infos,
             ))
         } else {
+            // The self group is always an APQ group, so a T-only resync can never
+            // concern it.
+            let LeafSigningKey::User(signer) = signer else {
+                bail!("self-group signer in a non-APQ resync");
+            };
             let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
                 txn,
                 api_clients,
@@ -390,7 +419,7 @@ impl Resync {
 
     async fn send_commit(
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
         group: &Group,
         commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,

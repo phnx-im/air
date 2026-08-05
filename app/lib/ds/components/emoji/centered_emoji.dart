@@ -5,14 +5,14 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/scheduler.dart';
 
 /// Renders a single emoji glyph visually centered within its own layout box.
 ///
 /// A raw [Text] (and plain layout-box centering) only centers the glyph's
-/// layout box. That is enough on macOS, but on iOS the Apple Color Emoji glyph
-/// is not centered within its own layout box (even `leadingDistribution: .even`
+/// layout box. That's enough on macOS, but on iOS the Apple Color Emoji glyph
+/// isn't centered within its own layout box (even `leadingDistribution: .even`
 /// only evens the extra leading, not the font's asymmetric ascent/descent). To
 /// fix it we measure the glyph's ink (visual) bounding box once, cache the
 /// correction, and paint the glyph so its ink center lands at the center of the
@@ -20,12 +20,12 @@ import 'package:flutter/scheduler.dart';
 ///
 /// Measuring ink requires rasterizing the glyph, which is async, so the first
 /// frame falls back to layout-box centering and snaps into place once the
-/// correction is known. Corrections are cached process-wide; call [warmUp]
+/// correction is known. We cache corrections process-wide, so call [warmUp]
 /// ahead of time to avoid the snap for a known set of emojis.
 ///
-/// Laid-out glyph painters are cached process-wide as well and kept for the
-/// lifetime of the app: measured cost is ~1 KiB per glyph, about ~2 MB for the
-/// full picker set and ~4 MB with all skin tones warmed.
+/// We cache the laid-out glyph painters process-wide too, and keep them for
+/// the lifetime of the app: measured cost is ~1 KiB per glyph, about ~2 MB for
+/// the full picker set and ~4 MB with all skin tones warmed.
 class CenteredEmoji extends StatefulWidget {
   const CenteredEmoji({super.key, required this.emoji, required this.style});
 
@@ -53,7 +53,7 @@ class CenteredEmoji extends StatefulWidget {
       scaler.scale(style.fontSize ?? kDefaultFontSize);
 
   // The painter depends on the color (monochrome emoji fonts), the
-  // correction only on the alpha channel; both depend on the font and the
+  // correction only on the alpha channel. Both depend on the font and the
   // effective glyph size.
   static String _glyphKey(String emoji, TextStyle style, double scaledSize) =>
       '$emoji|$scaledSize|${style.fontFamily}|${style.color}';
@@ -66,9 +66,9 @@ class CenteredEmoji extends StatefulWidget {
 
   /// The laid-out painter for [emoji], shaping and caching it on first use.
   ///
-  /// The painter is shaped at the scaled font size, so callers with
-  /// different (font size, text scaler) pairs share an entry when the
-  /// effective glyph size is the same.
+  /// We shape the painter at the scaled font size, so callers with different
+  /// (font size, text scaler) pairs share an entry when the effective glyph
+  /// size is the same.
   static TextPainter _glyphOf(
     String emoji,
     TextStyle style,
@@ -90,7 +90,7 @@ class CenteredEmoji extends StatefulWidget {
     );
   }
 
-  /// Starts the ink measurement for [emoji] unless it is already cached or
+  /// Starts the ink measurement for [emoji] unless it's already cached or
   /// running. Returns the in-flight future, or `null` when already cached.
   static Future<Offset>? _ensureCorrection(
     String emoji,
@@ -117,7 +117,7 @@ class CenteredEmoji extends StatefulWidget {
   /// paint ink-centered on first frame instead of snapping into place.
   ///
   /// Idempotent and cheap when already cached. Meant for small sets (the
-  /// quick-reaction bar); use [warmUpGlyphs] for the full picker set.
+  /// quick-reaction bar). Use [warmUpGlyphs] for the full picker set.
   static void warmUp(
     BuildContext context,
     Iterable<String> emojis,
@@ -134,7 +134,7 @@ class CenteredEmoji extends StatefulWidget {
   /// Shapes the glyph painters for [emojis] in idle-priority chunks, so a
   /// large grid doesn't shape every glyph on first paint.
   ///
-  /// Does not measure ink corrections: rasterizing the full picker set would
+  /// Doesn't measure ink corrections: rasterizing the full picker set would
   /// be far too expensive, so mounted widgets measure lazily instead.
   static void warmUpGlyphs(
     BuildContext context,
@@ -199,8 +199,8 @@ class _CenteredEmojiState extends State<CenteredEmoji> {
         _correction = cached;
       } else {
         _correction = Offset.zero;
-        // Measurements are shared per key, so every widget showing this
-        // emoji is notified, even if several mount before the raster
+        // We share measurements per key, so every widget showing this emoji
+        // picks up the result, even if several mount before the raster
         // completes.
         CenteredEmoji._ensureCorrection(
           widget.emoji,

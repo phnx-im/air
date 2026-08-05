@@ -2,14 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/features/chat_details/safety_code_screen.dart';
 import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/features/chat_details/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/button_cta/button_cta.dart';
+import 'package:air/ds/components/button_cta/button_cta_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
@@ -61,12 +64,70 @@ class MemberRelationship extends Relationship {
       'MemberRelationship(groupChatId: $groupChatId, groupTitle: $groupTitle, canKick: $canKick)';
 }
 
+/// Body of the profile modal, shared by a one-to-one chat and a group member.
+///
+/// Content only: the card, the header, and the scrolling are the modal's, so
+/// this contributes the horizontal inset and the space the last button needs
+/// to clear the bottom of the screen.
 class ContactDetailsView extends StatelessWidget {
   const ContactDetailsView({
     super.key,
     required this.profile,
     required this.relationship,
+    this.onNameLongPress,
   });
+
+  final UiUserProfile profile;
+  final Relationship relationship;
+
+  /// Developer hook. The modal header has no room for one, so it hangs off the
+  /// name instead.
+  final VoidCallback? onNameLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ModalShellTokens.of(context);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: tokens.contentPaddingLeft,
+        right: tokens.contentPaddingRight,
+        // A full-screen modal ends above the home indicator, a card ends at its
+        // own edge.
+        bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(child: UserAvatar(profile: profile, size: 192)),
+
+          const SizedBox(height: S.s16),
+
+          GestureDetector(
+            onLongPress: onNameLongPress,
+            child: Text(
+              profile.displayName,
+              textAlign: TextAlign.center,
+              style: typeScale.header.xl.style(weight: Weight.emphasized),
+            ),
+          ),
+
+          const SizedBox(height: S.s24),
+
+          _CallToActions(profile: profile, relationship: relationship),
+
+          const SizedBox(height: S.s24),
+
+          _Actions(profile: profile, relationship: relationship),
+        ],
+      ),
+    );
+  }
+}
+
+/// The round actions the profile leads with.
+class _CallToActions extends StatelessWidget {
+  const _CallToActions({required this.profile, required this.relationship});
 
   final UiUserProfile profile;
   final Relationship relationship;
@@ -74,113 +135,39 @@ class ContactDetailsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    return Align(
-      alignment: Alignment.topCenter,
-      child: Column(
-        children: [
-          const SizedBox(height: S.s12),
+    final tokens = ButtonCTATokens.of(context);
 
-          UserAvatar(profile: profile, size: 192),
-
-          const SizedBox(height: S.s16),
-
-          Text(
-            profile.displayName,
-            style: typeScale.header.xl.style(weight: Weight.emphasized),
-          ),
-
-          const SizedBox(height: S.s16),
-
-          OutlinedButton(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Flexible so a long label wraps under its circle rather than pushing
+        // the row past the card's width.
+        Flexible(
+          child: ButtonCTA(
+            tokens: tokens,
+            label: loc.contactDetailsScreen_chat,
+            icon: AppIconType.messageCircle,
             onPressed: () => _handleChat(context),
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              minimumSize: WidgetStatePropertyAll(Size(82, 32)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const AppIcon.messageCircle(size: 16),
-                const SizedBox(width: S.s8),
-                Text(
-                  loc.contactDetailsScreen_chat,
-                  style: typeScale.body.regular.style(),
-                ),
-              ],
-            ),
           ),
+        ),
 
-          const SizedBox(height: S.s16),
+        const SizedBox(width: S.s32),
 
-          OutlinedButton(
-            onPressed: () => _handleViewSafetyNumber(context, profile.userId),
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              minimumSize: WidgetStatePropertyAll(Size(82, 32)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const AppIcon.shield(size: 16),
-                const SizedBox(width: S.s8),
-                Text(
-                  loc.contactDetailsScreen_viewSafetyCode,
-                  style: typeScale.body.regular.style(),
-                ),
-              ],
-            ),
+        Flexible(
+          child: ButtonCTA(
+            tokens: tokens,
+            label: loc.contactDetailsScreen_viewSafetyCode,
+            icon: AppIconType.shield,
+            type: ButtonCTAType.secondary,
+            onPressed: () => context.read<NavigationCubit>().openSafetyCode(),
           ),
+        ),
 
-          if (relationship is ContactRelationship) ...[
-            const SizedBox(height: S.s16),
-            const MuteButton(),
-          ],
-
-          const Spacer(),
-
-          ReportSpamButton(userId: profile.userId),
-
-          if (relationship case ContactRelationship())
-            if (relationship case ContactRelationship(:final isBlocked)) ...[
-              const SizedBox(height: S.s16),
-              isBlocked
-                  ? UnblockContactButton(
-                      userId: profile.userId,
-                      displayName: profile.displayName,
-                    )
-                  : BlockContactButton(
-                      userId: profile.userId,
-                      displayName: profile.displayName,
-                    ),
-            ],
-
-          if (relationship case ContactRelationship(:final contactChatId)) ...[
-            const SizedBox(height: S.s16),
-            DeleteContactButton(
-              chatId: contactChatId,
-              displayName: profile.displayName,
-            ),
-          ],
-
-          if (relationship case MemberRelationship(
-            :final groupChatId,
-            :final canKick,
-          ) when canKick) ...[
-            const SizedBox(height: S.s16),
-            RemoveMemberButton(
-              chatId: groupChatId,
-              memberId: profile.userId,
-              displayName: profile.displayName,
-              enabled: true,
-              onRemoved: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
-          ],
+        if (relationship is ContactRelationship) ...[
+          const SizedBox(width: S.s32),
+          const Flexible(child: MuteButton()),
         ],
-      ),
+      ],
     );
   }
 
@@ -215,11 +202,62 @@ class ContactDetailsView extends StatelessWidget {
         );
     }
   }
+}
 
-  void _handleViewSafetyNumber(BuildContext context, UiUserId userId) async {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => SafetyCodeScreen(userId: userId)));
+/// The stacked actions the profile closes with, each one full width.
+class _Actions extends StatelessWidget {
+  const _Actions({required this.profile, required this.relationship});
+
+  final UiUserProfile profile;
+  final Relationship relationship;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ReportSpamButton(userId: profile.userId),
+
+        if (relationship case ContactRelationship(:final isBlocked)) ...[
+          const SizedBox(height: S.s12),
+          isBlocked
+              ? UnblockContactButton(
+                  userId: profile.userId,
+                  displayName: profile.displayName,
+                )
+              : BlockContactButton(
+                  userId: profile.userId,
+                  displayName: profile.displayName,
+                ),
+        ],
+
+        if (relationship case ContactRelationship(:final contactChatId)) ...[
+          const SizedBox(height: S.s12),
+          DeleteContactButton(
+            chatId: contactChatId,
+            displayName: profile.displayName,
+          ),
+        ],
+
+        if (relationship case MemberRelationship(
+          :final groupChatId,
+          :final canKick,
+        ) when canKick) ...[
+          const SizedBox(height: S.s12),
+          RemoveMemberButton(
+            chatId: groupChatId,
+            memberId: profile.userId,
+            displayName: profile.displayName,
+            enabled: true,
+            onRemoved: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -241,6 +279,7 @@ class _AddContactDialog extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     final palette = SemanticPalette.of(context);
+    final inProgress = useState(false);
 
     return AppDialog(
       child: Column(
@@ -266,39 +305,25 @@ class _AddContactDialog extends HookWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  child: Text(
-                    loc.addContactDialog_cancel,
-                    style: typeScale.body.regular.style(),
-                  ),
+                child: Button(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  label: loc.addContactDialog_cancel,
+                  type: ButtonType.secondary,
                 ),
               ),
 
               const SizedBox(width: S.s12),
 
               Expanded(
-                child: AppDialogProgressButton(
-                  onPressed: (inProgress) =>
-                      _handleSendChatRequest(context, inProgress),
-                  progressColor: palette.function.neutral.toggleWhite,
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      palette.accentBrand.primary,
-                    ),
-                    overlayColor: WidgetStatePropertyAll(
-                      palette.accentBrand.primary,
-                    ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      palette.function.neutral.toggleWhite,
-                    ),
+                child: Button(
+                  onPressed: () => _handleSendChatRequest(
+                    context,
+                    (value) => inProgress.value = value,
                   ),
-                  child: Text(
-                    loc.addContactDialog_confirm,
-                    style: typeScale.body.regular.style(),
-                  ),
+                  label: loc.addContactDialog_confirm,
+                  state: inProgress.value
+                      ? ButtonState.pending
+                      : ButtonState.active,
                 ),
               ),
             ],
@@ -310,9 +335,9 @@ class _AddContactDialog extends HookWidget {
 
   void _handleSendChatRequest(
     BuildContext context,
-    ValueNotifier<bool> inProgress,
+    void Function(bool) setInProgress,
   ) async {
-    inProgress.value = true;
+    setInProgress(true);
 
     final userCubit = context.read<UserCubit>();
     final navigationCubit = context.read<NavigationCubit>();
@@ -334,7 +359,7 @@ class _AddContactDialog extends HookWidget {
         (loc) => loc.newConnectionDialog_error(displayName),
       );
     } finally {
-      inProgress.value = false;
+      setInProgress(false);
     }
   }
 }

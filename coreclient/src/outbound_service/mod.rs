@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::{ClientSigningKey, LeafSigningKey},
     identifiers::{QsClientId, UserId},
 };
 use chrono::Utc;
@@ -327,23 +327,15 @@ impl OutboundServiceContext {
 
     /// Returns the signing key to use for operations on `group_id`.
     ///
-    /// The self group's leaves are signed with a fresh key that differs from the
-    /// shared user credential key, so its messages and commits must be signed
+    /// The self group's leaves are signed with a per-device key that differs from
+    /// the shared user credential key, so its messages and commits must be signed
     /// with that key. All other groups use the shared client signing key.
     async fn signer_for_group(
         &self,
         group_id: &openmls::group::GroupId,
-    ) -> anyhow::Result<ClientSigningKey> {
-        use anyhow::Context as _;
-
+    ) -> anyhow::Result<LeafSigningKey> {
         use crate::clients::own_client_info::OwnClientInfo;
-        let info = OwnClientInfo::load(self.db.read().await?).await?;
-        if info.self_group_id.as_ref() == Some(group_id) {
-            info.self_group_signing_key
-                .context("self-group signer was not initialized")
-        } else {
-            Ok(self.signing_key().clone())
-        }
+        OwnClientInfo::signer_for_group(self.db.read().await?, group_id, self.signing_key()).await
     }
 
     fn user_id(&self) -> &UserId {

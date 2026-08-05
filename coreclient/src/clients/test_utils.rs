@@ -168,6 +168,12 @@ impl CoreUser {
         Ok((plain, apq))
     }
 
+    /// The client id this device stores in its own client info.
+    pub async fn own_client_id(&self) -> anyhow::Result<Uuid> {
+        let mut read = self.db().read().await?;
+        Ok(OwnClientInfo::load(&mut read).await?.client_id)
+    }
+
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
         Ok(self
             .db()

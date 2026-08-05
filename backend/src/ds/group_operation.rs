@@ -48,10 +48,7 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
-use super::{
-    group_state::{MemberProfile, RoomPolicyIdentity},
-    process::USER_EXPIRATION_DAYS,
-};
+use super::{group_state::MemberProfile, process::USER_EXPIRATION_DAYS};
 
 use super::group_state::DsGroupState;
 
@@ -148,8 +145,7 @@ impl DsGroupState {
         let sender = self
             .leaf_credential(sender_index.leaf_index())
             .ok_or(GroupOperationError::InvalidMessage)?;
-        let sender_identity = RoomPolicyIdentity::from_credential(&sender)
-            .ok_or(GroupOperationError::InvalidMessage)?;
+        let sender_identity = sender.room_policy_identity();
 
         // Check if the operation adds a user.
         let adds_users = staged_commit.add_proposals().count() != 0;
@@ -179,8 +175,7 @@ impl DsGroupState {
                             error!(%e, "Credential of added user is invalid");
                             GroupOperationError::InvalidMessage
                         })?;
-                let added_identity = RoomPolicyIdentity::from_credential(&added_credential)
-                    .ok_or(GroupOperationError::InvalidMessage)?;
+                let added_identity = added_credential.room_policy_identity();
 
                 if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut() {
                     let pq_add_proposal = pq_adds_sig_keys.next().ok_or_else(|| {
@@ -198,7 +193,7 @@ impl DsGroupState {
                     }
                 }
 
-                self.room_state_change_role(&sender_identity, added_identity, RoleIndex::Regular)
+                self.room_state_change_role(&sender_identity, &added_identity, RoleIndex::Regular)
                     .ok_or(GroupOperationError::InvalidMessage)?;
             }
 
@@ -283,10 +278,9 @@ impl DsGroupState {
                     error!(%e, "Credential of removed user is invalid");
                     GroupOperationError::InvalidMessage
                 })?;
-            let removed_identity = RoomPolicyIdentity::from_credential(&removed_credential)
-                .ok_or(GroupOperationError::InvalidMessage)?;
+            let removed_identity = removed_credential.room_policy_identity();
 
-            self.room_state_change_role(&sender_identity, removed_identity, RoleIndex::Outsider)
+            self.room_state_change_role(&sender_identity, &removed_identity, RoleIndex::Outsider)
                 .ok_or(GroupOperationError::InvalidMessage)?;
         }
 

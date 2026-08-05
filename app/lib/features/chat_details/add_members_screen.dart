@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/components/button_icon/app_bar_button.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/scroll/app_scrollbar.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:logging/logging.dart';
 
 import 'package:air/features/chat_details/add_members_cubit.dart';
@@ -87,52 +87,45 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
     );
     final loc = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        clipBehavior: Clip.none,
-        leading: const AppBarBackButton(),
-        title: Text(loc.addMembersScreen_addMembers),
-        actions: [
-          AppBarButton(
-            onPressed: selectedContacts.isNotEmpty
-                ? () => _addSelectedContacts(context, selectedContacts)
-                : null,
-
-            child: Text(loc.addMembersScreen_done),
-          ),
-        ],
+    return ModalScaffold(
+      title: loc.addMembersScreen_addMembers,
+      onLeading: () => context.read<NavigationCubit>().pop(),
+      trailing: Button(
+        size: ButtonSize.small,
+        state: selectedContacts.isEmpty
+            ? ButtonState.inactive
+            : ButtonState.active,
+        label: loc.addMembersScreen_done,
+        onPressed: () => _addSelectedContacts(context, selectedContacts),
       ),
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: 800)
-                : null,
-            child: Column(
-              children: [
-                MemberSearchField(
-                  controller: _searchController,
-                  hintText: loc.groupMembersScreen_searchHint,
-                  onChanged: (value) => setState(() => _query = value),
+      // The selection list below the search field scrolls on its own.
+      scrollable: false,
+      child: Column(
+        children: [
+          MemberSearchField(
+            controller: _searchController,
+            hintText: loc.groupMembersScreen_searchHint,
+            onChanged: (value) => setState(() => _query = value),
+          ),
+          Expanded(
+            child: AppScrollbar(
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: MemberSelectionList(
+                  contacts: contacts,
+                  selectedContacts: selectedContacts,
+                  query: _query,
+                  isApq: isApq,
+                  onToggle: (contact) => context
+                      .read<AddMembersCubit>()
+                      .toggleContact(contact.userId),
                 ),
-                Expanded(
-                  child: MemberSelectionList(
-                    contacts: contacts,
-                    selectedContacts: selectedContacts,
-                    query: _query,
-                    isApq: isApq,
-                    onToggle: (contact) => context
-                        .read<AddMembersCubit>()
-                        .toggleContact(contact.userId),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
