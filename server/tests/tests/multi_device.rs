@@ -1182,16 +1182,12 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
     let b_id = new_device.own_client_id().await?;
     assert_ne!(a_id, b_id, "each device mints its own client id");
 
-    // The new device's own entry travelled to the old device in the
-    // provisioning snapshot, and the old device's own entry was never
-    // enqueued (it predates the self group), so it reaches the new device for
-    // free too. What still needs a round trip is the new device's own entry
-    // reaching the old device: that was only enqueued once the new device
-    // joined the self group, and the outbound service is what turns the
-    // enqueued change into a commit for the old device to fetch.
-    new_device.outbound_service().run_once().await;
-    drain_queue(old_device).await;
-
+    // Neither entry needs a round trip of its own. The old device's entry
+    // predates the self group, so it never became a pending change and rode
+    // along in the provisioning snapshot. The new device's entry travelled the
+    // other way in the join request, and the old device folded it into the add
+    // commit itself, which is why nothing is left enqueued on either side (see
+    // `multi_device_link_publishes_device_entry_without_extra_commit`).
     for user in [old_device, &new_device] {
         let roster = user.self_group_client_ids().await?;
         assert_eq!(roster.len(), 2);
