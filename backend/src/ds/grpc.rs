@@ -434,12 +434,34 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (txn, mut t_group_state, t_group_data) = self
             .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
             .await?;
+        let t_apq_info = t_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on T group"))?;
         let (payload, t_sender_index) =
             resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
 
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
+        let pq_apq_info = pq_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on PQ group"))?;
+
+        if t_apq_info.group_id() != pq_apq_info.group_id() {
+            return Err(Status::failed_precondition(
+                "T and PQ group IDs do not match",
+            ));
+        }
+        if t_message.group_id() != &t_apq_info.t_session_group_id {
+            return Err(Status::failed_precondition(
+                "T message group ID does not match T APQ group ID",
+            ));
+        }
+        if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
+            return Err(Status::failed_precondition(
+                "PQ message group ID does not match PQ APQ group ID",
+            ));
+        }
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
@@ -1150,6 +1172,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 &qgid,
                 &ear_key,
                 async |group_state, _group_data| {
+                    if group_state.is_apq() {
+                        return Err(Status::failed_precondition(
+                            "Non APQ operation on an APQ group",
+                        ));
+                    }
+
                     let params = JoinConnectionGroupParams {
                         external_commit,
                         qs_client_reference: request
@@ -1206,8 +1234,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verified_data;
 
-                // A T-only resync of an APQ group would leave the PQ group with a stale leaf and
-                // strip the sender's local PQ state.
                 if group_state.is_apq() {
                     return Err(Status::failed_precondition(
                         "APQ group requires an APQ resync",
@@ -1337,6 +1363,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     message: remove_proposal,
                     ..
                 } = verification_data;
+
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ self remove",
+                    ));
+                }
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -1516,6 +1548,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     message: commit,
                     ..
                 } = verification_data;
+
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ delete",
+                    ));
+                }
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
