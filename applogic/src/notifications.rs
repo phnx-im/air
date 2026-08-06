@@ -23,6 +23,12 @@ enum AlertMode {
 }
 
 impl User {
+    /// Whether we are at the origin of this message: sent by us, or produced
+    /// by one of our own group operations, from any of our clients.
+    fn is_own_message(&self, message: &ChatMessage) -> bool {
+        message.message().actor() == Some(self.user.user_id())
+    }
+
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
     /// reactions, and silent-rebuild triggers.
     ///
@@ -40,14 +46,10 @@ impl User {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
 
-        // Check if we are at the origin of a message
-        let own_user_id = self.user.user_id();
-        let is_own = |message: &ChatMessage| message.message().actor() == Some(own_user_id);
-
         // Chats to alert
         for chat_id in messages
             .iter()
-            .filter(|message| !is_own(message))
+            .filter(|message| !self.is_own_message(message))
             .map(|message| message.chat_id())
             .chain(reactions.iter().map(|reaction| reaction.chat_id))
         {
@@ -63,7 +65,7 @@ impl User {
         for chat_id in changed_chats.iter().copied().chain(
             messages
                 .iter()
-                .filter(|message| is_own(message))
+                .filter(|message| self.is_own_message(message))
                 .map(|message| message.chat_id()),
         ) {
             if let Entry::Vacant(entry) = chats.entry(chat_id)
@@ -92,7 +94,7 @@ impl User {
         {
             // One notification per fresh message/reaction, with a random ID so entries accumulate.
             for message in messages {
-                if is_own(message) {
+                if self.is_own_message(message) {
                     continue;
                 }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
@@ -179,13 +181,10 @@ impl User {
         // Body of the newest renderable entry: a single unrenderable message must not suppress
         // the notification for the other entries in the set. What we caused ourselves from a
         // sibling client stays in the conversation below, but must never be the alerting text.
-        let own_user_id = self.user.user_id();
-        let is_own = |message: &ChatMessage| message.message().actor() == Some(own_user_id);
-
         let mut body = None;
         for entry in rebuild.rebuild_set.entries.iter().rev() {
             if let ChatNotificationEntry::Message(message) = entry
-                && is_own(message)
+                && self.is_own_message(message)
             {
                 continue;
             }
