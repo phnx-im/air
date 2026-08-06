@@ -319,8 +319,7 @@ impl Resync {
         Ok((chat_id, member_profile_infos))
     }
 
-    /// Create the local chat for a group we just onboarded into, plus the
-    /// contact if it is a connection group.
+    /// Create the local chat (and contact) for a connection group we just onboarded into.
     async fn create_connection_chat(
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
@@ -343,8 +342,7 @@ impl Resync {
         Ok(chat.id())
     }
 
-    /// Create the local chat for a group we just onboarded into, plus the
-    /// contact if it is a connection group.
+    /// Create the local chat for a group we just onboarded into.
     async fn create_group_chat(
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
@@ -510,10 +508,7 @@ impl Resync {
 
 mod persistence {
 
-    use aircommon::{
-        crypto::aead::keys::WelcomeAttributionInfoEarKey, identifiers::Fqdn,
-        messages::FriendshipToken,
-    };
+    use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
@@ -540,22 +535,7 @@ mod persistence {
             let group_id = GroupIdRefWrapper::from(&self.group_id);
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
-            let connection_user_uuid = self
-                .connection_contact
-                .as_ref()
-                .map(|contact| contact.user_id.uuid());
-            let connection_user_domain = self
-                .connection_contact
-                .as_ref()
-                .map(|contact| contact.user_id.domain());
-            let connection_wai_ear_key = self
-                .connection_contact
-                .as_ref()
-                .map(|contact| &contact.wai_ear_key);
-            let connection_friendship_token = self
-                .connection_contact
-                .as_ref()
-                .map(|contact| &contact.friendship_token);
+            let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -565,12 +545,9 @@ mod persistence {
                     identity_link_wrapper_key,
                     original_leaf_index,
                     shares_vc_leaf,
-                    connection_user_uuid,
-                    connection_user_domain,
-                    connection_wai_ear_key,
-                    connection_friendship_token
+                    connection_contact
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                 ON CONFLICT DO NOTHING",
                 group_id,
                 pq_group_id,
@@ -579,10 +556,7 @@ mod persistence {
                 self.identity_link_wrapper_key,
                 original_leaf_index,
                 self.shares_vc_leaf,
-                connection_user_uuid,
-                connection_user_domain,
-                connection_wai_ear_key,
-                connection_friendship_token,
+                connection_contact,
             )
             .execute(connection.as_mut())
             .await?;
@@ -603,10 +577,7 @@ mod persistence {
                 identity_link_wrapper_key: IdentityLinkWrapperKey,
                 original_leaf_index: i32,
                 shares_vc_leaf: bool,
-                connection_user_uuid: Option<Uuid>,
-                connection_user_domain: Option<Fqdn>,
-                connection_wai_ear_key: Option<WelcomeAttributionInfoEarKey>,
-                connection_friendship_token: Option<FriendshipToken>,
+                connection_contact: Option<BlobDecoded<ConnectionContact>>,
             }
 
             let Some(group_id) = query_scalar!(
@@ -637,52 +608,22 @@ mod persistence {
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                     original_leaf_index AS "original_leaf_index: _",
                     shares_vc_leaf AS "shares_vc_leaf: _",
-                    connection_user_uuid AS "connection_user_uuid: _",
-                    connection_user_domain AS "connection_user_domain: _",
-                    connection_wai_ear_key AS "connection_wai_ear_key: _",
-                    connection_friendship_token AS "connection_friendship_token: _"
+                    connection_contact AS "connection_contact: _"
                 "#,
                 group_id,
                 task_id,
             )
             .fetch_optional(txn.as_mut())
             .await?
-            .and_then(|record| {
-                let group_id = record.group_id.0;
-                let connection = match (
-                    record.connection_user_uuid,
-                    record.connection_user_domain,
-                    record.connection_wai_ear_key,
-                    record.connection_friendship_token,
-                ) {
-                    (Some(uuid), Some(domain), Some(wai_ear_key), Some(friendship_token)) => {
-                        Some(ConnectionContact {
-                            user_id: UserId::new(uuid, domain),
-                            wai_ear_key,
-                            friendship_token,
-                        })
-                    }
-                    (None, None, None, None) => None,
-                    // The columns are written together, so this row is corrupt.
-                    _ => {
-                        error!(
-                            ?group_id,
-                            "incomplete connection contact in resync queue, skipping."
-                        );
-                        return None;
-                    }
-                };
-
-                Some(Resync {
-                    chat_id: record.chat_id,
-                    group_id,
-                    pq_group_id: record.pq_group_id.map(|id| id.0),
-                    group_state_ear_key: record.group_state_ear_key,
-                    identity_link_wrapper_key: record.identity_link_wrapper_key,
-                    original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
-                    shares_vc_leaf: record.shares_vc_leaf,
-                    connection_contact: connection,
-                })
+            .map(|record| Resync {
+                chat_id: record.chat_id,
+                group_id: record.group_id.0,
+                pq_group_id: record.pq_group_id.map(|id| id.0),
+                group_state_ear_key: record.group_state_ear_key,
+                identity_link_wrapper_key: record.identity_link_wrapper_key,
+                original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
+                shares_vc_leaf: record.shares_vc_leaf,
+                connection_contact: record.connection_contact.map(BlobDecoded::into_inner),
             });
 
             Ok(resync)
