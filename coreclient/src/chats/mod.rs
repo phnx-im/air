@@ -156,9 +156,6 @@ impl Chat {
     }
 
     /// A confirmed connection chat a linked device onboarded itself into.
-    ///
-    /// Stays pending until the DS accepts the onboarding commit, at which point
-    /// the resync marks it active.
     pub(crate) fn new_onboarding_connection_chat(group_id: GroupId, user_id: UserId) -> Self {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
