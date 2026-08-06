@@ -408,11 +408,6 @@ class _MessageComposerState extends State<MessageComposer>
         // upward out of its leading edge.
         corner: MenuCorner.bottomLeft,
         items: [
-          MenuItem(
-            label: loc.attachment_gallery,
-            leading: const AppIcon.image(size: 16),
-            onPressed: () => pick(_AttachmentCategory.gallery),
-          ),
           if (DeviceType.isPhone)
             MenuItem(
               label: loc.attachment_camera,
@@ -420,7 +415,12 @@ class _MessageComposerState extends State<MessageComposer>
               onPressed: () => pick(_AttachmentCategory.camera),
             ),
           MenuItem(
-            label: loc.attachment_file,
+            label: loc.attachment_images,
+            leading: const AppIcon.image(size: 16),
+            onPressed: () => pick(_AttachmentCategory.gallery),
+          ),
+          MenuItem(
+            label: loc.attachment_otherFiles,
             leading: const AppIcon.paperclip(size: 16),
             onPressed: () => pick(_AttachmentCategory.file),
           ),

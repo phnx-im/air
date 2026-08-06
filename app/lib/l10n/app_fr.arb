@@ -295,9 +295,9 @@
       }
     }
   },
-  "attachment_gallery": "Galerie",
+  "attachment_images": "Images",
   "attachment_camera": "Appareil photo",
-  "attachment_file": "Fichier",
+  "attachment_otherFiles": "Autres fichiers",
   "attachment_notFound": "La pièce jointe n'est plus disponible.",
   "textMessage_edited": "modifié",
   "textMessage_hiddenPlaceholder": "Utilisateur bloqué, appuyez pour afficher le message",

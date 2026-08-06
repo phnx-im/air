@@ -1629,11 +1629,11 @@ abstract class AppLocalizations {
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
 
-  /// No description provided for @attachment_gallery.
+  /// No description provided for @attachment_images.
   ///
   /// In en, this message translates to:
-  /// **'Gallery'**
-  String get attachment_gallery;
+  /// **'Images'**
+  String get attachment_images;
 
   /// No description provided for @attachment_camera.
   ///
@@ -1641,11 +1641,11 @@ abstract class AppLocalizations {
   /// **'Camera'**
   String get attachment_camera;
 
-  /// No description provided for @attachment_file.
+  /// No description provided for @attachment_otherFiles.
   ///
   /// In en, this message translates to:
-  /// **'File'**
-  String get attachment_file;
+  /// **'Other files'**
+  String get attachment_otherFiles;
 
   /// No description provided for @attachment_notFound.
   ///

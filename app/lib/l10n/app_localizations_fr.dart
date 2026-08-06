@@ -965,13 +965,13 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Galerie';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Appareil photo';
 
   @override
-  String get attachment_file => 'Fichier';
+  String get attachment_otherFiles => 'Autres fichiers';
 
   @override
   String get attachment_notFound => 'La pièce jointe n\'est plus disponible.';

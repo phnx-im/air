@@ -942,13 +942,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Gallery';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Camera';
 
   @override
-  String get attachment_file => 'File';
+  String get attachment_otherFiles => 'Other files';
 
   @override
   String get attachment_notFound => 'Attachment is no longer available.';

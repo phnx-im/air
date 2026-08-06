@@ -952,13 +952,13 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Galleri';
+  String get attachment_images => 'Bilder';
 
   @override
   String get attachment_camera => 'Kamera';
 
   @override
-  String get attachment_file => 'Fil';
+  String get attachment_otherFiles => 'Andra filer';
 
   @override
   String get attachment_notFound => 'Bilagan är inte längre tillgänglig.';

@@ -351,9 +351,9 @@
     }
   },
 
-  "attachment_gallery": "Gallery",
+  "attachment_images": "Images",
   "attachment_camera": "Camera",
-  "attachment_file": "File",
+  "attachment_otherFiles": "Other files",
   "attachment_notFound": "Attachment is no longer available.",
 
   "textMessage_edited": "edited",

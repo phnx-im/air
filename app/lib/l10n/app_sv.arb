@@ -295,9 +295,9 @@
       }
     }
   },
-  "attachment_gallery": "Galleri",
+  "attachment_images": "Bilder",
   "attachment_camera": "Kamera",
-  "attachment_file": "Fil",
+  "attachment_otherFiles": "Andra filer",
   "attachment_notFound": "Bilagan är inte längre tillgänglig.",
   "textMessage_edited": "redigerad",
   "textMessage_hiddenPlaceholder": "Blockerad användare, tryck för att visa meddelandet",
