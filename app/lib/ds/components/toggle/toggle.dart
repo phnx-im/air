@@ -37,17 +37,17 @@ class Toggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final interactive = enabled && onChanged != null;
-    final duration = Effect.duration(tokens.motion);
+    final duration = Effect.duration(ToggleTokens.motion);
 
     final track = value
         ? palette.function.neutral.toggleBlack
         : palette.fill.tertiary;
     final thumbLeft = value
-        ? tokens.trackWidth - tokens.thumbSize - tokens.thumbPadding
-        : tokens.thumbPadding;
+        ? tokens.trackWidth - tokens.thumbSize - ToggleTokens.thumbPadding
+        : ToggleTokens.thumbPadding;
 
     return Opacity(
-      opacity: interactive ? Alpha.a100 : tokens.disabledAlpha,
+      opacity: interactive ? Alpha.a100 : ToggleTokens.disabledAlpha,
       child: MouseRegion(
         cursor: interactive ? SystemMouseCursors.click : MouseCursor.defer,
         child: GestureDetector(
@@ -66,7 +66,7 @@ class Toggle extends StatelessWidget {
                 AnimatedPositioned(
                   duration: duration,
                   curve: Effect.easeOutQuart,
-                  top: tokens.thumbPadding,
+                  top: ToggleTokens.thumbPadding,
                   left: thumbLeft,
                   child: Container(
                     width: tokens.thumbSize,

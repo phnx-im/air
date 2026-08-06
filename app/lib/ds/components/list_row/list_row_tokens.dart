@@ -11,15 +11,7 @@ import 'package:flutter/widgets.dart';
 /// a tile-shaped row carries is the host's to supply.
 @immutable
 class ListRowTokens {
-  const ListRowTokens({
-    required this.height,
-    required this.padding,
-    required this.leadingGap,
-    required this.trailingGap,
-    required this.sublabelGap,
-    required this.separatorWidth,
-    required this.radius,
-  });
+  const ListRowTokens({required this.height});
 
   /// Floor for the row's height, not a fixed one: a wrapping label or a tall
   /// leading slot grows the row rather than getting clipped by it.
@@ -28,40 +20,23 @@ class ListRowTokens {
   /// Inset between the row's edge and its content. The row owns it rather than
   /// the group around it, so a row standing on its own is inset the same as one
   /// in a run.
-  final EdgeInsets padding;
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: S.s16);
 
-  final double leadingGap;
-  final double trailingGap;
-  final double sublabelGap;
+  static const double leadingGap = S.s12;
+  static const double trailingGap = S.s8;
+  static const double sublabelGap = S.s4;
 
-  final double separatorWidth;
+  static const double separatorWidth = StrokeWidth.px0_5;
 
   /// Corner radius of the filled tile. The separator look stays square, so it
   /// only applies to a row that carries a fill.
-  final double radius;
+  static const double radius = CornerRadius.px12;
 
-  static const ListRowTokens phone = ListRowTokens(
-    height: S.s56,
-    padding: EdgeInsets.symmetric(horizontal: S.s16),
-    leadingGap: S.s12,
-    trailingGap: S.s8,
-    sublabelGap: S.s4,
-    separatorWidth: StrokeWidth.px0_5,
-    radius: CornerRadius.px12,
-  );
+  static const ListRowTokens phone = ListRowTokens(height: S.s56);
 
   /// Denser than [phone]: a pointer hits a smaller target reliably, so the
   /// two-pane layout fits more rows in the same column.
-  static const ListRowTokens desktop = ListRowTokens(
-    height: S.s48,
-    padding: EdgeInsets.symmetric(horizontal: S.s16),
-    leadingGap: S.s12,
-    trailingGap: S.s8,
-    sublabelGap: S.s4,
-    separatorWidth: StrokeWidth.px0_5,
-    radius: CornerRadius.px12,
-  );
+  static const ListRowTokens desktop = ListRowTokens(height: S.s48);
 
-  static ListRowTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ListRowTokens get current => DeviceType.isPhone ? phone : desktop;
 }

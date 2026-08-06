@@ -8,6 +8,10 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 
 /// Scrollable screen chrome with a fixed header and soft fade edges.
+///
+/// The fade values are required rather than defaulted: the host owns them, and
+/// a default here would be a second source for geometry its token bag already
+/// names.
 class FadedScrollFrame extends StatelessWidget {
   const FadedScrollFrame({
     super.key,
@@ -16,11 +20,11 @@ class FadedScrollFrame extends StatelessWidget {
     required this.backgroundColor,
     required this.contentTopPadding,
     required this.contentBottomPadding,
-    this.topFadeHeight = 96,
-    this.bottomFadeHeight = 120,
-    this.topSolidStop = 0.3,
-    this.bottomSolidStop = 0.1,
-    this.bottomOpacity = 1.0,
+    required this.topFadeHeight,
+    required this.bottomFadeHeight,
+    required this.topSolidStop,
+    required this.bottomSolidStop,
+    required this.bottomOpacity,
     this.edges,
   });
 

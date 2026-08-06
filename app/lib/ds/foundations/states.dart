@@ -42,4 +42,17 @@ abstract final class StateTokens {
   /// At or below this surface luminance a black press wash will not register,
   /// so press lightens instead. Near-black surfaces only.
   static const double darkSurfaceFloor = 0.05;
+
+  // Disabled dims content and fill at different rates. A component whose
+  // layers recede at other rates keeps its own tiers and says why (the
+  // checkbox, the toggle).
+
+  /// Alpha meaning-carrying content (a label, a glyph) fades to on a disabled
+  /// surface. Content carries the disabled read, so it fades hardest.
+  static const double disabledContent = Alpha.a40;
+
+  /// Alpha a fill recedes to on a disabled surface, where the fill recedes at
+  /// all. It steps back rather than dissolving: a disabled control still has
+  /// to read as a control.
+  static const double disabledFill = Alpha.a80;
 }

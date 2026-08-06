@@ -10,12 +10,12 @@ import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/ds/patterns/reply_block/reply_block.dart';
-import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -211,7 +211,7 @@ class _MessageComposerState extends State<MessageComposer>
     return ListenableBuilder(
       listenable: _scrollBackState,
       builder: (context, _) => MessageInput(
-        tokens: MessageInputTokens.of(context),
+        tokens: MessageInputTokens.current,
         // Cancel the edit when editing, attach otherwise.
         leadingIcon: isEditing ? AppIconType.x : AppIconType.plus,
         onLeading: isEditing
@@ -613,7 +613,6 @@ class _ReplyPreview extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.draft?.inReplyTo,
     );
     if (inReplyTo == null) return const SizedBox.shrink();
-    const tokens = ReplyBlockTokens.standard;
     final quote = quotedMessage(context, inReplyTo.$2);
 
     return Padding(
@@ -627,7 +626,7 @@ class _ReplyPreview extends StatelessWidget {
               senderName: quote.senderName,
               fill: palette.fill.secondary,
               stretch: true,
-              thumbnail: quotedThumbnail(context, inReplyTo.$2, tokens),
+              thumbnail: quotedThumbnail(context, inReplyTo.$2),
             ),
           ),
           Positioned(
@@ -701,16 +700,13 @@ class _ComposerField extends StatelessWidget {
         minLines: 1,
         maxLines: 10,
         enabled: isConfirmedChat,
-        decoration: InputDecoration(
-          isCollapsed: true,
-          contentPadding: EdgeInsets.zero,
+        decoration: FieldChrome.plain(
           hintText: loc.composer_inputHint(chatTitle ?? ""),
-          hintMaxLines: 1,
           hintStyle: TextStyle(
             color: palette.text.tertiary,
             overflow: TextOverflow.ellipsis,
           ),
-        ).copyWith(filled: false),
+        ).copyWith(isCollapsed: true, hintMaxLines: 1),
         contextMenuBuilder: _contextMenuBuilder,
         textInputAction: sendOnEnter
             ? TextInputAction.send

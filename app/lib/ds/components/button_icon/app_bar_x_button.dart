@@ -21,16 +21,13 @@ class AppBarXButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: S.s24),
-      child: ButtonIcon(
-        variant: ButtonIconVariant.elevated,
-        icon: AppIconType.x,
-        iconColor: foregroundColor,
-        fill: backgroundColor,
-        hitTargetSize: 48,
-        onPressed: onPressed,
-      ),
+    return ButtonIcon(
+      variant: ButtonIconVariant.elevated,
+      icon: AppIconType.x,
+      iconColor: foregroundColor,
+      fill: backgroundColor,
+      hitTargetSize: ButtonIconSize.s48,
+      onPressed: onPressed,
     );
   }
 }

@@ -52,7 +52,7 @@ class EditDialog extends HookWidget {
     final length = useState(initialValue.characters.length);
 
     final loc = AppLocalizations.of(context);
-    final tokens = DialogTokens.of(context);
+    final tokens = DialogTokens.current;
     final palette = SemanticPalette.of(context);
 
     final description = this.description;
@@ -74,7 +74,7 @@ class EditDialog extends HookWidget {
           SizedBox(height: tokens.titleBodyGap),
 
           AppTextInput(
-            tokens: AppTextInputTokens.of(context),
+            tokens: AppTextInputTokens.current,
             autocorrect: false,
             autofocus: true,
             controller: controller,

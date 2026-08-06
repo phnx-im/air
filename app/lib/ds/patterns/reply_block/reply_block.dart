@@ -56,7 +56,6 @@ class ReplyBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = ReplyBlockTokens.standard;
     final palette = SemanticPalette.of(context);
     final sender = senderName;
     final fill = this.fill;
@@ -66,11 +65,11 @@ class ReplyBlock extends StatelessWidget {
         border: Border(
           left: BorderSide(
             color: palette.separator.primary,
-            width: tokens.accentWidth,
+            width: ReplyBlockTokens.accentWidth,
           ),
         ),
       ),
-      padding: EdgeInsets.only(left: tokens.accentGap),
+      padding: const EdgeInsets.only(left: ReplyBlockTokens.accentGap),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: stretch
@@ -87,7 +86,7 @@ class ReplyBlock extends StatelessWidget {
                 weight: Weight.emphasized,
               ),
             ),
-            SizedBox(height: tokens.senderGap),
+            const SizedBox(height: ReplyBlockTokens.senderGap),
           ],
           Text(
             preview,
@@ -103,9 +102,11 @@ class ReplyBlock extends StatelessWidget {
         thumbnail ??
         (showJumpIndicator
             ? Padding(
-                padding: EdgeInsets.only(top: tokens.iconTopOffset),
+                padding: const EdgeInsets.only(
+                  top: ReplyBlockTokens.iconTopOffset,
+                ),
                 child: AppIcon.arrowUp(
-                  size: tokens.iconSize,
+                  size: ReplyBlockTokens.iconSize,
                   color: palette.text.tertiary,
                 ),
               )
@@ -117,7 +118,7 @@ class ReplyBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(child: quoted),
-          SizedBox(width: tokens.iconGap),
+          const SizedBox(width: ReplyBlockTokens.iconGap),
           trailing,
         ],
       );
@@ -125,10 +126,10 @@ class ReplyBlock extends StatelessWidget {
 
     if (fill != null) {
       block = Container(
-        padding: tokens.padding,
+        padding: ReplyBlockTokens.padding,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(tokens.radius),
+          borderRadius: BorderRadius.circular(ReplyBlockTokens.radius),
         ),
         child: block,
       );

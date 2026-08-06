@@ -44,11 +44,19 @@ class TypeStyleToken {
   double get lineHeightPx => lineHeight ?? fontSize * (lineHeightRatio ?? 1.0);
 
   /// This token as a concrete `TextStyle`.
-  TextStyle style({Color? color, Weight weight = Weight.regular}) => TextStyle(
+  ///
+  /// [tight] drops the token's leading so the line box hugs the glyphs, for
+  /// single-line text whose height is set by something else, like a pill's
+  /// padding or a row's slot.
+  TextStyle style({
+    Color? color,
+    Weight weight = Weight.regular,
+    bool tight = false,
+  }) => TextStyle(
     fontSize: fontSize,
     fontWeight: weight == Weight.emphasized ? emphasizedWeight : regularWeight,
     color: color,
-    height: _height,
+    height: tight ? 1.0 : _height,
     letterSpacing: _ls,
   );
 }

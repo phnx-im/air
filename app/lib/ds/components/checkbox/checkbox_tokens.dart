@@ -3,57 +3,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/widgets.dart';
 
 /// Layout tokens for the checkbox.
 ///
 /// Geometry, motion, and the disabled dim tiers only: colors come from the
 /// palette at paint time.
-@immutable
-class CheckboxTokens {
-  const CheckboxTokens({
-    required this.size,
-    required this.radius,
-    required this.borderWidth,
-    required this.checkSize,
-    required this.motion,
-    required this.disabledCheckAlpha,
-    required this.disabledBorderAlpha,
-    required this.disabledFillAlpha,
-  });
-
+abstract final class CheckboxTokens {
   /// Side of the square box.
-  final double size;
+  ///
+  /// One size for both densities: the box already sits at the floor of what
+  /// stays legible, and its host row supplies the tap target.
+  static const double size = S.s20;
 
-  final double radius;
+  static const double radius = CornerRadius.px4;
 
   /// Outline stroke, drawn only while unchecked.
-  final double borderWidth;
+  static const double borderWidth = StrokeWidth.px2;
 
   /// Side of the check glyph inside the box.
-  final double checkSize;
+  static const double checkSize = S.s12;
 
   /// Timing of the checked / unchecked transition.
-  final MotionPreset motion;
+  static const MotionPreset motion = MotionPreset.short;
 
   // Disabled recedes by tier rather than as one flat dim, so the box still
   // reads: the check keeps most of its ink, the outline steps back, the fill
   // steps back furthest.
 
-  final double disabledCheckAlpha;
-  final double disabledBorderAlpha;
-  final double disabledFillAlpha;
-
-  /// One size for both densities: the box already sits at the floor of what
-  /// stays legible, and its host row supplies the tap target.
-  static const CheckboxTokens standard = CheckboxTokens(
-    size: S.s20,
-    radius: CornerRadius.px4,
-    borderWidth: StrokeWidth.px2,
-    checkSize: S.s12,
-    motion: MotionPreset.short,
-    disabledCheckAlpha: Alpha.a80,
-    disabledBorderAlpha: Alpha.a50,
-    disabledFillAlpha: Alpha.a20,
-  );
+  static const double disabledCheckAlpha = Alpha.a80;
+  static const double disabledBorderAlpha = Alpha.a50;
+  static const double disabledFillAlpha = Alpha.a20;
 }

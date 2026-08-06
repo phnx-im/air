@@ -37,10 +37,14 @@ final _navState = NavigationState.home(
   home: HomeNavigationState(chatId: _chat.id),
 );
 
+/// One message per [id], spaced far enough apart that each row stands on its
+/// own rather than joining its neighbor's group.
 UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
   id: id.messageId(),
   chatId: _chat.id,
-  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  timestamp: DateTime.parse(
+    '2023-01-01T00:00:00.000Z',
+  ).add(Duration(minutes: id * 6)),
   message: UiMessage_Content(
     UiContentMessage(
       sender: sender ?? 2.userId(),
@@ -54,7 +58,6 @@ UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
       ),
     ),
   ),
-  position: UiFlightPosition.single,
   status: UiMessageStatus.sent,
   reactions: [],
 );

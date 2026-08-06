@@ -871,11 +871,12 @@ async fn multi_device_linking_a_third_device() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
     // A higher-level group Alice is already a member of. Every device linked
     // from here on onboards into it with a resync, and unlike the self group its
-    // commits are broadcast to all of Alice's emulator queues.
+    // commits are broadcast to all of Alice's emulator queues. The connection
+    // group with bob is a second such group.
     let group_chat_id = setup.create_group(&alice).await;
     setup
         .invite_to_group(group_chat_id, &alice, vec![&bob])
@@ -905,19 +906,19 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
-    // Device 3 onboards into the higher-level group. The leaf it replaces is
-    // already a virtual-client leaf, so the sibling queue is covered by the
-    // regular destination list; the commit must not be fanned out twice. The
-    // same outbound run also stages device 3's key packages via a self-group
-    // commit, so the siblings see exactly two commits, each delivered once.
+    // Device 3 onboards into both higher-level groups. The leaf each onboarding
+    // replaces is already a virtual-client leaf, so the sibling queue is covered
+    // by the regular destination list; neither commit must be fanned out twice.
+    // The same outbound run also stages device 3's key packages via a self-group
+    // commit, so the siblings see exactly three commits, each delivered once.
     device_3.outbound_service().run_once().await;
     for (label, device) in [("1", device_1), ("2", &device_2)] {
         let queued = device.qs_fetch_messages().await.unwrap();
         assert_eq!(
             queued.len(),
-            2,
-            "device {label} should receive device 3's key-package upload and onboarding \
-             commits exactly once each"
+            3,
+            "device {label} should receive device 3's key-package upload and its two \
+             onboarding commits exactly once each"
         );
         let processed = device.fully_process_qs_messages(queued).await;
         assert!(
@@ -927,23 +928,29 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
-    assert!(
-        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
-        "device 3 should have completed onboarding into the higher-level group"
-    );
-    let epoch_and_index = device_1
-        .group_epoch_and_own_index(group_chat_id)
-        .await
-        .unwrap();
-    for (label, device) in [("2", &device_2), ("3", &device_3)] {
-        assert_eq!(
-            device
-                .group_epoch_and_own_index(group_chat_id)
-                .await
-                .unwrap(),
-            epoch_and_index,
-            "device {label} should share the virtual client's leaf and epoch"
+    for (chat_label, onboarded_chat_id) in [
+        ("higher-level group", group_chat_id),
+        ("connection group", connection_chat_id),
+    ] {
+        assert!(
+            !device_3.is_resync_pending(onboarded_chat_id).await.unwrap(),
+            "device 3 should have completed onboarding into the {chat_label}"
         );
+        let epoch_and_index = device_1
+            .group_epoch_and_own_index(onboarded_chat_id)
+            .await
+            .unwrap();
+        for (label, device) in [("2", &device_2), ("3", &device_3)] {
+            assert_eq!(
+                device
+                    .group_epoch_and_own_index(onboarded_chat_id)
+                    .await
+                    .unwrap(),
+                epoch_and_index,
+                "device {label} should share the virtual client's leaf and epoch \
+                 in the {chat_label}"
+            );
+        }
     }
 
     let chat_id = self_chat_id(device_1).await;
@@ -1613,4 +1620,49 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
         new_device.chat(&pending_chat_id).await.is_none(),
         "an unconfirmed connection chat should not be conveyed to a linked device"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test connection groups use a virtual-client leaf", skip_all)]
+async fn connection_groups_use_a_virtual_client_leaf() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let carol = setup.add_user().await;
+    let dave = setup.add_user().await;
+
+    // Alice and bob each link a device first, so both have a self group by the
+    // time the connection group is created and joined.
+    let (_alice_device, _tmp_alice) = link_new_device(&setup, &alice).await;
+    let (_bob_device, _tmp_bob) = link_new_device(&setup, &bob).await;
+
+    // Alice creates the connection group, bob joins it with an external commit.
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    for (label, user) in [("creator", &alice), ("acceptor", &bob)] {
+        assert_eq!(
+            setup
+                .get_user(user)
+                .user()
+                .own_leaf_is_virtual_client(chat_id)
+                .await
+                .unwrap(),
+            Some(true),
+            "the {label} has a self group and must use the virtual client's leaf"
+        );
+    }
+
+    // Carol and dave are single-device, so their leaves stay theirs alone.
+    let single_device_chat_id = setup.connect_users(&carol, &dave).await;
+    for (label, user) in [("creator", &carol), ("acceptor", &dave)] {
+        assert_eq!(
+            setup
+                .get_user(user)
+                .user()
+                .own_leaf_is_virtual_client(single_device_chat_id)
+                .await
+                .unwrap(),
+            Some(false),
+            "a single-device {label} must not build a shared leaf"
+        );
+    }
 }

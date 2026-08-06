@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/corner_dot/corner_dot.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -155,7 +156,7 @@ class _MessageInputState extends State<MessageInput>
               );
             },
           ),
-          SizedBox(width: t.gap),
+          const SizedBox(width: MessageInputTokens.gap),
           Expanded(
             child: Container(
               constraints: BoxConstraints(minHeight: t.buttonSize),
@@ -164,7 +165,9 @@ class _MessageInputState extends State<MessageInput>
                 borderRadius: BorderRadius.circular(t.inputRadius),
                 boxShadow: Effect.elevation(Elevation.flat),
               ),
-              padding: EdgeInsets.symmetric(horizontal: t.fieldPadding),
+              padding: const EdgeInsets.symmetric(
+                horizontal: MessageInputTokens.fieldPadding,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
@@ -185,9 +188,9 @@ class _MessageInputState extends State<MessageInput>
           ),
           _RevealSlot(
             sizeFactor: _scrollBackCurve,
-            gap: t.gap,
+            gap: MessageInputTokens.gap,
             enterScale: MessageInputTokens.scrollBackEnterScale,
-            child: _UnreadDot(
+            child: CornerDot(
               show: widget.scrollBackUnread,
               child: _button(
                 icon: AppIconType.chevronDown,
@@ -198,7 +201,7 @@ class _MessageInputState extends State<MessageInput>
           ),
           _RevealSlot(
             sizeFactor: _sendCurve,
-            gap: t.gap,
+            gap: MessageInputTokens.gap,
             enterScale: MessageInputTokens.sendEnterScale,
             // Send is the one element that breaks the row's neutral chrome:
             // inverted, so the primary action reads at a glance.
@@ -271,38 +274,6 @@ class _RevealSlot extends AnimatedWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Pins a small circular badge to the top-right corner of [child] when [show]
-/// is true, and returns [child] untouched otherwise.
-class _UnreadDot extends StatelessWidget {
-  const _UnreadDot({required this.show, required this.child});
-
-  final bool show;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!show) return child;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        Positioned(
-          top: MessageInputTokens.dotInsetTop,
-          right: MessageInputTokens.dotInsetRight,
-          child: Container(
-            width: MessageInputTokens.dotSize,
-            height: MessageInputTokens.dotSize,
-            decoration: BoxDecoration(
-              color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

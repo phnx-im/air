@@ -15,15 +15,11 @@ class ReactionEmojiMenuTokens {
   const ReactionEmojiMenuTokens({
     required this.headerHeight,
     required this.headerGap,
-    required this.toneGap,
-    required this.sectionTopGap,
-    required this.sectionBottomGap,
     required this.cellExtent,
     required this.cellGap,
     required this.fadeHeight,
     required this.flyoutPadding,
     required this.flyoutItemPadding,
-    required this.flyoutItemGap,
     required this.flyoutHelpGap,
   });
 
@@ -33,14 +29,6 @@ class ReactionEmojiMenuTokens {
 
   /// Gap between the header and the grid below it.
   final double headerGap;
-
-  /// Gap between the search field and the tone button.
-  final double toneGap;
-
-  /// Space above a section title. Generous enough that the title reads as
-  /// belonging to the run under it rather than the one above.
-  final double sectionTopGap;
-  final double sectionBottomGap;
 
   /// Ceiling for a cell's side. The grid fits as many whole cells across as the
   /// width allows, so a cell is at most this wide and usually a little less.
@@ -55,10 +43,19 @@ class ReactionEmojiMenuTokens {
 
   /// Inset around one swatch, which widens its target beyond the glyph.
   final EdgeInsets flyoutItemPadding;
-  final double flyoutItemGap;
 
   /// Gap between the swatches and the caption under them.
   final double flyoutHelpGap;
+
+  /// Gap between the search field and the tone button.
+  static const double toneGap = S.s8;
+
+  /// Space above a section title. Generous enough that the title reads as
+  /// belonging to the run under it rather than the one above.
+  static const double sectionTopGap = S.s16;
+  static const double sectionBottomGap = S.s8;
+
+  static const double flyoutItemGap = S.s4;
 
   static const double toneButtonRadius = CornerRadius.full;
   static const double flyoutRadius = CornerRadius.px32;
@@ -75,15 +72,11 @@ class ReactionEmojiMenuTokens {
   static const ReactionEmojiMenuTokens phone = ReactionEmojiMenuTokens(
     headerHeight: S.s40,
     headerGap: S.s12,
-    toneGap: S.s8,
-    sectionTopGap: S.s16,
-    sectionBottomGap: S.s8,
     cellExtent: S.s64,
     cellGap: S.s4,
     fadeHeight: S.s32,
     flyoutPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
     flyoutItemPadding: EdgeInsets.zero,
-    flyoutItemGap: S.s4,
     flyoutHelpGap: S.s12,
   );
 
@@ -94,18 +87,14 @@ class ReactionEmojiMenuTokens {
   static const ReactionEmojiMenuTokens desktop = ReactionEmojiMenuTokens(
     headerHeight: S.s32,
     headerGap: S.s16,
-    toneGap: S.s8,
-    sectionTopGap: S.s16,
-    sectionBottomGap: S.s8,
     cellExtent: S.s40,
     cellGap: S.s8,
     fadeHeight: S.s24,
     flyoutPadding: EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s16),
     flyoutItemPadding: EdgeInsets.all(S.s4),
-    flyoutItemGap: S.s4,
     flyoutHelpGap: S.s8,
   );
 
-  static ReactionEmojiMenuTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionEmojiMenuTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

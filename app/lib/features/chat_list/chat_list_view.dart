@@ -66,11 +66,11 @@ class _ChatListViewState extends State<ChatListView> {
     final bgColor = chatListBackgroundColor(context);
     // On a phone the list runs behind the status bar, so the header carries
     // that inset itself and the list reserves the bar's height plus the
-    // clearance below it. Read from the same breakpoint the header's tokens
+    // clearance below it. Read from the same device type the header's tokens
     // are, so the two densities can never disagree.
-    final phone = context.breakpoint.isSmall;
+    final phone = DeviceType.isPhone;
     final safeTop = phone ? MediaQuery.paddingOf(context).top : 0.0;
-    final headerHeight = safeTop + ListHeaderTokens.of(context).height;
+    final headerHeight = safeTop + ListHeaderTokens.height;
     final container = AppScrollbar(
       // Start the track below the header rather than letting it run up behind
       // it.

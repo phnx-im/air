@@ -25,7 +25,7 @@ class ReportSpamButton extends StatelessWidget {
 
     return Button(
       onPressed: () => _onPressed(context),
-      size: ButtonSize.of(context),
+      size: ButtonSize.current,
       type: ButtonType.secondary,
       label: loc.reportSpamButton_text,
     );

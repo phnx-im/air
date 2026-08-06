@@ -4,13 +4,45 @@
 
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/app_scrollbar_tokens.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Holds its offset where it is when the content shrinks under it, the way
+/// `AnchoredList` does to keep visible rows in place. Layout then has to
+/// settle the offset itself, and dispatches the resulting scroll start from
+/// inside `performLayout`. A plain list can't stand in: its physics clamp the
+/// offset back into range first, so layout never starts a scroll.
+class _UnclampedController extends ScrollController {
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _UnclampedPosition(
+    physics: physics,
+    context: context,
+    oldPosition: oldPosition,
+  );
+}
+
+class _UnclampedPosition extends ScrollPositionWithSingleContext {
+  _UnclampedPosition({
+    required super.physics,
+    required super.context,
+    super.oldPosition,
+  });
+
+  @override
+  bool correctForNewDimensions(ScrollMetrics old, ScrollMetrics fresh) => true;
+}
+
 Widget _host({
   required bool reverse,
+  int itemCount = 40,
   double trackTop = 0,
   double trackBottom = 0,
+  ScrollController? controller,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -26,8 +58,9 @@ Widget _host({
                 scrollbars: false,
               ),
               child: ListView.builder(
+                controller: controller,
                 reverse: reverse,
-                itemCount: 40,
+                itemCount: itemCount,
                 itemExtent: 50,
                 itemBuilder: (_, i) => Text('item $i'),
               ),
@@ -70,7 +103,7 @@ void main() {
     expect(_opacity(tester), 1);
 
     await tester.pump(AppScrollbarTokens.hideDelay);
-    await tester.pump(AppScrollbarTokens.hideDuration);
+    await tester.pump(Effect.duration(AppScrollbarTokens.hideMotion));
     await tester.pump(const Duration(milliseconds: 16));
     expect(_opacity(tester), 0);
   });
@@ -97,6 +130,32 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, 5000));
     await tester.pump();
     expect(_rect(tester).top, closeTo(2, 0.01));
+  });
+
+  testWidgets('rides out a shrink that restarts the scroll mid-layout', (
+    tester,
+  ) async {
+    final controller = _UnclampedController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(_host(reverse: false, controller: controller));
+    await tester.pumpAndSettle();
+    controller.jumpTo(1600);
+    await tester.pumpAndSettle();
+    await tester.pump(AppScrollbarTokens.hideDelay);
+    await tester.pump(Effect.duration(AppScrollbarTokens.hideMotion));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(_opacity(tester), 0);
+
+    await tester.pumpWidget(
+      _host(reverse: false, itemCount: 10, controller: controller),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    // The settle lands the list back at its end, against the shorter content.
+    final settled = _rect(tester);
+    expect(settled.bottom, closeTo(398, 0.01));
+    expect(settled.height, closeTo(316.8, 0.01));
   });
 
   testWidgets('track insets shorten both ends', (tester) async {

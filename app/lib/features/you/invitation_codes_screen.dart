@@ -50,7 +50,7 @@ class InvitationCodesView extends StatelessWidget {
         alignment: Alignment.topCenter,
         child: Container(
           constraints: DeviceType.isDesktop
-              ? const BoxConstraints(maxWidth: 800)
+              ? const BoxConstraints(maxWidth: Measure.m800)
               : null,
           child: SingleChildScrollView(
             child: Column(
@@ -74,7 +74,7 @@ class InvitationCodesView extends StatelessWidget {
                           size: ButtonSize.small,
                           type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_copyAll,
-                          state: anyUncopiedCode ? .active : .inactive,
+                          state: anyUncopiedCode ? .active : .disabled,
                           onPressed: () => _handleCopyAll(context),
                         );
                       },
@@ -97,7 +97,7 @@ class InvitationCodesView extends StatelessWidget {
                           size: ButtonSize.small,
                           type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_removeUsedCodes,
-                          state: anyCopiedCode ? .active : .inactive,
+                          state: anyCopiedCode ? .active : .disabled,
                           onPressed: () => _handleClearCopied(context),
                         );
                       },

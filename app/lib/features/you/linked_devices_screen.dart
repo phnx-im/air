@@ -171,7 +171,7 @@ class _SingleDevice extends StatelessWidget {
         children: [
           AppIconBadge(
             type: _iconFor(device.platform),
-            size: 24,
+            size: S.s24,
             backgroundColor: palette.backgroundBase.quaternary,
           ),
           Expanded(

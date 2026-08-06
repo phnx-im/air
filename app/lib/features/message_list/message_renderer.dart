@@ -57,11 +57,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// The still a quote shows for a message that is a picture, and null for one
 /// that is not -- text, a file, or an original that never resolved.
-Widget? quotedThumbnail(
-  BuildContext context,
-  UiInReplyToMessage inReplyTo,
-  ReplyBlockTokens tokens,
-) {
+Widget? quotedThumbnail(BuildContext context, UiInReplyToMessage inReplyTo) {
   final attachment = switch (inReplyTo) {
     UiInReplyToMessage_Resolved(:final mimiContent)
         when !mimiContent.isDeleted =>
@@ -71,67 +67,52 @@ Widget? quotedThumbnail(
   if (attachment == null || attachment.imageMetadata == null) return null;
   return AttachmentThumbnail(
     attachment: attachment,
-    size: tokens.thumbSize,
-    radius: tokens.thumbRadius,
+    size: ReplyBlockTokens.thumbSize,
+    radius: ReplyBlockTokens.thumbRadius,
   );
 }
 
 /// Renders one block of a message body.
 ///
-/// Every block reads its geometry from [tokens] and its ink from the message
-/// palette, so a body stays one typographic system however deeply the markdown
-/// nests. Text colour is inherited rather than set: the body style comes from
-/// [MessageText], and a quote re-tints everything under it by overriding that
-/// inherited style once.
+/// Every block reads its geometry from [MessageTextTokens] and its ink from the
+/// message palette, so a body stays one typographic system however deeply the
+/// markdown nests. Text colour is inherited rather than set: the body style
+/// comes from [MessageText], and a quote re-tints everything under it by
+/// overriding that inherited style once.
 Widget buildBlockElement(
   BuildContext context,
   BlockElement block,
   bool isSender,
-  MessageTextTokens tokens,
 ) {
   return switch (block) {
     BlockElement_Paragraph(:final field0) => _paragraph(
       context,
       field0,
       isSender,
-      tokens,
     ),
-    BlockElement_Heading(:final field0) => _heading(
-      context,
-      field0,
-      isSender,
-      tokens,
-    ),
-    BlockElement_Quote(:final field0) => _quote(
-      context,
-      field0,
-      isSender,
-      tokens,
-    ),
+    BlockElement_Heading(:final field0) => _heading(context, field0, isSender),
+    BlockElement_Quote(:final field0) => _quote(context, field0, isSender),
     BlockElement_UnorderedList(:final field0) => _list(
       context,
       field0,
       isSender,
-      tokens,
       offset: null,
     ),
     BlockElement_OrderedList(field0: final offset, field1: final items) =>
-      _list(context, items, isSender, tokens, offset: offset),
+      _list(context, items, isSender, offset: offset),
     BlockElement_Table(:final head, :final rows) => _table(
       context,
       head,
       rows,
       isSender,
-      tokens,
     ),
     BlockElement_HorizontalRule() => _rule(context, isSender),
     BlockElement_CodeBlock(:final field0) => _codeBlock(
       context,
       field0,
       isSender,
-      tokens,
     ),
-    BlockElement_Error(:final field0) => _errorBlock(context, field0, tokens),
+    BlockElement_Error(:final field0) => _errorBlock(context, field0),
   };
 }
 
@@ -139,11 +120,10 @@ Widget _paragraph(
   BuildContext context,
   List<RangedInlineElement> inlines,
   bool isSender,
-  MessageTextTokens tokens,
 ) => Text.rich(
   TextSpan(
     children: inlines
-        .map((child) => buildInlineElement(context, child, isSender, tokens))
+        .map((child) => buildInlineElement(context, child, isSender))
         .toList(),
     // Size only. The colour is the one the body already carries, which is what
     // lets a quote re-tint the paragraphs nested inside it.
@@ -157,11 +137,10 @@ Widget _heading(
   BuildContext context,
   List<RangedInlineElement> inlines,
   bool isSender,
-  MessageTextTokens tokens,
 ) => Text.rich(
   TextSpan(
     children: inlines
-        .map((child) => buildInlineElement(context, child, isSender, tokens))
+        .map((child) => buildInlineElement(context, child, isSender))
         .toList(),
     style: typeScale.body.m.style(weight: Weight.emphasized),
   ),
@@ -174,7 +153,6 @@ Widget _quote(
   BuildContext context,
   List<RangedBlockElement> blocks,
   bool isSender,
-  MessageTextTokens tokens,
 ) {
   final palette = SemanticPalette.of(context);
   return Container(
@@ -182,20 +160,20 @@ Widget _quote(
       border: Border(
         left: BorderSide(
           color: palette.separator.primary,
-          width: tokens.quoteBarWidth,
+          width: MessageTextTokens.quoteBarWidth,
         ),
       ),
     ),
-    padding: EdgeInsets.only(left: tokens.quoteGap),
+    padding: const EdgeInsets.only(left: MessageTextTokens.quoteGap),
     child: DefaultTextStyle.merge(
       style: TextStyle(color: palette.text.secondary),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: tokens.blockGap,
+        spacing: MessageTextTokens.blockGap,
         children: [
           for (final inner in blocks)
-            buildBlockElement(context, inner.element, isSender, tokens),
+            buildBlockElement(context, inner.element, isSender),
         ],
       ),
     ),
@@ -210,32 +188,28 @@ Widget _quote(
 Widget _list(
   BuildContext context,
   List<List<RangedBlockElement>> items,
-  bool isSender,
-  MessageTextTokens tokens, {
+  bool isSender, {
   required BigInt? offset,
 }) {
   // Sized to the list's last number, which is its longest.
   final markerWidth = offset == null || items.isEmpty
       ? null
-      : _numberColumnWidth(
-          context,
-          offset + BigInt.from(items.length - 1),
-          tokens,
-        );
+      : _numberColumnWidth(context, offset + BigInt.from(items.length - 1));
 
   return Padding(
-    padding: EdgeInsets.symmetric(vertical: tokens.listPaddingY),
+    padding: const EdgeInsets.symmetric(
+      vertical: MessageTextTokens.listPaddingY,
+    ),
     child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: tokens.listItemGap,
+      spacing: MessageTextTokens.listItemGap,
       children: [
         for (final (index, item) in items.indexed)
           _listItem(
             context,
             _TaskMarker.take(item),
             isSender,
-            tokens,
             number: offset == null ? null : offset + BigInt.from(index),
             numberWidth: markerWidth,
           ),
@@ -247,8 +221,7 @@ Widget _list(
 Widget _listItem(
   BuildContext context,
   _TaskMarker item,
-  bool isSender,
-  MessageTextTokens tokens, {
+  bool isSender, {
   required BigInt? number,
   required double? numberWidth,
 }) {
@@ -262,12 +235,7 @@ Widget _listItem(
   final line = typeScale.body.regular.lineHeightPx;
   final Widget marker;
   if (item.checked != null) {
-    marker = _Checkbox(
-      checked: item.checked!,
-      isSender: isSender,
-      tokens: tokens,
-      line: line,
-    );
+    marker = _Checkbox(checked: item.checked!, isSender: isSender, line: line);
   } else if (number != null) {
     marker = SizedBox(
       width: numberWidth,
@@ -278,7 +246,11 @@ Widget _listItem(
       ),
     );
   } else {
-    marker = _Bullet(color: ink, size: tokens.bulletSize, line: line);
+    marker = _Bullet(
+      color: ink,
+      size: MessageTextTokens.bulletSize,
+      line: line,
+    );
   }
 
   return Row(
@@ -286,16 +258,16 @@ Widget _listItem(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       marker,
-      SizedBox(width: tokens.listMarkerGap),
+      const SizedBox(width: MessageTextTokens.listMarkerGap),
       Flexible(
         fit: FlexFit.loose,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: tokens.blockGap,
+          spacing: MessageTextTokens.blockGap,
           children: [
             for (final block in item.blocks)
-              buildBlockElement(context, block.element, isSender, tokens),
+              buildBlockElement(context, block.element, isSender),
           ],
         ),
       ),
@@ -309,18 +281,16 @@ TextStyle _numberStyle([Color? color]) => typeScale.body.regular
 
 /// Width of the column a numbered list's markers sit in: its own longest
 /// number, so every item's text starts at the same place.
-double _numberColumnWidth(
-  BuildContext context,
-  BigInt longest,
-  MessageTextTokens tokens,
-) {
+double _numberColumnWidth(BuildContext context, BigInt longest) {
   final painter = TextPainter(
     text: TextSpan(text: '$longest.', style: _numberStyle()),
     textDirection: Directionality.of(context),
   )..layout();
   final width = painter.width;
   painter.dispose();
-  return width < tokens.listMarkerWidth ? tokens.listMarkerWidth : width;
+  return width < MessageTextTokens.listMarkerWidth
+      ? MessageTextTokens.listMarkerWidth
+      : width;
 }
 
 Widget _table(
@@ -328,18 +298,17 @@ Widget _table(
   List<List<RangedBlockElement>> head,
   List<List<List<RangedBlockElement>>> rows,
   bool isSender,
-  MessageTextTokens tokens,
 ) {
   final palette = SemanticPalette.of(context);
   Widget cell(List<RangedBlockElement> blocks) => Padding(
-    padding: tokens.tableCellPadding,
+    padding: MessageTextTokens.tableCellPadding,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: tokens.blockGap,
+      spacing: MessageTextTokens.blockGap,
       children: [
         for (final block in blocks)
-          buildBlockElement(context, block.element, isSender, tokens),
+          buildBlockElement(context, block.element, isSender),
       ],
     ),
   );
@@ -349,8 +318,8 @@ Widget _table(
       color: isSender
           ? palette.message.selfTableBorder
           : palette.message.otherTableBorder,
-      width: tokens.tableBorderWidth,
-      borderRadius: BorderRadius.circular(tokens.tableRadius),
+      width: MessageTextTokens.tableBorderWidth,
+      borderRadius: BorderRadius.circular(MessageTextTokens.tableRadius),
     ),
     defaultColumnWidth: const IntrinsicColumnWidth(),
     children: [
@@ -383,14 +352,13 @@ Widget _codeBlock(
   BuildContext context,
   List<RangedCodeBlock> lines,
   bool isSender,
-  MessageTextTokens tokens,
 ) {
   final palette = SemanticPalette.of(context);
   return Container(
-    padding: tokens.codePadding,
+    padding: MessageTextTokens.codePadding,
     decoration: BoxDecoration(
       color: palette.fill.tertiary,
-      borderRadius: BorderRadius.circular(tokens.codeRadius),
+      borderRadius: BorderRadius.circular(MessageTextTokens.codeRadius),
     ),
     child: Text.rich(
       TextSpan(
@@ -407,19 +375,15 @@ Widget _codeBlock(
   );
 }
 
-Widget _errorBlock(
-  BuildContext context,
-  String message,
-  MessageTextTokens tokens,
-) {
+Widget _errorBlock(BuildContext context, String message) {
   final palette = SemanticPalette.of(context);
   return Container(
-    padding: tokens.codePadding,
+    padding: MessageTextTokens.codePadding,
     decoration: BoxDecoration(
       border: Border(
         left: BorderSide(
           color: palette.separator.primary,
-          width: tokens.quoteBarWidth,
+          width: MessageTextTokens.quoteBarWidth,
         ),
       ),
       color: palette.function.warning.primary,
@@ -487,13 +451,11 @@ class _Checkbox extends StatelessWidget {
   const _Checkbox({
     required this.checked,
     required this.isSender,
-    required this.tokens,
     required this.line,
   });
 
   final bool checked;
   final bool isSender;
-  final MessageTextTokens tokens;
 
   /// Height of one line of the item's text, which the box centres on.
   final double line;
@@ -503,17 +465,19 @@ class _Checkbox extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final message = palette.message;
     return SizedBox(
-      width: tokens.checkboxSize,
+      width: MessageTextTokens.checkboxSize,
       height: line,
       child: Center(
         child: Container(
-          width: tokens.checkboxSize,
-          height: tokens.checkboxSize,
+          width: MessageTextTokens.checkboxSize,
+          height: MessageTextTokens.checkboxSize,
           decoration: BoxDecoration(
             // The page background, not a message fill: the box has to read
             // against either bubble, and a tint of one of them does not.
             color: palette.backgroundBase.primary,
-            borderRadius: BorderRadius.circular(tokens.checkboxRadius),
+            borderRadius: BorderRadius.circular(
+              MessageTextTokens.checkboxRadius,
+            ),
           ),
           child: checked
               ? CustomPaint(
@@ -521,7 +485,7 @@ class _Checkbox extends StatelessWidget {
                     color: isSender
                         ? message.selfCheckboxCheck
                         : message.otherCheckboxCheck,
-                    strokeWidth: tokens.checkmarkStrokeWidth,
+                    strokeWidth: MessageTextTokens.checkmarkStrokeWidth,
                   ),
                 )
               : null,
@@ -562,8 +526,7 @@ class _CheckPainter extends CustomPainter {
 InlineSpan buildInlineElement(
   BuildContext context,
   RangedInlineElement inline,
-  bool isSender,
-  MessageTextTokens tokens, {
+  bool isSender, {
   Uri? destUrl,
 }) {
   final palette = SemanticPalette.of(context);
@@ -588,7 +551,6 @@ InlineSpan buildInlineElement(
               context,
               child,
               isSender,
-              tokens,
               destUrl: _parseLinkDest(destUrl),
             ),
           )
@@ -601,7 +563,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Bold(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender, tokens))
+          .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -611,7 +573,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender, tokens))
+          .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -621,7 +583,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender, tokens))
+          .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -631,7 +593,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender, tokens))
+          .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
       style: TextStyle(
         decoration: TextDecoration.combine([
@@ -647,12 +609,11 @@ InlineSpan buildInlineElement(
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: EdgeInsets.only(right: tokens.listMarkerGap),
+        padding: const EdgeInsets.only(right: MessageTextTokens.listMarkerGap),
         child: _Checkbox(
           checked: field0,
           isSender: isSender,
-          tokens: tokens,
-          line: tokens.checkboxSize,
+          line: MessageTextTokens.checkboxSize,
         ),
       ),
     ),

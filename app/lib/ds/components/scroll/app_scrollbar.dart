@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:air/ds/components/scroll/app_scrollbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/util/frame.dart';
 import 'package:flutter/widgets.dart';
 
 /// Overlays [child] with a scrollbar thumb that shows while the content moves
@@ -34,7 +35,7 @@ class AppScrollbar extends StatefulWidget {
   State<AppScrollbar> createState() => _AppScrollbarState();
 }
 
-class _AppScrollbarState extends State<AppScrollbar> {
+class _AppScrollbarState extends State<AppScrollbar> with FrameSafeState {
   /// We hold it in a notifier rather than in state so a scroll repaints the
   /// thumb alone and never rebuilds the list behind it.
   final _thumb = ValueNotifier<_ThumbState>(_ThumbState.hidden);
@@ -56,7 +57,7 @@ class _AppScrollbarState extends State<AppScrollbar> {
   }
 
   bool _onScroll(ScrollNotification notification) {
-    _track(notification.depth, notification.metrics, scrolling: true);
+    _track(notification.depth, notification.metrics, scrolling: !isMidFrame);
     return false;
   }
 
@@ -65,10 +66,11 @@ class _AppScrollbarState extends State<AppScrollbar> {
     // below the one this bar stands for.
     if (depth != 0 || metrics.axis != Axis.vertical) return;
 
-    _thumb.value = _ThumbState.of(
+    final next = _ThumbState.of(
       metrics,
       visible: scrolling || _thumb.value.visible,
     );
+    runFrameSafe(() => _thumb.value = next);
     if (!scrolling) return;
 
     _hideTimer?.cancel();
@@ -82,7 +84,7 @@ class _AppScrollbarState extends State<AppScrollbar> {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = AppScrollbarTokens.of(context);
+    final tokens = AppScrollbarTokens.current;
     final color = SemanticPalette.of(context).text.quaternary;
 
     return NotificationListener<ScrollMetricsNotification>(
@@ -138,8 +140,8 @@ class _Thumb extends StatelessWidget {
     // position to mark.
     if (thumb.extentRatio >= 1) return const SizedBox.shrink();
 
-    final top = trackTop + tokens.trackInset;
-    final bottom = trackBottom + tokens.trackInset;
+    final top = trackTop + AppScrollbarTokens.trackInset;
+    final bottom = trackBottom + AppScrollbarTokens.trackInset;
     final trackHeight = thumb.viewportHeight - top - bottom;
     if (trackHeight <= 0) return const SizedBox.shrink();
 
@@ -153,19 +155,19 @@ class _Thumb extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(
           top: top + thumb.offsetRatio * (trackHeight - height),
-          right: tokens.rightInset,
+          right: AppScrollbarTokens.rightInset,
         ),
         child: AnimatedOpacity(
           opacity: thumb.visible ? 1 : 0,
           duration: thumb.visible
               ? Duration.zero
-              : AppScrollbarTokens.hideDuration,
+              : Effect.duration(AppScrollbarTokens.hideMotion),
           child: Container(
-            width: tokens.width,
+            width: AppScrollbarTokens.width,
             height: height,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(tokens.radius),
+              borderRadius: BorderRadius.circular(AppScrollbarTokens.radius),
             ),
           ),
         ),

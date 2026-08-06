@@ -9,35 +9,22 @@ import 'package:flutter/widgets.dart';
 ///
 /// The fallback gradients are a fixed decorative scale rather than a themeable
 /// semantic, so they read primitives directly and stay put in either theme.
-@immutable
-class AvatarTokens {
-  const AvatarTokens({
-    required this.letterRatio,
-    required this.gradientBegin,
-    required this.gradientEnd,
-  });
-
+abstract final class AvatarTokens {
   /// Initial-letter size as a fraction of the circle's diameter. Call sites
   /// size avatars anywhere from a tab-bar glyph to a profile header, so the
   /// letter tracks the circle instead of stepping through fixed tiers.
-  final double letterRatio;
+  static const double letterRatio = 0.5;
 
-  final Alignment gradientBegin;
-  final Alignment gradientEnd;
+  static const Alignment gradientBegin = Alignment.topLeft;
+  static const Alignment gradientEnd = Alignment.bottomRight;
 
-  double letterSize(double diameter) => diameter * letterRatio;
+  static double letterSize(double diameter) => diameter * letterRatio;
 
   /// The fallback gradient [seed] hashes onto.
-  LinearGradient gradientFor(String? seed) => LinearGradient(
+  static LinearGradient gradientFor(String? seed) => LinearGradient(
     colors: _hueGradients[_hueIndex(seed)],
     begin: gradientBegin,
     end: gradientEnd,
-  );
-
-  static const AvatarTokens standard = AvatarTokens(
-    letterRatio: 0.5,
-    gradientBegin: Alignment.topLeft,
-    gradientEnd: Alignment.bottomRight,
   );
 
   static const Shade _startShade = Shade.s300;

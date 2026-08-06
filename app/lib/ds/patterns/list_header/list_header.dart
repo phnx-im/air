@@ -49,10 +49,10 @@ class ListHeader extends StatelessWidget {
     final slotWidth = math.max(tokens.slotSize, tokens.actionSize);
 
     return SizedBox(
-      height: tokens.height,
+      height: ListHeaderTokens.height,
       child: Padding(
         padding: EdgeInsets.only(
-          left: tokens.paddingLeft,
+          left: ListHeaderTokens.paddingLeft,
           right: tokens.paddingRight,
         ),
         child: Row(
@@ -68,7 +68,7 @@ class ListHeader extends StatelessWidget {
               // over-long title ellipsize instead of pushing into the buttons.
               child: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: hasSlot ? tokens.titleGap : 0,
+                  horizontal: hasSlot ? ListHeaderTokens.titleGap : 0,
                 ),
                 child: Center(
                   child: (title != null && tokens.showTitle)
@@ -192,9 +192,11 @@ class _Title extends StatelessWidget {
               // Emphasized, like the modal header's: this label names the
               // screen, where the chat header's pill carries a person's name
               // and stays plain.
-              style: typeScale.body.regular
-                  .style(color: palette.text.primary, weight: Weight.emphasized)
-                  .copyWith(height: 1.0),
+              style: typeScale.body.regular.style(
+                color: palette.text.primary,
+                weight: Weight.emphasized,
+                tight: true,
+              ),
             ),
           ),
         ],

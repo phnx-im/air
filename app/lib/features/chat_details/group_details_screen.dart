@@ -50,12 +50,10 @@ class GroupDetailsScreen extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final tokens = ModalShellTokens.of(context);
-
     return Padding(
       padding: EdgeInsets.only(
-        left: tokens.contentPaddingLeft,
-        right: tokens.contentPaddingRight,
+        left: ModalShellTokens.contentPaddingLeft,
+        right: ModalShellTokens.contentPaddingRight,
         // A full-screen modal ends above the home indicator, a card ends at its
         // own edge.
         bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
@@ -162,7 +160,7 @@ class _PeopleSection extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final rowTokens = ListRowTokens.of(context);
+    final rowTokens = ListRowTokens.current;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,7 +181,7 @@ class _PeopleSection extends HookWidget {
         ),
 
         ListGroup(
-          tokens: ListGroupTokens.of(context),
+          tokens: ListGroupTokens.current,
           color: ListGroup.noFill,
           radius: CornerRadius.px12,
           children: [
@@ -269,7 +267,7 @@ class _GroupActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final size = ButtonSize.of(context);
+    final size = ButtonSize.current;
 
     return Row(
       children: [

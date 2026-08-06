@@ -17,13 +17,11 @@ import 'package:flutter/widgets.dart';
 class AppCheckbox extends StatelessWidget {
   const AppCheckbox({
     super.key,
-    required this.tokens,
     required this.value,
     this.onChanged,
     this.enabled = true,
   });
 
-  final CheckboxTokens tokens;
   final bool value;
 
   /// Reports the value the box would flip to. Null leaves the box inert and
@@ -36,46 +34,45 @@ class AppCheckbox extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final interactive = enabled && onChanged != null;
-    final duration = Effect.duration(tokens.motion);
+    final duration = Effect.duration(CheckboxTokens.motion);
 
     Color dim(Color color, double tier) =>
         interactive ? color : color.withValues(alpha: color.a * tier);
 
     final fill = dim(
       palette.function.neutral.toggleBlack,
-      tokens.disabledFillAlpha,
+      CheckboxTokens.disabledFillAlpha,
     );
-    final border = dim(palette.text.secondary, tokens.disabledBorderAlpha);
+    final border = dim(
+      palette.text.secondary,
+      CheckboxTokens.disabledBorderAlpha,
+    );
     final check = dim(
       palette.function.neutral.toggleWhite,
-      tokens.disabledCheckAlpha,
+      CheckboxTokens.disabledCheckAlpha,
     );
 
-    final phone = DeviceType.isPhone;
-
     return StateLayer(
-      borderRadius: tokens.radius,
+      borderRadius: CheckboxTokens.radius,
       // The wash sits on the box once it's filled, on the page base while the
       // box is only an outline and its footprint shows through.
       surface: value ? fill : palette.backgroundBase.primary,
       enabled: enabled,
       onTap: onChanged == null ? null : () => onChanged!(!value),
-      hover: !phone,
-      pressScale: phone,
       background: AnimatedContainer(
         duration: duration,
         curve: Effect.easeOutQuart,
         decoration: BoxDecoration(
           color: value ? fill : null,
-          borderRadius: BorderRadius.circular(tokens.radius),
+          borderRadius: BorderRadius.circular(CheckboxTokens.radius),
           border: value
               ? null
-              : Border.all(color: border, width: tokens.borderWidth),
+              : Border.all(color: border, width: CheckboxTokens.borderWidth),
         ),
       ),
       child: SizedBox(
-        width: tokens.size,
-        height: tokens.size,
+        width: CheckboxTokens.size,
+        height: CheckboxTokens.size,
         child: Center(
           // The glyph grows out of the box rather than appearing whole, so the
           // fill and the check land together.
@@ -89,7 +86,7 @@ class AppCheckbox extends StatelessWidget {
               curve: Effect.easeOutQuart,
               child: AppIcon(
                 type: AppIconType.check,
-                size: tokens.checkSize,
+                size: CheckboxTokens.checkSize,
                 color: check,
               ),
             ),

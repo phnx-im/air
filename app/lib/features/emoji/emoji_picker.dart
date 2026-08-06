@@ -61,7 +61,7 @@ class EmojiPicker extends HookWidget {
     ]);
 
     return ReactionEmojiMenu(
-      tokens: ReactionEmojiMenuTokens.of(context),
+      tokens: ReactionEmojiMenuTokens.current,
       sections: sections,
       searchHint: loc.emojiPicker_searchHint,
       emptyLabel: loc.emojiPicker_empty,

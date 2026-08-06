@@ -12,11 +12,7 @@ import 'package:flutter/widgets.dart';
 /// at the call site.
 @immutable
 class CounterTokens {
-  const CounterTokens({
-    required this.height,
-    required this.minWidth,
-    required this.padding,
-  });
+  const CounterTokens({required this.height, required this.minWidth});
 
   final double height;
 
@@ -24,7 +20,7 @@ class CounterTokens {
   /// rather than a circle.
   final double minWidth;
 
-  final EdgeInsets padding;
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: S.s8);
 
   static const double radius = CornerRadius.full;
 
@@ -39,15 +35,12 @@ class CounterTokens {
   static const CounterTokens phone = CounterTokens(
     height: S.s24,
     minWidth: S.s40,
-    padding: EdgeInsets.symmetric(horizontal: S.s8),
   );
 
   static const CounterTokens desktop = CounterTokens(
     height: S.s20,
     minWidth: S.s32,
-    padding: EdgeInsets.symmetric(horizontal: S.s8),
   );
 
-  static CounterTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static CounterTokens get current => DeviceType.isPhone ? phone : desktop;
 }

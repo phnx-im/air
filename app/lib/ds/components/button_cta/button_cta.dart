@@ -48,7 +48,7 @@ class ButtonCTA extends StatelessWidget {
     };
 
     final labelColor = palette.text.tertiary;
-    final fade = onPressed != null ? 1.0 : ButtonIconTokens.disabledOpacity;
+    final fade = onPressed != null ? 1.0 : StateTokens.disabledContent;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -62,12 +62,13 @@ class ButtonCTA extends StatelessWidget {
           fill: fill,
           onPressed: onPressed,
         ),
-        SizedBox(height: tokens.labelGap),
+        const SizedBox(height: ButtonCTATokens.labelGap),
         Text(
           label,
-          style: typeScale.body.regular
-              .style(color: labelColor.withValues(alpha: labelColor.a * fade))
-              .copyWith(height: 1.0),
+          style: typeScale.body.regular.style(
+            color: labelColor.withValues(alpha: labelColor.a * fade),
+            tight: true,
+          ),
         ),
       ],
     );

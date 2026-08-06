@@ -1356,9 +1356,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiEventMessage dco_decode_ui_event_message(dynamic raw);
 
   @protected
-  UiFlightPosition dco_decode_ui_flight_position(dynamic raw);
-
-  @protected
   UiImageMetadata dco_decode_ui_image_metadata(dynamic raw);
 
   @protected
@@ -2823,9 +2820,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiEventMessage sse_decode_ui_event_message(SseDeserializer deserializer);
-
-  @protected
-  UiFlightPosition sse_decode_ui_flight_position(SseDeserializer deserializer);
 
   @protected
   UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer);
@@ -4631,12 +4625,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_event_message(
     UiEventMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_flight_position(
-    UiFlightPosition self,
     SseSerializer serializer,
   );
 

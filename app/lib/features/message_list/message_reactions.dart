@@ -71,7 +71,7 @@ void warmUpReactionEmojis(BuildContext context) {
 /// The chip grows with the text scaler, so the reserve grows with it too.
 double reactionsReservedBelow(BuildContext context, bool hasReactions) {
   if (!hasReactions) return 0;
-  final tokens = ReactionChipTokens.of(context);
+  final tokens = ReactionChipTokens.current;
   return MediaQuery.textScalerOf(context).scale(tokens.minHeight) +
       ReactionChipTokens.cropWidth * 2;
 }
@@ -193,8 +193,8 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
                   scale: _chipScale,
                   alignment: Alignment.bottomLeft,
                   child: ReactionStrip(
-                    tokens: ReactionStripTokens.of(context),
-                    chipTokens: ReactionChipTokens.of(context),
+                    tokens: ReactionStripTokens.current,
+                    chipTokens: ReactionChipTokens.current,
                     groups: [
                       for (final reaction in _reactions)
                         ReactionGroup(
@@ -347,7 +347,7 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
           scale: Tween<double>(begin: 0.92, end: 1.0).animate(animation),
           alignment: Alignment.bottomCenter,
           child: ReactionBar(
-            tokens: ReactionBarTokens.of(context),
+            tokens: ReactionBarTokens.current,
             emojis: quickReactionEmojisFor(skinTone),
             onPick: onReact,
             onMore: onMore,
@@ -372,7 +372,7 @@ Future<void> showWhoReactedSheet({
   final platform = Theme.of(context).platform;
   final isMobile =
       platform == TargetPlatform.android || platform == TargetPlatform.iOS;
-  final tokens = ReactionDetailsTokens.of(context);
+  final tokens = ReactionDetailsTokens.current;
   final entries = _reactorEntries(
     context,
     reactions: reactions,

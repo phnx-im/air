@@ -26,7 +26,7 @@ class BlockContactButton extends StatelessWidget {
 
     return Button(
       onPressed: () => _block(context),
-      size: ButtonSize.of(context),
+      size: ButtonSize.current,
       type: ButtonType.secondary,
       tone: ButtonTone.danger,
       label: loc.blockContactButton_text,

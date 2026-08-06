@@ -297,7 +297,7 @@ as bool,
 /// @nodoc
 mixin _$UiChatMessage {
 
- ChatId get chatId; MessageId get id; DateTime get timestamp; UiMessage get message; UiInReplyToMessage? get inReplyToMessage; UiFlightPosition get position; UiMessageStatus get status; List<UiReaction> get reactions;
+ ChatId get chatId; MessageId get id; DateTime get timestamp; UiMessage get message; UiInReplyToMessage? get inReplyToMessage; UiMessageStatus get status; List<UiReaction> get reactions;
 /// Create a copy of UiChatMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -308,16 +308,16 @@ $UiChatMessageCopyWith<UiChatMessage> get copyWith => _$UiChatMessageCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.position, position) || other.position == position)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.reactions, reactions));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.reactions, reactions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,position,status,const DeepCollectionEquality().hash(reactions));
+int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,status,const DeepCollectionEquality().hash(reactions));
 
 @override
 String toString() {
-  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, position: $position, status: $status, reactions: $reactions)';
+  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, status: $status, reactions: $reactions)';
 }
 
 
@@ -328,7 +328,7 @@ abstract mixin class $UiChatMessageCopyWith<$Res>  {
   factory $UiChatMessageCopyWith(UiChatMessage value, $Res Function(UiChatMessage) _then) = _$UiChatMessageCopyWithImpl;
 @useResult
 $Res call({
- ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiInReplyToMessage? inReplyToMessage, UiFlightPosition position, UiMessageStatus status, List<UiReaction> reactions
+ ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiInReplyToMessage? inReplyToMessage, UiMessageStatus status, List<UiReaction> reactions
 });
 
 
@@ -345,15 +345,14 @@ class _$UiChatMessageCopyWithImpl<$Res>
 
 /// Create a copy of UiChatMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chatId = null,Object? id = null,Object? timestamp = null,Object? message = null,Object? inReplyToMessage = freezed,Object? position = null,Object? status = null,Object? reactions = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chatId = null,Object? id = null,Object? timestamp = null,Object? message = null,Object? inReplyToMessage = freezed,Object? status = null,Object? reactions = null,}) {
   return _then(_self.copyWith(
 chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
 as ChatId,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as MessageId,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
 as DateTime,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as UiMessage,inReplyToMessage: freezed == inReplyToMessage ? _self.inReplyToMessage : inReplyToMessage // ignore: cast_nullable_to_non_nullable
-as UiInReplyToMessage?,position: null == position ? _self.position : position // ignore: cast_nullable_to_non_nullable
-as UiFlightPosition,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as UiInReplyToMessage?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as UiMessageStatus,reactions: null == reactions ? _self.reactions : reactions // ignore: cast_nullable_to_non_nullable
 as List<UiReaction>,
   ));
@@ -388,7 +387,7 @@ $UiInReplyToMessageCopyWith<$Res>? get inReplyToMessage {
 
 
 class _UiChatMessage implements UiChatMessage {
-  const _UiChatMessage({required this.chatId, required this.id, required this.timestamp, required this.message, this.inReplyToMessage, required this.position, required this.status, required final  List<UiReaction> reactions}): _reactions = reactions;
+  const _UiChatMessage({required this.chatId, required this.id, required this.timestamp, required this.message, this.inReplyToMessage, required this.status, required final  List<UiReaction> reactions}): _reactions = reactions;
   
 
 @override final  ChatId chatId;
@@ -396,7 +395,6 @@ class _UiChatMessage implements UiChatMessage {
 @override final  DateTime timestamp;
 @override final  UiMessage message;
 @override final  UiInReplyToMessage? inReplyToMessage;
-@override final  UiFlightPosition position;
 @override final  UiMessageStatus status;
  final  List<UiReaction> _reactions;
 @override List<UiReaction> get reactions {
@@ -416,16 +414,16 @@ _$UiChatMessageCopyWith<_UiChatMessage> get copyWith => __$UiChatMessageCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.position, position) || other.position == position)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._reactions, _reactions));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._reactions, _reactions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,position,status,const DeepCollectionEquality().hash(_reactions));
+int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,status,const DeepCollectionEquality().hash(_reactions));
 
 @override
 String toString() {
-  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, position: $position, status: $status, reactions: $reactions)';
+  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, status: $status, reactions: $reactions)';
 }
 
 
@@ -436,7 +434,7 @@ abstract mixin class _$UiChatMessageCopyWith<$Res> implements $UiChatMessageCopy
   factory _$UiChatMessageCopyWith(_UiChatMessage value, $Res Function(_UiChatMessage) _then) = __$UiChatMessageCopyWithImpl;
 @override @useResult
 $Res call({
- ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiInReplyToMessage? inReplyToMessage, UiFlightPosition position, UiMessageStatus status, List<UiReaction> reactions
+ ChatId chatId, MessageId id, DateTime timestamp, UiMessage message, UiInReplyToMessage? inReplyToMessage, UiMessageStatus status, List<UiReaction> reactions
 });
 
 
@@ -453,15 +451,14 @@ class __$UiChatMessageCopyWithImpl<$Res>
 
 /// Create a copy of UiChatMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chatId = null,Object? id = null,Object? timestamp = null,Object? message = null,Object? inReplyToMessage = freezed,Object? position = null,Object? status = null,Object? reactions = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chatId = null,Object? id = null,Object? timestamp = null,Object? message = null,Object? inReplyToMessage = freezed,Object? status = null,Object? reactions = null,}) {
   return _then(_UiChatMessage(
 chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
 as ChatId,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as MessageId,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
 as DateTime,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as UiMessage,inReplyToMessage: freezed == inReplyToMessage ? _self.inReplyToMessage : inReplyToMessage // ignore: cast_nullable_to_non_nullable
-as UiInReplyToMessage?,position: null == position ? _self.position : position // ignore: cast_nullable_to_non_nullable
-as UiFlightPosition,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as UiInReplyToMessage?,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as UiMessageStatus,reactions: null == reactions ? _self._reactions : reactions // ignore: cast_nullable_to_non_nullable
 as List<UiReaction>,
   ));

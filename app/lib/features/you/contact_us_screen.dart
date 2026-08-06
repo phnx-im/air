@@ -2,13 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
+import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -37,8 +40,6 @@ class ContactUsScreen extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
 
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         clipBehavior: Clip.none,
@@ -62,28 +63,12 @@ class ContactUsScreen extends StatelessWidget {
             alignment: Alignment.topCenter,
             child: Container(
               constraints: DeviceType.isDesktop
-                  ? const BoxConstraints(maxWidth: 800)
+                  ? const BoxConstraints(maxWidth: Measure.m800)
                   : null,
-              child: Theme(
-                data: theme.copyWith(
-                  inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: S.s8,
-                      vertical: S.s8,
-                    ),
-                    isDense: true,
-                    border: _outlineInputBorder,
-                    enabledBorder: _outlineInputBorder,
-                    focusedBorder: _outlineInputBorder,
-                    filled: true,
-                    fillColor: palette.backgroundBase.tertiary,
-                  ),
-                ),
-                child: _EmailForm(
-                  initialBody: initialBody,
-                  initialSubject: initialSubject,
-                  launcher: launcher ?? _UrlLauncher(),
-                ),
+              child: _EmailForm(
+                initialBody: initialBody,
+                initialSubject: initialSubject,
+                launcher: launcher ?? _UrlLauncher(),
               ),
             ),
           ),
@@ -94,9 +79,11 @@ class ContactUsScreen extends StatelessWidget {
 }
 
 class _EmailForm extends HookWidget {
-  _EmailForm({this.initialBody, this.initialSubject, required this.launcher});
-
-  final _formKey = GlobalKey<FormState>();
+  const _EmailForm({
+    this.initialBody,
+    this.initialSubject,
+    required this.launcher,
+  });
 
   final String? initialBody;
   final String? initialSubject;
@@ -107,6 +94,7 @@ class _EmailForm extends HookWidget {
     final bodyController = useTextEditingController(text: initialBody);
     final bodyError = useState<String?>(null);
     final selectedSubject = useState<String?>(initialSubject);
+    final subjectError = useState<String?>(null);
     final isUploadingLogs = useState(false);
     final debugLogsUrl = useState<String?>(null);
 
@@ -140,97 +128,86 @@ class _EmailForm extends HookWidget {
 
     assert(initialSubject == null || subjects.contains(initialSubject));
 
-    return Form(
-      key: _formKey,
-      child: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Spacing for the label of Subject Dropdown field (when selected)
-            const SizedBox(height: S.s8),
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const SizedBox(height: S.s8),
 
-            // Subject Dropdown
-            DropdownButtonFormField<String>(
-              initialValue: initialSubject,
-              decoration: InputDecoration(
-                labelText: loc.contactUsScreen_subject,
-              ),
-              items: subjects
-                  .map(
-                    (subject) =>
-                        DropdownMenuItem(value: subject, child: Text(subject)),
-                  )
-                  .toList(),
-              onChanged: (value) => selectedSubject.value = value,
-              validator: (value) => _validateSubject(value, loc),
-            ),
-            const SizedBox(height: S.s16),
+          _SubjectField(
+            subjects: subjects,
+            selected: selectedSubject.value,
+            errorText: subjectError.value,
+            onSelected: (subject) {
+              selectedSubject.value = subject;
+              subjectError.value = null;
+            },
+          ),
+          const SizedBox(height: S.s16),
 
-            // Email Body
-            AppTextInput(
-              tokens: AppTextInputTokens.of(context),
-              controller: bodyController,
-              label: loc.contactUsScreen_body,
-              errorText: bodyError.value,
-              minLines: 6,
-              maxLines: 6,
-            ),
-            const SizedBox(height: S.s8),
+          // Email Body
+          AppTextInput(
+            tokens: AppTextInputTokens.current,
+            controller: bodyController,
+            label: loc.contactUsScreen_body,
+            errorText: bodyError.value,
+            minLines: 6,
+            maxLines: 6,
+          ),
+          const SizedBox(height: S.s8),
 
-            // Include logs checkbox
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: isUploadingLogs.value ? null : onToggleLogs,
-              child: SizedBox(
-                // The box paints at 20px, so the row carries the tap target.
-                height: S.s48,
-                child: Row(
-                  spacing: S.s12,
-                  children: [
-                    if (isUploadingLogs.value)
-                      const SizedBox(
-                        width: S.s20,
-                        height: S.s20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: StrokeWidth.px2,
-                        ),
-                      )
-                    else
-                      AppCheckbox(
-                        tokens: CheckboxTokens.standard,
-                        value: debugLogsUrl.value != null,
-                        onChanged: (_) => onToggleLogs(),
+          // Include logs checkbox
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: isUploadingLogs.value ? null : onToggleLogs,
+            child: SizedBox(
+              // The box paints at 20px, so the row carries the tap target.
+              height: S.s48,
+              child: Row(
+                spacing: S.s12,
+                children: [
+                  if (isUploadingLogs.value)
+                    const SizedBox(
+                      width: S.s20,
+                      height: S.s20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: StrokeWidth.px2,
                       ),
-                    Text(loc.contactUsScreen_includeLogs),
-                  ],
-                ),
+                    )
+                  else
+                    AppCheckbox(
+                      value: debugLogsUrl.value != null,
+                      onChanged: (_) => onToggleLogs(),
+                    ),
+                  Text(loc.contactUsScreen_includeLogs),
+                ],
               ),
             ),
-            const SizedBox(height: S.s8),
+          ),
+          const SizedBox(height: S.s8),
 
-            // Submit Button. The log upload is a separate operation with its
-            // own spinner, so while it runs this button is merely unavailable.
-            Button(
-              onPressed: () {
-                final body = bodyController.text;
-                bodyError.value = _validateBody(body, loc);
-                final subjectValid = _formKey.currentState?.validate() ?? false;
-                if (subjectValid && bodyError.value == null) {
-                  _launchEmail(
-                    context,
-                    selectedSubject.value,
-                    body,
-                    debugLogsUrl.value,
-                  );
-                }
-              },
-              label: loc.contactUsScreen_composeEmail,
-              type: ButtonType.secondary,
-              state: isUploadingLogs.value
-                  ? ButtonState.inactive
-                  : ButtonState.active,
-            ),
-          ],
-        ),
+          // Submit Button. The log upload is a separate operation with its
+          // own spinner, so while it runs this button is merely unavailable.
+          Button(
+            onPressed: () {
+              final body = bodyController.text;
+              bodyError.value = _validateBody(body, loc);
+              subjectError.value = _validateSubject(selectedSubject.value, loc);
+              if (subjectError.value == null && bodyError.value == null) {
+                _launchEmail(
+                  context,
+                  selectedSubject.value,
+                  body,
+                  debugLogsUrl.value,
+                );
+              }
+            },
+            label: loc.contactUsScreen_composeEmail,
+            type: ButtonType.secondary,
+            state: isUploadingLogs.value
+                ? ButtonState.disabled
+                : ButtonState.active,
+          ),
+        ],
       ),
     );
   }
@@ -271,6 +248,110 @@ class _EmailForm extends HookWidget {
   }
 }
 
+/// Picks one of [subjects] from a menu, wearing [AppTextInput]'s chrome so the
+/// subject and the body below it read as one form.
+class _SubjectField extends StatelessWidget {
+  const _SubjectField({
+    required this.subjects,
+    required this.selected,
+    required this.errorText,
+    required this.onSelected,
+  });
+
+  final List<String> subjects;
+  final String? selected;
+  final String? errorText;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final palette = SemanticPalette.of(context);
+    final errored = errorText != null;
+    final value = selected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: AppTextInputTokens.labelPadding,
+          child: Text(
+            loc.contactUsScreen_subject,
+            style: typeScale.body.s.style(color: palette.text.quaternary),
+          ),
+        ),
+        const SizedBox(height: AppTextInputTokens.labelGap),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _open(context),
+          child: Container(
+            padding: AppTextInputTokens.current.fieldPadding,
+            decoration: BoxDecoration(
+              color: palette.fill.tertiary,
+              borderRadius: BorderRadius.circular(AppTextInputTokens.radius),
+              border: Border.all(
+                color: errored ? palette.function.danger : Colors.transparent,
+                width: AppTextInputTokens.borderWidth,
+              ),
+            ),
+            child: Row(
+              spacing: S.s8,
+              children: [
+                Expanded(
+                  child: Text(
+                    value ?? loc.contactUsScreen_subject_empty,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: typeScale.body.regular
+                        .style(
+                          color: value == null
+                              ? palette.text.tertiary
+                              : palette.text.primary,
+                        )
+                        .copyWith(height: 1.0),
+                  ),
+                ),
+                AppIcon.chevronDown(size: 16, color: palette.text.tertiary),
+              ],
+            ),
+          ),
+        ),
+        if (errorText != null) ...[
+          const SizedBox(height: AppTextInputTokens.helperGap),
+          Padding(
+            padding: AppTextInputTokens.helperPadding,
+            child: Text(
+              errorText!,
+              style: typeScale.body.s.style(color: palette.function.danger),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _open(BuildContext context) {
+    final render = context.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return;
+
+    unawaited(
+      showOverlayMenu(
+        context: context,
+        anchor: render.localToGlobal(Offset.zero) & render.size,
+        items: [
+          for (final subject in subjects)
+            MenuItem(
+              label: subject,
+              selected: subject == selected,
+              onPressed: () => onSelected(subject),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 abstract class UrlLauncher {
   Future<void> launchUrl(Uri url);
 }
@@ -279,8 +360,3 @@ class _UrlLauncher implements UrlLauncher {
   @override
   Future<void> launchUrl(Uri url) => url_launcher.launchUrl(url);
 }
-
-const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
-  borderSide: BorderSide(width: 0, style: BorderStyle.none),
-);

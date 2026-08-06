@@ -130,18 +130,18 @@ class _Notice extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: tokens.ruleWidth,
-              height: tokens.ruleThickness,
+              width: SystemMessageTokens.ruleWidth,
+              height: SystemMessageTokens.ruleThickness,
               color: SemanticPalette.of(context).separator.primary,
             ),
-            SizedBox(height: tokens.ruleGap),
+            const SizedBox(height: SystemMessageTokens.ruleGap),
             Text.rich(
               span,
               textAlign: TextAlign.center,
               style: _textStyle(context, SystemMessageVariant.notice, tone),
             ),
             if (timestamp != null) ...[
-              SizedBox(height: tokens.timestampGap),
+              const SizedBox(height: SystemMessageTokens.timestampGap),
               timestamp,
             ],
           ],
@@ -177,16 +177,20 @@ class _Card extends StatelessWidget {
       padding: tokens.padding,
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: tokens.cardMaxWidth),
+          constraints: const BoxConstraints(
+            maxWidth: SystemMessageTokens.cardMaxWidth,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: double.infinity,
-                padding: tokens.cardPadding,
+                padding: SystemMessageTokens.cardPadding,
                 decoration: BoxDecoration(
                   color: palette.backgroundBase.secondary,
-                  borderRadius: BorderRadius.circular(tokens.cardRadius),
+                  borderRadius: BorderRadius.circular(
+                    SystemMessageTokens.cardRadius,
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -201,7 +205,7 @@ class _Card extends StatelessWidget {
                         ),
                       ),
                     if (title != null && span != null)
-                      SizedBox(height: tokens.cardTitleGap),
+                      const SizedBox(height: SystemMessageTokens.cardTitleGap),
                     if (span != null)
                       Text.rich(
                         span,
@@ -216,7 +220,7 @@ class _Card extends StatelessWidget {
                 ),
               ),
               if (timestamp != null) ...[
-                SizedBox(height: tokens.cardTimestampGap),
+                const SizedBox(height: SystemMessageTokens.cardTimestampGap),
                 timestamp,
               ],
             ],

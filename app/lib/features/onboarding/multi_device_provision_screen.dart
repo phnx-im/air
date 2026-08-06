@@ -7,7 +7,7 @@ import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
+import 'package:air/ds/components/fixed_width/fixed_width.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/util/formatting.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -199,7 +199,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
       backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Center(
-          child: ConstrainedWidth(
+          child: FixedWidth(
             width: 500,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: S.s16),

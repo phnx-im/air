@@ -25,7 +25,7 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final tokens = ListHeaderTokens.of(context);
+    final tokens = ListHeaderTokens.current;
 
     return ListHeader(
       tokens: tokens,

@@ -50,14 +50,14 @@ class MuteButton extends StatelessWidget {
 
     return switch (shape) {
       MuteButtonShape.cta => ButtonCTA(
-        tokens: ButtonCTATokens.of(context),
+        tokens: ButtonCTATokens.current,
         label: label,
         icon: icon,
         type: ButtonCTAType.secondary,
         onPressed: toggle,
       ),
       MuteButtonShape.row => ListRow(
-        tokens: ListRowTokens.of(context),
+        tokens: ListRowTokens.current,
         label: label,
         leading: AppIcon(type: icon, size: S.s24),
         fill: SemanticPalette.of(context).backgroundBase.secondary,
