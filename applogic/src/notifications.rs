@@ -26,8 +26,10 @@ impl User {
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
     /// reactions, and silent-rebuild triggers.
     ///
-    /// - Chats referenced by `messages` or `reactions` alert
-    /// - Chats in `changed_chats` (edits, remote deletes, reaction retractions) rebuild silently.
+    /// - Chats referenced by `messages` from others or by `reactions` alert
+    /// - Chats in `changed_chats` (edits, remote deletes, reaction
+    ///   retractions), and chats whose only new messages we caused ourselves
+    ///   from a sibling client, rebuild silently.
     /// - Alerting wins when a chat appears in both
     pub(crate) async fn message_and_reaction_notifications(
         &self,
@@ -38,9 +40,14 @@ impl User {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
 
+        // Check if we are at the origin of a message
+        let own_user_id = self.user.user_id();
+        let is_own = |message: &ChatMessage| message.message().actor() == Some(own_user_id);
+
         // Chats to alert
         for chat_id in messages
             .iter()
+            .filter(|message| !is_own(message))
             .map(|message| message.chat_id())
             .chain(reactions.iter().map(|reaction| reaction.chat_id))
         {
@@ -53,7 +60,12 @@ impl User {
         }
 
         // Silent chats
-        for &chat_id in changed_chats {
+        for chat_id in changed_chats.iter().copied().chain(
+            messages
+                .iter()
+                .filter(|message| is_own(message))
+                .map(|message| message.chat_id()),
+        ) {
             if let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
             {
@@ -80,6 +92,9 @@ impl User {
         {
             // One notification per fresh message/reaction, with a random ID so entries accumulate.
             for message in messages {
+                if is_own(message) {
+                    continue;
+                }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
                     && let Some(body) = message
                         .message()
@@ -162,9 +177,18 @@ impl User {
         let title = chat_title(&self.user, &chat).await;
 
         // Body of the newest renderable entry: a single unrenderable message must not suppress
-        // the notification for the other entries in the set.
+        // the notification for the other entries in the set. What we caused ourselves from a
+        // sibling client stays in the conversation below, but must never be the alerting text.
+        let own_user_id = self.user.user_id();
+        let is_own = |message: &ChatMessage| message.message().actor() == Some(own_user_id);
+
         let mut body = None;
         for entry in rebuild.rebuild_set.entries.iter().rev() {
+            if let ChatNotificationEntry::Message(message) = entry
+                && is_own(message)
+            {
+                continue;
+            }
             body = self.entry_body(&chat, entry, &rebuild.participants).await;
             if body.is_some() {
                 break;
