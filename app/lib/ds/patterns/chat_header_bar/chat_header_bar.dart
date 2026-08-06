@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/corner_dot/corner_dot.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -62,9 +63,12 @@ class ChatHeaderBar extends StatelessWidget {
     final t = tokens;
     final palette = SemanticPalette.of(context);
     return SizedBox(
-      height: t.height,
+      height: ChatHeaderBarTokens.height,
       child: Padding(
-        padding: EdgeInsets.only(left: t.paddingLeft, right: t.paddingRight),
+        padding: const EdgeInsets.only(
+          left: ChatHeaderBarTokens.paddingLeft,
+          right: ChatHeaderBarTokens.paddingRight,
+        ),
         child: Row(
           children: [
             SizedBox(
@@ -72,7 +76,7 @@ class ChatHeaderBar extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: onBack != null
-                    ? _CornerDot(
+                    ? CornerDot(
                         show: backEmphasized,
                         // The pill is tappable too, so the back button and the
                         // pill share one shadow tier and read as the same kind
@@ -107,38 +111,6 @@ class ChatHeaderBar extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Pins a small circular badge to the top-right corner of [child] when [show]
-/// is true, and returns [child] untouched otherwise.
-class _CornerDot extends StatelessWidget {
-  const _CornerDot({required this.show, required this.child});
-
-  final bool show;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!show) return child;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        Positioned(
-          top: ChatHeaderBarTokens.backDotInsetTop,
-          right: ChatHeaderBarTokens.backDotInsetRight,
-          child: Container(
-            width: ChatHeaderBarTokens.backDotSize,
-            height: ChatHeaderBarTokens.backDotSize,
-            decoration: BoxDecoration(
-              color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -188,7 +160,7 @@ class _TitlePill extends StatelessWidget {
         onLongPress: onLongPress,
         child: Container(
           constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
-          padding: tokens.pillPadding,
+          padding: ChatHeaderBarTokens.pillPadding,
           decoration: BoxDecoration(
             color: fill.withValues(alpha: fill.a * reveal),
             borderRadius: BorderRadius.circular(ChatHeaderBarTokens.pillRadius),
@@ -206,7 +178,7 @@ class _TitlePill extends StatelessWidget {
             children: [
               if (avatarWidget != null) ...[
                 avatarWidget,
-                SizedBox(width: tokens.gap),
+                const SizedBox(width: ChatHeaderBarTokens.gap),
               ],
               Flexible(
                 child: Column(
@@ -221,18 +193,22 @@ class _TitlePill extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       // The pill's height comes from the avatar, so the label
                       // drops the body line height and sits tight.
-                      style: typeScale.body.regular
-                          .style(color: palette.text.primary)
-                          .copyWith(height: 1.0),
+                      style: typeScale.body.regular.style(
+                        color: palette.text.primary,
+                        tight: true,
+                      ),
                     ),
                     if (subtitleText != null)
                       Padding(
-                        padding: EdgeInsets.only(top: tokens.titleGap),
+                        padding: const EdgeInsets.only(
+                          top: ChatHeaderBarTokens.titleGap,
+                        ),
                         child: Text(
                           subtitleText,
-                          style: typeScale.body.xs
-                              .style(color: palette.text.tertiary)
-                              .copyWith(height: 1.0),
+                          style: typeScale.body.xs.style(
+                            color: palette.text.tertiary,
+                            tight: true,
+                          ),
                         ),
                       ),
                   ],

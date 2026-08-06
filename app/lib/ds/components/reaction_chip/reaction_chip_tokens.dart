@@ -11,11 +11,7 @@ import 'package:flutter/widgets.dart';
 /// surface the chip is cropped out of is the host's to supply.
 @immutable
 class ReactionChipTokens {
-  const ReactionChipTokens({
-    required this.padding,
-    required this.minHeight,
-    required this.countGap,
-  });
+  const ReactionChipTokens({required this.padding, required this.minHeight});
 
   /// Inset between the pill's edge and its content. The glyph is pinned to a
   /// 100% line, so the vertical inset is what keeps the emoji off the pill's
@@ -27,7 +23,7 @@ class ReactionChipTokens {
   final double minHeight;
 
   /// Gap between the glyph and its count.
-  final double countGap;
+  static const double countGap = S.s4;
 
   /// Both the pill and the ring around it are stadiums, so one sentinel covers
   /// the two of them.
@@ -42,7 +38,6 @@ class ReactionChipTokens {
   static const ReactionChipTokens phone = ReactionChipTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s4),
     minHeight: S.s28,
-    countGap: S.s4,
   );
 
   /// Denser than [phone]: the chips sit under a bubble in the narrower content
@@ -50,9 +45,7 @@ class ReactionChipTokens {
   static const ReactionChipTokens desktop = ReactionChipTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s2),
     minHeight: S.s24,
-    countGap: S.s4,
   );
 
-  static ReactionChipTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionChipTokens get current => DeviceType.isPhone ? phone : desktop;
 }

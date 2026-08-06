@@ -182,26 +182,6 @@ impl CoreUser {
             .map_err(Into::into)
     }
 
-    pub async fn prev_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> Result<Option<ChatMessage>> {
-        ChatMessage::prev_message(self.db().read().await?, chat_id, message_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    pub async fn next_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> Result<Option<ChatMessage>> {
-        ChatMessage::next_message(self.db().read().await?, chat_id, message_id)
-            .await
-            .map_err(Into::into)
-    }
-
     pub async fn first_unread_message(
         &self,
         chat_id: ChatId,

@@ -539,14 +539,38 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Associer un appareil';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Appareil inconnu';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Échec du renommage.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Impossible de renommer l\'appareil $deviceName. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Échec de la dissociation.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'La dissociation de l\'appareil $deviceName a échoué. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count appareils associés.',
       one: '$count appareil associé.',
+      zero: 'Aucun appareil associé.',
     );
-    return '$_temp0 Vous pouvez en associer jusqu\'à $remaining de plus.';
+    return '$_temp0';
   }
 
   @override
@@ -613,7 +637,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil.';
+      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil lors de sa prochaine connexion.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Annuler';
@@ -794,7 +818,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'Ce client a été ajouté au groupe après l\'association.';
 
   @override
   String get timestamp_now => 'Maintenant';

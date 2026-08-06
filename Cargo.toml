@@ -83,6 +83,7 @@ minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
+num_enum = "0.7"
 openmls = { git = "https://github.com/openmls/openmls", rev = "17a17446f03715e61759febdca3792fc936df428", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
 openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "17a17446f03715e61759febdca3792fc936df428", features = ["clonable"] }
 openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "17a17446f03715e61759febdca3792fc936df428", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }

@@ -89,7 +89,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
       backgroundColor: SemanticPalette.of(context).backgroundElevated.primary,
       borderRadius: BorderRadius.circular(CornerRadius.px16),
       elevation: 8,
-      maxWidth: 320,
+      maxWidth: Measure.m320,
     );
   }
 

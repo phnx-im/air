@@ -9,14 +9,12 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-/// Widest the section content grows to before it stops following the pane.
-const _contentMaxWidth = 800.0;
 
 /// The section list of the profile tab, filling the list panel of the two-pane
 /// layout. The section it selects opens in [YouDetailPane] beside it.
@@ -66,15 +64,20 @@ class YouDetailPane extends StatelessWidget {
       child: FadedScrollFrame(
         backgroundColor: background,
         header: _PaneHeader(title: youSectionTitle(loc, section)),
-        topFadeHeight: kToolbarHeight,
-        bottomFadeHeight: kToolbarHeight,
-        contentTopPadding: kToolbarHeight,
-        contentBottomPadding: kToolbarHeight,
+        topFadeHeight: YouFadeTokens.desktop.topHeight,
+        bottomFadeHeight: YouFadeTokens.desktop.bottomHeight,
+        topSolidStop: YouFadeTokens.topSolidStop,
+        bottomSolidStop: YouFadeTokens.bottomSolidStop,
+        bottomOpacity: YouFadeTokens.bottomOpacity,
+        contentTopPadding: Chrome.barHeight,
+        contentBottomPadding: Chrome.barHeight,
         builder: (topPadding, bottomPadding) => SingleChildScrollView(
           padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+              // Widest the section content grows to before it stops following
+              // the pane.
+              constraints: const BoxConstraints(maxWidth: Measure.m800),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: S.s16),
                 child: YouSectionContent(section: section),
@@ -95,7 +98,7 @@ class _PaneHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: kToolbarHeight,
+      height: Chrome.barHeight,
       child: Center(
         child: Text(
           title,

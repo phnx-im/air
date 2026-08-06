@@ -28,7 +28,7 @@ class MemberSearchField extends StatelessWidget {
         bottom: S.s8,
       ),
       child: SearchField(
-        tokens: SearchFieldTokens.of(context),
+        tokens: SearchFieldTokens.current,
         controller: controller,
         hintText: hintText,
         onChanged: onChanged,

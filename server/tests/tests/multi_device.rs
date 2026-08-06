@@ -83,9 +83,18 @@ async fn self_group_client_ids(device: &CoreUser) -> Vec<Uuid> {
 
 /// A confirmation receiver that is already fulfilled, so the acceptor proceeds
 /// without waiting for user confirmation in tests.
-fn auto_confirm() -> tokio::sync::oneshot::Receiver<()> {
+///
+/// Carries an empty device name, which leaves the new device's own default in
+/// place. Use [`confirm_with_name`] to exercise a user-chosen name.
+fn auto_confirm() -> tokio::sync::oneshot::Receiver<String> {
+    confirm_with_name("")
+}
+
+/// Like [`auto_confirm`], but names the new device the way the confirming user
+/// would.
+fn confirm_with_name(name: &str) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    tx.send(()).unwrap();
+    tx.send(name.to_owned()).unwrap();
     rx
 }
 
@@ -111,10 +120,20 @@ async fn recv_session_id(
     }
 }
 
-/// Provisions a fresh device and links it to `user_id`'s existing device, returning the new device.
-/// The [`TempDir`] holds the new device's database and must stay alive as long as the device is
-/// used.
+/// Provisions a fresh device and links it to `user_id`'s existing device,
+/// returning the new device. The [`TempDir`] holds the new device's database
+/// and must stay alive as long as the device is used.
 pub(crate) async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
+    link_new_device_named(setup, user_id, "").await
+}
+
+/// Like [`link_new_device`], but names the new device the way the confirming
+/// user would. An empty `name` leaves the new device's own default in place.
+async fn link_new_device_named(
+    setup: &TestBackend,
+    user_id: &UserId,
+    name: &str,
+) -> (CoreUser, TempDir) {
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
 
@@ -135,7 +154,7 @@ pub(crate) async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (C
     setup
         .get_user(user_id)
         .user()
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
+        .multi_device_link_client(session_id, ignore_connected(), confirm_with_name(name))
         .await
         .unwrap()
         .unwrap();
@@ -724,6 +743,49 @@ async fn multi_device_settings_in_linking_payload() {
     assert_eq!(read_receipts(&new_device).await, Some(false));
 }
 
+// The new device's metadata entry rides on the self-group add commit itself, so
+// linking costs exactly one commit.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test linking publishes the device entry in one commit",
+    skip_all
+)]
+async fn multi_device_link_publishes_device_entry_without_extra_commit() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let old_device = setup.get_user(&alice).user();
+
+    let old_id = old_device.own_client_id().await.unwrap();
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_id = new_device.own_client_id().await.unwrap();
+
+    // No outbound run and no queue drain: both sides already hold both entries.
+    // The old device folded the new entry in while staging the add, and the new
+    // device wrote its own entry before handing a copy over.
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        let ids: Vec<_> = device
+            .linked_devices()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|device| device.client_id)
+            .collect();
+        assert!(
+            ids.contains(&old_id) && ids.contains(&new_id),
+            "the {label} device should know both entries right after linking, got {ids:?}"
+        );
+    }
+
+    // Neither side owes a settings commit, so the self group stays at the epoch
+    // the add left it on.
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        assert!(
+            !device.has_pending_setting_changes().await.unwrap(),
+            "the {label} device must not have queued a settings commit for the entry"
+        );
+    }
+}
+
 // Both devices change the setting before processing each other's commit. The
 // DS accepts the first commit and rejects the second with a wrong epoch. The
 // loser gives the setting up when it processes the winner's commit, so both
@@ -1102,6 +1164,229 @@ async fn multi_device_self_update_in_self_group() {
     // Both devices are still in sync afterwards.
     send_and_receive(old_device, &[&new_device], chat_id, "after self-update").await;
     send_and_receive(&new_device, &[old_device], chat_id, "and back").await;
+}
+
+/// After linking, each device advertises itself and learns its sibling, so both
+/// see the same two-device list. This is the property the Devices screen shows.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let b_id = new_device.own_client_id().await?;
+    assert_ne!(a_id, b_id, "each device mints its own client id");
+
+    // Neither entry needs a round trip of its own. The old device's entry
+    // predates the self group, so it never became a pending change and rode
+    // along in the provisioning snapshot. The new device's entry travelled the
+    // other way in the join request, and the old device folded it into the add
+    // commit itself, which is why nothing is left enqueued on either side (see
+    // `multi_device_link_publishes_device_entry_without_extra_commit`).
+    for user in [old_device, &new_device] {
+        let members = user.self_group_client_ids().await?;
+        assert_eq!(members.len(), 2);
+        assert!(members.contains(&a_id) && members.contains(&b_id));
+
+        let devices = user.linked_devices().await?;
+        let ids: Vec<_> = devices.iter().map(|d| d.client_id).collect();
+        assert!(
+            ids.contains(&a_id) && ids.contains(&b_id),
+            "both devices must be in the synced metadata, got {ids:?}"
+        );
+    }
+
+    Ok(())
+}
+
+/// The name the confirming user typed overrides the name the new device chose
+/// for itself, and reaches both devices.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "Work laptop").await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        let seen = device
+            .linked_devices()
+            .await?
+            .into_iter()
+            .find(|device| device.client_id == b_id)
+            .unwrap_or_else(|| panic!("the {label} device should know the new device"));
+        assert_eq!(
+            seen.name, "Work laptop",
+            "the {label} device should use the confirmed name"
+        );
+    }
+
+    Ok(())
+}
+
+/// A blank confirmation name leaves the platform default the new device picked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "   ").await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    let seen = old_device
+        .linked_devices()
+        .await?
+        .into_iter()
+        .find(|device| device.client_id == b_id)
+        .expect("the old device should know the new device");
+    assert!(
+        !seen.name.trim().is_empty(),
+        "a blank confirmation must not blank out the device name"
+    );
+
+    Ok(())
+}
+
+/// Unlinking drops exactly the target's leaf and leaves the remover in place.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let b_id = new_device.own_client_id().await?;
+
+    old_device.unlink_device(b_id).await?;
+
+    let members = old_device.self_group_client_ids().await?;
+    assert_eq!(members, vec![a_id], "only A must remain in the self group");
+
+    // The removed device must be able to follow the commit that removed it,
+    // which is what lets it notice and tear itself down.
+    let messages = new_device.qs_fetch_messages().await?;
+    let processed = new_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "the unlinked device failed to process its own removal: {:?}",
+        processed.errors
+    );
+
+    Ok(())
+}
+
+/// The unlinked device notices on its next queue drain and flags itself. The
+/// flag is what the app watches to delete its local data and return to the
+/// welcome screen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    assert!(!new_device.is_account_unlinked().await?);
+
+    old_device.unlink_device(b_id).await?;
+    drain_queue(&new_device).await;
+
+    assert!(
+        new_device.is_account_unlinked().await?,
+        "the removed device must know it was unlinked"
+    );
+    assert!(
+        !old_device.is_account_unlinked().await?,
+        "the remover must not flag itself"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let error = old_device
+        .unlink_device(Uuid::from_u128(0xbeef))
+        .await
+        .expect_err("unlinking an unknown client id must fail");
+    assert!(
+        error.to_string().contains("not in the self group"),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let error = old_device
+        .unlink_device(a_id)
+        .await
+        .expect_err("a device cannot unlink itself");
+    assert!(
+        error.to_string().contains("itself"),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
+/// A rename on one device reaches the other through the self group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    new_device.rename_device(b_id, "Phone".to_owned()).await?;
+    new_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+
+    let seen = old_device
+        .linked_devices()
+        .await?
+        .into_iter()
+        .find(|device| device.client_id == b_id)
+        .expect("A must know about B");
+    assert_eq!(seen.name, "Phone");
+
+    Ok(())
 }
 
 /// A resync of the self group rejoins with the per-device self-group

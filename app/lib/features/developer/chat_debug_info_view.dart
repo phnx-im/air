@@ -240,7 +240,7 @@ class _UpdateGroupButton extends HookWidget {
           isRunning.value = false;
         }
       },
-      state: isRunning.value ? ButtonState.inactive : ButtonState.active,
+      state: isRunning.value ? ButtonState.disabled : ButtonState.active,
       label: label,
     );
   }
@@ -260,7 +260,7 @@ class _RequestResyncButton extends HookWidget {
         onTapped();
       },
       tone: ButtonTone.danger,
-      state: isTapped.value ? ButtonState.inactive : ButtonState.active,
+      state: isTapped.value ? ButtonState.disabled : ButtonState.active,
       label: "DANGER: Request resync",
     );
   }
@@ -280,7 +280,7 @@ class _DeleteLocalChatButton extends HookWidget {
         onTapped();
       },
       tone: ButtonTone.danger,
-      state: isTapped.value ? ButtonState.inactive : ButtonState.active,
+      state: isTapped.value ? ButtonState.disabled : ButtonState.active,
       label: "DANGER: Delete local chat",
     );
   }

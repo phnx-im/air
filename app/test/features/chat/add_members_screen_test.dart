@@ -142,7 +142,7 @@ void main() {
       await tester.pumpAndSettle();
 
       Button done() => tester.widget<Button>(find.byType(Button));
-      expect(done().state, ButtonState.inactive);
+      expect(done().state, ButtonState.disabled);
 
       await tester.tap(find.text('Bob'));
       await tester.pumpAndSettle();

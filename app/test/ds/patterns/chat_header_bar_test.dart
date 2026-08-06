@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/corner_dot/corner_dot_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
@@ -81,7 +82,8 @@ void main() {
       // The trailing slot is an empty spacer, so a tap in it hits nothing.
       const tokens = ChatHeaderBarTokens.phone;
       final bar = tester.getRect(find.byType(ChatHeaderBar));
-      final slotCenter = bar.right - tokens.paddingRight - tokens.slotSize / 2;
+      final slotCenter =
+          bar.right - ChatHeaderBarTokens.paddingRight - tokens.slotSize / 2;
       await tester.tapAt(Offset(slotCenter, bar.center.dy));
       expect(taps, 1);
     });
@@ -111,7 +113,7 @@ void main() {
     testWidgets('back button carries the corner dot only when emphasized', (
       tester,
     ) async {
-      /// The dot is the only circular box in the bar sized off backDotSize.
+      /// The dot is the only circular box in the bar sized off CornerDotTokens.
       Finder dot() => find.byWidgetPredicate(
         (widget) =>
             widget is Container &&
@@ -128,10 +130,7 @@ void main() {
       expect(dot(), findsOneWidget);
       expect(
         tester.getSize(dot()),
-        const Size(
-          ChatHeaderBarTokens.backDotSize,
-          ChatHeaderBarTokens.backDotSize,
-        ),
+        const Size(CornerDotTokens.size, CornerDotTokens.size),
       );
     });
 

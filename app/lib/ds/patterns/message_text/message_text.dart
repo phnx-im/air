@@ -16,13 +16,10 @@ import 'package:flutter/widgets.dart';
 class MessageText extends StatelessWidget {
   const MessageText({
     super.key,
-    required this.tokens,
     required this.isSelf,
     required this.blocks,
     this.jumbo = false,
   });
-
-  final MessageTextTokens tokens;
 
   /// Own message. Picks the ink that reads against the bubble's fill.
   final bool isSelf;
@@ -67,7 +64,7 @@ class MessageText extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        spacing: tokens.blockGap,
+        spacing: MessageTextTokens.blockGap,
         children: blocks,
       ),
     );

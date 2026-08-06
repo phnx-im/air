@@ -39,7 +39,6 @@ class Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = AvatarTokens.standard;
     final palette = SemanticPalette.of(context);
     final image = this.image;
 
@@ -51,7 +50,7 @@ class Avatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: image == null ? tokens.gradientFor(gradientSeed) : null,
+        gradient: image == null ? AvatarTokens.gradientFor(gradientSeed) : null,
         color: image == null ? null : palette.text.quaternary,
       ),
       foregroundDecoration: image == null
@@ -68,7 +67,7 @@ class Avatar extends StatelessWidget {
             displayName.characters.firstOrNull?.toUpperCase() ?? "",
             style: typeScale.body.regular
                 .style(color: palette.function.neutral.white)
-                .copyWith(fontSize: tokens.letterSize(size)),
+                .copyWith(fontSize: AvatarTokens.letterSize(size)),
           ),
         ),
       ),

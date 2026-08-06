@@ -13,30 +13,20 @@ import 'package:flutter/widgets.dart';
 @immutable
 class ListHeaderTokens {
   const ListHeaderTokens({
-    required this.height,
-    required this.paddingLeft,
     required this.paddingRight,
     required this.slotSize,
-    required this.titleGap,
     required this.showTitle,
     required this.pillPadding,
     required this.pillMinHeight,
     required this.actionSize,
   });
 
-  final double height;
-  final double paddingLeft;
   final double paddingRight;
 
   /// Width reserved on both sides of the title, so a centered title stays
   /// optically centered even when only the leading slot is filled. It's a
   /// floor, not a cap: a larger [actionSize] widens both slots.
   final double slotSize;
-
-  /// Minimum breathing room between the title pill and the slot on either
-  /// side. Doubles as the pill's width bound, so an over-long title ellipsizes
-  /// instead of crowding the action.
-  final double titleGap;
 
   /// Whether the header carries a title at all, the label and its pill. The
   /// two-pane layout names the list in its rail instead, so it takes an
@@ -51,6 +41,14 @@ class ListHeaderTokens {
 
   /// Diameter of the leading action button.
   final double actionSize;
+
+  static const double height = Chrome.barHeight;
+  static const double paddingLeft = Chrome.edgeInset;
+
+  /// Minimum breathing room between the title pill and the slot on either
+  /// side. Doubles as the pill's width bound, so an over-long title ellipsizes
+  /// instead of crowding the action.
+  static const double titleGap = S.s32;
 
   /// Pixels of scroll over which the title pill's fill, border and shadow ramp
   /// in from transparent. At rest the list sits on the same surface as the
@@ -70,11 +68,8 @@ class ListHeaderTokens {
   static const List<BoxShadow> pillShadow = [];
 
   static const ListHeaderTokens phone = ListHeaderTokens(
-    height: S.s56,
-    paddingLeft: S.s20,
     paddingRight: S.s16,
     slotSize: S.s40,
-    titleGap: S.s32,
     showTitle: true,
     pillPadding: EdgeInsets.symmetric(horizontal: S.s20, vertical: S.s4),
     pillMinHeight: S.s40,
@@ -82,11 +77,8 @@ class ListHeaderTokens {
   );
 
   static const ListHeaderTokens desktop = ListHeaderTokens(
-    height: S.s56,
-    paddingLeft: S.s20,
     paddingRight: S.s8,
     slotSize: S.s24,
-    titleGap: S.s32,
     showTitle: false,
     pillPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s2),
     pillMinHeight: S.s32,
@@ -94,6 +86,5 @@ class ListHeaderTokens {
   );
 
   /// The two-pane layout is denser and drops the title.
-  static ListHeaderTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ListHeaderTokens get current => DeviceType.isPhone ? phone : desktop;
 }

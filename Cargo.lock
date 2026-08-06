@@ -318,6 +318,7 @@ dependencies = [
  "mimi-room-policy",
  "mimi_content",
  "mls-assist",
+ "num_enum",
  "openmls",
  "prost",
  "protoc-bin-vendored",

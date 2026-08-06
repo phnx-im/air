@@ -27,7 +27,7 @@ class UnblockContactButton extends StatelessWidget {
     // Constructive, so it stays neutral where its counterpart reads as danger.
     return Button(
       onPressed: () => _unblock(context),
-      size: ButtonSize.of(context),
+      size: ButtonSize.current,
       type: ButtonType.secondary,
       label: loc.unblockContactButton_text,
     );

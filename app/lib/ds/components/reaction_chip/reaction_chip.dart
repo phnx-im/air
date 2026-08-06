@@ -5,6 +5,7 @@
 import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/reaction_chip/reaction_chip_tokens.dart';
+import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:flutter/widgets.dart';
@@ -59,14 +60,16 @@ class ReactionChip extends StatelessWidget {
   /// Style the emoji renders at. Pinned to a 100% line so the pill hugs the
   /// glyph instead of the glyph's leading. Exposed so a host can warm the ink
   /// measurements up ahead of the first chip, see [CenteredEmoji.warmUp].
-  static TextStyle glyphStyle() =>
-      typeScale.body.regular.style().copyWith(height: 1.0);
+  static TextStyle glyphStyle() => typeScale.body.regular.style(tight: true);
 
-  /// Style the count and the `+N` label render at. The color is optional so
-  /// that code measuring a chip doesn't have to resolve a palette first.
-  static TextStyle countStyle([Color? color]) => typeScale.body.mini
-      .style(color: color, weight: Weight.emphasized)
-      .copyWith(height: 1.0);
+  /// Style the count and the `+N` label render at, exposed for the reason
+  /// [glyphStyle] gives. The color is optional so that code measuring a chip
+  /// doesn't have to resolve a palette first.
+  static TextStyle countStyle([Color? color]) => typeScale.body.mini.style(
+    color: color,
+    weight: Weight.emphasized,
+    tight: true,
+  );
 
   /// The color the crop ring paints in: whatever the message list itself paints
   /// on, so the ring reads as a gap rather than an outline.
@@ -88,36 +91,38 @@ class ReactionChip extends StatelessWidget {
               // isn't centered within its own line box, see [CenteredEmoji].
               CenteredEmoji(emoji: emoji, style: glyphStyle()),
               if (count > 1) ...[
-                SizedBox(width: tokens.countGap),
+                const SizedBox(width: ReactionChipTokens.countGap),
                 Text('$count', style: countStyle(palette.text.tertiary)),
               ],
             ],
           );
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap == null ? null : () => _handleTap(onTap!),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: cropColor(context),
-            borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(ReactionChipTokens.cropWidth),
-            child: Container(
-              constraints: BoxConstraints(minHeight: tokens.minHeight),
-              padding: tokens.padding,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                // The collapsed pill is nobody's own reaction, so it always
-                // takes the lighter fill.
-                color: selected ? palette.fill.primary : palette.fill.tertiary,
-                borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
-              ),
-              child: content,
+    // The crop ring stays outside the StateLayer so the wash never tints it
+    // and it keeps reading as a gap.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cropColor(context),
+        borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(ReactionChipTokens.cropWidth),
+        child: StateLayer(
+          borderRadius: ReactionChipTokens.radius,
+          surface: selected ? palette.fill.primary : palette.fill.tertiary,
+          onTap: onTap == null ? null : () => _handleTap(onTap!),
+          background: DecoratedBox(
+            decoration: BoxDecoration(
+              // The collapsed pill is nobody's own reaction, so it always
+              // takes the lighter fill.
+              color: selected ? palette.fill.primary : palette.fill.tertiary,
+              borderRadius: BorderRadius.circular(ReactionChipTokens.radius),
             ),
+          ),
+          child: Container(
+            constraints: BoxConstraints(minHeight: tokens.minHeight),
+            padding: tokens.padding,
+            alignment: Alignment.center,
+            child: content,
           ),
         ),
       ),

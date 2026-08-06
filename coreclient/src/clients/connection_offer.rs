@@ -37,7 +37,7 @@ use tbs::{ConnectionOfferTbs, VerifiableConnectionOffer};
 use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 pub(crate) mod payload {
-    use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::Username};
+    use aircommon::{LibraryError, credentials::keys::UserSigningKey, identifiers::Username};
 
     use crate::groups::Group;
 
@@ -115,7 +115,7 @@ pub(crate) mod payload {
     impl ConnectionOfferPayload {
         pub(crate) fn sign(
             self,
-            signing_key: &ClientSigningKey,
+            signing_key: &UserSigningKey,
             recipient_user_handle: Username,
             connection_package_hash: ConnectionPackageHash,
         ) -> Result<ConnectionOffer, LibraryError> {

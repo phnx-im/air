@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::UserSigningKey,
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
 };
 
@@ -22,7 +22,7 @@ impl UserProfileUpdate {
         mut current_profile: IndexedUserProfile,
         new_user_profile: UserProfile,
         key_index: UserProfileKeyIndex,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<UserProfileUpdate, UserProfileValidationError> {
         let expected_user_id = signing_key.credential().user_id();
         let profile_user_id = new_user_profile.user_id;

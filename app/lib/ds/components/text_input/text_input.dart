@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/field/fallback_text_controller.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
@@ -116,17 +118,10 @@ class AppTextInput extends StatefulWidget {
   State<AppTextInput> createState() => _AppTextInputState();
 }
 
-class _AppTextInputState extends State<AppTextInput> {
-  TextEditingController? _fallbackController;
-
-  TextEditingController get _controller =>
-      widget.controller ?? (_fallbackController ??= TextEditingController());
-
+class _AppTextInputState extends State<AppTextInput>
+    with FallbackTextController {
   @override
-  void dispose() {
-    _fallbackController?.dispose();
-    super.dispose();
-  }
+  TextEditingController? get hostController => widget.controller;
 
   @override
   Widget build(BuildContext context) {
@@ -142,32 +137,32 @@ class _AppTextInputState extends State<AppTextInput> {
       children: [
         if (widget.label != null) ...[
           Padding(
-            padding: tokens.labelPadding,
+            padding: AppTextInputTokens.labelPadding,
             child: Text(
               widget.label!,
               style: typeScale.body.s.style(color: palette.text.quaternary),
             ),
           ),
-          SizedBox(height: tokens.labelGap),
+          const SizedBox(height: AppTextInputTokens.labelGap),
         ],
         Container(
           padding: widget.fieldPadding ?? tokens.fieldPadding,
           decoration: BoxDecoration(
             color: palette.fill.tertiary,
-            borderRadius: BorderRadius.circular(tokens.radius),
+            borderRadius: BorderRadius.circular(AppTextInputTokens.radius),
             // The outline is always there, transparent until it carries an
             // error, so raising one doesn't shift the text it wraps.
             border: Border.all(
               color: errored ? palette.function.danger : Colors.transparent,
-              width: tokens.borderWidth,
+              width: AppTextInputTokens.borderWidth,
             ),
           ),
           child: _buildField(palette),
         ),
         if (below != null) ...[
-          SizedBox(height: tokens.helperGap),
+          const SizedBox(height: AppTextInputTokens.helperGap),
           Padding(
-            padding: tokens.helperPadding,
+            padding: AppTextInputTokens.helperPadding,
             child: Text(
               below,
               style: typeScale.body.s.style(
@@ -186,7 +181,9 @@ class _AppTextInputState extends State<AppTextInput> {
     // A single-line field takes a tight line box, so its height follows the
     // padding, and a locked strut, so it doesn't jump when the first character
     // replaces the hint. A field that grows keeps the typescale's leading,
-    // which a paragraph needs to stay readable.
+    // which a paragraph needs to stay readable. The tight line is pinned after
+    // the merge rather than via the token's tight flag, so a caller style's
+    // own leading cannot undo it.
     final singleLine = widget.maxLines == 1 && widget.minLines == null;
     final style = typeScale.body.regular
         .style(color: palette.text.primary)
@@ -194,7 +191,7 @@ class _AppTextInputState extends State<AppTextInput> {
     final inputStyle = singleLine ? style.copyWith(height: 1.0) : style;
 
     return TextField(
-      controller: _controller,
+      controller: controller,
       focusNode: widget.focusNode,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
@@ -213,20 +210,8 @@ class _AppTextInputState extends State<AppTextInput> {
       strutStyle: singleLine
           ? StrutStyle.fromTextStyle(inputStyle, forceStrutHeight: true)
           : null,
-      // The chrome is the container's, so the field itself draws nothing. We
-      // spell out the borders and fill rather than let the ambient input
-      // theme add its own.
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding: EdgeInsets.zero,
-        filled: false,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        counterText: '',
+      // The chrome is the container's, so the field itself draws nothing.
+      decoration: FieldChrome.plain(
         hintText: widget.hintText,
         hintStyle: inputStyle.copyWith(color: palette.text.tertiary),
       ),

@@ -6,7 +6,7 @@ use std::{collections::HashMap, time::Duration};
 
 use airapiclient::ApiClient;
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::UserSigningKey,
     identifiers::{Fqdn, UserId},
     messages::client_as::{
         BatchedTokenKeyResponse, SerializedToken, SerializedTokenRequest, SerializedTokenResponse,
@@ -56,7 +56,7 @@ pub(crate) async fn request_and_store_tokens(
     db: &DbAccess,
     api_client: &ApiClient,
     user_id: UserId,
-    signing_key: &ClientSigningKey,
+    signing_key: &UserSigningKey,
     operation_type: OperationType,
     count: u16,
 ) -> anyhow::Result<Result<usize, RequestTokensError>> {
@@ -304,7 +304,7 @@ pub(crate) async fn purge_and_replenish(
     api_client: &ApiClient,
     user_id: UserId,
     operation_type: OperationType,
-    signing_key: &ClientSigningKey,
+    signing_key: &UserSigningKey,
 ) -> anyhow::Result<()> {
     let discarded = persistence::token_count(db.read().await?, operation_type).await?;
     info!(%discarded, "purging stale tokens after server rejected key");

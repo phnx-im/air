@@ -106,7 +106,7 @@ void main() {
     // The header grows to fit the button plus its edge padding rather than
     // squashing it into a strip height.
     final close = tester.getRect(find.byType(ButtonIcon));
-    expect(close.size, Size.square(FullscreenImageTokens.desktop.buttonSize));
+    expect(close.size, const Size.square(FullscreenImageTokens.buttonSize));
     expect(close.right, greaterThan(desktopViewSize.width / 2));
   });
 

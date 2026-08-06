@@ -9,42 +9,35 @@ import 'package:flutter/widgets.dart';
 ///
 /// Geometry only: colors come from the palette at paint time. One set for
 /// both densities, a separator is a line of text either way.
-@immutable
-class MessageSeparatorTokens {
-  const MessageSeparatorTokens({
-    required this.datePadding,
-    required this.unreadPadding,
-    required this.datePillPadding,
-    required this.unreadPillPadding,
-    required this.ruleThickness,
-    required this.ruleGap,
-  });
-
+abstract final class MessageSeparatorTokens {
   /// Inset around a date separator. Generous, so a new day reads as a break in
   /// the conversation rather than as another row in it.
-  final EdgeInsets datePadding;
+  static const EdgeInsets datePadding = EdgeInsets.symmetric(
+    horizontal: S.s24,
+    vertical: S.s32,
+  );
 
   /// Inset around an unread separator. Tighter than [datePadding]: it marks
   /// where the reader stopped, so it belongs to the messages around it.
-  final EdgeInsets unreadPadding;
+  static const EdgeInsets unreadPadding = EdgeInsets.symmetric(
+    horizontal: S.s16,
+    vertical: S.s16,
+  );
 
-  final EdgeInsets datePillPadding;
+  static const EdgeInsets datePillPadding = EdgeInsets.symmetric(
+    horizontal: S.s16,
+    vertical: S.s4,
+  );
 
   /// Taller than [datePillPadding]. The unread pill is a filled marker rather
   /// than a label, and carries the extra weight to say so.
-  final EdgeInsets unreadPillPadding;
+  static const EdgeInsets unreadPillPadding = EdgeInsets.symmetric(
+    horizontal: S.s16,
+    vertical: S.s8,
+  );
 
-  final double ruleThickness;
+  static const double ruleThickness = StrokeWidth.px0_5;
 
   /// Gap between the pill and the rules either side of it.
-  final double ruleGap;
-
-  static const MessageSeparatorTokens standard = MessageSeparatorTokens(
-    datePadding: EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s32),
-    unreadPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s16),
-    datePillPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4),
-    unreadPillPadding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
-    ruleThickness: StrokeWidth.px0_5,
-    ruleGap: S.s16,
-  );
+  static const double ruleGap = S.s16;
 }

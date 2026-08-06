@@ -24,6 +24,5 @@ class ListGroupTokens {
   /// two-pane card lands as a token change rather than a widget change.
   static const ListGroupTokens desktop = phone;
 
-  static ListGroupTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ListGroupTokens get current => DeviceType.isPhone ? phone : desktop;
 }

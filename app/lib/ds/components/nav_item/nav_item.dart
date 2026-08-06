@@ -4,7 +4,6 @@
 
 import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
-import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
 /// A vertical navigation cell, a glyph above a label, for tab bars and
@@ -39,20 +38,16 @@ class NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = DeviceType.isPhone;
-
     return StateLayer(
       onTap: onTap,
       onLongPress: onLongPress,
       enabled: enabled,
       borderRadius: tokens.radius,
       surface: tokens.surface,
-      hover: !phone,
       press: press,
       // The active cell carries the pill background, so StateLayer suppresses
       // its hover wash and the two don't stack.
       selected: active,
-      pressScale: phone,
       child: SizedBox(
         width: tokens.boxWidth,
         height: tokens.boxHeight,

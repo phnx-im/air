@@ -88,10 +88,7 @@ void main() {
 
       expect(
         disabled,
-        moreOrLessEquals(
-          enabled * ButtonIconTokens.disabledOpacity,
-          epsilon: 0.001,
-        ),
+        moreOrLessEquals(enabled * StateTokens.disabledContent, epsilon: 0.001),
       );
     });
 

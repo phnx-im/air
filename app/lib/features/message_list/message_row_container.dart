@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/message_meta/message_meta_tokens.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,8 @@ class MessageRowContainer extends StatelessWidget {
     required this.animated,
     required this.isNewest,
     required this.isNewestOwn,
+    required this.startsMessageGroup,
+    required this.endsMessageGroup,
   });
 
   final bool isConnectionChat;
@@ -36,6 +39,12 @@ class MessageRowContainer extends StatelessWidget {
   /// The newest message the user sent.
   final bool isNewestOwn;
 
+  /// The oldest message of a run the list shows as one block.
+  final bool startsMessageGroup;
+
+  /// The newest message of that run.
+  final bool endsMessageGroup;
+
   @override
   Widget build(BuildContext context) {
     final userId = context.select((UserCubit cubit) => cubit.state.userId);
@@ -44,7 +53,6 @@ class MessageRowContainer extends StatelessWidget {
       message,
       inReplyToMessage,
       timestamp,
-      position,
       status,
       reactions,
     ) = context.select(
@@ -53,7 +61,6 @@ class MessageRowContainer extends StatelessWidget {
         cubit.state.message.message,
         cubit.state.message.inReplyToMessage,
         cubit.state.message.timestamp,
-        cubit.state.message.position,
         cubit.state.message.status,
         cubit.state.message.reactions,
       ),
@@ -69,7 +76,7 @@ class MessageRowContainer extends StatelessWidget {
       _ => status,
     };
 
-    final rowTokens = MessageRowTokens.of(context);
+    final rowTokens = MessageRowTokens.current;
     final isContent = message is UiMessage_Content;
 
     final tile = ListTile(
@@ -86,18 +93,19 @@ class MessageRowContainer extends StatelessWidget {
         child: switch (message) {
           UiMessage_Content(field0: final content) => Padding(
             // The list knows what precedes each row, so it owns the gaps: a
-            // wide one where the sender changes, a tight one inside a flight.
+            // wide one where the sender changes, a tight one inside a group.
             padding: EdgeInsets.only(
-              top: position.isFirst
+              top: startsMessageGroup
                   ? rowTokens.groupGap
-                  : MessageRowTokens.flightGap,
+                  : MessageRowTokens.messageGap,
             ),
             child: TextMessageTile(
               messageId: messageId,
               contentMessage: content,
               inReplyToMessage: inReplyToMessage,
               timestamp: timestamp,
-              flightPosition: position,
+              startsMessageGroup: startsMessageGroup,
+              endsMessageGroup: endsMessageGroup,
               status: adjustedStatus,
               isSender: isSender,
               showSender: !isConnectionChat,
@@ -117,19 +125,23 @@ class MessageRowContainer extends StatelessWidget {
     );
 
     return animated
-        ? _AnimatedMessage(position: position, isSender: isSender, child: tile)
+        ? _AnimatedMessage(
+            endsMessageGroup: endsMessageGroup,
+            isSender: isSender,
+            child: tile,
+          )
         : tile;
   }
 }
 
 class _AnimatedMessage extends StatefulWidget {
   const _AnimatedMessage({
-    required this.position,
+    required this.endsMessageGroup,
     required this.isSender,
     required this.child,
   });
 
-  final UiFlightPosition position;
+  final bool endsMessageGroup;
   final bool isSender;
   final Widget child;
 
@@ -159,13 +171,9 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
 
   @override
   Widget build(BuildContext context) {
-    final fixedStartHeight = switch (widget.position) {
-      UiFlightPosition.start || UiFlightPosition.middle => 0.0,
-      // FIXME: magic number
-      // Technically, this is the height of the timestamp and checkmark for the read message,
-      // however the value is exactly the height + spacing.
-      UiFlightPosition.single || UiFlightPosition.end => 27.0,
-    };
+    final reserve = widget.endsMessageGroup
+        ? MessageMetaTokens.heightOf(context)
+        : S.s0;
 
     final animation = CurvedAnimation(
       parent: _controller,
@@ -173,7 +181,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
     );
 
     return Container(
-      constraints: BoxConstraints(minHeight: fixedStartHeight),
+      constraints: BoxConstraints(minHeight: reserve),
       child: SizeTransition(
         axis: Axis.vertical,
         sizeFactor: animation,

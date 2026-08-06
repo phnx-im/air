@@ -4,6 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/snackbar/snackbar.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
@@ -38,7 +39,7 @@ void showErrorBannerStandalone(
         size: 32,
         color: palette.function.neutral.white,
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(S.s20),
       content: Text(
         errorDescription(loc),
         style: TextStyle(color: palette.function.neutral.white),
@@ -46,11 +47,10 @@ void showErrorBannerStandalone(
       actions: [
         Builder(
           builder: (context) {
-            return TextButton(
-              child: Text(
-                loc.errorBanner_ok,
-                style: TextStyle(color: palette.function.neutral.white),
-              ),
+            return Button(
+              size: ButtonSize.small,
+              type: ButtonType.secondary,
+              label: loc.errorBanner_ok,
               onPressed: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
               },
@@ -67,7 +67,7 @@ void showErrorBannerStandalone(
 /// This function does not require a [BuildContext] to show a snackbar.
 void showSnackBarStandalone(
   SnackBar Function(AppLocalizations) snackBar, {
-  SnackbarTone tone = SnackbarTone.neutral,
+  SnackbarTone tone = SnackbarTone.success,
 }) {
   scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
 
@@ -95,21 +95,20 @@ SnackBar _asPill(SnackBar source, SnackbarTone tone) {
   };
   if (label == null) return source;
 
-  const tokens = SnackbarTokens.standard;
   return SnackBar(
     // The carrier hands its content the full width, so center the pill in it
     // rather than letting it stretch. The height factor keeps the carrier
     // wrapped around the pill instead of the viewport.
     content: Align(
       heightFactor: 1,
-      child: Snackbar(tokens: tokens, label: label, tone: tone),
+      child: Snackbar(label: label, tone: tone),
     ),
     duration: source.duration,
     backgroundColor: Colors.transparent,
     elevation: 0,
     behavior: SnackBarBehavior.floating,
     padding: EdgeInsets.zero,
-    margin: tokens.insets,
+    margin: SnackbarTokens.insets,
     // The carrier clips to its own bounds by default, which would cut the
     // pill's drop shadow.
     clipBehavior: Clip.none,

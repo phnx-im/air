@@ -25,43 +25,49 @@ const _testSize = Size(1080, 2800);
 
 final _chatId = 1.chatId();
 
+/// The time a message with [id] carries. The fixtures space their messages far
+/// enough apart that each row stands on its own rather than joining its
+/// neighbor's group.
+DateTime _timestamp(int id) =>
+    DateTime.parse('2023-01-01T00:00:00.000Z').add(Duration(minutes: id * 6));
+
 /// Create a deleted message (replaces != null, content == null)
-UiChatMessage _deletedMessage({
-  required int id,
-  required int senderId,
-  required UiFlightPosition position,
-}) => UiChatMessage(
-  id: id.messageId(),
-  chatId: _chatId,
-  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
-  message: UiMessage_Content(
-    UiContentMessage(
-      sender: senderId.userId(),
-      sent: true,
-      edited: false,
-      content: UiMimiContent(
-        replaces: Uint8List.fromList([1, 2, 3, 4]), // Non-null marks as deleted
-        topicId: Uint8List(0),
-        content: null, // null content indicates message was deleted
-        attachments: [],
+UiChatMessage _deletedMessage({required int id, required int senderId}) =>
+    UiChatMessage(
+      id: id.messageId(),
+      chatId: _chatId,
+      timestamp: _timestamp(id),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: senderId.userId(),
+          sent: true,
+          edited: false,
+          content: UiMimiContent(
+            replaces: Uint8List.fromList([
+              1,
+              2,
+              3,
+              4,
+            ]), // Non-null marks as deleted
+            topicId: Uint8List(0),
+            content: null, // null content indicates message was deleted
+            attachments: [],
+          ),
+        ),
       ),
-    ),
-  ),
-  position: position,
-  status: UiMessageStatus.sent,
-  reactions: [],
-);
+      status: UiMessageStatus.sent,
+      reactions: [],
+    );
 
 /// Create a regular text message
 UiChatMessage _textMessage({
   required int id,
   required int senderId,
   required String text,
-  required UiFlightPosition position,
 }) => UiChatMessage(
   id: id.messageId(),
   chatId: _chatId,
-  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  timestamp: _timestamp(id),
   message: UiMessage_Content(
     UiContentMessage(
       sender: senderId.userId(),
@@ -75,7 +81,6 @@ UiChatMessage _textMessage({
       ),
     ),
   ),
-  position: position,
   status: UiMessageStatus.sent,
   reactions: [],
 );
@@ -160,30 +165,15 @@ void main() {
       // User 1 = self (Alice), User 2 = Bob
       final messages = [
         // 1. Regular message from them (Bob)
-        _textMessage(
-          id: 1,
-          senderId: 2,
-          text: 'Hello!',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 1, senderId: 2, text: 'Hello!'),
         // 2. Regular message from me
-        _textMessage(
-          id: 2,
-          senderId: 1,
-          text: 'Hi there!',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 2, senderId: 1, text: 'Hi there!'),
         // 3. Deleted message from me - "You deleted this message."
-        _deletedMessage(id: 3, senderId: 1, position: UiFlightPosition.single),
+        _deletedMessage(id: 3, senderId: 1),
         // 4. Deleted message from them (Bob) - "Bob deleted this message."
-        _deletedMessage(id: 4, senderId: 2, position: UiFlightPosition.single),
+        _deletedMessage(id: 4, senderId: 2),
         // 5. Regular message from me
-        _textMessage(
-          id: 5,
-          senderId: 1,
-          text: 'See you later!',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 5, senderId: 1, text: 'See you later!'),
       ];
 
       messageListCubit.setState(messages, isConnectionChat: true);
@@ -212,30 +202,15 @@ void main() {
         // 1. Regular message from Alice (user 3 = Eve in userProfiles, but let's use meaningful names)
         // Actually per userProfiles: userId 1 = Alice, 2 = Bob, 3 = Eve
         // Self is userId 1, so messages from others should be 2, 3, etc.
-        _textMessage(
-          id: 1,
-          senderId: 3,
-          text: 'Hey everyone!',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 1, senderId: 3, text: 'Hey everyone!'),
         // 2. Regular message from me
-        _textMessage(
-          id: 2,
-          senderId: 1,
-          text: 'Hi Eve!',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 2, senderId: 1, text: 'Hi Eve!'),
         // 3. Deleted message from me - "You deleted this message."
-        _deletedMessage(id: 3, senderId: 1, position: UiFlightPosition.single),
+        _deletedMessage(id: 3, senderId: 1),
         // 4. Deleted message from Bob - "Bob deleted this message."
-        _deletedMessage(id: 4, senderId: 2, position: UiFlightPosition.single),
+        _deletedMessage(id: 4, senderId: 2),
         // 5. Regular message from Eve
-        _textMessage(
-          id: 5,
-          senderId: 3,
-          text: 'What happened?',
-          position: UiFlightPosition.single,
-        ),
+        _textMessage(id: 5, senderId: 3, text: 'What happened?'),
       ];
 
       messageListCubit.setState(messages);

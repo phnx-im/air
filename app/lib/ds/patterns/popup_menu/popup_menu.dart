@@ -48,10 +48,9 @@ Future<void> showOverlayMenu({
   required List<MenuItem> items,
   MenuCorner corner = MenuCorner.topLeft,
   MenuTokens? tokens,
-  PopupMenuTokens popupTokens = PopupMenuTokens.standard,
   double? slideDistance,
 }) {
-  final distance = slideDistance ?? popupTokens.slideDistance;
+  final distance = slideDistance ?? PopupMenuTokens.slideDistance;
   // The menu starts offset toward the anchor and closes the gap, so it reads as
   // coming out of its trigger.
   final travel = corner.opensDown ? -distance : distance;
@@ -64,7 +63,7 @@ Future<void> showOverlayMenu({
     // No scrim: the barrier is here to catch the dismissing tap, not to dim the
     // app behind a menu.
     barrierColor: const Color(0x00000000),
-    transitionDuration: Effect.duration(popupTokens.enter),
+    transitionDuration: Effect.duration(PopupMenuTokens.enter),
     transitionBuilder: (context, animation, _, child) => FadeTransition(
       opacity: animation.drive(curve),
       child: _SlideIn(
@@ -78,8 +77,7 @@ Future<void> showOverlayMenu({
       anchor: anchor,
       corner: corner,
       items: items,
-      tokens: tokens ?? MenuTokens.of(context),
-      popupTokens: popupTokens,
+      tokens: tokens ?? MenuTokens.current,
     ),
   );
 }
@@ -107,14 +105,12 @@ class _OverlayMenuPage extends StatelessWidget {
     required this.corner,
     required this.items,
     required this.tokens,
-    required this.popupTokens,
   });
 
   final Rect anchor;
   final MenuCorner corner;
   final List<MenuItem> items;
   final MenuTokens tokens;
-  final PopupMenuTokens popupTokens;
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +124,7 @@ class _OverlayMenuPage extends StatelessWidget {
           math.max(media.viewPadding.right, media.viewInsets.right),
           math.max(media.viewPadding.bottom, media.viewInsets.bottom),
         ) +
-        EdgeInsets.all(popupTokens.edgeInset);
+        const EdgeInsets.all(PopupMenuTokens.edgeInset);
 
     final local = _toOverlaySpace(context, anchor);
 
@@ -139,7 +135,7 @@ class _OverlayMenuPage extends StatelessWidget {
           delegate: _PopupMenuLayout(
             anchor: local,
             corner: corner,
-            gap: popupTokens.anchorGap,
+            gap: PopupMenuTokens.anchorGap,
             inset: inset,
           ),
           child: Menu(

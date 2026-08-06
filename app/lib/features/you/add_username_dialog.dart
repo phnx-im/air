@@ -63,7 +63,7 @@ class AddUsernameDialog extends HookWidget {
           const SizedBox(height: S.s24),
 
           AppTextInput(
-            tokens: AppTextInputTokens.of(context),
+            tokens: AppTextInputTokens.current,
             autocorrect: false,
             autofocus: true,
             controller: controller,

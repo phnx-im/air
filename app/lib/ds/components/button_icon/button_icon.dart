@@ -15,9 +15,9 @@ import 'package:flutter/widgets.dart';
 /// platform -- touch dips, a pointer lifts.
 ///
 /// Without a handler the button reads as disabled: the glyph fades to
-/// [ButtonIconTokens.disabledOpacity] while the fill only recedes to
-/// [ButtonIconTokens.disabledFillOpacity] and the shadow stays, so the button
-/// keeps its shape rather than dissolving into what it sits on.
+/// [StateTokens.disabledContent] while the fill only recedes to
+/// [StateTokens.disabledFill] and the shadow stays, so the button keeps its
+/// shape rather than dissolving into what it sits on.
 class ButtonIcon extends StatelessWidget {
   const ButtonIcon({
     super.key,
@@ -81,12 +81,11 @@ class ButtonIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final enabled = onPressed != null || onLongPress != null;
-    final phone = DeviceType.isPhone;
 
     // Fade the parts rather than wrapping the button in an Opacity: an opacity
     // layer over a BackdropFilter doesn't survive every renderer.
-    final glyphFade = enabled ? 1.0 : ButtonIconTokens.disabledOpacity;
-    final fillFade = enabled ? 1.0 : ButtonIconTokens.disabledFillOpacity;
+    final glyphFade = enabled ? 1.0 : StateTokens.disabledContent;
+    final fillFade = enabled ? 1.0 : StateTokens.disabledFill;
     final baseFill = fill ?? ButtonIconTokens.fill(palette, variant);
     final bg = baseFill.withValues(alpha: baseFill.a * fillFade);
     final boxShadow = shadows ?? ButtonIconTokens.shadows(variant);
@@ -108,9 +107,7 @@ class ButtonIcon extends StatelessWidget {
         enabled: enabled,
         onTap: onPressed,
         onLongPress: onLongPress,
-        hover: !phone,
-        pressScale: phone,
-        hoverScale: !phone,
+        hoverScale: true,
         background: _Surface(
           variant: variant,
           fill: bg,

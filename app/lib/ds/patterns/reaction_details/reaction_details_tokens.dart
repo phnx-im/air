@@ -12,33 +12,31 @@ import 'package:flutter/widgets.dart';
 @immutable
 class ReactionDetailsTokens {
   const ReactionDetailsTokens({
-    required this.tabStripPadding,
     required this.tabPadding,
-    required this.tabGap,
-    required this.tabCountGap,
-    required this.tabStripBottomGap,
     required this.avatarSize,
     required this.removeGap,
   });
 
-  /// Inset around the section selector. The rows below carry their own
-  /// padding, so the strip repeats it to line the two up.
-  final EdgeInsets tabStripPadding;
-
   final EdgeInsets tabPadding;
-
-  /// Gap between two neighbouring tabs.
-  final double tabGap;
-
-  /// Gap between a tab's glyph and the count beside it.
-  final double tabCountGap;
-
-  final double tabStripBottomGap;
 
   final double avatarSize;
 
   /// Gap between the remove action and the glyph it takes back.
   final double removeGap;
+
+  /// Inset around the section selector. The rows below carry their own
+  /// padding, so the strip repeats it to line the two up.
+  static const EdgeInsets tabStripPadding = EdgeInsets.symmetric(
+    horizontal: S.s16,
+  );
+
+  /// Gap between two neighbouring tabs.
+  static const double tabGap = S.s4;
+
+  /// Gap between a tab's glyph and the count beside it.
+  static const double tabCountGap = S.s4;
+
+  static const double tabStripBottomGap = S.s8;
 
   static const double tabRadius = CornerRadius.full;
 
@@ -47,11 +45,7 @@ class ReactionDetailsTokens {
   static const double tabFadeWidth = S.s32;
 
   static const ReactionDetailsTokens phone = ReactionDetailsTokens(
-    tabStripPadding: EdgeInsets.symmetric(horizontal: S.s16),
     tabPadding: EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
-    tabGap: S.s4,
-    tabCountGap: S.s4,
-    tabStripBottomGap: S.s8,
     avatarSize: S.s40,
     removeGap: S.s8,
   );
@@ -59,15 +53,11 @@ class ReactionDetailsTokens {
   /// Denser than [phone]: the tabs tighten up and the avatar drops a step, so
   /// the viewer fits more reactors in the dialog it opens in.
   static const ReactionDetailsTokens desktop = ReactionDetailsTokens(
-    tabStripPadding: EdgeInsets.symmetric(horizontal: S.s16),
     tabPadding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s4),
-    tabGap: S.s4,
-    tabCountGap: S.s4,
-    tabStripBottomGap: S.s8,
     avatarSize: S.s32,
     removeGap: S.s12,
   );
 
-  static ReactionDetailsTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+  static ReactionDetailsTokens get current =>
+      DeviceType.isPhone ? phone : desktop;
 }

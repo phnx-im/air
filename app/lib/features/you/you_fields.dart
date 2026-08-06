@@ -143,7 +143,7 @@ class SwitchField extends HookWidget {
           Text(label, style: typeScale.body.regular.style()),
           const Spacer(),
           Toggle(
-            tokens: ToggleTokens.of(context),
+            tokens: ToggleTokens.current,
             value: value.value,
             onChanged: (_) => handleTap(),
           ),

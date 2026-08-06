@@ -27,8 +27,8 @@ const _handleLength = S.s48;
 class ResizablePanel extends StatefulWidget {
   const ResizablePanel({
     required this.initialWidth,
-    this.minWidth = 200,
-    this.maxWidth = 600,
+    this.minWidth = Measure.m200,
+    this.maxWidth = Measure.m600,
     this.onResizeEnd,
     required this.panelBuilder,
     required this.content,

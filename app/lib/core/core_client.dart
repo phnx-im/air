@@ -59,15 +59,16 @@ class CoreClient {
   }
 
   // used in dev settings
-  Future<void> deleteDatabase() async {
+  Future<void> deleteAllDatabases() async {
     await deleteDatabases(dbPath: await dbPath());
     _userController.add(null);
     _user = null;
   }
 
-  // used in dev settings
-  Future<void> deleteUserDatabase() async {
+  /// Tears this device down, stopping the outbound service first.
+  Future<void> deleteCurrentDatabase() async {
     await deleteClientDatabase(
+      user: user,
       dbPath: await dbPath(),
       clientRecordId: user.clientRecordId,
     );

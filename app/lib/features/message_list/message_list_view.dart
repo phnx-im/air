@@ -14,11 +14,12 @@ import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/anchored_list/anchored_list.dart';
 import 'package:air/util/anchored_list/controller.dart';
+import 'package:air/util/frame.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
-import 'package:air/ds/components/scroll/scroll_fade_tokens.dart';
 
+import 'package:air/features/message_list/message_list_fade_tokens.dart';
 import 'package:air/features/message_list/message_row_container.dart';
 import 'package:air/features/message_list/date_divider.dart';
 import 'package:air/features/message_list/floating_date_header.dart';
@@ -71,7 +72,7 @@ class MessageListView extends StatefulWidget {
 ///  - Marks the conversation as read up to the newest visible message.
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, FrameSafeState {
   /// Messages eligible for an entrance animation. Admitted at arrival time
   /// when the user was visually at the bottom, then evicted after
   /// [_animationWindow] so the set stays bounded and a tile that remounts
@@ -275,11 +276,12 @@ class _MessageListViewState extends State<MessageListView>
   // The list is reversed, so pixels count from the bottom and what sits under
   // the header is maxScrollExtent - pixels.
   void _updateScrollOffsets(ScrollMetrics metrics) {
-    widget.headerScrollOffset?.value = max(
-      0.0,
-      metrics.maxScrollExtent - metrics.pixels,
-    );
-    _bottomFadeOffset.value = max(0.0, metrics.pixels);
+    final headerOffset = max(0.0, metrics.maxScrollExtent - metrics.pixels);
+    final bottomOffset = max(0.0, metrics.pixels);
+    runFrameSafe(() {
+      widget.headerScrollOffset?.value = headerOffset;
+      _bottomFadeOffset.value = bottomOffset;
+    });
   }
 
   /// Shows the floating header during active scroll and hides it again
@@ -295,7 +297,7 @@ class _MessageListViewState extends State<MessageListView>
       }
     } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
-      _scrollActive.value = true;
+      runFrameSafe(() => _scrollActive.value = true);
       _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
@@ -382,15 +384,14 @@ class _MessageListViewState extends State<MessageListView>
     ValueListenable<double>? composerHeightListenable,
     MessageListStateWrapper state,
   ) {
-    // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
-    final fades = MessageListFadeTokens.of(context);
-    // Height of the safe area above the toolbar. The screen extends its body
-    // behind the app bar, so the bar's own height is part of this padding.
-    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    final fades = MessageListFadeTokens.current;
+    // Height of the safe area above the header bar. The screen extends its body
+    // behind the bar, so the bar's own height is part of this padding.
+    final statusBarHeight = max(mediaPadding.top - Chrome.barHeight, 0.0);
     // Total height of the top fade: the status bar and the header bar it has to
     // cover, plus the ramp trailing below them.
-    final fadeHeight = statusBarHeight + kToolbarHeight + fades.topTail;
+    final fadeHeight = statusBarHeight + Chrome.barHeight + fades.topTail;
     // Y-coordinate where content comes clear of the fade. Used as the list's
     // top inset so rows at rest, jumps and the unread divider all land below
     // it.
@@ -512,7 +513,7 @@ class _MessageListViewState extends State<MessageListView>
             height: fades.bottomHeight,
             color: bgColor,
             curve: Curves.easeInOutQuad,
-            opacity: fades.bottomOpacity * reveal,
+            opacity: MessageListFadeTokens.bottomOpacity * reveal,
           );
         },
       ),
@@ -610,6 +611,8 @@ class _MessageListViewState extends State<MessageListView>
         animated: animated,
         isNewest: isNewest,
         isNewestOwn: index == newestOwnIndex,
+        startsMessageGroup: _startsMessageGroup(state, message, index),
+        endsMessageGroup: _endsMessageGroup(state, message, index),
       ),
     );
 
@@ -666,7 +669,66 @@ class _MessageListViewState extends State<MessageListView>
     final older = state.messageData[olderIndex];
     return !_isSameLocalDay(older.timestamp, message.timestamp);
   }
+
+  /// Whether [message] opens the run of rows the list shows as one block. It
+  /// carries the group's gap above it and, in a group chat, the sender's name.
+  ///
+  /// Data is newest-first, so the chronologically older neighbor sits at
+  /// [index] + 1. An unloaded edge is a boundary: the row that would join the
+  /// group is not on screen to join it.
+  bool _startsMessageGroup(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    if (_isFirstUnread(state, index)) return true;
+    final older = _messageAtDataIndex(state, index + 1);
+    return older == null || !_joinsMessageGroup(older, message);
+  }
+
+  /// Whether [message] closes that run. It carries the sender's avatar, which
+  /// foots the group.
+  bool _endsMessageGroup(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    // The unread divider sits above the first unread message, so it separates
+    // this row from a newer neighbor that is itself the first unread one.
+    if (_isFirstUnread(state, index - 1)) return true;
+    final newer = _messageAtDataIndex(state, index - 1);
+    return newer == null || !_joinsMessageGroup(message, newer);
+  }
+
+  bool _isFirstUnread(MessageListStateWrapper state, int index) {
+    final firstUnreadIndex = state.firstUnreadIndex;
+    if (firstUnreadIndex == null) return false;
+    return state.messageData.length - firstUnreadIndex - 1 == index;
+  }
+
+  UiChatMessage? _messageAtDataIndex(
+    MessageListStateWrapper state,
+    int index,
+  ) => index >= 0 && index < state.messageData.length
+      ? state.messageData[index]
+      : null;
 }
+
+/// Whether the two adjacent messages [older] and [newer] belong to the same
+/// displayed group. Only content messages group, and only while the same sender
+/// keeps talking without a pause.
+bool _joinsMessageGroup(UiChatMessage older, UiChatMessage newer) {
+  if (older.message case UiMessage_Content(field0: final olderContent)) {
+    if (newer.message case UiMessage_Content(field0: final newerContent)) {
+      return olderContent.sender == newerContent.sender &&
+          newer.timestamp.difference(older.timestamp).abs() < _messageGroupGap;
+    }
+  }
+  return false;
+}
+
+/// How long a sender may pause before the next message reads as a new group.
+const Duration _messageGroupGap = Duration(minutes: 5);
 
 bool _isSameLocalDay(DateTime a, DateTime b) {
   final aLocal = a.toLocal();

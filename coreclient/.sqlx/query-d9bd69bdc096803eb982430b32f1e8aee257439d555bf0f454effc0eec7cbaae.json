@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE own_client_info SET unlinked = TRUE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "d9bd69bdc096803eb982430b32f1e8aee257439d555bf0f454effc0eec7cbaae"
+}

@@ -6,11 +6,9 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -29,9 +27,12 @@ bool get _isQrCodeScannerSupported =>
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
 
 /// A running linking session
+///
+/// [confirm] takes the name the user gave the new device. An empty name leaves
+/// the new device's own default in place.
 typedef LinkSession = ({
   Stream<MultiDeviceLinkEvent> events,
-  VoidCallback confirm,
+  ValueChanged<String> confirm,
 });
 
 /// Starts a linking session for [sessionId]. Injectable for tests.
@@ -41,7 +42,10 @@ typedef LinkSessionStarter =
 LinkSession _startLinkSession(BuildContext context, String sessionId) {
   final confirmation = MultiDeviceLinkConfirmation();
   final events = context.read<UserCubit>().linkDevice(sessionId, confirmation);
-  return (events: events, confirm: confirmation.confirm);
+  return (
+    events: events,
+    confirm: (deviceName) => confirmation.confirm(deviceName: deviceName),
+  );
 }
 
 /// Entry point for linking a new device.
@@ -61,7 +65,7 @@ class LinkDeviceModal extends HookWidget {
     void backToChooser() => page.value = _LinkPage.chooser;
 
     return AppDialog(
-      maxWidth: 500,
+      maxWidth: Measure.m500,
       backgroundColor: palette.backgroundBase.quaternary,
       child: switch (page.value) {
         _LinkPage.chooser => _LinkChooserPage(
@@ -165,7 +169,7 @@ class _LinkChooserPage extends StatelessWidget {
           label: _isQrCodeScannerSupported
               ? loc.linkedDevicesScreen_linkDialog_scanQrCode
               : loc.linkedDevicesScreen_linkDialog_scanQrCode_unavailable,
-          state: _isQrCodeScannerSupported ? .active : .inactive,
+          state: _isQrCodeScannerSupported ? .active : .disabled,
           icon: (size, color) => AppIcon.qrCode(size: size.width, color: color),
           alignment: .start,
           onPressed: onScanQrCode,
@@ -431,7 +435,7 @@ class _NumericCodePage extends HookWidget {
         ),
         const SizedBox(height: S.s16),
         AppTextInput(
-          tokens: AppTextInputTokens.of(context),
+          tokens: AppTextInputTokens.current,
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
@@ -497,8 +501,7 @@ class _LinkingPage extends HookWidget {
               phase.value = _LinkPhase.awaitingConfirmation;
             }
           case MultiDeviceLinkEvent_Linked():
-            // TODO: this should end the entire process later
-            if (context.mounted) _showLinkedDialog(context);
+            if (context.mounted) Navigator.of(context).pop();
           case MultiDeviceLinkEvent_SessionNotFound():
             phase.value = _LinkPhase.sessionNotFound;
           case MultiDeviceLinkEvent_Failed():
@@ -515,8 +518,8 @@ class _LinkingPage extends HookWidget {
       ),
       _LinkPhase.awaitingConfirmation => _LinkConfirmView(
         onBack: onBack,
-        onConfirm: () {
-          session.confirm();
+        onConfirm: (deviceName) {
+          session.confirm(deviceName);
           phase.value = _LinkPhase.linking;
         },
       ),
@@ -535,21 +538,6 @@ class _LinkingPage extends HookWidget {
         message: loc.linkingDevicesScreen_error_generic,
       ),
     };
-  }
-
-  /// Closes the link modal and shows a success popup.
-  void _showLinkedDialog(BuildContext context) {
-    if (!context.mounted) return;
-    final navigator = Navigator.of(context);
-    navigator.pop();
-    showDialog<void>(
-      context: navigator.context,
-      builder: (_) => const ConfirmDialog(
-        title: "Device was linked! 🎉",
-        message: "Your new device is now linked to your account.",
-        confirm: "OK",
-      ),
-    );
   }
 }
 
@@ -632,7 +620,7 @@ class _LinkDeviceName extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return AppTextInput(
-      tokens: AppTextInputTokens.of(context),
+      tokens: AppTextInputTokens.current,
       controller: textEditingController,
       maxLength: 30,
       helperText: loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
@@ -646,7 +634,9 @@ class _LinkConfirmView extends HookWidget {
   const _LinkConfirmView({required this.onBack, required this.onConfirm});
 
   final VoidCallback onBack;
-  final VoidCallback onConfirm;
+
+  /// Called with the name the user gave the new device.
+  final ValueChanged<String> onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -654,8 +644,7 @@ class _LinkConfirmView extends HookWidget {
     final palette = SemanticPalette.of(context);
     final checked = useState(false);
 
-    final platform = Theme.of(context).platform;
-    final deviceName = useTextEditingController(text: platform.name);
+    final deviceName = useTextEditingController();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -680,7 +669,6 @@ class _LinkConfirmView extends HookWidget {
             spacing: S.s12,
             children: [
               AppCheckbox(
-                tokens: CheckboxTokens.standard,
                 value: checked.value,
                 onChanged: (value) => checked.value = value,
               ),
@@ -697,8 +685,8 @@ class _LinkConfirmView extends HookWidget {
         Button(
           type: .primary,
           label: loc.linkingDeviceScreen_linking_confirm_button,
-          state: checked.value ? ButtonState.active : ButtonState.inactive,
-          onPressed: onConfirm,
+          state: checked.value ? ButtonState.active : ButtonState.disabled,
+          onPressed: () => onConfirm(deviceName.text),
         ),
       ],
     );

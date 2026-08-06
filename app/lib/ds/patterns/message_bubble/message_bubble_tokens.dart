@@ -10,30 +10,20 @@ import 'package:flutter/widgets.dart';
 /// Geometry only: colors come from the palette at paint time. One set for
 /// every density -- a bubble's content and the width of the conversation size
 /// it, never the pointer.
-@immutable
-class MessageBubbleTokens {
-  const MessageBubbleTokens({
-    required this.padding,
-    required this.radius,
-    required this.borderWidth,
-  });
-
+abstract final class MessageBubbleTokens {
   /// Inset between the bubble's edge and its content. A bubble whose content
   /// runs to the edge (an image, a gallery) takes [EdgeInsets.zero], and its
   /// blocks carry this inset themselves.
-  final EdgeInsets padding;
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: S.s12,
+    vertical: S.s8,
+  );
 
-  /// Corner radius, the same on all four corners. A flight of bubbles keeps one
+  /// Corner radius, the same on all four corners. A group of bubbles keeps one
   /// shape: the gap between them already reads as a run, so stepping the
   /// corners down only makes the column look ragged.
-  final double radius;
+  static const double radius = CornerRadius.px12;
 
   /// Outline of the [MessageBubbleVariant.outlined] look.
-  final double borderWidth;
-
-  static const MessageBubbleTokens standard = MessageBubbleTokens(
-    padding: EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
-    radius: CornerRadius.px12,
-    borderWidth: StrokeWidth.px1,
-  );
+  static const double borderWidth = StrokeWidth.px1;
 }

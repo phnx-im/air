@@ -116,7 +116,7 @@ class DialogHeader extends StatelessWidget {
 
     // A floor, not a cap: it reserves the room a lone icon needs to balance
     // the row, while an action that wants more takes it rather than squashing.
-    final slotWidth = math.max(tokens.slotWidth, tokens.actionSize);
+    final slotWidth = math.max(DialogHeaderTokens.slotWidth, tokens.actionSize);
 
     final trailingAction =
         trailing ??
@@ -133,9 +133,9 @@ class DialogHeader extends StatelessWidget {
       // can never sit on one that differs from the card it caps.
       color: ModalShellTokens.surface(context),
       child: SizedBox(
-        height: tokens.height,
+        height: DialogHeaderTokens.height,
         child: Padding(
-          padding: tokens.contentPadding,
+          padding: DialogHeaderTokens.contentPadding,
           // A toolbar rather than a row of fixed slots: it measures both
           // actions before it lays the title out, which is what lets the
           // trailing slot grow to a label while the title stays centered.
@@ -156,9 +156,11 @@ class DialogHeader extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: typeScale.body.regular
-                  .style(color: palette.text.primary, weight: Weight.emphasized)
-                  .copyWith(height: 1.0),
+              style: typeScale.body.regular.style(
+                color: palette.text.primary,
+                weight: Weight.emphasized,
+                tight: true,
+              ),
             ),
             trailing: trailingAction != null
                 ? _Slot(

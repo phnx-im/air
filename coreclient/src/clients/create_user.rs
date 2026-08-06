@@ -14,7 +14,7 @@ use crate::{
 };
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, VerifiableUserCredential, keys::PreliminaryClientSigningKey,
+        AsIntermediateCredential, VerifiableUserCredential, keys::PreliminaryUserSigningKey,
     },
     crypto::{
         aead::{AeadEncryptable, keys::PushTokenEarKey},
@@ -152,7 +152,7 @@ pub(crate) struct InitialUserState {
     as_intermediate_credential: AsIntermediateCredential,
     encrypted_push_token: Option<EncryptedPushToken>,
     encrypted_user_profile: EncryptedUserProfile,
-    key_store: MemoryUserKeyStoreBase<PreliminaryClientSigningKey>,
+    key_store: MemoryUserKeyStoreBase<PreliminaryUserSigningKey>,
     qs_initial_ratchet_secret: RatchetSecret,
     invitation_code: String,
 }
@@ -221,7 +221,7 @@ impl PostAsRegistrationState {
             .await?;
 
         let signing_key =
-            ClientSigningKey::from_prelim_key(key_store.signing_key, user_credential.clone())?;
+            UserSigningKey::from_prelim_key(key_store.signing_key, user_credential.clone())?;
 
         // Store the own user credential in the DB
         StorableUserCredential::new(user_credential.clone())
@@ -422,7 +422,7 @@ impl PersistedUserState {
             db_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,
-            _event_loop_cancel: event_loop_cancel.drop_guard(),
+            event_loop_cancel: event_loop_cancel.drop_guard(),
         });
 
         event_loop.spawn(Arc::downgrade(&inner));

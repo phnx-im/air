@@ -11,8 +11,6 @@ import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:provider/provider.dart';
 
-const _maxDesktopWidth = 800.0;
-
 class ChangeUserScreen extends StatelessWidget {
   const ChangeUserScreen({super.key, this.clientRecords});
 
@@ -30,7 +28,7 @@ class ChangeUserScreen extends StatelessWidget {
       body: Center(
         child: Container(
           constraints: DeviceType.isDesktop
-              ? const BoxConstraints(maxWidth: _maxDesktopWidth)
+              ? const BoxConstraints(maxWidth: Measure.m800)
               : null,
           child: _ClientRecordsList(clientRecords: clientRecords),
         ),

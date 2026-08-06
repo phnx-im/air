@@ -106,13 +106,17 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
       padding: tokens.containerPadding,
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: tokens.maxWidth),
+          constraints: const BoxConstraints(
+            maxWidth: ContactRequestCardTokens.maxWidth,
+          ),
           child: Container(
             width: double.infinity,
-            padding: tokens.padding,
+            padding: ContactRequestCardTokens.padding,
             decoration: BoxDecoration(
               color: palette.backgroundBase.secondary,
-              borderRadius: BorderRadius.circular(tokens.radius),
+              borderRadius: BorderRadius.circular(
+                ContactRequestCardTokens.radius,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -125,7 +129,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                     weight: Weight.emphasized,
                   ),
                 ),
-                SizedBox(height: tokens.subtitleGap),
+                const SizedBox(height: ContactRequestCardTokens.subtitleGap),
                 Text(
                   widget.subtitle,
                   textAlign: TextAlign.center,
@@ -133,9 +137,12 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                     color: palette.text.secondary,
                   ),
                 ),
-                Padding(padding: tokens.avatarPadding, child: _avatar(palette)),
+                Padding(
+                  padding: ContactRequestCardTokens.avatarPadding,
+                  child: _avatar(palette),
+                ),
                 if (message != null) _note(palette, message),
-                SizedBox(height: tokens.actionsTopGap),
+                const SizedBox(height: ContactRequestCardTokens.actionsTopGap),
                 _actions(),
               ],
             ),
@@ -146,7 +153,6 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
   }
 
   Widget _avatar(SemanticPalette palette) {
-    final tokens = widget.tokens;
     final image = widget.image;
 
     // A prompt only stands while there's a picture left to uncover, so it
@@ -162,7 +168,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
           // A covered picture takes the initial with it: the circle should hold
           // nothing the reader hasn't asked to see.
           displayName: image != null ? "" : widget.displayName,
-          size: tokens.avatarSize,
+          size: ContactRequestCardTokens.avatarSize,
           image: _pictureRevealed ? image : null,
           gradientSeed: widget.gradientSeed,
           onTap: prompt != null
@@ -170,7 +176,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
               : null,
         ),
         if (prompt != null) ...[
-          SizedBox(height: tokens.avatarLabelGap),
+          const SizedBox(height: ContactRequestCardTokens.avatarLabelGap),
           Text(
             prompt,
             textAlign: TextAlign.center,
@@ -182,7 +188,6 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
   }
 
   Widget _note(SemanticPalette palette, String message) {
-    final tokens = widget.tokens;
     final label = widget.messageLabel;
     final prompt = _messageRevealed ? null : widget.messageRevealLabel;
 
@@ -205,7 +210,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                   weight: Weight.emphasized,
                 ),
               ),
-              SizedBox(height: tokens.messageLabelGap),
+              const SizedBox(height: ContactRequestCardTokens.messageLabelGap),
             ],
             Text(
               prompt ?? message,
@@ -230,7 +235,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
           label: widget.dismissLabel,
         ),
       ),
-      SizedBox(width: widget.tokens.actionsGap),
+      const SizedBox(width: ContactRequestCardTokens.actionsGap),
       Expanded(
         child: Button(
           size: ButtonSize.large,

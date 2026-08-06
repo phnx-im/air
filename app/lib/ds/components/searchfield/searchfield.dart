@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/field/fallback_text_controller.dart';
+import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/searchfield/searchfield_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
@@ -44,20 +46,12 @@ class SearchField extends StatefulWidget {
   State<SearchField> createState() => _SearchFieldState();
 }
 
-class _SearchFieldState extends State<SearchField> {
-  TextEditingController? _fallbackController;
-
-  TextEditingController get _controller =>
-      widget.controller ?? (_fallbackController ??= TextEditingController());
-
+class _SearchFieldState extends State<SearchField> with FallbackTextController {
   @override
-  void dispose() {
-    _fallbackController?.dispose();
-    super.dispose();
-  }
+  TextEditingController? get hostController => widget.controller;
 
   void _clear() {
-    _controller.clear();
+    controller.clear();
     // A programmatic edit never reaches onChanged, so the host would otherwise
     // keep filtering on the query it can no longer see.
     widget.onChanged?.call('');
@@ -67,23 +61,24 @@ class _SearchFieldState extends State<SearchField> {
   Widget build(BuildContext context) {
     final tokens = widget.tokens;
     final palette = SemanticPalette.of(context);
-    final inputStyle = typeScale.body.regular
-        .style(color: palette.text.primary)
-        .copyWith(height: 1.0);
+    final inputStyle = typeScale.body.regular.style(
+      color: palette.text.primary,
+      tight: true,
+    );
 
     return Container(
-      padding: tokens.padding,
+      padding: SearchFieldTokens.padding,
       decoration: BoxDecoration(
         color: palette.fill.tertiary,
-        borderRadius: BorderRadius.circular(tokens.radius),
+        borderRadius: BorderRadius.circular(SearchFieldTokens.radius),
       ),
       child: Row(
         children: [
           AppIcon.search(size: tokens.iconSize, color: palette.text.tertiary),
-          SizedBox(width: tokens.gap),
+          const SizedBox(width: SearchFieldTokens.gap),
           Expanded(
             child: TextField(
-              controller: _controller,
+              controller: controller,
               focusNode: widget.focusNode,
               autofocus: widget.autofocus,
               textInputAction: widget.textInputAction,
@@ -96,26 +91,15 @@ class _SearchFieldState extends State<SearchField> {
                 inputStyle,
                 forceStrutHeight: true,
               ),
-              // The pill is the chrome, so the field itself draws nothing. We
-              // spell out the borders and fill rather than let the ambient
-              // input theme add its own.
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
+              // The pill is the chrome, so the field itself draws nothing.
+              decoration: FieldChrome.plain(
                 hintText: widget.hintText,
                 hintStyle: inputStyle.copyWith(color: palette.text.tertiary),
               ),
             ),
           ),
           ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _controller,
+            valueListenable: controller,
             builder: (context, value, _) => value.text.isEmpty
                 ? const SizedBox.shrink()
                 : _buildClearButton(palette),
@@ -131,7 +115,7 @@ class _SearchFieldState extends State<SearchField> {
     behavior: HitTestBehavior.opaque,
     onTap: _clear,
     child: Padding(
-      padding: EdgeInsets.only(left: widget.tokens.gap),
+      padding: const EdgeInsets.only(left: SearchFieldTokens.gap),
       child: AppIcon.x(
         size: widget.tokens.clearSize,
         color: palette.text.tertiary,
