@@ -120,6 +120,9 @@ pub(crate) enum GroupOperationError {
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
+    /// Membership change of an APQ group via a non-APQ group operation.
+    #[error("APQ group requires an APQ group operation")]
+    ApqMembershipChange,
     /// Missing queue config in client key package.
     #[error("Missing queue config in client key package")]
     MissingQueueConfig,
@@ -182,6 +185,7 @@ impl From<GroupOperationError> for Status {
             GroupOperationError::MissingQueueConfig | GroupOperationError::IncompleteWelcome => {
                 Status::invalid_argument(msg)
             }
+            GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
             GroupOperationError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)

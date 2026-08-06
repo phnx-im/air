@@ -138,8 +138,13 @@ impl DsGroupState {
     /// Returns true if the group context carries the APQMLS component, i.e. this group is a leg of
     /// an APQ group.
     pub(crate) fn is_apq(&self) -> bool {
+        self.apq_info().is_some()
+    }
+
+    /// Extracts the APQMLS component from the group context extensions, if present.
+    pub(crate) fn apq_info(&self) -> Option<ApqInfo> {
         let extensions = self.group().group_info().group_context().extensions();
-        ApqInfo::from_extensions(extensions).is_ok_and(|info| info.is_some())
+        ApqInfo::from_extensions(extensions).ok().flatten()
     }
 
     /// Get a reference to the public group state.
