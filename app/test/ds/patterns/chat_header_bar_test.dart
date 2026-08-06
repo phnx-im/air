@@ -18,7 +18,6 @@ void main() {
   group('ChatHeaderBar', () {
     Widget buildSubject({
       String? subtitle,
-      double scrollOffset = 0,
       VoidCallback? onTap,
       VoidCallback? onLongPress,
       VoidCallback? onBack,
@@ -32,7 +31,6 @@ void main() {
           name: _name,
           subtitle: subtitle,
           avatar: const SizedBox.square(dimension: S.s32),
-          scrollOffset: scrollOffset,
           onTap: onTap,
           onLongPress: onLongPress,
           onBack: onBack,
@@ -49,20 +47,8 @@ void main() {
       return tester.widget<Container>(pill).decoration! as BoxDecoration;
     }
 
-    testWidgets('pill is invisible at the top of the conversation', (
-      tester,
-    ) async {
+    testWidgets('pill always carries its surface', (tester) async {
       await tester.pumpWidget(buildSubject());
-
-      expect(pillDecoration(tester).color!.a, 0.0);
-    });
-
-    testWidgets('pill is fully revealed past the reveal distance', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        buildSubject(scrollOffset: ChatHeaderBarTokens.pillRevealDistance),
-      );
 
       expect(
         pillDecoration(tester).color,

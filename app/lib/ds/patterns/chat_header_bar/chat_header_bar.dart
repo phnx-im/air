@@ -14,7 +14,7 @@ import 'package:flutter/widgets.dart';
 /// and a matching trailing spacer.
 ///
 /// A pure view: it renders what it's handed and reports gestures back, so the
-/// host owns the chat state and the scroll.
+/// host owns the chat state.
 class ChatHeaderBar extends StatelessWidget {
   const ChatHeaderBar({
     super.key,
@@ -26,7 +26,6 @@ class ChatHeaderBar extends StatelessWidget {
     this.onLongPress,
     this.onBack,
     this.backEmphasized = false,
-    this.scrollOffset = 0,
   });
 
   final ChatHeaderBarTokens tokens;
@@ -52,11 +51,6 @@ class ChatHeaderBar extends StatelessWidget {
   /// Badges the back button with a corner dot, flagging that what the user is
   /// going back to has moved on since they left it.
   final bool backEmphasized;
-
-  /// How much conversation sits scrolled under the bar. Drives the pill's
-  /// reveal. The host owns the scroll, so this arrives as a plain value and the
-  /// pattern stays a pure renderer.
-  final double scrollOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +96,6 @@ class ChatHeaderBar extends StatelessWidget {
                   avatar: avatar,
                   onTap: onTap,
                   onLongPress: onLongPress,
-                  scrollOffset: scrollOffset,
                 ),
               ),
             ),
@@ -126,7 +119,6 @@ class _TitlePill extends StatelessWidget {
     required this.avatar,
     required this.onTap,
     required this.onLongPress,
-    required this.scrollOffset,
   });
 
   final ChatHeaderBarTokens tokens;
@@ -135,20 +127,10 @@ class _TitlePill extends StatelessWidget {
   final Widget? avatar;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
-  final double scrollOffset;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-
-    // Scroll-linked ramp, same as the list header's: it tracks the finger, so
-    // there's no duration.
-    final t = (scrollOffset / ChatHeaderBarTokens.pillRevealDistance).clamp(
-      0.0,
-      1.0,
-    );
-    final reveal = Effect.easeOutQuart.transform(t);
-    final fill = palette.backgroundElevated.primary;
     final avatarWidget = avatar;
     final subtitleText = subtitle;
 
@@ -162,14 +144,9 @@ class _TitlePill extends StatelessWidget {
           constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
           padding: ChatHeaderBarTokens.pillPadding,
           decoration: BoxDecoration(
-            color: fill.withValues(alpha: fill.a * reveal),
+            color: palette.backgroundElevated.primary,
             borderRadius: BorderRadius.circular(ChatHeaderBarTokens.pillRadius),
-            boxShadow: [
-              for (final s in Effect.elevation(Elevation.flat))
-                s.copyWith(
-                  color: s.color.withValues(alpha: s.color.a * reveal),
-                ),
-            ],
+            boxShadow: Effect.elevation(Elevation.flat),
           ),
           // mainAxisSize.min so the pill hugs its content instead of expanding
           // to the bar's full width.
