@@ -402,12 +402,8 @@ class _MessageShell extends StatelessWidget {
   /// See [_MessageView.showsStamp].
   final bool showsStamp;
 
-  /// Reveal-on-hover buttons, sized to match a single-line message bubble.
-  static final HoverActionTokens _hoverTokens = HoverActionTokens(
-    size:
-        typeScale.body.regular.lineHeightPx +
-        MessageBubbleTokens.padding.vertical,
-  );
+  /// Reveal-on-hover buttons.
+  static const HoverActionTokens _hoverTokens = HoverActionTokens.standard;
 
   bool get _withHoverActions => !isMobilePlatform && isReplyable;
 
@@ -629,7 +625,7 @@ class _MessageShell extends StatelessWidget {
   /// React stays adjacent to the bubble, reply sits on the outer edge, and the
   /// message's time hangs off the end of the two.
   Widget _hoverActions(BuildContext context) {
-    final tokens = _hoverTokens;
+    const tokens = _hoverTokens;
     final surface = isSender
         ? HoverActionSurface.self
         : HoverActionSurface.other;
