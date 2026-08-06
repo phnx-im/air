@@ -403,7 +403,10 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     // Device B joins from the same welcome, using key material it derived rather than generated.
     let processed = drain_queue(&device_b).await?;
     assert!(
-        processed.new_chats.contains(&chat_id),
+        processed
+            .new_chats
+            .iter()
+            .any(|new_chat| new_chat.chat_id == chat_id),
         "the sibling should have joined the group from the welcome"
     );
 

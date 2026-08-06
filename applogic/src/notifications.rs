@@ -7,7 +7,10 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, UserProfile,
-    clients::{CoreUser, process::process_qs::ReactionNotification},
+    clients::{
+        CoreUser,
+        process::process_qs::{NewChat, ReactionNotification},
+    },
 };
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use serde::{Deserialize, Serialize};
@@ -324,10 +327,14 @@ impl User {
     /// Send notifications for new chats.
     pub(crate) async fn new_chat_notifications(
         &self,
-        chat_ids: &[ChatId],
+        new_chats: &[NewChat],
         notifications: &mut Vec<NotificationContent>,
     ) {
-        for chat_id in chat_ids {
+        for NewChat { chat_id, added_by } in new_chats {
+            // A chat one of our own clients added us in (e.g. self-group).
+            if added_by == self.user.user_id() {
+                continue;
+            }
             if let Some(chat) = self.user.chat(chat_id).await {
                 if chat.is_muted() {
                     continue;
