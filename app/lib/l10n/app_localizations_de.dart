@@ -815,7 +815,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.';
+      'Dieser Client wurde nach dem Verknüpfen in der Chat aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';

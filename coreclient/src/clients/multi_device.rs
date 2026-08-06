@@ -532,7 +532,8 @@ impl CoreUser {
     /// joining emulator client can onboard itself into each of them.
     ///
     /// Skips the emulation group itself, every connection chat that is not
-    /// confirmed yet, and blocked chats.
+    /// confirmed yet, and every chat that is not active. A pending chat is one
+    /// whose onboarding has not landed, so its leaf is not ours to hand on.
     async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
@@ -547,8 +548,8 @@ impl CoreUser {
                     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
                         continue;
                     };
-                    if matches!(chat.status(), ChatStatus::Blocked) {
-                        debug!(group_id = ?group.group_id, "skipping blocked chat");
+                    if !matches!(chat.status(), ChatStatus::Active) {
+                        debug!(group_id = ?group.group_id, "skipping non-active chat");
                         continue;
                     }
                     let connection = match chat.chat_type() {

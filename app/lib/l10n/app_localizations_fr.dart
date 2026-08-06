@@ -818,7 +818,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Ce client a été ajouté au groupe après l\'association.';
+      'Ce client a été ajouté au chat après l\'association.';
 
   @override
   String get timestamp_now => 'Maintenant';

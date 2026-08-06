@@ -804,7 +804,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Den här klienten lades till i gruppen efter länkningen.';
+      'Den här klienten lades till i chat efter länkningen.';
 
   @override
   String get timestamp_now => 'Nu';

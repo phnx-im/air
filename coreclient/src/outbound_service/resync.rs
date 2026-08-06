@@ -234,7 +234,7 @@ impl Resync {
     /// Returns the chat the resync applies to, which for an onboarding resync is
     /// only created here, once the commit has been accepted.
     async fn create_and_send_commit(
-        self,
+        mut self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &LeafSigningKey,
@@ -257,7 +257,7 @@ impl Resync {
         }
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
-        let connection_contact = self.connection_contact.clone();
+        let connection_contact = self.connection_contact.take();
         let original_leaf_index = self.original_leaf_index;
         let existing_chat_id = self.chat_id;
         let ds_timestamp = TimeStamp::now();

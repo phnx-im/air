@@ -286,7 +286,7 @@
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " created the group",
 
-  "systemMessage_onboarded": "This client has been onboarded into the group after linking.",
+  "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
 
   "timestamp_now": "Now",
   "timestamp_minutesAgo": "{count}m",

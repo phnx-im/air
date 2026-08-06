@@ -1410,7 +1410,7 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_onboarded.
   ///
   /// In en, this message translates to:
-  /// **'This client has been onboarded into the group after linking.'**
+  /// **'This client has been onboarded into the chat after linking.'**
   String get systemMessage_onboarded;
 
   /// No description provided for @timestamp_now.

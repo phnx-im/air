@@ -247,7 +247,7 @@
   "systemMessage_userChangedPicture_infix": " a modifié l'image du groupe",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " a créé le groupe",
-  "systemMessage_onboarded": "Ce client a été ajouté au groupe après l'association.",
+  "systemMessage_onboarded": "Ce client a été ajouté au chat après l'association.",
   "timestamp_now": "Maintenant",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Aujourd’hui",

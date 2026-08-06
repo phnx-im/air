@@ -797,7 +797,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'This client has been onboarded into the chat after linking.';
 
   @override
   String get timestamp_now => 'Now';
