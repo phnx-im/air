@@ -278,9 +278,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get introScreen_serverHint => 'DOMAINNAME';
 
   @override
-  String get introScreen_error_invalidDomain => 'Domain ist ungültig';
-
-  @override
   String get introScreen_linkExisting =>
       'Mit einem bestehenden Konto verknüpfen';
 
@@ -453,9 +450,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking => 'Verknüpfe...';
-
-  @override
-  String get linkingDeviceScreen_linked => 'Gerät erfolgreich verknüpft!';
 
   @override
   String get linkingDeviceScreen_linking_confirm_title =>
@@ -815,7 +809,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Dieser Client wurde nach dem Verknüpfen in der Chat aufgenommen.';
+      'Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';
@@ -861,9 +855,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blockiert';
-
-  @override
-  String get chatList_muted => 'Stummgeschaltet';
 
   @override
   String get chatList_contextMenu_mute => 'Stummschalten';
@@ -973,9 +964,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Erneut versuchen';
 
   @override
   String get attachment_gallery => 'Galerie';
@@ -1164,9 +1152,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Hinzufügen';
-
-  @override
-  String get groupDetails_seeAll => 'Alle anzeigen';
 
   @override
   String groupDetails_memberCount(int count) {

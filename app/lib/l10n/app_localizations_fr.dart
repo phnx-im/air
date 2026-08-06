@@ -280,9 +280,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get introScreen_serverHint => 'NOM DE DOMAINE';
 
   @override
-  String get introScreen_error_invalidDomain => 'Le domaine est invalide';
-
-  @override
   String get introScreen_linkExisting => 'Associer à un compte existant';
 
   @override
@@ -458,9 +455,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking => 'Association...';
-
-  @override
-  String get linkingDeviceScreen_linked => 'Appareil associé avec succès !';
 
   @override
   String get linkingDeviceScreen_linking_confirm_title =>
@@ -866,9 +860,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatList_blocked => 'Bloqué';
 
   @override
-  String get chatList_muted => 'En sourdine';
-
-  @override
   String get chatList_contextMenu_mute => 'Mettre en sourdine';
 
   @override
@@ -976,9 +967,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Réessayer';
 
   @override
   String get attachment_gallery => 'Galerie';
@@ -1169,9 +1157,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Ajouter';
-
-  @override
-  String get groupDetails_seeAll => 'Voir tout';
 
   @override
   String groupDetails_memberCount(int count) {
