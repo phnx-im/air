@@ -586,19 +586,24 @@ class _EditBanner extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(
-        top: S.s12,
-        left: MessageInputTokens.fieldPadding + S.s8,
+        top: S.s8,
+        bottom: S.s8,
+        left: MessageInputTokens.fieldPadding,
         right: MessageInputTokens.fieldPadding + S.s8,
       ),
-      child: Row(
-        children: [
-          AppIcon.pencil(size: 20, color: palette.text.tertiary),
-          const SizedBox(width: S.s8),
-          Text(
-            loc.composer_editMessage,
-            style: typeScale.body.s.style(color: palette.text.tertiary),
-          ),
-        ],
+      child: Text.rich(
+        TextSpan(
+          children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: AppIcon.pencil(size: S.s12, color: palette.text.tertiary),
+            ),
+            const WidgetSpan(child: SizedBox(width: S.s8)),
+            TextSpan(text: loc.composer_editMessage),
+          ],
+          style: typeScale.body.s.style(color: palette.text.tertiary),
+        ),
       ),
     );
   }
