@@ -1168,6 +1168,19 @@ impl CoreUser {
             bail!("No external senders supported yet");
         };
 
+        // A peer re-sends an identical self-remove proposal when it retries a leave
+        // that did not change the epoch. Storing it again is a no-op, but we must
+        // not emit the system message or apply the role change twice.
+        if group
+            .group()
+            .mls_group()
+            .pending_proposals()
+            .any(|pending| pending.proposal_reference_ref() == proposal.proposal_reference_ref())
+        {
+            debug!("Ignoring duplicate proposal");
+            return Ok(vec![]);
+        }
+
         let removed_index = removed_client(&proposal)
             .context("Only Removes and SelfRemoves are supported for now")?;
 
