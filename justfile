@@ -134,9 +134,6 @@ regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
 # Run flutter test.
-#
-# TZ is pinned because goldens depict clock labels in the host's zone, so an
-# offset host rewrites every golden that shows a timestamp.
 [working-directory: 'app']
 test-flutter:
     TZ=UTC just flutter test
