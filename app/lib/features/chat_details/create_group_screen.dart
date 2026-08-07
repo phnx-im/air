@@ -38,8 +38,7 @@ class CreateGroupScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (context) =>
-              ChatListCubit(userCubit: context.read<UserCubit>()),
+          create: (context) => ChatListCubit(chatRepository: context.read()),
         ),
         BlocProvider(
           create: (context) {

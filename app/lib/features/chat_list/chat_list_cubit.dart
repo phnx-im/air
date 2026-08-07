@@ -5,40 +5,47 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:air/core/core.dart';
-import 'package:air/features/user/user_cubit.dart';
+import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class ChatListCubit implements StateStreamableSource<ChatListState> {
-  ChatListCubit({required UserCubit userCubit})
-    : _impl = ChatListCubitBase(userCubit: userCubit.impl);
+part 'chat_list_cubit.freezed.dart';
 
-  final ChatListCubitBase _impl;
+/// Represents the state of the list of chat.
+@freezed
+sealed class ChatListState with _$ChatListState {
+  const factory ChatListState({required List<ChatId> chatIds}) = _ChatListState;
+}
 
-  @override
-  FutureOr<void> close() {
-    _impl.close();
+class ChatListCubit extends Cubit<ChatListState> {
+  ChatListCubit({required this._chatRepository})
+    : super(ChatListState(chatIds: _chatRepository.order)) {
+    _order = _chatRepository.watchOrder().listen((order) {
+      // Note: emit() deduplicates the same state
+      emit(ChatListState(chatIds: order));
+    });
   }
 
-  @override
-  bool get isClosed => _impl.isClosed;
+  final ChatsRepository _chatRepository;
+  late final StreamSubscription<List<ChatId>> _order;
 
   @override
-  ChatListState get state => _impl.state;
-
-  @override
-  Stream<ChatListState> get stream => _impl.stream();
+  Future<void> close() async {
+    await _order.cancel();
+    return super.close();
+  }
 
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
-  }) => _impl.createContactChat(username: username, hash: hash);
+  }) => _chatRepository.createContactChat(username: username, hash: hash);
 
   Future<ChatId> createGroupChat({
     required String groupName,
     Uint8List? picture,
     required bool isApq,
-  }) => _impl.createGroupChat(
+  }) => _chatRepository.createGroupChat(
     groupName: groupName,
     picture: picture,
     isApq: isApq,

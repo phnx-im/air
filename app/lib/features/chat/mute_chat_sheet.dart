@@ -2,27 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
-Future<void> showMuteChatSheet(BuildContext context) {
-  final cubit = context.read<ChatDetailsCubit>();
-
+Future<void> showMuteChatSheet(
+  BuildContext context, {
+  required void Function({required UiChatMuted? until}) onMute,
+}) {
   return showAdaptiveModal(
     context: context,
-    builder: (modalContext) =>
-        BlocProvider.value(value: cubit, child: const _MuteDurationContent()),
+    builder: (modalContext) => _MuteDurationContent(onMute: onMute),
   );
 }
 
 class _MuteDurationContent extends StatelessWidget {
-  const _MuteDurationContent();
+  const _MuteDurationContent({required this.onMute});
+
+  final void Function({required UiChatMuted? until}) onMute;
 
   @override
   Widget build(BuildContext context) {
@@ -55,26 +55,31 @@ class _MuteDurationContent extends StatelessWidget {
         _DurationOption(
           label: loc.muteDurationSheet_1hour,
           mutedUntil: UiChatMutedExtension.inOneHour,
+          onMute: onMute,
         ),
         const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_8hours,
           mutedUntil: UiChatMutedExtension.inEightHours,
+          onMute: onMute,
         ),
         const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilTomorrow,
           mutedUntil: UiChatMutedExtension.untilTomorrow,
+          onMute: onMute,
         ),
         const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilNextMonday,
           mutedUntil: UiChatMutedExtension.untilNextMonday,
+          onMute: onMute,
         ),
         const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_always,
           mutedUntil: () => const UiChatMuted.forever(),
+          onMute: onMute,
         ),
         const SizedBox(height: S.s8),
         if (DeviceType.isDesktop) ...[
@@ -91,10 +96,15 @@ class _MuteDurationContent extends StatelessWidget {
 }
 
 class _DurationOption extends StatelessWidget {
-  const _DurationOption({required this.label, required this.mutedUntil});
+  const _DurationOption({
+    required this.label,
+    required this.mutedUntil,
+    required this.onMute,
+  });
 
   final String label;
   final UiChatMuted? Function() mutedUntil;
+  final void Function({required UiChatMuted? until}) onMute;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +112,7 @@ class _DurationOption extends StatelessWidget {
       type: ButtonType.secondary,
       onPressed: () {
         Navigator.of(context).pop();
-        context.read<ChatDetailsCubit>().muteChat(mutedUntil: mutedUntil());
+        onMute(until: mutedUntil());
       },
       label: label,
     );

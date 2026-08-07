@@ -44,9 +44,20 @@ class MuteButton extends StatelessWidget {
         : loc.contactDetailsScreen_mute;
     final icon = isMuted ? AppIconType.bell : AppIconType.bellOff;
 
+    final cubit = context.read<ChatDetailsCubit>();
+
     void toggle() => isMuted
-        ? context.read<ChatDetailsCubit>().unmuteChat()
-        : showMuteChatSheet(context);
+        ? cubit.unmuteChat()
+        : showMuteChatSheet(
+            context,
+            onMute: ({until}) {
+              if (until != null) {
+                cubit.muteChat(mutedUntil: until);
+              } else {
+                cubit.unmuteChat();
+              }
+            },
+          );
 
     return switch (shape) {
       MuteButtonShape.cta => ButtonCTA(

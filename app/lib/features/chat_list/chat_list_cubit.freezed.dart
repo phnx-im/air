@@ -76,8 +76,8 @@ as List<ChatId>,
 /// @nodoc
 
 
-class _ChatListState extends ChatListState {
-  const _ChatListState({required final  List<ChatId> chatIds}): _chatIds = chatIds,super._();
+class _ChatListState implements ChatListState {
+  const _ChatListState({required final  List<ChatId> chatIds}): _chatIds = chatIds;
   
 
  final  List<ChatId> _chatIds;
