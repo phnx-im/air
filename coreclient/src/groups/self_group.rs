@@ -252,24 +252,28 @@ impl CoreUser {
     /// Clients whose self group predates that chat only have the group, so
     /// their self chat has to be backfilled here.
     async fn ensure_self_chat(&self, group_id: &GroupId) -> anyhow::Result<()> {
-        if ChatId::load_from_group_id(self.db().read().await?, group_id)
-            .await?
-            .is_some()
-        {
-            return Ok(());
-        }
-
-        let chat = Chat::new_group_chat(
-            group_id.clone(),
-            ChatAttributes {
-                title: SELF_CHAT_TITLE.to_owned(),
-                picture: None,
-            },
-        );
         self.db()
-            .with_write_transaction(async |txn| chat.store(&mut *txn).await)
+            .with_write_transaction(async |txn| -> sqlx::Result<()> {
+                if ChatId::load_from_group_id(&mut *txn, group_id)
+                    .await?
+                    .is_some()
+                {
+                    return Ok(());
+                }
+
+                let chat = Chat::new_group_chat(
+                    group_id.clone(),
+                    ChatAttributes {
+                        title: SELF_CHAT_TITLE.to_owned(),
+                        picture: None,
+                    },
+                );
+                chat.store(&mut *txn).await?;
+                debug!("Created the missing self chat");
+
+                Ok(())
+            })
             .await?;
-        debug!("Created the missing self chat");
 
         Ok(())
     }
