@@ -15,7 +15,7 @@ use aircoreclient::{
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Utc};
-use mimi_content::MimiContent;
+use mimi_content::{MessageStatus, MimiContent};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -1723,5 +1723,158 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
     assert!(
         new_device.chat(&pending_chat_id).await.is_none(),
         "an unconfirmed connection chat should not be conveyed to a linked device"
+    );
+}
+
+async fn one_unread_message_on_both_devices(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    chat_id: ChatId,
+) -> (CoreUser, TempDir) {
+    let (device_2, tmp_2) = link_new_device(setup, alice).await;
+    // Device 2's onboarding turns Alice's leaf into a virtual-client leaf, which
+    // is what fans a message out to both of her devices in the first place.
+    device_2.outbound_service().run_once().await;
+
+    let device_1 = setup.get_user(alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+
+    // Bob drains first, so he sends at the epoch device 2's onboarding left behind.
+    let bob_user = setup.get_user(bob).user();
+    drain_queue(bob_user).await;
+    bob_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("from bob".to_owned(), [1u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    assert_eq!(device_1.unread_messages_count(chat_id).await, 1);
+    assert_eq!(device_2.unread_messages_count(chat_id).await, 1);
+
+    (device_2, tmp_2)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test read markers follow a sibling", skip_all)]
+async fn multi_device_read_markers_follow_a_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (device_2, _tmp_2) =
+        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_1 = setup.get_user(&alice).user();
+
+    // Device 1 reads the message and sends the receipt for it.
+    let message = device_1.last_message(chat_id).await.unwrap().unwrap();
+    let (marked, _) = device_1
+        .mark_chat_as_read(chat_id, message.id())
+        .await
+        .unwrap();
+    assert!(marked);
+    device_1
+        .outbound_service()
+        .enqueue_receipts(
+            chat_id,
+            [(
+                message.id(),
+                message.message().mimi_id().unwrap(),
+                MessageStatus::Read,
+            )]
+            .into_iter(),
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    // The receipt is also device 1's read marker: device 2 follows it.
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "device 2 should follow the read marker of its sibling"
+    );
+
+    // A message device 1 sends is read on device 2 without any receipt.
+    device_1
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("from device 1".to_owned(), [2u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "our own message must not count as unread on our other device"
+    );
+    assert_eq!(device_2.global_unread_messages_count().await.unwrap(), 0);
+}
+
+/// With read receipts disabled, the read receipts travel through the self group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test read markers via the self group", skip_all)]
+async fn multi_device_read_markers_via_the_self_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (device_2, _tmp_2) =
+        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_1 = setup.get_user(&alice).user();
+
+    // Device 1 reads the message. With read receipts off, the report goes to the
+    // self chat instead of the chat with Bob (see `applogic::mark_as_read`).
+    let message = device_1.last_message(chat_id).await.unwrap().unwrap();
+    let (marked, _) = device_1
+        .mark_chat_as_read(chat_id, message.id())
+        .await
+        .unwrap();
+    assert!(marked);
+    device_1
+        .outbound_service()
+        .enqueue_receipts(
+            self_chat_id(device_1).await,
+            [(
+                message.id(),
+                message.message().mimi_id().unwrap(),
+                MessageStatus::Read,
+            )]
+            .into_iter(),
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "device 2 should follow a read marker sent through the self group"
+    );
+
+    // Bob is not a member of the self group and must not learn that Alice read
+    // his message.
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    let bobs_message = bob_user.last_message(chat_id).await.unwrap().unwrap();
+    assert_ne!(
+        bobs_message.status(),
+        MessageStatus::Read,
+        "a read marker sent through the self group must not reach the other members"
     );
 }

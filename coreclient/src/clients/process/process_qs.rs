@@ -931,6 +931,22 @@ impl CoreUser {
 
         let messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
 
+        // A message we sent from another device is read by definition. The send
+        // path does this locally (see `store_group_update`) already.
+        if let Some(own_message) = messages
+            .iter()
+            .filter(|message| message.message().sender() == Some(self.user_id()))
+            .max_by_key(|message| message.timestamp())
+        {
+            Chat::mark_as_read_until_message_id(
+                &mut *txn,
+                chat_id,
+                own_message.id(),
+                self.user_id(),
+            )
+            .await?;
+        }
+
         // Edits and remote deletes only rebuild the chat notification silently, they must not be
         // returned as new messages, which would alert like a new message.
         for updated_message in &updated_messages {
@@ -938,12 +954,12 @@ impl CoreUser {
             updated_message.update(&mut *txn).await?;
         }
 
-        // Schedule delivery receipts for incoming new and updated messages
         let delivery_receipts = messages
             .iter()
             .chain(&updated_messages)
             .filter_map(|message| {
                 if let Message::Content(content_message) = message.message()
+                    && content_message.sender() != self.user_id()
                     && let Disposition::Render | Disposition::Attachment =
                         content_message.content().nested_part.disposition()
                     && let Some(mimi_id) = content_message.mimi_id()
@@ -992,7 +1008,12 @@ impl CoreUser {
             && content_type == "application/mimi-message-status"
         {
             let mut report = MessageStatusReport::deserialize(report_content)?;
-            if !read_receipts_enabled {
+
+            // A report from one of our own clients is a sibling's read marker,
+            // not a receipt from someone else. The setting governs what we tell
+            // others, so it must not silence what our own devices tell us.
+            let is_own_report = sender == self.user_id();
+            if !read_receipts_enabled && !is_own_report {
                 report
                     .statuses
                     .retain(|status| status.status != MessageStatus::Read);
@@ -1001,11 +1022,20 @@ impl CoreUser {
                     return Ok(Default::default());
                 }
             }
-            StatusRecord::borrowed(sender, report, ds_timestamp)
-                .store_report(txn)
-                .await?;
+
+            let record = StatusRecord::borrowed(sender, report, ds_timestamp);
+            record.store_report(txn).await?;
+            let changed_chats = if is_own_report {
+                record.advance_read_markers(txn, self.user_id()).await?
+            } else {
+                Vec::new()
+            };
+
             // Delivery receipt messages are not stored
-            return Ok(Default::default());
+            return Ok(HandledMessages {
+                changed_chats,
+                ..Default::default()
+            });
         }
 
         // Reaction (add or retraction).
