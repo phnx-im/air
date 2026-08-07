@@ -1229,8 +1229,10 @@ impl<Proposal: Entity<CURRENT_VERSION>, ProposalRef: Entity<CURRENT_VERSION>>
         let group_id = KeyRefWrapper(group_id);
         let proposal_ref = EntityRefWrapper(self.0);
         let proposal = EntityRefWrapper(self.1);
+        // Insert or ignore: if the proposal ref matches, the content matches as
+        // well, so re-queuing the same proposal is a no-op.
         query!(
-            "INSERT INTO proposal (group_id, proposal_ref, proposal) VALUES (?1, ?2, ?3)",
+            "INSERT OR IGNORE INTO proposal (group_id, proposal_ref, proposal) VALUES (?1, ?2, ?3)",
             group_id,
             proposal_ref,
             proposal
