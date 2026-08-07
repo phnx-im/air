@@ -540,6 +540,7 @@ impl CoreUser {
                 let key_material = Group::load_all_key_material(&mut *txn).await?;
                 let mut groups = Vec::new();
 
+                let mut chats = Vec::new();
                 for group in key_material {
                     let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
                         warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
@@ -552,6 +553,14 @@ impl CoreUser {
                         debug!(group_id = ?group.group_id, "skipping non-active chat");
                         continue;
                     }
+                    chats.push((group, chat));
+                }
+
+                // Sort chats in descending order by last message date, to try  to onboard them 
+                // in the same order they were presented on the original client at link time.
+                chats.sort_unstable_by(|(_, a), (_, b)| b.last_message_at.cmp(&a.last_message_at));
+
+                for (group, chat) in chats {
                     let connection = match chat.chat_type() {
                         ChatType::Group(_) => None,
                         ChatType::Connection(user_id) => {
