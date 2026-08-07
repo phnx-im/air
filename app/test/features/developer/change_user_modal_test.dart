@@ -7,7 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
-import 'package:air/features/developer/change_user_screen.dart';
+import 'package:air/features/developer/change_user_modal.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 
@@ -39,7 +39,7 @@ final clientRecords = [
 ];
 
 void main() {
-  group('DeveloperSettingsScreen', () {
+  group('ChangeUserModal', () {
     late MockUser user;
     late MockLoadableUserCubit loadableUserCubit;
     late MockUsersCubit usersCubit;
@@ -70,7 +70,7 @@ void main() {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            home: ChangeUserScreen(clientRecords: Future.value(clientRecords)),
+            home: ChangeUserModal(clientRecords: Future.value(clientRecords)),
           );
         },
       ),

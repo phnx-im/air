@@ -8,22 +8,27 @@ import 'package:air/platform/method_channel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/components/button_icon/button_icon.dart';
-import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/menu/menu.dart';
+import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:share_plus/share_plus.dart';
 
-class LogsScreen extends StatefulWidget {
-  const LogsScreen({super.key});
+/// Opens the logs on the surface the device calls for.
+Future<void> showLogs(BuildContext context) =>
+    showAppModal<void>(context: context, builder: (_) => const LogsModal());
+
+class LogsModal extends StatefulWidget {
+  const LogsModal({super.key});
 
   @override
-  State<LogsScreen> createState() => _LogsScreenState();
+  State<LogsModal> createState() => _LogsModalState();
 }
 
-class _LogsScreenState extends State<LogsScreen> {
+class _LogsModalState extends State<LogsModal> {
   late Future<String> _appLogs;
   late Future<String> _backgroundLogs;
   late Timer _timer;
@@ -67,7 +72,7 @@ class _LogsScreenState extends State<LogsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LogsScreenView(
+    return LogsView(
       appLogs: _appLogs,
       backgroundLogs: _backgroundLogs,
       reloadLogs: _loadLogs,
@@ -76,8 +81,8 @@ class _LogsScreenState extends State<LogsScreen> {
   }
 }
 
-class LogsScreenView extends StatelessWidget {
-  const LogsScreenView({
+class LogsView extends StatelessWidget {
+  const LogsView({
     required this.appLogs,
     required this.backgroundLogs,
     required this.reloadLogs,
@@ -92,68 +97,57 @@ class LogsScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          clipBehavior: Clip.none,
-          title: const Text('Logs'),
-          leading: const AppBarBackButton(),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: S.s8),
-              child: _LogsMenuButton(
-                items: (context) => [
-                  if (DeviceType.isDesktop)
-                    MenuItem(
-                      label: 'Save',
-                      icon: AppIconType.download,
-                      onPressed: _saveLogs,
-                    ),
-                  if (DeviceType.isPhone)
-                    MenuItem(
-                      label: 'Share',
-                      icon: AppIconType.share,
-                      onPressed: _shareLogs,
-                    ),
-                  MenuItem(
-                    label: 'Reload',
-                    icon: AppIconType.refreshCw,
-                    onPressed: reloadLogs,
-                  ),
-                  MenuItem(
-                    label: 'Clear',
-                    icon: AppIconType.trash,
-                    destructive: true,
-                    onPressed: clearLogs,
-                  ),
+    return ModalScaffold(
+      title: 'Logs',
+      onDismiss: () => Navigator.of(context).pop(),
+      trailing: _LogsMenuButton(
+        items: (context) => [
+          if (DeviceType.isDesktop)
+            MenuItem(
+              label: 'Save',
+              icon: AppIconType.download,
+              onPressed: _saveLogs,
+            ),
+          if (DeviceType.isPhone)
+            MenuItem(
+              label: 'Share',
+              icon: AppIconType.share,
+              onPressed: _shareLogs,
+            ),
+          MenuItem(
+            label: 'Reload',
+            icon: AppIconType.refreshCw,
+            onPressed: reloadLogs,
+          ),
+          MenuItem(
+            label: 'Clear',
+            icon: AppIconType.trash,
+            destructive: true,
+            onPressed: clearLogs,
+          ),
+        ],
+      ),
+      // Each tab scrolls its own log text.
+      scrollable: false,
+      child: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const TabBar(
+              tabs: [
+                Tab(text: 'App'),
+                Tab(text: 'Background'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _LogsView(logs: appLogs),
+                  _LogsView(logs: backgroundLogs),
                 ],
               ),
             ),
           ],
-        ),
-        bottomNavigationBar: const SafeArea(
-          left: false,
-          right: false,
-          top: false,
-          bottom: true,
-          child: TabBar(
-            tabs: [
-              Tab(text: 'App'),
-              Tab(text: 'Background'),
-            ],
-          ),
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: S.s8),
-            child: TabBarView(
-              children: [
-                _LogsView(logs: appLogs),
-                _LogsView(logs: backgroundLogs),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -195,8 +189,8 @@ class _LogsMenuButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ButtonIcon(
-      variant: ButtonIconVariant.transparent,
+    return DialogHeaderAction(
+      tokens: DialogHeaderTokens.of(context),
       icon: AppIconType.ellipsis,
       onPressed: () => _open(context),
     );
@@ -236,7 +230,19 @@ class _LogsViewState extends State<_LogsView>
       builder: (context, snapshot) {
         if (snapshot.hasData) {
           final data = snapshot.data!;
-          return SelectableText(data);
+          // The text scrolls inside the tab's bounded height, with padding
+          // clearing the home indicator since the surface runs full height.
+          return AppScrollbar(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                ModalShellTokens.contentPaddingLeft,
+                0,
+                ModalShellTokens.contentPaddingRight,
+                MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              child: SelectableText(data),
+            ),
+          );
         } else if (snapshot.hasError) {
           return const Center(child: Text('Error loading logs'));
         }
