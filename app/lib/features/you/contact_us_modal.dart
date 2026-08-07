@@ -51,6 +51,7 @@ class ContactUsModal extends StatelessWidget {
       title: loc.contactUsScreen_title,
       onDismiss: () => Navigator.of(context).pop(),
       child: ModalBody(
+        top: S.s8,
         child: _EmailForm(
           initialBody: initialBody,
           initialSubject: initialSubject,

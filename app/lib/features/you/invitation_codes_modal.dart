@@ -42,7 +42,7 @@ class InvitationCodesModal extends StatelessWidget {
     return ModalScaffold(
       title: loc.invitationCodesScreen_title,
       onDismiss: () => Navigator.of(context).pop(),
-      child: const ModalBody(child: InvitationCodesContent()),
+      child: const ModalBody(top: S.s16, child: InvitationCodesContent()),
     );
   }
 }
