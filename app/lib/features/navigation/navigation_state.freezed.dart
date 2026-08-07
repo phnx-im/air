@@ -192,18 +192,11 @@ $HomeNavigationStateCopyWith<$Res> get home {
 /// @nodoc
 mixin _$HomeNavigationState {
 
-/// Whether a chat is open, independently of [chatId].
-///
-/// With this set and a [chatId] present, the chat is open. With it clear no
-/// chat is open, even where a [chatId] remains. That lets a chat close
+/// Whether a chat is open, independently of [chatId]: a chat can close
 /// without dropping which chat it was.
- bool get chatOpen; ChatId? get chatId; HomeTab get activeTab;/// The open section of the profile tab.
-///
-/// `null` is the section list, which is what the phone shows when the tab is
-/// opened. The two-pane layout has no list of its own, so it falls back to
-/// [YouSection.profile] there.
- YouSection? get youSection;/// The chat details drill-down, bottom level first. Empty means it is
-/// closed, and the last entry is the level that shows.
+ bool get chatOpen; ChatId? get chatId; HomeTab get activeTab;/// The open section of the profile tab. `null` is the section list, for
+/// which the two-pane layout substitutes [YouSection.profile].
+ YouSection? get youSection;/// The chat details drill-down, bottom level first. Empty means closed.
  List<ChatDetailsPage> get chatDetails; bool get createGroupOpen;
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
@@ -275,25 +268,17 @@ class _HomeNavigationState implements HomeNavigationState {
   const _HomeNavigationState({this.chatOpen = false, this.chatId, this.activeTab = HomeTab.chats, this.youSection, final  List<ChatDetailsPage> chatDetails = const <ChatDetailsPage>[], this.createGroupOpen = false}): _chatDetails = chatDetails;
   
 
-/// Whether a chat is open, independently of [chatId].
-///
-/// With this set and a [chatId] present, the chat is open. With it clear no
-/// chat is open, even where a [chatId] remains. That lets a chat close
+/// Whether a chat is open, independently of [chatId]: a chat can close
 /// without dropping which chat it was.
 @override@JsonKey() final  bool chatOpen;
 @override final  ChatId? chatId;
 @override@JsonKey() final  HomeTab activeTab;
-/// The open section of the profile tab.
-///
-/// `null` is the section list, which is what the phone shows when the tab is
-/// opened. The two-pane layout has no list of its own, so it falls back to
-/// [YouSection.profile] there.
+/// The open section of the profile tab. `null` is the section list, for
+/// which the two-pane layout substitutes [YouSection.profile].
 @override final  YouSection? youSection;
-/// The chat details drill-down, bottom level first. Empty means it is
-/// closed, and the last entry is the level that shows.
+/// The chat details drill-down, bottom level first. Empty means closed.
  final  List<ChatDetailsPage> _chatDetails;
-/// The chat details drill-down, bottom level first. Empty means it is
-/// closed, and the last entry is the level that shows.
+/// The chat details drill-down, bottom level first. Empty means closed.
 @override@JsonKey() List<ChatDetailsPage> get chatDetails {
   if (_chatDetails is EqualUnmodifiableListView) return _chatDetails;
   // ignore: implicit_dynamic_type
