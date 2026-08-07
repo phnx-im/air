@@ -69,7 +69,7 @@ use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyho
 /// Folded into [`ProcessedQsMessages`].
 #[derive(Default)]
 pub struct QsMessageOutcome {
-    new_chat: Option<ChatId>,
+    new_chat: Option<NewChat>,
     new_connection: Option<ChatId>,
     new_messages: Vec<ChatMessage>,
     reaction_notifications: Vec<ReactionNotification>,
@@ -81,9 +81,9 @@ impl QsMessageOutcome {
         Self::default()
     }
 
-    fn new_chat(chat_id: ChatId, messages: Vec<ChatMessage>) -> QsMessageOutcome {
+    fn new_chat(chat_id: ChatId, added_by: UserId, messages: Vec<ChatMessage>) -> QsMessageOutcome {
         Self {
-            new_chat: Some(chat_id),
+            new_chat: Some(NewChat { chat_id, added_by }),
             new_messages: messages,
             ..Self::empty()
         }
@@ -110,9 +110,15 @@ impl QsMessageOutcome {
     }
 }
 
+#[derive(Debug)]
+pub struct NewChat {
+    pub chat_id: ChatId,
+    pub added_by: UserId,
+}
+
 #[derive(Debug, Default)]
 pub struct ProcessedQsMessages {
-    pub new_chats: Vec<ChatId>,
+    pub new_chats: Vec<NewChat>,
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
     pub processed: usize,
@@ -452,7 +458,11 @@ impl CoreUser {
                 "registered self-group VC emulation epoch on join"
             );
 
-            return Ok(QsMessageOutcome::new_chat(chat.id(), vec![]));
+            return Ok(QsMessageOutcome::new_chat(
+                chat.id(),
+                sender_user_id,
+                vec![],
+            ));
         }
 
         self.finalize_welcome(
@@ -514,10 +524,11 @@ impl CoreUser {
         chat.store(&mut *txn).await?;
 
         // Add system message who added us to the group.
+        // TODO(gabriel): here, we could inform _other_ users that a new client has been linked.
         let system_message = ChatMessage::new_system_message(
             chat.id(),
             ds_timestamp,
-            SystemMessage::Add(sender_user_id, self.user_id().clone()),
+            SystemMessage::Add(sender_user_id.clone(), self.user_id().clone()),
         );
         system_message.store(&mut *txn).await?;
 
@@ -541,7 +552,11 @@ impl CoreUser {
                 .await?;
         }
 
-        Ok(QsMessageOutcome::new_chat(chat.id(), vec![system_message]))
+        Ok(QsMessageOutcome::new_chat(
+            chat.id(),
+            sender_user_id,
+            vec![system_message],
+        ))
     }
 
     /// Handles the profile part of decoded group data: schedules a fetch for

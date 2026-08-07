@@ -7,7 +7,10 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, UserProfile,
-    clients::{CoreUser, process::process_qs::ReactionNotification},
+    clients::{
+        CoreUser,
+        process::process_qs::{NewChat, ReactionNotification},
+    },
 };
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use serde::{Deserialize, Serialize};
@@ -23,11 +26,19 @@ enum AlertMode {
 }
 
 impl User {
+    /// Whether we are at the origin of this message: sent by us, or produced
+    /// by one of our own group operations, from any of our clients.
+    fn is_own_message(&self, message: &ChatMessage) -> bool {
+        message.message().actor() == Some(self.user.user_id())
+    }
+
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
     /// reactions, and silent-rebuild triggers.
     ///
-    /// - Chats referenced by `messages` or `reactions` alert
-    /// - Chats in `changed_chats` (edits, remote deletes, reaction retractions) rebuild silently.
+    /// - Chats referenced by `messages` from others or by `reactions` alert
+    /// - Chats in `changed_chats` (edits, remote deletes, reaction
+    ///   retractions), and chats whose only new messages we caused ourselves
+    ///   from a sibling client, rebuild silently.
     /// - Alerting wins when a chat appears in both
     pub(crate) async fn message_and_reaction_notifications(
         &self,
@@ -41,6 +52,7 @@ impl User {
         // Chats to alert
         for chat_id in messages
             .iter()
+            .filter(|message| !self.is_own_message(message))
             .map(|message| message.chat_id())
             .chain(reactions.iter().map(|reaction| reaction.chat_id))
         {
@@ -53,7 +65,12 @@ impl User {
         }
 
         // Silent chats
-        for &chat_id in changed_chats {
+        for chat_id in changed_chats.iter().copied().chain(
+            messages
+                .iter()
+                .filter(|message| self.is_own_message(message))
+                .map(|message| message.chat_id()),
+        ) {
             if let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
             {
@@ -80,6 +97,9 @@ impl User {
         {
             // One notification per fresh message/reaction, with a random ID so entries accumulate.
             for message in messages {
+                if self.is_own_message(message) {
+                    continue;
+                }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
                     && let Some(body) = message
                         .message()
@@ -162,9 +182,15 @@ impl User {
         let title = chat_title(&self.user, &chat).await;
 
         // Body of the newest renderable entry: a single unrenderable message must not suppress
-        // the notification for the other entries in the set.
+        // the notification for the other entries in the set. What we caused ourselves from a
+        // sibling client stays in the conversation below, but must never be the alerting text.
         let mut body = None;
         for entry in rebuild.rebuild_set.entries.iter().rev() {
+            if let ChatNotificationEntry::Message(message) = entry
+                && self.is_own_message(message)
+            {
+                continue;
+            }
             body = self.entry_body(&chat, entry, &rebuild.participants).await;
             if body.is_some() {
                 break;
@@ -301,10 +327,14 @@ impl User {
     /// Send notifications for new chats.
     pub(crate) async fn new_chat_notifications(
         &self,
-        chat_ids: &[ChatId],
+        new_chats: &[NewChat],
         notifications: &mut Vec<NotificationContent>,
     ) {
-        for chat_id in chat_ids {
+        for NewChat { chat_id, added_by } in new_chats {
+            // A chat one of our own clients added us in (e.g. self-group).
+            if added_by == self.user.user_id() {
+                continue;
+            }
             if let Some(chat) = self.user.chat(chat_id).await {
                 if chat.is_muted() {
                     continue;
