@@ -556,9 +556,12 @@ impl CoreUser {
                     chats.push((group, chat));
                 }
 
-                // Sort chats in descending order by last message date, to try  to onboard them 
-                // in the same order they were presented on the original client at link time.
-                chats.sort_unstable_by(|(_, a), (_, b)| b.last_message_at.cmp(&a.last_message_at));
+                // Sort chats in ascending order by last message date: this determines onboarding
+                // order by the resync queue.
+                //
+                // Since a system message is inserted after each onboarding, the presented list
+                // should look similar to the one in the original device.
+                chats.sort_unstable_by_key(|(_, chat)| chat.last_message_at);
 
                 for (group, chat) in chats {
                     let connection = match chat.chat_type() {
