@@ -164,8 +164,9 @@ _generate-db-certs:
 # Use the current test results as new reference images.
 [working-directory: 'app']
 update-goldens:
-    # Delete existing goldens
-    rm -f **/goldens/*.{{ os() }}.png
+    # Delete existing goldens, so that the ones whose test is gone do not
+    # linger.
+    git ls-files -z 'test/**/goldens/*.{{ os() }}.png' | xargs -0 rm -f
     # Update golden snapshots
     TZ=UTC just flutter test --update-goldens
 
