@@ -11,7 +11,7 @@ use openmls::{
     },
     prelude::{
         AppDataUpdateProposal, CredentialWithKey, LeafNodeParameters, PreSharedKeyProposal,
-        PublicMessageIn, RatchetTreeIn, group_info::VerifiableGroupInfo,
+        Proposal, PublicMessageIn, RatchetTreeIn, group_info::VerifiableGroupInfo,
     },
     storage::OpenMlsProvider,
 };
@@ -56,6 +56,7 @@ pub struct ApqExternalCommitBuilder {
     leaf_node_parameters: Option<(LeafNodeParameters, LeafNodeParameters)>,
     create_group_info: bool,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
+    t_proposals: Vec<Proposal>,
     vc_emulation_group_id: Option<GroupId>,
 }
 
@@ -101,6 +102,15 @@ impl ApqExternalCommitBuilder {
         self
     }
 
+    /// Add a proposal by value to the T commit.
+    ///
+    /// Only proposal types OpenMLS allows by value in an external commit pass
+    /// validation, for example `AppEphemeral` proposals.
+    pub fn add_t_proposal(mut self, proposal: Proposal) -> Self {
+        self.t_proposals.push(proposal);
+        self
+    }
+
     /// Sets the emulation group whose newest derivation epoch the commit
     /// derives from.
     pub fn vc_emulation(mut self, emulation_group_id: GroupId) -> Self {
@@ -132,6 +142,7 @@ impl ApqExternalCommitBuilder {
             leaf_node_parameters,
             create_group_info,
             t_psk_proposals,
+            t_proposals: t_own_proposals,
             vc_emulation_group_id,
         } = self;
 
@@ -185,6 +196,7 @@ impl ApqExternalCommitBuilder {
             app_data_update_proposal.clone(),
             component_data.clone(),
             Vec::new(),
+            Vec::new(),
             create_group_info,
             vc_emulation_group_id.clone(),
             signer.pq_signer(),
@@ -227,6 +239,7 @@ impl ApqExternalCommitBuilder {
                 app_data_update_proposal,
                 component_data,
                 t_psk_proposals,
+                t_own_proposals,
                 create_group_info,
                 vc_emulation_group_id,
                 signer.t_signer(),
@@ -262,6 +275,7 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     app_data_update_proposal: AppDataUpdateProposal,
     component_data: ComponentData,
     psk_proposals: Vec<PreSharedKeyProposal>,
+    own_proposals: Vec<Proposal>,
     create_group_info: bool,
     vc_emulation_group_id: Option<GroupId>,
     signer: &impl Signer,
@@ -289,6 +303,7 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     let mut commit_builder = vc_builder
         .add_app_data_update_proposal(app_data_update_proposal)
         .add_psk_proposals(psk_proposals)
+        .add_proposals(own_proposals)
         .load_psks(provider.storage())?
         .create_group_info(create_group_info);
     let mut updater = commit_builder.app_data_dictionary_updater();
