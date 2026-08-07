@@ -36,7 +36,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
-    Chat,
+    Chat, ChatId,
     chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
@@ -236,12 +236,42 @@ impl SelfGroup {
 
 impl CoreUser {
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
-        if let Some(group) = SelfGroup::load(self.db().read().await?).await? {
-            return Ok(group);
+        let self_group = match SelfGroup::load(self.db().read().await?).await? {
+            Some(self_group) => self_group,
+            None => SelfGroup {
+                group: self.create_self_group().await?,
+            },
+        };
+        self.ensure_self_chat(self_group.group_id()).await?;
+        Ok(self_group)
+    }
+
+    /// Creates the "Notes to self" chat of the self group if it is missing, so
+    /// the group shows in the UI.
+    ///
+    /// Clients whose self group predates that chat only have the group, so
+    /// their self chat has to be backfilled here.
+    async fn ensure_self_chat(&self, group_id: &GroupId) -> anyhow::Result<()> {
+        if ChatId::load_from_group_id(self.db().read().await?, group_id)
+            .await?
+            .is_some()
+        {
+            return Ok(());
         }
 
-        let group = self.create_self_group().await?;
-        Ok(SelfGroup { group })
+        let chat = Chat::new_group_chat(
+            group_id.clone(),
+            ChatAttributes {
+                title: SELF_CHAT_TITLE.to_owned(),
+                picture: None,
+            },
+        );
+        self.db()
+            .with_write_transaction(async |txn| chat.store(&mut *txn).await)
+            .await?;
+        debug!("Created the missing self chat");
+
+        Ok(())
     }
 
     async fn create_self_group(&self) -> anyhow::Result<Group> {
@@ -256,12 +286,8 @@ impl CoreUser {
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let chat_attributes = ChatAttributes {
-            title: SELF_CHAT_TITLE.to_owned(),
-            picture: None,
-        };
         let encrypted_title =
-            EncryptedGroupTitle::encrypt(&chat_attributes.title, &identity_link_wrapper_key)
+            EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
                 .context("Failed to encrypt self-group title")?;
         let group_data_bytes = GroupData {
             legacy_title: None,
@@ -302,10 +328,6 @@ impl CoreUser {
 
                 group.store(&mut *txn).await?;
 
-                // Create the "Notes to self" chat so the self group shows in the UI.
-                let chat = Chat::new_group_chat(group.group_id().clone(), chat_attributes);
-                chat.store(&mut *txn).await?;
-
                 Ok((group, partial_params, user_profile_key))
             })
             .await?;
@@ -326,9 +348,6 @@ impl CoreUser {
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     Group::delete_from_db(&mut *txn, group.group_id()).await?;
-                    if let Ok(chat_id) = crate::ChatId::try_from(group.group_id()) {
-                        Chat::delete(txn, chat_id).await?;
-                    }
                     Ok(())
                 })
                 .await?;

@@ -472,7 +472,7 @@ impl CoreUser {
         let api_client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
 
-        let self_group = self.ensure_self_group().await?;
+        let self_group = Box::pin(self.ensure_self_group()).await?;
         let self_group_id = self_group.group_id().clone();
         let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
 
