@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/features/chat_details/group_details_screen.dart';
+import 'package:air/features/chat_details/group_details_view.dart';
 import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -56,7 +56,7 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ModalScaffold(
             title: 'Group details',
-            child: GroupDetailsScreen(),
+            child: GroupDetailsView(),
           ),
         ),
       );

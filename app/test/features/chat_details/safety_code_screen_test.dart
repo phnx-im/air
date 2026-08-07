@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/features/chat_details/safety_code_screen.dart';
+import 'package:air/features/chat_details/safety_code_pane.dart';
 import 'package:air/core/api/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/patterns/modal/modal.dart';

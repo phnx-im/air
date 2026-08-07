@@ -12,7 +12,6 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:logging/logging.dart';
 
 import 'package:air/features/chat_details/add_members_cubit.dart';
@@ -20,53 +19,35 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 
-final _log = Logger('AddMembersScreen');
+final _log = Logger('AddMembersPane');
 
-class AddMembersScreen extends StatelessWidget {
-  const AddMembersScreen({super.key});
+/// Contacts to invite into a group.
+class AddMembersPane extends StatelessWidget {
+  const AddMembersPane({super.key, required this.chatId});
+
+  final ChatId chatId;
 
   @override
   Widget build(BuildContext context) {
-    final navigationCubit = context.read<NavigationCubit>();
-    final chatId = navigationCubit.state.chatId;
-
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) {
-            final userCubit = context.read<UserCubit>();
-            final contactsFuture = chatId != null
-                ? userCubit.addableContacts(chatId)
-                : Future.value(<UiContact>[]);
-
-            return AddMembersCubit()..loadContacts(contactsFuture);
-          },
-        ),
-        if (chatId != null)
-          BlocProvider(
-            create: (context) => ChatDetailsCubit(
-              userCubit: context.read<UserCubit>(),
-              userSettingsCubit: context.read<UserSettingsCubit>(),
-              chatsRepository: context.read<ChatsRepository>(),
-              attachmentsRepository: context.read<AttachmentsRepository>(),
-              chatId: chatId,
-              withMembers: false,
-            ),
-          ),
-      ],
-      child: const AddMembersScreenView(),
+    return BlocProvider(
+      create: (context) =>
+          AddMembersCubit()
+            ..loadContacts(context.read<UserCubit>().addableContacts(chatId)),
+      child: AddMembersView(chatId: chatId),
     );
   }
 }
 
-class AddMembersScreenView extends StatefulWidget {
-  const AddMembersScreenView({super.key});
+class AddMembersView extends StatefulWidget {
+  const AddMembersView({super.key, required this.chatId});
+
+  final ChatId chatId;
 
   @override
-  State<AddMembersScreenView> createState() => _AddMembersScreenViewState();
+  State<AddMembersView> createState() => _AddMembersViewState();
 }
 
-class _AddMembersScreenViewState extends State<AddMembersScreenView> {
+class _AddMembersViewState extends State<AddMembersView> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
@@ -87,9 +68,8 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
     );
     final loc = AppLocalizations.of(context);
 
-    return ModalScaffold(
+    return ModalPane(
       title: loc.addMembersScreen_addMembers,
-      onLeading: () => context.read<NavigationCubit>().pop(),
       trailing: Button(
         size: ButtonSize.small,
         state: selectedContacts.isEmpty
@@ -136,13 +116,8 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
   ) async {
     final navigationCubit = context.read<NavigationCubit>();
     final userCubit = context.read<UserCubit>();
-    final chatId = navigationCubit.state.chatId;
-    final loc = AppLocalizations.of(context);
-    if (chatId == null) {
-      throw StateError(loc.addMembersScreen_error_noActiveChat);
-    }
     final error = await userCubit.addUserToChat(
-      chatId,
+      widget.chatId,
       selectedContacts.toList(),
     );
     switch (error) {

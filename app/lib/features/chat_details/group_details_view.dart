@@ -15,7 +15,7 @@ import 'package:air/ds/components/list_group/list_group_tokens.dart';
 import 'package:air/ds/components/list_row/list_row.dart';
 import 'package:air/ds/components/list_row/list_row_tokens.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
-import 'package:air/ds/patterns/modal/modal_tokens.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
@@ -31,13 +31,10 @@ import 'package:air/features/developer/chat_debug_info_view.dart'
     show showChatDebugInfo;
 import 'package:air/features/chat/chat_details_cubit.dart';
 
-/// Body of the group details modal.
-///
-/// Content only: the card, the header, and the scrolling are the modal's, so
-/// this contributes the horizontal inset and the space the last button needs
-/// to clear the bottom of the screen.
-class GroupDetailsScreen extends StatelessWidget {
-  const GroupDetailsScreen({super.key});
+/// Body of the group details modal page. Content only: surface, header, and
+/// scrolling are the modal's.
+class GroupDetailsView extends StatelessWidget {
+  const GroupDetailsView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -50,14 +47,7 @@ class GroupDetailsScreen extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: ModalShellTokens.contentPaddingLeft,
-        right: ModalShellTokens.contentPaddingRight,
-        // A full-screen modal ends above the home indicator, a card ends at its
-        // own edge.
-        bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
-      ),
+    return ModalBody(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -187,8 +177,7 @@ class _PeopleSection extends HookWidget {
           children: [
             _AddPeopleRow(tokens: rowTokens),
             for (final memberId in previewIds) ...[
-              // The group carries no fill of its own, so a hairline gap lets
-              // the surface behind separate the rows.
+              // The group has no fill, so a hairline gap separates the rows.
               const SizedBox(height: StrokeWidth.px1),
               _MemberRow(tokens: rowTokens, memberId: memberId),
             ],

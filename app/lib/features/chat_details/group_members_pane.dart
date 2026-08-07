@@ -10,7 +10,6 @@ import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -22,55 +21,14 @@ import 'package:air/features/chat_details/member_list_item.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
 import 'package:air/features/chat_details/remove_member_button.dart';
 
-class GroupMembersScreen extends StatelessWidget {
-  const GroupMembersScreen({super.key});
+/// Everyone in a group, with a way to add more.
+class GroupMembersPane extends HookWidget {
+  const GroupMembersPane({super.key, required this.chatId});
+
+  final ChatId chatId;
 
   @override
   Widget build(BuildContext context) {
-    final chatId = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId,
-    );
-
-    if (chatId == null) {
-      return const SizedBox.shrink();
-    }
-
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) => ChatDetailsCubit(
-            userCubit: context.read<UserCubit>(),
-            userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatsRepository: context.read<ChatsRepository>(),
-            attachmentsRepository: context.read<AttachmentsRepository>(),
-            chatId: chatId,
-          ),
-        ),
-        BlocProvider(
-          create: (context) => MemberDetailsCubit(
-            userCubit: context.read<UserCubit>(),
-            chatId: chatId,
-          ),
-        ),
-      ],
-      child: const GroupMembersView(),
-    );
-  }
-}
-
-class GroupMembersView extends HookWidget {
-  const GroupMembersView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final chatId = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId,
-    );
-
-    if (chatId == null) {
-      return const SizedBox.shrink();
-    }
-
     final members = context.select(
       (ChatDetailsCubit cubit) => cubit.state.members,
     );
@@ -104,9 +62,8 @@ class GroupMembersView extends HookWidget {
       );
     }, [members, profiles, query, ownUserId]);
 
-    return ModalScaffold(
+    return ModalPane(
       title: loc.groupMembersScreen_title,
-      onLeading: () => context.read<NavigationCubit>().pop(),
       trailing: const _AddMembersAction(),
       // The list below the search field scrolls on its own.
       scrollable: false,
@@ -169,8 +126,8 @@ class _MemberList extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return ListView.separated(
-      // The modal surface runs to the bottom of the screen, so the last row
-      // clears the home indicator on its own rather than through a SafeArea.
+      // The surface runs full height, so the padding clears the home
+      // indicator itself.
       padding: EdgeInsets.fromLTRB(
         S.s16,
         S.s12,

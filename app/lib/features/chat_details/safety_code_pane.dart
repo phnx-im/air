@@ -5,7 +5,9 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:collection/collection.dart';
@@ -13,6 +15,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
+
+/// The safety code for one profile.
+class SafetyCodePane extends StatelessWidget {
+  const SafetyCodePane({super.key, required this.user});
+
+  final UiUserId user;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: user),
+    );
+    final loc = AppLocalizations.of(context);
+
+    return ModalPane(
+      title: loc.safetyCodeScreen_title,
+      child: SafetyCodeView(profile: profile),
+    );
+  }
+}
 
 class SafetyCodeView extends StatelessWidget {
   const SafetyCodeView({super.key, required this.profile});
@@ -24,12 +46,10 @@ class SafetyCodeView extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
 
-    return Align(
-      alignment: Alignment.topCenter,
+    return ModalBody(
+      top: S.s12,
       child: Column(
         children: [
-          const SizedBox(height: S.s12),
-
           UserAvatar(profile: profile, size: 192),
 
           const SizedBox(height: S.s16),
@@ -44,12 +64,10 @@ class SafetyCodeView extends StatelessWidget {
           _SafetyCode(userId: profile.userId),
 
           const SizedBox(height: S.s24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: S.s16),
-            child: Text(
-              style: typeScale.body.s.style(color: palette.text.tertiary),
-              loc.safetyCodeScreen_safetyCodeExplanation(profile.displayName),
-            ),
+
+          Text(
+            style: typeScale.body.s.style(color: palette.text.tertiary),
+            loc.safetyCodeScreen_safetyCodeExplanation(profile.displayName),
           ),
         ],
       ),
@@ -86,7 +104,6 @@ class _SafetyCode extends HookWidget {
     return InkWell(
       onTap: safetyCode.hasData
           ? () {
-              // copy to clipboard
               Clipboard.setData(
                 ClipboardData(text: safetyCode.data!.textRepresentation),
               );

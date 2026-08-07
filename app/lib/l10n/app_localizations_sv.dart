@@ -104,9 +104,6 @@ class AppLocalizationsSv extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Lägg till medlemmar';
 
   @override
-  String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
-
-  @override
   String get contactDetailsScreen_title => 'Profil';
 
   @override
@@ -1080,7 +1077,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Kunde inte rapportera spam. Försök igen.';
 
   @override
-  String get helpScreen_contactUs => 'Kontakta oss';
+  String get helpScreen_contactUs => 'Kontakta Air';
 
   @override
   String get helpScreen_versionInfo => 'Versionsinformation';
@@ -1092,7 +1089,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get licensesScreen_title => 'Licenser';
 
   @override
-  String get contactUsScreen_title => 'Kontakt';
+  String get contactUsScreen_title => 'Kontakta Air';
 
   @override
   String get contactUsScreen_subject => 'Ämne';
@@ -1101,7 +1098,8 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body => 'Meddelande';
 
   @override
-  String get contactUsScreen_includeLogs => 'Dela dina loggar';
+  String get contactUsScreen_includeLogs =>
+      'Dela dina loggar (det hjälper Air att åtgärda buggar)';
 
   @override
   String get contactUsScreen_composeEmail => 'Skriv e-post';

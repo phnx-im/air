@@ -15,6 +15,8 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -28,10 +30,11 @@ import 'package:logging/logging.dart';
 
 import 'package:air/features/chat_details/add_members_cubit.dart';
 
-final _log = Logger('CreateGroupScreen');
+final _log = Logger('CreateGroupModal');
 
-class CreateGroupScreen extends StatelessWidget {
-  const CreateGroupScreen({super.key});
+/// Creating a group: who is in it, then what it is called.
+class CreateGroupModal extends StatelessWidget {
+  const CreateGroupModal({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -61,26 +64,28 @@ class _CreateGroupFlow extends HookWidget {
   Widget build(BuildContext context) {
     final showDetails = useState(false);
 
-    return PopScope(
-      canPop: !showDetails.value,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && showDetails.value) {
-          showDetails.value = false;
-        }
-      },
-      child: IndexedStack(
-        index: showDetails.value ? 1 : 0,
-        children: [
-          _MemberSelectionStep(onNext: () => showDetails.value = true),
-          _CreateGroupDetailsStep(onBack: () => showDetails.value = false),
-        ],
-      ),
+    return ModalPageStack(
+      onBack: () => showDetails.value = false,
+      onDismiss: () => context.read<NavigationCubit>().pop(),
+      pages: [
+        ModalStackEntry(
+          key: const ValueKey('create-group-members'),
+          child: _MemberSelectionPane(onNext: () => showDetails.value = true),
+        ),
+        if (showDetails.value)
+          ModalStackEntry(
+            key: const ValueKey('create-group-details'),
+            child: _CreateGroupDetailsPane(
+              onBack: () => showDetails.value = false,
+            ),
+          ),
+      ],
     );
   }
 }
 
-class _MemberSelectionStep extends HookWidget {
-  const _MemberSelectionStep({required this.onNext});
+class _MemberSelectionPane extends HookWidget {
+  const _MemberSelectionPane({required this.onNext});
 
   final VoidCallback onNext;
 
@@ -98,68 +103,46 @@ class _MemberSelectionStep extends HookWidget {
     );
     final loc = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: _CenteredAppBarTitle(
-          title: loc.groupCreationScreen_title,
-          leading: _CircularBackButton(
-            onPressed: () => context.read<NavigationCubit>().pop(),
-          ),
-          trailing: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: S.s16),
-            child: Button(
-              size: ButtonSize.small,
-              type: ButtonType.secondary,
-              label: loc.groupCreationScreen_next,
-              onPressed: () {
-                FocusScope.of(context).unfocus();
-                onNext();
-              },
-            ),
-          ),
-        ),
+    return ModalPane(
+      title: loc.groupCreationScreen_title,
+      trailing: Button(
+        size: ButtonSize.small,
+        type: ButtonType.secondary,
+        label: loc.groupCreationScreen_next,
+        onPressed: () {
+          FocusScope.of(context).unfocus();
+          onNext();
+        },
       ),
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: Measure.m800)
-                : null,
-            child: Column(
-              children: [
-                MemberSearchField(
-                  controller: searchController,
-                  hintText: loc.groupMembersScreen_searchHint,
-                  onChanged: (value) => query.value = value,
-                ),
-                Expanded(
-                  child: MemberSelectionList(
-                    contacts: contacts,
-                    selectedContacts: selectedContacts,
-                    query: query.value,
-                    isApq: isApq,
-                    onToggle: (contact) => context
-                        .read<AddMembersCubit>()
-                        .toggleContact(contact.userId),
-                  ),
-                ),
-              ],
+      // The selection list below the search field scrolls on its own.
+      scrollable: false,
+      child: Column(
+        children: [
+          MemberSearchField(
+            controller: searchController,
+            hintText: loc.groupMembersScreen_searchHint,
+            onChanged: (value) => query.value = value,
+          ),
+          Expanded(
+            child: MemberSelectionList(
+              contacts: contacts,
+              selectedContacts: selectedContacts,
+              query: query.value,
+              isApq: isApq,
+              onToggle: (contact) =>
+                  context.read<AddMembersCubit>().toggleContact(contact.userId),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _CreateGroupDetailsStep extends HookWidget {
-  const _CreateGroupDetailsStep({required this.onBack});
+class _CreateGroupDetailsPane extends HookWidget {
+  const _CreateGroupDetailsPane({required this.onBack});
 
+  /// Back to the selection, blocked while the group is being created.
   final VoidCallback onBack;
 
   @override
@@ -208,141 +191,118 @@ class _CreateGroupDetailsStep extends HookWidget {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: _CenteredAppBarTitle(
-          title: loc.groupCreationDetails_title,
-          leading: _CircularBackButton(
-            onPressed: () => _handleBack(context, isCreating.value),
-          ),
-          trailing: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: S.s16),
-            child: Button(
-              size: ButtonSize.small,
-              type: ButtonType.secondary,
-              state: createState,
-              label: loc.groupCreationDetails_create,
-              onPressed: () => _createGroupChat(
-                context,
-                groupName.value.trim(),
-                isCreating,
-                picture.value,
-                isApq,
-              ),
-            ),
-          ),
-          onLongPress: () {
-            showHiddenSettings.value = !showHiddenSettings.value;
-          },
+    return ModalPane(
+      title: loc.groupCreationDetails_title,
+      onTitleLongPress: () {
+        showHiddenSettings.value = !showHiddenSettings.value;
+      },
+      onBack: () => _handleBack(context, isCreating.value),
+      trailing: Button(
+        size: ButtonSize.small,
+        type: ButtonType.secondary,
+        state: createState,
+        label: loc.groupCreationDetails_create,
+        onPressed: () => _createGroupChat(
+          context,
+          groupName.value.trim(),
+          isCreating,
+          picture.value,
+          isApq,
         ),
       ),
-      body: SafeArea(
-        child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          behavior: HitTestBehavior.translucent,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: S.s24,
-              vertical: S.s24,
-            ),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                constraints: DeviceType.isDesktop
-                    ? const BoxConstraints(maxWidth: Measure.m800)
-                    : null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: _GroupPicturePicker(
-                        picture: picture.value,
-                        onPick: () => _pickImage(picture),
-                      ),
-                    ),
-                    const SizedBox(height: S.s32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextField(
-                        onChanged: (value) => groupName.value = value,
-                        focusNode: nameFocusNode,
-                        textInputAction: TextInputAction.next,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                        decoration: FieldChrome.plain(
-                          hintText: nameFocusNode.hasFocus
-                              ? loc.groupCreationDetails_groupNameHintFocused
-                              : loc.groupCreationDetails_groupNameHint,
-                          hintStyle: Theme.of(context).textTheme.displayLarge
-                              ?.copyWith(
-                                color: palette.text.quaternary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ),
-                    ),
-                    if (showHelperText) ...[
-                      const SizedBox(height: S.s8),
-                      Center(
-                        child: Text(
-                          loc.groupCreationDetails_groupNameHelper,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: palette.text.tertiary),
-                        ),
-                      ),
-                    ],
-                    if (showHiddenSettings.value) ...[
-                      const SizedBox(height: S.s32),
-                      _SwitchField(
-                        onChanged: (value) {
-                          context.read<AddMembersCubit>().enableApq(value);
-                        },
-                        value: isApq,
-                        label: "Post-Quantum Encryption",
-                      ),
-                    ],
-                    const SizedBox(height: S.s32),
-                    if (selectedIds.isNotEmpty)
-                      Wrap(
-                        alignment: WrapAlignment.start,
-                        spacing: S.s16,
-                        runSpacing: S.s16,
-                        children: sortedSelectedIds.map((userId) {
-                          final profile = selectedProfiles[userId];
-                          if (profile == null) {
-                            return const SizedBox.shrink();
-                          }
-                          final features = selectedFeatures[userId];
-                          final isSupported =
-                              features?.isSupported(isApq: isApq) ?? false;
-                          return Opacity(
-                            opacity: isSupported ? 1.0 : Alpha.a50,
-                            child: _SelectedParticipant(
-                              profile: profile,
-                              onRemove: () => _removeContact(context, userId),
-                            ),
-                          );
-                        }).toList(),
-                      )
-                    else
-                      Center(
-                        child: Text(
-                          loc.groupCreationDetails_emptySelection,
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: palette.text.tertiary),
-                        ),
-                      ),
-                  ],
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: ModalBody(
+          top: S.s24,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: _GroupPicturePicker(
+                  picture: picture.value,
+                  onPick: () => _pickImage(picture),
                 ),
               ),
-            ),
+              const SizedBox(height: S.s32),
+              SizedBox(
+                width: double.infinity,
+                child: TextField(
+                  onChanged: (value) => groupName.value = value,
+                  focusNode: nameFocusNode,
+                  textInputAction: TextInputAction.next,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: FieldChrome.plain(
+                    hintText: nameFocusNode.hasFocus
+                        ? loc.groupCreationDetails_groupNameHintFocused
+                        : loc.groupCreationDetails_groupNameHint,
+                    hintStyle: Theme.of(context).textTheme.displayLarge
+                        ?.copyWith(
+                          color: palette.text.quaternary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+              ),
+              if (showHelperText) ...[
+                const SizedBox(height: S.s8),
+                Center(
+                  child: Text(
+                    loc.groupCreationDetails_groupNameHelper,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.text.tertiary,
+                    ),
+                  ),
+                ),
+              ],
+              if (showHiddenSettings.value) ...[
+                const SizedBox(height: S.s32),
+                _SwitchField(
+                  onChanged: (value) {
+                    context.read<AddMembersCubit>().enableApq(value);
+                  },
+                  value: isApq,
+                  label: "Post-Quantum Encryption",
+                ),
+              ],
+              const SizedBox(height: S.s32),
+              if (selectedIds.isNotEmpty)
+                Wrap(
+                  alignment: WrapAlignment.start,
+                  spacing: S.s16,
+                  runSpacing: S.s16,
+                  children: sortedSelectedIds.map((userId) {
+                    final profile = selectedProfiles[userId];
+                    if (profile == null) {
+                      return const SizedBox.shrink();
+                    }
+                    final features = selectedFeatures[userId];
+                    final isSupported =
+                        features?.isSupported(isApq: isApq) ?? false;
+                    return Opacity(
+                      opacity: isSupported ? 1.0 : Alpha.a50,
+                      child: _SelectedParticipant(
+                        profile: profile,
+                        onRemove: () => _removeContact(context, userId),
+                      ),
+                    );
+                  }).toList(),
+                )
+              else
+                Center(
+                  child: Text(
+                    loc.groupCreationDetails_emptySelection,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: palette.text.tertiary,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -473,48 +433,6 @@ class _GroupPicturePicker extends StatelessWidget {
   }
 }
 
-class _CenteredAppBarTitle extends StatelessWidget {
-  const _CenteredAppBarTitle({
-    required this.title,
-    required this.leading,
-    required this.trailing,
-    this.onLongPress,
-  });
-
-  final String title;
-  final Widget leading;
-  final Widget trailing;
-  final VoidCallback? onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Flexible(
-          flex: 1,
-          child: Align(alignment: Alignment.centerLeft, child: leading),
-        ),
-        Expanded(
-          child: Center(
-            child: InkWell(
-              onLongPress: onLongPress,
-              child: Text(
-                title,
-                style: Theme.of(context).appBarTheme.titleTextStyle,
-              ),
-            ),
-          ),
-        ),
-        Flexible(
-          flex: 1,
-          child: Align(alignment: Alignment.centerRight, child: trailing),
-        ),
-      ],
-    );
-  }
-}
-
 class _SelectedParticipant extends StatelessWidget {
   const _SelectedParticipant({required this.profile, required this.onRemove});
 
@@ -576,34 +494,6 @@ class _SelectedParticipant extends StatelessWidget {
   }
 }
 
-class _CircularBackButton extends StatelessWidget {
-  const _CircularBackButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: S.s16),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(CornerRadius.full),
-        child: Ink(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: palette.backgroundBase.secondary,
-          ),
-          child: const Center(child: AppIcon.arrowLeft(size: 16)),
-        ),
-      ),
-    );
-  }
-}
-
-/// A switch field that reflects [value] and reports toggles via [onChanged].
 class _SwitchField extends StatelessWidget {
   const _SwitchField({
     required this.onChanged,
