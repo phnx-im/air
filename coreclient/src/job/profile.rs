@@ -167,10 +167,18 @@ impl Job for FetchUserProfileOperation {
             .map_err(JobError::fatal)?;
 
         // Phase 4: Store the user profile and key in the database
+        //
+        // A rotation of our own profile reaches us through this path too, when
+        // a sibling device performs it.
+        let is_own_profile = user_id == context.key_store.signing_key.credential().user_id();
         let mut write = context.db.write().await?;
         write
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                user_profile_key.store(&mut *txn).await?;
+                if is_own_profile {
+                    user_profile_key.store_own(&mut *txn).await?;
+                } else {
+                    user_profile_key.store(&mut *txn).await?;
+                }
                 persistable_user_profile.persist(&mut *txn).await?;
                 if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
                     // Delete the old user profile key
