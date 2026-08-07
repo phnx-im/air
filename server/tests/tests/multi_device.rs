@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
-    ChatId, ChatStatus, Message, ReadReceiptsSetting, UserProfile,
+    ChatId, ChatStatus, ChatType, Message, ReadReceiptsSetting, UserProfile,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -871,11 +871,12 @@ async fn multi_device_linking_a_third_device() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
     // A higher-level group Alice is already a member of. Every device linked
     // from here on onboards into it with a resync, and unlike the self group its
-    // commits are broadcast to all of Alice's emulator queues.
+    // commits are broadcast to all of Alice's emulator queues. The connection
+    // group with bob is a second such group.
     let group_chat_id = setup.create_group(&alice).await;
     setup
         .invite_to_group(group_chat_id, &alice, vec![&bob])
@@ -905,19 +906,19 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
-    // Device 3 onboards into the higher-level group. The leaf it replaces is
-    // already a virtual-client leaf, so the sibling queue is covered by the
-    // regular destination list; the commit must not be fanned out twice. The
-    // same outbound run also stages device 3's key packages via a self-group
-    // commit, so the siblings see exactly two commits, each delivered once.
+    // Device 3 onboards into both higher-level groups. The leaf each onboarding
+    // replaces is already a virtual-client leaf, so the sibling queue is covered
+    // by the regular destination list; neither commit must be fanned out twice.
+    // The same outbound run also stages device 3's key packages via a self-group
+    // commit, so the siblings see exactly three commits, each delivered once.
     device_3.outbound_service().run_once().await;
     for (label, device) in [("1", device_1), ("2", &device_2)] {
         let queued = device.qs_fetch_messages().await.unwrap();
         assert_eq!(
             queued.len(),
-            2,
-            "device {label} should receive device 3's key-package upload and onboarding \
-             commits exactly once each"
+            3,
+            "device {label} should receive device 3's key-package upload and its two \
+             onboarding commits exactly once each"
         );
         let processed = device.fully_process_qs_messages(queued).await;
         assert!(
@@ -927,23 +928,29 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
-    assert!(
-        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
-        "device 3 should have completed onboarding into the higher-level group"
-    );
-    let epoch_and_index = device_1
-        .group_epoch_and_own_index(group_chat_id)
-        .await
-        .unwrap();
-    for (label, device) in [("2", &device_2), ("3", &device_3)] {
-        assert_eq!(
-            device
-                .group_epoch_and_own_index(group_chat_id)
-                .await
-                .unwrap(),
-            epoch_and_index,
-            "device {label} should share the virtual client's leaf and epoch"
+    for (chat_label, onboarded_chat_id) in [
+        ("higher-level group", group_chat_id),
+        ("connection group", connection_chat_id),
+    ] {
+        assert!(
+            !device_3.is_resync_pending(onboarded_chat_id).await.unwrap(),
+            "device 3 should have completed onboarding into the {chat_label}"
         );
+        let epoch_and_index = device_1
+            .group_epoch_and_own_index(onboarded_chat_id)
+            .await
+            .unwrap();
+        for (label, device) in [("2", &device_2), ("3", &device_3)] {
+            assert_eq!(
+                device
+                    .group_epoch_and_own_index(onboarded_chat_id)
+                    .await
+                    .unwrap(),
+                epoch_and_index,
+                "device {label} should share the virtual client's leaf and epoch \
+                 in the {chat_label}"
+            );
+        }
     }
 
     let chat_id = self_chat_id(device_1).await;
@@ -1555,4 +1562,166 @@ async fn multi_device_self_group_resync() {
     self_group_client_ids(&new_device).await;
     send_and_receive(old_device, &[&new_device], chat_id, "after resync").await;
     send_and_receive(&new_device, &[old_device], chat_id, "and back").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a linked device inherits connection chats", skip_all)]
+async fn multi_device_inherits_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        !new_device
+            .is_resync_pending(connection_chat_id)
+            .await
+            .unwrap(),
+        "onboarding into the connection group should have completed"
+    );
+
+    let chat = new_device
+        .chat(&connection_chat_id)
+        .await
+        .expect("linked device should have inherited the connection chat");
+    assert!(
+        matches!(chat.chat_type(), ChatType::Connection(user_id) if user_id == &bob),
+        "inherited chat should be a confirmed connection chat, got {:?}",
+        chat.chat_type()
+    );
+    assert_eq!(chat.status(), &ChatStatus::Active);
+
+    // The contact carries the friendship token and WAI key, which are not
+    // recoverable from the group and therefore have to ride the linking channel.
+    let contact = new_device
+        .contact(&bob)
+        .await
+        .expect("linked device should have inherited the contact");
+    assert_eq!(contact.chat_id, connection_chat_id);
+
+    // The old device has to follow the onboarding external commit onto the
+    // virtual client's new leaf.
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    assert_eq!(
+        old_device
+            .group_epoch_and_own_index(connection_chat_id)
+            .await
+            .unwrap(),
+        new_device
+            .group_epoch_and_own_index(connection_chat_id)
+            .await
+            .unwrap(),
+        "both emulator clients must land on the same epoch and shared leaf"
+    );
+
+    send_and_receive(
+        &new_device,
+        &[old_device],
+        connection_chat_id,
+        "hello bob, from the linked device",
+    )
+    .await;
+    send_and_receive(
+        old_device,
+        &[&new_device],
+        connection_chat_id,
+        "hello bob, from the old device",
+    )
+    .await;
+
+    let bob_device = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_device,
+        &[&new_device, old_device],
+        connection_chat_id,
+        "hello alice, from bob",
+    )
+    .await;
+
+    // Inviting bob into a fresh group is what actually consumes the transferred key
+    // material.
+    let group_chat_id = new_device
+        .create_chat(
+            "group from the linked device".to_owned(),
+            None,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap();
+    new_device
+        .invite_users(group_chat_id, std::slice::from_ref(&bob))
+        .await
+        .expect("fatal error inviting bob")
+        .expect("failed to invite bob");
+
+    let qs_messages = bob_device.qs_fetch_messages().await.unwrap();
+    let processed = bob_device.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "bob failed to process the welcome, check logs!"
+    );
+    assert!(
+        bob_device.chat(&group_chat_id).await.is_some(),
+        "bob should have joined the group created by the linked device"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test blocked connection chats are not inherited", skip_all)]
+async fn multi_device_skips_blocked_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+
+    setup
+        .get_user(&alice)
+        .user()
+        .block_contact(bob.clone())
+        .await
+        .unwrap();
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        new_device.chat(&connection_chat_id).await.is_none(),
+        "a blocked connection chat should not be conveyed to a linked device"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test unconfirmed connections are not inherited", skip_all)]
+async fn multi_device_skips_unconfirmed_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Alice requests a connection to bob's username, which bob never accepts.
+    let bob_username = setup
+        .get_user_mut(&bob)
+        .add_username()
+        .await
+        .unwrap()
+        .username;
+    let username_hash = bob_username.calculate_hash().unwrap();
+    let pending_chat_id = setup
+        .get_user(&alice)
+        .user()
+        .add_contact(bob_username, username_hash)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        new_device.chat(&pending_chat_id).await.is_none(),
+        "an unconfirmed connection chat should not be conveyed to a linked device"
+    );
 }

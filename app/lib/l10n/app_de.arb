@@ -80,7 +80,6 @@
   "changeGroupTitleDialog_confirm": "Speichern",
   "introScreen_serverLabel": "Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.",
   "introScreen_serverHint": "DOMAINNAME",
-  "introScreen_error_invalidDomain": "Domain ist ungültig",
 
   "introScreen_linkExisting": "Mit einem bestehenden Konto verknüpfen",
   "introScreen_signUp": "Konto erstellen",
@@ -137,7 +136,6 @@
   "linkingDeviceScreen_separator": "oder",
   "linkingDeviceScreen_numericCode": "Numerischer Code",
   "linkingDeviceScreen_linking": "Verknüpfe...",
-  "linkingDeviceScreen_linked": "Gerät erfolgreich verknüpft!",
   "linkingDeviceScreen_linking_confirm_title": "Verknüpfung bestätigen",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tippe, um den Namen zu ändern.",
   "linkingDeviceScreen_linking_confirm_body": "Du bist dabei, ein neues Gerät zu verknüpfen, das vollen Zugriff auf dein Air-Konto haben wird. Tu dies nur, wenn das Gerät dir gehört.",
@@ -247,7 +245,7 @@
   "systemMessage_userChangedPicture_infix": " hat das Gruppenbild geändert",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " hat die Gruppe erstellt",
-  "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.",
+  "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.",
   "timestamp_now": "Jetzt",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Heute",
@@ -262,7 +260,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockiert",
-  "chatList_muted": "Stummgeschaltet",
   "chatList_contextMenu_mute": "Stummschalten",
   "chatList_contextMenu_unmute": "Stummschaltung aufheben",
   "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",
@@ -302,7 +299,6 @@
       }
     }
   },
-  "attachment_tryAgain": "Erneut versuchen",
   "attachment_gallery": "Galerie",
   "attachment_camera": "Kamera",
   "attachment_file": "Datei",
@@ -371,7 +367,6 @@
   "groupDetails_leaveChat": "Verlassen",
   "groupDetails_deleteChat": "Löschen",
   "groupDetails_addPeople": "Hinzufügen",
-  "groupDetails_seeAll": "Alle anzeigen",
   "groupDetails_memberCount": "{count, plural, one {{count} Mitglied} other {{count} Mitglieder}}",
   "@groupDetails_memberCount": {
     "placeholders": {

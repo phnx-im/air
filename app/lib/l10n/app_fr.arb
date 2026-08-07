@@ -80,7 +80,6 @@
   "changeGroupTitleDialog_confirm": "Enregistrer",
   "introScreen_serverLabel": "Choisissez un serveur auquel vous connecter pour l'association.",
   "introScreen_serverHint": "NOM DE DOMAINE",
-  "introScreen_error_invalidDomain": "Le domaine est invalide",
 
   "introScreen_linkExisting": "Associer à un compte existant",
   "introScreen_signUp": "Créer un compte",
@@ -137,7 +136,6 @@
   "linkingDeviceScreen_separator": "ou",
   "linkingDeviceScreen_numericCode": "Code",
   "linkingDeviceScreen_linking": "Association...",
-  "linkingDeviceScreen_linked": "Appareil associé avec succès !",
   "linkingDeviceScreen_linking_confirm_title": "Confirmer l'association",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Appuyez pour modifier le nom de l'appareil",
   "linkingDeviceScreen_linking_confirm_body": "Vous êtes sur le point d'associer un nouvel appareil, qui aura un accès intégral à votre compte Air. Ne le faites que si l'appareil vous appartient.",
@@ -247,7 +245,7 @@
   "systemMessage_userChangedPicture_infix": " a modifié l'image du groupe",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " a créé le groupe",
-  "systemMessage_onboarded": "Ce client a été ajouté au groupe après l'association.",
+  "systemMessage_onboarded": "Ce client a été ajouté au chat après l'association.",
   "timestamp_now": "Maintenant",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Aujourd’hui",
@@ -262,7 +260,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqué",
-  "chatList_muted": "En sourdine",
   "chatList_contextMenu_mute": "Mettre en sourdine",
   "chatList_contextMenu_unmute": "Désactiver la sourdine",
   "newChatDialog_error": "Impossible d'ajouter une discussion avec le nom {chatName}",
@@ -299,7 +296,6 @@
       }
     }
   },
-  "attachment_tryAgain": "Réessayer",
   "attachment_gallery": "Galerie",
   "attachment_camera": "Appareil photo",
   "attachment_file": "Fichier",
@@ -370,7 +366,6 @@
   "groupDetails_leaveChat": "Quitter",
   "groupDetails_deleteChat": "Supprimer",
   "groupDetails_addPeople": "Ajouter",
-  "groupDetails_seeAll": "Voir tout",
   "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
   "@groupDetails_memberCount": {
     "placeholders": {
