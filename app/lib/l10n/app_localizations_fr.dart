@@ -61,9 +61,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Noms d\'utilisateur';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Paramètres';
-
-  @override
   String get userSettingsScreen_helpSection => 'Aide';
 
   @override
@@ -74,6 +71,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Appareils';
+
+  @override
+  String get youSection_profile => 'Profil';
+
+  @override
+  String get youSection_preferences => 'Paramètres';
+
+  @override
+  String get youSection_developer => 'Développeur';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
@@ -102,10 +108,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'une discussion active est obligatoire';
 
   @override
+  String get contactDetailsScreen_title => 'Profil';
+
+  @override
   String get contactDetailsScreen_chat => 'Discussion';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
+  String get contactDetailsScreen_viewSafetyCode => 'Code de sécurité';
 
   @override
   String get contactDetailsScreen_mute => 'Mettre en sourdine';
@@ -269,9 +278,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get introScreen_serverHint => 'NOM DE DOMAINE';
-
-  @override
-  String get introScreen_error_invalidDomain => 'Le domaine est invalide';
 
   @override
   String get introScreen_linkExisting => 'Associer à un compte existant';
@@ -451,9 +457,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkingDeviceScreen_linking => 'Association...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Appareil associé avec succès !';
-
-  @override
   String get linkingDeviceScreen_linking_confirm_title =>
       'Confirmer l\'association';
 
@@ -506,13 +509,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Le code que vous avez fourni est incorrect.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Réessayer';
-
-  @override
-  String get linkedDevicesScreen_title => 'Appareils';
 
   @override
   String get linkedDevicesScreen_thisDevice => 'Cet appareil';
@@ -533,14 +533,38 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Associer un appareil';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Appareil inconnu';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Échec du renommage.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Impossible de renommer l\'appareil $deviceName. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Échec de la dissociation.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'La dissociation de l\'appareil $deviceName a échoué. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count appareils associés.',
       one: '$count appareil associé.',
+      zero: 'Aucun appareil associé.',
     );
-    return '$_temp0 Vous pouvez en associer jusqu\'à $remaining de plus.';
+    return '$_temp0';
   }
 
   @override
@@ -607,7 +631,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil.';
+      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil lors de sa prochaine connexion.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Annuler';
@@ -787,6 +811,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get systemMessage_userCreatedGroup_suffix => ' a créé le groupe';
 
   @override
+  String get systemMessage_onboarded =>
+      'Ce client a été ajouté au chat après l\'association.';
+
+  @override
   String get timestamp_now => 'Maintenant';
 
   @override
@@ -830,9 +858,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Bloqué';
-
-  @override
-  String get chatList_muted => 'En sourdine';
 
   @override
   String get chatList_contextMenu_mute => 'Mettre en sourdine';
@@ -942,9 +967,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Réessayer';
 
   @override
   String get attachment_gallery => 'Galerie';
@@ -1125,6 +1147,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de téléverser les journaux';
 
   @override
+  String get groupDetails_title => 'Détails du groupe';
+
+  @override
   String get groupDetails_leaveChat => 'Quitter';
 
   @override
@@ -1132,9 +1157,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Ajouter';
-
-  @override
-  String get groupDetails_seeAll => 'Voir tout';
 
   @override
   String groupDetails_memberCount(int count) {
@@ -1146,9 +1168,6 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get groupDetails_groupDescription => 'Groupe';
 
   @override
   String get groupMembersScreen_title => 'Membres du groupe';
@@ -1319,4 +1338,28 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get messageList_reactions_react => 'Réagir';
+
+  @override
+  String get messageList_reactions_remove => 'Supprimer';
+
+  @override
+  String get messageList_reactions_you => 'Vous';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Toutes · $total';
+  }
+
+  @override
+  String get emojiPicker_searchHint => 'Rechercher un emoji';
+
+  @override
+  String get emojiPicker_empty => 'Aucun emoji trouvé';
+
+  @override
+  String get emojiPicker_skinToneHelp =>
+      'Définit votre teinte de peau par défaut';
 }

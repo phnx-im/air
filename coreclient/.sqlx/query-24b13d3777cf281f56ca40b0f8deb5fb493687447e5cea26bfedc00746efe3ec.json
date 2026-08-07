@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    SELECT EXISTS(SELECT 1\n                    FROM pending_chat_operation\n                    WHERE group_id = ?) AS row_exists\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "row_exists",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "24b13d3777cf281f56ca40b0f8deb5fb493687447e5cea26bfedc00746efe3ec"
+}

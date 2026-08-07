@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::{LeafSigningKey, UserSigningKey},
     identifiers::{QsClientId, UserId},
 };
 use chrono::Utc;
@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod key_packages;
 mod profile;
 mod push_tokens;
 mod reaction_queue;
@@ -74,7 +75,7 @@ pub trait OutboundServiceWork: Clone + Send + 'static {
 
 impl OutboundServiceWork for OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
-        OutboundServiceContext::work(self, run_token).await;
+        Box::pin(OutboundServiceContext::work(self, run_token)).await;
     }
 }
 
@@ -166,6 +167,18 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to send a freshly enqueued pending chat
+    /// operation.
+    pub(crate) fn notify_pending_chat_operations(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to onboard a freshly linked device into the
+    /// virtual client's existing groups.
+    pub(crate) fn notify_vc_onboarding(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
@@ -215,10 +228,20 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
             };
 
             {
-                let _guard = global_lock
-                    .lock()
-                    .await
-                    .expect("fatal: failed to acquire global lock");
+                let _guard = match global_lock.lock().await {
+                    Ok(guard) => guard,
+                    Err(error) => {
+                        error!(
+                            %error,
+                            "failed to acquire global lock, skipping outbound service run"
+                        );
+                        // This run is skipped and the periodic wake retries the work soon. That is
+                        // why the ticker is not reset here. The task must stay alive, because all
+                        // awaiters of the done token would hang forever otherwise.
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                };
                 debug!("starting doing work in background task");
                 self.context.work(run_token.cancel.clone()).await;
                 debug!("finished work in background task");
@@ -291,15 +314,28 @@ impl OutboundServiceContext {
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");
         }
-        if let Err(error) = self.execute_timed_tasks(&run_token).await {
+        if let Err(error) = Box::pin(self.execute_timed_tasks(&run_token)).await {
             error!(%error, "Failed to execute timed tasks");
         }
 
         fetch_profiles.await;
     }
 
-    fn signing_key(&self) -> &ClientSigningKey {
+    fn signing_key(&self) -> &UserSigningKey {
         &self.key_store.signing_key
+    }
+
+    /// Returns the signing key to use for operations on `group_id`.
+    ///
+    /// The self group's leaves are signed with a per-device key that differs from
+    /// the shared user credential key, so its messages and commits must be signed
+    /// with that key. All other groups use the shared user signing key.
+    async fn signer_for_group(
+        &self,
+        group_id: &openmls::group::GroupId,
+    ) -> anyhow::Result<LeafSigningKey> {
+        use crate::clients::own_client_info::OwnClientInfo;
+        OwnClientInfo::signer_for_group(self.db.read().await?, group_id, self.signing_key()).await
     }
 
     fn user_id(&self) -> &UserId {
@@ -450,6 +486,32 @@ mod test {
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 
+    #[cfg(not(target_os = "android"))]
+    #[tokio::test]
+    async fn lock_failure_does_not_kill_background_task() {
+        init_test_tracing();
+
+        let lock = GlobalLock::from_path("/nonexistent/outbound-service.lock")
+            .expect("failed to create the global lock");
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::with_context(context.clone(), lock);
+
+        timeout(Duration::from_secs(5), service.start())
+            .await
+            .expect("start must not hang when the lock cannot be acquired");
+
+        // Without the lock the work never runs.
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        // The background task is still alive and keeps serving new requests.
+        timeout(Duration::from_secs(5), service.notify_work())
+            .await
+            .expect("notify_work must not hang when the lock cannot be acquired");
+        timeout(Duration::from_secs(5), service.stop())
+            .await
+            .expect("stop must not hang when the lock cannot be acquired");
+    }
+
     /// A short wake interval used in tests so the periodic ticker fires quickly.
     const TEST_WAKE_INTERVAL: Duration = Duration::from_millis(20);
 
@@ -536,28 +598,29 @@ mod test {
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
     }
 
+    /// Each notification of a started service triggers another run, and the returned future
+    /// resolves once that run is done.
     #[tokio::test]
     async fn wait_for_idle() {
+        init_test_tracing();
+
         let context = DelayedCounterContext::default();
         let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work();
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work().await; // +1
-        assert_eq!(3, context.counter.load(Ordering::SeqCst));
-    }
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
 
-    #[tokio::test]
-    async fn notify_work_triggers_another_run() {
-        let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone(), global_lock());
-
-        service.start().await;
-        service.notify_work().await;
-
+        // The run is triggered by the call itself. The future is only a handle to wait for
+        // idle, also when held and awaited later. Waiting on the done futures instead of
+        // sleeping keeps the test deterministic. A notification sent while a run is still in
+        // flight coalesces with that run, so timing-based waits can observe fewer runs under
+        // load.
+        let idle = service.notify_work();
+        idle.await;
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
+
+        service.notify_work().await;
+        assert_eq!(3, context.counter.load(Ordering::SeqCst));
     }
 
     #[tokio::test]

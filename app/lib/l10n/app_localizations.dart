@@ -192,12 +192,6 @@ abstract class AppLocalizations {
   /// **'Usernames'**
   String get userSettingsScreen_usernamesSection;
 
-  /// No description provided for @userSettingsScreen_settingsSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings'**
-  String get userSettingsScreen_settingsSection;
-
   /// No description provided for @userSettingsScreen_helpSection.
   ///
   /// In en, this message translates to:
@@ -221,6 +215,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Devices'**
   String get userSettingsScreen_devices;
+
+  /// No description provided for @youSection_profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get youSection_profile;
+
+  /// No description provided for @youSection_preferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get youSection_preferences;
+
+  /// No description provided for @youSection_developer.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get youSection_developer;
 
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
@@ -270,6 +282,12 @@ abstract class AppLocalizations {
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
 
+  /// No description provided for @contactDetailsScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get contactDetailsScreen_title;
+
   /// No description provided for @contactDetailsScreen_chat.
   ///
   /// In en, this message translates to:
@@ -279,7 +297,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactDetailsScreen_viewSafetyCode.
   ///
   /// In en, this message translates to:
-  /// **'View Safety Code'**
+  /// **'Safety code'**
   String get contactDetailsScreen_viewSafetyCode;
 
   /// No description provided for @contactDetailsScreen_mute.
@@ -557,12 +575,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DOMAIN NAME'**
   String get introScreen_serverHint;
-
-  /// No description provided for @introScreen_error_invalidDomain.
-  ///
-  /// In en, this message translates to:
-  /// **'Domain is invalid'**
-  String get introScreen_error_invalidDomain;
 
   /// No description provided for @introScreen_linkExisting.
   ///
@@ -852,12 +864,6 @@ abstract class AppLocalizations {
   /// **'Linking...'**
   String get linkingDeviceScreen_linking;
 
-  /// No description provided for @linkingDeviceScreen_linked.
-  ///
-  /// In en, this message translates to:
-  /// **'Device successfully linked!'**
-  String get linkingDeviceScreen_linked;
-
   /// No description provided for @linkingDeviceScreen_linking_confirm_title.
   ///
   /// In en, this message translates to:
@@ -954,12 +960,6 @@ abstract class AppLocalizations {
   /// **'Try again'**
   String get linkingDevicesScreen_error_dismiss;
 
-  /// No description provided for @linkedDevicesScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Devices'**
-  String get linkedDevicesScreen_title;
-
   /// No description provided for @linkedDevicesScreen_thisDevice.
   ///
   /// In en, this message translates to:
@@ -990,11 +990,47 @@ abstract class AppLocalizations {
   /// **'Link a device'**
   String get linkedDevicesScreen_linkDevice;
 
+  /// No description provided for @linkedDevicesScreen_unknownDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown device'**
+  String get linkedDevicesScreen_unknownDevice;
+
+  /// No description provided for @linkedDevicesScreen_renameError_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Renaming failed.'**
+  String get linkedDevicesScreen_renameError_title;
+
+  /// No description provided for @linkedDevicesScreen_renameError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t rename the device {deviceName}. Check your network connection and try again.'**
+  String linkedDevicesScreen_renameError(String deviceName);
+
+  /// No description provided for @linkedDevicesScreen_unlinkError_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlinking failed.'**
+  String get linkedDevicesScreen_unlinkError_title;
+
+  /// No description provided for @linkedDevicesScreen_unlinkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlinking the device {deviceName} failed. Check your network connection and try again.'**
+  String linkedDevicesScreen_unlinkError(String deviceName);
+
+  /// No description provided for @linkedDevicesScreen_errorDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get linkedDevicesScreen_errorDialog_confirm;
+
   /// No description provided for @linkedDevicesScreen_deviceCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.'**
-  String linkedDevicesScreen_deviceCount(int count, int remaining);
+  /// **'{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}'**
+  String linkedDevicesScreen_deviceCount(int count);
 
   /// No description provided for @linkedDevicesScreen_encryptionNotice.
   ///
@@ -1101,7 +1137,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_unlinkDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.'**
+  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.'**
   String get linkedDevicesScreen_unlinkDialog_content;
 
   /// No description provided for @linkedDevicesScreen_unlinkDialog_cancel.
@@ -1359,6 +1395,12 @@ abstract class AppLocalizations {
   /// **' created the group'**
   String get systemMessage_userCreatedGroup_suffix;
 
+  /// No description provided for @systemMessage_onboarded.
+  ///
+  /// In en, this message translates to:
+  /// **'This client has been onboarded into the chat after linking.'**
+  String get systemMessage_onboarded;
+
   /// No description provided for @timestamp_now.
   ///
   /// In en, this message translates to:
@@ -1442,12 +1484,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Blocked'**
   String get chatList_blocked;
-
-  /// No description provided for @chatList_muted.
-  ///
-  /// In en, this message translates to:
-  /// **'Muted'**
-  String get chatList_muted;
 
   /// No description provided for @chatList_contextMenu_mute.
   ///
@@ -1598,12 +1634,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
-
-  /// No description provided for @attachment_tryAgain.
-  ///
-  /// In en, this message translates to:
-  /// **'Try again'**
-  String get attachment_tryAgain;
 
   /// No description provided for @attachment_gallery.
   ///
@@ -1929,6 +1959,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t upload logs'**
   String get contactUsScreen_errorUploadingLogs;
 
+  /// No description provided for @groupDetails_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group details'**
+  String get groupDetails_title;
+
   /// No description provided for @groupDetails_leaveChat.
   ///
   /// In en, this message translates to:
@@ -1947,23 +1983,11 @@ abstract class AppLocalizations {
   /// **'Add people'**
   String get groupDetails_addPeople;
 
-  /// No description provided for @groupDetails_seeAll.
-  ///
-  /// In en, this message translates to:
-  /// **'See all'**
-  String get groupDetails_seeAll;
-
   /// No description provided for @groupDetails_memberCount.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
-
-  /// No description provided for @groupDetails_groupDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Group'**
-  String get groupDetails_groupDescription;
 
   /// No description provided for @groupMembersScreen_title.
   ///
@@ -2258,6 +2282,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} new message} other {{count} new messages}}'**
   String messageList_newMessages(int count);
+
+  /// No description provided for @messageList_reactions_react.
+  ///
+  /// In en, this message translates to:
+  /// **'React'**
+  String get messageList_reactions_react;
+
+  /// No description provided for @messageList_reactions_remove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get messageList_reactions_remove;
+
+  /// No description provided for @messageList_reactions_you.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get messageList_reactions_you;
+
+  /// No description provided for @messageList_reactions_all.
+  ///
+  /// In en, this message translates to:
+  /// **'All · {total}'**
+  String messageList_reactions_all(Object total);
+
+  /// No description provided for @emojiPicker_searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search emoji'**
+  String get emojiPicker_searchHint;
+
+  /// No description provided for @emojiPicker_empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No emoji found'**
+  String get emojiPicker_empty;
+
+  /// No description provided for @emojiPicker_skinToneHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sets your default skin tone'**
+  String get emojiPicker_skinToneHelp;
 }
 
 class _AppLocalizationsDelegate

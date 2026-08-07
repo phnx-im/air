@@ -9,6 +9,7 @@ use mls_assist::{
     components::ComponentsList,
     openmls::{
         component::{ComponentId, ComponentType},
+        components::vc_derivation_info::VC_COMPONENT_ID,
         group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
         prelude::{
             AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
@@ -18,7 +19,10 @@ use mls_assist::{
         },
     },
 };
-use tls_codec::Serialize;
+use tls_codec::{DeserializeBytes, Serialize};
+use tracing::warn;
+
+use crate::credentials::SELF_GROUP_CREDENTIAL_TYPE;
 
 /// An app-level MLS component that can be stored in the app data dictionary of a group, leaf node,
 /// or key package.
@@ -31,6 +35,9 @@ pub trait AppComponent {
 
     /// The default component instance to store in a freshly-created leaf node or key package.
     fn default_for_leaf_or_key_package() -> Self;
+
+    /// The default component instance to store in a freshly-created self-group for virtual clients.
+    fn default_for_self_group() -> Self;
 
     /// Serializes the component into the on-the-wire bytes that are stored in the app data
     /// dictionary.
@@ -67,7 +74,7 @@ pub const QS_CLIENT_REFERENCE_EXTENSION_TYPE: u16 = 0xff00;
 const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::AIR_128_MLKEM768_AES256GCM_SHA384_Ed25519;
+const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519;
 
 pub const APQ_CIPHERSUITE: ApqCiphersuite =
     ApqCiphersuite::new(DEFAULT_CIPHERSUITE, PQ_CIPHERSUITE);
@@ -105,8 +112,17 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
     ProposalType::AppDataUpdate,
+    ProposalType::AppEphemeral,
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
+
+/// Credential types advertised by self-group leaves. Self-group leaves carry a
+/// self-group credential, and every member of a group must list the credential types of all
+/// leaves in its capabilities. Safe because self-groups never contain foreign members.
+pub const SELF_GROUP_SUPPORTED_CREDENTIALS: &[CredentialType] = &[
+    CredentialType::Basic,
+    CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE),
+];
 
 /// Capabilities that are used in the leaf node.
 pub fn default_leaf_node_capabilities() -> Capabilities {
@@ -119,9 +135,44 @@ pub fn default_leaf_node_capabilities() -> Capabilities {
     )
 }
 
+/// Capabilities used in self-group leaf nodes.
+pub fn self_group_leaf_node_capabilities() -> Capabilities {
+    Capabilities::new(
+        Some(SUPPORTED_PROTOCOL_VERSIONS),
+        Some(SUPPORTED_CIPHERSUITES),
+        Some(SUPPORTED_EXTENSIONS),
+        Some(SUPPORTED_PROPOSALS),
+        Some(SELF_GROUP_SUPPORTED_CREDENTIALS),
+    )
+}
+
 /// Extension used in the leaf node.
 pub fn default_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
     default_extensions::<LeafNode, C>()
+}
+
+/// Extensions for a leaf node that is operated by a virtual client.
+pub fn vc_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
+    Extensions::from_vec(vec![app_data_dictionary_extension::<C>(&[VC_COMPONENT_ID])])
+        .expect("invalid extensions")
+}
+
+/// Returns `true` if the leaf is operated by a virtual client.
+///
+/// [`vc_leaf_node_extensions`] adds [`VC_COMPONENT_ID`] to the app data components
+/// it when the leaf is first created for a virtual client, and later commits carry it over.
+pub fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
+    leaf.extensions()
+        .app_data_dictionary()
+        .and_then(|ext| ext.dictionary().get(&ComponentType::AppComponents.into()))
+        .and_then(|data| {
+            ComponentsList::tls_deserialize_exact_bytes(data)
+                .inspect_err(|error| {
+                    warn!(%error, "Failed to deserialize app components");
+                })
+                .ok()
+        })
+        .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
 }
 
 /// Extension used in the key package.
@@ -143,21 +194,60 @@ where
         .expect("invalid extensions")
 }
 
-/// # Panics
+/// Extension which contains the default app data dictionary for the group context.
 ///
-/// Since we are building a static list of components here, we can assume that this function never
-/// panics. Panic-safety is additionally tested in the unit tests.
+/// Embeds `component` in the dictionary and advertises it via the `AppComponents` entry.
+///
+/// If `safe_aad_required` is true, the app data dictionary sets the `SafeAad` component as a
+/// required component.
+pub fn default_group_context_app_data_dictionary_extension<C: AppComponent>(
+    component: C,
+    safe_aad_components: Option<Vec<ComponentId>>,
+) -> Extension {
+    let mut component_ids = vec![C::COMPONENT_ID];
+    if safe_aad_components.is_some() {
+        component_ids.push(ComponentType::SafeAad.into());
+    }
+
+    let mut app_data_dictionary = AppDataDictionary::new();
+    app_data_dictionary.insert(
+        ComponentType::AppComponents.into(),
+        ComponentsList { component_ids }
+            .tls_serialize_detached()
+            .expect("invalid component list"),
+    );
+    app_data_dictionary.insert(C::COMPONENT_ID, component.to_bytes());
+    if let Some(component_ids) = safe_aad_components {
+        app_data_dictionary.insert(
+            ComponentType::SafeAad.into(),
+            ComponentsList { component_ids }
+                .tls_serialize_detached()
+                .expect("invalid component list"),
+        );
+    }
+
+    Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
+}
+
+/// Extension which contains the default app data dictionary for the leaf node/key package.
 pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
+    app_data_dictionary_extension::<C>(&[])
+}
+
+fn app_data_dictionary_extension<C: AppComponent>(
+    extra_component_ids: &[ComponentId],
+) -> Extension {
+    let mut component_ids = vec![C::COMPONENT_ID];
+    component_ids.extend_from_slice(extra_component_ids);
+
     let mut app_data_dictionary = AppDataDictionary::new();
 
     // Advertise that we support the component in the app data dictionary.
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
-        ComponentsList {
-            component_ids: vec![C::COMPONENT_ID],
-        }
-        .tls_serialize_detached()
-        .expect("invalid component list"),
+        ComponentsList { component_ids }
+            .tls_serialize_detached()
+            .expect("invalid component list"),
     );
 
     // Add the component to the app data dictionary.
@@ -173,6 +263,24 @@ pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
 mod test {
     use super::*;
 
+    struct TestComponent;
+
+    impl AppComponent for TestComponent {
+        const COMPONENT_ID: ComponentId = 0x8043;
+
+        fn default_for_leaf_or_key_package() -> Self {
+            Self
+        }
+
+        fn default_for_self_group() -> Self {
+            Self
+        }
+
+        fn to_bytes(&self) -> Vec<u8> {
+            b"test".to_vec()
+        }
+    }
+
     #[test]
     fn required_capabilities_is_subset_of_supported_capabilities() {
         for extension in REQUIRED_EXTENSIONS {
@@ -183,6 +291,7 @@ mod test {
         }
         for credential in REQUIRED_CREDENTIALS {
             assert!(SUPPORTED_CREDENTIALS.contains(credential));
+            assert!(SELF_GROUP_SUPPORTED_CREDENTIALS.contains(credential));
         }
     }
 
@@ -193,5 +302,64 @@ mod test {
         for capability in group_extensions {
             assert!(leaf_node_extensions.contains(capability));
         }
+    }
+
+    fn dictionary_of(extension: Extension) -> AppDataDictionary {
+        let Extension::AppDataDictionary(extension) = extension else {
+            panic!("not an app data dictionary extension");
+        };
+        extension.dictionary().clone()
+    }
+
+    /// `safe_aad_required()` on the group context checks for a dictionary entry whose *key* is the
+    /// SafeAad component id. This pins that the helper puts the marker in the right place: a wrong
+    /// placement compiles and runs, but silently disables the entire SafeAAD pipeline.
+    #[test]
+    fn group_context_dictionary_with_safe_aad() {
+        const REQUIRED_SAFE_AAD_COMPONENT_ID: ComponentId = 0x8042;
+        let dictionary = dictionary_of(default_group_context_app_data_dictionary_extension(
+            TestComponent,
+            Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
+        ));
+
+        // The SafeAad entry is present as a dictionary key...
+        let safe_aad_id = ComponentId::from(ComponentType::SafeAad);
+        assert!(dictionary.contains(&safe_aad_id));
+
+        // ...and its value parses as a `ComponentsList` carrying the given ids
+        // (`safe_aad_required_components()` errors on unparsable values).
+        let value = dictionary.get(&safe_aad_id).unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert_eq!(list.component_ids, vec![REQUIRED_SAFE_AAD_COMPONENT_ID]);
+
+        // The AppComponents entry is present and parseable, too, and advertises the embedded
+        // component.
+        let value = dictionary
+            .get(&ComponentId::from(ComponentType::AppComponents))
+            .unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert!(list.component_ids.contains(&TestComponent::COMPONENT_ID));
+
+        // The component itself is embedded in the dictionary.
+        assert_eq!(
+            dictionary.get(&TestComponent::COMPONENT_ID).unwrap(),
+            TestComponent.to_bytes()
+        );
+    }
+
+    #[test]
+    fn group_context_dictionary_without_safe_aad() {
+        let dictionary = dictionary_of(default_group_context_app_data_dictionary_extension(
+            TestComponent,
+            None,
+        ));
+
+        assert!(!dictionary.contains(&ComponentId::from(ComponentType::SafeAad)));
+
+        let value = dictionary
+            .get(&ComponentId::from(ComponentType::AppComponents))
+            .unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert_eq!(list.component_ids, vec![TestComponent::COMPONENT_ID]);
     }
 }

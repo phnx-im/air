@@ -33,6 +33,8 @@ pub enum NewGroupError<StorageError> {
     NewGroup(#[from] OpenMlsNewGroupError<StorageError>),
     #[error("Error serializing APQInfo extension: {0}")]
     InvalidExtension(#[from] tls_codec::Error),
+    #[error(transparent)]
+    LeafNodeValidation(#[from] LeafNodeValidationError),
 }
 
 impl<StorageError> From<InvalidExtensionError> for NewGroupError<StorageError> {
@@ -54,6 +56,8 @@ pub struct GroupBuilder {
     capabilities: Capabilities,
     t_extensions: Extensions<GroupContext>,
     pq_extensions: Extensions<GroupContext>,
+    t_leaf_extensions: Extensions<LeafNode>,
+    pq_leaf_extensions: Extensions<LeafNode>,
 }
 
 impl GroupBuilder {
@@ -137,6 +141,7 @@ impl GroupBuilder {
             .with_group_context_extensions(self.t_extensions)
             .with_group_id(apq_group_id.t_group_id.clone())
             .with_capabilities(capabilities.clone())
+            .with_leaf_node_extensions(self.t_leaf_extensions)?
             .build(
                 provider,
                 signer.t_signer(),
@@ -148,6 +153,7 @@ impl GroupBuilder {
             .with_group_context_extensions(self.pq_extensions)
             .with_group_id(apq_group_id.pq_group_id.clone())
             .with_capabilities(capabilities)
+            .with_leaf_node_extensions(self.pq_leaf_extensions)?
             .build(
                 provider,
                 signer.pq_signer(),
@@ -254,12 +260,8 @@ impl GroupBuilder {
         t_extensions: Extensions<LeafNode>,
         pq_extensions: Extensions<LeafNode>,
     ) -> Result<Self, LeafNodeValidationError> {
-        self.t_group_builder = self
-            .t_group_builder
-            .with_leaf_node_extensions(t_extensions)?;
-        self.pq_group_builder = self
-            .pq_group_builder
-            .with_leaf_node_extensions(pq_extensions)?;
+        self.t_leaf_extensions = t_extensions;
+        self.pq_leaf_extensions = pq_extensions;
         Ok(self)
     }
 

@@ -15,15 +15,18 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `aggregate_reactions`, `calculate`, `connection_user_id`, `empty`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_message_without_attachments`, `from_message`, `from_message`, `from_message`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`, `to_draft_without_content`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These functions are ignored because they are not marked as `pub`: `aggregate_reactions`, `connection_user_id`, `empty`, `from_asset`, `from_bytes`, `from_message_without_attachments`, `from_message`, `from_message`, `from_message`, `from_profile`, `from_user_id`, `load_from_chat_type`, `to_draft_without_content`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
 /// Mirror of the [`AddUsernameContactError`] type
 enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
 
 @freezed
 sealed class AirComponent with _$AirComponent {
-  const factory AirComponent({required AirFeatures features}) = _AirComponent;
+  const factory AirComponent({
+    required AirFeatures features,
+    required bool isSelfGroup,
+  }) = _AirComponent;
 }
 
 @freezed
@@ -203,7 +206,6 @@ sealed class UiChatMessage with _$UiChatMessage {
     required DateTime timestamp,
     required UiMessage message,
     UiInReplyToMessage? inReplyToMessage,
-    required UiFlightPosition position,
     required UiMessageStatus status,
     required List<UiReaction> reactions,
   }) = _UiChatMessage;
@@ -221,6 +223,7 @@ sealed class UiChatMuted with _$UiChatMuted {
 sealed class UiChatStatus with _$UiChatStatus {
   const UiChatStatus._();
 
+  const factory UiChatStatus.pending() = UiChatStatus_Pending;
   const factory UiChatStatus.inactive(UiInactiveChat field0) =
       UiChatStatus_Inactive;
   const factory UiChatStatus.active() = UiChatStatus_Active;
@@ -256,17 +259,19 @@ sealed class UiChatType with _$UiChatType {
 
 /// Client record of a user
 ///
-/// Each user has a client record which identifies the users database.
+/// Each user has a client record which identifies the users database. One user can have multiple
+/// client records identifying different client in a multi-client setup.
 class UiClientRecord {
+  final UuidValue clientRecordId;
+
   /// The unique identifier of the user
-  ///
-  /// Also used for identifying the client database path.
   final UiUserId userId;
   final DateTime createdAt;
   final UiUserProfile userProfile;
   final bool isFinished;
 
   const UiClientRecord({
+    required this.clientRecordId,
     required this.userId,
     required this.createdAt,
     required this.userProfile,
@@ -275,6 +280,7 @@ class UiClientRecord {
 
   @override
   int get hashCode =>
+      clientRecordId.hashCode ^
       userId.hashCode ^
       createdAt.hashCode ^
       userProfile.hashCode ^
@@ -285,6 +291,7 @@ class UiClientRecord {
       identical(this, other) ||
       other is UiClientRecord &&
           runtimeType == other.runtimeType &&
+          clientRecordId == other.clientRecordId &&
           userId == other.userId &&
           createdAt == other.createdAt &&
           userProfile == other.userProfile &&
@@ -342,23 +349,6 @@ sealed class UiEventMessage with _$UiEventMessage {
       UiEventMessage_System;
   const factory UiEventMessage.error(UiErrorMessage field0) =
       UiEventMessage_Error;
-}
-
-/// Position of a chat message in a flight
-///
-/// A flight is a sequence of messages that are grouped to be displayed together.
-enum UiFlightPosition {
-  /// The message is the only message in the flight.
-  single,
-
-  /// The message is the first message in the flight and the flight has more than one message.
-  start,
-
-  /// The message is in the middle of the flight and the flight has more than one message.
-  middle,
-
-  /// The message is the last message in the flight and the flight has more than one message.
-  end,
 }
 
 @freezed
@@ -475,6 +465,7 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
+  const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
 }
 
 /// UI representation of an [`UserId`]

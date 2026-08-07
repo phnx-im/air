@@ -5,31 +5,43 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:air/background_service.dart';
+import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/supported_locales.dart';
-import 'package:air/navigation/navigation.dart';
-import 'package:air/registration/registration.dart';
-import 'package:air/ds/theme/theme.dart';
-import 'package:air/user/user.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/navigation/app_router.dart';
+import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/material/scroll_behavior.dart';
+import 'package:air/ds/material/theme_data.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/unlinked_device_listener.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
-import 'package:air/ds/components/context_menu/context_menu.dart';
-import 'package:air/util/notifications.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/util/time/app_clock.dart';
+import 'package:air/platform/notifications.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'user/update_required_screen.dart';
+import 'package:uuid/uuid.dart';
+import 'package:air/features/onboarding/update_required_screen.dart';
 
 final _appRouter = AppRouter();
 
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class App extends StatefulWidget {
-  const App({super.key});
+  const App({super.key, this.clientRecordId});
+
+  /// When set, this client record is opened at startup instead of the default
+  /// one.
+  final UuidValue? clientRecordId;
 
   @override
   State<App> createState() => _AppState();
@@ -58,7 +70,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
-          ContextMenu.closeActiveMenu();
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
@@ -122,6 +133,22 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
   }
 
+  /// Loads the client record given on the command line, or the default user.
+  void _loadInitialUser() {
+    final clientRecordId = widget.clientRecordId;
+    if (clientRecordId == null) {
+      _coreClient.loadDefaultUser();
+      return;
+    }
+    _log.info("Loading client record from the command line: $clientRecordId");
+    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
+      error,
+      stackTrace,
+    ) {
+      _log.severe("Error loading client record $clientRecordId: $error");
+    });
+  }
+
   Future<void> _prepareForBackground() async {
     if (!Platform.isIOS) return;
 
@@ -164,8 +191,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         ),
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
-          create: (context) =>
-              LoadableUserCubit((_coreClient..loadDefaultUser()).userStream),
+          create: (context) {
+            _loadInitialUser();
+            return LoadableUserCubit(_coreClient.userStream);
+          },
           lazy: false, // immediately try to load the user
         ),
         BlocProvider<UserSettingsCubit>(
@@ -176,57 +205,61 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       child: InterfaceScale(
         // SDTFScope exposes date & time formatting system preferences
         child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final userLocaleCode = context.select(
-                (UserSettingsCubit cubit) => cubit.state.locale,
-              );
-              final appLocale = context.select(
-                (AppLocaleCubit cubit) => cubit.state,
-              );
-              // Prefer persisted user locale; fall back to in-memory selection.
-              final locale = userLocaleCode != null
-                  ? Locale(userLocaleCode)
-                  : appLocale;
+          // One clock for every live timestamp in the app.
+          child: AppClock(
+            child: Builder(
+              builder: (context) {
+                final userLocaleCode = context.select(
+                  (UserSettingsCubit cubit) => cubit.state.locale,
+                );
+                final appLocale = context.select(
+                  (AppLocaleCubit cubit) => cubit.state,
+                );
+                // Prefer persisted user locale; fall back to in-memory selection.
+                final locale = userLocaleCode != null
+                    ? Locale(userLocaleCode)
+                    : appLocale;
 
-              return MaterialApp.router(
-                scrollBehavior: const AppScrollBehavior(),
-                scaffoldMessengerKey: scaffoldMessengerKey,
-                onGenerateTitle: (context) =>
-                    AppLocalizations.of(context).appTitle,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: supportedLocalesWithFallback(
-                  AppLocalizations.supportedLocales,
-                  const Locale('en', 'US'),
-                ),
-                locale: locale,
-                debugShowCheckedModeBanner: false,
-                theme: lightTheme,
-                darkTheme: darkTheme,
-                routerConfig: _appRouter,
-                builder: (context, router) => LoadableUserCubitProvider(
-                  appStateController: _appStateController,
-                  child: BlocListener<NavigationCubit, NavigationState>(
-                    // Drop the keyboard focus whenever we navigate, e.g. leaving
-                    // a chat's message composer to open the contact/chat
-                    // details. Otherwise the composer's FocusNode keeps focus
-                    // while sitting under the pushed screens, and on iOS the
-                    // keyboard reappears when a pageless route on top (like the
-                    // safety code screen) is popped, because Flutter restores
-                    // focus to it.
-                    //
-                    // Only touch devices have a software keyboard, and on
-                    // desktop we want the composer to keep its focus, so this
-                    // is scoped to non-desktop. The listener already only fires
-                    // when the navigation state actually changes.
-                    listenWhen: (previous, current) => !DeviceType.isDesktop,
-                    listener: (context, state) =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
-                    child: router!,
+                return MaterialApp.router(
+                  scrollBehavior: const AppScrollBehavior(),
+                  scaffoldMessengerKey: scaffoldMessengerKey,
+                  onGenerateTitle: (context) =>
+                      AppLocalizations.of(context).appTitle,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: supportedLocalesWithFallback(
+                    AppLocalizations.supportedLocales,
+                    const Locale('en', 'US'),
                   ),
-                ),
-              );
-            },
+                  locale: locale,
+                  debugShowCheckedModeBanner: false,
+                  theme: lightTheme,
+                  darkTheme: darkTheme,
+                  routerConfig: _appRouter,
+                  builder: (context, router) => LoadableUserCubitProvider(
+                    appStateController: _appStateController,
+                    child: BlocListener<NavigationCubit, NavigationState>(
+                      // Drop the keyboard focus whenever we navigate, e.g. leaving
+                      // a chat's message composer to open the contact/chat
+                      // details. Otherwise the composer's FocusNode keeps focus
+                      // while sitting under the pushed screens, and on iOS the
+                      // keyboard reappears when a pageless route on top (like the
+                      // safety code screen) is popped, because Flutter restores
+                      // focus to it.
+                      //
+                      // Only touch devices have a software keyboard, and on
+                      // desktop we want the composer to keep its focus, so this
+                      // is scoped to non-desktop. The listener already only fires
+                      // when the navigation state actually changes.
+                      listenWhen: (previous, current) => !DeviceType.isDesktop,
+                      listener: (context, state) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                      child: router!,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -264,6 +297,11 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final coreClient = context.read<CoreClient>();
             final appLocaleCubit = context.read<AppLocaleCubit>();
 
+            // Bind the settings cubit to the user before navigating anywhere.
+            // The logged-in subtree below is gated on the attachment, because
+            // it reads the user-bound settings cubit impl.
+            await userSettingsCubit.attach(user: user);
+
             final registrationState = registrationCubit.state;
             if (registrationState.needsUsernameOnboarding) {
               navigationCubit.openIntroScreen(
@@ -275,7 +313,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
               // Home with a specific chat open, so we must not overwrite it.
               navigationCubit.openHome();
             }
-            await userSettingsCubit.loadState(user: user);
             final userLocaleCode = userSettingsCubit.state.locale;
             final appLocale = appLocaleCubit.state;
             if (userLocaleCode != null) {
@@ -283,10 +320,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
               appLocaleCubit.setLocale(Locale(userLocaleCode));
             } else if (appLocale != null) {
               // Persist pre-user selection once the user exists.
-              await userSettingsCubit.setLocale(
-                user: user,
-                value: appLocale.languageCode,
-              );
+              await userSettingsCubit.setLocale(value: appLocale.languageCode);
             }
             unawaited(coreClient.refreshPushToken());
 
@@ -294,7 +328,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
-            await userSettingsCubit.reset();
+            userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but
             // only after enough time to finish the transition to the intro
@@ -307,10 +341,17 @@ class LoadableUserCubitProvider extends StatelessWidget {
         }
       },
       builder: (context, loadableUser) {
+        // The logged-in subtree reads the settings cubit's user-bound impl,
+        // which exists only once the listener above has attached it. Until
+        // then, keep showing the same screen as while the user is loading.
+        final settingsAttached = context.select(
+          (UserSettingsCubit cubit) => cubit.isAttached,
+        );
         return switch (loadableUser) {
           LoadingUser() || UnloadedUser() => child,
+          LoadedUser() when !settingsAttached => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.userId),
+            key: ValueKey(user.clientRecordId),
             child: MultiBlocProvider(
               providers: [
                 // Logged-in user and contacts are accessible everywhere inside
@@ -344,7 +385,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                 ],
-                child: UpdateRequiredScreen(child: child),
+                child: UnlinkedDeviceHandler(
+                  child: UpdateRequiredScreen(child: child),
+                ),
               ),
             ),
           ),

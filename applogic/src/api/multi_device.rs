@@ -19,7 +19,10 @@ use tokio::sync::oneshot;
 use tracing::{debug, error};
 use url::Url;
 
-use crate::{StreamSink, api::user_cubit::UserCubitBase};
+use crate::{
+    StreamSink,
+    api::{user::User, user_cubit::UserCubitBase},
+};
 
 const LINKING_URL_SCHEME: &str = "air";
 const LINKING_URL_PATH: &str = "multiDeviceLinkingCode";
@@ -70,35 +73,62 @@ pub enum MultiDeviceProvisionEvent {
     },
     /// The existing device has established the session and the linking process is ongoing.
     Linking,
-    /// The existing device connected and linking completed successfully.
-    Linked(String),
+    /// The existing device connected and linking completed successfully. The
+    /// bootstrapped user can be claimed via [`MultiDeviceProvisionedUser::take`].
+    Linked,
     /// The session ended without linking.
     Failed(String),
 }
 
+/// Enables Dart to claim the bootstrapped user once linking succeeds.
+#[frb(opaque)]
+pub struct MultiDeviceProvisionedUser {
+    user: Mutex<Option<User>>,
+}
+
+impl MultiDeviceProvisionedUser {
+    #[frb(sync)]
+    pub fn new() -> Self {
+        Self {
+            user: Mutex::new(None),
+        }
+    }
+
+    #[frb(sync)]
+    pub fn take(&self) -> Option<User> {
+        self.user.lock().unwrap().take()
+    }
+}
+
 /// Runs a multi-device provisioning session on a fresh device.
+///
+/// `db_path` is where the freshly linked client's databases are created.
 pub async fn multi_device_provision_client(
     domain: String,
+    db_path: String,
+    provisioned_user: &MultiDeviceProvisionedUser,
     sink: StreamSink<MultiDeviceProvisionEvent>,
 ) -> Result<()> {
     let domain: Fqdn = domain.parse()?;
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel::<MultiDeviceProvisionStep>(1);
 
+    let qrcode_domain = domain.clone();
     let forward_code = async {
         while let Some(msg) = session_rx.recv().await {
             match msg {
                 MultiDeviceProvisionStep::SessionId(session_id) => {
-                    let qrcode_svg = QrCode::new(multi_device_linking_url(&domain, &session_id))
-                        .map(|code| {
-                            use qrcode::render::svg;
-                            code.render::<svg::Color>()
-                                .min_dimensions(200, 200)
-                                .dark_color(svg::Color("#000000"))
-                                .light_color(svg::Color("#FFFFFF"))
-                                .quiet_zone(false)
-                                .build()
-                        })
-                        .ok();
+                    let qrcode_svg =
+                        QrCode::new(multi_device_linking_url(&qrcode_domain, &session_id))
+                            .map(|code| {
+                                use qrcode::render::svg;
+                                code.render::<svg::Color>()
+                                    .min_dimensions(200, 200)
+                                    .dark_color(svg::Color("#000000"))
+                                    .light_color(svg::Color("#FFFFFF"))
+                                    .quiet_zone(false)
+                                    .build()
+                            })
+                            .ok();
 
                     if let Err(error) = sink.add(MultiDeviceProvisionEvent::Code {
                         code: session_id.to_string(),
@@ -117,13 +147,15 @@ pub async fn multi_device_provision_client(
     };
 
     let linking_session = async {
-        match CoreUser::multi_device_provision_client(&domain, session_tx).await {
-            Ok(answer) => {
-                if let Err(error) = sink.add(MultiDeviceProvisionEvent::Linked(answer)) {
+        match CoreUser::multi_device_provision_client(&db_path, domain, None, session_tx).await {
+            Ok(core_user) => {
+                *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
+                if let Err(error) = sink.add(MultiDeviceProvisionEvent::Linked) {
                     error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
                 }
             }
             Err(error) => {
+                error!(%error, "multi-device provisioning failed");
                 if let Err(error) = sink.add(MultiDeviceProvisionEvent::Failed(error.to_string())) {
                     error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
                 }
@@ -139,8 +171,8 @@ pub async fn multi_device_provision_client(
 /// Lets Dart approve a pending multi-device link.
 #[frb(opaque)]
 pub struct MultiDeviceLinkConfirmation {
-    tx: Mutex<Option<oneshot::Sender<()>>>,
-    rx: Mutex<Option<oneshot::Receiver<()>>>,
+    tx: Mutex<Option<oneshot::Sender<String>>>,
+    rx: Mutex<Option<oneshot::Receiver<String>>>,
 }
 
 impl MultiDeviceLinkConfirmation {
@@ -154,16 +186,19 @@ impl MultiDeviceLinkConfirmation {
     }
 
     /// Approves the link, unblocking the linking task.
+    ///
+    /// `device_name` is the name to give the newly linked device. An empty name
+    /// leaves the new device's own default in place.
     #[frb(sync)]
-    pub fn confirm(&self) {
+    pub fn confirm(&self, device_name: String) {
         if let Some(tx) = self.tx.lock().unwrap().take() {
-            let _ = tx.send(());
+            let _ = tx.send(device_name);
         }
     }
 
     /// Takes the receiver to hand to the linking task.
     #[frb(ignore)]
-    fn take_receiver(&self) -> Option<oneshot::Receiver<()>> {
+    fn take_receiver(&self) -> Option<oneshot::Receiver<String>> {
         self.rx.lock().unwrap().take()
     }
 }
@@ -174,7 +209,7 @@ pub enum MultiDeviceLinkEvent {
     /// [`MultiDeviceLinkConfirmation::confirm`].
     AwaitingConfirmation,
     /// Linking completed successfully.
-    Linked(String),
+    Linked,
     /// Linking failed (e.g. the connection dropped or the session expired).
     Failed(String),
     SessionNotFound,
@@ -202,16 +237,21 @@ pub async fn multi_device_link_client(
     };
 
     let linking = async {
-        let event = match user_cubit
-            .core_user()
-            .multi_device_link_client(session_id, connected_tx, confirmation_rx)
-            .await
+        let event = match Box::pin(user_cubit.core_user().multi_device_link_client(
+            session_id,
+            connected_tx,
+            confirmation_rx,
+        ))
+        .await
         {
-            Ok(Ok(answer)) => MultiDeviceLinkEvent::Linked(answer),
+            Ok(Ok(())) => MultiDeviceLinkEvent::Linked,
             Ok(Err(MultiDeviceLinkClientError::SessionNotFound)) => {
                 MultiDeviceLinkEvent::SessionNotFound
             }
-            Err(error) => MultiDeviceLinkEvent::Failed(error.to_string()),
+            Err(error) => {
+                error!(%error, "multi-device linking failed");
+                MultiDeviceLinkEvent::Failed(error.to_string())
+            }
         };
 
         if let Err(error) = sink.add(event) {

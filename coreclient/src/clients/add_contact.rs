@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::UserSigningKey,
     crypto::{
         aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
@@ -218,7 +218,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     async fn create_connection_group_internal(
         &self,
         txn: &mut WriteDbTransaction<'_>,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
         let group_data_bytes = GroupData {
@@ -247,7 +247,7 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
     async fn create_local_connection_group(
         self,
         txn: &mut WriteDbTransaction<'_>,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         username: Username,
     ) -> anyhow::Result<LocalGroup<ConnectionPackage>> {
         info!("Creating local connection group");
@@ -284,7 +284,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
     async fn create_local_connection_group(
         self,
         txn: &mut WriteDbTransaction<'_>,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
         let (group, partial_params) = self
@@ -351,7 +351,7 @@ impl LocalGroup<ConnectionPackage> {
         // Create a connection offer
         let connection_package_hash = verified_connection_package.hash();
         let connection_offer_payload = ConnectionOfferPayload {
-            sender_client_credential: key_store.signing_key.credential().clone(),
+            sender_user_credential: key_store.signing_key.credential().clone(),
             connection_info: ConnectionInfo::new(
                 &group,
                 friendship_package,
@@ -480,7 +480,7 @@ impl LocalUsernameContact<UsernamePayload> {
     async fn create_connection_group_via_username(
         self,
         client: &ApiClient,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         responder: AsConnectionOfferResponder,
     ) -> anyhow::Result<ChatId> {
         let Self {
@@ -512,7 +512,7 @@ impl LocalUsernameContact<TargetedMessagePayload> {
     async fn create_connection_group_via_targeted_message(
         self,
         client: &ApiClient,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
     ) -> anyhow::Result<ChatId> {
         let Self {
             group,

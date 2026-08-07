@@ -111,18 +111,18 @@ message ConnectionEncryptionKey {
   bytes bytes = 1;
 }
 
-message ClientCredential {
-  ClientCredentialPayload payload = 1;
+message UserCredential {
+  UserCredentialPayload payload = 1;
   common.v1.Signature signature = 2;
 }
 
-message ClientCredentialPayload {
-  ClientCredentialCsr csr = 1;
+message UserCredentialPayload {
+  UserCredentialCsr csr = 1;
   common.v1.ExpirationData expiration_data = 2;
   Hash credential_fingerprint = 4;
 }
 
-message ClientCredentialCsr {
+message UserCredentialCsr {
   uint32 msl_version = 1;
   common.v1.UserId user_id = 2;
   SignatureScheme signature_scheme = 3;
@@ -136,6 +136,7 @@ enum SignatureScheme {
   SIGNATURE_SCHEME_ECDSA_SECP521R1_SHA512 = 0x0603;
   SIGNATURE_SCHEME_ED25519 = 0x0807;
   SIGNATURE_SCHEME_ED448 = 0x0808;
+  SIGNATURE_SCHEME_MLDSA44 = 0x0904;
   SIGNATURE_SCHEME_MLDSA65 = 0x0905;
   SIGNATURE_SCHEME_MLDSA87 = 0x0906;
 }
@@ -177,13 +178,13 @@ message GetInvitationCodesResponse {
 
 message RegisterUserRequest {
   common.v1.ClientMetadata client_metadata = 5;
-  ClientCredentialPayload client_credential_payload = 1;
+  UserCredentialPayload user_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
   InvitationCode invitation_code = 6;
 }
 
 message RegisterUserResponse {
-  ClientCredential client_credential = 1;
+  UserCredential user_credential = 1;
 }
 
 // delete user

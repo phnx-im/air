@@ -7,7 +7,7 @@ use mls_assist::openmls::prelude::KeyPackage;
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded},
-    identifiers::QsClientId,
+    identifiers::QsUserId,
     messages::FriendshipToken,
 };
 use sqlx::{
@@ -35,23 +35,23 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
 
     async fn replace_multiple(
         txn: &mut PgTransaction<'_>,
-        client_id: &QsClientId,
+        user_id: &QsUserId,
         key_packages: &[Self],
     ) -> Result<(), StorageError> {
-        Self::replace_multiple_internal(txn, client_id, key_packages, false).await
+        Self::replace_multiple_internal(txn, user_id, key_packages, false).await
     }
 
     async fn replace_last_resort(
         &self,
         txn: &mut PgTransaction<'_>,
-        client_id: &QsClientId,
+        user_id: &QsUserId,
     ) -> Result<(), StorageError> {
-        Self::replace_multiple_internal(txn, client_id, std::slice::from_ref(self), true).await
+        Self::replace_multiple_internal(txn, user_id, std::slice::from_ref(self), true).await
     }
 
     async fn replace_multiple_internal(
         txn: &mut PgTransaction<'_>,
-        client_id: &QsClientId,
+        user_id: &QsUserId,
         key_packages: &[Self],
         is_last_resort: bool,
     ) -> Result<(), StorageError> {
@@ -60,23 +60,23 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
         }
 
         query(AssertSqlSafe(format!(
-            "DELETE FROM {table_name} WHERE client_id = $1 AND is_last_resort = $2",
+            "DELETE FROM {table_name} WHERE user_id = $1 AND is_last_resort = $2",
             table_name = Self::TABLE_NAME
         )))
-        .bind(client_id)
+        .bind(user_id)
         .bind(is_last_resort)
         .execute(txn.as_mut())
         .await?;
 
         let mut query_args = PgArguments::default();
         let mut query_string = format!(
-            "INSERT INTO {table_name} (client_id, key_package, is_last_resort) VALUES",
+            "INSERT INTO {table_name} (user_id, key_package, is_last_resort) VALUES",
             table_name = Self::TABLE_NAME
         );
 
         for (i, key_package) in key_packages.iter().enumerate() {
             // Add values to the query arguments. None of these should throw an error.
-            query_args.add(client_id)?;
+            query_args.add(user_id)?;
             query_args.add(key_package.encoded())?;
             query_args.add(is_last_resort)?;
 
@@ -111,46 +111,25 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
         let mut transaction = connection.begin().await?;
 
         let key_package = sqlx::query_scalar(AssertSqlSafe(format!(
-            r#"WITH user_info AS (
-                    -- Step 1: Fetch the user_id based on the friendship token.
-                        SELECT user_id FROM qs_user_record WHERE friendship_token = $1
-                ),
-
-                client_ids AS (
-                    -- Step 2: Retrieve client IDs for the user from the `user_info`.
-                        SELECT client_id FROM qs_client_record WHERE user_id = (
-                            SELECT user_id FROM user_info)
-                ),
-
-                ranked_packages AS (
-                    -- Step 3: Rank key packages for each client.
-                        SELECT p.id, p.key_package, p.is_last_resort,
-                           ROW_NUMBER() OVER (PARTITION BY p.client_id
-                               ORDER BY p.is_last_resort ASC) AS rn
-                        FROM {table_name} p
-                    INNER JOIN client_ids c ON p.client_id = c.client_id
-                ),
-
-                selected_key_packages AS (
-                    -- Step 4: Select the best-ranked package per client (rn = 1),
-                    -- skipping locked rows.
-                    SELECT id, key_package, is_last_resort
-                    FROM ranked_packages
-                    WHERE rn = 1
-                    FOR UPDATE SKIP LOCKED
+            r#"WITH selected_key_package AS (
+                    SELECT p.id, p.key_package, p.is_last_resort
+                    FROM {table_name} p
+                    INNER JOIN qs_user_record u ON p.user_id = u.user_id
+                    WHERE u.friendship_token = $1
+                    ORDER BY p.is_last_resort ASC
+                    LIMIT 1
+                    FOR UPDATE OF p SKIP LOCKED
                 ),
 
                 deleted_packages AS (
-                    -- Step 5: Delete the selected packages that are not marked as last_resort.
-                        DELETE FROM {table_name}
-                    WHERE id IN (SELECT id FROM selected_key_packages
+                    DELETE FROM {table_name}
+                    WHERE id IN (SELECT id FROM selected_key_package
                         WHERE is_last_resort = FALSE)
                     RETURNING key_package
                 )
 
-                -- Step 6: Return the key_package from the selected packages.
                 SELECT key_package as "key_package: Self::BlobDecoded"
-                FROM selected_key_packages"#,
+                FROM selected_key_package"#,
             table_name = Self::TABLE_NAME
         )))
         .bind(friendship_token)
@@ -244,13 +223,10 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use rand::{Rng, thread_rng};
+    use rand::RngExt;
     use sqlx::PgPool;
 
-    use crate::qs::{
-        client_record::persistence::tests::store_random_client_record,
-        user_record::persistence::tests::store_random_user_record,
-    };
+    use crate::qs::user_record::persistence::tests::store_random_user_record;
 
     use super::*;
 
@@ -275,8 +251,7 @@ mod tests {
     #[sqlx::test]
     async fn load_user_key_package(pool: PgPool) -> anyhow::Result<()> {
         let user_record = store_random_user_record(&pool).await?;
-        let client_record = store_random_client_record(&pool, user_record.user_id).await?;
-        let packages = store_random_key_packages(&pool, &client_record.client_id).await?;
+        let packages = store_random_key_packages(&pool, &user_record.user_id).await?;
 
         let mut loaded = [None, None];
 
@@ -316,10 +291,9 @@ mod tests {
     #[sqlx::test]
     async fn packages_are_replaced(pool: PgPool) -> anyhow::Result<()> {
         let user_record = store_random_user_record(&pool).await?;
-        let client_record = store_random_client_record(&pool, user_record.user_id).await?;
 
         for _ in 0..2 {
-            let packages = store_random_key_packages(&pool, &client_record.client_id).await?;
+            let packages = store_random_key_packages(&pool, &user_record.user_id).await?;
             let loaded: Vec<BlobDecoded<Vec<u8>>> = sqlx::query_scalar(
                 r#"SELECT key_package as "key_package: BlobDecoded<Vec<u8>>" FROM key_package"#,
             )
@@ -338,23 +312,23 @@ mod tests {
 
     async fn store_random_key_packages(
         pool: &PgPool,
-        client_id: &QsClientId,
+        user_id: &QsUserId,
     ) -> anyhow::Result<Vec<DummyKeyPackage>> {
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
-        let a: [u8; 4] = rng.r#gen();
-        let b: [u8; 4] = rng.r#gen();
-        let last_resort: [u8; 4] = rng.r#gen();
+        let a: [u8; 4] = rng.random();
+        let b: [u8; 4] = rng.random();
+        let last_resort: [u8; 4] = rng.random();
 
         let pkg_a = a.to_vec();
         let pkg_b = b.to_vec();
         let pkg_last_resort = last_resort.to_vec();
 
         let mut txn = pool.begin().await?;
-        DummyKeyPackage::replace_multiple(&mut txn, client_id, &[pkg_a.clone(), pkg_b.clone()])
+        DummyKeyPackage::replace_multiple(&mut txn, user_id, &[pkg_a.clone(), pkg_b.clone()])
             .await?;
         pkg_last_resort
-            .replace_last_resort(&mut txn, client_id)
+            .replace_last_resort(&mut txn, user_id)
             .await?;
         txn.commit().await?;
 

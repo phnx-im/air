@@ -20,7 +20,7 @@ use aircoreclient::{
     ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
     SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
-use chrono::{DateTime, Duration, Local, Utc};
+use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
 use indexmap::IndexMap;
 use mimi_content::MessageStatus;
@@ -207,6 +207,7 @@ pub enum UiInReplyToMessage {
 /// blocked.
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
 pub enum UiChatStatus {
+    Pending,
     Inactive(UiInactiveChat),
     Active,
     Blocked,
@@ -215,6 +216,7 @@ pub enum UiChatStatus {
 impl From<ChatStatus> for UiChatStatus {
     fn from(status: ChatStatus) -> Self {
         match status {
+            ChatStatus::Pending => UiChatStatus::Pending,
             ChatStatus::Inactive(inactive) => {
                 UiChatStatus::Inactive(UiInactiveChat::from(inactive))
             }
@@ -362,7 +364,6 @@ pub struct UiChatMessage {
     pub timestamp: DateTime<Local>,
     pub message: UiMessage,
     pub in_reply_to_message: Option<UiInReplyToMessage>,
-    pub position: UiFlightPosition,
     pub status: UiMessageStatus,
     pub reactions: Vec<UiReaction>,
 }
@@ -434,7 +435,6 @@ impl UiChatMessage {
             timestamp,
             message: UiMessage::from_message(message, local_attachment_ids),
             in_reply_to_message,
-            position: UiFlightPosition::Single,
             status,
             reactions,
         }
@@ -442,10 +442,6 @@ impl UiChatMessage {
 
     pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
         Self::from_message(message, &[])
-    }
-
-    pub(crate) fn timestamp(&self) -> DateTime<Utc> {
-        self.timestamp.with_timezone(&Utc)
     }
 }
 
@@ -543,6 +539,7 @@ pub enum UiSystemMessage {
     NewHandleConnectionChat(UiUsername),
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
+    Onboarded,
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -594,6 +591,7 @@ impl From<SystemMessage> for UiSystemMessage {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
+            SystemMessage::Onboarded => UiSystemMessage::Onboarded,
         }
     }
 }
@@ -609,77 +607,6 @@ impl From<ErrorMessage> for UiErrorMessage {
     fn from(error_message: ErrorMessage) -> Self {
         Self {
             message: error_message.into(),
-        }
-    }
-}
-
-/// Position of a chat message in a flight
-///
-/// A flight is a sequence of messages that are grouped to be displayed together.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum UiFlightPosition {
-    /// The message is the only message in the flight.
-    Single,
-    /// The message is the first message in the flight and the flight has more than one message.
-    Start,
-    /// The message is in the middle of the flight and the flight has more than one message.
-    Middle,
-    /// The message is the last message in the flight and the flight has more than one message.
-    End,
-}
-
-impl UiFlightPosition {
-    /// Calculate the position of a `message` in a flight.
-    ///
-    /// The position is determined by the message and its previous and next messages in the
-    /// chat timeline.
-    ///
-    /// The implementation of this function defines which messages are grouped together in a
-    /// flight.
-    pub(crate) fn calculate(
-        message: &UiChatMessage,
-        prev_message: Option<&UiChatMessage>,
-        next_message: Option<&UiChatMessage>,
-    ) -> Self {
-        match (prev_message, next_message) {
-            (None, None) => Self::Single,
-            (Some(prev), None) => {
-                if Self::flight_break_condition(prev, message) {
-                    Self::Single
-                } else {
-                    Self::End
-                }
-            }
-            (None, Some(next)) => {
-                if Self::flight_break_condition(message, next) {
-                    Self::Single
-                } else {
-                    Self::Start
-                }
-            }
-            (Some(prev), Some(next)) => {
-                let at_flight_start = Self::flight_break_condition(prev, message);
-                let at_flight_end = Self::flight_break_condition(message, next);
-                match (at_flight_start, at_flight_end) {
-                    (true, true) => Self::Single,
-                    (true, false) => Self::Start,
-                    (false, true) => Self::End,
-                    (false, false) => Self::Middle,
-                }
-            }
-        }
-    }
-
-    /// Returns true if there is a flight break between the messages `a` and `b`.
-    fn flight_break_condition(a: &UiChatMessage, b: &UiChatMessage) -> bool {
-        const TIME_THRESHOLD: Duration = Duration::minutes(1);
-        match (&a.message, &b.message) {
-            (UiMessage::Content(a_content), UiMessage::Content(b_content)) => {
-                a_content.sender != b_content.sender
-                    || TIME_THRESHOLD <= b.timestamp().signed_duration_since(a.timestamp()).abs()
-            }
-            // all non-content messages are considered to be flight breaks
-            _ => true,
         }
     }
 }
@@ -811,12 +738,12 @@ impl ImageData {
 
 /// Client record of a user
 ///
-/// Each user has a client record which identifies the users database.
+/// Each user has a client record which identifies the users database. One user can have multiple
+/// client records identifying different client in a multi-client setup.
 #[derive(Debug)]
 pub struct UiClientRecord {
+    pub(crate) client_record_id: Uuid,
     /// The unique identifier of the user
-    ///
-    /// Also used for identifying the client database path.
     pub(crate) user_id: UiUserId,
     pub(crate) created_at: DateTime<Utc>,
     pub(crate) user_profile: UiUserProfile,
@@ -855,6 +782,7 @@ impl From<Username> for UiUsername {
 #[frb(dart_metadata = ("freezed"))]
 struct _AirComponent {
     pub features: AirFeatures,
+    pub is_self_group: bool,
 }
 
 #[frb(unignore)]

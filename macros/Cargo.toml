@@ -4,7 +4,7 @@
 
 [package]
 name = "airmacros"
-version = "0.18.0"
+version = "0.20.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -17,7 +17,7 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1"
 quote = "1"
-syn = { version = "2", features = ["full"] }
+syn = { version = "3", features = ["full"] }
 
 [dev-dependencies]
 minicbor.workspace = true

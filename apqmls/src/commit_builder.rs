@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
+    components::vc_derivation_info::EpochId,
     group::{
         CommitBuilder as MlsGroupCommitBuilder, CommitBuilderStageError, CommitMessageBundle,
         CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, Initial, MlsGroup,
@@ -52,7 +53,10 @@ pub struct ApqCommitMessageBundle {
 }
 
 impl ApqCommitMessageBundle {
-    fn from_bundles(t_bundle: CommitMessageBundle, pq_bundle: CommitMessageBundle) -> Self {
+    pub(crate) fn from_bundles(
+        t_bundle: CommitMessageBundle,
+        pq_bundle: CommitMessageBundle,
+    ) -> Self {
         let (t_commit, t_welcome, t_group_info) = t_bundle.into_contents();
         let (pq_commit, pq_welcome, pq_group_info) = pq_bundle.into_contents();
 
@@ -113,6 +117,7 @@ struct ConfigValues {
     proposed_adds: Vec<ApqKeyPackage>,
     proposed_removals: Vec<LeafNodeIndex>,
     create_group_info: bool,
+    vc_epoch_id: Option<EpochId>,
 }
 
 impl ConfigValues {
@@ -182,6 +187,12 @@ impl<'a> CommitBuilder<'a> {
     /// Sets whether or not the commit should force a self-update. Defaults to `false`.
     pub fn force_self_update(mut self, force_self_update: bool) -> Self {
         self.values.force_self_update = Some(force_self_update);
+        self
+    }
+
+    /// Sets the virtual-client emulation epoch.
+    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
+        self.values.vc_epoch_id = Some(epoch_id);
         self
     }
 
@@ -287,11 +298,18 @@ impl<'a> CommitBuilder<'a> {
             AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, apq_info_component_data.data());
 
         // Create the PQ commit first s.t. we can export the PSK for the T group.
-        let mut pq_builder = self
+        let pq_builder = self
             .group
             .pq_group
             .commit_builder()
-            .pipe(|b| self.values.apply::<false>(b))
+            .pipe(|b| self.values.apply::<false>(b));
+        let pq_builder = match &self.values.vc_epoch_id {
+            Some(epoch_id) => {
+                pq_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+            }
+            None => pq_builder,
+        };
+        let mut pq_builder = pq_builder
             .add_proposal(Proposal::AppDataUpdate(Box::new(
                 app_data_update_proposal.clone(),
             )))
@@ -315,11 +333,18 @@ impl<'a> CommitBuilder<'a> {
         .pipe(Box::new)
         .pipe(Proposal::PreSharedKey);
 
-        let mut t_builder = self
+        let t_builder = self
             .group
             .t_group
             .commit_builder()
-            .pipe(|b| self.values.apply::<true>(b))
+            .pipe(|b| self.values.apply::<true>(b));
+        let t_builder = match &self.values.vc_epoch_id {
+            Some(epoch_id) => {
+                t_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+            }
+            None => t_builder,
+        };
+        let mut t_builder = t_builder
             .add_proposal(psk_proposal)
             .add_proposal(Proposal::AppDataUpdate(Box::new(app_data_update_proposal)))
             .load_psks(provider.storage())?

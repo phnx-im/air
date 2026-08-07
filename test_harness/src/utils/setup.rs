@@ -22,8 +22,7 @@ use mimi_content::{
     MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
-use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
-use rand_chacha::rand_core::OsRng;
+use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
 use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
@@ -733,7 +732,7 @@ impl TestBackend {
             "{sender_id:?} sends a message to {}",
             recipient_strings.join(", ")
         );
-        let message: String = OsRng
+        let message: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(32)
             .map(char::from)
@@ -890,10 +889,13 @@ impl TestBackend {
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
 
-            let message = messages.new_messages.last().unwrap();
-            let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
-            let _group_id = chat.group_id();
+            // Edits are applied in place and reported as a silent notification change, not as a
+            // new message.
+            assert!(messages.new_messages.is_empty());
+            assert!(messages.chats_with_changed_notifications.contains(&chat_id));
 
+            // The edited message keeps its timestamp, so it is still the last message.
+            let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
         message.id()
@@ -911,6 +913,8 @@ impl TestBackend {
         let message = sender.message(message_id).await.unwrap().unwrap();
         let chat_id = message.chat_id();
         let message_id = message.id();
+        // DS-assigned and identical on all clients; survives the deletion unchanged.
+        let deleted_at = message.timestamp();
 
         // Before sending a message, the sender must first fetch and process its QS messages.
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
@@ -940,7 +944,20 @@ impl TestBackend {
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
 
-            let received_message = messages.new_messages.last().unwrap();
+            // Deletes are applied in place and reported as a silent notification change, not as
+            // a new message.
+            assert!(messages.new_messages.is_empty());
+            assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+
+            // The deleted message is not necessarily the last message in the chat; find the
+            // recipient's copy by the shared DS timestamp.
+            let received_message = recipient_user
+                .messages(chat_id, 100)
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|message| message.timestamp() == deleted_at)
+                .unwrap();
             // Verify the message was deleted (has NullPart content)
             assert!(received_message.message().is_deleted());
         }
@@ -1546,7 +1563,7 @@ impl TestBackend {
         self.groups.remove(&chat_id);
     }
 
-    pub fn random_user(&self, rng: &mut impl RngCore) -> UserId {
+    pub fn random_user(&self, rng: &mut impl Rng) -> UserId {
         self.users
             .keys()
             .choose(rng)
@@ -1554,7 +1571,7 @@ impl TestBackend {
             .clone()
     }
 
-    pub async fn perform_random_operation(&mut self, rng: &mut impl RngCore) {
+    pub async fn perform_random_operation(&mut self, rng: &mut impl Rng) {
         // Get a user to perform the operation
         let random_user = self.random_user(rng);
         // Possible actions:
@@ -1566,7 +1583,7 @@ impl TestBackend {
         // Message sending is covered, as it's done as part of all of those
         // actions. If one of the actions is not possible, it is skipped.
         // TODO: Breaking up of connections
-        let action = rng.gen_range(0..=3);
+        let action = rng.random_range(0..=3);
         match action {
             // Establish a connection
             0 => {
@@ -1617,7 +1634,7 @@ impl TestBackend {
                     })
                     .choose(rng)
                 {
-                    let number_of_invitees = rng.gen_range(1..=5);
+                    let number_of_invitees = rng.random_range(1..=5);
                     let mut invitees = Vec::new();
                     for invitee in self.users.keys() {
                         let is_group_member =
@@ -1636,7 +1653,7 @@ impl TestBackend {
                     let invitees = invitees
                         .into_iter()
                         .cloned()
-                        .choose_multiple(rng, number_of_invitees);
+                        .sample(rng, number_of_invitees);
                     // It can happen that there are no suitable users to invite
                     if !invitees.is_empty() {
                         let invitee_strings = invitees
@@ -1666,7 +1683,7 @@ impl TestBackend {
                     })
                     .choose(rng)
                 {
-                    let number_of_removals = rng.gen_range(1..=5);
+                    let number_of_removals = rng.random_range(1..=5);
                     let members_to_remove = self
                         .groups
                         .get(&chat.id())
@@ -1674,7 +1691,7 @@ impl TestBackend {
                         .iter()
                         .filter(|&member| member != &random_user)
                         .cloned()
-                        .choose_multiple(rng, number_of_removals);
+                        .sample(rng, number_of_removals);
                     if !members_to_remove.is_empty() {
                         let removed_strings = members_to_remove
                             .iter()
@@ -1797,6 +1814,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     },
                     SystemMessage::NewDirectConnectionChat(user_id) => {
                         format!("You requested a connection with {user_id:?}").into()
+                    },
+                    SystemMessage::Onboarded => {
+                        Some("This client has been onboarded into the group after linking".to_owned())
                     },
                                     }
             } else {

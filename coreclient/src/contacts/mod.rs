@@ -5,7 +5,7 @@
 use std::iter;
 
 use aircommon::{
-    credentials::VerifiableClientCredential,
+    credentials::LeafCredential,
     crypto::{
         aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
@@ -22,7 +22,7 @@ use crate::{
     ChatId,
     clients::api_clients::ApiClients,
     db::access::{ReadConnection, WriteConnection},
-    groups::{Group, client_auth_info::StorableClientCredential},
+    groups::{Group, client_auth_info::StorableUserCredential},
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
 };
@@ -84,8 +84,8 @@ impl Contact {
             ContactKeyPackage::Traditional(key_package.into())
         };
 
-        // Verify the client credential
-        let client_credential = match &key_package {
+        // Verify the user credential
+        let user_credential = match &key_package {
             ContactKeyPackage::Traditional(key_package) => key_package.leaf_node().credential(),
             ContactKeyPackage::Apq(key_package) => {
                 let t_signature_key = key_package.t_key_package().leaf_node().signature_key();
@@ -97,30 +97,31 @@ impl Contact {
                 key_package.t_credential()
             }
         };
-        let verifiable_client_credential =
-            VerifiableClientCredential::from_basic_credential(client_credential)?;
+        let verifiable_user_credential = LeafCredential::from_credential(user_credential)?
+            .into_user()
+            .context("expected a user credential in a contact key package")?;
         let as_credential = connection
             .with_transaction(async |txn| {
                 AsCredentials::fetch_for_verification(
                     txn,
                     api_clients,
-                    iter::once(&verifiable_client_credential),
+                    iter::once(&verifiable_user_credential),
                 )
                 .await
             })
             .await?;
-        let incoming_client_credential =
-            StorableClientCredential::verify(verifiable_client_credential, &as_credential)?;
+        let incoming_user_credential =
+            StorableUserCredential::verify(verifiable_user_credential, &as_credential)?;
 
-        // Check that the client credential is the same as the one we have on file.
-        let current_client_credential = StorableClientCredential::load_by_user_id(
+        // Check that the user credential is the same as the one we have on file.
+        let current_user_credential = StorableUserCredential::load_by_user_id(
             &mut connection,
-            incoming_client_credential.user_id(),
+            incoming_user_credential.user_id(),
         )
         .await?
-        .context("Client credential not found")?;
-        if current_client_credential.fingerprint() != incoming_client_credential.fingerprint() {
-            bail!("Client credential does not match");
+        .context("User credential not found")?;
+        if current_user_credential.fingerprint() != incoming_user_credential.fingerprint() {
+            bail!("User credential does not match");
         }
 
         let user_profile = IndexedUserProfile::load(&mut connection, &self.user_id)

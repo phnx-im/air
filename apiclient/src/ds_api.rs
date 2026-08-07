@@ -8,18 +8,19 @@ use std::collections::HashMap;
 
 use aircommon::{
     LibraryError,
-    credentials::keys::ClientSigningKey,
+    credentials::keys::{ClientKeyType, UserSigningKey},
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
-        signatures::signable::Signable,
+        signatures::{private_keys::SigningKey, signable::Signable},
     },
     identifiers::{QsReference, QualifiedGroupId, RemoteAttachmentId, UserId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
-            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
-            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
+            ExternalCommitInfoIn, GroupOperationParamsOut, PqExternalCommitInfoIn,
+            SelfRemoveParamsOut, SendMessageCollisionTag, SendMessageParamsOut,
+            TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -33,13 +34,13 @@ use airprotos::{
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
-        ApqGroupOperationPayload, ApqSelfRemovePayload, ConnectionGroupInfoRequest,
-        CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload, ExternalCommitInfoRequest,
-        GetAttachmentUrlPayload, GroupOperationPayload, GroupSessionData,
-        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
-        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessageCollisionTags,
-        SendMessagePayload, StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload,
-        WelcomeInfoPayload,
+        ApqGroupOperationPayload, ApqResyncPayload, ApqSelfRemovePayload,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
+        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
+        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
+        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
+        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
+        UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -159,7 +160,7 @@ impl ApiClient {
     pub async fn ds_create_group(
         &self,
         params: CreateGroupParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
         let CreateGroupParamsOut {
@@ -170,9 +171,14 @@ impl ApiClient {
             creator_client_reference,
             room_state,
             pq,
+            creator_user_credential,
         } = params;
 
         let qgid: QualifiedGroupId = group_id.try_into()?;
+        let creator_user_credential = creator_user_credential
+            .as_ref()
+            .map(TryRefInto::try_ref_into)
+            .transpose()?;
 
         if let Some(pq) = pq {
             let pq_qgid: QualifiedGroupId = pq.group_id.try_into()?;
@@ -197,6 +203,7 @@ impl ApiClient {
                 room_state: Some(room_state.unverified().try_ref_into()?),
                 t_group_data: Some(t_group_data),
                 pq_group_data: Some(pq_group_data),
+                creator_user_credential,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_apq_group(request).await?;
@@ -210,6 +217,7 @@ impl ApiClient {
                 creator_client_reference: Some(creator_client_reference.into()),
                 group_info: Some(group_info.try_ref_into()?),
                 room_state: Some(room_state.unverified().try_ref_into()?),
+                creator_user_credential,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_group(request).await?;
@@ -221,7 +229,7 @@ impl ApiClient {
     pub async fn ds_group_operation(
         &self,
         payload: GroupOperationParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
@@ -263,7 +271,7 @@ impl ApiClient {
     pub async fn ds_apq_group_operation(
         &self,
         params: ApqGroupOperationParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
@@ -324,14 +332,14 @@ impl ApiClient {
         group_id: GroupId,
         epoch: GroupEpoch,
         group_state_ear_key: &GroupStateEarKey,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
     ) -> Result<WelcomeInfoIn, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = WelcomeInfoPayload {
             client_metadata: Some(self.metadata().clone()),
             qgid: Some(qgid.ref_into()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            sender: Some(signing_key.credential().verifying_key().clone().into()),
+            sender: Some(signing_key.verifying_key().clone().into()),
             epoch: Some(epoch.into()),
         };
         let request = payload.sign(signing_key)?;
@@ -363,16 +371,23 @@ impl ApiClient {
     }
 
     /// Get external commit information for a group.
+    ///
+    /// `pq_group_id` must be set iff `group_id` refers to an APQ group, in which case the PQ
+    /// leg's group info, ratchet tree and parked proposals are fetched atomically alongside the
+    /// T leg's.
     pub async fn ds_external_commit_info(
         &self,
         group_id: GroupId,
+        pq_group_id: Option<GroupId>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<ExternalCommitInfoIn, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
+        let pq_qgid: Option<QualifiedGroupId> = pq_group_id.map(|id| id.try_into()).transpose()?;
         let request = ExternalCommitInfoRequest {
             client_metadata: Some(self.metadata().clone()),
             qgid: Some(qgid.ref_into()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            pq_qgid: pq_qgid.as_ref().map(RefInto::ref_into),
         };
         let response = self
             .ds_grpc_client()
@@ -385,6 +400,16 @@ impl ApiClient {
                 response.encrypted_user_profile_keys,
                 response.indexed_encrypted_user_profile_keys,
             )?;
+
+        let pq = match (response.pq_group_info, response.pq_ratchet_tree) {
+            (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqExternalCommitInfoIn {
+                group_info: pq_group_info.try_ref_into()?,
+                ratchet_tree: pq_ratchet_tree.try_ref_into()?,
+                proposals: response.pq_proposals.into_iter().map(|m| m.tls).collect(),
+            }),
+            (None, None) => None,
+            _ => return Err(DsRequestError::UnexpectedResponse),
+        };
 
         Ok(ExternalCommitInfoIn {
             verifiable_group_info: response
@@ -405,6 +430,7 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
             indexed_encrypted_user_profile_keys,
+            pq,
         })
     }
 
@@ -449,6 +475,8 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
             indexed_encrypted_user_profile_keys,
+            // Connection groups have no PQ leg.
+            pq: None,
         })
     }
 
@@ -483,7 +511,7 @@ impl ApiClient {
         &self,
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
@@ -502,6 +530,50 @@ impl ApiClient {
             .into())
     }
 
+    /// Resync a client to rejoin an APQ group.
+    pub async fn ds_apq_resync(
+        &self,
+        external_commit_bundle: ApqCommitMessageBundle,
+        signing_key: &SigningKey<ClientKeyType>,
+        group_state_ear_key: &GroupStateEarKey,
+        own_leaf_index: LeafNodeIndex,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let ApqCommitMessageBundle {
+            commit,
+            welcome,
+            group_info,
+        } = external_commit_bundle;
+        if welcome.is_some() {
+            error!("Unexpected welcome message in APQ resync request");
+            return Err(DsRequestError::LibraryError);
+        }
+        let (t_commit, pq_commit) = commit.split();
+        let (t_group_info, pq_group_info) = group_info
+            .map(apqmls::messages::ApqMlsMessageOut::from)
+            .map(|msg| msg.split())
+            .unzip();
+        let external_commit = ApqAssistedMlsMessage {
+            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
+            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
+        };
+        let payload = ApqResyncPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit),
+            sender: Some(own_leaf_index.into()),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .apq_resync(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
     /// Leave the given group with this client.
     ///
     /// Dispatches to the APQ or non-APQ self-remove RPC depending on whether a PQ remove proposal
@@ -509,7 +581,7 @@ impl ApiClient {
     pub async fn ds_self_remove(
         &self,
         params: SelfRemoveParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         if let Some(pq_remove_proposal) = params.pq_remove_proposal {
@@ -544,7 +616,7 @@ impl ApiClient {
         &self,
         t_remove_proposal: AssistedMessageOut,
         pq_remove_proposal: AssistedMessageOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let remove_proposal = ApqAssistedMlsMessage {
@@ -572,7 +644,7 @@ impl ApiClient {
     pub async fn ds_send_message(
         &self,
         params: SendMessageParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = SendMessagePayload {
@@ -609,7 +681,7 @@ impl ApiClient {
     pub async fn ds_targeted_message(
         &self,
         params: TargetedMessageParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = TargetedMessagePayload {
@@ -645,7 +717,7 @@ impl ApiClient {
     pub async fn ds_delete_group(
         &self,
         params: DeleteGroupParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = DeleteGroupPayload {
@@ -669,7 +741,7 @@ impl ApiClient {
     pub async fn ds_apq_delete_group(
         &self,
         delete_bundle: ApqCommitMessageBundle,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let ApqCommitMessageBundle {
@@ -711,7 +783,7 @@ impl ApiClient {
     pub async fn ds_user_profile_key_update(
         &self,
         params: UserProfileKeyUpdateParams,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
         let qgid: QualifiedGroupId = params.group_id.try_into()?;
@@ -800,7 +872,7 @@ impl ApiClient {
     /// The result is used to upload the attachment to the server.
     pub async fn ds_provision_attachment(
         &self,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         target: DsAttachmentTarget<'_>,
         content_length: i64,
         object_type: StorageObjectType,
@@ -848,7 +920,7 @@ impl ApiClient {
     pub async fn ds_get_attachment_url(
         &self,
         object_type: StorageObjectType,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         target: DsAttachmentTarget<'_>,
         remote_attachment_id: RemoteAttachmentId,
     ) -> Result<String, DsRequestError> {

@@ -13,13 +13,16 @@
   "userSettingsScreen_readReceiptsDescription": "Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.",
   "userSettingsScreen_displayNameLabel": "Visningsnamn",
   "userSettingsScreen_usernamesSection": "Användarnamn",
-  "userSettingsScreen_settingsSection": "Inställningar",
   "userSettingsScreen_helpSection": "Hjälp",
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Användarnamn",
   "userSettingsScreen_inviteCodes": "Inbjudningskoder",
 
   "userSettingsScreen_devices": "Enheter",
+
+  "youSection_profile": "Profil",
+  "youSection_preferences": "Inställningar",
+  "youSection_developer": "Utvecklare",
   "settingsScreen_copiedToClipboard": "Kopierat till urklipp",
   "removeUsernameDialog_title": "Ta bort användarnamn",
   "removeUsernameDialog_content": "Personer kan inte skicka dig en kontaktförfrågan med det här användarnamnet, och det kan tas av någon annan.",
@@ -27,6 +30,7 @@
   "removeUsernameDialog_remove": "Ta bort",
   "addMembersScreen_addMembers": "Lägg till medlemmar",
   "addMembersScreen_error_noActiveChat": "en aktiv chatt krävs",
+  "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Chatt",
   "contactDetailsScreen_viewSafetyCode": "Visa säkerhetskod",
   "contactDetailsScreen_mute": "Tysta",
@@ -76,7 +80,6 @@
   "changeGroupTitleDialog_confirm": "Spara",
   "introScreen_serverLabel": "Välj en server att ansluta till för länkning.",
   "introScreen_serverHint": "DOMÄNNAMN",
-  "introScreen_error_invalidDomain": "Domänen är ogiltig",
 
   "introScreen_linkExisting": "Länka till ett befintligt konto",
   "introScreen_signUp": "Skapa konto",
@@ -133,7 +136,6 @@
   "linkingDeviceScreen_separator": "eller",
   "linkingDeviceScreen_numericCode": "Numerisk kod",
   "linkingDeviceScreen_linking": "Länkar...",
-  "linkingDeviceScreen_linked": "Enheten har länkats!",
   "linkingDeviceScreen_linking_confirm_title": "Bekräfta länkning",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tryck för att ändra enhetsnamnet",
   "linkingDeviceScreen_linking_confirm_body": "Du är på väg att länka en ny enhet som får full åtkomst till ditt Air-konto. Gör bara detta om enheten tillhör dig.",
@@ -148,9 +150,9 @@
   "linkingDeviceScreen_error_codesExpired_reload": "Ladda om",
   "linkingDevicesScreen_error_title": "Länkning misslyckades",
   "linkingDevicesScreen_error_generic": "Ett okänt fel uppstod.",
+  "linkingDevicesScreen_error_sessionNotFound": "Koden du angav är felaktig.",
   "linkingDevicesScreen_error_dismiss": "Försök igen",
 
-  "linkedDevicesScreen_title": "Enheter",
   "linkedDevicesScreen_thisDevice": "Den här enheten",
   "linkedDevicesScreen_linkedDevices": "Länkade enheter",
   "linkedDevicesScreen_linkedOn": "Länkad den {date}",
@@ -163,13 +165,16 @@
   },
   "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
   "linkedDevicesScreen_linkDevice": "Länka en enhet",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} enhet länkad.} other {{count} enheter länkade.}} Du kan länka upp till {remaining} till.",
+  "linkedDevicesScreen_unknownDevice": "Okänd enhet",
+  "linkedDevicesScreen_renameError_title": "Namnbytet misslyckades.",
+  "linkedDevicesScreen_renameError": "Kunde inte byta namn på enheten {deviceName}. Kontrollera din nätverksanslutning och försök igen.",
+  "linkedDevicesScreen_unlinkError_title": "Avlänkningen misslyckades.",
+  "linkedDevicesScreen_unlinkError": "Avlänkningen av enheten {deviceName} misslyckades. Kontrollera din nätverksanslutning och försök igen.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Inga enheter länkade.} one {{count} enhet länkad.} other {{count} enheter länkade.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }
@@ -196,7 +201,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Avbryt",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändra",
   "linkedDevicesScreen_unlinkDialog_title": "Avlänka enhet",
-  "linkedDevicesScreen_unlinkDialog_content": "Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.",
+  "linkedDevicesScreen_unlinkDialog_content": "Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten nästa gång den är online.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Avbryt",
   "linkedDevicesScreen_unlinkDialog_confirm": "Avlänka",
 
@@ -240,6 +245,7 @@
   "systemMessage_userChangedPicture_infix": " ändrade gruppbilden",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " skapade gruppen",
+  "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",
@@ -254,7 +260,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
-  "chatList_muted": "Tystad",
   "chatList_contextMenu_mute": "Tysta",
   "chatList_contextMenu_unmute": "Sluta tysta",
   "newChatDialog_error": "Kunde inte skapa en ny gruppchatt med namnet {chatName}",
@@ -291,7 +296,6 @@
       }
     }
   },
-  "attachment_tryAgain": "Försök igen",
   "attachment_gallery": "Galleri",
   "attachment_camera": "Kamera",
   "attachment_file": "Fil",
@@ -357,10 +361,10 @@
   "contactUsScreen_body_logsUrl": "Här är några loggar för att hjälpa dig felsöka mitt problem: {url}",
   "contactUsScreen_errorLaunchingEmail": "Kunde inte öppna e-postklienten",
   "contactUsScreen_errorUploadingLogs": "Det gick inte att ladda upp loggar",
+  "groupDetails_title": "Gruppdetaljer",
   "groupDetails_leaveChat": "Lämna",
   "groupDetails_deleteChat": "Radera",
   "groupDetails_addPeople": "Lägg till",
-  "groupDetails_seeAll": "Visa alla",
   "groupDetails_memberCount": "{count, plural, one {{count} medlem} other {{count} medlemmar}}",
   "@groupDetails_memberCount": {
     "placeholders": {
@@ -369,7 +373,6 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Grupp",
   "groupMembersScreen_title": "Gruppmedlemmar",
   "groupMembersScreen_searchHint": "Sök",
   "groupCreationScreen_title": "Lägg till medlemmar",
@@ -418,5 +421,12 @@
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
-  "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}"
+  "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}",
+  "messageList_reactions_react": "Reagera",
+  "messageList_reactions_remove": "Ta bort",
+  "messageList_reactions_you": "Du",
+  "messageList_reactions_all": "Alla · {total}",
+  "emojiPicker_searchHint": "Sök emoji",
+  "emojiPicker_empty": "Inga emojier hittades",
+  "emojiPicker_skinToneHelp": "Anger din standardhudton"
 }

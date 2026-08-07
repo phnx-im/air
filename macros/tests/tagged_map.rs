@@ -220,3 +220,22 @@ fn missing_keys_default_to_zero() {
     let sub_val: Subset = from_slice(&buf).expect("deserialize");
     assert_eq!(sub_val, Subset { known: 0 });
 }
+
+#[test]
+fn duplicate_keys_are_rejected() {
+    let mut buf = Vec::new();
+    minicbor::Encoder::new(&mut buf)
+        .map(2)
+        .expect("map header")
+        .u32(1)
+        .expect("first key")
+        .u32(1)
+        .expect("first value")
+        .u32(1)
+        .expect("duplicate key")
+        .u32(2)
+        .expect("second value");
+
+    let result: Result<Subset, _> = from_slice(&buf);
+    assert!(result.is_err());
+}

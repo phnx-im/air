@@ -6,7 +6,7 @@ import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:uuid/uuid.dart';
 
 extension UiChatDetailsExtension on UiChatDetails {
@@ -107,18 +107,6 @@ extension UiChatTypeExtension on UiChatType {
   };
 }
 
-extension UiFlightPositionExtension on UiFlightPosition {
-  bool get isFirst => switch (this) {
-    UiFlightPosition.single || UiFlightPosition.start => true,
-    UiFlightPosition.middle || UiFlightPosition.end => false,
-  };
-
-  bool get isLast => switch (this) {
-    UiFlightPosition.start || UiFlightPosition.middle => false,
-    UiFlightPosition.single || UiFlightPosition.end => true,
-  };
-}
-
 extension DeviceTokenExtension on PlatformPushToken {
   String get token => switch (this) {
     PlatformPushToken_Apple(field0: final token) => token,
@@ -140,6 +128,11 @@ extension NavigationStateExtension on NavigationState {
   ChatId? get openChatId => switch (this) {
     NavigationState_Home(:final home) when home.chatOpen => home.chatId,
     NavigationState_Intro() || NavigationState_Home() => null,
+  };
+
+  bool get safetyCodeOpen => switch (this) {
+    NavigationState_Home(:final home) => home.safetyCodeOpen,
+    NavigationState_Intro() => false,
   };
 }
 

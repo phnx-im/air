@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use aircommon::{
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::GroupStateEarKey,
     identifiers::MimiId,
     messages::client_ds_out::{SendMessageCollisionTag, SendMessageParamsOut},
@@ -14,6 +15,7 @@ use anyhow::Context;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
+use openmls::group::GroupEpoch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -162,7 +164,7 @@ impl OutboundServiceContext {
         }
 
         // load group and create MLS message
-        let (group_state_ear_key, params) = self
+        let (group_state_ear_key, params, signer) = self
             .new_mls_message(
                 &chat,
                 unsent_receipt.content,
@@ -170,6 +172,7 @@ impl OutboundServiceContext {
             )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
 
@@ -178,7 +181,7 @@ impl OutboundServiceContext {
             .api_clients
             .get(&chat.owner_domain())
             .map_err(OutboundServiceError::fatal)?
-            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
             if ds_error.is_not_found() {
@@ -224,7 +227,7 @@ impl OutboundServiceContext {
         }
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, generation)
+        self.confirm_mls_message(&chat, epoch, generation)
             .await
             .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
             .ok();
@@ -251,15 +254,21 @@ impl OutboundServiceContext {
             .map_err(OutboundServiceError::fatal)
     }
 
-    /// Creates a new MLS message for the given chat.
+    /// Creates a new MLS message for the given chat and returns the signer used.
+    ///
+    /// The MLS content is signed by our leaf, which for the self group uses a
+    /// per-device key that differs from the shared user credential key. The DS
+    /// request envelope is signed by the caller with the same per-group key.
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
-    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
-        self.db
-            .with_write_transaction(async |txn| {
+    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut, LeafSigningKey)> {
+        let signer = self.signer_for_group(chat.group_id()).await?;
+        let (group_state_ear_key, params) = self
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let group_id = chat.group_id();
                 let mut group = Group::load_clean(&mut *txn, group_id)
                     .await?
@@ -267,19 +276,21 @@ impl OutboundServiceContext {
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let params = group.create_message(
                     &provider,
-                    self.signing_key(),
+                    &signer,
                     mimi_content,
                     message_status_report,
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
             })
-            .await
+            .await?;
+        Ok((group_state_ear_key, params, signer))
     }
 
     /// Confirms a MLS message was sent to the DS.
     pub(super) async fn confirm_mls_message(
         &self,
         chat: &Chat,
+        epoch: GroupEpoch,
         generation: u32,
     ) -> anyhow::Result<()> {
         self.db
@@ -289,7 +300,7 @@ impl OutboundServiceContext {
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
-                group.confirm_message(&provider, generation)?;
+                group.confirm_application_message(&provider, epoch, generation)?;
                 Ok(())
             })
             .await

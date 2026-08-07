@@ -8,7 +8,7 @@ use aircoreclient::{
     ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
         listen_response,
-        process::process_qs::{QsProcessEventResult, QsStreamProcessor},
+        process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
 use airserver_test_harness::utils::setup::TestBackend;

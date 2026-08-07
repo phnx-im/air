@@ -8,8 +8,8 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
     credentials::{
-        AsCredential, AsCredentialBody, AsIntermediateCredential, ClientCredential,
-        ClientCredentialPayload,
+        AsCredential, AsCredentialBody, AsIntermediateCredential, UserCredential,
+        UserCredentialPayload,
     },
     crypto::{
         Labeled, RatchetEncryptionKey,
@@ -26,7 +26,7 @@ use super::client_as_out::EncryptedUserProfile;
 
 #[derive(Debug)]
 pub struct RegisterUserParams {
-    pub client_payload: ClientCredentialPayload,
+    pub client_payload: UserCredentialPayload,
     pub queue_encryption_key: RatchetEncryptionKey,
     pub initial_ratchet_secret: RatchetSecret,
     pub encrypted_user_profile: EncryptedUserProfile,
@@ -34,7 +34,7 @@ pub struct RegisterUserParams {
 
 #[derive(Debug)]
 pub struct RegisterUserResponse {
-    pub client_credential: ClientCredential,
+    pub user_credential: UserCredential,
 }
 
 // === Client ===

@@ -1,0 +1,446 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/features/message_list/message_list_view.dart';
+import 'package:air/features/message_list/message_composer.dart';
+import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/chat_header_bar/chat_header_bar.dart';
+import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/avatar.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:air/ds/components/button/button.dart';
+
+import 'package:air/features/developer/chat_debug_info_view.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat_details/delete_contact_button.dart';
+import 'package:air/features/chat_details/report_spam_button.dart';
+import 'package:air/features/chat_details/unblock_contact_button.dart';
+
+class ChatScreen extends StatelessWidget {
+  const ChatScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final chatId = context.select(
+      (NavigationCubit cubit) => cubit.state.chatId,
+    );
+
+    if (chatId == null) {
+      return const _EmptyChatPane();
+    }
+
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          // rebuilds the cubit when a different chat is selected
+          key: ValueKey("message-list-cubit-$chatId"),
+          create: (context) => ChatDetailsCubit(
+            userCubit: context.read<UserCubit>(),
+            userSettingsCubit: context.read<UserSettingsCubit>(),
+            chatId: chatId,
+            chatsRepository: context.read<ChatsRepository>(),
+            attachmentsRepository: context.read<AttachmentsRepository>(),
+          ),
+        ),
+        BlocProvider(
+          // rebuilds the cubit when a different chat is selected
+          key: ValueKey("message-list-cubit-$chatId"),
+          create: (context) => MessageListCubit(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
+        ),
+      ],
+      child: const ChatScreenView(),
+    );
+  }
+}
+
+class _EmptyChatPane extends StatelessWidget {
+  const _EmptyChatPane();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Center(
+      child: Text(
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: SemanticPalette.of(context).text.tertiary,
+        ),
+        loc.chatScreen_emptyChat,
+      ),
+    );
+  }
+}
+
+class ChatScreenView extends StatefulWidget {
+  const ChatScreenView({
+    super.key,
+    this.createMessageCubit = MessageCubit.new,
+    this.textEditingController,
+  });
+
+  final MessageCubitCreate createMessageCubit;
+  final TextEditingController? textEditingController;
+
+  @override
+  State<ChatScreenView> createState() => _ChatScreenViewState();
+}
+
+class _ChatScreenViewState extends State<ChatScreenView> {
+  final _scrollToBottomController = ScrollToBottomController();
+
+  /// How much conversation sits scrolled under the header, 0 at the top of the
+  /// loaded history. Drives the header pill's reveal.
+  final _headerScrollOffset = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _scrollToBottomController.dispose();
+    _headerScrollOffset.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chatId = context.select(
+      (NavigationCubit cubit) => cubit.state.chatId,
+    );
+    final ownUserId = context.select((UserCubit cubit) => cubit.state.userId);
+    if (chatId == null) {
+      return const _EmptyChatPane();
+    }
+
+    final (
+      :status,
+      :blockedUserId,
+      :blockedUserDisplayName,
+      :members,
+      :isGroupChat,
+      :isConfirmed,
+    ) = context.select((ChatDetailsCubit cubit) {
+      final chat = cubit.state.chat;
+      final status = chat?.status;
+      return (
+        status: status,
+        blockedUserId: switch (status) {
+          UiChatStatus_Blocked() => chat?.userId,
+          _ => null,
+        },
+        blockedUserDisplayName: switch (status) {
+          UiChatStatus_Blocked() => chat?.displayName,
+          _ => null,
+        },
+        members: cubit.state.members,
+        isGroupChat: switch (chat?.chatType) {
+          UiChatType_Group() => true,
+          _ => false,
+        },
+        isConfirmed: chat?.isConfirmed ?? false,
+      );
+    });
+
+    final bool isCurrentUserMember =
+        members.isEmpty || members.contains(ownUserId);
+
+    final bool showInactiveFooter =
+        switch (status) {
+          UiChatStatus_Pending() || UiChatStatus_Inactive() => true,
+          _ => false,
+        } ||
+        (isGroupChat && !isCurrentUserMember);
+
+    final bool showBlockedFooter =
+        blockedUserId != null && blockedUserDisplayName != null;
+
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+    final pendingCommitFailed = context.select(
+      (ChatDetailsCubit cubit) =>
+          cubit.state.chat?.pendingCommitFailed ?? false,
+    );
+    final bool showPendingCommitBanner = isDeveloper && pendingCommitFailed;
+
+    Widget footer = MessageComposer(
+      scrollToBottomController: _scrollToBottomController,
+      textEditingController: widget.textEditingController,
+    );
+    if (showInactiveFooter) {
+      footer = const _InactiveChatFooter();
+    } else if (showBlockedFooter) {
+      footer = _BlockedChatFooter(
+        chatId: chatId,
+        userId: blockedUserId,
+        displayName: blockedUserDisplayName,
+      );
+    } else if (!isConfirmed) {
+      footer = const SizedBox.shrink();
+    }
+
+    return Scaffold(
+      backgroundColor: MessageListView.backgroundColor(context),
+      extendBodyBehindAppBar: true,
+      appBar: _ChatHeader(scrollOffset: _headerScrollOffset),
+      body: Stack(
+        children: [
+          MessageListView(
+            createMessageCubit: widget.createMessageCubit,
+            scrollToBottomController: _scrollToBottomController,
+            headerScrollOffset: _headerScrollOffset,
+          ),
+          if (showPendingCommitBanner)
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.only(top: Chrome.barHeight),
+                  child: _PendingCommitFailedBanner(),
+                ),
+              ),
+            ),
+          Positioned.fill(
+            top: null,
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: S.s12),
+              child: _MeasureHeight(
+                onChange: (height) {
+                  _scrollToBottomController.composerHeight.value = height;
+                },
+                child: footer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
+  const _ChatHeader({required this.scrollOffset});
+
+  final ValueListenable<double> scrollOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    final (chatId, title, hasDetails) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
+      final chat = cubit.state.chat;
+      // Currently, only confirmed chats have a chat details page.
+      final hasDetails = switch (chat?.chatType) {
+        UiChatType_Group() || UiChatType_Connection() => true,
+        _ => false,
+      };
+      return (chat?.id, chat?.title, hasDetails);
+    });
+
+    final tokens = ChatHeaderBarTokens.current;
+    return SafeArea(
+      bottom: false,
+      child: ValueListenableBuilder<double>(
+        valueListenable: scrollOffset,
+        builder: (context, offset, _) => ChatHeaderBar(
+          tokens: tokens,
+          name: title ?? "",
+          avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
+          scrollOffset: offset,
+          onTap: hasDetails
+              ? () => context.read<NavigationCubit>().openChatDetails()
+              : null,
+          onLongPress: () {
+            final chatDetailsCubit = context.read<ChatDetailsCubit>();
+            final userCubit = context.read<UserCubit>();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ChatDebugInfoView(
+                  title: title ?? "",
+                  loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
+                  onUpdateGroup: () => chatDetailsCubit.updateKey(),
+                  onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
+                  onRequestResync: () => chatDetailsCubit.requestResync(),
+                  onEraseLocalChat: () {
+                    if (chatId != null) userCubit.devEraseChat(chatId);
+                  },
+                ),
+              ),
+            );
+          },
+          onBack: context.breakpoint.isSmall ? () => _back(context) : null,
+        ),
+      ),
+    );
+  }
+
+  /// The DS pattern renders its own back button, so the pop that the shared
+  /// app-bar button used to run lives here.
+  Future<void> _back(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final popped = await navigator.maybePop();
+    if (!popped && context.mounted) {
+      context.read<NavigationCubit>().pop();
+    }
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(Chrome.barHeight);
+}
+
+class _BlockedChatFooter extends StatelessWidget {
+  const _BlockedChatFooter({
+    required this.chatId,
+    required this.userId,
+    required this.displayName,
+  });
+
+  final ChatId chatId;
+  final UiUserId userId;
+  final String displayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final buttonWidth = context.breakpoint.isSmall ? double.infinity : null;
+    return Container(
+      padding: const EdgeInsets.all(S.s16),
+      child: Column(
+        children: [
+          Text(loc.blockedChatFooter_message(displayName)),
+          const SizedBox(height: S.s16),
+          Wrap(
+            runSpacing: S.s8,
+            alignment: WrapAlignment.center,
+            children: [
+              SizedBox(
+                width: buttonWidth,
+                child: DeleteContactButton(
+                  chatId: chatId,
+                  displayName: displayName,
+                ),
+              ),
+              const SizedBox(width: S.s16),
+              SizedBox(
+                width: buttonWidth,
+                child: ReportSpamButton(userId: userId),
+              ),
+              const SizedBox(width: S.s16),
+              SizedBox(
+                width: buttonWidth,
+                child: UnblockContactButton(
+                  userId: userId,
+                  displayName: displayName,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reports its child's height via [onChange] after every layout pass.
+class _MeasureHeight extends SingleChildRenderObjectWidget {
+  const _MeasureHeight({required this.onChange, required super.child});
+
+  final ValueChanged<double> onChange;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderMeasureHeight(onChange);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderMeasureHeight renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureHeight extends RenderProxyBox {
+  _RenderMeasureHeight(this.onChange);
+
+  ValueChanged<double> onChange;
+  double? _lastHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final h = size.height;
+    if (_lastHeight == null || (_lastHeight! - h).abs() > 0.5) {
+      _lastHeight = h;
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChange(h));
+    }
+  }
+}
+
+class _PendingCommitFailedBanner extends StatelessWidget {
+  const _PendingCommitFailedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: SemanticPalette.of(context).function.warning.primary,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                "Pending commit stuck/failed",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            Button(
+              size: ButtonSize.small,
+              type: ButtonType.primary,
+              tone: ButtonTone.danger,
+              onPressed: () => context.read<ChatDetailsCubit>().requestResync(),
+              label: 'Resync',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InactiveChatFooter extends StatelessWidget {
+  const _InactiveChatFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(S.s16),
+      child: Text(
+        loc.inactiveChatFooter_message,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: SemanticPalette.of(context).text.tertiary,
+        ),
+      ),
+    );
+  }
+}

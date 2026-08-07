@@ -6,16 +6,16 @@ use std::{collections::HashMap, iter};
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
-        VerifiableClientCredential,
+        AsIntermediateCredential, AsIntermediateCredentialBody, LeafCredential, RoomPolicyIdentity,
+        UserCredential, VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
-    identifiers::UserId,
     messages::client_ds::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
     },
     utils::removed_client,
 };
+use airprotos::client::{component::AirComponent, self_group::SettingsUpdate};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -24,20 +24,27 @@ use apqmls::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::{ProcessMessageError, ValidationError},
+    components::vc_derivation_info::VirtualClientsError,
+    framing::errors::{MessageDecryptionError, SecretTreeError},
+    group::{ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
-        Credential, GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
-        ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
+        Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
+        Proposal, ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
-use tracing::{debug, instrument};
+use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    clients::api_clients::ApiClients, db::access::WriteDbTransaction,
-    groups::client_auth_info::VerifiableClientCredentialExt,
-    job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
+    clients::{
+        api_clients::ApiClients,
+        user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
+    },
+    db::access::WriteDbTransaction,
+    groups::client_auth_info::VerifiableUserCredentialExt,
+    job::pending_chat_operation::PendingChatOperation,
+    key_stores::as_credentials::AsCredentials,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -46,32 +53,34 @@ pub(crate) enum ProcessMessageResult {
     Processed(ProcessMessageProcessed),
     /// This message was skipped because we have processed it (or its side-effect) already.
     Ignored,
-    /// We got a message that's too far in the future, and there's nothing we can do about it.
-    TooDistant,
+    /// We got a message that we can't process from our current group state, e.g. because it's too
+    /// far in the future or because the local PQ group state is missing. Only a resync can recover
+    /// the group.
+    ResyncRequired,
 }
 
 pub(crate) struct ProcessMessageProcessed {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
-    pub(crate) profile_infos: Vec<(ClientCredential, UserProfileKey)>,
+    pub(crate) profile_infos: Vec<(UserCredential, UserProfileKey)>,
 }
 
 struct PostProcessState {
     sender_index: LeafNodeIndex,
     we_were_removed: bool,
-    encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)>,
+    encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
 }
 
 struct PostProcessAadResult {
     we_were_removed: bool,
-    encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)>,
+    encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
 }
 
 impl Group {
     /// Process inbound message
     ///
     /// Returns the processed message, whether the group was deleted, as well as
-    /// the sender's client credential.
+    /// the sender's user credential
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
@@ -89,11 +98,11 @@ impl Group {
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
                 )) => {
-                    // If the message epoch is in the past, we can just ignore
-                    // it. This is expected on every commit: the DS echoes our
-                    // own commit back, but we usually merge our pending commit
-                    // via the `DsCommitResponse` first, leaving the echo one
-                    // epoch behind. So skip quietly rather than logging an error.
+                    // If the message epoch is in the past, we can just
+                    // ignore it: our pending commit was already merged via
+                    // the `DsCommitResponse`, so a replayed or stale delivery
+                    // is one epoch behind. Skip quietly rather than logging
+                    // an error.
                     if self.mls_group.epoch() > message_epoch {
                         debug!(
                             ?message_epoch,
@@ -104,7 +113,29 @@ impl Group {
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
-                    return Ok(ProcessMessageResult::TooDistant);
+                    return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
+                ))) => {
+                    // The commit was not built against a virtual client emulation epoch we hold.
+                    // Only a resync can get us back onto the same shared leaf.
+                    //
+                    // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
+                    error!(
+                        %error,
+                        "Cannot follow a virtual-client commit onto our shared leaf"
+                    );
+                    return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
+                    MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
+                ))) if self.own_leaf_is_virtual_client() => {
+                    debug!("Ignoring our own echoed application message");
+                    return Ok(ProcessMessageResult::Ignored);
                 }
                 Err(e) => {
                     bail!("Could not process message: {e:?}");
@@ -169,22 +200,38 @@ impl Group {
                     encrypted_profile_infos: Vec::new(),
                 }
             }
+            ProcessedMessageContent::OwnPrivateMessage => {
+                return Ok(ProcessMessageResult::Ignored);
+            }
+            ProcessedMessageContent::UnresolvedAppDataCommit(_) => {
+                error!(
+                    "Unexpected UnresolvedAppDataCommit in commit message, \
+                    should have been resolved before"
+                );
+                return Ok(ProcessMessageResult::Ignored);
+            }
         };
 
         // Check that the signature keys of the sender match
-        self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        //
+        // Skip this check for external-commit senders (resync, join connection group). Their leaf
+        // is not visible in the live tree until the commit is merged; `post_process_staged_commit`
+        // checks the update-path leaf keys instead.
+        if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
+            self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        }
 
         // Decrypt any user profile keys
         let profile_infos = post_process_state
             .encrypted_profile_infos
             .into_iter()
-            .map(|(client_credential, encrypted_user_profile_key)| {
+            .map(|(user_credential, encrypted_user_profile_key)| {
                 let user_profile_key = UserProfileKey::decrypt(
                     self.identity_link_wrapper_key(),
                     &encrypted_user_profile_key,
-                    client_credential.user_id(),
+                    user_credential.user_id(),
                 )?;
-                Ok((client_credential, user_profile_key))
+                Ok((user_credential, user_profile_key))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -207,6 +254,24 @@ impl Group {
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
 
+        // The self-group flag is set at group creation and must never change. Reject any commit
+        // whose proposals (AppDataUpdate or GroupContextExtensions) would toggle it.
+        ensure_self_group_flag_unchanged(&self.mls_group, staged_commit)?;
+        if let (Some(pq_group), Some(pq_staged_commit)) = (self.pq.as_ref(), pq_staged_commit) {
+            ensure_self_group_flag_unchanged(&pq_group.mls_group, pq_staged_commit)?;
+        }
+
+        // For an external commit (resync, join connection group), the sender's new leaf lives in
+        // the commit's update path and is not visible in the live tree until the commit is merged.
+        // Bind the T and PQ legs here, regardless of which AAD payload the commit carries.
+        if let Sender::NewMemberCommit = processed_message.sender() {
+            let t_leaf_key = staged_commit
+                .update_path_leaf_node()
+                .context("Could not find sender leaf node")?
+                .signature_key();
+            verify_pq_update_path_signature_key(t_leaf_key, pq_staged_commit)?;
+        }
+
         let sender_index = match processed_message.sender() {
             Sender::Member(index) => index.to_owned(),
             Sender::NewMemberCommit => self.mls_group.ext_commit_sender_index(staged_commit)?,
@@ -215,11 +280,52 @@ impl Group {
             }
         };
 
+        // Settings phase. This must run before the pending-op discard below so
+        // the pending setting changes are reconciled against the snapshot this
+        // commit carried before the outbound service can re-issue them.
+        if self.is_self_group() {
+            let updates = self.extract_settings_updates(txn, staged_commit).await;
+            if !updates.is_empty() {
+                // Fold the extracted snapshots into one merged snapshot. This
+                // can be empty when the update decoded to unknown-only fields
+                // sent by a newer sibling; an empty snapshot covers nothing.
+                let mut merged = SettingsUpdate::default();
+                for update in &updates {
+                    merge_settings_update(&mut merged, update).await?;
+                }
+                // Own echo: the DS fanned our own commit back while our
+                // pending commit was already gone. The values are already
+                // applied locally. The commit was accepted, so complete the
+                // pending setting changes it asserted.
+                let own_echo = sender_index == self.mls_group().own_leaf_index();
+                if own_echo {
+                    SettingChanges::complete_sent(txn, &merged).await?;
+                } else {
+                    for update in &updates {
+                        apply_settings_update(txn, update).await?;
+                    }
+                    // Fields a sibling's accepted commit covered are no longer
+                    // ours to change.
+                    SettingChanges::remove_covered(txn, &merged).await?;
+                }
+            }
+        }
+
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
 
-        let sender_credential =
-            VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
+        // Process a sibling's key package upload announcement (self-group
+        // only), if any. Errors are logged and swallowed: the commit itself
+        // is valid and must be merged, otherwise the group falls permanently
+        // behind the DS.
+        if let Err(error) = self
+            .process_vc_key_package_upload_aad(txn, processed_message, sender_index)
+            .await
+        {
+            error!(%error, "Failed to process sibling key package upload");
+        }
+
+        let sender_credential = LeafCredential::from_credential(processed_message.credential())?;
 
         // StagedCommitMessage Phase 1: Process the proposals.
         let removed_by_proposal =
@@ -255,11 +361,11 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
-        sender_credential: VerifiableClientCredential,
+        sender_credential: LeafCredential,
     ) -> Result<PostProcessAadResult> {
         // Let's figure out which operation this is meant to be.
         let aad_payload =
-            AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?.into_payload();
+            AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())?.into_payload();
         let result = match aad_payload {
             AadPayload::GroupOperation(group_operation_payload) => {
                 let encrypted_profile_infos = self
@@ -283,7 +389,6 @@ impl Group {
                         txn,
                         api_clients,
                         processed_message,
-                        pq_staged_commit,
                         join_connection_group_payload,
                     )
                     .await?;
@@ -293,7 +398,7 @@ impl Group {
                 }
             }
             AadPayload::Resync => {
-                self.process_resync_aad(txn, api_clients, processed_message, pq_staged_commit)
+                self.process_resync_aad(txn, api_clients, processed_message)
                     .await?;
                 PostProcessAadResult {
                     we_were_removed: false,
@@ -319,12 +424,12 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
-        sender_credential: VerifiableClientCredential,
+        sender_credential: LeafCredential,
         group_operation_payload: GroupOperationParamsAad,
-    ) -> Result<Vec<(ClientCredential, EncryptedUserProfileKey)>> {
+    ) -> Result<Vec<(UserCredential, EncryptedUserProfileKey)>> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
-        let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
+        let mut encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)> =
             Vec::new();
 
         let number_of_adds = staged_commit.add_proposals().count();
@@ -344,34 +449,42 @@ impl Group {
             // Verify that T/PQ added user signature keys match
             verify_pq_added_signature_keys(staged_commit, pq_staged_commit)?;
 
-            // Collect the verifiable credentials
-            let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
-            for ap in staged_commit.add_proposals() {
-                let credential = ap.add_proposal().key_package().leaf_node().credential();
-                let credential = VerifiableClientCredential::from_basic_credential(credential)?;
-                verifiable_credentials.push(credential);
-            }
+            // Compute the sender identity before the `&mut self` calls below.
+            let sender_identity = sender_credential.room_policy_identity();
 
-            let as_credentials = AsCredentials::fetch_for_verification(
-                &mut *txn,
-                api_clients,
-                verifiable_credentials.iter(),
-            )
-            .await?;
-            let credentials = self
-                .process_adds(
-                    sender_credential.user_id(),
-                    staged_commit,
+            if self.is_self_group() {
+                // A self-group add links a new device of the own user. Its leaf
+                // carries a self-group credential without AS material, and the
+                // own user profile needs no fetching, so there are no profile
+                // infos to collect.
+                self.process_self_group_adds(&sender_identity, staged_commit)?;
+            } else {
+                // Collect the verifiable credentials
+                let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
+                for ap in staged_commit.add_proposals() {
+                    let credential = ap.add_proposal().key_package().leaf_node().credential();
+                    let credential = LeafCredential::from_credential(credential)?
+                        .into_user()
+                        .context("expected a user credential in a regular-group add")?;
+                    verifiable_credentials.push(credential);
+                }
+
+                let as_credentials = AsCredentials::fetch_for_verification(
                     &mut *txn,
-                    &as_credentials,
+                    api_clients,
+                    verifiable_credentials.iter(),
                 )
                 .await?;
-            // Match up client credentials and new UserProfileKeys
-            let new_profile_infos: Vec<_> = credentials
-                .into_iter()
-                .zip(group_operation_payload.new_encrypted_user_profile_keys)
-                .collect();
-            encrypted_profile_infos.extend(new_profile_infos);
+                let credentials = self
+                    .process_adds(&sender_identity, staged_commit, &mut *txn, &as_credentials)
+                    .await?;
+                // Match up user credentials and new UserProfileKeys
+                let new_profile_infos: Vec<_> = credentials
+                    .into_iter()
+                    .zip(group_operation_payload.new_encrypted_user_profile_keys)
+                    .collect();
+                encrypted_profile_infos.extend(new_profile_infos);
+            }
         }
 
         // Process updates if there are any.
@@ -379,21 +492,23 @@ impl Group {
         let (new_sender_credential, new_sender_leaf_key) =
             update_path_leaf_node_info(staged_commit)?;
 
-        let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *txn,
-            api_clients,
-            iter::once(&new_sender_credential),
-        )
-        .await?;
-
-        let old_credential = sender_credential;
-        if new_sender_credential != old_credential {
-            let credential = new_sender_credential.verify_and_validate(
-                new_sender_leaf_key,
-                Some(&old_credential),
-                &as_credentials,
-            )?;
-            credential.store(txn).await?;
+        if let Some((new_credential, old_credential)) =
+            user_credential_transition(new_sender_credential, sender_credential, "update path")?
+        {
+            let as_credentials = AsCredentials::fetch_for_verification(
+                &mut *txn,
+                api_clients,
+                iter::once(&new_credential),
+            )
+            .await?;
+            if new_credential != old_credential {
+                let credential = new_credential.verify_and_validate(
+                    new_sender_leaf_key,
+                    Some(&old_credential),
+                    &as_credentials,
+                )?;
+                credential.store(txn).await?;
+            }
         }
 
         // Process a resync if this is one
@@ -405,16 +520,15 @@ impl Group {
     }
 
     /// Process a join-connection-group AAD payload: verify and persist the
-    /// joiner's client credential. Returns the joiner's encrypted user profile
+    /// joiner's user credential. Returns the joiner's encrypted user profile
     /// key.
     async fn process_join_connection_group_aad(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        pq_staged_commit: Option<&StagedCommit>,
         join_connection_group_payload: JoinConnectionGroupParamsAad,
-    ) -> Result<(ClientCredential, EncryptedUserProfileKey)> {
+    ) -> Result<(UserCredential, EncryptedUserProfileKey)> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
         validate_join_connection_group_commit(
@@ -426,11 +540,11 @@ impl Group {
         )?;
 
         // JoinConnectionGroup Phase 1: Decrypt and verify the
-        // client credential of the joiner
+        // user credential of the joiner
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
-
-        // Verify that T/PQ signature keys match
-        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
+        let sender_credential = sender_credential
+            .into_user()
+            .context("expected a user credential joining a connection group")?;
 
         let as_credentials = AsCredentials::fetch_for_verification(
             &mut *txn,
@@ -448,7 +562,7 @@ impl Group {
         // TODO: (More) validation:
         // * Check that the user id is unique.
 
-        // JoinConnectionGroup Phase 2: Persist the client credential
+        // JoinConnectionGroup Phase 2: Persist the user credential
         sender_credential.store(txn).await?;
         Ok((
             sender_credential.into(),
@@ -457,13 +571,12 @@ impl Group {
     }
 
     /// Process a resync AAD payload: verify and persist the resyncing member's
-    /// (unchanged) client credential.
+    /// (unchanged) user credential.
     async fn process_resync_aad(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        pq_staged_commit: Option<&StagedCommit>,
     ) -> Result<()> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
@@ -476,9 +589,6 @@ impl Group {
 
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
 
-        // Verify that T/PQ signature keys match
-        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
-
         let removed_index = staged_commit
             .remove_proposals()
             .next()
@@ -490,28 +600,36 @@ impl Group {
             .mls_group
             .member(removed_index)
             .ok_or(anyhow!("Could not find removed member in group"))?;
+        let old_credential = LeafCredential::from_credential(old_credential)?;
 
-        let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *txn,
-            api_clients,
-            iter::once(&sender_credential),
-        )
-        .await?;
-
-        let old_credential = VerifiableClientCredential::from_basic_credential(old_credential)?;
-        let sender_credential = sender_credential.verify_and_validate(
-            sender_leaf_key,
-            Some(&old_credential),
-            &as_credentials,
-        )?;
-        sender_credential.store(txn).await?;
+        if let Some((sender_credential, old_credential)) =
+            user_credential_transition(sender_credential, old_credential, "resync")?
+        {
+            let as_credentials = AsCredentials::fetch_for_verification(
+                &mut *txn,
+                api_clients,
+                iter::once(&sender_credential),
+            )
+            .await?;
+            let sender_credential = sender_credential.verify_and_validate(
+                sender_leaf_key,
+                Some(&old_credential),
+                &as_credentials,
+            )?;
+            sender_credential.store(txn).await?;
+        }
         Ok(())
     }
 
-    /// Discard any pending commits we have locally and delete any pending
-    /// non-leave chat operations we may have for this group. If it's a leave
-    /// operation, only delete it if it's part of this commit.
-    async fn discard_pending_commit_and_operations(
+    /// Discard our local pending commit and reconcile any pending chat
+    /// operation for this group against the incoming commit.
+    ///
+    /// A pending non-leave operation is deleted. For a settings update this
+    /// only drops the send attempt whose staged commit just became stale: the
+    /// pending [`SettingChanges`] survive and the outbound service re-issues a
+    /// fresh commit from them. A leave operation is deleted only if this
+    /// commit carries our own self-remove.
+    pub(crate) async fn discard_pending_commit_and_operations(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
@@ -529,7 +647,7 @@ impl Group {
                     && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
             if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                PendingChatOperation::delete(&mut *txn, group_id).await?;
+                pending_chat_operation.discard(txn).await?;
             }
         }
         Ok(())
@@ -540,7 +658,7 @@ impl Group {
     fn process_remove_proposals(
         &self,
         staged_commit: &StagedCommit,
-        sender_credential: &VerifiableClientCredential,
+        sender_credential: &LeafCredential,
     ) -> Result<bool> {
         let mut we_were_removed = false;
         for queued_proposal in staged_commit.queued_proposals() {
@@ -561,10 +679,13 @@ impl Group {
             let removed_credential = self
                 .unverified_credential_at(removed_index)?
                 .context("Removed user credential not found")?;
-            let removed_id = removed_credential.user_id();
 
             // Room policy checks
-            self.verify_role_change(sender_credential.user_id(), removed_id, RoleIndex::Outsider)?;
+            self.verify_role_change_identity(
+                &sender_credential.room_policy_identity(),
+                &removed_credential.room_policy_identity(),
+                RoleIndex::Outsider,
+            )?;
 
             if removed_index == self.mls_group().own_leaf_index() {
                 we_were_removed = true;
@@ -597,23 +718,28 @@ impl Group {
 
     async fn process_adds(
         &mut self,
-        sender_user: &UserId,
+        sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
         txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<Vec<ClientCredential>> {
+    ) -> Result<Vec<UserCredential>> {
         let mut credentials = Vec::new();
 
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
 
             // Verify the credential
-            let credential =
-                VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
+            let credential = LeafCredential::from_credential(leaf_node.credential())?
+                .into_user()
+                .context("expected a user credential in a regular-group add")?;
             let credential =
                 credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
-            self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
+            self.verify_role_change_identity(
+                sender_identity,
+                &RoomPolicyIdentity::User(credential.user_id().clone()),
+                RoleIndex::Regular,
+            )?;
 
             credential.store(&mut *txn).await?;
             credentials.push(credential.into());
@@ -628,6 +754,30 @@ impl Group {
         //   names).
 
         Ok(credentials)
+    }
+
+    /// Process the add proposals of a self-group commit. Added leaves carry a
+    /// self-group credential, which holds no AS material to verify: openmls
+    /// has already checked the leaf signature, so only the credential type,
+    /// client id uniqueness, and the room policy (keyed on client ids) are
+    /// checked.
+    fn process_self_group_adds(
+        &self,
+        sender_identity: &RoomPolicyIdentity,
+        staged_commit: &StagedCommit,
+    ) -> Result<()> {
+        for proposal in staged_commit.add_proposals() {
+            let leaf_node = proposal.add_proposal().key_package().leaf_node();
+            self.validate_self_group_add(leaf_node.credential())?;
+
+            let credential = LeafCredential::from_credential(leaf_node.credential())?;
+            self.verify_role_change_identity(
+                sender_identity,
+                &credential.room_policy_identity(),
+                RoleIndex::Regular,
+            )?;
+        }
+        Ok(())
     }
 
     fn process_resync(&self, credential: &Credential, staged_commit: &StagedCommit) -> Result<()> {
@@ -662,6 +812,15 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
+        if self.pq.is_none() {
+            // The local PQ group state is missing, e.g. because a legacy
+            // T-only resync dropped it. We can't process any APQ message in
+            // this state, but a resync restores both legs, so report the
+            // message as too distant instead of failing.
+            warn!("No local PQ group state; a resync is required");
+            return Ok(ProcessMessageResult::ResyncRequired);
+        }
+
         let message: ApqProtocolMessage = message.into();
         let message_t_epoch = message.t_epoch();
         let current_t_epoch = self.mls_group.epoch();
@@ -680,10 +839,9 @@ impl Group {
                 ValidationError::WrongEpoch,
             ))) => {
                 // A past-epoch message is one we already moved past, so we
-                // ignore it. This is expected on every commit: the DS echoes
-                // our own commit back, but we usually merge our pending commit
-                // via the `DsCommitResponse` first, leaving the echo one epoch
-                // behind. So skip quietly rather than logging an error.
+                // ignore it: our pending commit was already merged via the
+                // `DsCommitResponse`, so a replayed or stale delivery is one
+                // epoch behind. Skip quietly rather than logging an error.
                 if current_t_epoch > message_t_epoch {
                     debug!(
                         %message_t_epoch,
@@ -694,7 +852,31 @@ impl Group {
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
-                return Ok(ProcessMessageResult::TooDistant);
+                return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
+                StageCommitError::VirtualClientsError(
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
+                ),
+            ))) => {
+                // See the T-only variant: we cannot derive the leaf a sibling
+                // emulator client replaced, so only a resync recovers.
+                error!(
+                    %error,
+                    "Cannot follow a virtual-client APQ commit onto our shared leaf"
+                );
+                return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
+                ValidationError::UnableToDecrypt(MessageDecryptionError::SecretTreeError(
+                    SecretTreeError::SecretReuseError,
+                )),
+            ))) if self.own_leaf_is_virtual_client() => {
+                debug!("Ignoring our own echoed APQ application message");
+                return Ok(ProcessMessageResult::Ignored);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");
@@ -729,6 +911,20 @@ impl Group {
     }
 }
 
+/// Verify that merging `staged_commit` keeps the self-group flag of the group
+/// context's [`AirComponent`] unchanged. The flag is fixed at group creation.
+fn ensure_self_group_flag_unchanged(
+    mls_group: &MlsGroup,
+    staged_commit: &StagedCommit,
+) -> Result<()> {
+    ensure!(
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(mls_group.extensions()),
+        "commit would toggle the self-group flag"
+    );
+    Ok(())
+}
+
 /// Extract the staged commit from a processed message. Errors if the message
 /// is not a staged commit message.
 fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedCommit> {
@@ -739,13 +935,38 @@ fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedC
     Ok(staged_commit)
 }
 
+/// Pair the new and old leaf credential of a member transition for AS verification.
+///
+/// Returns `None` when both are self-group credentials with the same client id, since they carry no
+/// AS material to verify or store. Mixed pairs and client id changes are rejected.
+fn user_credential_transition(
+    new: LeafCredential,
+    old: LeafCredential,
+    context: &str,
+) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
+    match (new, old) {
+        (LeafCredential::User(new), LeafCredential::User(old)) => Ok(Some((new, old))),
+        (LeafCredential::SelfGroup(new), LeafCredential::SelfGroup(old)) => {
+            ensure!(
+                new.client_id() == old.client_id(),
+                "self-group client id changed in {context}"
+            );
+            Ok(None)
+        }
+        (LeafCredential::User(_), LeafCredential::SelfGroup(_))
+        | (LeafCredential::SelfGroup(_), LeafCredential::User(_)) => {
+            bail!("mismatched leaf credential types in {context}")
+        }
+    }
+}
+
 fn update_path_leaf_node_info(
     staged_commit: &StagedCommit,
-) -> Result<(VerifiableClientCredential, &SignaturePublicKey)> {
+) -> Result<(LeafCredential, &SignaturePublicKey)> {
     let leaf_node = staged_commit
         .update_path_leaf_node()
         .context("Could not find sender leaf node")?;
-    let credential = VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
+    let credential = LeafCredential::from_credential(leaf_node.credential())?;
     let signature_key = leaf_node.signature_key();
     Ok((credential, signature_key))
 }
@@ -819,9 +1040,40 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::SelfGroupCredential;
     use openmls::prelude::LeafNodeIndex;
+    use uuid::Uuid;
 
     use super::*;
+
+    fn self_group_credential(client_id: u128) -> LeafCredential {
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    #[test]
+    fn self_group_transition_preserves_client_id() -> anyhow::Result<()> {
+        let transition = user_credential_transition(
+            self_group_credential(1),
+            self_group_credential(1),
+            "update path",
+        )?;
+
+        assert!(transition.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn self_group_transition_rejects_client_id_change() {
+        for context in ["update path", "resync"] {
+            let transition = user_credential_transition(
+                self_group_credential(2),
+                self_group_credential(1),
+                context,
+            );
+
+            assert!(transition.is_err(), "{context}");
+        }
+    }
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {

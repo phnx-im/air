@@ -4,7 +4,7 @@
 
 [package]
 name = "airprotos"
-version = "0.18.0"
+version = "0.20.0"
 edition = "2024"
 publish = false
 description = "Protobuf and gRPC definitions of the APIs"
@@ -20,6 +20,7 @@ displaydoc.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true
+num_enum.workspace = true
 openmls.workspace = true
 prost.workspace = true
 semver.workspace = true

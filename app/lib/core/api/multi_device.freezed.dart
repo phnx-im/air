@@ -78,67 +78,33 @@ String toString() {
 
 
 class MultiDeviceLinkEvent_Linked extends MultiDeviceLinkEvent {
-  const MultiDeviceLinkEvent_Linked(this.field0): super._();
+  const MultiDeviceLinkEvent_Linked(): super._();
   
 
- final  String field0;
 
-/// Create a copy of MultiDeviceLinkEvent
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$MultiDeviceLinkEvent_LinkedCopyWith<MultiDeviceLinkEvent_Linked> get copyWith => _$MultiDeviceLinkEvent_LinkedCopyWithImpl<MultiDeviceLinkEvent_Linked>(this, _$identity);
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Linked&&(identical(other.field0, field0) || other.field0 == field0));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Linked);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent.linked(field0: $field0)';
+  return 'MultiDeviceLinkEvent.linked()';
 }
 
 
 }
 
-/// @nodoc
-abstract mixin class $MultiDeviceLinkEvent_LinkedCopyWith<$Res> implements $MultiDeviceLinkEventCopyWith<$Res> {
-  factory $MultiDeviceLinkEvent_LinkedCopyWith(MultiDeviceLinkEvent_Linked value, $Res Function(MultiDeviceLinkEvent_Linked) _then) = _$MultiDeviceLinkEvent_LinkedCopyWithImpl;
-@useResult
-$Res call({
- String field0
-});
 
 
-
-
-}
-/// @nodoc
-class _$MultiDeviceLinkEvent_LinkedCopyWithImpl<$Res>
-    implements $MultiDeviceLinkEvent_LinkedCopyWith<$Res> {
-  _$MultiDeviceLinkEvent_LinkedCopyWithImpl(this._self, this._then);
-
-  final MultiDeviceLinkEvent_Linked _self;
-  final $Res Function(MultiDeviceLinkEvent_Linked) _then;
-
-/// Create a copy of MultiDeviceLinkEvent
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
-  return _then(MultiDeviceLinkEvent_Linked(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-
-}
 
 /// @nodoc
 
@@ -373,67 +339,33 @@ String toString() {
 
 
 class MultiDeviceProvisionEvent_Linked extends MultiDeviceProvisionEvent {
-  const MultiDeviceProvisionEvent_Linked(this.field0): super._();
+  const MultiDeviceProvisionEvent_Linked(): super._();
   
 
- final  String field0;
 
-/// Create a copy of MultiDeviceProvisionEvent
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$MultiDeviceProvisionEvent_LinkedCopyWith<MultiDeviceProvisionEvent_Linked> get copyWith => _$MultiDeviceProvisionEvent_LinkedCopyWithImpl<MultiDeviceProvisionEvent_Linked>(this, _$identity);
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linked&&(identical(other.field0, field0) || other.field0 == field0));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linked);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent.linked(field0: $field0)';
+  return 'MultiDeviceProvisionEvent.linked()';
 }
 
 
 }
 
-/// @nodoc
-abstract mixin class $MultiDeviceProvisionEvent_LinkedCopyWith<$Res> implements $MultiDeviceProvisionEventCopyWith<$Res> {
-  factory $MultiDeviceProvisionEvent_LinkedCopyWith(MultiDeviceProvisionEvent_Linked value, $Res Function(MultiDeviceProvisionEvent_Linked) _then) = _$MultiDeviceProvisionEvent_LinkedCopyWithImpl;
-@useResult
-$Res call({
- String field0
-});
 
 
-
-
-}
-/// @nodoc
-class _$MultiDeviceProvisionEvent_LinkedCopyWithImpl<$Res>
-    implements $MultiDeviceProvisionEvent_LinkedCopyWith<$Res> {
-  _$MultiDeviceProvisionEvent_LinkedCopyWithImpl(this._self, this._then);
-
-  final MultiDeviceProvisionEvent_Linked _self;
-  final $Res Function(MultiDeviceProvisionEvent_Linked) _then;
-
-/// Create a copy of MultiDeviceProvisionEvent
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
-  return _then(MultiDeviceProvisionEvent_Linked(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-
-}
 
 /// @nodoc
 

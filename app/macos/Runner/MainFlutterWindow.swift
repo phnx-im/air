@@ -9,6 +9,15 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    // Wider corner radius and unified toolbar style.
+    let toolbar = NSToolbar(identifier: "main")
+    toolbar.showsBaselineSeparator = false
+    toolbar.displayMode = .iconOnly
+    self.toolbar = toolbar
+    if #available(macOS 11.0, *) {
+      self.toolbarStyle = .unified
+    }
+
     let methodChannel = FlutterMethodChannel(
       name: AppDelegate.notificationChannelName,
       binaryMessenger: flutterViewController.engine.binaryMessenger)
@@ -116,6 +125,10 @@ func sendNotification(identifier: UUID, title: String, body: String, chatId: UUI
   content.body = body
   content.sound = UNNotificationSound.default
   content.userInfo["chatId"] = chatId?.uuidString
+  // Group the per-message notifications by chat in the notification center
+  if let chatId = chatId {
+    content.threadIdentifier = chatId.uuidString
+  }
 
   let request = UNNotificationRequest(
     identifier: identifier.uuidString,

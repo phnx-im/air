@@ -1,0 +1,132 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:async';
+
+import 'package:air/features/emoji/emoji_data.dart';
+import 'package:air/features/emoji/emoji_repository.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
+import 'package:air/features/message_list/widgets/text_autocomplete.dart';
+import 'package:flutter/material.dart';
+
+class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
+  static const int suggestionLimit = 5;
+
+  /// Returns a trigger when the caret sits after a valid colon shortcode.
+  @override
+  AutocompleteTrigger? findTrigger(TextEditingValue value) {
+    // Only operate when the caret is collapsed and inside the text.
+    if (!value.selection.isValid || !value.selection.isCollapsed) {
+      return null;
+    }
+    final caret = value.selection.baseOffset;
+    if (caret <= 0 || caret > value.text.length) {
+      return null;
+    }
+    // Only trigger on a colon shortcode immediately left of the caret, with
+    // no space inside it. The colon must sit at the start of the text or be
+    // preceded by whitespace, so mid-word colons (e.g. "std::unix::signal")
+    // don't match.
+    final untilCaret = value.text.substring(0, caret);
+    final match = RegExp(
+      r'(^|\s)(:[a-zA-Z0-9_\-\+]+:?)$',
+    ).firstMatch(untilCaret);
+    final shortcode = match?.group(2);
+    if (shortcode == null) {
+      return null;
+    }
+
+    // Group 2 is anchored to the end of untilCaret, so its start is
+    // derivable from the whole match's end without a per-group offset.
+    final start = match!.end - shortcode.length;
+    final fragment = shortcode.substring(1);
+    final trimmed = fragment.endsWith(':')
+        ? fragment.substring(0, fragment.length - 1)
+        : fragment;
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    if (!_isValidQuery(trimmed)) {
+      return null;
+    }
+    return AutocompleteTrigger(
+      start: start,
+      end: caret,
+      query: trimmed.toLowerCase(),
+    );
+  }
+
+  /// Fetch suggestions for a shortcode from the emoji repository.
+  @override
+  FutureOr<List<Emoji>> suggestionsFor(String query) async {
+    return EmojiRepository.search(query, limit: suggestionLimit);
+  }
+
+  /// Replace the trigger text with the selected emoji character.
+  @override
+  TextEditingValue applySuggestion(
+    TextEditingValue value,
+    AutocompleteTrigger trigger,
+    Emoji suggestion,
+  ) {
+    final newText = value.text.replaceRange(
+      trigger.start,
+      trigger.end,
+      suggestion.emoji,
+    );
+    final newSelection = TextSelection.collapsed(
+      offset: trigger.start + suggestion.emoji.length,
+    );
+    return TextEditingValue(text: newText, selection: newSelection);
+  }
+
+  /// Provide overlay styling consistent with the chat theme.
+  @override
+  SuggestionOverlayStyle overlayStyle(BuildContext context) {
+    return SuggestionOverlayStyle(
+      backgroundColor: SemanticPalette.of(context).backgroundElevated.primary,
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
+      elevation: 8,
+      maxWidth: Measure.m320,
+    );
+  }
+
+  /// Render each emoji suggestion row with the glyph and shortcode.
+  @override
+  Widget buildSuggestionItem(
+    BuildContext context,
+    Emoji suggestion,
+    bool isHighlighted,
+  ) {
+    final palette = SemanticPalette.of(context);
+    final backgroundColor = isHighlighted
+        ? palette.fill.primary
+        : palette.backgroundElevated.primary;
+    return Container(
+      color: backgroundColor,
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
+      child: Row(
+        children: [
+          Text(suggestion.emoji, style: typeScale.body.m.style()),
+          const SizedBox(width: S.s8),
+          Expanded(
+            child: Text(
+              ':${suggestion.shortName}:',
+              style: typeScale.body.regular.style(color: palette.text.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Validates the shortcode fragment against allowed characters.
+  bool _isValidQuery(String query) {
+    if (query.length > 40) {
+      return false;
+    }
+    return RegExp(r'^[a-zA-Z0-9_\-\+]+$').hasMatch(query);
+  }
+}

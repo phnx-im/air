@@ -61,9 +61,6 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Användarnamn';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Inställningar';
-
-  @override
   String get userSettingsScreen_helpSection => 'Hjälp';
 
   @override
@@ -74,6 +71,15 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Enheter';
+
+  @override
+  String get youSection_profile => 'Profil';
+
+  @override
+  String get youSection_preferences => 'Inställningar';
+
+  @override
+  String get youSection_developer => 'Utvecklare';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
@@ -99,6 +105,9 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
+
+  @override
+  String get contactDetailsScreen_title => 'Profil';
 
   @override
   String get contactDetailsScreen_chat => 'Chatt';
@@ -264,9 +273,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get introScreen_serverHint => 'DOMÄNNAMN';
-
-  @override
-  String get introScreen_error_invalidDomain => 'Domänen är ogiltig';
 
   @override
   String get introScreen_linkExisting => 'Länka till ett befintligt konto';
@@ -440,9 +446,6 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkingDeviceScreen_linking => 'Länkar...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Enheten har länkats!';
-
-  @override
   String get linkingDeviceScreen_linking_confirm_title => 'Bekräfta länkning';
 
   @override
@@ -494,13 +497,10 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Koden du angav är felaktig.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Försök igen';
-
-  @override
-  String get linkedDevicesScreen_title => 'Enheter';
 
   @override
   String get linkedDevicesScreen_thisDevice => 'Den här enheten';
@@ -521,14 +521,38 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Länka en enhet';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Okänd enhet';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Namnbytet misslyckades.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Kunde inte byta namn på enheten $deviceName. Kontrollera din nätverksanslutning och försök igen.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Avlänkningen misslyckades.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Avlänkningen av enheten $deviceName misslyckades. Kontrollera din nätverksanslutning och försök igen.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count enheter länkade.',
       one: '$count enhet länkad.',
+      zero: 'Inga enheter länkade.',
     );
-    return '$_temp0 Du kan länka upp till $remaining till.';
+    return '$_temp0';
   }
 
   @override
@@ -594,7 +618,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.';
+      'Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten nästa gång den är online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Avbryt';
@@ -773,6 +797,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get systemMessage_userCreatedGroup_suffix => ' skapade gruppen';
 
   @override
+  String get systemMessage_onboarded =>
+      'Den här klienten lades till i chatten efter länkningen.';
+
+  @override
   String get timestamp_now => 'Nu';
 
   @override
@@ -816,9 +844,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blockerad';
-
-  @override
-  String get chatList_muted => 'Tystad';
 
   @override
   String get chatList_contextMenu_mute => 'Tysta';
@@ -928,9 +953,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Försök igen';
 
   @override
   String get attachment_gallery => 'Galleri';
@@ -1108,6 +1130,9 @@ class AppLocalizationsSv extends AppLocalizations {
       'Det gick inte att ladda upp loggar';
 
   @override
+  String get groupDetails_title => 'Gruppdetaljer';
+
+  @override
   String get groupDetails_leaveChat => 'Lämna';
 
   @override
@@ -1115,9 +1140,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Lägg till';
-
-  @override
-  String get groupDetails_seeAll => 'Visa alla';
 
   @override
   String groupDetails_memberCount(int count) {
@@ -1129,9 +1151,6 @@ class AppLocalizationsSv extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get groupDetails_groupDescription => 'Grupp';
 
   @override
   String get groupMembersScreen_title => 'Gruppmedlemmar';
@@ -1299,4 +1318,27 @@ class AppLocalizationsSv extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get messageList_reactions_react => 'Reagera';
+
+  @override
+  String get messageList_reactions_remove => 'Ta bort';
+
+  @override
+  String get messageList_reactions_you => 'Du';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Alla · $total';
+  }
+
+  @override
+  String get emojiPicker_searchHint => 'Sök emoji';
+
+  @override
+  String get emojiPicker_empty => 'Inga emojier hittades';
+
+  @override
+  String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
 }

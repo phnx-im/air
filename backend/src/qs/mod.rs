@@ -68,6 +68,7 @@ use aircommon::{
 };
 use client_id_decryption_key::StorableClientIdDecryptionKey;
 
+use displaydoc::Display;
 use metrics::describe_gauge;
 use semver::VersionReq;
 use sqlx::PgPool;
@@ -91,6 +92,7 @@ mod key_package;
 pub mod network_provider;
 pub mod qs_api;
 mod queue;
+pub(crate) mod staged_key_package;
 mod user_record;
 
 #[derive(Debug, Clone)]
@@ -193,23 +195,23 @@ pub trait Notifier {
     ) -> Result<(), NotifierError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error, Display)]
 pub enum PushNotificationError {
-    /// Just for logging.
+    /// {0}
     Other(String),
-    /// The push token is invalid.
+    /// The push token is invalid: {0}
     InvalidToken(String),
-    /// The authorization header is invalid.
+    /// The authorization header is invalid
     InvalidBearer,
-    /// Network error.
+    /// Network error: {0}
     NetworkError(String),
-    /// Unsupported type of push token.
+    /// Unsupported type of push token
     UnsupportedType,
-    /// The JWT token for APNS could not be created.
+    /// The JWT token for APNS could not be created: {0}
     JwtCreationError(String),
-    /// OAuth error.
+    /// OAuth error: {0}
     OAuthError(String),
-    /// Configuration error.
+    /// Configuration error: {0}
     InvalidConfiguration(String),
 }
 

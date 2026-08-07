@@ -8,7 +8,7 @@ use airapiclient::{ApiClientInitError, as_api::AsRequestError};
 use aircommon::{
     credentials::{
         AsCredential, AsCredentialBody, AsIntermediateCredential, AsIntermediateCredentialBody,
-        VerifiableClientCredential,
+        VerifiableUserCredential,
     },
     crypto::{
         hash::Hash,
@@ -167,7 +167,7 @@ impl AsCredentials {
     pub(crate) async fn fetch_for_verification(
         connection: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
-        verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
+        verifiable_credentials: impl Iterator<Item = &VerifiableUserCredential>,
     ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
         let mut as_credentials = HashMap::new();
         for verifiable_credential in verifiable_credentials {

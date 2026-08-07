@@ -156,9 +156,10 @@ mod tests {
             }
         });
 
-        // While first guard is held, second should not acquire
+        // While first guard is held, second should not acquire. The window is generous so that
+        // the spawned task gets to attempt the lock even on a loaded machine.
         assert!(
-            tokio::time::timeout(Duration::from_millis(50), rx.changed())
+            tokio::time::timeout(Duration::from_millis(500), rx.changed())
                 .await
                 .is_err(),
             "second lock acquired too early"
@@ -166,8 +167,9 @@ mod tests {
 
         drop(guard); // release
 
-        // Now it should acquire promptly
-        tokio::time::timeout(Duration::from_millis(200), rx.changed()).await??;
+        // Now it should acquire. SQLite's busy handler polls, so under load this can take a
+        // while. Keep the deadline below the connection's busy timeout of 5 seconds.
+        tokio::time::timeout(Duration::from_secs(4), rx.changed()).await??;
         handle.await??;
         Ok(())
     }

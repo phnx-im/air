@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::VerifiableClientCredential,
+    credentials::{LeafCredential, RoomPolicyIdentity},
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -16,22 +16,25 @@ use aircommon::{
     },
     identifiers::{QsReference, SealedClientReference, UserId},
     messages::client_ds::WelcomeInfoParams,
+    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
+use airprotos::client::component::AirComponent;
+use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
     group::Group,
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex},
+        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
 };
 use sqlx::PgExecutor;
 use thiserror::Error;
-use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 use tracing::error;
 use uuid::Uuid;
 
@@ -54,7 +57,7 @@ pub(super) struct MemberProfile {
 /// It is encrypted-at-rest with a roster key.
 ///
 /// TODO: Past group states are now included in mls-assist. However, we might
-/// have to store client credentials externally.
+/// have to store user credentials externally.
 pub(crate) struct DsGroupState {
     pub(super) room_state: VerifiedRoomState,
     pub(super) group: Group,
@@ -89,20 +92,24 @@ impl DsGroupState {
         }
     }
 
-    pub(crate) fn room_state_change_role(
+    /// Apply a role change to the room state.
+    ///
+    /// Returns `None` (and logs) if either identity fails to serialize or if the room policy
+    /// rejects the change.
+    pub(super) fn room_state_change_role(
         &mut self,
-        sender: &UserId,
-        target: &UserId,
+        sender: &RoomPolicyIdentity,
+        target: &RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Option<()> {
-        let Ok(sender) = sender.tls_serialize_detached() else {
-            return None;
-        };
-
-        let Ok(target) = target.tls_serialize_detached() else {
-            return None;
-        };
-
+        let sender = sender
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize sender identity"))
+            .ok()?;
+        let target = target
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize target identity"))
+            .ok()?;
         match self
             .room_state
             .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }])
@@ -113,6 +120,31 @@ impl DsGroupState {
                 None
             }
         }
+    }
+
+    /// Extract and parse the credential of the leaf at `index`.
+    ///
+    /// Returns `None` (and logs) if the leaf is missing or its credential is invalid.
+    pub(crate) fn leaf_credential(&self, index: LeafNodeIndex) -> Option<LeafCredential> {
+        let leaf = self.group().leaf(index).or_else(|| {
+            error!(%index, "Leaf node not found");
+            None
+        })?;
+        LeafCredential::from_credential(leaf.credential())
+            .map_err(|error| error!(%error, "Credential is invalid"))
+            .ok()
+    }
+
+    /// Returns true if the group context carries the APQMLS component, i.e. this group is a leg of
+    /// an APQ group.
+    pub(crate) fn is_apq(&self) -> bool {
+        self.apq_info().is_some()
+    }
+
+    /// Extracts the APQMLS component from the group context extensions, if present.
+    pub(crate) fn apq_info(&self) -> Option<ApqInfo> {
+        let extensions = self.group().group_info().group_context().extensions();
+        ApqInfo::from_extensions(extensions).ok().flatten()
     }
 
     /// Get a reference to the public group state.
@@ -183,19 +215,87 @@ impl DsGroupState {
             .map(|client_profile| client_profile.client_queue_config.clone())
     }
 
+    /// The members that receive a message sent from `sender_index`.
+    fn other_member_profiles(
+        &self,
+        sender_index: LeafNodeIndex,
+    ) -> impl Iterator<Item = (&LeafNodeIndex, &MemberProfile)> {
+        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
+        self.member_profiles
+            .iter()
+            .filter(move |(client_index, _)| {
+                *client_index != &sender_index || is_sender_virtual_client
+            })
+    }
+
     pub(crate) fn other_destination_clients(
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
-        self.member_profiles
-            .iter()
-            .filter_map(move |(client_index, client_profile)| {
-                if client_index == &sender_index {
-                    None
-                } else {
-                    Some(client_profile.client_queue_config.clone())
-                }
+        self.other_member_profiles(sender_index)
+            .map(|(_, client_profile)| client_profile.client_queue_config.clone())
+    }
+
+    /// The same as [`Self::other_destination_clients`], but each destination is
+    /// paired with whether it is another client of the sending user. It
+    /// unfortunately requires parsing of the client's leaf credential.
+    pub(crate) fn other_destinations(
+        &self,
+        sender_index: LeafNodeIndex,
+    ) -> impl Iterator<Item = (QsReference, bool)> {
+        let is_self_group = self.is_self_group();
+        let sender_user_id = self.leaf_user_id(sender_index);
+        self.other_member_profiles(sender_index)
+            .map(move |(client_index, client_profile)| {
+                let is_sibling = is_self_group
+                    || sender_user_id.as_ref().is_some_and(|sender_user_id| {
+                        self.leaf_user_id(*client_index).as_ref() == Some(sender_user_id)
+                    });
+                (client_profile.client_queue_config.clone(), is_sibling)
             })
+    }
+
+    /// The user owning `leaf_index`, if the leaf carries a user credential.
+    fn leaf_user_id(&self, leaf_index: LeafNodeIndex) -> Option<UserId> {
+        match self.leaf_credential(leaf_index)? {
+            LeafCredential::User(credential) => Some(credential.user_id().clone()),
+            LeafCredential::SelfGroup(_) => None,
+        }
+    }
+
+    /// Returns `true` if the group context's [`AirComponent`] marks this group as a
+    /// self-group. The flag is fixed at group creation.
+    pub(crate) fn is_self_group(&self) -> bool {
+        AirComponent::is_self_group_context(self.group().group_info().group_context().extensions())
+    }
+
+    /// If the group context's [`AirComponent`] marks this group
+    /// as a virtual-client self-group, disable virtual-client broadcasting.
+    pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
+        !self.is_self_group()
+    }
+
+    /// The self-group flag in the group context's [`AirComponent`] is fixed at
+    /// group creation. Returns `true` if merging `staged_commit` keeps it
+    /// unchanged.
+    pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
+        let current_extensions = self.group().group_info().group_context().extensions();
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(current_extensions)
+    }
+
+    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
+    pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
+        self.group()
+            .leaf(leaf_index)
+            .is_some_and(leaf_node_is_virtual_client)
+    }
+
+    /// The queue reference recorded for `leaf_index`, if any.
+    pub(super) fn queue_config_at(&self, leaf_index: LeafNodeIndex) -> Option<QsReference> {
+        self.member_profiles
+            .get(&leaf_index)
+            .map(|profile| profile.client_queue_config.clone())
     }
 
     pub(crate) fn qs_client_ref_by_index(
@@ -356,27 +456,35 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
+/// Check that a leaf credential matches the group kind.
+///
+/// A self-group leaf must carry a [`LeafCredential::SelfGroup`], a regular-group leaf a
+/// [`LeafCredential::User`]. Returns `true` if `credential` is consistent with `is_self_group`.
+pub(super) fn leaf_credential_matches_flag(
+    credential: &LeafCredential,
+    is_self_group: bool,
+) -> bool {
+    matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
+}
+
 fn fallback_room_state(
     members: impl Iterator<Item = mls_assist::openmls::prelude::Member>,
 ) -> VerifiedRoomState {
     let mut member_ids = Vec::new();
     for member in members {
-        let credential = match VerifiableClientCredential::from_basic_credential(&member.credential)
-        {
+        let credential = match LeafCredential::from_credential(&member.credential) {
             Ok(credential) => credential,
             Err(error) => {
                 error!(%error, "Failed to convert credential; skipping member");
                 continue;
             }
         };
-        let user_id = match credential.user_id().tls_serialize_detached() {
-            Ok(bytes) => bytes,
+        match credential.room_policy_identity().to_bytes() {
+            Ok(identity) => member_ids.push(identity),
             Err(error) => {
-                error!(%error, "Failed to serialize user id; skipping member");
-                continue;
+                error!(%error, "Failed to serialize room policy identity; skipping member");
             }
-        };
-        member_ids.push(user_id);
+        }
     }
     VerifiedRoomState::fallback_room(member_ids)
 }
@@ -451,5 +559,44 @@ mod test {
     #[test]
     fn test_deleted_queues_serde_json() {
         insta::assert_json_snapshot!(&*DELETED_QUEUES);
+    }
+
+    /// Build a user leaf credential. The signature is empty, which is fine here since the helper
+    /// only inspects the credential variant.
+    fn user_leaf() -> LeafCredential {
+        use aircommon::{
+            credentials::{
+                UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+                keys::AsIntermediateSignature,
+            },
+            crypto::hash::Hash,
+            identifiers::UserId,
+        };
+        use mls_assist::openmls::prelude::SignatureScheme;
+
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let (csr, _prelim_key) = UserCredentialCsr::new(user_id, SignatureScheme::ED25519).unwrap();
+        let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0u8; 32]));
+        LeafCredential::User(VerifiableUserCredential::new(
+            payload,
+            AsIntermediateSignature::empty(),
+        ))
+    }
+
+    fn self_group_leaf() -> LeafCredential {
+        use aircommon::credentials::SelfGroupCredential;
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::new_v4()))
+    }
+
+    #[test]
+    fn leaf_credential_flag_consistency_matrix() {
+        // A regular-group leaf must carry a user credential.
+        assert!(leaf_credential_matches_flag(&user_leaf(), false));
+        // A self-group leaf must carry a self-group credential.
+        assert!(leaf_credential_matches_flag(&self_group_leaf(), true));
+        // A user credential in a self-group is rejected.
+        assert!(!leaf_credential_matches_flag(&user_leaf(), true));
+        // A self-group credential in a regular group is rejected.
+        assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
     }
 }

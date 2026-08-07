@@ -1,0 +1,499 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:bloc_test/bloc_test.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/core/core.dart';
+import 'package:air/core/lib.dart' show U8Array32;
+import 'package:air/l10n/l10n.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
+
+import '../chat_list/chat_list_content_test.dart';
+import '../../helpers.dart';
+import '../message_list/message_list_test.dart';
+import '../../mocks.dart';
+
+final _chat = chats[2]; // Group chat, isConfirmed = true
+
+final members = [1.userId(), 2.userId(), 3.userId()];
+
+final _navState = NavigationState.home(
+  home: HomeNavigationState(chatId: _chat.id),
+);
+
+/// One message per [id], spaced far enough apart that each row stands on its
+/// own rather than joining its neighbor's group.
+UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
+  id: id.messageId(),
+  chatId: _chat.id,
+  timestamp: DateTime.parse(
+    '2023-01-01T00:00:00.000Z',
+  ).add(Duration(minutes: id * 6)),
+  message: UiMessage_Content(
+    UiContentMessage(
+      sender: sender ?? 2.userId(),
+      sent: true,
+      edited: false,
+      content: UiMimiContent(
+        plainBody: text,
+        topicId: Uint8List(0),
+        content: simpleMessage(text),
+        attachments: [],
+      ),
+    ),
+  ),
+  status: UiMessageStatus.sent,
+  reactions: [],
+);
+
+UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
+  id: _chat.id,
+  status: _chat.status,
+  chatType: _chat.chatType,
+  lastUsed: _chat.lastUsed,
+  messagesCount: _chat.messagesCount,
+  unreadMessages: unreadMessages,
+  lastMessage: _chat.lastMessage,
+  draft: _chat.draft,
+  isApq: _chat.isApq,
+  mutedUntil: _chat.mutedUntil,
+  pendingCommitFailed: false,
+);
+
+UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
+  id: _chat.id,
+  status: _chat.status,
+  chatType: _chat.chatType,
+  lastUsed: _chat.lastUsed,
+  messagesCount: _chat.messagesCount,
+  unreadMessages: _chat.unreadMessages,
+  lastMessage: _chat.lastMessage,
+  draft: draft,
+  isApq: _chat.isApq,
+  mutedUntil: _chat.mutedUntil,
+  pendingCommitFailed: false,
+);
+
+void main() {
+  setUpAll(() {
+    registerFallbackValue(0.messageId());
+    registerFallbackValue(0.userId());
+  });
+
+  group('ChatScreenView', () {
+    late MockNavigationCubit navigationCubit;
+    late MockUserCubit userCubit;
+    late MockUsersCubit contactsCubit;
+    late MockChatDetailsCubit chatDetailsCubit;
+    late MockMessageListCubit messageListCubit;
+    late MockUserSettingsCubit userSettingsCubit;
+
+    setUp(() async {
+      navigationCubit = MockNavigationCubit();
+      userCubit = MockUserCubit();
+      contactsCubit = MockUsersCubit();
+      chatDetailsCubit = MockChatDetailsCubit();
+      messageListCubit = MockMessageListCubit();
+      userSettingsCubit = MockUserSettingsCubit();
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
+      when(
+        () => contactsCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => chatDetailsCubit.state,
+      ).thenReturn(ChatDetailsState(chat: _chat, members: members));
+      when(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: "untilMessageId"),
+          untilTimestamp: any(named: "untilTimestamp"),
+        ),
+      ).thenAnswer((_) => Future.value());
+      when(
+        () => chatDetailsCubit.storeDraft(
+          draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
+        ),
+      ).thenAnswer((_) async => Future.value());
+      when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+      when(() => navigationCubit.state).thenReturn(_navState);
+    });
+
+    Widget buildSubject() => MultiBlocProvider(
+      providers: [
+        BlocProvider<NavigationCubit>.value(value: navigationCubit),
+        BlocProvider<UserCubit>.value(value: userCubit),
+        BlocProvider<UsersCubit>.value(value: contactsCubit),
+        BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+        BlocProvider<MessageListCubit>.value(value: messageListCubit),
+        BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      ],
+      child: Builder(
+        builder: (context) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: ChatScreenView(
+                createMessageCubit: createMockMessageCubit,
+                textEditingController: TextEditingController(),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    testWidgets('renders correctly when empty', (tester) async {
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(const NavigationState.home());
+      messageListCubit.setState(const []);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen_empty.png'),
+      );
+    });
+
+    group('composer states', () {
+      // State 1: Empty composer — plus button on the left, no right button.
+      testWidgets('empty', (tester) async {
+        messageListCubit.setState([
+          _msg(1, 'Composer is empty. No text has been entered yet.'),
+          _msg(2, 'Only the plus button is visible on the left.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_empty.png'),
+        );
+      });
+
+      // State 2: Empty composer, scrolled back — plus on the left,
+      // scroll-to-bottom chevron on the right.
+      testWidgets('empty scrolled back', (tester) async {
+        messageListCubit.setState([
+          // Reversed list: index 0 = bottom (newest).
+          for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+          _msg(5, 'Composer is empty and the user has scrolled up.'),
+          _msg(6, 'A scroll-to-bottom button appears on the right.'),
+          // Long message near the top — after scrolling it lands
+          // right at the composer and gets partially clipped.
+          _msg(
+            7,
+            'This is a long message that should be partially '
+            'hidden behind the composer to show that the user '
+            'has scrolled back in the conversation history.',
+          ),
+          for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+        ], hasNewer: true);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        // Scroll so the explanatory messages are visible and the long
+        // message at the bottom is partially hidden by the composer.
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 640));
+        await tester.pump(kDoubleTapTimeout);
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_empty_scrolled_back.png'),
+        );
+      });
+
+      // State 3: Unsent text — plus on the left, send arrow on the right.
+      testWidgets('unsent', (tester) async {
+        messageListCubit.setState([
+          _msg(1, 'The user has typed a message but not sent it.'),
+          _msg(2, 'A send button appears on the right.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        // Enter text and flush the 1-second draft debounce timer.
+        await tester.enterText(
+          find.byType(TextField),
+          'This message has not been sent yet',
+        );
+        await tester.pump(const Duration(seconds: 1));
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_unsent.png'),
+        );
+      });
+
+      // State 4: Unsent text, scrolled back — plus on the left,
+      // scroll-to-bottom chevron on the right (not send).
+      testWidgets('unsent scrolled back', (tester) async {
+        messageListCubit.setState([
+          for (int i = 1; i <= 4; i++) _msg(i, 'Old message $i'),
+          _msg(5, 'The user typed a message and scrolled up.'),
+          _msg(6, 'Scroll-to-bottom takes priority over send.'),
+          _msg(
+            7,
+            'This is a long message that should be partially '
+            'hidden behind the composer to show that the user '
+            'has scrolled back in the conversation history.',
+          ),
+          for (int i = 8; i <= 12; i++) _msg(i, 'Old message $i'),
+        ], hasNewer: true);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        // Scroll so the explanatory messages are visible and the long
+        // message at the bottom fades out through the gradient.
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 640));
+        await tester.pump();
+        // Enter text and flush the 1-second draft debounce timer.
+        await tester.enterText(find.byType(TextField), 'Unsent message');
+        await tester.pump(const Duration(seconds: 1));
+        // Extra pump so the fade resizes after the composer height change.
+        await tester.pump();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_unsent_scrolled_back.png'),
+        );
+      });
+
+      // State 5: Editing — cancel (X) on the left, confirm (check) on the
+      // right. The plus button is replaced by the cancel button.
+      testWidgets('editing', (tester) async {
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(
+            chat: _chatWithDraft(
+              UiMessageDraft(
+                message: 'Corrected message text',
+                editingId: 1.messageId(),
+                updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+                isCommitted: true,
+              ),
+            ),
+            members: members,
+          ),
+        );
+        messageListCubit.setState([
+          _msg(1, 'The user is editing one of their own messages.'),
+          _msg(2, 'Cancel on the left, confirm on the right. No plus button.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        // Enter text and flush the 1-second draft debounce timer.
+        await tester.enterText(
+          find.byType(TextField),
+          'Corrected message text',
+        );
+        await tester.pump(const Duration(seconds: 1));
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_editing.png'),
+        );
+      });
+
+      // State 6: Quote (reply) — plus on the left, send arrow on the right.
+      // A reply bubble is shown inside the input field.
+      testWidgets('quote', (tester) async {
+        final replyContent = UiMimiContent(
+          plainBody: 'This is the original message being replied to.',
+          topicId: Uint8List(0),
+          content: simpleMessage(
+            'This is the original message being replied to.',
+          ),
+          attachments: [],
+        );
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(
+            chat: _chatWithDraft(
+              UiMessageDraft(
+                message: 'Replying to the message above',
+                inReplyTo: (
+                  UiMimiId(field0: U8Array32(Uint8List(32))),
+                  UiInReplyToMessage.resolved(
+                    messageId: 1.messageId(),
+                    sender: 2.userId(),
+                    mimiContent: replyContent,
+                  ),
+                ),
+                updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+                isCommitted: true,
+              ),
+            ),
+            members: members,
+          ),
+        );
+        messageListCubit.setState([
+          _msg(1, 'The user is replying to another message.'),
+          _msg(2, 'A reply bubble appears inside the input field.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        // Enter text and flush the 1-second draft debounce timer.
+        await tester.enterText(
+          find.byType(TextField),
+          'Replying to the message above',
+        );
+        await tester.pump(const Duration(seconds: 1));
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_quote.png'),
+        );
+      });
+    });
+
+    group('scroll-back button', () {
+      Finder buttonWith(AppIconType icon) =>
+          find.byWidgetPredicate((w) => w is ButtonIcon && w.icon == icon);
+
+      /// The unread dot, found by the shape and fill it is the only wearer of.
+      final dot = find.byWidgetPredicate((w) {
+        if (w is! Container) return false;
+        final decoration = w.decoration;
+        return decoration is BoxDecoration &&
+            decoration.shape == BoxShape.circle &&
+            decoration.color ==
+                lightSemanticPalette.function.neutral.toggleBlack;
+      });
+
+      /// Opens the chat with [unread] messages below the read watermark, on a
+      /// phone-sized viewport, and lets the jump to the first unread settle.
+      Future<void> openWithUnread(WidgetTester tester, int unread) async {
+        tester.view.physicalSize = const Size(1170, 2532);
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(chat: _chatWithUnread(unread), members: members),
+        );
+        messageListCubit.setState(
+          messages,
+          firstUnreadIndex: messages.length - unread,
+          unreadCount: unread,
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('hides once the initial unread jump settles on the newest '
+          'message', (tester) async {
+        // Four unread messages overshoot the viewport just enough that the
+        // jump parks the list above the bottom, with the newest message still
+        // in view and therefore already marked as read.
+        await openWithUnread(tester, 4);
+
+        verify(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: messages.last.id,
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        expect(buttonWith(AppIconType.chevronDown), findsNothing);
+      });
+
+      testWidgets('stays up while unread messages sit below the fold', (
+        tester,
+      ) async {
+        await openWithUnread(tester, 6);
+
+        verifyNever(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: messages.last.id,
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        );
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+      });
+
+      testWidgets('drops its dot when the chat is marked as read', (
+        tester,
+      ) async {
+        final details = StreamController<ChatDetailsState>();
+        addTearDown(details.close);
+        whenListen(
+          chatDetailsCubit,
+          details.stream,
+          initialState: ChatDetailsState(
+            chat: _chatWithUnread(3),
+            members: members,
+          ),
+        );
+        // hasNewer keeps the button up so only the dot is under test.
+        messageListCubit.setState(messages, hasNewer: true);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+        expect(dot, findsOneWidget);
+
+        details.add(
+          ChatDetailsState(chat: _chatWithUnread(0), members: members),
+        );
+        await tester.pumpAndSettle();
+
+        expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
+        expect(dot, findsNothing);
+      });
+    });
+
+    testWidgets('renders correctly', (tester) async {
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen.png'),
+      );
+    });
+
+    testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen_dark.png'),
+      );
+    });
+  });
+}

@@ -4,7 +4,7 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
-use openmls::group::Member;
+use openmls::group::{GroupEpoch, Member};
 
 use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
@@ -14,7 +14,7 @@ use airprotos::client::{component::AirComponent, group::GroupData};
 
 use crate::{
     chats::GroupDataExt,
-    groups::GroupDataBytes,
+    groups::{GroupDataBytes, self_group::SelfGroup},
     job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     outbound_service::resync::Resync,
 };
@@ -24,7 +24,6 @@ use super::*;
 impl CoreUser {
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
-    #[cfg(any(test, feature = "test_utils"))]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
@@ -50,6 +49,7 @@ impl CoreUser {
 
         Self::new_with_connections(
             user_id,
+            Uuid::new_v4(),
             Some(server_url),
             push_token,
             air_db,
@@ -60,12 +60,133 @@ impl CoreUser {
         .await
     }
 
+    pub fn qs_user_id(&self) -> aircommon::identifiers::QsUserId {
+        self.inner.qs_user_id
+    }
+
+    pub fn qs_client_id(&self) -> aircommon::identifiers::QsClientId {
+        self.inner.qs_client_id
+    }
+
+    pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
+        Ok(SelfGroup::load(self.db().read().await?).await?)
+    }
+
+    pub async fn self_chat_title(&self) -> anyhow::Result<Option<String>> {
+        let Some(group) = self.self_group().await? else {
+            return Ok(None);
+        };
+        let chat_id = crate::ChatId::try_from(group.group_id())?;
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| crate::Chat::load(txn, &chat_id).await)
+            .await?;
+        Ok(chat.and_then(|chat| chat.attributes().map(|attrs| attrs.title().to_owned())))
+    }
+
+    pub async fn self_group_member_count(&self) -> anyhow::Result<Option<usize>> {
+        let mut read = self.db().read().await?;
+        let Some(group_id) = OwnClientInfo::load(&mut read).await?.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        Ok(Some(group.mls_group().members().count()))
+    }
+
+    /// Returns whether the user has a persisted self-group that is an APQ (T+PQ) group. `None` if
+    /// there is no self-group yet, or it is not persisted.
+    pub async fn self_group_is_apq(&self) -> anyhow::Result<Option<bool>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        Ok(Some(group.is_apq() && group.pq().is_some()))
+    }
+
+    /// Returns the (T, PQ) epochs of the self-group, or `None` if there is no persisted self-group.
+    pub async fn self_group_epochs(
+        &self,
+    ) -> anyhow::Result<Option<(GroupEpoch, Option<GroupEpoch>)>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        let t_epoch = group.mls_group().epoch();
+        let pq_epoch = group.pq().map(|pq| pq.mls_group.epoch());
+        Ok(Some((t_epoch, pq_epoch)))
+    }
+
+    /// Returns the pending chat operation info for the self-group, if any.
+    pub async fn self_group_pending_operation_info(
+        &self,
+    ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        PendingChatOperationInfo::load_by_group_id(read, &group_id).await
+    }
+
+    /// Corrupts the batch id of the pending self-group upload job (bumps the
+    /// generation), simulating a state fork between the job and the commit
+    /// the DS accepted.
+    pub async fn corrupt_self_group_upload_batch_id(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                let own_client_info = OwnClientInfo::load(&mut *txn).await?;
+                let group_id = own_client_info.self_group_id.context("no self-group")?;
+                PendingChatOperation::corrupt_self_group_upload_batch_id(txn, &group_id).await
+            })
+            .await
+    }
+
+    /// Returns the raw (plain, APQ) key package refs currently marked as live, sorted for stable
+    /// comparison.
+    pub async fn live_key_package_refs(&self) -> anyhow::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>)> {
+        let mut read = self.db().read().await?;
+        let mut plain: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT key_package_ref FROM key_package_refs WHERE is_live = 1")
+                .fetch_all(read.as_mut())
+                .await?;
+        let mut apq: Vec<Vec<u8>> = sqlx::query_scalar(
+            "SELECT key_package_ref FROM apq_key_package_refs WHERE is_live = 1",
+        )
+        .fetch_all(read.as_mut())
+        .await?;
+        plain.sort_unstable();
+        apq.sort_unstable();
+        Ok((plain, apq))
+    }
+
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
         Ok(self
             .db()
             .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
             .await?
             .map(|group| group.mls_group().members().collect()))
+    }
+
+    /// The group's epoch and our own leaf index in it.
+    ///
+    /// Two emulator clients of the same virtual client must agree on both once
+    /// one of them has onboarded into the group: they share a single leaf.
+    pub async fn group_epoch_and_own_index(&self, chat_id: ChatId) -> Result<Option<(u64, u32)>> {
+        Ok(self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+            .map(|group| (group.mls_group().epoch().as_u64(), group.own_index().u32())))
     }
 
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
@@ -93,11 +214,14 @@ impl CoreUser {
         let fake_group_id: GroupId = fake_qgid.into();
 
         let resync = Resync {
-            chat_id,
+            chat_id: Some(chat_id),
             group_id: fake_group_id,
+            pq_group_id: group.pq_group_id(),
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
+            shares_vc_leaf: false,
+            connection_contact: None,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())
@@ -106,6 +230,14 @@ impl CoreUser {
     pub async fn is_resync_pending(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         let connection = self.db().read().await?;
         Ok(Resync::is_pending_for_chat(connection, &chat_id).await?)
+    }
+
+    /// Whether any setting changes are still waiting to be synchronized.
+    pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
+        use crate::clients::user_settings::SettingChanges;
+        Ok(SettingChanges::load(self.db().read().await?)
+            .await?
+            .is_some())
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the
@@ -231,7 +363,6 @@ impl CoreUser {
     /// Send a message to the DS using the given collision tags instead of
     /// auto-derived ones. Used in tests to simulate a second emulator client
     /// sending with the same generation.
-    #[cfg(any(test, feature = "test_utils"))]
     pub async fn send_message_with_fixed_collision_tags(
         &self,
         chat_id: ChatId,

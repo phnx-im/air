@@ -166,14 +166,18 @@ impl MessageContent {
             .peekable();
 
         while iter.peek().is_some() {
-            result.push(parse_block_element(&mut iter, 1)?);
+            result.push(parse_block_element(&mut iter, string, 1)?);
         }
 
         Ok(Self { elements: result })
     }
 }
 
-fn parse_block_element<'a, I>(iter: &mut Peekable<I>, depth: usize) -> Result<RangedBlockElement>
+fn parse_block_element<'a, I>(
+    iter: &mut Peekable<I>,
+    source: &str,
+    depth: usize,
+) -> Result<RangedBlockElement>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -200,24 +204,39 @@ where
         }
         Event::Start(Tag::Heading { level, .. }) => {
             let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
-            let value = BlockElement::Heading(parse_inline_elements(iter, depth + 1)?);
+            let inline = parse_inline_elements(iter, depth + 1)?;
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
             if end.event != Event::End(TagEnd::Heading(level)) {
                 return Err(Error::ExpectedSpecificTag);
             }
 
+            // pulldown-cmark follows CommonMark, where a paragraph followed
+            // by a line of `-` or `=` is a Setext heading. In a chat
+            // composer that is surprising: typing `-` to start a list
+            // silently promotes the line above to a heading. So we only keep
+            // ATX headings (`# ...`) and render Setext headings as plain
+            // paragraphs.
+            let is_atx = source
+                .get(start.start as usize..start.end as usize)
+                .is_some_and(|s| s.trim_start().starts_with('#'));
+            let element = if is_atx {
+                BlockElement::Heading(inline)
+            } else {
+                BlockElement::Paragraph(inline)
+            };
+
             RangedBlockElement {
                 start: start.start,
                 end: end.end,
-                element: value,
+                element,
             }
         }
         Event::Start(Tag::List(number)) => {
             let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
             let value = match number {
-                Some(s) => BlockElement::OrderedList(s, parse_list_items(iter, depth + 1)?),
-                None => BlockElement::UnorderedList(parse_list_items(iter, depth + 1)?),
+                Some(s) => BlockElement::OrderedList(s, parse_list_items(iter, source, depth + 1)?),
+                None => BlockElement::UnorderedList(parse_list_items(iter, source, depth + 1)?),
             };
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -233,7 +252,7 @@ where
         }
         Event::Start(Tag::Table(_alignments)) => {
             let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
-            let value = parse_table_content(iter, depth + 1)?;
+            let value = parse_table_content(iter, source, depth + 1)?;
             let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
             if end.event != Event::End(TagEnd::Table) {
@@ -256,7 +275,7 @@ where
                     end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
                     break;
                 }
-                quote_blocks.push(parse_block_element(iter, depth + 1)?);
+                quote_blocks.push(parse_block_element(iter, source, depth + 1)?);
             }
 
             RangedBlockElement {
@@ -594,6 +613,7 @@ where
 
 fn parse_list_items<'a, I>(
     iter: &mut Peekable<I>,
+    source: &str,
     depth: usize,
 ) -> Result<Vec<Vec<RangedBlockElement>>>
 where
@@ -617,7 +637,7 @@ where
                         iter.next().ok_or(Error::ExpectedMoreEvents)?;
                         break;
                     }
-                    item_blocks.push(parse_block_element(iter, depth + 1)?);
+                    item_blocks.push(parse_block_element(iter, source, depth + 1)?);
                 }
                 items.push(item_blocks);
             }
@@ -630,7 +650,11 @@ where
     }
 }
 
-fn parse_table_content<'a, I>(iter: &mut Peekable<I>, depth: usize) -> Result<BlockElement>
+fn parse_table_content<'a, I>(
+    iter: &mut Peekable<I>,
+    source: &str,
+    depth: usize,
+) -> Result<BlockElement>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -648,7 +672,7 @@ where
         return Err(Error::ExpectedSpecificTag);
     }
 
-    let table_head = parse_table_cells(iter, depth + 1)?;
+    let table_head = parse_table_cells(iter, source, depth + 1)?;
 
     if !matches!(
         iter.next(),
@@ -667,7 +691,7 @@ where
         match peek.event {
             Event::Start(Tag::TableRow) => {
                 iter.next().ok_or(Error::ExpectedMoreEvents)?;
-                let cells = parse_table_cells(iter, depth + 1)?;
+                let cells = parse_table_cells(iter, source, depth + 1)?;
                 table_rows.push(cells);
                 if !matches!(
                     iter.next(),
@@ -695,6 +719,7 @@ where
 
 fn parse_table_cells<'a, I>(
     iter: &mut Peekable<I>,
+    source: &str,
     depth: usize,
 ) -> Result<Vec<Vec<RangedBlockElement>>>
 where
@@ -719,7 +744,7 @@ where
                         iter.next().ok_or(Error::ExpectedMoreEvents)?;
                         break;
                     }
-                    cell_blocks.push(parse_block_element(iter, depth + 1)?);
+                    cell_blocks.push(parse_block_element(iter, source, depth + 1)?);
                 }
                 cells.push(cell_blocks);
             }
@@ -781,6 +806,57 @@ fn collect_links(start: u32, end: u32, str: &str, elements: &mut Vec<RangedInlin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn setext_headings_become_paragraphs() {
+        for input in ["foo\n-", "foo\n---", "foo\n=", "foo\nBar\n---"] {
+            let content = MessageContent::try_parse_markdown(input).unwrap();
+            assert!(
+                matches!(
+                    content.elements.as_slice(),
+                    [RangedBlockElement {
+                        element: BlockElement::Paragraph(_),
+                        ..
+                    }]
+                ),
+                "expected paragraph for {input:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn atx_headings_are_kept() {
+        for input in ["# foo", "   ## foo", "### foo ###"] {
+            let content = MessageContent::try_parse_markdown(input).unwrap();
+            assert!(
+                matches!(
+                    content.elements.as_slice(),
+                    [RangedBlockElement {
+                        element: BlockElement::Heading(_),
+                        ..
+                    }]
+                ),
+                "expected heading for {input:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn lone_dash_is_still_a_list() {
+        for input in ["-", "- ", "- salad"] {
+            let content = MessageContent::try_parse_markdown(input).unwrap();
+            assert!(
+                matches!(
+                    content.elements.as_slice(),
+                    [RangedBlockElement {
+                        element: BlockElement::UnorderedList(_),
+                        ..
+                    }]
+                ),
+                "expected list for {input:?}",
+            );
+        }
+    }
 
     #[test]
     fn nested_images() {

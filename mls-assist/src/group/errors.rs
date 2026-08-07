@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use apqmls::processing::ApqProcessPublicMessageError;
-use openmls::group::PublicProcessMessageError;
+use openmls::group::{PublicProcessMessageError, ResolveAppDataCommitError};
 use openmls_traits::{
     public_storage::PublicStorageProvider as PublicStorageProviderTrait, storage::CURRENT_VERSION,
 };
@@ -28,6 +28,8 @@ pub enum ProcessAssistedMessageError {
     ProcessMessageError(#[from] PublicProcessMessageError),
     #[error(transparent)]
     GroupInfoValidation(#[from] GroupInfoValidationError),
+    #[error(transparent)]
+    AppDataUpdate(#[from] ResolveAppDataCommitError),
 }
 
 /// Process message error

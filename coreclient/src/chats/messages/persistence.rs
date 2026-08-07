@@ -10,6 +10,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::bail;
+use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
@@ -96,19 +97,19 @@ impl VersionedMessage {
 
 use super::{MessageId, TimestampedMessage};
 
-struct SqlChatMessage {
-    message_id: MessageId,
-    mimi_id: Option<MimiId>,
-    chat_id: ChatId,
-    timestamp: TimeStamp,
-    sender_user_uuid: Option<Uuid>,
-    sender_user_domain: Option<Fqdn>,
-    content: BlobDecoded<VersionedMessage>,
-    sent: bool,
-    status: i64,
-    edited_at: Option<TimeStamp>,
-    is_blocked: bool,
-    in_reply_to_mimi_id: Option<MimiId>,
+pub(crate) struct SqlChatMessage {
+    pub(crate) message_id: MessageId,
+    pub(crate) mimi_id: Option<MimiId>,
+    pub(crate) chat_id: ChatId,
+    pub(crate) timestamp: TimeStamp,
+    pub(crate) sender_user_uuid: Option<Uuid>,
+    pub(crate) sender_user_domain: Option<Fqdn>,
+    pub(crate) content: BlobDecoded<VersionedMessage>,
+    pub(crate) sent: bool,
+    pub(crate) status: i64,
+    pub(crate) edited_at: Option<TimeStamp>,
+    pub(crate) is_blocked: bool,
+    pub(crate) in_reply_to_mimi_id: Option<MimiId>,
 }
 
 impl From<SqlChatMessage> for ChatMessage {
@@ -591,6 +592,50 @@ impl ChatMessage {
         .await
     }
 
+    /// Load the newest messages (incl. system messages) in a chat since (exclusive) `since`, in
+    /// ascending order, capped at `limit` excluding deleted messages.
+    pub(crate) async fn load_newest_since(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+        since: DateTime<Utc>,
+        limit: u32,
+    ) -> sqlx::Result<Vec<ChatMessage>> {
+        let excluded_status: u8 = MessageStatus::Deleted.into();
+        let mut messages: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1 AND timestamp > ?2 AND status != ?4
+            ORDER BY timestamp DESC, message_id DESC
+            LIMIT ?3"#,
+            chat_id,
+            since,
+            limit,
+            excluded_status,
+        )
+        .fetch(connection.as_mut())
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        messages.reverse();
+        messages.with_loaded_in_reply_to(&mut connection).await
+    }
+
     /// Augments a loaded chat message with lazily-loaded data: the referenced
     /// reply (if any) and the reactions on this message.
     async fn augment(&mut self, mut connection: impl ReadConnection) -> sqlx::Result<()> {
@@ -835,82 +880,6 @@ impl ChatMessage {
             chat_id,
             user_uuid,
             user_domain,
-        )
-        .fetch_optional(connection.as_mut())
-        .await?
-        .map(ChatMessage::from)
-        .with_loaded_in_reply_to(&mut connection)
-        .await
-    }
-
-    pub(crate) async fn prev_message(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> sqlx::Result<Option<ChatMessage>> {
-        query_as!(
-            SqlChatMessage,
-            r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?2
-                AND message_id != ?1
-                AND timestamp <= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY timestamp DESC
-            LIMIT 1"#,
-            message_id,
-            chat_id,
-        )
-        .fetch_optional(connection.as_mut())
-        .await?
-        .map(ChatMessage::from)
-        .with_loaded_in_reply_to(&mut connection)
-        .await
-    }
-
-    pub(crate) async fn next_message(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> sqlx::Result<Option<ChatMessage>> {
-        query_as!(
-            SqlChatMessage,
-            r#"SELECT
-                message_id AS "message_id: _",
-                mimi_id AS "mimi_id: _",
-                chat_id AS "chat_id: _",
-                timestamp AS "timestamp: _",
-                sender_user_uuid AS "sender_user_uuid: _",
-                sender_user_domain AS "sender_user_domain: _",
-                content AS "content: _",
-                sent,
-                status,
-                edited_at AS "edited_at: _",
-                b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
-            FROM message
-            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
-                AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?2
-                AND message_id != ?1
-                AND timestamp >= (SELECT timestamp FROM message WHERE message_id = ?1)
-            ORDER BY timestamp ASC
-            LIMIT 1"#,
-            message_id,
-            chat_id,
         )
         .fetch_optional(connection.as_mut())
         .await?
@@ -1183,64 +1152,6 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn prev_next_do_not_cross_chat_boundaries(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let mut connection = pool.write().await?;
-
-        let chat_a = test_chat();
-        chat_a.store(&mut connection).await?;
-
-        let chat_b = test_chat();
-        chat_b.store(&mut connection).await?;
-
-        let group_id = GroupId::from_slice(&[0]);
-        let sender = UserId::random("localhost".parse().unwrap());
-
-        let message_a = ChatMessage::new_for_test(
-            chat_a.id(),
-            MessageId::random(),
-            TimeStamp::from(1_000_000_000_i64),
-            Message::Content(Box::new(ContentMessage::new(
-                sender.clone(),
-                true,
-                MimiContent::simple_markdown_message("a".to_string(), [0; 16]),
-                &group_id,
-            ))),
-        );
-        message_a.store(pool.write().await?).await?;
-
-        let message_b = ChatMessage::new_for_test(
-            chat_b.id(),
-            MessageId::random(),
-            TimeStamp::from(2_000_000_000_i64),
-            ContentMessage::new(
-                sender,
-                true,
-                MimiContent::simple_markdown_message("b".to_string(), [1; 16]),
-                &group_id,
-            ),
-        );
-        message_b.store(pool.write().await?).await?;
-
-        let mut connection = pool.write().await?;
-        let mut txn = connection.begin().await?;
-
-        let prev = ChatMessage::prev_message(&mut txn, chat_b.id(), message_b.id()).await?;
-        assert!(
-            prev.is_none(),
-            "prev_message should ignore messages from other chats"
-        );
-
-        let next = ChatMessage::next_message(&mut txn, chat_a.id(), message_a.id()).await?;
-        assert!(
-            next.is_none(),
-            "next_message should ignore messages from other chats"
-        );
-
-        Ok(())
-    }
-
-    #[sqlx::test]
     async fn store_load_multiple(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let mut connection = pool.write().await?;
@@ -1306,48 +1217,6 @@ pub(crate) mod tests {
         let mut txn = connection.begin().await?;
 
         let loaded = ChatMessage::last_message(&mut txn, chat.id()).await?;
-        assert_eq!(loaded, Some(message_b));
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn prev_message(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let mut connection = pool.write().await?;
-        let mut txn = connection.begin().await?;
-
-        let chat = test_chat();
-        chat.store(&mut txn).await?;
-
-        let message_a = test_chat_message(chat.id());
-        let message_b = test_chat_message(chat.id());
-
-        message_a.store(&mut txn).await?;
-        message_b.store(&mut txn).await?;
-
-        let loaded = ChatMessage::prev_message(&mut txn, chat.id(), message_b.id()).await?;
-        assert_eq!(loaded, Some(message_a));
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn next_message(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let mut connection = pool.write().await?;
-        let mut txn = connection.begin().await?;
-
-        let chat = test_chat();
-        chat.store(&mut txn).await?;
-
-        let message_a = test_chat_message(chat.id());
-        let message_b = test_chat_message(chat.id());
-
-        message_a.store(&mut txn).await?;
-        message_b.store(&mut txn).await?;
-
-        let loaded = ChatMessage::next_message(&mut txn, chat.id(), message_a.id()).await?;
         assert_eq!(loaded, Some(message_b));
 
         Ok(())

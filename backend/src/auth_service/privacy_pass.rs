@@ -478,7 +478,7 @@ mod tests {
     use std::sync::LazyLock;
 
     use aircommon::codec::PersistenceCodec;
-    use rand_v10::{SeedableRng, rngs::StdRng};
+    use rand::{SeedableRng, rngs::StdRng};
     use sqlx::PgPool;
 
     use super::*;
@@ -491,7 +491,7 @@ mod tests {
         let provider =
             AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
-        let mut rng = rand_v10::rng();
+        let mut rng = rand::rng();
 
         let value = VoprfServer::new(&mut rng).unwrap();
         provider.insert(1, value.clone()).await;
@@ -516,7 +516,7 @@ mod tests {
         let provider =
             AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
 
-        let mut rng = rand_v10::rng();
+        let mut rng = rand::rng();
 
         let value_a = VoprfServer::new(&mut rng).unwrap();
         provider.insert(1, value_a.clone()).await;
@@ -540,7 +540,7 @@ mod tests {
         let conn_mutex = Mutex::new(&mut *connection);
         let provider =
             AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
-        let mut rng = rand_v10::rng();
+        let mut rng = rand::rng();
 
         let value = VoprfServer::new(&mut rng).unwrap();
         provider.insert(1, value).await;
@@ -604,7 +604,7 @@ mod tests {
             let conn_mutex = Mutex::new(&mut *connection);
             let provider =
                 AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, OperationType::AddUsername);
-            let mut rng = rand_v10::rng();
+            let mut rng = rand::rng();
 
             let server_a = VoprfServer::new(&mut rng).unwrap();
             let server_b = VoprfServer::new(&mut rng).unwrap();

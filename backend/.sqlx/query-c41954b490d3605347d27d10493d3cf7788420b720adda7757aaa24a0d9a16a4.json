@@ -10,7 +10,7 @@
         "Timestamptz",
         {
           "Custom": {
-            "name": "client_credential",
+            "name": "user_credential",
             "kind": {
               "Composite": [
                 [

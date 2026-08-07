@@ -2,47 +2,191 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ApiClient;
 use airapiclient::rs_api::RsRequestError;
+use aircommon::codec::PersistenceCodec;
+use aircommon::credentials::keys::{SelfGroupSigningKey, UserSigningKey};
+use aircommon::crypto::RatchetDecryptionKey;
+use aircommon::crypto::aead::keys::{
+    GroupStateEarKey, IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
+};
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
-use aircommon::identifiers::Fqdn;
-use airprotos::relay_service::v1::LinkingSessionId;
+use aircommon::crypto::hpke::ClientIdEncryptionKey;
+use aircommon::crypto::indexed_aead::keys::UserProfileKey;
+use aircommon::crypto::kdf::keys::RatchetSecret;
+use aircommon::crypto::signatures::keys::{QsClientSigningKey, QsUserSigningKey};
+use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
+use aircommon::messages::{FriendshipToken, QueueMessage};
+use aircommon::mls_group_config::{
+    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
+    default_leaf_node_extensions, self_group_leaf_node_capabilities,
+};
+use airprotos::client::component::AirComponent;
+use airprotos::client::self_group::{LinkedDevice, SettingsUpdate};
+use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
+use apqmls::authentication::ApqCredentialWithKey;
+use apqmls::messages::ApqKeyPackage;
+use chrono::Utc;
+use openmls::components::vc_derivation_info::EpochId;
+use openmls::group::GroupId;
+use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
-        BasicCredential, CredentialWithKey, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, ProtocolVersion,
+        BasicCredential, CredentialWithKey, Extension, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
+        MlsMessageOut, ProtocolVersion, UnknownExtension,
     },
 };
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
+use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
-use tls_codec::{Deserialize, DeserializeBytes, Serialize};
+use std::time::Duration;
+use tls_codec::{Deserialize, DeserializeBytes, Serialize as _};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
-use tracing::info;
+use tracing::{debug, error, info, warn};
+use url::Url;
+use uuid::Uuid;
 
-use crate::clients::{CIPHERSUITE, CoreUser};
+use crate::db::access::WriteConnection;
+use crate::groups::self_group::SelfGroup;
+use crate::{
+    Chat, ChatId, ChatStatus, ChatType, Contact,
+    clients::{
+        CIPHERSUITE, CoreUser,
+        api_clients::ApiClients,
+        create_user::QsRegisteredUserState,
+        linked_devices::merge_device_entry_locally,
+        listen_response,
+        own_client_info::OwnClientInfo,
+        process::process_qs::ProcessedQsMessages,
+        store::{ClientRecord, UserCreationState},
+        user_settings::{SettingsUpdateExt, apply_settings_update},
+    },
+    contacts::{ContactAddInfos, ContactKeyPackage},
+    groups::{
+        Group, PreparedInvitee, client_auth_info::StorableUserCredential,
+        openmls_provider::AirOpenMlsProvider,
+    },
+    key_stores::{
+        MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
+        queue_ratchets::StorableQsQueueRatchet,
+    },
+    utils::persistence::{open_air_db, open_client_db, open_lock_file},
+};
 
 const EXPORTER_LABEL: &str = "multi-device-linking";
 
+/// Everything the old (existing) device hands to the new device over the
+/// secure linking channel so the new device can bootstrap a working
+/// [`CoreUser`] and join the user's self group.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct ProvisioningPackage {
+    // Identity + AS user credential (shared across devices for the MVP).
+    pub(crate) user_id: UserId,
+    pub(crate) user_signing_key: UserSigningKey,
+    // User-level QS key material (shared by all of the user's devices).
+    pub(crate) qs_user_id: QsUserId,
+    pub(crate) qs_user_signing_key: QsUserSigningKey,
+    pub(crate) friendship_token: FriendshipToken,
+    pub(crate) push_token_ear_key: PushTokenEarKey,
+    pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
+    pub(crate) qs_client_id_encryption_key: ClientIdEncryptionKey,
+    // Freshly created queue for the new device (created by the old device).
+    pub(crate) qs_client_id: QsClientId,
+    pub(crate) qs_client_signing_key: QsClientSigningKey,
+    pub(crate) qs_queue_decryption_key: RatchetDecryptionKey,
+    pub(crate) qs_initial_ratchet_secret: RatchetSecret,
+    // User profile.
+    pub(crate) user_profile_key: UserProfileKey,
+    // Self-group metadata not carried by the Welcome.
+    pub(crate) self_group_id: GroupId,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    // Synced user settings snapshot so the new device starts with the
+    // provisioner's values.
+    pub(crate) synced_settings: SettingsUpdate,
+    // The name the confirming user gave this device. Empty means "no choice
+    // made", and the new device falls back to its own platform label.
+    pub(crate) device_name: String,
+    // The higher-level groups the virtual client is already a member of, which
+    // the new emulator client onboards itself into.
+    pub(crate) groups: Vec<HigherLevelGroup>,
+}
+
+/// What the new device sends back over the secure linking channel.
+///
+/// The metadata entry travels with the key package so the old device can publish
+/// it on the very same self-group commit that adds the new leaf. Sending it as a
+/// settings commit of its own would advance the self-group epoch behind the back
+/// of the device performing the add, breaking the next link with a wrong-epoch
+/// rejection.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct SelfGroupJoinRequest {
+    pub(crate) key_package: ApqKeyPackage,
+    pub(crate) device: LinkedDevice,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct HigherLevelGroup {
+    pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
+    pub(crate) group_state_ear_key: GroupStateEarKey,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    pub(crate) vc_leaf_index: u32,
+    /// Set if the group backs a connection chat rather than a group chat.
+    pub(crate) connection: Option<ConnectionContact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ConnectionContact {
+    pub(crate) user_id: UserId,
+    pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
+    pub(crate) friendship_token: FriendshipToken,
+}
+
 #[derive(Debug)]
-pub struct EncryptedPingPongCtype;
-pub type EncryptedPingPong = Ciphertext<EncryptedPingPongCtype>;
+pub struct EncryptedLinkingMessageCtype;
+pub type EncryptedLinkingMessage = Ciphertext<EncryptedLinkingMessageCtype>;
 
 #[derive(
     Debug, Clone, tls_codec::TlsSerialize, tls_codec::TlsSize, tls_codec::TlsDeserializeBytes,
 )]
-pub struct PingPong {
-    msg: Vec<u8>,
+struct LinkingMessage {
+    bytes: Vec<u8>,
 }
 
-impl AeadEncryptable<MultiDeviceLinkingKey, EncryptedPingPongCtype> for PingPong {}
-impl AeadDecryptable<MultiDeviceLinkingKey, EncryptedPingPongCtype> for PingPong {}
+impl AeadEncryptable<MultiDeviceLinkingKey, EncryptedLinkingMessageCtype> for LinkingMessage {}
+impl AeadDecryptable<MultiDeviceLinkingKey, EncryptedLinkingMessageCtype> for LinkingMessage {}
+
+impl LinkingMessage {
+    /// Serialize and Encrypt `value` under the linking key into a serialized relay frame.
+    fn seal<T>(value: T, cipher: &MultiDeviceLinkingKey) -> anyhow::Result<RelayFrame>
+    where
+        T: Serialize,
+    {
+        let bytes = PersistenceCodec::to_vec(&value)?;
+        let frame = LinkingMessage { bytes }
+            .encrypt(cipher)?
+            .tls_serialize_detached()?;
+        Ok(frame.into())
+    }
+
+    /// Decrypt a relay frame's bytes and deserialize it into the payload.
+    fn open<T: DeserializeOwned>(
+        frame: &[u8],
+        cipher: &MultiDeviceLinkingKey,
+    ) -> anyhow::Result<T> {
+        let message = LinkingMessage::decrypt(
+            cipher,
+            &EncryptedLinkingMessage::tls_deserialize_exact_bytes(frame)?,
+        )?;
+        Ok(PersistenceCodec::from_slice(&message.bytes)?)
+    }
+}
 
 fn make_provider_and_credential(
     identity: &[u8],
@@ -90,19 +234,15 @@ pub enum MultiDeviceLinkClientError {
 
 impl CoreUser {
     /// Provisions a new client for linking by connecting to the relay at `domain`.
+    ///
+    /// On success returns a fully bootstrapped [`CoreUser`] for the freshly
+    /// linked device, persisted under `db_path`.
     pub async fn multi_device_provision_client(
-        domain: &Fqdn,
+        db_path: &str,
+        domain: Fqdn,
+        server_url: Option<Url>,
         session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<String> {
-        let api_client = ApiClient::with_domain(domain).context("build api client")?;
-        Self::multi_device_provision_client_with_api(&api_client, session_tx).await
-    }
-
-    /// Like [`Self::multi_device_provision_client`] but against an explicit [`ApiClient`].
-    pub async fn multi_device_provision_client_with_api(
-        api_client: &ApiClient,
-        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<CoreUser> {
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 
@@ -114,7 +254,12 @@ impl CoreUser {
             .context("serialize key package")?;
         let key_package_checksum: [u8; 32] = Sha256::digest(&key_package_bytes).into();
 
-        let (tx, mut rx) = api_client.rs_multi_device_provision_client().await?;
+        let api_clients = ApiClients::new(domain, server_url);
+
+        let (tx, mut rx) = api_clients
+            .default_client()?
+            .rs_multi_device_provision_client()
+            .await?;
 
         // Send the key package to the server.
         tx.send(key_package_bytes.into()).await?;
@@ -161,38 +306,61 @@ impl CoreUser {
             .context("join group")?;
 
         let cipher = export_aead_key(group, provider)?;
-        info!("joined MLS group, AEAD key exported");
+        info!("secure linking channel established, AEAD key exported");
 
-        tx.send(
-            PingPong {
-                msg: b"ping!".to_vec(),
-            }
-            .encrypt(&cipher)?
-            .tls_serialize_detached()?
-            .into(),
-        )
-        .await?;
-
+        // The old device creates our queue and sends us everything we need to
+        // bootstrap a working client.
         let frame = rx.next().await.context("relay connection closed")??;
-        let answer = PingPong::decrypt(
+        let package: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &cipher)?;
+        info!("received provisioning package");
+
+        // Join the self group:
+        // 1. mint a new signing key to use for self-group commits
+        // 2. generate a self-group KeyPackage
+        // 3. hand it to the old device
+        // 4. old device adds us via the DS
+        // 5. we then process the Welcome that the QS fans out to our fresh queue.
+        // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
+        let device_name = package.device_name.clone();
+        let core_user = Self::link_new_device(api_clients, db_path, package).await?;
+        info!("bootstrapped linked client");
+
+        // Prepare a key-package for the old device to add us to its self-group.
+        let key_package = core_user.generate_self_group_key_package().await?;
+
+        // Store our own entry locally and hand a copy to the old device, which
+        // publishes it on the add commit.
+        let device = core_user
+            .store_own_device_entry(Utc::now(), Some(&device_name))
+            .await?;
+
+        tx.send(LinkingMessage::seal(
+            SelfGroupJoinRequest {
+                key_package,
+                device,
+            },
             &cipher,
-            &EncryptedPingPong::tls_deserialize_exact_bytes(frame.as_slice())?,
-        )?;
-        let answer_str = String::from_utf8(answer.msg)?;
+        )?)
+        .await
+        .context("send self-group join request")?;
+        info!("sent self-group key package and device entry to old device");
 
-        info!("got answer from old client, ciao!");
+        core_user.join_self_group_from_queue().await?;
+        info!("joined self group");
 
-        Ok(answer_str)
+        core_user.outbound_service().notify_vc_onboarding();
+
+        Ok(core_user)
     }
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
-    /// channels to report established connection and wait for the user's confirmation.
+    /// channels to report established connection and wait for the user's confirmation (with a device name).
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
         connected_tx: oneshot::Sender<()>,
-        confirmation_rx: oneshot::Receiver<()>,
-    ) -> anyhow::Result<Result<String, MultiDeviceLinkClientError>> {
+        confirmation_rx: oneshot::Receiver<String>,
+    ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
@@ -245,8 +413,15 @@ impl CoreUser {
         .context("create group")?;
 
         let (_commit, welcome, _group_info) = group
-            .add_members(&provider, &signature_keys, &[candidate_key_package])
-            .context("add_members")?;
+            .commit_builder()
+            .propose_adds([candidate_key_package])
+            .load_psks(provider.storage())?
+            .build(provider.rand(), provider.crypto(), &signature_keys, |_| {
+                true
+            })?
+            .stage_commit(&provider)?
+            .into_messages();
+        let welcome = welcome.context("no welcome after add")?;
 
         group
             .merge_pending_commit(&provider)
@@ -257,38 +432,621 @@ impl CoreUser {
             .await
             .context("send welcome")?;
 
-        // Wait for confirmation from the client
-        confirmation_rx
+        // Wait for the user to approve the link on this (existing) device.
+        let device_name = confirmation_rx
             .await
             .context("confirmation channel closed")?;
 
-        // TODO: maybe use OpenMLS application messages instead? (because they're signed?)
         let cipher = export_aead_key(group, provider)?;
-        info!("joined MLS group, AEAD key exported");
+        info!("secure linking channel established, AEAD key exported");
 
-        // wait for ping
+        // Build the provisioning package (creates a fresh queue for the new
+        // device) and hand it over the secure channel.
+        let package = self.build_provisioning_package(device_name).await?;
+        tx.send(LinkingMessage::seal(package, &cipher)?)
+            .await
+            .context("send provisioning package")?;
+        info!("sent provisioning package to new device");
+
+        // Receive the new device's self-group KeyPackage and its metadata entry,
+        // and add it to the self group via the DS.
         let frame = rx.next().await.context("relay connection closed")??;
-        let answer = PingPong::decrypt(
-            &cipher,
-            &EncryptedPingPong::tls_deserialize_exact_bytes(frame.as_slice())?,
-        )?;
-        let answer_str = String::from_utf8(answer.msg)?;
-        info!(answer_str, "got ping from new client");
+        let request: SelfGroupJoinRequest = LinkingMessage::open(frame.as_slice(), &cipher)?;
+        self.add_client_to_self_group(request).await?;
+        info!("added new device to self group");
 
-        tx.send(
-            PingPong {
-                msg: b"pong!".to_vec(),
-            }
-            .encrypt(&cipher)?
-            .tls_serialize_detached()?
-            .into(),
-        )
-        .await?;
-
-        // Keep the RPC alive until the relay closes our stream, which happens once the new
-        // device has received the pong and disconnected.
+        // Keep the RPC alive until the relay closes our stream, which happens
+        // once the new device has finished and disconnected.
         while rx.next().await.is_some() {}
 
-        Ok(Ok(answer_str))
+        Ok(Ok(()))
+    }
+
+    /// Create a fresh QS queue for a new device and gather all the key material
+    /// the new device needs to bootstrap a working [`CoreUser`] and join the
+    /// self group.
+    async fn build_provisioning_package(
+        &self,
+        device_name: String,
+    ) -> anyhow::Result<ProvisioningPackage> {
+        let api_client = self.api_client()?;
+        let qs_user_id = self.inner.qs_user_id;
+
+        let self_group = self.ensure_self_group().await?;
+        let self_group_id = self_group.group_id().clone();
+        let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
+
+        // Generate a fresh queue for the new device and register it under our
+        // virtual client (QsUserId) at the QS.
+        let key_store = self.key_store();
+        let qs_client_signing_key = QsClientSigningKey::generate()?;
+        let qs_queue_decryption_key = RatchetDecryptionKey::generate()?;
+        let qs_initial_ratchet_secret = RatchetSecret::random()?;
+        let response = api_client
+            .qs_create_client(
+                qs_user_id,
+                qs_client_signing_key.verifying_key().clone(),
+                qs_queue_decryption_key.encryption_key().clone(),
+                // MVP: no push token for the new device yet.
+                None,
+                qs_initial_ratchet_secret.clone(),
+                &key_store.qs_user_signing_key,
+            )
+            .await?;
+        let qs_client_id = response.qs_client_id;
+
+        let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
+        let groups = self.higher_level_groups().await?;
+
+        // Snapshot the current synced settings so the new device starts with
+        // our values. An empty update means we have no stored settings, which
+        // the new device applies as a no-op.
+        let synced_settings = self
+            .db()
+            .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
+            .await?;
+
+        Ok(ProvisioningPackage {
+            user_id: self.user_id().clone(),
+            user_signing_key: key_store.signing_key.clone(),
+            qs_user_id,
+            qs_user_signing_key: key_store.qs_user_signing_key.clone(),
+            friendship_token: key_store.friendship_token.clone(),
+            push_token_ear_key: key_store.push_token_ear_key.clone(),
+            wai_ear_key: key_store.wai_ear_key.clone(),
+            qs_client_id_encryption_key: key_store.qs_client_id_encryption_key.clone(),
+            qs_client_id,
+            qs_client_signing_key,
+            qs_queue_decryption_key,
+            qs_initial_ratchet_secret,
+            user_profile_key,
+            self_group_id,
+            identity_link_wrapper_key,
+            synced_settings,
+            device_name,
+            groups,
+        })
+    }
+
+    /// Describe every higher-level group the virtual client is a member of, so a
+    /// joining emulator client can onboard itself into each of them.
+    ///
+    /// Skips the emulation group itself, every connection chat that is not
+    /// confirmed yet, and every chat that is not active. A pending chat is one
+    /// whose onboarding has not landed, so its leaf is not ours to hand on.
+    async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
+        self.db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let key_material = Group::load_all_key_material(&mut *txn).await?;
+                let mut groups = Vec::new();
+
+                for group in key_material {
+                    let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
+                        warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
+                        continue;
+                    };
+                    let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+                        continue;
+                    };
+                    if !matches!(chat.status(), ChatStatus::Active) {
+                        debug!(group_id = ?group.group_id, "skipping non-active chat");
+                        continue;
+                    }
+                    let connection = match chat.chat_type() {
+                        ChatType::Group(_) => None,
+                        ChatType::Connection(user_id) => {
+                            let Some(contact) = Contact::load(&mut *txn, user_id).await? else {
+                                warn!(group_id = ?group.group_id, "no contact for connection chat; skipping group");
+                                continue;
+                            };
+                            Some(ConnectionContact {
+                                user_id: contact.user_id,
+                                wai_ear_key: contact.wai_ear_key,
+                                friendship_token: contact.friendship_token,
+                            })
+                        }
+                        // TODO(gabriel): unconfirmed connections need the
+                        // partial contact and the connection-offer PSK on top
+                        // of the group.
+                        ChatType::HandleConnection(_)
+                        | ChatType::TargetedMessageConnection(_)
+                        | ChatType::PendingConnection(_) => {
+                            debug!(group_id = ?group.group_id, "skipping unconfirmed connection chat");
+                            continue;
+                        }
+                    };
+                    let Some(vc_leaf_index) =
+                        Group::load_own_leaf_index(txn.as_mut(), &group.group_id)
+                    else {
+                        warn!(group_id = ?group.group_id, "no own leaf index; skipping group");
+                        continue;
+                    };
+
+                    groups.push(HigherLevelGroup {
+                        group_id: group.group_id,
+                        pq_group_id: group.pq_group_id,
+                        group_state_ear_key: group.group_state_ear_key,
+                        identity_link_wrapper_key: group.identity_link_wrapper_key,
+                        vc_leaf_index: vc_leaf_index.u32(),
+                        connection,
+                    });
+                }
+
+                Ok(groups)
+            })
+            .await
+    }
+
+    /// The signing key used for this client's leaf in the self group.
+    async fn self_group_signature_key(&self) -> anyhow::Result<SelfGroupSigningKey> {
+        let stored: OwnClientInfo = OwnClientInfo::load(self.db().read().await?).await?;
+        stored
+            .self_group_signing_key
+            .context("self-group signer was not initialized")
+    }
+
+    /// Generate an APQ KeyPackage for this (freshly linked) device to be added
+    /// to the self group.
+    async fn generate_self_group_key_package(&self) -> anyhow::Result<ApqKeyPackage> {
+        let signer = self.self_group_signature_key().await?;
+        // Both T and PQ leaves use this device's signature key (the PQ side is
+        // confidentiality-only), which is what the DS expects.
+        let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
+        let credential = ApqCredentialWithKey {
+            t_credential: CredentialWithKey {
+                credential: signer.credential().to_credential()?,
+                signature_key: signature_key.clone(),
+            },
+            pq_credential: CredentialWithKey {
+                credential: Credential::new(CredentialType::Basic, Vec::new()),
+                signature_key,
+            },
+        };
+
+        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
+        let client_reference = self.create_own_client_reference();
+        // TODO: don't use Extension::Unknown
+        leaf_node_extensions.add(Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(client_reference.tls_serialize_detached()?),
+        ))?;
+        // add two fields AirComponent Option<QsClientId> and Option<QsUserId>
+        let key_package_extensions = default_key_package_extensions::<AirComponent>();
+
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let bundle = ApqKeyPackage::builder()
+                    .key_package_extensions(key_package_extensions)
+                    .leaf_node_capabilities(self_group_leaf_node_capabilities())
+                    .leaf_node_extensions(leaf_node_extensions)
+                    .build(&provider, APQ_CIPHERSUITE, &signer, credential)?;
+                Ok(bundle.into_key_package())
+            })
+            .await
+    }
+
+    /// Adds the new device's leaf to the self group.
+    ///
+    /// The entry already carries the name the confirming user chose: it travelled
+    /// to the new device in the provisioning package, so both sides agree without
+    /// this side substituting anything.
+    async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
+        let SelfGroupJoinRequest {
+            key_package,
+            device,
+        } = request;
+
+        // Sibling commits (e.g. the key-package upload cycle) may have advanced
+        // the self group. Catch up on queued messages, so that the add commit
+        // is built at the current epoch.
+        let messages = self.qs_fetch_messages().await?;
+        let processed = self.fully_process_qs_messages(messages).await;
+        if let Some(error) = processed.errors.first() {
+            warn!(%error, "failed to process queued messages before self-group add");
+        }
+
+        let api_client = self.api_client()?;
+        let self_group_signature_key = self.self_group_signature_key().await?;
+        let user_id = self.user_id().clone();
+        let wai_key = self.key_store().wai_ear_key.clone();
+        let qs_client_reference = self.create_own_client_reference();
+
+        // Stage the add commit against a fresh copy of the self group.
+        let (mut group, params, group_state_ear_key, encrypted_user_profile_key) = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let self_group_id = OwnClientInfo::load_self_group_id(&mut *txn)
+                    .await?
+                    .context("no self group")?;
+                let mut group = Group::load_clean_verified(&mut *txn, &self_group_id)
+                    .await?
+                    .context("self group not found")?;
+
+                // Room policy is keyed on the client id, so reject a credential whose id is
+                // already a member of the self group before staging the add.
+                group.validate_self_group_add(key_package.t_credential())?;
+
+                let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
+
+                // Record the new device locally and let the add commit carry the
+                // resulting snapshot, so the siblings learn it without a second
+                // commit advancing the epoch behind our back.
+                merge_device_entry_locally(&mut *txn, device).await?;
+                let update = SettingsUpdate::collect(&mut *txn).await?;
+                let settings_proposal = group
+                    .group_mut()
+                    .self_group_settings_proposal(txn, &update)
+                    .await?;
+
+                let invitee = PreparedInvitee {
+                    add_info: ContactAddInfos {
+                        key_package: ContactKeyPackage::Apq(Box::new(key_package)),
+                        user_profile_key: user_profile_key.clone(),
+                    },
+                    wai_key: wai_key.clone(),
+                    // Only used for its `user_id()` (to bind the profile-key
+                    // ciphertext); the new device shares our user id.
+                    user_credential: self.signing_key().credential().clone(),
+                };
+                // Sign the commit with the per-device self-group key, but sign the
+                // WAI with the shared client key so the joiner can verify it
+                // against our user credential.
+                let params = group
+                    .group_mut()
+                    .stage_apq_invite(
+                        &mut *txn,
+                        &self_group_signature_key,
+                        self.signing_key(),
+                        vec![invitee],
+                        Some(settings_proposal),
+                    )
+                    .await?
+                    .map_err(|validation| {
+                        anyhow!("self-group invite leaf validation: {validation:?}")
+                    })?;
+                let group_state_ear_key = group.group_state_ear_key().clone();
+                let encrypted_user_profile_key =
+                    user_profile_key.encrypt(group.identity_link_wrapper_key(), &user_id)?;
+                Ok((
+                    group,
+                    params,
+                    group_state_ear_key,
+                    encrypted_user_profile_key,
+                ))
+            })
+            .await?;
+
+        // Send the commit to the DS. The DS verifies request envelopes from
+        // self-group members against the leaf's signature key, so the envelope
+        // is signed with the per-device self-group key.
+        let ds_timestamp = api_client
+            .ds_apq_group_operation(
+                params,
+                &self_group_signature_key,
+                &group_state_ear_key,
+                qs_client_reference,
+                encrypted_user_profile_key,
+            )
+            .await?;
+
+        // Merge the pending commit if the DS accepted it. The queue handler
+        // runs concurrently and may have already merged it while processing
+        // the DS commit response, so we might also skip it here.
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                let stored_epoch = Group::load(&mut *txn, group.group_id())
+                    .await?
+                    .context("self group not found")?
+                    .mls_group()
+                    .epoch();
+                if stored_epoch > group.mls_group().epoch() {
+                    debug!("self-group add commit already merged by the queue handler");
+                    return Ok(());
+                }
+                group.merge_pending_commit(txn, None, ds_timestamp).await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// Register a virtual-clients emulation epoch on the self group.
+    pub(crate) async fn register_self_group_vc_emulation_epoch(
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<EpochId> {
+        let mut self_group = SelfGroup::load(&mut connection)
+            .await?
+            .context("self group not found")?;
+        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
+        debug!(?epoch_id, "registered self-group VC emulation epoch");
+        Ok(epoch_id)
+    }
+
+    /// Poll our QS queue until the self-group Welcome arrives.
+    async fn join_self_group_from_queue(&self) -> anyhow::Result<()> {
+        let self_group_id = OwnClientInfo::load_self_group_id(self.db().read().await?)
+            .await?
+            .context("no self group id")?;
+
+        for _ in 0..500 {
+            let already_joined = self
+                .db()
+                .with_read_transaction(async |txn| Group::load(txn, &self_group_id).await)
+                .await?
+                .is_some();
+            if already_joined {
+                // The emulation epoch was registered while processing the
+                // self-group Welcome.
+                return Ok(());
+            }
+
+            let processed = self.drain_and_process_qs_queue().await?;
+            for error in &processed.errors {
+                warn!(%error, "error while processing self-group queue message");
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        anyhow::bail!("timed out waiting for the self-group welcome");
+    }
+
+    /// Fetches messages from the QS queue, fully processes and ACKs them.
+    ///
+    /// Unlike [`CoreUser::qs_fetch_messages`], this ACKs the processed messages
+    /// via the responder, so it is safe to use outside of integration tests.
+    async fn drain_and_process_qs_queue(&self) -> anyhow::Result<ProcessedQsMessages> {
+        let (mut stream, responder) = self.listen_queue().await?;
+        let mut messages: Vec<QueueMessage> = Vec::new();
+
+        while let Some(message) = stream.next().await {
+            match message.event {
+                // Empty event is the sentinel: the queue is drained.
+                Some(listen_response::Event::Empty(_)) => break,
+                Some(listen_response::Event::Message(queue_message)) => {
+                    if let Ok(queue_message) = queue_message.try_into() {
+                        messages.push(queue_message);
+                    }
+                }
+                Some(listen_response::Event::Payload(_)) | None => {}
+            }
+        }
+
+        let num_messages = messages.len();
+        let max_sequence_number = messages.last().map(|m| m.sequence_number);
+        let processed = self.fully_process_qs_messages(messages).await;
+
+        if processed.processed == num_messages {
+            if let Some(max_sequence_number) = max_sequence_number {
+                // Acks all messages before max_sequence_number + 1 (exclusive).
+                responder.ack(max_sequence_number + 1).await;
+            }
+        } else {
+            error!(
+                processed.processed,
+                num_messages, "failed to fully process self-group queue messages"
+            );
+        }
+
+        Ok(processed)
+    }
+
+    /// Bootstrap a [`CoreUser`] on a freshly linked device from the
+    /// provisioning package received over the secure linking channel.
+    ///
+    /// Onboarding into the virtual client's higher-level groups is queued here,
+    /// but only performed once we joined the emulation group: the outbound
+    /// service defers a queued onboarding until the self group is there.
+    async fn link_new_device(
+        api_clients: ApiClients,
+        db_path: &str,
+        package: ProvisioningPackage,
+    ) -> anyhow::Result<CoreUser> {
+        let air_db = open_air_db(db_path).await?;
+        let client_record_id = uuid::Uuid::new_v4();
+        let client_db = open_client_db(db_path, client_record_id).await?;
+        let global_lock = open_lock_file(db_path)?;
+
+        let ProvisioningPackage {
+            user_id,
+            user_signing_key,
+            qs_user_id,
+            qs_user_signing_key,
+            friendship_token,
+            push_token_ear_key,
+            wai_ear_key,
+            qs_client_id_encryption_key,
+            qs_client_id,
+            qs_client_signing_key,
+            qs_queue_decryption_key,
+            qs_initial_ratchet_secret,
+            user_profile_key,
+            self_group_id,
+            identity_link_wrapper_key: _,
+            synced_settings,
+            device_name: _,
+            groups,
+        } = package;
+
+        let shared_user_credential = user_signing_key.credential().clone();
+        let key_store = MemoryUserKeyStore {
+            signing_key: user_signing_key,
+            qs_client_signing_key,
+            qs_user_signing_key,
+            qs_queue_decryption_key,
+            push_token_ear_key,
+            friendship_token,
+            wai_ear_key,
+            qs_client_id_encryption_key,
+        };
+
+        // Each linked device mints its own client id and a per-device self-group signing key.
+        let client_id = Uuid::new_v4();
+        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
+
+        let queued = client_db
+            .with_write_transaction(async |txn| -> anyhow::Result<usize> {
+                StorableUserCredential::new(key_store.signing_key.credential().clone())
+                    .store(&mut *txn)
+                    .await?;
+                StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret).await?;
+                user_profile_key.store_own(&mut *txn).await?;
+
+                OwnClientInfo {
+                    qs_user_id,
+                    qs_client_id,
+                    user_id: user_id.clone(),
+                    client_id,
+                    self_group_id: Some(self_group_id),
+                    self_group_signing_key: Some(self_group_signing_key),
+                }
+                .store(&mut *txn)
+                .await?;
+
+                // Schedule the fetching operation of our own profile information for when the [`CoreClient`]
+                // starts (or more specifically, when the outbound service runs for the first time.)
+                Self::schedule_fetch_user_profile(
+                    &mut *txn,
+                    (shared_user_credential, user_profile_key),
+                )
+                .await?;
+
+                // Seed the synced settings before the device processes any
+                // self-group traffic. A device joining via Welcome cannot
+                // decrypt updates from before its join, so the current state
+                // has to arrive in the linking payload.
+                apply_settings_update(txn, &synced_settings).await?;
+
+                // Queue the onboarding into the groups the virtual client is
+                // already a member of. This is committed before the client
+                // record is finished below, so an interrupted linking (crash, exit)
+                // leaves the onboarding to be picked up.
+                Self::enqueue_vc_onboarding(txn, groups).await
+            })
+            .await?;
+        info!(
+            queued,
+            "queued onboarding into existing higher-level groups"
+        );
+
+        let final_state = UserCreationState::FinalUserState(
+            QsRegisteredUserState::new(key_store, qs_user_id, qs_client_id)
+                .persist()
+                .await?,
+        );
+        final_state.store(client_db.write().await?).await?;
+
+        let mut client_record = ClientRecord::new(user_id.clone(), client_record_id);
+        client_record.finish();
+        client_record.store(air_db.write().await?).await?;
+
+        Ok(final_state.final_state()?.into_self_user(
+            client_db,
+            client_record_id,
+            api_clients,
+            global_lock,
+        ))
+    }
+
+    /// Whether a sibling device removed this device from the self group.
+    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
+        OwnClientInfo::is_account_unlinked(self.db().read().await?).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::credentials::test_utils::create_test_credentials;
+    use aircommon::crypto::hpke::ClientIdDecryptionKey;
+    use aircommon::identifiers::QualifiedGroupId;
+    use uuid::Uuid;
+
+    use super::*;
+
+    /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
+    /// and otherwise freshly generated key material.
+    fn sample_package(synced_settings: SettingsUpdate) -> anyhow::Result<ProvisioningPackage> {
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_id = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        Ok(ProvisioningPackage {
+            user_signing_key,
+            qs_user_id: QsUserId::random(),
+            qs_user_signing_key: QsUserSigningKey::generate()?,
+            friendship_token: FriendshipToken::random()?,
+            push_token_ear_key: PushTokenEarKey::random()?,
+            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
+            qs_client_id_encryption_key: ClientIdDecryptionKey::generate()?
+                .encryption_key()
+                .clone(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+            qs_queue_decryption_key: RatchetDecryptionKey::generate()?,
+            qs_initial_ratchet_secret: RatchetSecret::random()?,
+            user_profile_key: UserProfileKey::random(&user_id)?,
+            self_group_id,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            synced_settings,
+            device_name: "Work laptop".to_owned(),
+            groups: Vec::new(),
+            user_id,
+        })
+    }
+
+    /// A full package roundtrips through the linking channel with its synced
+    /// settings intact.
+    #[test]
+    fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
+        let package = sample_package(SettingsUpdate {
+            send_read_receipts: Some(false),
+            linked_devices: None,
+        })?;
+        let user_id = package.user_id.clone();
+
+        let key = MultiDeviceLinkingKey::random()?;
+        let frame = LinkingMessage::seal(package, &key)?;
+        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
+
+        assert_eq!(
+            decoded.synced_settings,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                linked_devices: None,
+            }
+        );
+        assert_eq!(decoded.user_id, user_id);
+        // The confirming user's device name rides along in the same package.
+        assert_eq!(decoded.device_name, "Work laptop");
+
+        Ok(())
     }
 }

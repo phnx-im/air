@@ -3,12 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
-    identifiers::QualifiedGroupId,
+    identifiers::{QualifiedGroupId, UserId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
+    time::TimeStamp,
 };
-use anyhow::{Context, Result};
+use airprotos::client::group::GroupData;
+use anyhow::{Context, Result, anyhow, bail};
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
@@ -18,10 +21,18 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    ChatId,
-    clients::{CoreUser, api_clients::ApiClients},
+    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::{ChatAttributes, GroupDataExt},
+    clients::{
+        CoreUser,
+        api_clients::ApiClients,
+        multi_device::{ConnectionContact, HigherLevelGroup},
+    },
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::{DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds},
+    groups::{
+        DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
+        self_group::SelfGroup,
+    },
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
         OutboundServiceContext,
@@ -30,11 +41,27 @@ use crate::{
 };
 
 pub(crate) struct Resync {
-    pub(crate) chat_id: ChatId,
+    /// `None` while onboarding an emulator client into a higher-level group:
+    /// there is no chat to point at yet, since it is created together with the
+    /// group the external commit joins.
+    pub(crate) chat_id: Option<ChatId>,
     pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    /// The leaf the external commit evicts. When onboarding an emulator client
+    /// this is the virtual client's prior membership, currently operated by a
+    /// sibling emulator, rather than a leaf of our own.
     pub(crate) original_leaf_index: LeafNodeIndex,
+    /// Whether the leaf this resync replaces is shared with sibling emulator
+    /// clients, i.e. it onboards an emulator client into a higher-level group or
+    /// re-syncs one that is already on a shared leaf. The new leaf then has to be
+    /// derived from the virtual client's emulation epoch, which
+    /// [`Resync::create_commit`] resolves when it builds the commit.
+    pub(crate) shares_vc_leaf: bool,
+    /// The contact to create alongside the chat when this resync onboards into a
+    /// connection group.
+    pub(crate) connection_contact: Option<ConnectionContact>,
 }
 
 impl CoreUser {
@@ -43,17 +70,15 @@ impl CoreUser {
             .await?
             .context("group not found")?;
 
-        // Resync is disabled for APQ groups for now.
-        if group.is_apq() {
-            anyhow::bail!("Resync is not supported for APQ groups");
-        }
-
         let resync = Resync {
-            chat_id,
+            chat_id: Some(chat_id),
             group_id: group.group_id().clone(),
+            pq_group_id: group.pq_group_id(),
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
+            shares_vc_leaf: group.own_leaf_is_virtual_client(),
+            connection_contact: None,
         };
 
         resync.enqueue(self.db().write().await?).await?;
@@ -61,6 +86,48 @@ impl CoreUser {
         self.outbound_service().notify_work();
 
         Ok(())
+    }
+
+    /// Onboard this emulator client into every higher-level group the virtual
+    /// client is already a member of, using variant B (external commit) of the
+    /// mls-virtual-clients draft: queue a resync that evicts the virtual
+    /// client's prior membership and re-joins on a leaf derived from the shared
+    /// emulation epoch.
+    ///
+    /// Returns the number of groups queued. The external commits themselves run
+    /// in the outbound service, which retries each one independently, so a group
+    /// that is momentarily unreachable does not block linking.
+    pub(crate) async fn enqueue_vc_onboarding(
+        txn: &mut WriteDbTransaction<'_>,
+        groups: Vec<HigherLevelGroup>,
+    ) -> anyhow::Result<usize> {
+        let mut queued = 0;
+        for group in groups {
+            let HigherLevelGroup {
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                vc_leaf_index,
+                connection,
+            } = group;
+
+            let resync = Resync {
+                chat_id: None,
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
+                shares_vc_leaf: true,
+                connection_contact: connection,
+            };
+
+            resync.enqueue(&mut *txn).await?;
+            queued += 1;
+        }
+
+        Ok(queued)
     }
 }
 
@@ -86,18 +153,33 @@ impl OutboundServiceContext {
             info!(?resync.chat_id, "Performing chat resync");
 
             let group_id = resync.group_id.clone();
-            let chat_id = resync.chat_id;
+
+            // The self group is rejoined with the per-device self-group key, all other
+            // groups with the user key.
+            let signer = match self.signer_for_group(&group_id).await {
+                Ok(signer) => signer,
+                Err(error) => {
+                    error!(%error, "Failed to resolve resync signer; dropping");
+                    Resync::remove(self.db.write().await?, &group_id).await?;
+                    return Err(error);
+                }
+            };
 
             let result = {
                 let mut connection = self.db.write().await?;
 
                 let result = resync
-                    .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
+                    .create_and_send_commit(
+                        &mut connection,
+                        &self.api_clients,
+                        &signer,
+                        self.user_id(),
+                    )
                     .await;
-                if result.is_ok() {
+                if let Ok((chat_id, _)) = &result {
                     info!("Got profiles infos");
                     Resync::remove(&mut connection, &group_id).await?;
-                    connection.notifier().update(chat_id);
+                    connection.notifier().update(*chat_id);
                     // TODO: Schedule a job here that deals with fetching profile
                     // infos in the background.
                 }
@@ -105,7 +187,7 @@ impl OutboundServiceContext {
             };
 
             let profile_infos = match result {
-                Ok(profile_infos) => profile_infos,
+                Ok((_, profile_infos)) => profile_infos,
                 Err(OutboundServiceError::Fatal(error)) => {
                     if is_ds_not_found_error(&error) {
                         error!(%error, "Group not found during resync; cleaning up local state");
@@ -129,12 +211,12 @@ impl OutboundServiceContext {
 
             let mut connection = self.db.write().await?;
             for ProfileInfo {
-                client_credential,
+                user_credential,
                 user_profile_key,
             } in profile_infos.members
             {
                 if let Err(error) =
-                    FetchUserProfileOperation::new(client_credential, user_profile_key)
+                    FetchUserProfileOperation::new(user_credential, user_profile_key)
                         .into_operation()
                         .enqueue(&mut connection)
                         .await
@@ -148,42 +230,147 @@ impl OutboundServiceContext {
 
 impl Resync {
     /// Resync using an external commit.
+    ///
+    /// Returns the chat the resync applies to, which for an onboarding resync is
+    /// only created here, once the commit has been accepted.
     async fn create_and_send_commit(
-        self,
+        mut self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
-    ) -> Result<DecryptedProfileInfos, OutboundServiceError> {
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
+    ) -> Result<(ChatId, DecryptedProfileInfos), OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
-        let external_commit_info = self.fetch_group_info(api_clients).await?;
+        let shares_vc_leaf = self.shares_vc_leaf;
+        if shares_vc_leaf
+            && SelfGroup::load(&mut connection)
+                .await
+                .map_err(OutboundServiceError::recoverable)?
+                .is_none()
+        {
+            return Err(OutboundServiceError::recoverable(anyhow!(
+                "self group not joined yet; deferring onboarding of group {:?}",
+                self.group_id
+            )));
+        }
 
+        let external_commit_info = self.fetch_group_info(api_clients).await?;
+        let connection_contact = self.connection_contact.take();
         let original_leaf_index = self.original_leaf_index;
+        let existing_chat_id = self.chat_id;
+        let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection
             .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
-        let (group, commit, group_info, member_profile_infos) = self
-            .create_commit(&mut txn, api_clients, signer, external_commit_info)
-            .await
-            .map_err(OutboundServiceError::fatal)?;
+        let (group, commit, member_profile_infos) = Box::pin(self.create_commit(
+            &mut txn,
+            api_clients,
+            signer,
+            own_user_id,
+            external_commit_info,
+        ))
+        .await
+        .map_err(OutboundServiceError::fatal)?;
+
+        let (chat_id, chat_created) = match existing_chat_id {
+            Some(chat_id) => (chat_id, false),
+            None => (
+                if let Some(connection_contact) = connection_contact {
+                    Self::create_connection_chat(&mut txn, &group, connection_contact)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?
+                } else {
+                    Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?
+                },
+                true,
+            ),
+        };
+
         txn.commit()
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
-        Self::send_commit(
-            api_clients,
-            signer,
-            &group,
-            commit,
-            group_info,
-            original_leaf_index,
+        Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
+
+        // Insert a system message and mark chat as active once the commit is accepted by the DS.
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                if shares_vc_leaf && chat_created {
+                    let system_message = ChatMessage::new_system_message(
+                        chat_id,
+                        ds_timestamp,
+                        SystemMessage::Onboarded,
+                    );
+                    system_message.store(&mut *txn).await?;
+                }
+                Chat::update_status(txn, chat_id, &ChatStatus::Active).await?;
+
+                Ok(())
+            })
+            .await
+            .map_err(OutboundServiceError::recoverable)?;
+
+        Ok((chat_id, member_profile_infos))
+    }
+
+    /// Create the local chat (and contact) for a connection group we just onboarded into.
+    async fn create_connection_chat(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        contact: ConnectionContact,
+    ) -> Result<ChatId> {
+        let chat =
+            Chat::new_onboarding_connection_chat(group.group_id().clone(), contact.user_id.clone());
+        chat.store(&mut *txn).await?;
+
+        Contact {
+            user_id: contact.user_id,
+            wai_ear_key: contact.wai_ear_key,
+            friendship_token: contact.friendship_token,
+            chat_id: chat.id(),
+            supported_features: None,
+        }
+        .upsert(&mut *txn)
+        .await?;
+
+        Ok(chat.id())
+    }
+
+    /// Create the local chat for a group we just onboarded into.
+    async fn create_group_chat(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        own_user_id: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> Result<ChatId> {
+        let group_data_bytes = group.group_data().context("No group data")?;
+        let group_data = GroupData::decode(&group_data_bytes)?;
+        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
+
+        let picture = CoreUser::resolve_group_profile_part(
+            &mut *txn,
+            group.group_id(),
+            own_user_id,
+            ds_timestamp,
+            group_profile_part,
+            true,
         )
         .await?;
 
-        Ok(member_profile_infos)
+        let chat = Chat::new_pending_group_chat(
+            group.group_id().clone(),
+            ChatAttributes { title, picture },
+        );
+        chat.store(&mut *txn).await?;
+
+        Ok(chat.id())
     }
 
     async fn fetch_group_info(
@@ -198,12 +385,14 @@ impl Resync {
         let api_client = api_clients
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
-        let external_commit_info = api_client
-            .ds_external_commit_info(self.group_id.clone(), &self.group_state_ear_key)
+        api_client
+            .ds_external_commit_info(
+                self.group_id.clone(),
+                self.pq_group_id.clone(),
+                &self.group_state_ear_key,
+            )
             .await
-            .map_err(classify_ds_error)?;
-
-        Ok(external_commit_info)
+            .map_err(classify_ds_error)
     }
 
     async fn create_commit(
@@ -211,35 +400,73 @@ impl Resync {
         txn: &mut WriteDbTransaction<'_>,
         // Needs api clients until we can schedule group member authentication
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
-    ) -> Result<(Group, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos)> {
+    ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
 
+        let vc_epoch_id = if self.shares_vc_leaf {
+            Some(CoreUser::register_self_group_vc_emulation_epoch(&mut *txn).await?)
+        } else {
+            None
+        };
+
         let aad = AadPayload::Resync.into();
-        Ok(Group::join_group_externally(
-            txn,
-            api_clients,
-            external_commit_info,
-            signer,
-            self.group_state_ear_key,
-            self.identity_link_wrapper_key,
-            aad,
-            None, // This is not in response to a connection offer.
-        )
-        .await??)
+        if self.pq_group_id.is_some() {
+            // APQ group
+            let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
+                txn,
+                api_clients,
+                external_commit_info,
+                signer,
+                own_user_id,
+                self.group_state_ear_key,
+                self.identity_link_wrapper_key,
+                aad,
+                vc_epoch_id,
+            )
+            .await??;
+            Ok((
+                group,
+                ResyncCommit::PQ(Box::new(bundle)),
+                member_profile_infos,
+            ))
+        } else {
+            // The self group is always an APQ group, so a T-only resync can never
+            // concern it.
+            let LeafSigningKey::User(signer) = signer else {
+                bail!("self-group signer in a non-APQ resync");
+            };
+            let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
+                txn,
+                api_clients,
+                external_commit_info,
+                signer,
+                self.group_state_ear_key,
+                self.identity_link_wrapper_key,
+                aad,
+                None, // This is not in response to a connection offer.
+                vc_epoch_id,
+            )
+            .await??;
+            Ok((
+                group,
+                ResyncCommit::T(Box::new(ResyncTCommit { commit, group_info })),
+                member_profile_infos,
+            ))
+        }
     }
 
     async fn send_commit(
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
         group: &Group,
-        commit: MlsMessageOut,
-        group_info: MlsMessageOut,
+        commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,
     ) -> Result<(), OutboundServiceError> {
         let qgid: QualifiedGroupId = group
@@ -250,22 +477,38 @@ impl Resync {
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
 
-        api_client
-            .ds_resync(
-                commit,
-                group_info,
-                signer,
-                group.group_state_ear_key(),
-                original_leaf_index,
-            )
-            .await
-            .map_err(classify_ds_error)?;
+        let response = match commit {
+            ResyncCommit::T(commit) => {
+                api_client
+                    .ds_resync(
+                        commit.commit,
+                        commit.group_info,
+                        signer,
+                        group.group_state_ear_key(),
+                        original_leaf_index,
+                    )
+                    .await
+            }
+            ResyncCommit::PQ(bundle) => {
+                api_client
+                    .ds_apq_resync(
+                        *bundle,
+                        signer,
+                        group.group_state_ear_key(),
+                        original_leaf_index,
+                    )
+                    .await
+            }
+        };
+
+        response.map_err(classify_ds_error)?;
         Ok(())
     }
 }
 
 mod persistence {
 
+    use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
@@ -273,6 +516,7 @@ mod persistence {
     use crate::{
         ChatId,
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+        utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
     };
 
     use super::*;
@@ -288,18 +532,31 @@ mod persistence {
                 "Enqueueing resync"
             );
 
-            let group_id_bytes = self.group_id.as_slice();
+            let group_id = GroupIdRefWrapper::from(&self.group_id);
+            let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
+            let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
             query!(
-                "INSERT INTO resync_queue
-                    (group_id, chat_id,  group_state_ear_key, identity_link_wrapper_key, original_leaf_index)
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO resync_queue (
+                    group_id,
+                    pq_group_id,
+                    chat_id,
+                    group_state_ear_key,
+                    identity_link_wrapper_key,
+                    original_leaf_index,
+                    shares_vc_leaf,
+                    connection_contact
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                 ON CONFLICT DO NOTHING",
-                group_id_bytes,
+                group_id,
+                pq_group_id,
                 self.chat_id,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
-                original_leaf_index
+                original_leaf_index,
+                self.shares_vc_leaf,
+                connection_contact,
             )
             .execute(connection.as_mut())
             .await?;
@@ -313,11 +570,14 @@ mod persistence {
             task_id: Uuid,
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
-                chat_id: ChatId,
-                group_id: Vec<u8>,
+                chat_id: Option<ChatId>,
+                group_id: GroupIdWrapper,
+                pq_group_id: Option<GroupIdWrapper>,
                 group_state_ear_key: GroupStateEarKey,
                 identity_link_wrapper_key: IdentityLinkWrapperKey,
                 original_leaf_index: i32,
+                shares_vc_leaf: bool,
+                connection_contact: Option<BlobDecoded<ConnectionContact>>,
             }
 
             let Some(group_id) = query_scalar!(
@@ -343,9 +603,12 @@ mod persistence {
                 RETURNING
                     chat_id AS "chat_id: _",
                     group_id AS "group_id: _",
+                    pq_group_id AS "pq_group_id: _",
                     group_state_ear_key AS "group_state_ear_key: _",
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
-                    original_leaf_index AS "original_leaf_index: _"
+                    original_leaf_index AS "original_leaf_index: _",
+                    shares_vc_leaf AS "shares_vc_leaf: _",
+                    connection_contact AS "connection_contact: _"
                 "#,
                 group_id,
                 task_id,
@@ -354,10 +617,13 @@ mod persistence {
             .await?
             .map(|record| Resync {
                 chat_id: record.chat_id,
-                group_id: GroupId::from_slice(&record.group_id),
+                group_id: record.group_id.0,
+                pq_group_id: record.pq_group_id.map(|id| id.0),
                 group_state_ear_key: record.group_state_ear_key,
                 identity_link_wrapper_key: record.identity_link_wrapper_key,
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
+                shares_vc_leaf: record.shares_vc_leaf,
+                connection_contact: record.connection_contact.map(BlobDecoded::into_inner),
             });
 
             Ok(resync)
@@ -367,13 +633,24 @@ mod persistence {
             mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<bool> {
-            let record = query!(
-                "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
-                chat_id,
+            // Matches either the stored chat_id or group_id: an onboarding resync
+            // has no chat yet, but an existing group does.
+            struct QueuedIds {
+                chat_id: Option<ChatId>,
+                group_id: GroupIdWrapper,
+            }
+
+            let queued = query_as!(
+                QueuedIds,
+                r#"SELECT chat_id AS "chat_id: _", group_id AS "group_id: _" FROM resync_queue"#
             )
-            .fetch_one(connection.as_mut())
+            .fetch_all(connection.as_mut())
             .await?;
-            Ok(record.row_exists == 1)
+
+            Ok(queued.into_iter().any(|queued| {
+                queued.chat_id.as_ref() == Some(chat_id)
+                    || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
+            }))
         }
 
         pub(crate) async fn remove(
@@ -390,4 +667,14 @@ mod persistence {
             Ok(())
         }
     }
+}
+
+enum ResyncCommit {
+    T(Box<ResyncTCommit>),
+    PQ(Box<ApqCommitMessageBundle>),
+}
+
+struct ResyncTCommit {
+    commit: MlsMessageOut,
+    group_info: MlsMessageOut,
 }

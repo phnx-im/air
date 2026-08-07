@@ -48,20 +48,10 @@ impl<'a> MarkAsRead<'a> {
         }
     }
 
-    async fn cancel_notifications(&self, chat_id: ChatId) -> anyhow::Result<()> {
-        let handles = self.notification_service.get_active_notifications().await;
-        let ids = handles
-            .into_iter()
-            .filter_map(|handle| {
-                if handle.chat_id? == chat_id {
-                    Some(handle.identifier)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        self.notification_service.cancel_notifications(ids).await;
-        Ok(())
+    async fn cancel_notifications(&self, chat_id: ChatId) {
+        self.notification_service
+            .cancel_chat_notifications([chat_id])
+            .await;
     }
 }
 
@@ -73,7 +63,7 @@ impl MarkAsReadService for MarkAsRead<'_> {
     ) -> anyhow::Result<(bool, Vec<(MessageId, MimiId)>)> {
         let (marked, ids) = self.core_user.mark_chat_as_read(chat_id, until).await?;
         if marked {
-            self.cancel_notifications(chat_id).await?;
+            self.cancel_notifications(chat_id).await;
         }
         Ok((marked, ids))
     }

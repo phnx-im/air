@@ -13,13 +13,16 @@
   "userSettingsScreen_readReceiptsDescription": "Si activés, les autres verront si vous avez lu leurs messages et vous verrez s'ils ont lu les vôtres.",
   "userSettingsScreen_displayNameLabel": "Nom d'affichage",
   "userSettingsScreen_usernamesSection": "Noms d'utilisateur",
-  "userSettingsScreen_settingsSection": "Paramètres",
   "userSettingsScreen_helpSection": "Aide",
   "userSettingsScreen_accountSection": "Compte",
   "userSettingsScreen_usernamePlaceholder": "Nom d'utilisateur",
   "userSettingsScreen_inviteCodes": "Codes d'invitation",
 
   "userSettingsScreen_devices": "Appareils",
+
+  "youSection_profile": "Profil",
+  "youSection_preferences": "Paramètres",
+  "youSection_developer": "Développeur",
   "settingsScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
   "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
@@ -27,8 +30,9 @@
   "removeUsernameDialog_remove": "Supprimer",
   "addMembersScreen_addMembers": "Ajouter des membres",
   "addMembersScreen_error_noActiveChat": "une discussion active est obligatoire",
+  "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Discussion",
-  "contactDetailsScreen_viewSafetyCode": "Voir le code de sécurité",
+  "contactDetailsScreen_viewSafetyCode": "Code de sécurité",
   "contactDetailsScreen_mute": "Mettre en sourdine",
   "contactDetailsScreen_unmute": "Désactiver la sourdine",
   "safetyCodeScreen_title": "Code de sécurité",
@@ -76,7 +80,6 @@
   "changeGroupTitleDialog_confirm": "Enregistrer",
   "introScreen_serverLabel": "Choisissez un serveur auquel vous connecter pour l'association.",
   "introScreen_serverHint": "NOM DE DOMAINE",
-  "introScreen_error_invalidDomain": "Le domaine est invalide",
 
   "introScreen_linkExisting": "Associer à un compte existant",
   "introScreen_signUp": "Créer un compte",
@@ -133,7 +136,6 @@
   "linkingDeviceScreen_separator": "ou",
   "linkingDeviceScreen_numericCode": "Code",
   "linkingDeviceScreen_linking": "Association...",
-  "linkingDeviceScreen_linked": "Appareil associé avec succès !",
   "linkingDeviceScreen_linking_confirm_title": "Confirmer l'association",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Appuyez pour modifier le nom de l'appareil",
   "linkingDeviceScreen_linking_confirm_body": "Vous êtes sur le point d'associer un nouvel appareil, qui aura un accès intégral à votre compte Air. Ne le faites que si l'appareil vous appartient.",
@@ -148,9 +150,9 @@
   "linkingDeviceScreen_error_codesExpired_reload": "Recharger",
   "linkingDevicesScreen_error_title": "Échec de l'association",
   "linkingDevicesScreen_error_generic": "Une erreur inconnue s'est produite.",
+  "linkingDevicesScreen_error_sessionNotFound": "Le code que vous avez fourni est incorrect.",
   "linkingDevicesScreen_error_dismiss": "Réessayer",
 
-  "linkedDevicesScreen_title": "Appareils",
   "linkedDevicesScreen_thisDevice": "Cet appareil",
   "linkedDevicesScreen_linkedDevices": "Appareils associés",
   "linkedDevicesScreen_linkedOn": "Associé le {date}",
@@ -163,13 +165,16 @@
   },
   "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
   "linkedDevicesScreen_linkDevice": "Associer un appareil",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} appareil associé.} other {{count} appareils associés.}} Vous pouvez en associer jusqu'à {remaining} de plus.",
+  "linkedDevicesScreen_unknownDevice": "Appareil inconnu",
+  "linkedDevicesScreen_renameError_title": "Échec du renommage.",
+  "linkedDevicesScreen_renameError": "Impossible de renommer l'appareil {deviceName}. Vérifiez votre connexion réseau et réessayez.",
+  "linkedDevicesScreen_unlinkError_title": "Échec de la dissociation.",
+  "linkedDevicesScreen_unlinkError": "La dissociation de l'appareil {deviceName} a échoué. Vérifiez votre connexion réseau et réessayez.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Aucun appareil associé.} one {{count} appareil associé.} other {{count} appareils associés.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }
@@ -196,7 +201,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Annuler",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Modifier",
   "linkedDevicesScreen_unlinkDialog_title": "Dissocier l'appareil",
-  "linkedDevicesScreen_unlinkDialog_content": "L'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l'appareil.",
+  "linkedDevicesScreen_unlinkDialog_content": "L'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l'appareil lors de sa prochaine connexion.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Annuler",
   "linkedDevicesScreen_unlinkDialog_confirm": "Dissocier",
 
@@ -240,6 +245,7 @@
   "systemMessage_userChangedPicture_infix": " a modifié l'image du groupe",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " a créé le groupe",
+  "systemMessage_onboarded": "Ce client a été ajouté au chat après l'association.",
   "timestamp_now": "Maintenant",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Aujourd’hui",
@@ -254,7 +260,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqué",
-  "chatList_muted": "En sourdine",
   "chatList_contextMenu_mute": "Mettre en sourdine",
   "chatList_contextMenu_unmute": "Désactiver la sourdine",
   "newChatDialog_error": "Impossible d'ajouter une discussion avec le nom {chatName}",
@@ -291,7 +296,6 @@
       }
     }
   },
-  "attachment_tryAgain": "Réessayer",
   "attachment_gallery": "Galerie",
   "attachment_camera": "Appareil photo",
   "attachment_file": "Fichier",
@@ -358,10 +362,10 @@
   "contactUsScreen_body_logsUrl": "Voici des journaux pour vous aider à déboguer mon problème : {url}",
   "contactUsScreen_errorLaunchingEmail": "Impossible de lancer le client de messagerie",
   "contactUsScreen_errorUploadingLogs": "Impossible de téléverser les journaux",
+  "groupDetails_title": "Détails du groupe",
   "groupDetails_leaveChat": "Quitter",
   "groupDetails_deleteChat": "Supprimer",
   "groupDetails_addPeople": "Ajouter",
-  "groupDetails_seeAll": "Voir tout",
   "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
   "@groupDetails_memberCount": {
     "placeholders": {
@@ -370,7 +374,6 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Groupe",
   "groupMembersScreen_title": "Membres du groupe",
   "groupMembersScreen_searchHint": "Chercher",
   "groupCreationScreen_title": "Ajouter des membres",
@@ -419,5 +422,12 @@
   "memberSelectionList_client_not_supported": "Ce contact a une application obsolète qui doit être mise à jour.",
   "homeTab_chats": "Discussions",
   "homeTab_profile": "Profil",
-  "messageList_newMessages": "{count, plural, one {{count} nouveau message} other {{count} nouveaux messages}}"
+  "messageList_newMessages": "{count, plural, one {{count} nouveau message} other {{count} nouveaux messages}}",
+  "messageList_reactions_react": "Réagir",
+  "messageList_reactions_remove": "Supprimer",
+  "messageList_reactions_you": "Vous",
+  "messageList_reactions_all": "Toutes · {total}",
+  "emojiPicker_searchHint": "Rechercher un emoji",
+  "emojiPicker_empty": "Aucun emoji trouvé",
+  "emojiPicker_skinToneHelp": "Définit votre teinte de peau par défaut"
 }

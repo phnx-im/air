@@ -9,8 +9,8 @@ use std::convert::identity;
 use aircommon::{
     LibraryError,
     credentials::{
-        ClientCredentialPayload,
-        keys::{ClientSigningKey, UsernameSigningKey},
+        UserCredentialPayload,
+        keys::{UserSigningKey, UsernameSigningKey},
     },
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
     identifiers::{UserId, Username, UsernameHash},
@@ -174,13 +174,13 @@ impl ApiClient {
 
     pub async fn as_register_user(
         &self,
-        client_payload: ClientCredentialPayload,
+        client_payload: UserCredentialPayload,
         encrypted_user_profile: EncryptedUserProfile,
         invitation_code: String,
     ) -> Result<RegisterUserResponseIn, AsRequestError> {
         let request = RegisterUserRequest {
             client_metadata: Some(self.metadata().clone()),
-            client_credential_payload: Some(client_payload.into()),
+            user_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
             invitation_code: Some(InvitationCode {
                 code: invitation_code,
@@ -192,15 +192,15 @@ impl ApiClient {
             .await?
             .into_inner();
         Ok(RegisterUserResponseIn {
-            client_credential: response
-                .client_credential
+            user_credential: response
+                .user_credential
                 .ok_or_else(|| {
-                    error!("missing `client_credential` in response");
+                    error!("missing `user_credential` in response");
                     AsRequestError::UnexpectedResponse
                 })?
                 .try_into()
                 .map_err(|error| {
-                    error!(%error, "invalid client_credential in response");
+                    error!(%error, "invalid user_credential in response");
                     AsRequestError::UnexpectedResponse
                 })?,
         })
@@ -239,7 +239,7 @@ impl ApiClient {
     pub async fn as_stage_user_profile(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         encrypted_user_profile: EncryptedUserProfile,
     ) -> Result<(), AsRequestError> {
         let payload = StageUserProfilePayload {
@@ -255,7 +255,7 @@ impl ApiClient {
     pub async fn as_merge_user_profile(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = MergeUserProfilePayload {
             client_metadata: Some(self.metadata().clone()),
@@ -269,7 +269,7 @@ impl ApiClient {
     pub async fn as_delete_user(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = DeleteUserPayload {
             client_metadata: Some(self.metadata().clone()),
@@ -302,7 +302,7 @@ impl ApiClient {
         &self,
         reporter_id: UserId,
         spammer_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = ReportSpamPayload {
             client_metadata: Some(self.metadata().clone()),
@@ -594,7 +594,7 @@ impl ApiClient {
         &self,
         operation_type: OperationType,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         token_request: SerializedTokenRequest,
     ) -> Result<SerializedTokenResponse, AsRequestError> {
         let payload = IssueTokensPayload {

@@ -8,6 +8,7 @@ export 'api/chat_list_cubit.dart';
 export 'api/chats_repository.dart';
 export 'api/invitation_code.dart';
 export 'api/invitation_codes_cubit.dart';
+export 'api/linked_devices_cubit.dart';
 export 'api/logging.dart';
 export 'api/member_details_cubit.dart';
 export 'api/message_content.dart';
