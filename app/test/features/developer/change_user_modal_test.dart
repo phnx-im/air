@@ -82,7 +82,7 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/change_user_screen.png'),
+        matchesGoldenFile('goldens/change_user_modal.png'),
       );
     });
   });

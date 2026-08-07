@@ -96,7 +96,7 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/group_members_screen.png'),
+        matchesGoldenFile('goldens/group_members_pane.png'),
       );
     });
 

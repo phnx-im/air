@@ -59,7 +59,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_empty.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_empty.png'),
       );
     });
 
@@ -68,7 +68,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_single_token.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_single_token.png'),
       );
     });
 
@@ -77,7 +77,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_single_code.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_single_code.png'),
       );
     });
 
@@ -86,7 +86,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_single_copied_code.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_single_copied_code.png'),
       );
     });
 
@@ -95,7 +95,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_multiple_tokens.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_multiple_tokens.png'),
       );
     });
 
@@ -108,7 +108,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_multiple_codes.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_multiple_codes.png'),
       );
     });
 
@@ -122,7 +122,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invite_codes_screen_mixed.png'),
+        matchesGoldenFile('goldens/invitation_codes_modal_mixed.png'),
       );
     });
   });

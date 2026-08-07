@@ -5,6 +5,7 @@
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
@@ -95,6 +96,50 @@ Widget _host({required List<ModalStackEntry> pages, VoidCallback? onDismiss}) =>
         key: _hostKey,
         initial: pages,
         onDismiss: onDismiss ?? () {},
+      ),
+    );
+
+/// The stack as a control opens it: on the route the presentation picks, over
+/// the page it covers. What [_host] leaves out, and what a frame of the travel
+/// needs to read: the card's own edges, and a scrim to read them against.
+Widget _presentedHost({required List<ModalStackEntry> pages}) => Builder(
+  builder: (context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    home: Builder(
+      builder: (context) => TextButton(
+        onPressed: () => showAppModal<void>(
+          context: context,
+          builder: (_) =>
+              _StackHost(key: _hostKey, initial: pages, onDismiss: () {}),
+        ),
+        child: const Text('open'),
+      ),
+    ),
+  ),
+);
+
+/// A page whose rows span the surface and name it, so a frame caught partway
+/// through the travel shows which page sits where.
+ModalStackEntry _wideEntry(String title, {required int rows}) =>
+    ModalStackEntry(
+      key: ValueKey(title),
+      child: ModalPane(
+        title: title,
+        child: Column(
+          children: [
+            for (var i = 0; i < rows; i++)
+              SizedBox(
+                height: 50,
+                width: double.infinity,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('$title row $i'),
+                ),
+              ),
+          ],
+        ),
       ),
     );
 
@@ -274,6 +319,32 @@ void main() {
 
       expect(_headerGlyphs(tester), [AppIconType.arrowLeft]);
     });
+
+    // How far the covered page travels, which layer passes over which, and how
+    // the surface resizes around them are visual decisions that hold only as a
+    // frame. Caught partway in, where the two pages share the surface.
+    testWidgets('slides the page arriving over the one it covers', (
+      tester,
+    ) async {
+      sizeView(tester, desktopViewSize);
+      await tester.pumpWidget(
+        _presentedHost(pages: [_wideEntry('one', rows: 4)]),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      _stack.push(_wideEntry('two', rows: 7));
+      await tester.pump();
+      // The travel eases out, so a fifth of the duration in it is already most
+      // of the way across: late enough for both titles to clear the card's
+      // edges, early enough that the two pages still share the surface.
+      await tester.pump(MotionPreset.regular.duration * 0.2);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/modal_stack_covered.png'),
+      );
+    }, variant: desktopPlatform);
 
     // The route holds every level, so the gesture that pops a route has to go
     // up one level while there is one, or a drill-down would close the modal.

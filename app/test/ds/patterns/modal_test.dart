@@ -102,22 +102,33 @@ Widget _footerHost({required int rows}) => Builder(
   ),
 );
 
-/// A card opened the way a control opens one, so the route under test is the
-/// card presentation rather than the page.
-Widget _cardRouteHost() => MaterialApp(
-  debugShowCheckedModeBanner: false,
-  theme: testThemeData(Brightness.light),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
-  home: Builder(
-    builder: (context) => TextButton(
-      onPressed: () => showAppModal<void>(
-        context: context,
-        builder: (_) => const ModalScaffold(
-          title: 'Profile',
-          child: SizedBox(height: 100, child: Text('body')),
+/// A modal opened the way a control opens one, so the route under test is the
+/// presentation the viewport picks rather than a bare widget.
+///
+/// The button it opens from stays on screen behind it, which is what a card's
+/// scrim covers.
+Widget _presentedHost({VoidCallback? onDismiss, int rows = 4}) => Builder(
+  builder: (context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    home: Builder(
+      builder: (context) => TextButton(
+        onPressed: () => showAppModal<void>(
+          context: context,
+          builder: (_) => ModalScaffold(
+            title: 'Profile',
+            onDismiss: onDismiss,
+            child: Column(
+              children: [
+                for (var i = 0; i < rows; i++)
+                  SizedBox(height: 50, child: Text('row $i')),
+              ],
+            ),
+          ),
         ),
+        child: const Text('open'),
       ),
-      child: const Text('open'),
     ),
   ),
 );
@@ -260,6 +271,29 @@ void main() {
 
       expect(tester.getRect(find.text('action')), atRest);
     });
+
+    // The ramp the fade paints over the row that went under the header is the
+    // point of it. An assertion reaches its strength and where it sits, not how
+    // it reads over content.
+    testWidgets('beds scrolled content under the header above the footer', (
+      tester,
+    ) async {
+      sizeView(tester, phoneViewSize);
+
+      await tester.pumpWidget(_footerHost(rows: 40));
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/modal_pane_scrolled_under.png'),
+      );
+    });
   });
 
   group('ModalScaffold actions', () {
@@ -344,7 +378,7 @@ void main() {
   group('ModalCardRoute', () {
     Future<void> openCard(WidgetTester tester) async {
       sizeView(tester, desktopViewSize);
-      await tester.pumpWidget(_cardRouteHost());
+      await tester.pumpWidget(_presentedHost());
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.byType(ModalScaffold), findsOneWidget);
@@ -424,6 +458,37 @@ void main() {
       expect(
         _cardSize(tester).height,
         moreOrLessEquals(DialogHeaderTokens.height + 4 * 50),
+      );
+    });
+
+    // The two presentations differ in what no assertion here describes: the
+    // corner radius and the inset the scrim shows through, the fill the surface
+    // takes, and the density the header's action renders at.
+    testWidgets('renders as a card where there is room beside it', (
+      tester,
+    ) async {
+      sizeView(tester, desktopViewSize);
+
+      await tester.pumpWidget(_presentedHost(onDismiss: () {}, rows: 4));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/modal_shell_card.png'),
+      );
+    }, variant: desktopPlatform);
+
+    testWidgets('renders as a page where there is not', (tester) async {
+      sizeView(tester, phoneViewSize);
+
+      await tester.pumpWidget(_presentedHost(onDismiss: () {}, rows: 4));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/modal_shell_fullscreen.png'),
       );
     });
   });

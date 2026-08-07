@@ -44,7 +44,7 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/contact_us_screen_empty.png'),
+        matchesGoldenFile('goldens/contact_us_modal_empty.png'),
       );
     });
 
@@ -54,7 +54,7 @@ void main() {
       );
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/contact_us_screen_input.png'),
+        matchesGoldenFile('goldens/contact_us_modal_input.png'),
       );
     });
 
@@ -69,7 +69,7 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/contact_us_screen_validation.png'),
+        matchesGoldenFile('goldens/contact_us_modal_validation.png'),
       );
     });
 
