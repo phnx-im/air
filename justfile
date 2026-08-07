@@ -135,7 +135,8 @@ regenerate-icons:
 
 # Run flutter test.
 [working-directory: 'app']
-test-flutter: (flutter "test")
+test-flutter:
+    TZ=UTC just flutter test
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
@@ -160,10 +161,11 @@ _generate-db-certs:
 # Use the current test results as new reference images.
 [working-directory: 'app']
 update-goldens:
-    # Delete existing goldens
-    rm -f **/goldens/*.{{ os() }}.png
+    # Delete existing goldens, so that the ones whose test is gone do not
+    # linger.
+    git ls-files -z 'test/**/goldens/*.{{ os() }}.png' | xargs -0 rm -f
     # Update golden snapshots
-    just flutter test --update-goldens
+    TZ=UTC just flutter test --update-goldens
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]

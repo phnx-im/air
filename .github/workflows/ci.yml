@@ -113,6 +113,9 @@ jobs:
         uses: ./.github/actions/setup-buildenv
 
       - name: Flutter tests
+        # TZ is pinned because goldens depict clock labels in the host's zone.
+        env:
+          TZ: UTC
         run: cd app && flutter test --file-reporter=json:test-results.json
 
       - name: Test report
