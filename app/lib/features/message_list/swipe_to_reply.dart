@@ -27,6 +27,19 @@ const double _iconPadding = 12.0;
 const double _springStiffness = 400.0;
 const double _springDamping = 28.0;
 
+/// Drives the swipe from a gesture recognized somewhere below the scope.
+///
+/// A drag that starts on selectable message text never reaches the scope's own
+/// detector -- the [SelectableRegion] around the text claims horizontal drags
+/// from inside the bubble -- so the text recognizes the drag itself and hands
+/// it over here.
+abstract class SwipeToReplyDrag {
+  void dragStart(DragStartDetails details);
+  void dragUpdate(DragUpdateDetails details);
+  void dragEnd(DragEndDetails details);
+  void dragCancel();
+}
+
 /// Gesture area for swipe-to-reply.
 ///
 /// Place this high in the widget tree to define the hit-test area for the
@@ -51,6 +64,10 @@ class SwipeToReplyScope extends StatefulWidget {
 
   final Widget child;
 
+  /// The scope a descendant can hand a drag of its own to, if there is one.
+  static SwipeToReplyDrag? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_SwipeToReplyInherited>()?.state;
+
   @override
   State<SwipeToReplyScope> createState() => _SwipeToReplyScopeState();
 }
@@ -59,7 +76,8 @@ class SwipeToReplyScope extends StatefulWidget {
 enum _DragIntent { undecided, reply, revealTime }
 
 class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin
+    implements SwipeToReplyDrag {
   late final AnimationController _controller;
 
   /// Raw accumulated drag distance (before damping).
@@ -103,7 +121,8 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     return min(_triggerThreshold + overshoot * _rubberBandFactor, _maxOffset);
   }
 
-  void _onDragStart(DragStartDetails details) {
+  @override
+  void dragStart(DragStartDetails details) {
     // Ignore new drags while the spring-back animation is running to
     // prevent double-firing onReply on rapid re-swipes.
     if (_controller.isAnimating) return;
@@ -114,7 +133,8 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     _controller.stop();
   }
 
-  void _onDragUpdate(DragUpdateDetails details) {
+  @override
+  void dragUpdate(DragUpdateDetails details) {
     if (!isDragging) return;
     final reveal = _timeReveal;
     if (_intent == _DragIntent.undecided && details.delta.dx != 0) {
@@ -142,7 +162,8 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     }
   }
 
-  void _onDragEnd(DragEndDetails details) {
+  @override
+  void dragEnd(DragEndDetails details) {
     if (!isDragging) return;
     isDragging = false;
     if (_release()) return;
@@ -152,7 +173,8 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     _springBack();
   }
 
-  void _onDragCancel() {
+  @override
+  void dragCancel() {
     if (!isDragging) return;
     isDragging = false;
     if (_release()) return;
@@ -189,10 +211,10 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
       state: this,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: _onDragStart,
-        onHorizontalDragUpdate: _onDragUpdate,
-        onHorizontalDragEnd: _onDragEnd,
-        onHorizontalDragCancel: _onDragCancel,
+        onHorizontalDragStart: dragStart,
+        onHorizontalDragUpdate: dragUpdate,
+        onHorizontalDragEnd: dragEnd,
+        onHorizontalDragCancel: dragCancel,
         child: widget.child,
       ),
     );

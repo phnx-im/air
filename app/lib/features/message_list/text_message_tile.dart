@@ -34,6 +34,7 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/message_renderer.dart';
 import 'package:air/features/message_list/message_hover_time.dart';
+import 'package:air/features/message_list/message_text_selection.dart';
 import 'package:air/features/message_list/mobile_message_actions.dart';
 import 'package:air/features/message_list/swipe_to_reply.dart';
 import 'package:air/features/message_list/time_reveal.dart';
@@ -459,11 +460,12 @@ class _MessageShell extends StatelessWidget {
                 actions: actions,
                 overlayContent: _content(
                   bubbleMaxWidth: bubbleMaxWidth,
-                  enableSelection: false,
+                  selection: MessageSelection.off,
                 ),
               ),
         onSecondaryTapDown: null,
-        enableSelection: false,
+        selection: MessageSelection.touch,
+        swipeToReply: isReplyable,
         detached: isDetached.value,
       ),
     );
@@ -488,7 +490,10 @@ class _MessageShell extends StatelessWidget {
           onSecondaryTapDown: actions.isEmpty
               ? null
               : (details) => _openContextMenu(context, details, actions),
-          enableSelection: isDesktopPlatform,
+          selection: isDesktopPlatform
+              ? MessageSelection.pointer
+              : MessageSelection.off,
+          swipeToReply: false,
           detached: false,
           affordance: _withHoverActions ? _hoverActions(context) : null,
         ),
@@ -523,7 +528,8 @@ class _MessageShell extends StatelessWidget {
 
   Widget _content({
     required double bubbleMaxWidth,
-    required bool enableSelection,
+    required MessageSelection selection,
+    VoidCallback? onLongPress,
   }) => _MessageContent(
     messageId: commands.messageId,
     content: contentMessage.content,
@@ -531,7 +537,8 @@ class _MessageShell extends StatelessWidget {
     isSender: isSender,
     senderId: contentMessage.sender,
     isHidden: isHidden,
-    enableSelection: enableSelection,
+    selection: selection,
+    onLongPress: onLongPress,
     maxWidth: bubbleMaxWidth,
   );
 
@@ -542,7 +549,8 @@ class _MessageShell extends StatelessWidget {
     required double bubbleMaxWidth,
     required VoidCallback? onLongPress,
     required GestureTapDownCallback? onSecondaryTapDown,
-    required bool enableSelection,
+    required MessageSelection selection,
+    required bool swipeToReply,
     required bool detached,
     Widget? affordance,
   }) {
@@ -550,10 +558,13 @@ class _MessageShell extends StatelessWidget {
       key: commands.bubbleKey,
       child: _content(
         bubbleMaxWidth: bubbleMaxWidth,
-        enableSelection: enableSelection,
+        selection: selection,
+        // A touch selection region takes the long press for itself unless the
+        // message actions claim it from inside. See [TouchSelectableText].
+        onLongPress: onLongPress,
       ),
     );
-    if (!enableSelection && isReplyable) {
+    if (swipeToReply) {
       bubble = SwipeToReplyBubble(
         icon: AppIcon.cornerLeft(
           size: S.s16,
@@ -595,15 +606,9 @@ class _MessageShell extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
-              // Mobile: double-tap a message to react. On desktop, the
-              // recognizer must not be registered at all, otherwise it wins the
-              // gesture arena and blocks double-click text selection.
-              onDoubleTap: isMobilePlatform && isReplyable
-                  ? () {
-                      AppHaptics.confirm();
-                      commands.openReactionMenu();
-                    }
-                  : null,
+              // No double-tap recognizer on either platform: it wins the
+              // gesture arena and blocks selecting a word by double
+              // click/tap. Reacting goes through the long press instead.
               onLongPress: onLongPress,
               child: bubble,
             ),
@@ -798,7 +803,7 @@ class _MessageCommands {
 
   /// Anchors the bar to whatever raised it so it opens centered above it: the
   /// hover react button, else the right-click point, else the bubble as a last
-  /// resort (a mobile double-tap raises no anchor of its own).
+  /// resort.
   void openReactionMenu({GlobalKey? anchor}) {
     final cursor = cursorPosition.value;
     final anchorRect =
@@ -947,7 +952,8 @@ class _MessageContent extends StatelessWidget {
     required this.isSender,
     required this.senderId,
     required this.isHidden,
-    required this.enableSelection,
+    required this.selection,
+    required this.onLongPress,
     required this.maxWidth,
   });
 
@@ -957,7 +963,11 @@ class _MessageContent extends StatelessWidget {
   final bool isSender;
   final UiUserId senderId;
   final bool isHidden;
-  final bool enableSelection;
+  final MessageSelection selection;
+
+  /// Opens the message actions. Only [MessageSelection.touch] takes it, where
+  /// the selection region would otherwise claim the long press.
+  final VoidCallback? onLongPress;
 
   /// Widest the bubble may get. Applied to the content rather than to the
   /// bubble, so the bubble hugs what it carries and the reaction chips and
@@ -1089,9 +1099,13 @@ class _MessageContent extends StatelessWidget {
         child: Text(text, style: MessageText.placeholderStyleOf(context)),
       );
 
-  Widget _selectable(Widget child) {
-    if (!enableSelection) return SelectionContainer.disabled(child: child);
-    return RawGestureDetector(
+  Widget _selectable(Widget child) => switch (selection) {
+    MessageSelection.off => SelectionContainer.disabled(child: child),
+    MessageSelection.touch => TouchSelectableText(
+      onLongPress: onLongPress,
+      child: child,
+    ),
+    MessageSelection.pointer => RawGestureDetector(
       // Prevents SelectableRegion from selecting words on right-click.
       gestures: {
         _EagerSecondaryClickRecognizer:
@@ -1104,8 +1118,8 @@ class _MessageContent extends StatelessWidget {
         contextMenuBuilder: (context, _) => const SizedBox.shrink(),
         child: child,
       ),
-    );
-  }
+    ),
+  };
 
   String _deletedBy(BuildContext context, AppLocalizations loc) {
     if (isSender) return loc.textMessage_deletedBySelf;
