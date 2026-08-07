@@ -1396,6 +1396,110 @@ async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A linked device removes a member from a group it was onboarded into. The
+/// commit replaces the shared virtual-client leaf, so it has to be derived from
+/// the self group's emulation epoch.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Remove a member from a linked device", skip_all)]
+async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    new_device.outbound_service().run_once().await;
+
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    new_device
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await?;
+
+    let members = new_device.mls_chat_participants(chat_id).await.unwrap();
+    assert!(
+        !members.contains(&charlie),
+        "the linked device should no longer see the removed member, got {members:?}"
+    );
+
+    // The sibling emulator client follows the removal on the shared leaf.
+    let messages = old_device.qs_fetch_messages().await?;
+    let processed = old_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "the old device failed to follow the removal: {:?}",
+        processed.errors
+    );
+    assert_eq!(
+        old_device.group_epoch_and_own_index(chat_id).await?,
+        new_device.group_epoch_and_own_index(chat_id).await?,
+        "both emulator clients must stay on the same epoch and shared leaf"
+    );
+
+    Ok(())
+}
+
+/// After the sibling rotates the user profile, the linked device must still be
+/// able to run a group operation: those encrypt the own user profile key for
+/// the commit, so the device has to keep knowing which key is its own.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Remove a member after a profile rotation", skip_all)]
+async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    // The sibling rotates the user profile key and announces it to every group.
+    old_device
+        .set_own_user_profile(UserProfile {
+            user_id: alice.clone(),
+            display_name: "New Alice".parse().unwrap(),
+            profile_picture: None,
+        })
+        .await?;
+
+    // The linked device picks the new key up and fetches the profile.
+    drain_queue(&new_device).await;
+    new_device.outbound_service().run_once().await;
+
+    new_device
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await?;
+
+    let members = new_device.mls_chat_participants(chat_id).await.unwrap();
+    assert!(
+        !members.contains(&charlie),
+        "the linked device should no longer see the removed member, got {members:?}"
+    );
+
+    Ok(())
+}
+
 /// A resync of the self group rejoins with the per-device self-group
 /// credential.
 ///
