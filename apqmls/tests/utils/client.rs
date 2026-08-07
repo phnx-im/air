@@ -27,6 +27,20 @@ impl<Provider: OpenMlsProvider> Client<Provider> {
         }
     }
 
+    /// A client on an existing signer, for the emulator clients of one virtual
+    /// client, which share a signing identity across providers.
+    // Used in some tests
+    #[allow(dead_code)]
+    pub fn with_signer(identity: &str, signer: ApqSignatureKeyPair, provider: Provider) -> Self {
+        let credential_with_key = ApqCredentialWithKey::new(identity.as_bytes(), &signer);
+
+        Client {
+            signer,
+            credential_with_key,
+            provider,
+        }
+    }
+
     pub fn generate_key_package(&self, ciphersuite: ApqCiphersuite) -> ApqKeyPackage {
         ApqKeyPackage::builder()
             .build(
