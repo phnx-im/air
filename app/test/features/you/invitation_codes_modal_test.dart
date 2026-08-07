@@ -86,7 +86,9 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/invitation_codes_modal_single_copied_code.png'),
+        matchesGoldenFile(
+          'goldens/invitation_codes_modal_single_copied_code.png',
+        ),
       );
     });
 
