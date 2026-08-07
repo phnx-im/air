@@ -137,8 +137,8 @@ class _MemberList extends StatelessWidget {
       itemCount: members.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        thickness: StrokeWidth.px1,
-        color: palette.backgroundBase.primary,
+        thickness: StrokeWidth.px0_5,
+        color: palette.separator.secondary,
       ),
       itemBuilder: (context, index) => _GroupMemberTile(
         chatId: chatId,
