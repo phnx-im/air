@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -99,7 +98,7 @@ class _ChatListViewState extends State<ChatListView> {
 class _Header extends StatelessWidget {
   const _Header({required this.scrollOffset, required this.topInset});
 
-  final ValueListenable<double> scrollOffset;
+  final ValueNotifier<double>? scrollOffset;
 
   /// Status-bar inset. The header floats over a full-bleed list, so it cannot
   /// rely on a SafeArea to clear the notch.
@@ -109,10 +108,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: topInset),
-      child: ValueListenableBuilder<double>(
-        valueListenable: scrollOffset,
-        builder: (context, offset, _) => ChatListHeader(scrollOffset: offset),
-      ),
+      child: ChatListHeader(scrollOffset: scrollOffset),
     );
   }
 }
