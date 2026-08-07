@@ -626,6 +626,7 @@ impl CoreUser {
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
                     shares_vc_leaf: group.own_leaf_is_virtual_client(),
+                    connection_contact: None,
                 };
                 group.group_mut().mark_commit_failed(&mut *txn).await?;
                 Ok(None)
