@@ -272,9 +272,6 @@ class AppLocalizationsSv extends AppLocalizations {
   String get introScreen_serverHint => 'DOMÄNNAMN';
 
   @override
-  String get introScreen_error_invalidDomain => 'Domänen är ogiltig';
-
-  @override
   String get introScreen_linkExisting => 'Länka till ett befintligt konto';
 
   @override
@@ -444,9 +441,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking => 'Länkar...';
-
-  @override
-  String get linkingDeviceScreen_linked => 'Enheten har länkats!';
 
   @override
   String get linkingDeviceScreen_linking_confirm_title => 'Bekräfta länkning';
@@ -801,7 +795,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Den här klienten lades till i gruppen efter länkningen.';
+      'Den här klienten lades till i chatten efter länkningen.';
 
   @override
   String get timestamp_now => 'Nu';
@@ -847,9 +841,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blockerad';
-
-  @override
-  String get chatList_muted => 'Tystad';
 
   @override
   String get chatList_contextMenu_mute => 'Tysta';
@@ -959,9 +950,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Försök igen';
 
   @override
   String get attachment_gallery => 'Galleri';
@@ -1150,9 +1138,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Lägg till';
-
-  @override
-  String get groupDetails_seeAll => 'Visa alla';
 
   @override
   String groupDetails_memberCount(int count) {

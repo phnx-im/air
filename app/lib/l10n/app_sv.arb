@@ -79,7 +79,6 @@
   "changeGroupTitleDialog_confirm": "Spara",
   "introScreen_serverLabel": "Välj en server att ansluta till för länkning.",
   "introScreen_serverHint": "DOMÄNNAMN",
-  "introScreen_error_invalidDomain": "Domänen är ogiltig",
 
   "introScreen_linkExisting": "Länka till ett befintligt konto",
   "introScreen_signUp": "Skapa konto",
@@ -136,7 +135,6 @@
   "linkingDeviceScreen_separator": "eller",
   "linkingDeviceScreen_numericCode": "Numerisk kod",
   "linkingDeviceScreen_linking": "Länkar...",
-  "linkingDeviceScreen_linked": "Enheten har länkats!",
   "linkingDeviceScreen_linking_confirm_title": "Bekräfta länkning",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tryck för att ändra enhetsnamnet",
   "linkingDeviceScreen_linking_confirm_body": "Du är på väg att länka en ny enhet som får full åtkomst till ditt Air-konto. Gör bara detta om enheten tillhör dig.",
@@ -246,7 +244,7 @@
   "systemMessage_userChangedPicture_infix": " ändrade gruppbilden",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " skapade gruppen",
-  "systemMessage_onboarded": "Den här klienten lades till i gruppen efter länkningen.",
+  "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",
@@ -261,7 +259,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
-  "chatList_muted": "Tystad",
   "chatList_contextMenu_mute": "Tysta",
   "chatList_contextMenu_unmute": "Sluta tysta",
   "newChatDialog_error": "Kunde inte skapa en ny gruppchatt med namnet {chatName}",
@@ -298,7 +295,6 @@
       }
     }
   },
-  "attachment_tryAgain": "Försök igen",
   "attachment_gallery": "Galleri",
   "attachment_camera": "Kamera",
   "attachment_file": "Fil",
@@ -368,7 +364,6 @@
   "groupDetails_leaveChat": "Lämna",
   "groupDetails_deleteChat": "Radera",
   "groupDetails_addPeople": "Lägg till",
-  "groupDetails_seeAll": "Visa alla",
   "groupDetails_memberCount": "{count, plural, one {{count} medlem} other {{count} medlemmar}}",
   "@groupDetails_memberCount": {
     "placeholders": {

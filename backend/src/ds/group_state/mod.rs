@@ -14,7 +14,7 @@ use aircommon::{
         },
         errors::{DecryptionError, EncryptionError},
     },
-    identifiers::{QsReference, SealedClientReference},
+    identifiers::{QsReference, SealedClientReference, UserId},
     messages::client_ds::WelcomeInfoParams,
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
@@ -138,8 +138,13 @@ impl DsGroupState {
     /// Returns true if the group context carries the APQMLS component, i.e. this group is a leg of
     /// an APQ group.
     pub(crate) fn is_apq(&self) -> bool {
+        self.apq_info().is_some()
+    }
+
+    /// Extracts the APQMLS component from the group context extensions, if present.
+    pub(crate) fn apq_info(&self) -> Option<ApqInfo> {
         let extensions = self.group().group_info().group_context().extensions();
-        ApqInfo::from_extensions(extensions).is_ok_and(|info| info.is_some())
+        ApqInfo::from_extensions(extensions).ok().flatten()
     }
 
     /// Get a reference to the public group state.
@@ -210,20 +215,52 @@ impl DsGroupState {
             .map(|client_profile| client_profile.client_queue_config.clone())
     }
 
+    /// The members that receive a message sent from `sender_index`.
+    fn other_member_profiles(
+        &self,
+        sender_index: LeafNodeIndex,
+    ) -> impl Iterator<Item = (&LeafNodeIndex, &MemberProfile)> {
+        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
+        self.member_profiles
+            .iter()
+            .filter(move |(client_index, _)| {
+                *client_index != &sender_index || is_sender_virtual_client
+            })
+    }
+
     pub(crate) fn other_destination_clients(
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
-        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
-        self.member_profiles
-            .iter()
-            .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index || is_sender_virtual_client {
-                    Some(client_profile.client_queue_config.clone())
-                } else {
-                    None
-                }
+        self.other_member_profiles(sender_index)
+            .map(|(_, client_profile)| client_profile.client_queue_config.clone())
+    }
+
+    /// The same as [`Self::other_destination_clients`], but each destination is
+    /// paired with whether it is another client of the sending user. It
+    /// unfortunately requires parsing of the client's leaf credential.
+    pub(crate) fn other_destinations(
+        &self,
+        sender_index: LeafNodeIndex,
+    ) -> impl Iterator<Item = (QsReference, bool)> {
+        let is_self_group = self.is_self_group();
+        let sender_user_id = self.leaf_user_id(sender_index);
+        self.other_member_profiles(sender_index)
+            .map(move |(client_index, client_profile)| {
+                let is_sibling = is_self_group
+                    || sender_user_id.as_ref().is_some_and(|sender_user_id| {
+                        self.leaf_user_id(*client_index).as_ref() == Some(sender_user_id)
+                    });
+                (client_profile.client_queue_config.clone(), is_sibling)
             })
+    }
+
+    /// The user owning `leaf_index`, if the leaf carries a user credential.
+    fn leaf_user_id(&self, leaf_index: LeafNodeIndex) -> Option<UserId> {
+        match self.leaf_credential(leaf_index)? {
+            LeafCredential::User(credential) => Some(credential.user_id().clone()),
+            LeafCredential::SelfGroup(_) => None,
+        }
     }
 
     /// Returns `true` if the group context's [`AirComponent`] marks this group as a

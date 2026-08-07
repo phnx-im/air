@@ -396,6 +396,15 @@ impl Message {
         }
     }
 
+    /// The user whose action produced this message.
+    /// Unlike [`Self::sender`], this also resolves event messages.
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            Message::Content(content_message) => Some(content_message.sender()),
+            Message::Event(event_message) => event_message.actor(),
+        }
+    }
+
     pub fn mimi_content(&self) -> Option<&MimiContent> {
         match self {
             Message::Content(content_message) => Some(content_message.content()),
@@ -579,7 +588,35 @@ pub enum SystemMessage {
     Onboarded,
 }
 
+impl EventMessage {
+    /// See [`SystemMessage::actor`].
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            EventMessage::System(system_message) => system_message.actor(),
+            EventMessage::Error(_) => None,
+        }
+    }
+}
+
 impl SystemMessage {
+    /// The user who performed the group operation this message reports.
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            SystemMessage::Add(user_id, _)
+            | SystemMessage::Remove(user_id, _)
+            | SystemMessage::ChangeTitle { user_id, .. }
+            | SystemMessage::ChangePicture(user_id)
+            | SystemMessage::CreateGroup(user_id) => Some(user_id),
+            SystemMessage::ReceivedDirectConnectionRequest { .. }
+            | SystemMessage::ReceivedHandleConnectionRequest { .. }
+            | SystemMessage::AcceptedConnectionRequest { .. }
+            | SystemMessage::ReceivedConnectionConfirmation { .. }
+            | SystemMessage::NewHandleConnectionChat(_)
+            | SystemMessage::NewDirectConnectionChat(_)
+            | SystemMessage::Onboarded => None,
+        }
+    }
+
     async fn string_representation(&self, core_user: &CoreUser) -> String {
         match self {
             SystemMessage::Add(adder, added) => {

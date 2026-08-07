@@ -570,12 +570,6 @@ abstract class AppLocalizations {
   /// **'DOMAIN NAME'**
   String get introScreen_serverHint;
 
-  /// No description provided for @introScreen_error_invalidDomain.
-  ///
-  /// In en, this message translates to:
-  /// **'Domain is invalid'**
-  String get introScreen_error_invalidDomain;
-
   /// No description provided for @introScreen_linkExisting.
   ///
   /// In en, this message translates to:
@@ -863,12 +857,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Linking...'**
   String get linkingDeviceScreen_linking;
-
-  /// No description provided for @linkingDeviceScreen_linked.
-  ///
-  /// In en, this message translates to:
-  /// **'Device successfully linked!'**
-  String get linkingDeviceScreen_linked;
 
   /// No description provided for @linkingDeviceScreen_linking_confirm_title.
   ///
@@ -1404,7 +1392,7 @@ abstract class AppLocalizations {
   /// No description provided for @systemMessage_onboarded.
   ///
   /// In en, this message translates to:
-  /// **'This client has been onboarded into the group after linking.'**
+  /// **'This client has been onboarded into the chat after linking.'**
   String get systemMessage_onboarded;
 
   /// No description provided for @timestamp_now.
@@ -1490,12 +1478,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Blocked'**
   String get chatList_blocked;
-
-  /// No description provided for @chatList_muted.
-  ///
-  /// In en, this message translates to:
-  /// **'Muted'**
-  String get chatList_muted;
 
   /// No description provided for @chatList_contextMenu_mute.
   ///
@@ -1646,12 +1628,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
-
-  /// No description provided for @attachment_tryAgain.
-  ///
-  /// In en, this message translates to:
-  /// **'Try again'**
-  String get attachment_tryAgain;
 
   /// No description provided for @attachment_gallery.
   ///
@@ -2000,12 +1976,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add people'**
   String get groupDetails_addPeople;
-
-  /// No description provided for @groupDetails_seeAll.
-  ///
-  /// In en, this message translates to:
-  /// **'See all'**
-  String get groupDetails_seeAll;
 
   /// No description provided for @groupDetails_memberCount.
   ///

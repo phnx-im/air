@@ -213,20 +213,22 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// Fans out a message to the given clients (concurrently).
     ///
+    /// Each destination carries its own notification-suppression flag, so that
+    /// a message can reach the sender's other clients without waking them.
+    ///
     /// The parallelism is limited by a constant. Logs failures but does not
     /// fail the whole operation.
     async fn fan_out_message(
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
-        destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
-        suppress_notifications: bool,
+        destination_clients: impl IntoIterator<Item = (identifiers::QsReference, bool)>,
         broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
         let fan_out_payload = fan_out_payload.into();
         let timestamp = fan_out_payload.timestamp();
 
         let mut join_set: JoinSet<Result<(), <Qep as QsConnector>::EnqueueError>> = JoinSet::new();
-        for client_reference in destination_clients {
+        for (client_reference, suppress_notifications) in destination_clients {
             while MAX_CONCURRENT_FANOUTS <= join_set.len() {
                 join_set
                     .join_next()
@@ -270,8 +272,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> TimeStamp {
         self.fan_out_message(
             fan_out_payload,
-            destination_clients,
-            true,
+            destination_clients
+                .into_iter()
+                .map(|client_reference| (client_reference, true)),
             broadcast_to_all_client_queues,
         )
         .await
@@ -434,12 +437,34 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (txn, mut t_group_state, t_group_data) = self
             .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
             .await?;
+        let t_apq_info = t_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on T group"))?;
         let (payload, t_sender_index) =
             resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
 
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
+        let pq_apq_info = pq_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on PQ group"))?;
+
+        if t_apq_info.group_id() != pq_apq_info.group_id() {
+            return Err(Status::failed_precondition(
+                "T and PQ group IDs do not match",
+            ));
+        }
+        if t_message.group_id() != &t_apq_info.t_session_group_id {
+            return Err(Status::failed_precondition(
+                "T message group ID does not match T APQ group ID",
+            ));
+        }
+        if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
+            return Err(Status::failed_precondition(
+                "PQ message group ID does not match PQ APQ group ID",
+            ));
+        }
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
@@ -1150,6 +1175,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 &qgid,
                 &ear_key,
                 async |group_state, _group_data| {
+                    if group_state.is_apq() {
+                        return Err(Status::failed_precondition(
+                            "Non APQ operation on an APQ group",
+                        ));
+                    }
+
                     let params = JoinConnectionGroupParams {
                         external_commit,
                         qs_client_reference: request
@@ -1206,8 +1237,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verified_data;
 
-                // A T-only resync of an APQ group would leave the PQ group with a stale leaf and
-                // strip the sender's local PQ state.
                 if group_state.is_apq() {
                     return Err(Status::failed_precondition(
                         "APQ group requires an APQ resync",
@@ -1337,6 +1366,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     message: remove_proposal,
                     ..
                 } = verification_data;
+
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ self remove",
+                    ));
+                }
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -1469,17 +1504,26 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await?;
         }
 
-        let destination_clients = group_state.other_destination_clients(sender_index);
         let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
 
+        // The sender's own clients need the message, but a push notification for
+        // it would wake them for something their user just did themselves.
+        let destination_clients = group_state.other_destinations(sender_index).map(
+            |(client_reference, is_sender_sibling)| {
+                (
+                    client_reference,
+                    suppress_notifications || is_sender_sibling,
+                )
+            },
+        );
+
         let timestamp = self
             .fan_out_message(
                 message.into_serialized_mls_message(),
                 destination_clients,
-                suppress_notifications,
                 broadcast_to_all_client_queues,
             )
             .await;
@@ -1516,6 +1560,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     message: commit,
                     ..
                 } = verification_data;
+
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ delete",
+                    ));
+                }
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
