@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -19,7 +20,7 @@ import 'package:air/features/user/users_cubit.dart';
 
 import '../../helpers.dart';
 import '../../mocks.dart';
-import 'invitation_codes_view_test.dart';
+import 'invitation_codes_modal_test.dart';
 
 const physicalSize = Size(1080, 3300);
 

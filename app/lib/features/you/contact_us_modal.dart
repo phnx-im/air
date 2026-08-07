@@ -11,10 +11,11 @@ import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -23,8 +24,15 @@ import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 final _log = Logger('ContactUsScreen');
 
-class ContactUsScreen extends StatelessWidget {
-  const ContactUsScreen({
+/// Opens the contact form on the surface the device calls for.
+Future<void> showContactUs(BuildContext context) => showAppModal<void>(
+  context: context,
+  builder: (_) => const ContactUsModal(),
+);
+
+/// The contact form: a subject, a body, and what to attach to them.
+class ContactUsModal extends StatelessWidget {
+  const ContactUsModal({
     super.key,
     this.initialSubject,
     this.initialBody,
@@ -38,40 +46,15 @@ class ContactUsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        clipBehavior: Clip.none,
-        title: Text(
-          loc.contactUsScreen_title,
-          style: typeScale.body.regular.style(weight: Weight.emphasized),
-        ),
-        leading: AppBarBackButton(
-          backgroundColor: palette.backgroundElevated.primary,
-        ),
-        actions: null,
-        backgroundColor: palette.backgroundBase.secondary,
-        centerTitle: true,
-      ),
-      backgroundColor: palette.backgroundBase.secondary,
-      body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: S.s32 + S.s8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: S.s16),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Container(
-              constraints: DeviceType.isDesktop
-                  ? const BoxConstraints(maxWidth: Measure.m800)
-                  : null,
-              child: _EmailForm(
-                initialBody: initialBody,
-                initialSubject: initialSubject,
-                launcher: launcher ?? _UrlLauncher(),
-              ),
-            ),
-          ),
+    return ModalScaffold(
+      title: loc.contactUsScreen_title,
+      onDismiss: () => Navigator.of(context).pop(),
+      child: ModalBody(
+        child: _EmailForm(
+          initialBody: initialBody,
+          initialSubject: initialSubject,
+          launcher: launcher ?? _UrlLauncher(),
         ),
       ),
     );
@@ -128,87 +111,83 @@ class _EmailForm extends HookWidget {
 
     assert(initialSubject == null || subjects.contains(initialSubject));
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: S.s8),
+    // The host scrolls this, so the form is a plain column.
+    return Column(
+      children: [
+        _SubjectField(
+          subjects: subjects,
+          selected: selectedSubject.value,
+          errorText: subjectError.value,
+          onSelected: (subject) {
+            selectedSubject.value = subject;
+            subjectError.value = null;
+          },
+        ),
+        const SizedBox(height: S.s16),
 
-          _SubjectField(
-            subjects: subjects,
-            selected: selectedSubject.value,
-            errorText: subjectError.value,
-            onSelected: (subject) {
-              selectedSubject.value = subject;
-              subjectError.value = null;
-            },
-          ),
-          const SizedBox(height: S.s16),
+        // Email Body
+        AppTextInput(
+          tokens: AppTextInputTokens.current,
+          controller: bodyController,
+          label: loc.contactUsScreen_body,
+          errorText: bodyError.value,
+          minLines: 6,
+          maxLines: 6,
+        ),
+        const SizedBox(height: S.s8),
 
-          // Email Body
-          AppTextInput(
-            tokens: AppTextInputTokens.current,
-            controller: bodyController,
-            label: loc.contactUsScreen_body,
-            errorText: bodyError.value,
-            minLines: 6,
-            maxLines: 6,
-          ),
-          const SizedBox(height: S.s8),
-
-          // Include logs checkbox
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: isUploadingLogs.value ? null : onToggleLogs,
-            child: SizedBox(
-              // The box paints at 20px, so the row carries the tap target.
-              height: S.s48,
-              child: Row(
-                spacing: S.s12,
-                children: [
-                  if (isUploadingLogs.value)
-                    const SizedBox(
-                      width: S.s20,
-                      height: S.s20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: StrokeWidth.px2,
-                      ),
-                    )
-                  else
-                    AppCheckbox(
-                      value: debugLogsUrl.value != null,
-                      onChanged: (_) => onToggleLogs(),
+        // Include logs checkbox
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isUploadingLogs.value ? null : onToggleLogs,
+          child: SizedBox(
+            // The box paints at 20px, so the row carries the tap target.
+            height: S.s48,
+            child: Row(
+              spacing: S.s12,
+              children: [
+                if (isUploadingLogs.value)
+                  const SizedBox(
+                    width: S.s20,
+                    height: S.s20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: StrokeWidth.px2,
                     ),
-                  Text(loc.contactUsScreen_includeLogs),
-                ],
-              ),
+                  )
+                else
+                  AppCheckbox(
+                    value: debugLogsUrl.value != null,
+                    onChanged: (_) => onToggleLogs(),
+                  ),
+                Text(loc.contactUsScreen_includeLogs),
+              ],
             ),
           ),
-          const SizedBox(height: S.s8),
+        ),
+        const SizedBox(height: S.s8),
 
-          // Submit Button. The log upload is a separate operation with its
-          // own spinner, so while it runs this button is merely unavailable.
-          Button(
-            onPressed: () {
-              final body = bodyController.text;
-              bodyError.value = _validateBody(body, loc);
-              subjectError.value = _validateSubject(selectedSubject.value, loc);
-              if (subjectError.value == null && bodyError.value == null) {
-                _launchEmail(
-                  context,
-                  selectedSubject.value,
-                  body,
-                  debugLogsUrl.value,
-                );
-              }
-            },
-            label: loc.contactUsScreen_composeEmail,
-            type: ButtonType.secondary,
-            state: isUploadingLogs.value
-                ? ButtonState.disabled
-                : ButtonState.active,
-          ),
-        ],
-      ),
+        // Submit button. While the log upload runs, it is merely unavailable.
+        Button(
+          onPressed: () {
+            final body = bodyController.text;
+            bodyError.value = _validateBody(body, loc);
+            subjectError.value = _validateSubject(selectedSubject.value, loc);
+            if (subjectError.value == null && bodyError.value == null) {
+              _launchEmail(
+                context,
+                selectedSubject.value,
+                body,
+                debugLogsUrl.value,
+              );
+            }
+          },
+          label: loc.contactUsScreen_composeEmail,
+          type: ButtonType.secondary,
+          state: isUploadingLogs.value
+              ? ButtonState.disabled
+              : ButtonState.active,
+        ),
+      ],
     );
   }
 
@@ -248,8 +227,7 @@ class _EmailForm extends HookWidget {
   }
 }
 
-/// Picks one of [subjects] from a menu, wearing [AppTextInput]'s chrome so the
-/// subject and the body below it read as one form.
+/// Picks one of [subjects] from a menu, wearing [AppTextInput]'s chrome.
 class _SubjectField extends StatelessWidget {
   const _SubjectField({
     required this.subjects,

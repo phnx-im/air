@@ -5,113 +5,111 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/list_group/list_group.dart';
+import 'package:air/ds/components/list_group/list_group_tokens.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class InvitationCodesScreen extends StatelessWidget {
-  const InvitationCodesScreen({super.key, this.invitationCodesCubit});
+/// Opens the invite codes on the surface the device calls for.
+Future<void> showInvitationCodes(BuildContext context) {
+  // The cubit lives below the navigator the modal opens on, so the modal
+  // carries it along.
+  final cubit = context.read<InvitationCodesCubit>();
 
-  final InvitationCodesCubit? invitationCodesCubit;
-
-  @override
-  Widget build(BuildContext context) {
-    return invitationCodesCubit != null
-        ? BlocProvider<InvitationCodesCubit>.value(
-            value: invitationCodesCubit!,
-            child: const InvitationCodesView(),
-          )
-        : BlocProvider<InvitationCodesCubit>(
-            create: (BuildContext context) =>
-                invitationCodesCubit ??
-                InvitationCodesCubit(userCubit: context.read<UserCubit>()),
-            child: const InvitationCodesView(),
-          );
-  }
+  return showAppModal<void>(
+    context: context,
+    builder: (_) => BlocProvider<InvitationCodesCubit>.value(
+      value: cubit,
+      child: const InvitationCodesModal(),
+    ),
+  );
 }
 
-class InvitationCodesView extends StatelessWidget {
-  const InvitationCodesView({super.key});
+/// The invite codes, what to do with them, and what they are for.
+class InvitationCodesModal extends StatelessWidget {
+  const InvitationCodesModal({super.key});
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
-    return AppScaffold(
+    return ModalScaffold(
       title: loc.invitationCodesScreen_title,
-      backgroundColor: palette.backgroundBase.secondary,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Container(
-          constraints: DeviceType.isDesktop
-              ? const BoxConstraints(maxWidth: Measure.m800)
-              : null,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: S.s16),
-                const _InvitationCodesList(),
-                const SizedBox(height: S.s24),
-                Row(
-                  children: [
-                    const Spacer(),
+      onDismiss: () => Navigator.of(context).pop(),
+      child: const ModalBody(child: InvitationCodesContent()),
+    );
+  }
+}
 
-                    Builder(
-                      builder: (context) {
-                        final anyUncopiedCode = context.select(
-                          (InvitationCodesCubit cubit) => cubit.state.codes
-                              .whereType<UiInvitationCode_Code>()
-                              .any((code) => !code.field0.copied),
-                        );
-                        return Button(
-                          size: ButtonSize.small,
-                          type: ButtonType.secondary,
-                          label: loc.invitationCodesScreen_copyAll,
-                          state: anyUncopiedCode ? .active : .disabled,
-                          onPressed: () => _handleCopyAll(context),
-                        );
-                      },
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-                const SizedBox(height: S.s16),
-                Row(
-                  children: [
-                    const Spacer(),
-                    Builder(
-                      builder: (context) {
-                        final anyCopiedCode = context.select(
-                          (InvitationCodesCubit cubit) => cubit.state.codes
-                              .whereType<UiInvitationCode_Code>()
-                              .any((code) => code.field0.copied),
-                        );
-                        return Button(
-                          size: ButtonSize.small,
-                          type: ButtonType.secondary,
-                          label: loc.invitationCodesScreen_removeUsedCodes,
-                          state: anyCopiedCode ? .active : .disabled,
-                          onPressed: () => _handleClearCopied(context),
-                        );
-                      },
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-                const SizedBox(height: S.s24),
-                const _InfoText(),
-              ],
+/// The codes list and its actions. Sized and scrolled by its host.
+class InvitationCodesContent extends StatelessWidget {
+  const InvitationCodesContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _InvitationCodesList(),
+        const SizedBox(height: S.s24),
+        Row(
+          children: [
+            const Spacer(),
+
+            Builder(
+              builder: (context) {
+                final anyUncopiedCode = context.select(
+                  (InvitationCodesCubit cubit) => cubit.state.codes
+                      .whereType<UiInvitationCode_Code>()
+                      .any((code) => !code.field0.copied),
+                );
+                return Button(
+                  size: ButtonSize.small,
+                  type: ButtonType.secondary,
+                  label: loc.invitationCodesScreen_copyAll,
+                  state: anyUncopiedCode ? .active : .disabled,
+                  onPressed: () => _handleCopyAll(context),
+                );
+              },
             ),
-          ),
+            const Spacer(),
+          ],
         ),
-      ),
+        const SizedBox(height: S.s16),
+        Row(
+          children: [
+            const Spacer(),
+            Builder(
+              builder: (context) {
+                final anyCopiedCode = context.select(
+                  (InvitationCodesCubit cubit) => cubit.state.codes
+                      .whereType<UiInvitationCode_Code>()
+                      .any((code) => code.field0.copied),
+                );
+                return Button(
+                  size: ButtonSize.small,
+                  type: ButtonType.secondary,
+                  label: loc.invitationCodesScreen_removeUsedCodes,
+                  state: anyCopiedCode ? .active : .disabled,
+                  onPressed: () => _handleClearCopied(context),
+                );
+              },
+            ),
+            const Spacer(),
+          ],
+        ),
+        const SizedBox(height: S.s24),
+        const _InfoText(),
+      ],
     );
   }
 
@@ -156,33 +154,29 @@ class _InvitationCodesList extends StatelessWidget {
       (InvitationCodesCubit cubit) => cubit.state.codes,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(CornerRadius.px16),
-      ),
-      child: Column(
-        children: invitationCodes.isEmpty
-            ? [const _InvitationCodeEmptyItem()]
-            : invitationCodes
-                  .expand(
-                    (code) => [
-                      switch (code) {
-                        UiInvitationCode_Code(field0: final code) =>
-                          _InvitationCodeItem(code: code),
-                        UiInvitationCode_Token(field0: final token) =>
-                          _InvitationTokenItem(tokenId: token),
-                      },
-                      if (code != invitationCodes.last)
-                        Divider(
-                          height: 1,
-                          thickness: StrokeWidth.px1,
-                          color: palette.separator.primary,
-                        ),
-                    ],
-                  )
-                  .toList(),
-      ),
+    // The group's own fill, so the codes read against either modal surface.
+    return ListGroup(
+      tokens: ListGroupTokens.current,
+      children: invitationCodes.isEmpty
+          ? [const _InvitationCodeEmptyItem()]
+          : invitationCodes
+                .expand(
+                  (code) => [
+                    switch (code) {
+                      UiInvitationCode_Code(field0: final code) =>
+                        _InvitationCodeItem(code: code),
+                      UiInvitationCode_Token(field0: final token) =>
+                        _InvitationTokenItem(tokenId: token),
+                    },
+                    if (code != invitationCodes.last)
+                      Divider(
+                        height: 1,
+                        thickness: StrokeWidth.px1,
+                        color: palette.separator.primary,
+                      ),
+                  ],
+                )
+                .toList(),
     );
   }
 }
@@ -199,7 +193,6 @@ class _InvitationCodeItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
@@ -257,7 +250,6 @@ class _InvitationTokenItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(

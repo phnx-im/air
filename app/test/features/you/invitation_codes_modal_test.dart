@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
-import 'package:air/features/you/invitation_codes_screen.dart';
+import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,7 +28,7 @@ UiInvitationCode code(String codeStr, {bool copied = false}) =>
     );
 
 void main() {
-  group('InvitationCodesScreenTest', () {
+  group('InvitationCodesModalTest', () {
     late MockInvitationCodesCubit cubit;
 
     setUp(() {
@@ -45,7 +45,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const InvitationCodesView(),
+          home: const InvitationCodesModal(),
         ),
       ),
     );
@@ -125,5 +125,73 @@ void main() {
         matchesGoldenFile('goldens/invite_codes_screen_mixed.png'),
       );
     });
+  });
+
+  group('showInvitationCodes', () {
+    late MockInvitationCodesCubit cubit;
+
+    setUp(() {
+      cubit = MockInvitationCodesCubit();
+      when(
+        () => cubit.state,
+      ).thenReturn(InvitationCodesState(codes: [code('ABCD-EFGH-IJKL')]));
+    });
+
+    // The cubit sits below the navigator that hosts the dialog, as it does in
+    // the profile section, so the host has to carry it to whatever it opens.
+    Widget buildHost() => Builder(
+      builder: (context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: BlocProvider<InvitationCodesCubit>.value(
+          value: cubit,
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showInvitationCodes(context),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Future<void> open(WidgetTester tester) async {
+      await tester.pumpWidget(buildHost());
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('fills the screen on a phone', (tester) async {
+      sizeView(tester, phoneViewSize);
+      await open(tester);
+
+      expect(find.byType(InvitationCodesModal), findsOneWidget);
+      expectModalFillsViewport(tester, phoneViewSize);
+      expect(find.text('ABCD-EFGH-IJKL'), findsOneWidget);
+    });
+
+    // A route push would cover the window whole, sidebar and window chrome
+    // included, so desktop gets a card over what it came from instead.
+    testWidgets('presents a card on desktop', (tester) async {
+      sizeView(tester, desktopViewSize);
+      await open(tester);
+
+      expect(find.byType(InvitationCodesModal), findsOneWidget);
+      expectModalIsCard(tester, desktopViewSize);
+      // The codes the card lists are the ones the host handed it.
+      expect(find.text('ABCD-EFGH-IJKL'), findsOneWidget);
+    }, variant: desktopPlatform);
+
+    // A desktop window narrow enough to sit in the small tier still gets the
+    // card: nothing reserves the window's own chrome on a full-bleed surface.
+    testWidgets('presents a card in a narrow desktop window', (tester) async {
+      sizeView(tester, phoneViewSize);
+      await open(tester);
+
+      expectModalIsCard(tester, phoneViewSize);
+    }, variant: desktopPlatform);
   });
 }
