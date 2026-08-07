@@ -275,9 +275,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get introScreen_serverHint => 'DOMAIN NAME';
 
   @override
-  String get introScreen_error_invalidDomain => 'Domain is invalid';
-
-  @override
   String get introScreen_linkExisting => 'Link to an existing account';
 
   @override
@@ -443,9 +440,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking => 'Linking...';
-
-  @override
-  String get linkingDeviceScreen_linked => 'Device successfully linked!';
 
   @override
   String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
@@ -797,7 +791,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'This client has been onboarded into the chat after linking.';
 
   @override
   String get timestamp_now => 'Now';
@@ -843,9 +837,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blocked';
-
-  @override
-  String get chatList_muted => 'Muted';
 
   @override
   String get chatList_contextMenu_mute => 'Mute';
@@ -953,9 +944,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
     return '$sizeString $byteUnit';
   }
-
-  @override
-  String get attachment_tryAgain => 'Try again';
 
   @override
   String get attachment_gallery => 'Gallery';
@@ -1141,9 +1129,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Add people';
-
-  @override
-  String get groupDetails_seeAll => 'See all';
 
   @override
   String groupDetails_memberCount(int count) {
