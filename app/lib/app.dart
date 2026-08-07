@@ -56,7 +56,11 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
   late final StreamSubscription<ChatId> _openedNotificationSubscription;
-  final NavigationCubit _navigationCubit = NavigationCubit();
+  final NavigationCubit _navigationCubit = NavigationCubit(
+    notificationContext: NotificationContextBase(
+      notificationService: DartNotificationServiceExtension.create(),
+    ),
+  );
 
   final StreamController<AppState> _appStateController =
       StreamController<AppState>.broadcast();
@@ -276,7 +280,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
         // screen, depending on whether the user was loaded or unloaded.
         switch (loadableUser) {
           case LoadedUser(:final user):
-            final registrationCubit = context.read<RegistrationCubit>();
             final coreClient = context.read<CoreClient>();
             final appLocaleCubit = context.read<AppLocaleCubit>();
 
@@ -285,15 +288,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
             // it reads the user-bound settings cubit impl.
             await userSettingsCubit.attach(user: user);
 
-            final registrationState = registrationCubit.state;
-            if (registrationState.needsUsernameOnboarding) {
-              navigationCubit.openIntroScreen(
-                const IntroScreenType.usernameOnboarding(),
-              );
-            } else if (navigationCubit.state is! NavigationState_Home) {
-              // Only navigate to home if not already there. A push
-              // notification deep link may have already set the state to
-              // Home with a specific chat open, so we must not overwrite it.
+            // Only navigate to home if not already there. A push
+            // notification deep link may have already set the state to
+            // Home with a specific chat open, so we must not overwrite it.
+            // Account creation is left alone too: the user exists a step
+            // before that flow is done, and it opens home itself.
+            final navigationState = navigationCubit.state;
+            if (navigationState is! HomeState &&
+                !navigationState.isCreatingAccount) {
               navigationCubit.openHome();
             }
             final userLocaleCode = userSettingsCubit.state.locale;
