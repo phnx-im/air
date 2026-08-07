@@ -134,8 +134,12 @@ regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
 # Run flutter test.
+#
+# TZ is pinned because goldens depict clock labels in the host's zone, so an
+# offset host rewrites every golden that shows a timestamp.
 [working-directory: 'app']
-test-flutter: (flutter "test")
+test-flutter:
+    TZ=UTC just flutter test
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
@@ -163,7 +167,7 @@ update-goldens:
     # Delete existing goldens
     rm -f **/goldens/*.{{ os() }}.png
     # Update golden snapshots
-    just flutter test --update-goldens
+    TZ=UTC just flutter test --update-goldens
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]
