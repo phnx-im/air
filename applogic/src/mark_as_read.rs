@@ -17,6 +17,8 @@ use crate::{api::user_settings_cubit::UserSettings, notifications::NotificationS
 
 #[cfg_attr(test, mockall::automock)]
 pub(crate) trait MarkAsReadService {
+    async fn self_chat_id(&self) -> anyhow::Result<Option<ChatId>>;
+
     async fn mark_chat_as_read(
         &self,
         chat_id: ChatId,
@@ -56,6 +58,10 @@ impl<'a> MarkAsRead<'a> {
 }
 
 impl MarkAsReadService for MarkAsRead<'_> {
+    async fn self_chat_id(&self) -> anyhow::Result<Option<ChatId>> {
+        self.core_user.self_chat_id().await
+    }
+
     async fn mark_chat_as_read(
         &self,
         chat_id: ChatId,
@@ -191,10 +197,20 @@ pub(crate) async fn mark_as_read(
 
     let (_, read_message_ids) = service.mark_chat_as_read(chat_id, until_message_id).await?;
 
+    // The receipt doubles as the read marker our other devices follow. The
+    // setting governs what we tell the other members, so when it is off we send
+    // the same report through the self group instead, where only our own
+    // devices see it. Without a self group there is nothing to synchronize.
     let read_receipts_enabled = user_settings_rx.borrow().read_receipts;
-    if read_receipts_enabled
+    let receipts_chat_id = if read_receipts_enabled {
+        Some(chat_id)
+    } else {
+        service.self_chat_id().await?
+    };
+
+    if let Some(receipts_chat_id) = receipts_chat_id
         && let Err(error) = service
-            .enqueue_read_receipts(chat_id, read_message_ids)
+            .enqueue_read_receipts(receipts_chat_id, read_message_ids)
             .await
     {
         error!(%error, "Failed to enqueue read receipt");
@@ -268,7 +284,8 @@ mod test {
 
         service.checkpoint();
 
-        // Mark as read and don't enqueue receipts because read receipts are disabled
+        // With read receipts disabled, the receipt goes to the self chat, where
+        // it only synchronizes the read marker with our own devices
         mark_as_read_tx.send_modify(|state| {
             *state = MarkAsReadState::Marked {
                 at: until_timestamp - Duration::from_secs(1),
@@ -276,13 +293,24 @@ mod test {
         });
         user_settings_tx.send_modify(|settings| settings.read_receipts = false);
 
+        let self_chat_id = ChatId::new(Uuid::from_u128(3));
+
         service
             .expect_mark_chat_as_read()
             .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
             .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
             .times(1);
 
-        service.expect_enqueue_read_receipts().times(0);
+        service
+            .expect_self_chat_id()
+            .returning(move || Ok(Some(self_chat_id)))
+            .times(1);
+
+        service
+            .expect_enqueue_read_receipts()
+            .withf(move |cid, mids| *cid == self_chat_id && mids == &[(until_message_id, mimi_id)])
+            .returning(|_, _| Ok(()))
+            .times(1);
 
         mark_as_read(
             &service,
@@ -313,6 +341,51 @@ mod test {
         )
         .await
         .unwrap();
+    }
+
+    /// With read receipts disabled and no self group, there is nobody to tell:
+    /// not the other members, and not another device of ours.
+    #[tokio::test]
+    async fn mark_as_read_without_receipts_and_without_self_group() {
+        let mut service = MockMarkAsReadService::new();
+
+        let (mark_as_read_tx, _) = watch::channel(MarkAsReadState::Marked {
+            at: Utc::now() - Duration::from_secs(1),
+        });
+        let (_user_settings_tx, user_settings_rx) = watch::channel(UserSettings {
+            read_receipts: false,
+            ..Default::default()
+        });
+
+        let chat_id = ChatId::new(Uuid::from_u128(1));
+        let until_message_id = MessageId::new(Uuid::from_u128(2));
+        let mimi_id = MimiId::from_slice(&[0; 32]).unwrap();
+
+        service
+            .expect_mark_chat_as_read()
+            .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
+            .times(1);
+
+        service
+            .expect_self_chat_id()
+            .returning(|| Ok(None))
+            .times(1);
+
+        service.expect_enqueue_read_receipts().times(0);
+
+        mark_as_read(
+            &service,
+            &mark_as_read_tx,
+            &user_settings_rx,
+            chat_id,
+            until_message_id,
+            Utc::now(),
+            Duration::ZERO,
+        )
+        .await
+        .unwrap();
+
+        service.checkpoint();
     }
 
     #[tokio::test]
@@ -351,6 +424,8 @@ mod test {
             .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
             .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
             .times(1);
+
+        service.expect_self_chat_id().returning(|| Ok(None));
 
         mark_as_read(
             &service,
@@ -446,6 +521,8 @@ mod test {
             .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
             .returning(move |_, _| Ok((true, vec![(until_message_id, mimi_id)])))
             .times(1);
+
+        service.expect_self_chat_id().returning(|| Ok(None));
 
         mark_as_read(
             &service,
