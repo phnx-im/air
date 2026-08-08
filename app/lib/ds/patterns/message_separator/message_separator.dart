@@ -87,9 +87,7 @@ class MessageSeparatorPill extends StatelessWidget {
     final unread = variant == MessageSeparatorVariant.unread;
 
     return Container(
-      padding: unread
-          ? MessageSeparatorTokens.unreadPillPadding
-          : MessageSeparatorTokens.datePillPadding,
+      padding: MessageSeparatorTokens.pillPadding,
       decoration: BoxDecoration(
         // The date pill has to lift off the conversation window in both
         // shells, and in dark those differ (the phone runs on base.primary,
