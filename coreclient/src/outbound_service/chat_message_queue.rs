@@ -142,9 +142,8 @@ mod persistence {
         ///
         /// - Remove all queued messages
         /// - Mark all messages as failed in the message table
-        /// - Delete all pending attachments associated with the queued messages
         /// - Notify about all marked messages
-        pub(crate) async fn remove_all_and_and_mark_as_failed(
+        pub(crate) async fn remove_all_and_mark_as_failed(
             txn: &mut WriteDbTransaction<'_>,
         ) -> sqlx::Result<()> {
             let failed_status: u8 = MessageStatus::Error.into();
@@ -153,10 +152,6 @@ mod persistence {
                 SET status = ?1
                 WHERE message_id IN (
                     SELECT message_id FROM chat_message_queue
-                );
-                DELETE FROM pending_attachment
-                WHERE remote_attachment_id IN (
-                    SELECT remote_attachment_id FROM chat_message_queue
                 );
 
                 DELETE FROM chat_message_queue
@@ -184,6 +179,10 @@ mod persistence {
             chats::{
                 messages::persistence::tests::test_chat_message_with_salt,
                 persistence::tests::test_chat,
+            },
+            clients::attachment::persistence::{
+                PendingAttachmentRecord,
+                test::{test_attachment_record, test_pending_attachment_record},
             },
             db::access::DbAccess,
         };
@@ -264,7 +263,7 @@ mod persistence {
             let (first, second) = queued_messages(&db).await?;
 
             db.with_write_transaction(async |txn| -> anyhow::Result<_> {
-                ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?;
+                ChatMessageQueue::remove_all_and_mark_as_failed(txn).await?;
                 Ok(())
             })
             .await?;
@@ -272,6 +271,41 @@ mod persistence {
             assert_eq!(stored_status(&db, first.id()).await?, MessageStatus::Error);
             assert_eq!(stored_status(&db, second.id()).await?, MessageStatus::Error);
             assert!(drain(&db).await?.is_empty());
+
+            Ok(())
+        }
+
+        /// Failing the whole queue leaves a message that was never queued, and
+        /// the attachment it is still waiting to download, untouched.
+        #[sqlx::test]
+        async fn fail_all_keeps_unrelated_pending_attachment(
+            pool: SqlitePool,
+        ) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, _) = queued_messages(&db).await?;
+
+            let inbound = test_chat_message_with_salt(first.chat_id(), [3; 16]);
+            inbound.store(db.write().await?).await?;
+            let attachment = test_attachment_record(first.chat_id(), inbound.id());
+            attachment.store(db.write().await?, None).await?;
+            let remote_attachment_id = attachment.remote_attachment_id.expect("no remote id");
+            test_pending_attachment_record(remote_attachment_id)
+                .store(db.write().await?, attachment.attachment_id)
+                .await?;
+
+            db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+                ChatMessageQueue::remove_all_and_mark_as_failed(txn).await?;
+                Ok(())
+            })
+            .await?;
+
+            assert!(
+                PendingAttachmentRecord::load_pending(db.read().await?, remote_attachment_id)
+                    .await?
+                    .is_some(),
+                "the pending attachment must survive an unrelated queue failure"
+            );
+            assert_eq!(stored_status(&db, inbound.id()).await?, inbound.status());
 
             Ok(())
         }
