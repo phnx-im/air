@@ -472,7 +472,7 @@ impl CoreUser {
         let api_client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
 
-        let self_group = self.ensure_self_group().await?;
+        let self_group = Box::pin(self.ensure_self_group()).await?;
         let self_group_id = self_group.group_id().clone();
         let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
 
@@ -540,6 +540,7 @@ impl CoreUser {
                 let key_material = Group::load_all_key_material(&mut *txn).await?;
                 let mut groups = Vec::new();
 
+                let mut chats = Vec::new();
                 for group in key_material {
                     let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
                         warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
@@ -552,6 +553,17 @@ impl CoreUser {
                         debug!(group_id = ?group.group_id, "skipping non-active chat");
                         continue;
                     }
+                    chats.push((group, chat));
+                }
+
+                // Sort chats in ascending order by last message date: this determines onboarding
+                // order by the resync queue.
+                //
+                // Since a system message is inserted after each onboarding, the presented list
+                // should look similar to the one in the original device.
+                chats.sort_unstable_by_key(|(_, chat)| chat.last_message_at);
+
+                for (group, chat) in chats {
                     let connection = match chat.chat_type() {
                         ChatType::Group(_) => None,
                         ChatType::Connection(user_id) => {
