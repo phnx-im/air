@@ -279,6 +279,7 @@
   "newConnectionDialog_error_ownUsername": "Du kan inte skicka en kontaktförfrågan till dig själv.",
   "composer_inputHint": "Meddelande till {chatTitle}",
   "composer_editMessage": "Redigera meddelande",
+  "composer_error_sendMessage": "Kunde inte skicka meddelandet. Försök igen.",
   "composer_error_attachment": "Kunde inte ladda upp bilagan. Försök igen.",
   "composer_error_attachment_too_large": "Bilagan är för stor. Maxstorleken är {maxSize} och den faktiska storleken är {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Ursprungligt meddelande har raderats",

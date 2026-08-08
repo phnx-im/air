@@ -32,8 +32,11 @@ class Debouncer {
     pending?.call();
   }
 
-  void dispose() {
+  /// Drops the pending action without running it.
+  void cancel() {
     _timer?.cancel();
     _pending = null;
   }
+
+  void dispose() => cancel();
 }
