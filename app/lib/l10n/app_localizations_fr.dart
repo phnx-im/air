@@ -935,6 +935,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get composer_editMessage => 'Modifier le message';
 
   @override
+  String get composer_error_sendMessage =>
+      'Échec de l\'envoi du message. Veuillez réessayer.';
+
+  @override
   String get composer_error_attachment =>
       'Échec du téléchargement de la pièce jointe. Veuillez réessayer.';
 

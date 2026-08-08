@@ -30,7 +30,7 @@ use crate::{
 
 pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 
-mod chat_message_queue;
+pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod error;
 mod key_packages;
@@ -96,6 +96,19 @@ impl OutboundService<OutboundServiceContext> {
             qs_client_id,
         };
         Self::with_context(context, global_lock)
+    }
+}
+
+#[cfg(feature = "test_utils")]
+impl OutboundService<OutboundServiceContext> {
+    /// Runs only the queued chat message stage of a run.
+    ///
+    /// A test that injects a one-shot DS failure needs to know which request
+    /// the failure lands on, which a full run does not guarantee.
+    pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
+        self.context
+            .send_queued_messages(&CancellationToken::new())
+            .await
     }
 }
 

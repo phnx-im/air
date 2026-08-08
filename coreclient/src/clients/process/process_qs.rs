@@ -39,7 +39,8 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
-        GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::handle_message_edit,
+        GroupDataExt, GroupDataProfilePart, StatusRecord,
+        messages::edit::{MessageEdit, handle_message_edit},
         reactions::Reaction,
     },
     clients::{
@@ -59,7 +60,7 @@ use crate::{
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
-    outbound_service::resync::Resync,
+    outbound_service::{chat_message_queue::ChatMessageQueue, resync::Resync},
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -1033,6 +1034,17 @@ impl CoreUser {
             });
         }
 
+        // A message we already store is an echo or a replay and must not be
+        // stored again. This must run before the edit branch, otherwise a
+        // replayed edit is applied a second time and prematurely lands in the
+        // edit history, blocking later edits of the same message.
+        if let Ok(content) = &content
+            && Box::pin(self.reconcile_known_message(txn, group, content, sender, ds_timestamp))
+                .await?
+        {
+            return Ok(Default::default());
+        }
+
         // Message edit
         if let Ok(content) = &mut content
             && let Some(replaces) = content.replaces.as_ref()
@@ -1074,6 +1086,65 @@ impl CoreUser {
             new_messages: vec![message],
             ..Default::default()
         })
+    }
+
+    /// Reconciles an inbound message whose Mimi ID we already store. Returns
+    /// true if the message was known.
+    async fn reconcile_known_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        content: &MimiContent,
+        sender: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<bool> {
+        let Ok(mimi_id) = MimiId::calculate(group.group_id(), sender, content) else {
+            return Ok(false);
+        };
+        let Some(mut existing) = ChatMessage::load_by_mimi_id(&mut *txn, &mimi_id).await? else {
+            // A Mimi ID in the edit history is a superseded version of a
+            // message. Applying it again would revert a newer edit.
+            let is_superseded_edit = MessageEdit::find_message_id(&mut *txn, &mimi_id)
+                .await?
+                .is_some();
+            if is_superseded_edit {
+                info!(?mimi_id, "Ignoring replay of a superseded message edit");
+            }
+            return Ok(is_superseded_edit);
+        };
+
+        if sender == self.user_id() && !existing.is_sent() {
+            info!(
+                message_id = ?existing.id(),
+                "Own message echo confirms an unconfirmed send"
+            );
+            // An edited message keeps its timestamp and records the echo
+            // timestamp as the edit time (mirrors the post-processing of a
+            // confirmed send in the outbound service).
+            if existing.edited_at().is_some() {
+                existing
+                    .mark_as_sent(&mut *txn, existing.timestamp().into())
+                    .await?;
+                existing.set_edited_at(ds_timestamp);
+                existing.update(&mut *txn).await?;
+            } else {
+                existing.mark_as_sent(&mut *txn, ds_timestamp).await?;
+            }
+            ChatMessageQueue::remove(txn, existing.id()).await?;
+            if existing.status() != MessageStatus::Deleted {
+                Chat::mark_as_read_until_message_id(
+                    txn,
+                    existing.chat_id(),
+                    existing.id(),
+                    self.user_id(),
+                )
+                .await?;
+            }
+        } else {
+            info!(?mimi_id, "Ignoring duplicate of an already known message");
+        }
+
+        Ok(true)
     }
 
     /// Apply an incoming reaction (add or retraction) to the targeted message.
