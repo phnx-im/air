@@ -107,7 +107,7 @@ void main() {
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(isDeveloper: true));
       when(
-        () => navigationCubit.openDeveloperSettings(),
+        () => navigationCubit.openYouSection(YouSection.developer),
       ).thenAnswer((_) async {});
 
       await pumpSubject(tester);
@@ -116,7 +116,9 @@ void main() {
 
       await tester.tap(find.text('Developer'));
 
-      verify(() => navigationCubit.openDeveloperSettings()).called(1);
+      verify(
+        () => navigationCubit.openYouSection(YouSection.developer),
+      ).called(1);
     });
   });
 }

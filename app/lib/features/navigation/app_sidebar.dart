@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/core.dart';
 import 'package:air/ds/components/nav_rail/nav_rail.dart';
 import 'package:air/ds/components/nav_rail/nav_rail_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -24,8 +23,8 @@ class AppSidebar extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final activeTab = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Home(:final home) => home.activeTab,
-        NavigationState_Intro() => HomeTab.chats,
+        HomeState(:final home) => home.activeTab,
+        IntroState() => HomeTab.chats,
       },
     );
 

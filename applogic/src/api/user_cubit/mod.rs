@@ -24,13 +24,12 @@ use crate::api::logging::tar_logs;
 use crate::api::types::UiContact;
 use crate::{
     StreamSink,
-    api::navigation_cubit::{HomeNavigationState, HomeTab},
     notifications::NotificationService,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
 use super::{
-    navigation_cubit::{NavigationCubitBase, NavigationState},
+    notification_context::{NotificationContextBase, NotificationPolicy},
     notifications::NotificationContent,
     types::{UiUserId, UiUsername},
     user::User,
@@ -170,7 +169,7 @@ pub struct UserCubitBase {
 
 impl UserCubitBase {
     #[frb(sync)]
-    pub fn new(user: &User, navigation: &NavigationCubitBase) -> Self {
+    pub fn new(user: &User, notification_context: &NotificationContextBase) -> Self {
         let core_user = user.user.clone();
 
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
@@ -182,8 +181,8 @@ impl UserCubitBase {
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());
 
-        let navigation_state = navigation.subscribe();
-        let notification_service = navigation.notification_service.clone();
+        let notification_service = notification_context.notification_service.clone();
+        let notification_policy = notification_context.subscribe();
 
         let (app_state_tx, app_state) = watch::channel(AppState::Foreground);
 
@@ -193,7 +192,7 @@ impl UserCubitBase {
             state_tx: core.state_tx().clone(),
             core_user,
             app_state,
-            navigation_state,
+            notification_policy,
             notification_service,
         };
 
@@ -542,7 +541,7 @@ struct CubitContext {
     state_tx: watch::Sender<UiUser>,
     core_user: CoreUser,
     app_state: watch::Receiver<AppState>,
-    navigation_state: watch::Receiver<NavigationState>,
+    notification_policy: watch::Receiver<NotificationPolicy>,
     notification_service: NotificationService,
 }
 
@@ -600,70 +599,24 @@ impl CubitContext {
     }
 }
 
-/// Places in the app where notifications in foreground are handled differently.
-///
-/// Derived from the [`NavigationState`].
-#[derive(Debug)]
-enum NotificationContext {
-    Intro,
-    Chat(ChatId),
-    ChatList,
-    Other,
-}
-
 impl CubitContext {
-    /// Show OS notifications depending on the current navigation state and OS.
+    /// Show OS notifications, as far as the UI's policy and the app state allow.
     async fn show_notifications(&self, mut notifications: Vec<NotificationContent>) {
-        const IS_DESKTOP: bool = cfg!(any(
-            target_os = "macos",
-            target_os = "windows",
-            target_os = "linux"
-        ));
-        let notification_context = match &*self.navigation_state.borrow() {
-            NavigationState::Intro { .. } => NotificationContext::Intro,
-            NavigationState::Home {
-                home:
-                    HomeNavigationState {
-                        chat_id: Some(chat_id),
-                        ..
-                    },
-            } => NotificationContext::Chat(*chat_id),
-            NavigationState::Home {
-                home:
-                    HomeNavigationState {
-                        chat_id: None,
-                        developer_settings_screen,
-                        active_tab,
-                        ..
-                    },
-            } => {
-                if !IS_DESKTOP
-                    && developer_settings_screen.is_none()
-                    && *active_tab == HomeTab::Chats
-                {
-                    NotificationContext::ChatList
-                } else {
-                    NotificationContext::Other
-                }
-            }
-        };
+        let policy = *self.notification_policy.borrow();
 
-        debug!(?notifications, ?notification_context, "send_notification");
+        debug!(?notifications, ?policy, "send_notification");
 
-        match notification_context {
-            NotificationContext::Intro | NotificationContext::ChatList => {
-                return; // suppress all notifications
-            }
-            NotificationContext::Chat(chat_id) => {
+        match policy {
+            NotificationPolicy::SuppressAll => return,
+            NotificationPolicy::SuppressChat { chat_id } => {
                 // We don't want to show notifications when
                 // - we are on mobile and the notification belongs to the currently open chat
                 // - we are on desktop, the app is in the foreground, and the notification belongs to the currently open chat
-                let app_state = *self.app_state.borrow();
-                if !IS_DESKTOP || app_state == AppState::Foreground {
+                if *self.app_state.borrow() != AppState::DesktopBackground {
                     notifications.retain(|notification| notification.chat_id != chat_id);
                 }
             }
-            NotificationContext::Other => (),
+            NotificationPolicy::AllowAll => (),
         }
 
         for notification in notifications {

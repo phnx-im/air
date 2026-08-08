@@ -7,7 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/ds/components/toggle/toggle.dart';
-import 'package:air/features/chat_details/create_group_screen.dart';
+import 'package:air/features/chat_details/create_group_modal.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -62,7 +62,7 @@ void main() {
     registerFallbackValue(AppState.foreground);
   });
 
-  group('CreateGroupScreen', () {
+  group('CreateGroupModal', () {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
@@ -93,7 +93,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const CreateGroupScreen(),
+          home: const CreateGroupModal(),
         ),
       ),
     );

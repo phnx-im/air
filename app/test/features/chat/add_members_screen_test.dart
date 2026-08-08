@@ -8,9 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/add_members_cubit.dart';
-import 'package:air/features/chat_details/add_members_screen.dart';
+import 'package:air/features/chat_details/add_members_pane.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -52,7 +53,7 @@ void main() {
     registerFallbackValue(0.userId());
   });
 
-  group('AddMembersScreenView', () {
+  group('AddMembersView', () {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockChatDetailsCubit chatDetailsCubit;
@@ -92,7 +93,7 @@ void main() {
         debugShowCheckedModeBanner: false,
         theme: testLightTheme,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
-        home: const AddMembersScreenView(),
+        home: ModalSurface(child: AddMembersView(chatId: _chat.id)),
       ),
     );
 

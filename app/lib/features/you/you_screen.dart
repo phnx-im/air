@@ -4,10 +4,10 @@
 
 import 'dart:math' show max;
 
-import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/navigation/tab_bar_tokens.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
