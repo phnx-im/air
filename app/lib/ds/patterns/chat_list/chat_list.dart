@@ -5,6 +5,7 @@
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 /// The scrolling chat list: a floating header, the rows beneath it, and a fade
@@ -22,6 +23,7 @@ class ChatList extends StatefulWidget {
     required this.headerHeight,
     required this.itemCount,
     required this.itemBuilder,
+    this.cacheExtent,
     this.controller,
     this.onScrollOffset,
   });
@@ -40,6 +42,8 @@ class ChatList extends StatefulWidget {
 
   final int itemCount;
   final NullableIndexedWidgetBuilder itemBuilder;
+
+  final ScrollCacheExtent? cacheExtent;
 
   /// Supply one to drive a scrollbar or to scroll the list from outside.
   /// Without one the list keeps its own.
@@ -131,6 +135,7 @@ class _ChatListState extends State<ChatList> {
             padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
             itemCount: widget.itemCount,
             itemBuilder: widget.itemBuilder,
+            scrollCacheExtent: widget.cacheExtent,
           ),
         ),
       ),

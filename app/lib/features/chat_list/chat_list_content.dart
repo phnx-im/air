@@ -31,6 +31,7 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/features/chat_list/chat_list_cubit.dart';
@@ -88,6 +89,7 @@ class ChatListContent extends StatelessWidget {
           ),
         );
       },
+      cacheExtent: const ScrollCacheExtent.viewport(3),
       onScrollOffset: onScrollOffset,
     );
 
