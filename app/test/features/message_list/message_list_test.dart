@@ -463,6 +463,107 @@ final richContent = UiMimiContent(
   attachments: [],
 );
 
+/// A paragraph with an inline code span, followed by a fenced code block, so
+/// one image carries monospace at both sizes next to the proportional prose.
+final codeBlockContent = UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody:
+      'Call `main` first:\n\n```\nfn main() {\n'
+      '    let n = 21;\n    println!("{n}");\n}\n```',
+  content: const MessageContent(
+    elements: [
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Paragraph([
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text('Call '),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Code('main'),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text(' first:'),
+          ),
+        ]),
+      ),
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_CodeBlock([
+          RangedCodeBlock(start: 0, end: 0, value: 'fn main() {'),
+          RangedCodeBlock(start: 0, end: 0, value: '    let n = 21;'),
+          RangedCodeBlock(start: 0, end: 0, value: '    println!("{n}");'),
+          RangedCodeBlock(start: 0, end: 0, value: '}'),
+        ]),
+      ),
+    ],
+  ),
+  attachments: [],
+);
+
+final codeBlockMessages = [
+  // Plain prose, as the reference the monospace sits next to.
+  UiChatMessage(
+    id: 30.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:30:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Have a look at the snippet below.',
+          topicId: Uint8List(0),
+          content: simpleMessage('Have a look at the snippet below.'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+  // Incoming, so the slab carries `message.otherText`.
+  UiChatMessage(
+    id: 31.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:31:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: codeBlockContent,
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+  // Outgoing, so the same slab carries `message.selfText`.
+  UiChatMessage(
+    id: 32.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:32:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: codeBlockContent,
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+];
+
 final jumboEmojiMessages = [
   // Jumbo: single emoji from other user
   UiChatMessage(
@@ -1203,6 +1304,22 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_jumbo_emoji.png'),
+      );
+    });
+
+    testWidgets('renders a code block next to prose', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1500);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(codeBlockMessages);
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_code_block.png'),
       );
     });
 

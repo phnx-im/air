@@ -92,7 +92,7 @@ class _SafetyCode extends HookWidget {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
 
-    final codeStyle = typeScale.body.regular
+    final codeStyle = typeScale.body.s
         .style(
           color: safetyCode.hasData
               ? palette.text.primary
