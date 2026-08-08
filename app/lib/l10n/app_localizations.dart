@@ -1983,6 +1983,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
 
+  /// No description provided for @groupDetails_seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get groupDetails_seeAll;
+
   /// No description provided for @groupMembersScreen_title.
   ///
   /// In en, this message translates to:

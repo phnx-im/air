@@ -372,6 +372,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "Visa alla",
   "groupMembersScreen_title": "Gruppmedlemmar",
   "groupMembersScreen_searchHint": "Sök",
   "groupCreationScreen_title": "Lägg till medlemmar",

@@ -1151,6 +1151,9 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String get groupDetails_seeAll => 'Visa alla';
+
+  @override
   String get groupMembersScreen_title => 'Gruppmedlemmar';
 
   @override

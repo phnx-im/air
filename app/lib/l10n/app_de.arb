@@ -374,6 +374,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "Alle anzeigen",
   "groupMembersScreen_title": "Gruppenmitglieder",
   "groupMembersScreen_searchHint": "Suchen",
   "groupCreationScreen_title": "Mitglieder hinzufügen",

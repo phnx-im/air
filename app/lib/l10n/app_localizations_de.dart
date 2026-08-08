@@ -1162,6 +1162,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get groupDetails_seeAll => 'Alle anzeigen';
+
+  @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';
 
   @override

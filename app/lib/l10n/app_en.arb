@@ -435,6 +435,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "See all",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",

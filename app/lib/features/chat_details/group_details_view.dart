@@ -21,6 +21,7 @@ import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/avatar.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -125,6 +126,9 @@ class _GroupTitle extends StatelessWidget {
   }
 }
 
+/// How many members the section previews before the full list takes over.
+const _previewMemberCount = 8;
+
 /// The member count, a way into the full list, and the first few members.
 class _PeopleSection extends HookWidget {
   const _PeopleSection({required this.memberIds});
@@ -140,17 +144,21 @@ class _PeopleSection extends HookWidget {
       },
     );
 
+    // Sorted the way the full list sorts, so the preview reads as its head.
     final previewIds = useMemoized(
-      () => top3(
-        memberIds,
-        (userId) => profiles[userId]!.displayName.toLowerCase(),
-      ),
+      () => memberIds
+          .sortedBy((userId) => profiles[userId]!.displayName.toLowerCase())
+          .take(_previewMemberCount)
+          .toList(),
       [memberIds, profiles],
     );
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final rowTokens = ListRowTokens.current;
+
+    void openGroupMembers() =>
+        context.read<NavigationCubit>().openGroupMembers();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -160,14 +168,28 @@ class _PeopleSection extends HookWidget {
           label: loc.groupDetails_memberCount(memberIds.length),
           labelStyle: typeScale.body.regular.style(weight: Weight.emphasized),
           separator: false,
-          trailing: ButtonIcon(
-            variant: ButtonIconVariant.solid,
-            size: ButtonIconSize.s32,
-            icon: AppIconType.arrowRight,
-            fill: palette.backgroundBase.secondary,
-            iconColor: palette.text.secondary,
-            onPressed: () => context.read<NavigationCubit>().openGroupMembers(),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                loc.groupDetails_seeAll,
+                style: typeScale.body.regular.style(
+                  color: palette.text.secondary,
+                  tight: true,
+                ),
+              ),
+              const SizedBox(width: S.s8),
+              ButtonIcon(
+                variant: ButtonIconVariant.solid,
+                size: ButtonIconSize.s32,
+                icon: AppIconType.arrowRight,
+                fill: palette.backgroundBase.secondary,
+                iconColor: palette.text.secondary,
+                onPressed: openGroupMembers,
+              ),
+            ],
           ),
+          onTap: openGroupMembers,
         ),
 
         ListGroup(
@@ -321,23 +343,4 @@ class _GroupActions extends StatelessWidget {
     if (!context.mounted) return;
     navigationCubit.closeChat();
   }
-}
-
-List<UiUserId> top3(List<UiUserId> list, String Function(UiUserId) keyOf) {
-  UiUserId? a, b, c;
-
-  for (var userId in list) {
-    if (a == null || keyOf(userId).compareTo(keyOf(a)) < 0) {
-      c = b;
-      b = a;
-      a = userId;
-    } else if (b == null || keyOf(userId).compareTo(keyOf(b)) < 0) {
-      c = b;
-      b = userId;
-    } else if (c == null || keyOf(userId).compareTo(keyOf(c)) < 0) {
-      c = userId;
-    }
-  }
-
-  return [a, b, c].whereType<UiUserId>().toList();
 }
