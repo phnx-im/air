@@ -1118,7 +1118,12 @@ void main() {
         // arrived. Message 1 is neither the end of the chat nor the reader's
         // own last, so the edit is all it has to report.
         messageListCubit.setState([
-          stampFixture(1, sender: 1, edited: true, status: UiMessageStatus.sent),
+          stampFixture(
+            1,
+            sender: 1,
+            edited: true,
+            status: UiMessageStatus.sent,
+          ),
           stampFixture(2, sender: 1),
           stampFixture(3, sender: 2),
         ]);
