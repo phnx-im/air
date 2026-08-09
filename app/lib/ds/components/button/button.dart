@@ -15,7 +15,8 @@ export 'package:air/ds/components/button/button_tokens.dart';
 /// dips, a pointer lifts.
 ///
 /// The pill takes the width it's given, with [alignment] placing the content
-/// inside it.
+/// inside it. A pill that was handed its width only washes on hover: lifting
+/// would push its edges out into the margin around it.
 class Button extends StatelessWidget {
   const Button({
     super.key,
@@ -57,7 +58,7 @@ class Button extends StatelessWidget {
       enabled: active,
       onTap: onPressed,
       onLongPress: onLongPress,
-      hoverScale: true,
+      hoverLift: HoverLift.selfSized,
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.fill,
