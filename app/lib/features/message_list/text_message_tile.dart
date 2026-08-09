@@ -759,10 +759,7 @@ class _MessageCommands {
     );
   }
 
-  /// Pass [barrierColor] transparent when the picker opens on top of the
-  /// quick-reaction bar, whose barrier stays alive underneath so the dim
-  /// doesn't flicker.
-  Future<void> openFullEmojiPicker({Color? barrierColor}) async {
+  Future<void> openFullEmojiPicker() async {
     // Capture the cubit before the await so the picker can persist tone
     // changes.
     final settings = context.read<UserSettingsCubit>();
@@ -775,13 +772,11 @@ class _MessageCommands {
             context: context,
             initialSkinTone: skinTone,
             onSkinToneChanged: onSkinToneChanged,
-            barrierColor: barrierColor,
           )
         : await showEmojiPickerPopover(
             context: context,
             initialSkinTone: skinTone,
             onSkinToneChanged: onSkinToneChanged,
-            barrierColor: barrierColor,
           );
     if (emoji != null && context.mounted) {
       sendReaction(emoji);
@@ -804,7 +799,7 @@ class _MessageCommands {
         anchorRect: anchorRect,
         skinTone: skinTone,
         onReact: sendReaction,
-        onMore: () => openFullEmojiPicker(barrierColor: Colors.transparent),
+        onMore: () => unawaited(openFullEmojiPicker()),
       ),
     );
   }

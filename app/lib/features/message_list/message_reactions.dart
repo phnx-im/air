@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/components/reaction_chip/reaction_chip.dart';
@@ -219,26 +217,20 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
 /// [anchorRect] and placed just above it, falling back to below it when there
 /// isn't room above.
 ///
-/// [onMore] opens the full picker on top of this dialog (with a transparent
-/// barrier, see `openFullEmojiPicker`). This dialog stays alive underneath so
-/// the barrier dim doesn't flicker, and pops once the picker resolves.
+/// [onMore] closes the bar and opens the full emoji picker.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
   required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
-  required Future<void> Function() onMore,
+  required VoidCallback onMore,
 }) {
-  // Once the full picker has been opened the bar stays hidden for good,
-  // otherwise it would fade back in while this route pops (the picker's
-  // dismissal reverses [secondaryAnimation] concurrently with the pop).
-  var handedOff = false;
   // Drop taps that land during the closing transition.
   var consumed = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierColor: SemanticPalette.of(context).function.neutral.scrim,
+    barrierColor: Colors.transparent,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -265,11 +257,9 @@ Future<void> showQuickReactionMenu({
           }
           return KeyEventResult.ignored;
         },
-        // The bar fades out while the full picker covers this route.
+        // The bar fades out while another route covers this one.
         child: FadeTransition(
-          opacity: handedOff
-              ? const AlwaysStoppedAnimation(Alpha.a0)
-              : ReverseAnimation(secondaryAnimation),
+          opacity: ReverseAnimation(secondaryAnimation),
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
           child: Material(
@@ -287,14 +277,8 @@ Future<void> showQuickReactionMenu({
               onMore: () {
                 if (consumed) return;
                 consumed = true;
-                handedOff = true;
-                unawaited(
-                  onMore().whenComplete(() {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  }),
-                );
+                Navigator.of(dialogContext).pop();
+                onMore();
               },
             ),
           ),
