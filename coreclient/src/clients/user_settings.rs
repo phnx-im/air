@@ -465,9 +465,13 @@ impl SyncedUserSetting for ReadReceiptsSetting {
     }
 }
 
-pub struct IsDeveloperSetting(pub bool);
+/// Whether the developer surface is unlocked on this device.
+///
+/// The outer gate, with [`ExperimentalFeaturesSetting`] a switch inside that
+/// surface. Not synced, since unlocking is a property of the device in hand.
+pub struct DeveloperModeSetting(pub bool);
 
-impl UserSetting for IsDeveloperSetting {
+impl UserSetting for DeveloperModeSetting {
     const KEY: &'static str = "is_developer";
 
     fn encode(&self) -> anyhow::Result<Vec<u8>> {
@@ -478,6 +482,24 @@ impl UserSetting for IsDeveloperSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid is_developer bytes"),
+        }
+    }
+}
+
+/// Whether experimental features are enabled, gated by [`DeveloperModeSetting`].
+pub struct ExperimentalFeaturesSetting(pub bool);
+
+impl UserSetting for ExperimentalFeaturesSetting {
+    const KEY: &'static str = "experimental_features";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid experimental_features bytes"),
         }
     }
 }

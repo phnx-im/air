@@ -14,6 +14,7 @@ import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/cached_memory_image.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -56,7 +57,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   /// Errors only show once a step has been submitted.
   bool _showErrors = false;
 
-  /// Revealed by a long press on a step's copy, kept across steps.
+  /// Revealed by a long press on a step's copy, kept across steps. Behind the
+  /// experiments switch, pointing the client at another backend is not ready
+  /// yet.
   bool _serverFieldVisible = false;
 
   bool _isAddingUsername = false;
@@ -384,7 +387,13 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   /// Leaves the flow for the app, whether or not a username was added.
   void _finish() => context.read<NavigationCubit>().openHome();
 
-  void _revealServerField() => setState(() => _serverFieldVisible = true);
+  void _revealServerField() {
+    final settings = context.read<UserSettingsCubit>().state;
+    if (!settings.experimentalFeaturesActive) {
+      return;
+    }
+    setState(() => _serverFieldVisible = true);
+  }
 
   // Validation
 
@@ -417,8 +426,10 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         _step == _Step.profile && registration.displayName.trim().isEmpty
         ? loc.signUpScreen_error_emptyDisplayName
         : null;
-    // The server field only carries a rule while it is on screen.
-    _domainError = _serverFieldVisible && !registration.isDomainValid
+    // The rule follows the value, not the field: the account is created
+    // against the domain whether or not it is on screen. The username step is
+    // past that point and carries no rule.
+    _domainError = _step != _Step.username && !registration.isDomainValid
         ? loc.signUpScreen_error_invalidDomain
         : null;
 

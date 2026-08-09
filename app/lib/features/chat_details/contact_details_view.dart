@@ -26,6 +26,8 @@ import 'package:air/features/chat_details/block_contact_button.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
 import 'package:air/features/chat_details/unblock_contact_button.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart'
+    show ChatDebugInfoRow;
 
 final _log = Logger("ContactDetails");
 
@@ -71,15 +73,10 @@ class ContactDetailsView extends StatelessWidget {
     super.key,
     required this.profile,
     required this.relationship,
-    this.onNameLongPress,
   });
 
   final UiUserProfile profile;
   final Relationship relationship;
-
-  /// Developer hook. The modal header has no room for one, so it hangs off the
-  /// name instead.
-  final VoidCallback? onNameLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -91,13 +88,10 @@ class ContactDetailsView extends StatelessWidget {
 
           const SizedBox(height: S.s16),
 
-          GestureDetector(
-            onLongPress: onNameLongPress,
-            child: Text(
-              profile.displayName,
-              textAlign: TextAlign.center,
-              style: typeScale.header.xl.style(weight: Weight.emphasized),
-            ),
+          Text(
+            profile.displayName,
+            textAlign: TextAlign.center,
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
           const SizedBox(height: S.s24),
@@ -107,6 +101,10 @@ class ContactDetailsView extends StatelessWidget {
           const SizedBox(height: S.s24),
 
           _Actions(profile: profile, relationship: relationship),
+
+          // Only for a contact: a member's pane is scoped to the group, so the
+          // chat behind it is not this profile's.
+          if (relationship is ContactRelationship) const ChatDebugInfoRow(),
         ],
       ),
     );

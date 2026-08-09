@@ -3,22 +3,65 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/list_row/list_row.dart';
+import 'package:air/ds/components/list_row/list_row_tokens.dart';
+import 'package:air/ds/components/scaffold/app_scaffold.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/material.dart'
+    show CircularProgressIndicator, MaterialPageRoute;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
+/// The way into the debug view from a chat's details, present only while
+/// developer mode is on.
+///
+/// We take the chat from the cubit rather than the host, so the same row
+/// serves a group and a contact.
+class ChatDebugInfoRow extends StatelessWidget {
+  const ChatDebugInfoRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final developerMode = context.select(
+      (UserSettingsCubit cubit) => cubit.state.developerMode,
+    );
+    final chat = context.select((ChatDetailsCubit cubit) => cubit.state.chat);
+
+    if (!developerMode || chat == null) {
+      return const SizedBox.shrink();
+    }
+
+    // The row owns the gap above it, so a details page without one carries no
+    // spacer either.
+    return Padding(
+      padding: const EdgeInsets.only(top: S.s24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const DeveloperCaption('Developer'),
+          ListRow(
+            tokens: ListRowTokens.current,
+            fill: SemanticPalette.of(context).backgroundBase.secondary,
+            label: 'Debug info',
+            trailing: const AppIcon.chevronRight(size: developerRowIconSize),
+            onTap: () => showChatDebugInfo(context, chat),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Pushes the debug view for [chat], wired to the cubits above [context].
 ///
-/// Reached by long-pressing a chat's name. Pageless, so it stays out of the
-/// navigation state the router builds its pages from.
+/// Pageless, so it stays out of the navigation state.
 void showChatDebugInfo(BuildContext context, UiChatDetails chat) {
   final chatDetailsCubit = context.read<ChatDetailsCubit>();
   final userCubit = context.read<UserCubit>();
@@ -37,8 +80,6 @@ void showChatDebugInfo(BuildContext context, UiChatDetails chat) {
 }
 
 /// Debug info about a chat group.
-///
-/// Note: Strings in this class are not localized.
 class ChatDebugInfoView extends HookWidget {
   const ChatDebugInfoView({
     required this.title,
@@ -65,6 +106,9 @@ class ChatDebugInfoView extends HookWidget {
 
     return AppScaffold(
       title: title,
+      // Pushed over the whole window, so the back button sits in the window's
+      // own corner.
+      reserveWindowControls: Chrome.windowControlsFloat,
       child: switch (snapshot) {
         AsyncSnapshot(hasData: true, :final data) => _GroupDebugInfoBody(
           info: data!,
@@ -125,98 +169,127 @@ class _GroupDebugInfoBody extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: S.s16,
       children: [
-        const _SectionHeader('Overview'),
-        _InfoCard(
+        DeveloperCard(
+          caption: 'Overview',
           children: [
-            _InfoRow(label: 'Group ID', value: info.groupId, monospace: true),
-            _InfoRow(label: 'Epoch', value: info.epoch.toString()),
-            _InfoRow(label: 'Ciphersuite', value: info.ciphersuite),
+            DeveloperInfoRow(
+              label: 'Group ID',
+              value: info.groupId,
+              monospace: true,
+            ),
+            DeveloperInfoRow(label: 'Epoch', value: info.epoch.toString()),
+            DeveloperInfoRow(label: 'Ciphersuite', value: info.ciphersuite),
             _ChipListRow(label: 'Protocol Versions', values: info.versions),
-            _InfoRow(
+            DeveloperInfoRow(
               label: 'Own Leaf Index',
               value: info.ownLeafIndex.toString(),
             ),
-            _InfoRow(
+            DeveloperInfoRow(
               label: 'Self Updated At',
               value: info.selfUpdatedAt ?? '—',
             ),
-            _InfoRow(
+            DeveloperInfoRow(
               label: 'Pending Proposals',
               value: info.pendingProposals.toString(),
             ),
-            _InfoRow(
+            DeveloperInfoRow(
               label: 'Pending Commit',
               value: info.hasPendingCommit ? 'yes' : 'no',
             ),
-            _InfoRow(label: 'Size', value: _formatBytes(info.sizeBytes)),
+            DeveloperInfoRow(
+              label: 'Size',
+              value: _formatBytes(info.sizeBytes),
+            ),
+          ],
+        ),
+        if (info.pq case final pq?)
+          DeveloperCard(
+            caption: 'Post-Quantum',
+            children: [
+              const DeveloperInfoRow(label: 'Enabled', value: 'yes'),
+              DeveloperInfoRow(
+                label: 'Group ID',
+                value: pq.groupId,
+                monospace: true,
+              ),
+              DeveloperInfoRow(label: 'Epoch', value: pq.epoch.toString()),
+              DeveloperInfoRow(label: 'Ciphersuite', value: pq.ciphersuite),
+              DeveloperInfoRow(
+                label: 'Self Updated At',
+                value: pq.selfUpdatedAt ?? '—',
+              ),
+              DeveloperInfoRow(
+                label: 'Pending Proposals',
+                value: pq.pendingProposals.toString(),
+              ),
+              DeveloperInfoRow(
+                label: 'Pending Commit',
+                value: pq.hasPendingCommit ? 'yes' : 'no',
+              ),
+              DeveloperInfoRow(
+                label: 'Size',
+                value: _formatBytes(pq.sizeBytes),
+              ),
+            ],
+          )
+        else
+          const DeveloperCard(
+            caption: 'Post-Quantum',
+            children: [DeveloperInfoRow(label: 'Enabled', value: 'no')],
+          ),
+        if (info.groupData case final data?) _GroupDataCard(data: data),
+        if (info.requiredCapabilities case final caps?)
+          DeveloperCard(
+            caption: 'Required Capabilities',
+            children: [
+              _ChipListRow(label: 'Extensions', values: caps.extensionTypes),
+              _ChipListRow(label: 'Proposals', values: caps.proposalTypes),
+              _ChipListRow(label: 'Credentials', values: caps.credentialTypes),
+            ],
+          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: S.s12,
+          children: [
+            DeveloperCaption('Members (${sortedMembers.length})'),
+            for (final entry in sortedMembers)
+              _MemberCard(
+                leafIndex: entry.key,
+                caps: entry.value,
+                isOwn: entry.key == info.ownLeafIndex,
+              ),
           ],
         ),
         const SizedBox(height: S.s16),
-        const _SectionHeader('Post-Quantum'),
-        if (info.pq == null)
-          const _InfoCard(
-            children: [_InfoRow(label: 'Enabled', value: 'no')],
-          )
-        else
-          _InfoCard(
-            children: [
-              const _InfoRow(label: 'Enabled', value: 'yes'),
-              _InfoRow(
-                label: 'Group ID',
-                value: info.pq!.groupId,
-                monospace: true,
-              ),
-              _InfoRow(label: 'Epoch', value: info.pq!.epoch.toString()),
-              _InfoRow(label: 'Ciphersuite', value: info.pq!.ciphersuite),
-              _InfoRow(
-                label: 'Self Updated At',
-                value: info.pq!.selfUpdatedAt ?? '—',
-              ),
-              _InfoRow(
-                label: 'Pending Proposals',
-                value: info.pq!.pendingProposals.toString(),
-              ),
-              _InfoRow(
-                label: 'Pending Commit',
-                value: info.pq!.hasPendingCommit ? 'yes' : 'no',
-              ),
-              _InfoRow(label: 'Size', value: _formatBytes(info.pq!.sizeBytes)),
-            ],
-          ),
-        if (info.groupData != null) ...[
-          const SizedBox(height: S.s16),
-          const _SectionHeader('Group Data'),
-          _GroupDataInfoCard(data: info.groupData!),
-        ],
-        if (info.requiredCapabilities != null) ...[
-          const SizedBox(height: S.s16),
-          const _SectionHeader('Required Capabilities'),
-          _RequiredCapabilitiesCard(caps: info.requiredCapabilities!),
-        ],
-        const SizedBox(height: S.s16),
-        _SectionHeader('Members (${sortedMembers.length})'),
-        for (final entry in sortedMembers) ...[
-          const SizedBox(height: S.s12),
-          _MemberCard(
-            leafIndex: entry.key,
-            caps: entry.value,
-            isOwn: entry.key == info.ownLeafIndex,
-          ),
-        ],
-        const SizedBox(height: S.s32),
         _UpdateGroupButton(onTapped: onUpdateGroup, label: "Update group"),
-        if (info.pq != null) ...[
-          const SizedBox(height: S.s16),
+        if (info.pq != null)
           _UpdateGroupButton(
             onTapped: onUpdateApqGroup,
             label: "Update APQ group",
           ),
-        ],
-        const SizedBox(height: S.s16),
-        _RequestResyncButton(onTapped: onRequestResync),
-        const SizedBox(height: S.s16),
-        _DeleteLocalChatButton(onTapped: onEraseLocalChat),
+        DeveloperCard(
+          caption: 'Danger zone',
+          children: [
+            DeveloperDangerRow(
+              label: 'Request resync',
+              icon: AppIconType.refreshCcw,
+              confirmMessage:
+                  'Are you sure you want to request a resync of this group?',
+              confirmLabel: 'Resync',
+              onConfirm: onRequestResync,
+            ),
+            DeveloperDangerRow(
+              label: 'Delete local chat',
+              icon: AppIconType.trash,
+              confirmMessage:
+                  'Are you sure you want to delete this chat locally?',
+              confirmLabel: 'Delete',
+              onConfirm: onEraseLocalChat,
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -246,46 +319,6 @@ class _UpdateGroupButton extends HookWidget {
   }
 }
 
-class _RequestResyncButton extends HookWidget {
-  const _RequestResyncButton({required this.onTapped});
-
-  final VoidCallback onTapped;
-
-  @override
-  Widget build(BuildContext context) {
-    final isTapped = useState(false);
-    return Button(
-      onPressed: () {
-        isTapped.value = true;
-        onTapped();
-      },
-      tone: ButtonTone.danger,
-      state: isTapped.value ? ButtonState.disabled : ButtonState.active,
-      label: "DANGER: Request resync",
-    );
-  }
-}
-
-class _DeleteLocalChatButton extends HookWidget {
-  const _DeleteLocalChatButton({required this.onTapped});
-
-  final VoidCallback onTapped;
-
-  @override
-  Widget build(BuildContext context) {
-    final isTapped = useState(false);
-    return Button(
-      onPressed: () {
-        isTapped.value = true;
-        onTapped();
-      },
-      tone: ButtonTone.danger,
-      state: isTapped.value ? ButtonState.disabled : ButtonState.active,
-      label: "DANGER: Delete local chat",
-    );
-  }
-}
-
 String _formatBytes(BigInt bytes) {
   final n = bytes.toInt();
   if (n < 1024) return '$n B';
@@ -296,29 +329,9 @@ String _formatBytes(BigInt bytes) {
   return '${(n / (1024 * 1024 * 1024)).toStringAsFixed(2)} GiB';
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.s8),
-      child: Text(
-        title.toUpperCase(),
-        style: typeScale.body.xs.style(
-          weight: Weight.emphasized,
-          color: palette.text.tertiary,
-        ),
-      ),
-    );
-  }
-}
-
-class _CardSectionHeader extends StatelessWidget {
-  const _CardSectionHeader(this.title);
+/// Names a run of rows within a card, below the caption naming the card.
+class _RowGroupHeader extends StatelessWidget {
+  const _RowGroupHeader(this.title);
 
   final String title;
 
@@ -329,189 +342,67 @@ class _CardSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Text(
         title,
-        style: typeScale.body.xs
-            .style(color: palette.text.tertiary)
-            .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.3),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(CornerRadius.px12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            children[i],
-            if (i < children.length - 1)
-              Divider(
-                height: 1,
-                indent: S.s16,
-                color: palette.separator.secondary,
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.monospace = false,
-  });
-
-  final String label;
-  final String value;
-  final bool monospace;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
-    var valueStyle = typeScale.body.s.style(color: palette.text.primary);
-    if (monospace) {
-      valueStyle = valueStyle.withSystemMonospace();
-    }
-
-    return InkWell(
-      onTap: () {
-        Clipboard.setData(ClipboardData(text: value));
-        showSnackBarStandalone(
-          (loc) => SnackBar(
-            content: Text('Copied $label'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(CornerRadius.px12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 200,
-              child: Text(
-                label,
-                style: typeScale.body.s.style(color: palette.text.tertiary),
-              ),
-            ),
-            Expanded(child: Text(value, style: valueStyle)),
-          ],
+        style: typeScale.body.xs.style(
+          weight: Weight.emphasized,
+          color: palette.text.tertiary,
         ),
       ),
     );
   }
 }
 
-class _GroupDataInfoCard extends StatelessWidget {
-  const _GroupDataInfoCard({required this.data});
+class _GroupDataCard extends StatelessWidget {
+  const _GroupDataCard({required this.data});
 
   final GroupDataDebugInfo data;
 
   @override
   Widget build(BuildContext context) {
-    return _InfoCard(
+    return DeveloperCard(
+      caption: 'Group Data',
       children: [
-        _InfoRow(label: 'Legacy Title', value: data.legacyTitle ?? '—'),
+        DeveloperInfoRow(label: 'Legacy Title', value: data.legacyTitle ?? '—'),
 
-        _InfoRow(
+        DeveloperInfoRow(
           label: 'Legacy Picture',
           value: data.legacyPicture ? 'yes' : 'no',
         ),
 
-        if (data.encryptedTitle == null)
-          const _InfoRow(label: 'Encrypted Title', value: '—'),
-
-        if (data.encryptedTitle != null) ...[
-          const _CardSectionHeader('Encrypted Title'),
-          _InfoRow(
+        if (data.encryptedTitle case final title?) ...[
+          const _RowGroupHeader('Encrypted Title'),
+          DeveloperInfoRow(
             label: 'Ciphertext',
-            value: data.encryptedTitle!.ciphertext,
+            value: title.ciphertext,
             monospace: true,
           ),
-          _InfoRow(
-            label: 'Nonce',
-            value: data.encryptedTitle!.nonce,
-            monospace: true,
-          ),
-          _InfoRow(
-            label: 'AAD',
-            value: data.encryptedTitle!.aad,
-            monospace: true,
-          ),
-        ],
+          DeveloperInfoRow(label: 'Nonce', value: title.nonce, monospace: true),
+          DeveloperInfoRow(label: 'AAD', value: title.aad, monospace: true),
+        ] else
+          const DeveloperInfoRow(label: 'Encrypted Title', value: '—'),
 
-        if (data.externalGroupProfile == null)
-          const _InfoRow(label: 'External Group Profile', value: '—'),
-
-        if (data.externalGroupProfile != null) ...[
-          const _CardSectionHeader('External Group Profile'),
-          _InfoRow(
+        if (data.externalGroupProfile case final profile?) ...[
+          const _RowGroupHeader('External Group Profile'),
+          DeveloperInfoRow(
             label: 'Object ID',
-            value: data.externalGroupProfile!.objectId,
+            value: profile.objectId,
             monospace: true,
           ),
-          _InfoRow(
-            label: 'Size',
-            value: data.externalGroupProfile!.size.toString(),
-          ),
-          _InfoRow(
-            label: 'Enc Alg',
-            value: data.externalGroupProfile!.encAlg ?? '—',
-          ),
-          _InfoRow(
+          DeveloperInfoRow(label: 'Size', value: profile.size.toString()),
+          DeveloperInfoRow(label: 'Enc Alg', value: profile.encAlg ?? '—'),
+          DeveloperInfoRow(
             label: 'Nonce',
-            value: data.externalGroupProfile!.nonce,
+            value: profile.nonce,
             monospace: true,
           ),
-          _InfoRow(
-            label: 'AAD',
-            value: data.externalGroupProfile!.aad,
-            monospace: true,
-          ),
-          _InfoRow(
-            label: 'Hash Alg',
-            value: data.externalGroupProfile!.hashAlg,
-          ),
-          _InfoRow(
+          DeveloperInfoRow(label: 'AAD', value: profile.aad, monospace: true),
+          DeveloperInfoRow(label: 'Hash Alg', value: profile.hashAlg),
+          DeveloperInfoRow(
             label: 'Content Hash',
-            value: data.externalGroupProfile!.contentHash,
+            value: profile.contentHash,
             monospace: true,
           ),
-        ],
-      ],
-    );
-  }
-}
-
-class _RequiredCapabilitiesCard extends StatelessWidget {
-  const _RequiredCapabilitiesCard({required this.caps});
-
-  final RequiredDebugCapabilities caps;
-
-  @override
-  Widget build(BuildContext context) {
-    return _InfoCard(
-      children: [
-        _ChipListRow(label: 'Extensions', values: caps.extensionTypes),
-        _ChipListRow(label: 'Proposals', values: caps.proposalTypes),
-        _ChipListRow(label: 'Credentials', values: caps.credentialTypes),
+        ] else
+          const DeveloperInfoRow(label: 'External Group Profile', value: '—'),
       ],
     );
   }
@@ -532,90 +423,80 @@ class _MemberCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isOwn
-            ? palette.backgroundBase.quaternary
-            : palette.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(CornerRadius.px12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return DeveloperCard(
+      fill: isOwn ? palette.backgroundBase.quaternary : null,
+      children: [
+        _MemberHeader(leafIndex: leafIndex, isOwn: isOwn),
+        DeveloperInfoRow(label: 'User ID', value: caps.userId, monospace: true),
+        DeveloperInfoRow(label: 'Display Name', value: caps.displayName),
+        _ChipListRow(label: 'Versions', values: caps.versions),
+        _ChipListRow(label: 'Ciphersuites', values: caps.ciphersuites),
+        _ChipListRow(label: 'Extensions', values: caps.extensions),
+        _ChipListRow(label: 'Proposals', values: caps.proposals),
+        _ChipListRow(
+          label: 'App Components',
+          values: caps.appData?.components ?? [],
+        ),
+        _ChipListRow(
+          label: 'Air Component',
+          values: [
+            if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
+                true)
+              'encrypted_group_profiles',
+            if (caps
+                    .appData
+                    ?.airComponent
+                    ?.features
+                    .emptyConnectionGroupAttributes ==
+                true)
+              'empty_connection_group_attributes',
+            if (caps.appData?.airComponent?.features.pqGroups == true)
+              'pq_groups',
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MemberHeader extends StatelessWidget {
+  const _MemberHeader({required this.leafIndex, required this.isOwn});
+
+  final int leafIndex;
+  final bool isOwn;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: S.s16,
-              vertical: S.s12,
+          Text(
+            'Leaf $leafIndex',
+            style: typeScale.body.s.style(
+              weight: Weight.emphasized,
+              color: palette.text.primary,
             ),
-            child: Row(
-              children: [
-                Text(
-                  'Leaf $leafIndex',
-                  style: typeScale.body.s.style(
-                    weight: Weight.emphasized,
-                    color: palette.text.primary,
-                  ),
+          ),
+          if (isOwn) ...[
+            const SizedBox(width: S.s8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: palette.accentBrand.primary.withValues(alpha: Alpha.a15),
+                borderRadius: BorderRadius.circular(CornerRadius.px4),
+              ),
+              child: Text(
+                'self',
+                style: typeScale.body.xs.style(
+                  color: palette.accentBrand.primary,
+                  weight: Weight.emphasized,
                 ),
-                if (isOwn) ...[
-                  const SizedBox(width: S.s8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: palette.accentBrand.primary.withValues(
-                        alpha: Alpha.a15,
-                      ),
-                      borderRadius: BorderRadius.circular(CornerRadius.px4),
-                    ),
-                    child: Text(
-                      'self',
-                      style: typeScale.body.xs.style(
-                        color: palette.accentBrand.primary,
-                        weight: Weight.emphasized,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _InfoRow(label: 'User ID', value: caps.userId, monospace: true),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _InfoRow(label: 'Display Name', value: caps.displayName),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(label: 'Versions', values: caps.versions),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(label: 'Ciphersuites', values: caps.ciphersuites),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(label: 'Extensions', values: caps.extensions),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(label: 'Proposals', values: caps.proposals),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(
-            label: 'App Components',
-            values: caps.appData?.components ?? [],
-          ),
-          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
-          _ChipListRow(
-            label: 'Air Component',
-            values: [
-              if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
-                  true)
-                'encrypted_group_profiles',
-              if (caps
-                      .appData
-                      ?.airComponent
-                      ?.features
-                      .emptyConnectionGroupAttributes ==
-                  true)
-                'empty_connection_group_attributes',
-              if (caps.appData?.airComponent?.features.pqGroups == true)
-                'pq_groups',
-            ],
-          ),
+          ],
         ],
       ),
     );
@@ -630,44 +511,17 @@ class _ChipListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
     if (values.isEmpty) {
-      return _InfoRow(label: label, value: '—');
+      return DeveloperInfoRow(label: label, value: '—');
     }
 
-    return InkWell(
-      onTap: () {
-        Clipboard.setData(ClipboardData(text: values.join(', ')));
-        showSnackBarStandalone(
-          (loc) => SnackBar(
-            content: Text('Copied $label'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(CornerRadius.px12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 200,
-              child: Text(
-                label,
-                style: typeScale.body.s.style(color: palette.text.tertiary),
-              ),
-            ),
-            Expanded(
-              child: Wrap(
-                spacing: S.s8,
-                runSpacing: S.s8,
-                children: [for (final value in values) _Chip(value)],
-              ),
-            ),
-          ],
-        ),
+    return DeveloperInfoRow(
+      label: label,
+      value: values.join(', '),
+      content: Wrap(
+        spacing: S.s8,
+        runSpacing: S.s8,
+        children: [for (final value in values) _Chip(value)],
       ),
     );
   }

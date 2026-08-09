@@ -29,7 +29,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:air/features/chat_details/change_group_title_dialog.dart';
 import 'package:air/features/developer/chat_debug_info_view.dart'
-    show showChatDebugInfo;
+    show ChatDebugInfoRow;
 import 'package:air/features/chat/chat_details_cubit.dart';
 
 /// Body of the group details modal page. Content only: surface, header, and
@@ -75,6 +75,8 @@ class GroupDetailsView extends StatelessWidget {
           const SizedBox(height: S.s24),
 
           _GroupActions(chat: chat),
+
+          const ChatDebugInfoRow(),
         ],
       ),
     );
@@ -105,7 +107,6 @@ class _GroupTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => _changeGroupTitle(context),
-      onLongPress: () => showChatDebugInfo(context, chat),
       child: Text(
         chat.title,
         textAlign: TextAlign.center,

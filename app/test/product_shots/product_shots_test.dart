@@ -96,7 +96,7 @@ void main() {
       ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject(
@@ -531,7 +531,7 @@ void main() {
       ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),

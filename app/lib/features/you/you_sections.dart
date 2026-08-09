@@ -5,6 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/developer/developer_settings_section.dart';
+import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
@@ -387,7 +388,6 @@ class PreferencesSection extends HookWidget {
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
-        if (DeviceType.isDesktop) const _InterfaceScaleSetting(),
       ],
     );
   }
@@ -461,53 +461,6 @@ class _SendOnEnterSetting extends HookWidget {
   }
 }
 
-class _InterfaceScaleSetting extends HookWidget {
-  const _InterfaceScaleSetting();
-
-  @override
-  Widget build(BuildContext context) {
-    // The slider carries the user's own factor, which systemInterfaceScale
-    // multiplies rather than replaces, so it starts at 100% everywhere.
-    final interfaceScale = useState(
-      useMemoized(() {
-        final value = context.read<UserSettingsCubit>().state.interfaceScale;
-        return 100 * (value ?? 1.0);
-      }),
-    );
-
-    final loc = AppLocalizations.of(context);
-
-    return FieldContainer(
-      height: null,
-      child: Row(
-        children: [
-          Text(
-            loc.userSettingsScreen_interfaceScale,
-            style: typeScale.body.regular.style(),
-          ),
-          const SizedBox(width: S.s12),
-          Expanded(
-            child: Slider(
-              min: 50,
-              max: 300,
-              divisions: ((300 - 50) / 10).truncate(),
-              value: interfaceScale.value,
-              label: interfaceScale.value.truncate().toString(),
-              activeColor: SemanticPalette.of(context).text.secondary,
-              onChanged: (value) => interfaceScale.value = value,
-              onChangeEnd: (value) {
-                context.read<UserSettingsCubit>().setInterfaceScale(
-                  value: value / 100,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Help: reaching us, and telling us which build you are on.
 class HelpSection extends HookWidget {
   const HelpSection({super.key});
@@ -523,6 +476,7 @@ class HelpSection extends HookWidget {
     };
 
     final loc = AppLocalizations.of(context);
+    final onVersionTap = useDeveloperUnlock();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,6 +497,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Clipboard.setData(ClipboardData(text: version));
+            // The row carries the unlock gesture, whose countdown already says
+            // what a run of taps is doing.
+            if (onVersionTap()) return;
             showSnackBarStandalone(
               (loc) =>
                   SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),

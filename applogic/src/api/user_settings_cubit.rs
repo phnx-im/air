@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use aircoreclient::{
-    IsDeveloperSetting, ReadReceiptsSetting, UserSetting,
+    DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
@@ -33,8 +33,13 @@ pub struct UserSettings {
     pub send_on_enter: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
+    /// Whether the developer surface is unlocked on this device.
     #[frb(default = false)]
-    pub is_developer: bool,
+    pub developer_mode: bool,
+    /// Whether experimental features are on. Only in effect while
+    /// `developer_mode` is.
+    #[frb(default = false)]
+    pub experimental_features: bool,
     /// Index into the client `EmojiSkinTone` enum (0 = default/none).
     #[frb(default = 0)]
     pub default_emoji_skin_tone: u8,
@@ -49,7 +54,8 @@ impl Default for UserSettings {
             sidebar_width: 240.0,
             send_on_enter: false,
             read_receipts: true,
-            is_developer: false,
+            developer_mode: false,
+            experimental_features: false,
             default_emoji_skin_tone: 0,
         }
     }
@@ -64,7 +70,8 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let sidebar_width = core_user.user_setting().await;
     let send_on_enter = core_user.user_setting().await;
     let read_receipts = core_user.user_setting().await;
-    let is_developer = core_user.user_setting().await;
+    let developer_mode = core_user.user_setting().await;
+    let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
 
     let defaults = UserSettings::default();
@@ -77,7 +84,12 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
             .map_or(defaults.send_on_enter, |SendOnEnterSetting(value)| value),
         read_receipts: read_receipts
             .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value),
-        is_developer: is_developer.map_or(defaults.is_developer, |IsDeveloperSetting(value)| value),
+        developer_mode: developer_mode
+            .map_or(defaults.developer_mode, |DeveloperModeSetting(value)| value),
+        experimental_features: experimental_features.map_or(
+            defaults.experimental_features,
+            |ExperimentalFeaturesSetting(value)| value,
+        ),
         default_emoji_skin_tone: default_emoji_skin_tone.map_or(
             defaults.default_emoji_skin_tone,
             |DefaultEmojiSkinToneSetting(value)| value,
@@ -205,16 +217,29 @@ impl UserSettingsCubitBase {
         Ok(())
     }
 
-    pub async fn set_is_developer(&self, value: bool) -> anyhow::Result<()> {
-        if self.core.state_tx().borrow().is_developer == value {
+    pub async fn set_developer_mode(&self, value: bool) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().developer_mode == value {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&IsDeveloperSetting(value))
+            .set_user_setting(&DeveloperModeSetting(value))
             .await?;
         self.core
             .state_tx()
-            .send_modify(|state| state.is_developer = value);
+            .send_modify(|state| state.developer_mode = value);
+        Ok(())
+    }
+
+    pub async fn set_experimental_features(&self, value: bool) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().experimental_features == value {
+            return Ok(());
+        }
+        self.core_user
+            .set_user_setting(&ExperimentalFeaturesSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.experimental_features = value);
         Ok(())
     }
 

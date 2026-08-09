@@ -10,6 +10,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/nux/nux_pill.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
+import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -45,9 +46,11 @@ class IntroScreen extends HookWidget {
 
     final serverFieldVisible = useState(false);
 
-    final bool isDeveloper = context.select(
-      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    final bool experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
     );
+
+    final onLogoTap = useDeveloperUnlock();
 
     openLinking() async {
       await requestNotificationPermission();
@@ -67,9 +70,10 @@ class IntroScreen extends HookWidget {
       body: SizedBox(
         width: isPhone ? _logoWidthPhone : _logoWidthDesktop,
         child: GestureDetector(
-          onLongPress: () {
-            context.read<NavigationCubit>().openDeveloperSettings();
-          },
+          // The mark is the only way into the developer surface before login,
+          // and the glyph leaves gaps a tap would fall through.
+          behavior: HitTestBehavior.opaque,
+          onTap: onLogoTap,
           child: SvgPicture.asset(
             'assets/images/logo.svg',
             colorFilter: ColorFilter.mode(
@@ -96,7 +100,7 @@ class IntroScreen extends HookWidget {
                   _ServerTextField(onFieldSubmitted: openLinking),
                   const SizedBox(height: S.s16),
                 ],
-                if (isDeveloper) ...[
+                if (experimentalFeatures) ...[
                   Button(
                     type: .secondary,
                     label: loc.introScreen_linkExisting,

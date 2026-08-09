@@ -2,28 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
-import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/components/button_icon/button_icon.dart';
-import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/list_row/list_row.dart';
+import 'package:air/ds/components/list_row/list_row_tokens.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
+import 'package:air/ds/components/toggle/toggle.dart';
+import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/developer/change_user_modal.dart';
-import 'package:air/features/developer/logs_modal.dart';
+import 'package:air/features/developer/developer_fields.dart';
+import 'package:air/features/developer/logs_screen.dart';
+import 'package:air/features/developer/user_debug_info.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/method_channel.dart';
+import 'package:flutter/material.dart' show Slider;
+import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
-
-import 'package:air/features/developer/user_debug_info_panel.dart';
 
 /// The developer settings as a screen, for before a user is loaded.
 class DeveloperSettingsScreen extends StatelessWidget {
@@ -58,6 +57,7 @@ class _DeveloperSettingsContentState extends State<DeveloperSettingsContent> {
 
   void _loadDeviceToken() async {
     final token = await getDeviceToken();
+    if (!mounted) return;
     setState(() {
       deviceToken = token;
     });
@@ -74,28 +74,21 @@ class _DeveloperSettingsContentState extends State<DeveloperSettingsContent> {
   }
 
   void _reRegisterPushToken(CoreClient coreClient) async {
-    final newDeviceToken = await getDeviceToken();
-    if (newDeviceToken != null) {
-      if (Platform.isAndroid) {
-        final pushToken = PlatformPushToken.google(newDeviceToken);
-        coreClient.user.updatePushToken(pushToken);
-        setState(() {
-          deviceToken = pushToken.token;
-        });
-      } else if (Platform.isIOS) {
-        final pushToken = PlatformPushToken.apple(newDeviceToken);
-        coreClient.user.updatePushToken(pushToken);
-        setState(() {
-          deviceToken = pushToken.token;
-        });
-      } else {
-        throw StateError("unsupported platform");
-      }
-    }
+    final pushToken = await getPushToken();
+    if (pushToken == null) return;
+
+    coreClient.user.updatePushToken(pushToken);
+
+    if (!mounted) return;
+    setState(() {
+      deviceToken = pushToken.token;
+    });
   }
 }
 
-class DeveloperSettingsView extends StatelessWidget {
+/// The section as cards, ordered by what a row does to the app: tune, switch,
+/// inspect, destroy. A new row joins the card its consequences put it in.
+class DeveloperSettingsView extends HookWidget {
   const DeveloperSettingsView({
     required this.deviceToken,
     required this.onRefreshPushToken,
@@ -113,135 +106,228 @@ class DeveloperSettingsView extends StatelessWidget {
       (LoadableUserCubit cubit) => cubit.state.loadedUser,
     );
 
-    // These rows are Material list tiles, so they need an ink surface of
-    // their own: the host paints its background over the nearest Material.
-    return Material(
-      type: MaterialType.transparency,
-      child: ListTileTheme(
-        data: Theme.of(context).listTileTheme.copyWith(
-          titleAlignment: ListTileTitleAlignment.titleHeight,
-          titleTextStyle: Theme.of(context).textTheme.bodyLarge!,
-          // The host insets the section, so the tiles add none.
-          contentPadding: EdgeInsets.zero,
+    final debugInfo = useUserDebugInfo(user);
+    final info = debugInfo.info;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: S.s16,
+      children: [
+        const _SettingsCard(),
+        _SessionCard(user: user),
+        _DiagnosticsCard(
+          isMobile: isMobile,
+          deviceToken: deviceToken,
+          onRefreshPushToken: onRefreshPushToken,
+          info: info,
+          error: debugInfo.error,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const _DeveloperModeSection(),
-            if (isMobile)
-              _PushTokenSection(
-                deviceToken: deviceToken,
-                onRefresh: onRefreshPushToken,
+        if (user != null && info != null)
+          TimedTasksCard(
+            user: user,
+            tasks: info.timedTasks,
+            onTriggered: debugInfo.refresh,
+          ),
+        _DangerZoneCard(user: user),
+      ],
+    );
+  }
+}
+
+/// What the surface itself is set to.
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final developerMode = context.select(
+      (UserSettingsCubit cubit) => cubit.state.developerMode,
+    );
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeatures,
+    );
+    final settings = context.read<UserSettingsCubit>();
+
+    return DeveloperCard(
+      children: [
+        _ToggleRow(
+          label: 'Developer mode',
+          value: developerMode,
+          onChanged: (value) => settings.setDeveloperMode(value: value),
+        ),
+        _ToggleRow(
+          label: 'Experimental features',
+          value: experimentalFeatures,
+          // The switch sits inside developer mode, so locking the surface
+          // greys it out rather than erasing its value.
+          enabled: developerMode,
+          onChanged: (value) => settings.setExperimentalFeatures(value: value),
+        ),
+        const _InterfaceScaleRow(),
+      ],
+    );
+  }
+}
+
+/// Scales the whole interface, so a layout can be read at a size other than
+/// the device's own.
+class _InterfaceScaleRow extends HookWidget {
+  const _InterfaceScaleRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.read<UserSettingsCubit>();
+    // The slider carries the user's own factor, which systemInterfaceScale
+    // multiplies rather than replaces. It starts at 100% everywhere.
+    final percent = useState(
+      useMemoized(() => 100 * (settings.state.interfaceScale ?? 1.0)),
+    );
+
+    void submit(double value) {
+      percent.value = value;
+      settings.setInterfaceScale(value: value / 100);
+    }
+
+    final palette = SemanticPalette.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Interface scale',
+                style: typeScale.body.regular.style(
+                  color: palette.text.primary,
+                ),
               ),
-            _UserSection(user: user),
-            _AppDataSection(user: user),
-            if (user != null) _DebugInfoSection(user: user),
-          ],
-        ),
+              const Spacer(),
+              Text(
+                '${percent.value.round()}%',
+                style: typeScale.body.s
+                    .style(color: palette.text.tertiary)
+                    .withSystemMonospace(),
+              ),
+              const SizedBox(width: S.s12),
+              DeveloperRowButton(
+                icon: AppIconType.refreshCcw,
+                tooltip: 'Reset to 100%',
+                onPressed: percent.value == 100 ? null : () => submit(100),
+              ),
+            ],
+          ),
+          Slider(
+            min: 50,
+            max: 300,
+            divisions: ((300 - 50) / 10).truncate(),
+            value: percent.value,
+            activeColor: palette.text.secondary,
+            onChanged: (value) => percent.value = value,
+            onChangeEnd: submit,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _DeveloperModeSection extends StatelessWidget {
-  const _DeveloperModeSection();
+/// What the app will tell you about itself.
+class _DiagnosticsCard extends StatelessWidget {
+  const _DiagnosticsCard({
+    required this.isMobile,
+    required this.deviceToken,
+    required this.onRefreshPushToken,
+    required this.info,
+    required this.error,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    final isDeveloper = context.select(
-      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SectionHeader("Developer mode"),
-        SwitchListTile(
-          title: const Text("Enable experimental features"),
-          value: isDeveloper,
-          onChanged: (value) {
-            context.read<UserSettingsCubit>().setIsDeveloper(value: value);
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _PushTokenSection extends StatelessWidget {
-  const _PushTokenSection({required this.deviceToken, required this.onRefresh});
-
+  final bool isMobile;
   final String? deviceToken;
-  final VoidCallback onRefresh;
+  final VoidCallback onRefreshPushToken;
+
+  /// The loaded user's debug info, null until it resolves. Its rows are absent
+  /// until then, so the rest of the page renders right away.
+  final UserDebugInfo? info;
+
+  final Object? error;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SectionHeader("Mobile Device"),
-        ListTile(
-          title: const Text('Push Token'),
-          subtitle: Text(deviceToken ?? "N/A"),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Tooltip(
-                message: 'Copy',
-                child: ButtonIcon(
-                  variant: ButtonIconVariant.plain,
-                  icon: AppIconType.copy,
-                  iconSize: S.s24,
-                  hitTargetSize: S.s48,
-                  onPressed: deviceToken == null ? null : _copyToken,
-                ),
-              ),
-              Tooltip(
-                message: 'Refresh',
-                child: ButtonIcon(
-                  variant: ButtonIconVariant.plain,
-                  icon: AppIconType.refreshCw,
-                  iconSize: S.s24,
-                  hitTargetSize: S.s48,
-                  onPressed: onRefresh,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+    final info = this.info;
+    final error = this.error;
 
-  void _copyToken() {
-    Clipboard.setData(ClipboardData(text: deviceToken!));
-    showSnackBarStandalone(
-      (loc) => const SnackBar(content: Text('Device token copied')),
+    return DeveloperCard(
+      caption: 'Diagnostics',
+      children: [
+        ListRow(
+          tokens: ListRowTokens.current,
+          label: 'Logs',
+          separator: false,
+          trailing: const AppIcon.fileText(size: developerRowIconSize),
+          onTap: () => showLogs(context),
+        ),
+        if (isMobile)
+          DeveloperInfoRow(
+            label: 'Push token',
+            value: deviceToken ?? 'N/A',
+            monospace: true,
+            trailing: DeveloperRowButton(
+              icon: AppIconType.refreshCw,
+              tooltip: 'Refresh',
+              onPressed: onRefreshPushToken,
+            ),
+          ),
+        if (info != null) ...[
+          DeveloperInfoRow(
+            label: 'User ID',
+            value: info.userId,
+            monospace: true,
+          ),
+          DeveloperInfoRow(
+            label: 'Add-username tokens',
+            value: info.addUsernameTokenCount.toString(),
+          ),
+          DeveloperInfoRow(
+            label: 'Invite-code tokens',
+            value: info.invitationCodeTokenCount.toString(),
+          ),
+        ],
+        if (error != null)
+          DeveloperInfoRow(label: 'Debug info error', value: error.toString()),
+      ],
     );
   }
 }
 
-class _UserSection extends StatelessWidget {
-  const _UserSection({required this.user});
+/// Which user the app is running as.
+class _SessionCard extends StatelessWidget {
+  const _SessionCard({required this.user});
 
   final User? user;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final tokens = ListRowTokens.current;
+
+    return DeveloperCard(
+      caption: 'Session',
       children: [
-        const _SectionHeader("User"),
-        ListTile(
-          title: const Text("Change User"),
-          trailing: const AppIcon.repeat(),
+        ListRow(
+          tokens: tokens,
+          label: 'Change user',
+          separator: false,
+          trailing: const AppIcon.repeat(size: developerRowIconSize),
           onTap: () => showChangeUser(context),
         ),
         if (user != null)
-          ListTile(
-            title: const Text("Log Out"),
-            trailing: const AppIcon.logOut(),
+          ListRow(
+            tokens: tokens,
+            label: 'Log out',
+            separator: false,
+            trailing: const AppIcon.logOut(size: developerRowIconSize),
             onTap: () => context.read<CoreClient>().logout(),
           ),
       ],
@@ -249,8 +335,9 @@ class _UserSection extends StatelessWidget {
   }
 }
 
-class _AppDataSection extends StatelessWidget {
-  const _AppDataSection({required this.user});
+/// What cannot be undone.
+class _DangerZoneCard extends StatelessWidget {
+  const _DangerZoneCard({required this.user});
 
   final User? user;
 
@@ -263,106 +350,68 @@ class _AppDataSection extends StatelessWidget {
           )
         : null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return DeveloperCard(
+      caption: 'Danger zone',
       children: [
-        const _SectionHeader("App Data"),
-        ListTile(
-          title: const Text("Logs"),
-          trailing: const AppIcon.fileText(),
-          onTap: () => showLogs(context),
-        ),
         if (user != null)
-          ListTile(
-            title: Text(
-              profile?.displayName ?? user.userId.uuid.toString(),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Primitive.chromatic(Hue.red, Shade.s500),
-              ),
-            ),
-            subtitle: Text("${user.userId}"),
-            trailing: const AppIcon.trash(),
-            onTap: () => _confirmDialog(
-              context: context,
-              onConfirm: () =>
-                  context.read<CoreClient>().deleteCurrentDatabase(),
-              label: "Are you sure you want to erase the database?",
-              confirmLabel: "Erase",
-            ),
+          DeveloperDangerRow(
+            label: 'Erase this database',
+            sublabel: profile?.displayName ?? user.userId.uuid.toString(),
+            icon: AppIconType.trash,
+            confirmMessage: 'Are you sure you want to erase the database?',
+            confirmLabel: 'Erase',
+            onConfirm: () => context.read<CoreClient>().deleteCurrentDatabase(),
           ),
-        ListTile(
-          title: Text(
-            'Erase All Databases',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Primitive.chromatic(Hue.red, Shade.s500),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          trailing: const AppIcon.trash(),
-          onTap: () => _confirmDialog(
-            context: context,
-            onConfirm: () {
-              context.read<CoreClient>().deleteAllDatabases();
-              context.read<NavigationCubit>().openIntro();
-            },
-            label: "Are you sure you want to erase all databases?",
-            confirmLabel: "Erase",
-          ),
+        DeveloperDangerRow(
+          label: 'Erase all databases',
+          icon: AppIconType.trash,
+          confirmMessage: 'Are you sure you want to erase all databases?',
+          confirmLabel: 'Erase',
+          onConfirm: () {
+            context.read<CoreClient>().deleteAllDatabases();
+            context.read<NavigationCubit>().openIntro();
+          },
         ),
       ],
     );
   }
 }
 
-class _DebugInfoSection extends StatelessWidget {
-  const _DebugInfoSection({required this.user});
-
-  final User user;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SectionHeader("Debug Info"),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: S.s8),
-          child: UserDebugInfoPanel(user: user),
-        ),
-      ],
-    );
-  }
-}
-
-void _confirmDialog({
-  required BuildContext context,
-  required void Function() onConfirm,
-  required String label,
-  required String confirmLabel,
-}) {
-  showDialog(
-    context: context,
-    builder: (_) => ConfirmDialog(
-      title: 'Confirmation',
-      message: label,
-      cancel: 'Cancel',
-      confirm: confirmLabel,
-      onConfirm: onConfirm,
-      destructive: true,
-    ),
-  );
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.label);
+/// A row whose whole width flips the switch it carries.
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+  });
 
   final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: S.s8),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+    final palette = SemanticPalette.of(context);
+
+    return ListRow(
+      tokens: ListRowTokens.current,
+      label: label,
+      separator: false,
+      labelStyle: enabled
+          ? null
+          : typeScale.body.regular.style(
+              color: palette.text.tertiary,
+              tight: true,
+            ),
+      trailing: Toggle(
+        tokens: ToggleTokens.compact,
+        value: value,
+        enabled: enabled,
+        onChanged: (_) => onChanged(!value),
+      ),
+      onTap: enabled ? () => onChanged(!value) : null,
     );
   }
 }

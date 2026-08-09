@@ -138,12 +138,6 @@ abstract class AppLocalizations {
   /// **'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.'**
   String get userSettingsScreen_userNamesDescription;
 
-  /// No description provided for @userSettingsScreen_interfaceScale.
-  ///
-  /// In en, this message translates to:
-  /// **'Interface scale'**
-  String get userSettingsScreen_interfaceScale;
-
   /// No description provided for @userSettingsScreen_help.
   ///
   /// In en, this message translates to:

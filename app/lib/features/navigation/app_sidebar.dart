@@ -9,7 +9,6 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -32,14 +31,9 @@ class AppSidebar extends StatelessWidget {
 
     return NavRail(
       activeIndex: tabs.indexOf(activeTab),
-      // macOS drops the title bar and floats the traffic lights over the
-      // rail's top-left. Windows puts its controls on the far right and Linux
-      // draws a header bar of its own, so neither needs the reserve.
-      //
-      // Read from [defaultTargetPlatform] rather than `dart:io` so the rail's
-      // layout is a function of the platform a test pins, not of the host that
-      // records its goldens.
-      reserveWindowControls: defaultTargetPlatform == TargetPlatform.macOS,
+      // The rail holds the window's top-left corner, where the traffic lights
+      // land.
+      reserveWindowControls: Chrome.windowControlsFloat,
       items: [
         for (final tab in tabs)
           NavRailItem(
@@ -48,10 +42,6 @@ class AppSidebar extends StatelessWidget {
               HomeTab.profile => loc.homeTab_profile,
             },
             onTap: () => context.read<NavigationCubit>().switchTab(tab),
-            // Same hidden entry point the mobile tab bar carries.
-            onLongPress: tab == HomeTab.profile
-                ? () => context.read<NavigationCubit>().openDeveloperSettings()
-                : null,
             glyph: (color) => switch (tab) {
               HomeTab.chats => AppIcon.messageCircle(
                 size: NavRailTokens.iconSize,

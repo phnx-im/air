@@ -23,7 +23,6 @@ class ChatHeaderBar extends StatelessWidget {
     this.subtitle,
     this.avatar,
     this.onTap,
-    this.onLongPress,
     this.onBack,
     this.backEmphasized = false,
   });
@@ -42,8 +41,6 @@ class ChatHeaderBar extends StatelessWidget {
   /// Opens the chat's profile. The pill is the tap target, so the profile only
   /// opens from the pill, not from dead bar space.
   final VoidCallback? onTap;
-
-  final VoidCallback? onLongPress;
 
   /// The back button renders only when non-null.
   final VoidCallback? onBack;
@@ -95,7 +92,6 @@ class ChatHeaderBar extends StatelessWidget {
                   subtitle: subtitle,
                   avatar: avatar,
                   onTap: onTap,
-                  onLongPress: onLongPress,
                 ),
               ),
             ),
@@ -118,7 +114,6 @@ class _TitlePill extends StatelessWidget {
     required this.subtitle,
     required this.avatar,
     required this.onTap,
-    required this.onLongPress,
   });
 
   final ChatHeaderBarTokens tokens;
@@ -126,7 +121,6 @@ class _TitlePill extends StatelessWidget {
   final String? subtitle;
   final Widget? avatar;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +133,6 @@ class _TitlePill extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        onLongPress: onLongPress,
         child: Container(
           constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
           padding: ChatHeaderBarTokens.pillPadding,

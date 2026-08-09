@@ -32,9 +32,6 @@ class AppLocalizationsSv extends AppLocalizations {
       'Dela användarnamn med personer du vill ansluta till. Användarnamn är inte synliga för andra, inte ens dina Air-kontakter. Du kan ha upp till 5 användarnamn.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Gränssnittsskala';
-
-  @override
   String get userSettingsScreen_help => 'Hjälp';
 
   @override
