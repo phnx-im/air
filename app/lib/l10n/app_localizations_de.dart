@@ -828,6 +828,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messageBubble_failedToSend => 'Senden fehlgeschlagen';
 
   @override
+  String get messageBubble_sent => 'Gesendet';
+
+  @override
+  String get messageBubble_delivered => 'Zugestellt';
+
+  @override
+  String get messageBubble_read => 'Gelesen';
+
+  @override
   String get chatList_newContact => 'Neuer Kontakt';
 
   @override
@@ -974,7 +983,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get attachment_notFound => 'Anhang ist nicht mehr verfügbar.';
 
   @override
-  String get textMessage_edited => 'bearbeitet';
+  String get textMessage_edited => 'Bearbeitet';
 
   @override
   String get textMessage_hiddenPlaceholder =>

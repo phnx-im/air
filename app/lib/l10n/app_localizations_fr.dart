@@ -831,6 +831,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageBubble_failedToSend => 'Échec de l\'envoi';
 
   @override
+  String get messageBubble_sent => 'Envoyé';
+
+  @override
+  String get messageBubble_delivered => 'Distribué';
+
+  @override
+  String get messageBubble_read => 'Lu';
+
+  @override
   String get chatList_newContact => 'Nouveau contact';
 
   @override
@@ -977,7 +986,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get attachment_notFound => 'La pièce jointe n\'est plus disponible.';
 
   @override
-  String get textMessage_edited => 'modifié';
+  String get textMessage_edited => 'Modifié';
 
   @override
   String get textMessage_hiddenPlaceholder =>

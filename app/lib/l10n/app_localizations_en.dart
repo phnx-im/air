@@ -810,6 +810,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageBubble_failedToSend => 'Failed to send';
 
   @override
+  String get messageBubble_sent => 'Sent';
+
+  @override
+  String get messageBubble_delivered => 'Delivered';
+
+  @override
+  String get messageBubble_read => 'Read';
+
+  @override
   String get chatList_newContact => 'New Air contact';
 
   @override
@@ -954,7 +963,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get attachment_notFound => 'Attachment is no longer available.';
 
   @override
-  String get textMessage_edited => 'edited';
+  String get textMessage_edited => 'Edited';
 
   @override
   String get textMessage_hiddenPlaceholder =>

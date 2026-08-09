@@ -818,6 +818,15 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageBubble_failedToSend => 'Kunde inte skicka';
 
   @override
+  String get messageBubble_sent => 'Skickat';
+
+  @override
+  String get messageBubble_delivered => 'Levererat';
+
+  @override
+  String get messageBubble_read => 'Läst';
+
+  @override
   String get chatList_newContact => 'Ny kontakt';
 
   @override
@@ -964,7 +973,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get attachment_notFound => 'Bilagan är inte längre tillgänglig.';
 
   @override
-  String get textMessage_edited => 'redigerad';
+  String get textMessage_edited => 'Redigerad';
 
   @override
   String get textMessage_hiddenPlaceholder =>

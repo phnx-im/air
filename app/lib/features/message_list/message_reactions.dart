@@ -12,8 +12,6 @@ import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
 import 'package:air/ds/patterns/reaction_bar/reaction_bar_tokens.dart';
 import 'package:air/ds/patterns/reaction_details/reaction_details.dart';
 import 'package:air/ds/patterns/reaction_details/reaction_details_tokens.dart';
-import 'package:air/ds/patterns/reaction_strip/reaction_strip.dart';
-import 'package:air/ds/patterns/reaction_strip/reaction_strip_tokens.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
@@ -63,8 +61,8 @@ void warmUpReactionEmojis(BuildContext context) {
   ], ReactionChip.glyphStyle());
 }
 
-/// Vertical space [BubbleWithReactions] reserves below the bubble for the
-/// chips that ride up over its bottom edge.
+/// Vertical space the message band reserves below the bubble for the chips
+/// that ride up over its bottom edge.
 ///
 /// The chip grows with the text scaler, so the reserve grows with it too.
 double reactionsReservedBelow(BuildContext context, bool hasReactions) {
@@ -72,145 +70,6 @@ double reactionsReservedBelow(BuildContext context, bool hasReactions) {
   final tokens = ReactionChipTokens.current;
   return MediaQuery.textScalerOf(context).scale(tokens.minHeight) +
       ReactionChipTokens.cropWidth * 2;
-}
-
-/// Overlays a [ReactionStrip] onto the bottom edge of [bubble].
-///
-/// The layout reserves the strip's height below the bubble so following
-/// messages don't collide, and the strip lifts itself back up over the
-/// bubble's edge.
-///
-/// The reserve and the chips animate in when the first reaction arrives and
-/// out when the last one is removed. Tiles that mount with reactions render
-/// the settled state without animating.
-class BubbleWithReactions extends StatefulWidget {
-  const BubbleWithReactions({
-    super.key,
-    required this.bubble,
-    required this.reactions,
-    required this.ownUserId,
-    required this.onTap,
-  });
-
-  final Widget bubble;
-  final List<UiReaction> reactions;
-  final UiUserId ownUserId;
-
-  /// Reveals who reacted. Null stands for the collapsed `+N` chip, which
-  /// belongs to no single emoji.
-  final void Function(String? emoji) onTap;
-
-  @override
-  State<BubbleWithReactions> createState() => _BubbleWithReactionsState();
-}
-
-class _BubbleWithReactionsState extends State<BubbleWithReactions>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _reveal;
-  late final Animation<double> _chipScale;
-
-  /// Last non-empty reactions, kept while the chips animate out.
-  List<UiReaction> _reactions = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Effect.duration(MotionPreset.short),
-      value: widget.reactions.isEmpty ? 0.0 : 1.0,
-    );
-    _controller.addStatusListener(_onStatusChanged);
-    _reveal = CurvedAnimation(
-      parent: _controller,
-      curve: Effect.easeOutQuart,
-      // Mirrored so removal collapses the reserve in sync with the
-      // AnimatedPaddings tracking it in the message tile.
-      reverseCurve: const FlippedCurve(Effect.easeOutQuart),
-    );
-    _chipScale = Tween<double>(begin: 0.6, end: 1.0).animate(_reveal);
-    if (widget.reactions.isNotEmpty) {
-      _reactions = widget.reactions;
-    }
-  }
-
-  void _onStatusChanged(AnimationStatus status) {
-    // Drop the stale chips once the exit animation settled.
-    if (status == AnimationStatus.dismissed && widget.reactions.isEmpty) {
-      setState(() => _reactions = const []);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant BubbleWithReactions oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.reactions.isNotEmpty) {
-      _reactions = widget.reactions;
-      _controller.forward();
-    } else if (oldWidget.reactions.isNotEmpty) {
-      _controller.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reserve = reactionsReservedBelow(context, true);
-
-    // Constant Stack/Padding structure so the first reaction doesn't
-    // reparent the bubble subtree (which would drop its state).
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        AnimatedBuilder(
-          animation: _reveal,
-          builder: (context, child) => Padding(
-            padding: EdgeInsets.only(bottom: reserve * _reveal.value),
-            child: child,
-          ),
-          child: widget.bubble,
-        ),
-        if (_reactions.isNotEmpty)
-          // Stretched across the bubble's own box, so the strip packs to the
-          // bubble's width and starts at its leading edge.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              ignoring: widget.reactions.isEmpty,
-              child: FadeTransition(
-                opacity: _reveal,
-                child: ScaleTransition(
-                  scale: _chipScale,
-                  alignment: Alignment.bottomLeft,
-                  child: ReactionStrip(
-                    tokens: ReactionStripTokens.current,
-                    chipTokens: ReactionChipTokens.current,
-                    groups: [
-                      for (final reaction in _reactions)
-                        ReactionGroup(
-                          emoji: reaction.emoji,
-                          count: reaction.users.length,
-                          mine: reaction.users.contains(widget.ownUserId),
-                        ),
-                    ],
-                    onTapEmoji: widget.onTap,
-                    onTapOverflow: () => widget.onTap(null),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 /// Shows the [ReactionBar] as a small popover centered horizontally on
