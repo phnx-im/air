@@ -24,6 +24,7 @@ class FadedScrollFrame extends StatelessWidget {
     required this.bottomFadeHeight,
     required this.topSolidStop,
     required this.bottomSolidStop,
+    required this.topOpacity,
     required this.bottomOpacity,
     this.edges,
   });
@@ -40,8 +41,9 @@ class FadedScrollFrame extends StatelessWidget {
   final double topSolidStop;
   final double bottomSolidStop;
 
-  /// Peak alpha of the bottom strip. The top one beds the header and is always
-  /// opaque.
+  /// Peak alpha of each strip. Below 1 the strip tints what slides under it
+  /// rather than occluding it.
+  final double topOpacity;
   final double bottomOpacity;
 
   /// Space kept above the first row, for the caller's [header] and whatever
@@ -78,6 +80,7 @@ class FadedScrollFrame extends StatelessWidget {
                 color: backgroundColor,
                 curve: Curves.easeInOutQuad,
                 solidStop: topSolidStop,
+                opacity: topOpacity,
               ),
             ),
           ),

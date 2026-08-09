@@ -24,6 +24,7 @@ class YouFadeTokens {
 
   /// Both strips reach full strength at their edge: what slides under them is
   /// chrome, which has to occlude rather than tint.
+  static const double topOpacity = Alpha.a100;
   static const double bottomOpacity = Alpha.a100;
 
   static const YouFadeTokens phone = YouFadeTokens(
