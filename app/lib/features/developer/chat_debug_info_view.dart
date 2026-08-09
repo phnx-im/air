@@ -123,9 +123,9 @@ class _GroupDebugInfoBody extends StatelessWidget {
     final sortedMembers = info.members.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
-    return ListView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: S.s16),
         const _SectionHeader('Overview'),
         _InfoCard(
           children: [

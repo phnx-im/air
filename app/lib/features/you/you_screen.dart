@@ -104,7 +104,7 @@ class YouSectionView extends StatelessWidget {
     return AppScaffold(
       title: youSectionTitle(loc, section),
       backgroundColor: SemanticPalette.of(context).backgroundBase.primary,
-      child: SingleChildScrollView(child: YouSectionContent(section: section)),
+      child: YouSectionContent(section: section),
     );
   }
 }
