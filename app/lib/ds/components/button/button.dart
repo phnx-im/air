@@ -123,31 +123,22 @@ class Button extends StatelessWidget {
     final fill = switch ((type, tone)) {
       (.primary, .danger) => palette.function.danger,
       (.primary, .normal) => palette.accentBrand.primary,
-      (.secondary, _) => palette.accentBrand.tertiary,
+      (.secondary, .danger) => palette.fill.tertiary,
+      (.secondary, .normal) => palette.fill.secondary,
     };
 
     final label = switch ((type, tone)) {
       (.primary, .danger) => palette.function.neutral.white,
       (.primary, .normal) => palette.function.neutral.toggleWhite,
       (.secondary, .danger) => palette.function.danger,
-      (.secondary, .normal) => palette.function.neutral.toggleBlack,
-    };
-
-    // A secondary button carries a tinted fill rather than a solid one, so its
-    // glyph takes the text color instead of the label's tone color.
-    final glyph = switch (type) {
-      ButtonType.secondary => palette.text.primary,
-      ButtonType.primary => label,
+      (.secondary, .normal) => palette.text.primary,
     };
 
     final fade = state == ButtonState.disabled
         ? StateTokens.disabledContent
         : Alpha.a100;
+    final content = label.withValues(alpha: label.a * fade);
 
-    return (
-      fill: fill,
-      label: label.withValues(alpha: label.a * fade),
-      glyph: glyph.withValues(alpha: glyph.a * fade),
-    );
+    return (fill: fill, label: content, glyph: content);
   }
 }

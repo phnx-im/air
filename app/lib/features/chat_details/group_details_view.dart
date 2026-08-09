@@ -64,11 +64,11 @@ class GroupDetailsView extends StatelessWidget {
 
           _GroupTitle(chat: chat),
 
-          const SizedBox(height: S.s16),
+          const SizedBox(height: S.s24),
 
-          const MuteButton(shape: MuteButtonShape.row),
+          const Center(child: MuteButton()),
 
-          const SizedBox(height: S.s20),
+          const SizedBox(height: S.s24),
 
           _PeopleSection(memberIds: members),
 
