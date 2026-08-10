@@ -938,12 +938,16 @@ impl CoreUser {
             updated_message.update(&mut *txn).await?;
         }
 
-        // Schedule delivery receipts for incoming new and updated messages
+        // Schedule delivery receipts for incoming new and updated messages.
+        // Messages of the own user are skipped: they are echoes of another
+        // device of ours, and a receipt for them would mark our own message as
+        // delivered.
         let delivery_receipts = messages
             .iter()
             .chain(&updated_messages)
             .filter_map(|message| {
                 if let Message::Content(content_message) = message.message()
+                    && content_message.sender() != self.user_id()
                     && let Disposition::Render | Disposition::Attachment =
                         content_message.content().nested_part.disposition()
                     && let Some(mimi_id) = content_message.mimi_id()
