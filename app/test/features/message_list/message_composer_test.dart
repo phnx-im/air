@@ -2,7 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
+import 'package:air/app.dart' show scaffoldMessengerKey;
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -33,6 +38,8 @@ final _navState = NavigationState.home(
 const _draftDebounce = Duration(seconds: 1);
 
 void main() {
+  late AppLocalizations loc;
+
   late MockNavigationCubit navigationCubit;
   late MockUserCubit userCubit;
   late MockUsersCubit usersCubit;
@@ -41,9 +48,10 @@ void main() {
   late MockUserSettingsCubit userSettingsCubit;
   late TextEditingController inputController;
 
-  setUpAll(() {
+  setUpAll(() async {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
+    loc = await AppLocalizations.delegate.load(const Locale('en'));
   });
 
   setUp(() {
@@ -82,6 +90,8 @@ void main() {
     messageListCubit.setState(messages);
   });
 
+  // The snackbar goes through the global scaffold messenger, so the app under
+  // test has to carry the very key `showSnackBarStandalone` reaches for.
   Widget buildSubject() => MultiBlocProvider(
     providers: [
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -94,6 +104,7 @@ void main() {
     child: Builder(
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: scaffoldMessengerKey,
         theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: Scaffold(
@@ -105,6 +116,92 @@ void main() {
       ),
     ),
   );
+
+  group('MessageComposer send failure', () {
+    final sendButton = find.byWidgetPredicate(
+      (widget) => widget is ButtonIcon && widget.icon == AppIconType.arrowUp,
+    );
+
+    Finder errorSnackbar() => find.text(loc.composer_error_sendMessage);
+
+    Future<void> typeAndSend(WidgetTester tester, String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pumpAndSettle();
+      await tester.tap(sendButton);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('restores the text and shows an error snackbar', (
+      tester,
+    ) async {
+      when(
+        () => chatDetailsCubit.sendMessage(any()),
+      ).thenAnswer((_) async => throw Exception('send failed'));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await typeAndSend(tester, 'Hello there');
+
+      expect(errorSnackbar(), findsOneWidget);
+      expect(inputController.text, 'Hello there');
+    });
+
+    testWidgets('keeps text typed while the send was in flight', (
+      tester,
+    ) async {
+      final sent = Completer<void>();
+      when(
+        () => chatDetailsCubit.sendMessage(any()),
+      ).thenAnswer((_) => sent.future);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await typeAndSend(tester, 'Hello there');
+      expect(inputController.text, isEmpty);
+
+      await tester.enterText(find.byType(TextField), 'Second thoughts');
+      await tester.pumpAndSettle();
+
+      sent.completeError(Exception('send failed'));
+      await tester.pumpAndSettle();
+
+      expect(errorSnackbar(), findsOneWidget);
+      expect(inputController.text, 'Second thoughts');
+    });
+
+    testWidgets('leaves the input empty when the send succeeds', (
+      tester,
+    ) async {
+      when(() => chatDetailsCubit.sendMessage(any())).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await typeAndSend(tester, 'Hello there');
+
+      expect(errorSnackbar(), findsNothing);
+      expect(inputController.text, isEmpty);
+      verify(() => chatDetailsCubit.sendMessage('Hello there')).called(1);
+    });
+
+    testWidgets('does not store the emptied input as a draft', (tester) async {
+      when(() => chatDetailsCubit.sendMessage(any())).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await typeAndSend(tester, 'Hello there');
+      // Past the debounce the cleared input would have been stored, which is
+      // the write that races the send.
+      await tester.pump(_draftDebounce);
+
+      verifyNever(
+        () => chatDetailsCubit.storeDraft(draftMessage: '', isCommitted: false),
+      );
+    });
+  });
 
   group('MessageComposer disposal', () {
     testWidgets('drops the pending draft store instead of un-committing', (

@@ -280,6 +280,7 @@
 
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",
+  "composer_error_sendMessage": "Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.",
   "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
   "composer_error_attachment_too_large": "Der Anhang ist zu groß. Die maximale Größe beträgt {maxSize}, die tatsächliche Größe beträgt {actualSize}.",
 
