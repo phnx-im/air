@@ -108,10 +108,8 @@ impl OutboundServiceContext {
                     .await?
                     .with_context(|| format!("Can't find self group with id {self_group_id:?}"))?;
 
-                // The linking flow stages the self-group add commit without an
-                // operation row and merges it only after the DS roundtrip. A
-                // pending commit without an operation row is therefore a normal
-                // transient state, not a failure. The next wake retries.
+                // A pending commit that no operation row accounts for is not
+                // ours to build on. Defer, the next wake retries.
                 if let Err(error) = group.ensure_clean() {
                     debug!(%error, "Self group has a pending commit, deferring setting changes");
                     return Ok(());

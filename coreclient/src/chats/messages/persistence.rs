@@ -1088,9 +1088,23 @@ pub(crate) mod tests {
         salt: [u8; 16],
         timestamp: TimeStamp,
     ) -> ChatMessage {
+        test_chat_message_from(
+            chat_id,
+            salt,
+            timestamp,
+            UserId::random("localhost".parse().unwrap()),
+        )
+    }
+
+    pub(crate) fn test_chat_message_from(
+        chat_id: ChatId,
+        salt: [u8; 16],
+        timestamp: TimeStamp,
+        sender: UserId,
+    ) -> ChatMessage {
         let chat_message_id = MessageId::random();
         let message = Message::Content(Box::new(ContentMessage::new(
-            UserId::random("localhost".parse().unwrap()),
+            sender,
             false,
             MimiContent::simple_markdown_message("Hello world!".to_string(), salt),
             &GroupId::from_slice(&[0]),
