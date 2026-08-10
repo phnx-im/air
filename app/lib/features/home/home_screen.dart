@@ -5,7 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat/chat_screen.dart';
-import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_sidebar.dart';
@@ -41,8 +40,8 @@ class _HomeScreenMobileLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeTab = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Home(:final home) => home.activeTab,
-        NavigationState_Intro() => HomeTab.chats,
+        HomeState(:final home) => home.activeTab,
+        IntroState() => HomeTab.chats,
       },
     );
 
@@ -97,8 +96,8 @@ class HomeScreenDesktopLayout extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final activeTab = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Home(:final home) => home.activeTab,
-        NavigationState_Intro() => HomeTab.chats,
+        HomeState(:final home) => home.activeTab,
+        IntroState() => HomeTab.chats,
       },
     );
     final onChats = activeTab == HomeTab.chats;

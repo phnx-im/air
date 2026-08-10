@@ -4,6 +4,8 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/developer/developer_settings_section.dart';
+import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -11,10 +13,10 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
 import 'package:air/features/you/change_display_name_dialog.dart';
-import 'package:air/features/you/contact_us_screen.dart';
+import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
-import 'package:air/features/you/invitation_codes_screen.dart';
+import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -39,6 +41,7 @@ String youSectionTitle(AppLocalizations loc, YouSection section) =>
       YouSection.account => loc.userSettingsScreen_accountSection,
       YouSection.preferences => loc.youSection_preferences,
       YouSection.help => loc.userSettingsScreen_helpSection,
+      YouSection.developer => loc.youSection_developer,
     };
 
 /// The body of one profile section, shared by the two-pane detail pane and the
@@ -56,6 +59,7 @@ class YouSectionContent extends StatelessWidget {
     YouSection.account => const AccountSection(),
     YouSection.preferences => const PreferencesSection(),
     YouSection.help => const HelpSection(),
+    YouSection.developer => const DeveloperSettingsContent(),
   };
 }
 
@@ -274,18 +278,7 @@ class _InviteCodes extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return FieldContainer(
-      onTap: () {
-        // Note: We want to share the cubit between this widget and the screen,
-        // because we want to synchronize the data between the two.
-        final invitationCodesCubit = context.read<InvitationCodesCubit>();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => InvitationCodesScreen(
-              invitationCodesCubit: invitationCodesCubit,
-            ),
-          ),
-        );
-      },
+      onTap: () => showInvitationCodes(context),
       child: Row(
         children: [
           AppIcon.users(color: palette.text.secondary, size: S.s24),
@@ -535,11 +528,7 @@ class HelpSection extends HookWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldContainer(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const ContactUsScreen()),
-            );
-          },
+          onTap: () => showContactUs(context),
           child: Row(
             children: [
               Text(

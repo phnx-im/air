@@ -115,11 +115,7 @@ class TextMessageTile extends HookWidget {
         : null;
 
     void openMemberDetails() {
-      unawaited(
-        context.read<NavigationCubit>().openMemberDetails(
-          contentMessage.sender,
-        ),
-      );
+      context.read<NavigationCubit>().openMemberDetails(contentMessage.sender);
     }
 
     final stamp = _stamp(context);

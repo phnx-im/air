@@ -6,23 +6,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
-import 'package:air/features/chat_details/add_members_screen.dart';
-import 'package:air/features/chat_details/chat_details_screen.dart';
+import 'package:air/features/chat_details/chat_details_modal.dart';
 import 'package:air/features/chat/chat_screen.dart';
-import 'package:air/features/chat_details/group_members_screen.dart';
-import 'package:air/features/chat_details/member_details_screen.dart';
-import 'package:air/features/chat_details/create_group_screen.dart';
-import 'package:air/features/developer/developer_settings_screen.dart';
-import 'package:air/features/developer/change_user_screen.dart';
-import 'package:air/features/developer/logs_screen.dart';
+import 'package:air/features/chat_details/create_group_modal.dart';
+import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/home/home_screen.dart';
+import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
-import 'package:air/features/onboarding/invitation_code_screen.dart';
-import 'package:air/features/onboarding/sign_up_screen.dart';
-import 'package:air/features/onboarding/username_onboarding_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_page.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/core/core.dart';
 
@@ -86,17 +80,19 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
 
     // routing
     final List<Page> pages = switch (navigationState) {
-      NavigationState_Intro(:final screens) => [
+      IntroState(:final screens) => [
         // The first screen is always the intro screen
         const MaterialPage(
           key: ValueKey("intro-screen"),
           canPop: false,
           child: IntroScreen(),
         ),
-        for (final screenType in screens)
-          MaterialPage(key: screenType.key, child: screenType.screen),
+        for (final screenType in screens) screenType.page,
       ],
-      NavigationState_Home(:final home) => home.pages(breakpoint),
+      HomeState(:final home) => home.pages(
+        breakpoint: breakpoint,
+        modalsFullBleed: ModalShellTokens.isFullBleed(context),
+      ),
     };
 
     _log.finer(
@@ -178,34 +174,28 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
 
 class AppBackButtonDispatcher extends RootBackButtonDispatcher {}
 
-/// Convert an [IntroScreenType] into a [ValueKey] and a screen [Widget].
+/// Convert an [IntroScreenType] into the [Page] that presents its screen.
 extension on IntroScreenType {
   ValueKey<String> get key => switch (this) {
-    IntroScreenType_InvitationCode() => const ValueKey(
-      "invitation-code-screen",
+    IntroScreenType.accountCreation => const ValueKey(
+      "account-creation-screen",
     ),
-    IntroScreenType_SignUp() => const ValueKey("sign-up-screen"),
-    IntroScreenType_UsernameOnboarding() => const ValueKey(
-      "username-onboarding-screen",
-    ),
-    IntroScreenType_Linking() => const ValueKey(
-      "linking-existing-device-screen",
-    ),
-    IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
-      "developer-settings-screen-$screen",
+    IntroScreenType.linking => const ValueKey("linking-existing-device-screen"),
+    IntroScreenType.developerSettings => const ValueKey(
+      "developer-settings-screen",
     ),
   };
 
   Widget get screen => switch (this) {
-    IntroScreenType_InvitationCode() => const InvitationCodeScreen(),
-    IntroScreenType_SignUp() => const SignUpScreen(),
-    IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
-    IntroScreenType_Linking() => const MultiDeviceProvisionScreen(),
-    IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
-      DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
-      DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),
-      DeveloperSettingsScreenType.logs => const LogsScreen(),
-    },
+    IntroScreenType.accountCreation => const AccountCreationFlow(),
+    IntroScreenType.linking => const MultiDeviceProvisionScreen(),
+    IntroScreenType.developerSettings => const DeveloperSettingsScreen(),
+  };
+
+  Page get page => switch (this) {
+    IntroScreenType.accountCreation => ModalPage(key: key, child: screen),
+    IntroScreenType.linking => MaterialPage(key: key, child: screen),
+    IntroScreenType.developerSettings => MaterialPage(key: key, child: screen),
   };
 }
 
@@ -213,18 +203,22 @@ extension on IntroScreenType {
 extension on HomeNavigationState {
   ChatId? get openChatId => chatOpen ? chatId : null;
 
-  List<Page> pages(Breakpoint breakpoint) {
+  List<Page> pages({
+    required Breakpoint breakpoint,
+    required bool modalsFullBleed,
+  }) {
     const homeScreenPage = NoAnimationPage(
       key: ValueKey("home-screen"),
       canPop: false,
       child: HomeScreen(),
     );
+    final openChatId = this.openChatId;
     return [
       homeScreenPage,
       if (createGroupOpen)
-        const MaterialPage(
-          key: ValueKey("create-group-screen"),
-          child: CreateGroupScreen(),
+        const ModalPage(
+          key: ValueKey("create-group-modal"),
+          child: CreateGroupModal(),
         ),
       // The profile is rendered inline inside HomeScreen on both layouts: as
       // the tab's own screen at the small breakpoint, and as the two panes of
@@ -240,55 +234,29 @@ extension on HomeNavigationState {
         ),
       if (openChatId != null && breakpoint.isSmall)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
-      if (openChatId != null && chatDetailsOpen)
-        const ModalPage(
-          key: ValueKey("chat-details-screen"),
-          child: ChatDetailsScreen(),
-        ),
-      if (openChatId != null && chatDetailsOpen && groupMembersOpen)
-        const ModalPage(
-          key: ValueKey("chat-group-members-screen"),
-          child: GroupMembersScreen(),
-        ),
-      if ((openChatId, memberDetails) case (final chatId?, final memberId?))
+      if (openChatId != null)
+        ..._chatDetailsPages(openChatId, fullBleed: modalsFullBleed),
+    ];
+  }
+
+  List<Page> _chatDetailsPages(ChatId chatId, {required bool fullBleed}) {
+    if (chatDetails.isEmpty) return const [];
+
+    if (!fullBleed) {
+      return [
         ModalPage(
-          key: const ValueKey("chat-member-details-screen"),
-          child: MemberDetailsScreen(chatId: chatId, memberId: memberId),
+          key: const ValueKey("chat-details-modal"),
+          child: ChatDetailsModal(chatId: chatId, pages: chatDetails),
         ),
-      if (openChatId != null && chatDetailsOpen && addMembersOpen)
-        const ModalPage(
-          key: ValueKey("add-members-screen"),
-          child: AddMembersScreen(),
+      ];
+    }
+
+    return [
+      for (final page in chatDetails)
+        ModalPage(
+          key: page.paneKey,
+          child: ChatDetailsModalScreen(chatId: chatId, page: page),
         ),
-      ...switch (developerSettingsScreen) {
-        null => [],
-        DeveloperSettingsScreenType.root => [
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen"),
-            child: DeveloperSettingsScreen(),
-          ),
-        ],
-        DeveloperSettingsScreenType.changeUser => [
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
-            child: DeveloperSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-change-user"),
-            child: ChangeUserScreen(),
-          ),
-        ],
-        DeveloperSettingsScreenType.logs => [
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-root"),
-            child: DeveloperSettingsScreen(),
-          ),
-          const MaterialPage(
-            key: ValueKey("developer-settings-screen-logs"),
-            child: LogsScreen(),
-          ),
-        ],
-      },
     ];
   }
 }

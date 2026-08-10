@@ -104,10 +104,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Ajouter des membres';
 
   @override
-  String get addMembersScreen_error_noActiveChat =>
-      'une discussion active est obligatoire';
-
-  @override
   String get contactDetailsScreen_title => 'Profil';
 
   @override
@@ -1083,7 +1079,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de signaler le spam. Veuillez réessayer.';
 
   @override
-  String get helpScreen_contactUs => 'Nous contacter';
+  String get helpScreen_contactUs => 'Contacter Air';
 
   @override
   String get helpScreen_versionInfo => 'Informations sur la version';
@@ -1095,7 +1091,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get licensesScreen_title => 'Licences';
 
   @override
-  String get contactUsScreen_title => 'Contact';
+  String get contactUsScreen_title => 'Contacter Air';
 
   @override
   String get contactUsScreen_subject => 'Objet du message';
@@ -1104,7 +1100,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUsScreen_body => 'Corps du message';
 
   @override
-  String get contactUsScreen_includeLogs => 'Partager vos journaux';
+  String get contactUsScreen_includeLogs =>
+      'Partager vos journaux (cela aide Air à corriger les bugs)';
 
   @override
   String get contactUsScreen_composeEmail => 'Composer un e-mail';

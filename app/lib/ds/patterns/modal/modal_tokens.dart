@@ -16,7 +16,6 @@ class ModalShellTokens {
     required this.minWidth,
     required this.maxWidth,
     required this.minHeight,
-    required this.maxHeight,
     required this.cardRadius,
     required this.containerPadding,
   });
@@ -26,9 +25,8 @@ class ModalShellTokens {
   final double minWidth;
   final double maxWidth;
 
-  /// Height envelope of the card, same deal as the width.
+  /// Height floor, so a short body doesn't collapse to the header.
   final double minHeight;
-  final double maxHeight;
 
   final double cardRadius;
 
@@ -59,7 +57,6 @@ class ModalShellTokens {
     minWidth: 0,
     maxWidth: double.infinity,
     minHeight: 0,
-    maxHeight: double.infinity,
     cardRadius: CornerRadius.px0,
     containerPadding: EdgeInsets.zero,
   );
@@ -68,24 +65,21 @@ class ModalShellTokens {
     minWidth: Measure.m400,
     maxWidth: Measure.m480,
     minHeight: Measure.m240,
-    maxHeight: Measure.m600,
     cardRadius: CornerRadius.px24,
     containerPadding: EdgeInsets.all(S.s24),
   );
 
-  /// The two-pane layout has room beside the modal and shows a card, a phone
-  /// gives it the whole screen.
+  /// Whether the modal takes the whole viewport rather than floating in a card.
+  static bool isFullBleed(BuildContext context) =>
+      DeviceType.isPhone && context.breakpoint.isSmall;
+
+  /// The full-screen modal ignores the envelope, the card clamps to it.
   static ModalShellTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+      isFullBleed(context) ? phone : desktop;
 
   /// The fill the modal paints itself on: the base surface where it takes over
   /// the screen, the elevated one where it floats as a card.
-  ///
-  /// A shared resolver rather than a field, because the header has to occlude
-  /// content scrolling under it with exactly the fill the shell paints.
-  /// Deriving both from the context that also picks the token set is what keeps
-  /// the two from drifting.
-  static Color surface(BuildContext context) => context.breakpoint.isSmall
+  static Color surface(BuildContext context) => isFullBleed(context)
       ? SemanticPalette.of(context).backgroundBase.primary
       : SemanticPalette.of(context).backgroundElevated.primary;
 }
@@ -123,5 +117,5 @@ class DialogHeaderTokens {
 
   /// The full-screen modal takes the touch density, the card the denser one.
   static DialogHeaderTokens of(BuildContext context) =>
-      context.breakpoint.isSmall ? phone : desktop;
+      ModalShellTokens.isFullBleed(context) ? phone : desktop;
 }

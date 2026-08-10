@@ -276,12 +276,6 @@ abstract class AppLocalizations {
   /// **'Add members'**
   String get addMembersScreen_addMembers;
 
-  /// No description provided for @addMembersScreen_error_noActiveChat.
-  ///
-  /// In en, this message translates to:
-  /// **'an active chat is obligatory'**
-  String get addMembersScreen_error_noActiveChat;
-
   /// No description provided for @contactDetailsScreen_title.
   ///
   /// In en, this message translates to:
@@ -1848,7 +1842,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpScreen_contactUs.
   ///
   /// In en, this message translates to:
-  /// **'Contact us'**
+  /// **'Contact Air'**
   String get helpScreen_contactUs;
 
   /// No description provided for @helpScreen_versionInfo.
@@ -1872,7 +1866,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactUsScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Contact'**
+  /// **'Contact Air'**
   String get contactUsScreen_title;
 
   /// No description provided for @contactUsScreen_subject.
@@ -1890,7 +1884,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactUsScreen_includeLogs.
   ///
   /// In en, this message translates to:
-  /// **'Share your logs'**
+  /// **'Share your logs (this helps Air fix bugs)'**
   String get contactUsScreen_includeLogs;
 
   /// No description provided for @contactUsScreen_composeEmail.
