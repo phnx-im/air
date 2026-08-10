@@ -14,6 +14,7 @@ import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
+import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -162,6 +163,8 @@ class _MessageComposerState extends State<MessageComposer>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+
+    _storeDraftDebouncer.dispose();
 
     _chatDetailsCubit.storeDraft(
       draftMessage: _inputController.text.trim(),
@@ -350,15 +353,29 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
-    // FIXME: Handle errors
-    chatDetailsCubit.sendMessage(messageText);
-
     widget.scrollToBottomController?.scrollToBottom();
 
     setState(() {
       _inputController.clear();
       _focusNode.requestFocus();
     });
+    _storeDraftDebouncer.cancel();
+
+    try {
+      await chatDetailsCubit.sendMessage(messageText);
+    } catch (e, stackTrace) {
+      _log.severe("Failed to send message", e, stackTrace);
+      showSnackBarStandalone(
+        (loc) => SnackBar(content: Text(loc.composer_error_sendMessage)),
+        tone: SnackbarTone.danger,
+      );
+      // Restore the text unless the user has started typing a new message.
+      if (mounted && _inputController.text.trim().isEmpty) {
+        setState(() {
+          _inputController.text = messageText;
+        });
+      }
+    }
   }
 
   bool _editMessage(ChatDetailsCubit cubit) {

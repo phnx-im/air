@@ -933,6 +933,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get composer_editMessage => 'Nachricht bearbeiten';
 
   @override
+  String get composer_error_sendMessage =>
+      'Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.';
+
+  @override
   String get composer_error_attachment =>
       'Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.';
 

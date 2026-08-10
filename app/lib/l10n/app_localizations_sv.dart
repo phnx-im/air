@@ -923,6 +923,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get composer_editMessage => 'Redigera meddelande';
 
   @override
+  String get composer_error_sendMessage =>
+      'Kunde inte skicka meddelandet. Försök igen.';
+
+  @override
   String get composer_error_attachment =>
       'Kunde inte ladda upp bilagan. Försök igen.';
 

@@ -1605,6 +1605,12 @@ abstract class AppLocalizations {
   /// **'Edit message'**
   String get composer_editMessage;
 
+  /// No description provided for @composer_error_sendMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send message. Try again.'**
+  String get composer_error_sendMessage;
+
   /// No description provided for @composer_error_attachment.
   ///
   /// In en, this message translates to:

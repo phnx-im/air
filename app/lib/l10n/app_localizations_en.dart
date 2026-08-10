@@ -913,6 +913,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composer_editMessage => 'Edit message';
 
   @override
+  String get composer_error_sendMessage => 'Failed to send message. Try again.';
+
+  @override
   String get composer_error_attachment =>
       'Failed to upload attachment. Try again.';
 

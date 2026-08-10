@@ -280,6 +280,7 @@
   "newConnectionDialog_error_ownUsername": "Vous ne pouvez pas vous envoyer une demande de contact.",
   "composer_inputHint": "Message à {chatTitle}",
   "composer_editMessage": "Modifier le message",
+  "composer_error_sendMessage": "Échec de l'envoi du message. Veuillez réessayer.",
   "composer_error_attachment": "Échec du téléchargement de la pièce jointe. Veuillez réessayer.",
   "composer_error_attachment_too_large": "La pièce jointe est trop volumineuse. La taille maximale est de {maxSize} et la taille réelle est de {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Message supprimé",

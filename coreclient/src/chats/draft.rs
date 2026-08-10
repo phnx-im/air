@@ -183,6 +183,26 @@ mod persistence {
             connection.notifier().update(chat_id);
             Ok(())
         }
+
+        /// Deletes the draft only when it still carries `updated_at`. A newer
+        /// draft stored concurrently is left untouched.
+        pub(crate) async fn delete_version(
+            mut connection: impl WriteConnection,
+            chat_id: ChatId,
+            updated_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            let result = query!(
+                "DELETE FROM message_draft WHERE chat_id = ? AND updated_at = ?",
+                chat_id,
+                updated_at
+            )
+            .execute(connection.as_mut())
+            .await?;
+            if result.rows_affected() > 0 {
+                connection.notifier().update(chat_id);
+            }
+            Ok(())
+        }
     }
 
     #[cfg(test)]
@@ -258,6 +278,37 @@ mod persistence {
             let loaded_draft_after_delete =
                 MessageDraft::load(pool.read().await?, chat.id()).await?;
             assert_eq!(loaded_draft_after_delete, None);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn delete_message_draft_version(pool: SqlitePool) -> anyhow::Result<()> {
+            let pool = DbAccess::for_tests(pool);
+
+            let chat = test_chat();
+            chat.store(pool.write().await?).await?;
+
+            let updated_at = Utc::now().round_subsecs(6);
+            let draft = MessageDraft {
+                message: "A newer draft".to_string(),
+                editing_id: None,
+                in_reply_to: None,
+                updated_at,
+                is_committed: false,
+            };
+            draft.store(pool.write().await?, chat.id()).await?;
+
+            // Deleting an outdated version leaves the newer draft in place.
+            let outdated = updated_at - chrono::Duration::seconds(1);
+            MessageDraft::delete_version(pool.write().await?, chat.id(), outdated).await?;
+            let loaded = MessageDraft::load(pool.read().await?, chat.id()).await?;
+            assert_eq!(loaded.as_ref().map(|d| d.updated_at), Some(updated_at));
+
+            // Deleting the current version removes the draft.
+            MessageDraft::delete_version(pool.write().await?, chat.id(), updated_at).await?;
+            let loaded = MessageDraft::load(pool.read().await?, chat.id()).await?;
+            assert_eq!(loaded, None);
 
             Ok(())
         }

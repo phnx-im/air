@@ -4,7 +4,7 @@
 
 //! Client API for the delivery service (DS)
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use aircommon::{
     LibraryError,
@@ -55,6 +55,16 @@ use tracing::error;
 
 use crate::ApiClient;
 
+/// How long we wait for the DS to answer a send request.
+///
+/// The deadline is per request, because the channel is shared with the
+/// long-lived streaming calls. We enforce it ourselves rather than through
+/// `Request::set_timeout`, whose expiry surfaces as an ambiguous
+/// `Code::Cancelled`, and treat it as a network error: the DS may have fanned
+/// the message out before we stopped waiting, so a retry can duplicate a
+/// delivery, which the recipient deduplicates.
+const SEND_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Errors that can occur when sending requests to the DS.
 #[derive(Debug, thiserror::Error)]
 pub enum DsRequestError {
@@ -66,6 +76,8 @@ pub enum DsRequestError {
     Tls(#[from] tls_codec::Error),
     #[error("We received an unexpected response type.")]
     UnexpectedResponse,
+    #[error("The DS did not answer within {0:?}")]
+    Timeout(Duration),
 }
 
 impl From<LibraryError> for DsRequestError {
@@ -124,14 +136,16 @@ impl DsRequestError {
     /// Returns true if the error is likely due to a network issue and we can't
     /// be sure whether the server received the request.
     pub fn is_network_error(&self) -> bool {
-        if let Self::Tonic(status) = self {
-            // TODO: Also handle unknown errors here but downcast them to io::Error
-            matches!(
-                status.code(),
-                Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
-            )
-        } else {
-            false
+        match self {
+            Self::Timeout(_) => true,
+            Self::Tonic(status) => {
+                // TODO: Also handle unknown errors here but downcast them to io::Error
+                matches!(
+                    status.code(),
+                    Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
+                )
+            }
+            Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
         }
     }
 
@@ -666,11 +680,12 @@ impl ApiClient {
             },
         };
         let request = payload.sign(signing_key)?;
-        let response = self
-            .ds_grpc_client()
-            .send_message(request)
-            .await?
-            .into_inner();
+        let mut ds_client = self.ds_grpc_client();
+        let send = ds_client.send_message(request);
+        let Ok(result) = tokio::time::timeout(SEND_TIMEOUT, send).await else {
+            return Err(DsRequestError::Timeout(SEND_TIMEOUT));
+        };
+        let response = result?.into_inner();
         Ok(response
             .fanout_timestamp
             .ok_or(DsRequestError::UnexpectedResponse)?
@@ -1000,4 +1015,19 @@ fn extract_encrypted_user_profile_keys(
         encrypted_user_profile_keys,
         indexed_encrypted_user_profile_keys,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timeout_is_classified_as_a_network_error() {
+        let error = DsRequestError::Timeout(SEND_TIMEOUT);
+        assert!(
+            error.is_network_error(),
+            "a send we stopped waiting for may still have reached the DS"
+        );
+        assert!(!error.is_not_found());
+    }
 }
