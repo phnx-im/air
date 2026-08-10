@@ -41,8 +41,8 @@ class MessageInput extends StatefulWidget {
   final Widget field;
 
   /// Rows stacked above the field inside the same chrome, an edit banner or a
-  /// reply preview. They take the field's horizontal inset and own their
-  /// vertical spacing.
+  /// reply preview. The chrome carries no inset of its own, so each row owns
+  /// its spacing on every side and can sit wider or narrower than the field.
   final List<Widget> aboveField;
 
   /// Attach, or cancel while editing.
@@ -165,18 +165,15 @@ class _MessageInputState extends State<MessageInput>
                 borderRadius: BorderRadius.circular(t.inputRadius),
                 boxShadow: Effect.elevation(Elevation.flat),
               ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: MessageInputTokens.fieldPadding,
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ...widget.aboveField,
                   Padding(
-                    // The rows above already space themselves off the field's
-                    // top edge, so the field only keeps its bottom inset.
                     padding: EdgeInsets.only(
+                      left: MessageInputTokens.fieldPadding,
+                      right: MessageInputTokens.fieldPadding,
                       top: widget.aboveField.isEmpty ? insetY : 0,
                       bottom: insetY,
                     ),

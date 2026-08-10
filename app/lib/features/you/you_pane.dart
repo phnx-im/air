@@ -67,6 +67,7 @@ class YouDetailPane extends StatelessWidget {
         bottomFadeHeight: YouFadeTokens.desktop.bottomHeight,
         topSolidStop: YouFadeTokens.topSolidStop,
         bottomSolidStop: YouFadeTokens.bottomSolidStop,
+        topOpacity: YouFadeTokens.topOpacity,
         bottomOpacity: YouFadeTokens.bottomOpacity,
         contentTopPadding: Chrome.barHeight,
         contentBottomPadding: Chrome.barHeight,

@@ -135,6 +135,7 @@ class _CallToActions extends StatelessWidget {
             tokens: tokens,
             label: loc.contactDetailsScreen_chat,
             icon: AppIconType.messageCircle,
+            type: ButtonCTAType.secondary,
             onPressed: () => _handleChat(context),
           ),
         ),

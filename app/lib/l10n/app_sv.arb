@@ -251,6 +251,9 @@
   "date_yesterday": "Igår",
   "messageBubble_sending": "Skickar",
   "messageBubble_failedToSend": "Kunde inte skicka",
+  "messageBubble_sent": "Skickat",
+  "messageBubble_delivered": "Levererat",
+  "messageBubble_read": "Läst",
   "chatList_newContact": "Ny kontakt",
   "chatList_newGroup": "Ny gruppchatt",
   "chatList_emptyMessage": "Lägg till din första Air-kontakt för att komma igång",
@@ -295,11 +298,11 @@
       }
     }
   },
-  "attachment_gallery": "Galleri",
+  "attachment_images": "Bilder",
   "attachment_camera": "Kamera",
-  "attachment_file": "Fil",
+  "attachment_otherFiles": "Andra filer",
   "attachment_notFound": "Bilagan är inte längre tillgänglig.",
-  "textMessage_edited": "redigerad",
+  "textMessage_edited": "Redigerad",
   "textMessage_hiddenPlaceholder": "Blockerad användare, tryck för att visa meddelandet",
   "textMessage_deleted": "Meddelande raderat",
   "textMessage_deletedBySelf": "Du raderade det här meddelandet.",
@@ -372,6 +375,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "Visa alla",
   "groupMembersScreen_title": "Gruppmedlemmar",
   "groupMembersScreen_searchHint": "Sök",
   "groupCreationScreen_title": "Lägg till medlemmar",

@@ -810,6 +810,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageBubble_failedToSend => 'Failed to send';
 
   @override
+  String get messageBubble_sent => 'Sent';
+
+  @override
+  String get messageBubble_delivered => 'Delivered';
+
+  @override
+  String get messageBubble_read => 'Read';
+
+  @override
   String get chatList_newContact => 'New Air contact';
 
   @override
@@ -942,19 +951,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Gallery';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Camera';
 
   @override
-  String get attachment_file => 'File';
+  String get attachment_otherFiles => 'Other files';
 
   @override
   String get attachment_notFound => 'Attachment is no longer available.';
 
   @override
-  String get textMessage_edited => 'edited';
+  String get textMessage_edited => 'Edited';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1137,6 +1146,9 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'See all';
 
   @override
   String get groupMembersScreen_title => 'Group members';

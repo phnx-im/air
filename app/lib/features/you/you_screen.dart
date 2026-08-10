@@ -52,6 +52,7 @@ class YouScreen extends StatelessWidget {
           bottomFadeHeight: YouFadeTokens.phone.bottomHeight,
           topSolidStop: YouFadeTokens.topSolidStop,
           bottomSolidStop: YouFadeTokens.bottomSolidStop,
+          topOpacity: YouFadeTokens.topOpacity,
           bottomOpacity: YouFadeTokens.bottomOpacity,
           builder: (topPadding, bottomPadding) => SingleChildScrollView(
             padding: EdgeInsets.only(
@@ -104,7 +105,7 @@ class YouSectionView extends StatelessWidget {
     return AppScaffold(
       title: youSectionTitle(loc, section),
       backgroundColor: SemanticPalette.of(context).backgroundBase.primary,
-      child: SingleChildScrollView(child: YouSectionContent(section: section)),
+      child: YouSectionContent(section: section),
     );
   }
 }

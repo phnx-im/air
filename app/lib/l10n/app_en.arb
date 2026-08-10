@@ -299,6 +299,9 @@
 
   "messageBubble_sending": "Sending",
   "messageBubble_failedToSend": "Failed to send",
+  "messageBubble_sent": "Sent",
+  "messageBubble_delivered": "Delivered",
+  "messageBubble_read": "Read",
 
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
@@ -351,12 +354,12 @@
     }
   },
 
-  "attachment_gallery": "Gallery",
+  "attachment_images": "Images",
   "attachment_camera": "Camera",
-  "attachment_file": "File",
+  "attachment_otherFiles": "Other files",
   "attachment_notFound": "Attachment is no longer available.",
 
-  "textMessage_edited": "edited",
+  "textMessage_edited": "Edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
   "textMessage_deletedBySelf": "You deleted this message.",
@@ -435,6 +438,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "See all",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",

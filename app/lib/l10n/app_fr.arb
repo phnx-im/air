@@ -251,6 +251,9 @@
   "date_yesterday": "Hier",
   "messageBubble_sending": "Envoi en cours",
   "messageBubble_failedToSend": "Échec de l'envoi",
+  "messageBubble_sent": "Envoyé",
+  "messageBubble_delivered": "Distribué",
+  "messageBubble_read": "Lu",
   "chatList_newContact": "Nouveau contact",
   "chatList_newGroup": "Nouveau groupe",
   "chatList_emptyMessage": "Ajoutez votre premier contact Air pour commencer",
@@ -295,11 +298,11 @@
       }
     }
   },
-  "attachment_gallery": "Galerie",
+  "attachment_images": "Images",
   "attachment_camera": "Appareil photo",
-  "attachment_file": "Fichier",
+  "attachment_otherFiles": "Autres fichiers",
   "attachment_notFound": "La pièce jointe n'est plus disponible.",
-  "textMessage_edited": "modifié",
+  "textMessage_edited": "Modifié",
   "textMessage_hiddenPlaceholder": "Utilisateur bloqué, appuyez pour afficher le message",
   "textMessage_deleted": "Message supprimé",
   "textMessage_deletedBySelf": "Vous avez supprimé ce message.",
@@ -373,6 +376,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "Tout voir",
   "groupMembersScreen_title": "Membres du groupe",
   "groupMembersScreen_searchHint": "Chercher",
   "groupCreationScreen_title": "Ajouter des membres",

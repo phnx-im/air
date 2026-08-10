@@ -363,6 +363,7 @@ class _ReactorRow extends StatelessWidget {
               children: [
                 _RemoveAction(
                   label: removeLabel,
+                  height: rowTokens.height,
                   onTap: () => onRemove(entry.emoji),
                 ),
                 SizedBox(width: tokens.removeGap),
@@ -374,9 +375,18 @@ class _ReactorRow extends StatelessWidget {
 }
 
 class _RemoveAction extends StatelessWidget {
-  const _RemoveAction({required this.label, required this.onTap});
+  const _RemoveAction({
+    required this.label,
+    required this.height,
+    required this.onTap,
+  });
 
   final String label;
+
+  /// Floor for the target's height, so it takes the row it sits in rather than
+  /// the label's own box, which is a finger too short to aim at.
+  final double height;
+
   final VoidCallback onTap;
 
   @override
@@ -387,11 +397,18 @@ class _RemoveAction extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Text(
-          label,
-          style: typeScale.body.mini.style(
-            color: palette.function.danger,
-            tight: true,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: height),
+          // A width factor keeps the target hugging the label.
+          child: Align(
+            widthFactor: 1,
+            child: Text(
+              label,
+              style: typeScale.body.xs.style(
+                color: palette.function.danger,
+                tight: true,
+              ),
+            ),
           ),
         ),
       ),

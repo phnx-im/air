@@ -33,7 +33,7 @@ class DeveloperSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppScaffold(
       title: AppLocalizations.of(context).youSection_developer,
-      child: const SingleChildScrollView(child: DeveloperSettingsContent()),
+      child: const DeveloperSettingsContent(),
     );
   }
 }

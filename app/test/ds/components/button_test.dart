@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
@@ -109,6 +110,56 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/buttons_dark.png'),
       );
+    });
+
+    group('hover lift', () {
+      const label = 'Hover';
+
+      Widget hoverSubject(Widget button) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: testLightTheme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(body: Center(child: button)),
+      );
+
+      /// Hovers the button and reports how much it grew, measured on the label
+      /// since the lift is a paint transform that leaves the layout alone.
+      Future<double> hoverGrowth(WidgetTester tester, Widget button) async {
+        await tester.pumpWidget(hoverSubject(button));
+        final resting = tester.getRect(find.text(label)).width;
+
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await pointer.addPointer(location: Offset.zero);
+        addTearDown(pointer.removePointer);
+
+        await pointer.moveTo(tester.getCenter(find.byType(Button)));
+        await tester.pumpAndSettle();
+
+        return tester.getRect(find.text(label)).width / resting;
+      }
+
+      testWidgets('a button that picked its own width lifts', (tester) async {
+        final growth = await hoverGrowth(
+          tester,
+          Button(label: label, onPressed: () {}),
+        );
+
+        expect(growth, closeTo(StateTokens.hoverScale, 0.001));
+      }, variant: desktopPlatform);
+
+      testWidgets('a button handed its width stays put', (tester) async {
+        final growth = await hoverGrowth(
+          tester,
+          SizedBox(
+            width: 320,
+            child: Button(label: label, onPressed: () {}),
+          ),
+        );
+
+        expect(growth, 1.0);
+      }, variant: desktopPlatform);
     });
   });
 }

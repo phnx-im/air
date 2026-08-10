@@ -5,6 +5,9 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 
+// Gap between the top of the content and the bottom of the app bar
+const double _contentGap = S.s40;
+
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
@@ -17,6 +20,7 @@ class AppScaffold extends StatelessWidget {
   final String? title;
   final Function()? onTitleLongPress;
   final Color? backgroundColor;
+
   final Widget child;
 
   @override
@@ -42,8 +46,24 @@ class AppScaffold extends StatelessWidget {
             : null,
       ),
       body: SafeArea(
-        minimum: const EdgeInsets.only(left: S.s16, right: S.s16, bottom: 40),
-        child: child,
+        minimum: const EdgeInsets.only(
+          left: S.s16,
+          right: S.s16,
+          bottom: _contentGap,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.only(top: _contentGap),
+            child: ConstrainedBox(
+              // Content that centers or fills needs the viewport to measure
+              // against, which the unbounded scroll view alone does not give.
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - _contentGap,
+              ),
+              child: child,
+            ),
+          ),
+        ),
       ),
     );
   }

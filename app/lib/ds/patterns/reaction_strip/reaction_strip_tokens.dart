@@ -22,6 +22,12 @@ class ReactionStripTokens {
   /// [ReactionChipTokens.cropWidth] into the bubble.
   final double overlap;
 
+  /// How far the chip box rides up over the bubble's bottom edge: the pill's
+  /// [overlap] plus the ring cropped around it. A host that reserves the run's
+  /// height below the bubble gets this much of it back, since the run stops
+  /// short of the foot of what it reserved.
+  double get lift => overlap + ReactionChipTokens.cropWidth;
+
   /// Inset from the message's leading edge to the first chip, so the run starts
   /// just inside the bubble's start.
   static const double startInset = S.s8;

@@ -4,7 +4,7 @@
 
 import 'package:flutter/widgets.dart';
 
-const double _tabSwitchSlideOffset = 40;
+const double _tabSwitchSlideOffset = 16;
 
 /// Transition builder for [AnimatedSwitcher] when swapping primary tab
 /// content. Fades the incoming child in while sliding it up by

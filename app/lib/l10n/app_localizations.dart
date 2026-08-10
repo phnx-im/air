@@ -1431,6 +1431,24 @@ abstract class AppLocalizations {
   /// **'Failed to send'**
   String get messageBubble_failedToSend;
 
+  /// No description provided for @messageBubble_sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent'**
+  String get messageBubble_sent;
+
+  /// No description provided for @messageBubble_delivered.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered'**
+  String get messageBubble_delivered;
+
+  /// No description provided for @messageBubble_read.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get messageBubble_read;
+
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
@@ -1629,11 +1647,11 @@ abstract class AppLocalizations {
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
 
-  /// No description provided for @attachment_gallery.
+  /// No description provided for @attachment_images.
   ///
   /// In en, this message translates to:
-  /// **'Gallery'**
-  String get attachment_gallery;
+  /// **'Images'**
+  String get attachment_images;
 
   /// No description provided for @attachment_camera.
   ///
@@ -1641,11 +1659,11 @@ abstract class AppLocalizations {
   /// **'Camera'**
   String get attachment_camera;
 
-  /// No description provided for @attachment_file.
+  /// No description provided for @attachment_otherFiles.
   ///
   /// In en, this message translates to:
-  /// **'File'**
-  String get attachment_file;
+  /// **'Other files'**
+  String get attachment_otherFiles;
 
   /// No description provided for @attachment_notFound.
   ///
@@ -1656,7 +1674,7 @@ abstract class AppLocalizations {
   /// No description provided for @textMessage_edited.
   ///
   /// In en, this message translates to:
-  /// **'edited'**
+  /// **'Edited'**
   String get textMessage_edited;
 
   /// No description provided for @textMessage_hiddenPlaceholder.
@@ -1982,6 +2000,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupDetails_seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get groupDetails_seeAll;
 
   /// No description provided for @groupMembersScreen_title.
   ///

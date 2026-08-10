@@ -818,6 +818,15 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageBubble_failedToSend => 'Kunde inte skicka';
 
   @override
+  String get messageBubble_sent => 'Skickat';
+
+  @override
+  String get messageBubble_delivered => 'Levererat';
+
+  @override
+  String get messageBubble_read => 'Läst';
+
+  @override
   String get chatList_newContact => 'Ny kontakt';
 
   @override
@@ -952,19 +961,19 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Galleri';
+  String get attachment_images => 'Bilder';
 
   @override
   String get attachment_camera => 'Kamera';
 
   @override
-  String get attachment_file => 'Fil';
+  String get attachment_otherFiles => 'Andra filer';
 
   @override
   String get attachment_notFound => 'Bilagan är inte längre tillgänglig.';
 
   @override
-  String get textMessage_edited => 'redigerad';
+  String get textMessage_edited => 'Redigerad';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1149,6 +1158,9 @@ class AppLocalizationsSv extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'Visa alla';
 
   @override
   String get groupMembersScreen_title => 'Gruppmedlemmar';

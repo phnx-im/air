@@ -24,16 +24,10 @@ abstract final class MessageSeparatorTokens {
     vertical: S.s16,
   );
 
-  static const EdgeInsets datePillPadding = EdgeInsets.symmetric(
+  /// Inset around the pill inside a separator.
+  static const EdgeInsets pillPadding = EdgeInsets.symmetric(
     horizontal: S.s16,
     vertical: S.s4,
-  );
-
-  /// Taller than [datePillPadding]. The unread pill is a filled marker rather
-  /// than a label, and carries the extra weight to say so.
-  static const EdgeInsets unreadPillPadding = EdgeInsets.symmetric(
-    horizontal: S.s16,
-    vertical: S.s8,
   );
 
   static const double ruleThickness = StrokeWidth.px0_5;
