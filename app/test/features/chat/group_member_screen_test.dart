@@ -7,7 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/features/chat_details/group_members_screen.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/features/chat_details/group_members_pane.dart';
 import 'package:air/features/chat_details/member_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -78,7 +79,9 @@ void main() {
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const Scaffold(body: GroupMembersView()),
+            home: Scaffold(
+              body: ModalSurface(child: GroupMembersPane(chatId: chat.id)),
+            ),
           );
         },
       ),
@@ -93,7 +96,7 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/group_members_screen.png'),
+        matchesGoldenFile('goldens/group_members_pane.png'),
       );
     });
 

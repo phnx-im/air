@@ -36,7 +36,6 @@
   "userSettingsScreen_usernamePlaceholder": "Username",
 
   "addMembersScreen_addMembers": "Add member(s)",
-  "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
   "contactDetailsScreen_title": "Profile",
   "contactDetailsScreen_chat": "Chat",
@@ -300,6 +299,9 @@
 
   "messageBubble_sending": "Sending",
   "messageBubble_failedToSend": "Failed to send",
+  "messageBubble_sent": "Sent",
+  "messageBubble_delivered": "Delivered",
+  "messageBubble_read": "Read",
 
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
@@ -353,12 +355,12 @@
     }
   },
 
-  "attachment_gallery": "Gallery",
+  "attachment_images": "Images",
   "attachment_camera": "Camera",
-  "attachment_file": "File",
+  "attachment_otherFiles": "Other files",
   "attachment_notFound": "Attachment is no longer available.",
 
-  "textMessage_edited": "edited",
+  "textMessage_edited": "Edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
   "textMessage_deletedBySelf": "You deleted this message.",
@@ -403,16 +405,16 @@
   "reportSpamDialog_success": "Spam reported",
   "reportSpamDialog_error": "Failed to report spam. Try again.",
 
-  "helpScreen_contactUs": "Contact us",
+  "helpScreen_contactUs": "Contact Air",
   "helpScreen_versionInfo": "Version info",
   "helpScreen_licenses": "Licenses",
 
   "licensesScreen_title": "Licenses",
 
-  "contactUsScreen_title": "Contact",
+  "contactUsScreen_title": "Contact Air",
   "contactUsScreen_subject": "Message subject",
   "contactUsScreen_body": "Body",
-  "contactUsScreen_includeLogs": "Share your logs",
+  "contactUsScreen_includeLogs": "Share your logs (this helps Air fix bugs)",
   "contactUsScreen_composeEmail": "Compose email",
   "contactUsScreen_subject_somethingNotWorking": "Something's not working",
   "contactUsScreen_subject_iHaveAQuestion": "I have a question",
@@ -437,6 +439,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "See all",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",

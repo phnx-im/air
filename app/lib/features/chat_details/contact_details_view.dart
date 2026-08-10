@@ -12,7 +12,7 @@ import 'package:air/ds/components/button_cta/button_cta.dart';
 import 'package:air/ds/components/button_cta/button_cta_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/patterns/modal/modal_tokens.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
@@ -64,11 +64,8 @@ class MemberRelationship extends Relationship {
       'MemberRelationship(groupChatId: $groupChatId, groupTitle: $groupTitle, canKick: $canKick)';
 }
 
-/// Body of the profile modal, shared by a one-to-one chat and a group member.
-///
-/// Content only: the card, the header, and the scrolling are the modal's, so
-/// this contributes the horizontal inset and the space the last button needs
-/// to clear the bottom of the screen.
+/// Body of the profile modal page, shared by a one-to-one chat and a group
+/// member. Content only: surface, header, and scrolling are the modal's.
 class ContactDetailsView extends StatelessWidget {
   const ContactDetailsView({
     super.key,
@@ -86,14 +83,7 @@ class ContactDetailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: ModalShellTokens.contentPaddingLeft,
-        right: ModalShellTokens.contentPaddingRight,
-        // A full-screen modal ends above the home indicator, a card ends at its
-        // own edge.
-        bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
-      ),
+    return ModalBody(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -145,6 +135,7 @@ class _CallToActions extends StatelessWidget {
             tokens: tokens,
             label: loc.contactDetailsScreen_chat,
             icon: AppIconType.messageCircle,
+            type: ButtonCTAType.secondary,
             onPressed: () => _handleChat(context),
           ),
         ),
@@ -157,7 +148,8 @@ class _CallToActions extends StatelessWidget {
             label: loc.contactDetailsScreen_viewSafetyCode,
             icon: AppIconType.shield,
             type: ButtonCTAType.secondary,
-            onPressed: () => context.read<NavigationCubit>().openSafetyCode(),
+            onPressed: () =>
+                context.read<NavigationCubit>().openSafetyCode(profile.userId),
           ),
         ),
 
@@ -247,11 +239,7 @@ class _Actions extends StatelessWidget {
             memberId: profile.userId,
             displayName: profile.displayName,
             enabled: true,
-            onRemoved: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            },
+            onRemoved: () => context.read<NavigationCubit>().pop(),
           ),
         ],
       ],

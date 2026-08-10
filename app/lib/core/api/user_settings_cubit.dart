@@ -63,7 +63,7 @@ sealed class UserSettings with _$UserSettings {
   const factory UserSettings({
     String? locale,
     double? interfaceScale,
-    @Default(300.0) double sidebarWidth,
+    @Default(240.0) double sidebarWidth,
     @Default(false) bool sendOnEnter,
     @Default(true) bool readReceipts,
     @Default(false) bool isDeveloper,

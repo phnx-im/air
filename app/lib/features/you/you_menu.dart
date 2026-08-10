@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/core.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -37,8 +36,8 @@ class YouMenu extends StatelessWidget {
     );
     final activeSection = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Home(:final home) => home.youSection,
-        NavigationState_Intro() => null,
+        HomeState(:final home) => home.youSection,
+        IntroState() => null,
       },
     );
 
@@ -51,34 +50,25 @@ class YouMenu extends StatelessWidget {
         YouSection.account,
       ],
       [YouSection.preferences, YouSection.help],
+      if (isDeveloper) [YouSection.developer],
     ];
 
     if (_sectionList) {
-      return _SectionList(
-        groups: groups,
-        activeSection: activeSection,
-        showDeveloper: isDeveloper,
-      );
+      return _SectionList(groups: groups, activeSection: activeSection);
     }
     return _FlatMenu(
       sections: groups.expand((group) => group).toList(),
       activeSection: activeSection,
-      showDeveloper: isDeveloper,
     );
   }
 }
 
 /// The two-pane form: every row in one inline list, no cards, no chevrons.
 class _FlatMenu extends StatelessWidget {
-  const _FlatMenu({
-    required this.sections,
-    required this.activeSection,
-    required this.showDeveloper,
-  });
+  const _FlatMenu({required this.sections, required this.activeSection});
 
   final List<YouSection> sections;
   final YouSection? activeSection;
-  final bool showDeveloper;
 
   @override
   Widget build(BuildContext context) {
@@ -101,13 +91,6 @@ class _FlatMenu extends StatelessWidget {
               onTap: () =>
                   context.read<NavigationCubit>().openYouSection(section),
             ),
-          if (showDeveloper)
-            _MenuRow(
-              icon: AppIconType.squareTerminal,
-              label: loc.youSection_developer,
-              onTap: () =>
-                  context.read<NavigationCubit>().openDeveloperSettings(),
-            ),
         ],
       ),
     );
@@ -116,15 +99,10 @@ class _FlatMenu extends StatelessWidget {
 
 /// The phone form: grouped cards of filled rows, each drilling into a section.
 class _SectionList extends StatelessWidget {
-  const _SectionList({
-    required this.groups,
-    required this.activeSection,
-    required this.showDeveloper,
-  });
+  const _SectionList({required this.groups, required this.activeSection});
 
   final List<List<YouSection>> groups;
   final YouSection? activeSection;
-  final bool showDeveloper;
 
   @override
   Widget build(BuildContext context) {
@@ -160,19 +138,6 @@ class _SectionList extends StatelessWidget {
                 onTap: () =>
                     context.read<NavigationCubit>().openYouSection(section),
               ),
-          ]),
-        ],
-        if (showDeveloper) ...[
-          const SizedBox(height: S.s16),
-          card([
-            _MenuRow(
-              icon: AppIconType.squareTerminal,
-              label: loc.youSection_developer,
-              filled: true,
-              chevron: true,
-              onTap: () =>
-                  context.read<NavigationCubit>().openDeveloperSettings(),
-            ),
           ]),
         ],
       ],
@@ -265,4 +230,5 @@ AppIconType _sectionIcon(YouSection section) => switch (section) {
   YouSection.account => AppIconType.key,
   YouSection.preferences => AppIconType.settings,
   YouSection.help => AppIconType.circleHelp,
+  YouSection.developer => AppIconType.squareTerminal,
 };

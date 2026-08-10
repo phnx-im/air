@@ -4,10 +4,10 @@
 
 import 'dart:math' show max;
 
-import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/navigation/tab_bar_tokens.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -52,6 +52,7 @@ class YouScreen extends StatelessWidget {
           bottomFadeHeight: YouFadeTokens.phone.bottomHeight,
           topSolidStop: YouFadeTokens.topSolidStop,
           bottomSolidStop: YouFadeTokens.bottomSolidStop,
+          topOpacity: YouFadeTokens.topOpacity,
           bottomOpacity: YouFadeTokens.bottomOpacity,
           builder: (topPadding, bottomPadding) => SingleChildScrollView(
             padding: EdgeInsets.only(
@@ -104,7 +105,7 @@ class YouSectionView extends StatelessWidget {
     return AppScaffold(
       title: youSectionTitle(loc, section),
       backgroundColor: SemanticPalette.of(context).backgroundBase.primary,
-      child: SingleChildScrollView(child: YouSectionContent(section: section)),
+      child: YouSectionContent(section: section),
     );
   }
 }

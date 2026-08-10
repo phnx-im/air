@@ -104,10 +104,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Add members';
 
   @override
-  String get addMembersScreen_error_noActiveChat =>
-      'an active chat is obligatory';
-
-  @override
   String get contactDetailsScreen_title => 'Profile';
 
   @override
@@ -814,6 +810,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageBubble_failedToSend => 'Failed to send';
 
   @override
+  String get messageBubble_sent => 'Sent';
+
+  @override
+  String get messageBubble_delivered => 'Delivered';
+
+  @override
+  String get messageBubble_read => 'Read';
+
+  @override
   String get chatList_newContact => 'New Air contact';
 
   @override
@@ -949,19 +954,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Gallery';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Camera';
 
   @override
-  String get attachment_file => 'File';
+  String get attachment_otherFiles => 'Other files';
 
   @override
   String get attachment_notFound => 'Attachment is no longer available.';
 
   @override
-  String get textMessage_edited => 'edited';
+  String get textMessage_edited => 'Edited';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1061,7 +1066,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportSpamDialog_error => 'Failed to report spam. Try again.';
 
   @override
-  String get helpScreen_contactUs => 'Contact us';
+  String get helpScreen_contactUs => 'Contact Air';
 
   @override
   String get helpScreen_versionInfo => 'Version info';
@@ -1073,7 +1078,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get licensesScreen_title => 'Licenses';
 
   @override
-  String get contactUsScreen_title => 'Contact';
+  String get contactUsScreen_title => 'Contact Air';
 
   @override
   String get contactUsScreen_subject => 'Message subject';
@@ -1082,7 +1087,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_body => 'Body';
 
   @override
-  String get contactUsScreen_includeLogs => 'Share your logs';
+  String get contactUsScreen_includeLogs =>
+      'Share your logs (this helps Air fix bugs)';
 
   @override
   String get contactUsScreen_composeEmail => 'Compose email';
@@ -1143,6 +1149,9 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'See all';
 
   @override
   String get groupMembersScreen_title => 'Group members';

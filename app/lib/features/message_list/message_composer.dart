@@ -8,14 +8,12 @@ import 'package:air/features/attachments/attachment_upload_view.dart';
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
-import 'package:air/ds/components/button_icon/button_icon.dart';
-import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
+import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
-import 'package:air/ds/patterns/reply_block/reply_block.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
@@ -427,11 +425,6 @@ class _MessageComposerState extends State<MessageComposer>
         // upward out of its leading edge.
         corner: MenuCorner.bottomLeft,
         items: [
-          MenuItem(
-            label: loc.attachment_gallery,
-            leading: const AppIcon.image(size: 16),
-            onPressed: () => pick(_AttachmentCategory.gallery),
-          ),
           if (DeviceType.isPhone)
             MenuItem(
               label: loc.attachment_camera,
@@ -439,7 +432,12 @@ class _MessageComposerState extends State<MessageComposer>
               onPressed: () => pick(_AttachmentCategory.camera),
             ),
           MenuItem(
-            label: loc.attachment_file,
+            label: loc.attachment_images,
+            leading: const AppIcon.image(size: 16),
+            onPressed: () => pick(_AttachmentCategory.gallery),
+          ),
+          MenuItem(
+            label: loc.attachment_otherFiles,
             leading: const AppIcon.paperclip(size: 16),
             onPressed: () => pick(_AttachmentCategory.file),
           ),
@@ -604,16 +602,25 @@ class _EditBanner extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: S.s12, left: S.s8, right: S.s8),
-      child: Row(
-        children: [
-          AppIcon.pencil(size: 20, color: palette.text.tertiary),
-          const SizedBox(width: S.s8),
-          Text(
-            loc.composer_editMessage,
-            style: typeScale.body.s.style(color: palette.text.tertiary),
-          ),
-        ],
+      padding: const EdgeInsets.only(
+        top: S.s8,
+        bottom: S.s8,
+        left: MessageInputTokens.fieldPadding,
+        right: MessageInputTokens.fieldPadding + S.s8,
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: AppIcon.pencil(size: S.s12, color: palette.text.tertiary),
+            ),
+            const WidgetSpan(child: SizedBox(width: S.s8)),
+            TextSpan(text: loc.composer_editMessage),
+          ],
+          style: typeScale.body.s.style(color: palette.text.tertiary),
+        ),
       ),
     );
   }
@@ -625,44 +632,17 @@ class _ReplyPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     final inReplyTo = context.select(
       (ChatDetailsCubit cubit) => cubit.state.chat?.draft?.inReplyTo,
     );
     if (inReplyTo == null) return const SizedBox.shrink();
     final quote = quotedMessage(context, inReplyTo.$2);
 
-    return Padding(
-      padding: const EdgeInsets.only(top: S.s12),
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: S.s4, right: S.s4),
-            child: ReplyBlock(
-              preview: quote.preview,
-              senderName: quote.senderName,
-              fill: palette.fill.secondary,
-              stretch: true,
-              thumbnail: quotedThumbnail(context, inReplyTo.$2),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: ButtonIcon(
-              variant: ButtonIconVariant.solid,
-              icon: AppIconType.x,
-              size: S.s20,
-              iconSize: S.s12,
-              fill: palette.backgroundElevated.primary,
-              hitTargetSize: S.s32,
-              onPressed: () {
-                context.read<ChatDetailsCubit>().resetDraftReply();
-              },
-            ),
-          ),
-        ],
-      ),
+    return MessageInputQuote(
+      preview: quote.preview,
+      senderName: quote.senderName,
+      thumbnail: quotedThumbnail(context, inReplyTo.$2),
+      onRemove: () => context.read<ChatDetailsCubit>().resetDraftReply(),
     );
   }
 }

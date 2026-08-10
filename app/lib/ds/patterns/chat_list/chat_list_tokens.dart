@@ -55,6 +55,7 @@ class ChatListFadeTokens {
   const ChatListFadeTokens({
     required this.topHeight,
     required this.topSolidStop,
+    required this.topOpacity,
     required this.bottomHeight,
   });
 
@@ -66,26 +67,31 @@ class ChatListFadeTokens {
   /// literal.
   final double topSolidStop;
 
+  /// Peak alpha at the top edge. Full-screen chrome hides what slides under the
+  /// header, while the two-pane layout only dims it.
+  final double topOpacity;
+
   final double bottomHeight;
 
   /// The bottom strip ramps from the very edge: it has no chrome to bed, only
   /// the last row to soften.
   static const double bottomSolidStop = 0.0;
 
-  /// Peak alpha of the bottom strip. The top fade has to hide rows sliding
-  /// under the header, so it's opaque. The bottom one only softens the last
-  /// row, so it stays translucent.
+  /// Peak alpha of the bottom strip. It only softens the last row, so it stays
+  /// translucent at either density.
   static const double bottomOpacity = Alpha.a80;
 
   static const ChatListFadeTokens phone = ChatListFadeTokens(
-    topHeight: S.s96,
-    topSolidStop: 0.4,
+    topHeight: S.s128,
+    topSolidStop: 0.2,
+    topOpacity: Alpha.a100,
     bottomHeight: S.s128,
   );
 
   static const ChatListFadeTokens desktop = ChatListFadeTokens(
     topHeight: S.s80,
-    topSolidStop: 0.2,
+    topSolidStop: 0.1,
+    topOpacity: Alpha.a80,
     bottomHeight: S.s80,
   );
 

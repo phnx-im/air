@@ -83,7 +83,7 @@ as int,
 
 
 class _UserSettings implements UserSettings {
-  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 300.0, this.sendOnEnter = false, this.readReceipts = true, this.isDeveloper = false, this.defaultEmojiSkinTone = 0});
+  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 240.0, this.sendOnEnter = false, this.readReceipts = true, this.isDeveloper = false, this.defaultEmojiSkinTone = 0});
   
 
 @override final  String? locale;

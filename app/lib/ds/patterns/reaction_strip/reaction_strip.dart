@@ -64,7 +64,8 @@ class ReactionStrip extends StatelessWidget {
     final metrics = _ChipMetrics.measure(context, chipTokens, ordered);
 
     return _StripFootprint(
-      width: ReactionStripTokens.startInset + metrics.minimalWidth,
+      minimalWidth: ReactionStripTokens.startInset + metrics.minimalWidth,
+      runWidth: ReactionStripTokens.startInset + _runWidth(metrics),
       height: metrics.height,
       child: Align(
         // Overrides the message column's end-alignment for own messages, so the
@@ -73,7 +74,7 @@ class ReactionStrip extends StatelessWidget {
         child: Transform.translate(
           // Lift so the pill, not the chip box, rides `overlap` up into the
           // bubble: the crop ring sits outside the pill, so add it back in.
-          offset: Offset(0, -(tokens.overlap + ReactionChipTokens.cropWidth)),
+          offset: Offset(0, -tokens.lift),
           child: Padding(
             padding: const EdgeInsets.only(
               left: ReactionStripTokens.startInset,
@@ -104,6 +105,15 @@ class ReactionStrip extends StatelessWidget {
     return [for (final entry in indexed) entry.group];
   }
 
+  /// What the run takes with every chip shown.
+  double _runWidth(_ChipMetrics metrics) {
+    var total = 0.0;
+    for (var i = 0; i < metrics.widths.length; i++) {
+      total += metrics.widths[i] + (i > 0 ? tokens.spacing : 0);
+    }
+    return total;
+  }
+
   /// The chips that fit [maxWidth], plus a trailing `+N` for the rest.
   List<Widget> _pack(
     double maxWidth,
@@ -112,11 +122,8 @@ class ReactionStrip extends StatelessWidget {
   ) {
     final count = ordered.length;
     final limit = maxWidth - ReactionStripTokens.fitSlack;
+    final full = _runWidth(metrics);
 
-    var full = 0.0;
-    for (var i = 0; i < count; i++) {
-      full += metrics.widths[i] + (i > 0 ? tokens.spacing : 0);
-    }
     // A lone reaction never collapses into a "+1": it overhangs the bubble
     // instead, which still reads as the reaction it is.
     if (!limit.isFinite || full <= limit || count == 1) {
@@ -267,43 +274,55 @@ Size _measure(
   return painter.size;
 }
 
-/// Reports the strip's minimal footprint as its intrinsic size.
+/// Reports the strip's footprint as its intrinsic size.
 ///
-/// The run packs into whatever width the message gives it, so its natural width
-/// answers nothing useful. What a host needs is the smallest the strip can get,
-/// one chip or the pill everything collapses into, which is what it has to fit
-/// beside whatever else shares the line. Packing itself runs against the
-/// laid-out width, and a [LayoutBuilder] has no intrinsics to offer, so we
-/// measure the numbers up front and answer them here.
+/// The run packs into whatever width the message gives it, so the width it
+/// happens to be laid out at answers nothing useful. What a host needs is
+/// either end of the range: the smallest the strip can get, one chip or the
+/// pill everything collapses into, which is what it has to fit beside whatever
+/// shares its line, and the widest, the full run, which is what something
+/// sharing that line has to clear. Packing itself runs against the laid-out
+/// width, and a [LayoutBuilder] has no intrinsics to offer, so we measure the
+/// numbers up front and answer them here.
 class _StripFootprint extends SingleChildRenderObjectWidget {
   const _StripFootprint({
-    required this.width,
+    required this.minimalWidth,
+    required this.runWidth,
     required this.height,
     required Widget super.child,
   });
 
-  final double width;
+  final double minimalWidth;
+  final double runWidth;
   final double height;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderStripFootprint(width, height);
+      _RenderStripFootprint(minimalWidth, runWidth, height);
 
   @override
   void updateRenderObject(BuildContext context, RenderObject renderObject) {
     (renderObject as _RenderStripFootprint)
-      ..width = width
+      ..minimalWidth = minimalWidth
+      ..runWidth = runWidth
       ..height = height;
   }
 }
 
 class _RenderStripFootprint extends RenderProxyBox {
-  _RenderStripFootprint(this._width, this._height);
+  _RenderStripFootprint(this._minimalWidth, this._runWidth, this._height);
 
-  double _width;
-  set width(double value) {
-    if (value == _width) return;
-    _width = value;
+  double _minimalWidth;
+  set minimalWidth(double value) {
+    if (value == _minimalWidth) return;
+    _minimalWidth = value;
+    markNeedsLayout();
+  }
+
+  double _runWidth;
+  set runWidth(double value) {
+    if (value == _runWidth) return;
+    _runWidth = value;
     markNeedsLayout();
   }
 
@@ -315,10 +334,10 @@ class _RenderStripFootprint extends RenderProxyBox {
   }
 
   @override
-  double computeMinIntrinsicWidth(double height) => _width;
+  double computeMinIntrinsicWidth(double height) => _minimalWidth;
 
   @override
-  double computeMaxIntrinsicWidth(double height) => _width;
+  double computeMaxIntrinsicWidth(double height) => _runWidth;
 
   @override
   double computeMinIntrinsicHeight(double width) => _height;

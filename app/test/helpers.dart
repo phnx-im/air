@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/material/theme_data.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -72,15 +72,30 @@ void expectFillsModal(WidgetTester tester, Finder finder, Size viewSize) {
       ? ModalShellTokens.phone
       : ModalShellTokens.desktop;
   // The card is centered in what the container padding leaves of the viewport,
-  // clamped to the envelope.
-  final cardHeight = math.min(
-    tokens.maxHeight,
-    viewSize.height - tokens.containerPadding.vertical,
-  );
+  // which is also as tall as it gets: nothing caps it short of that.
+  final cardHeight = viewSize.height - tokens.containerPadding.vertical;
   final rect = tester.getRect(finder);
 
   expect(rect.height, greaterThan(0));
   expect(rect.bottom, moreOrLessEquals((viewSize.height + cardHeight) / 2));
+}
+
+/// Asserts that the modal on screen takes the viewport whole, which is what it
+/// does where there is no room for a card beside it.
+///
+/// Measured on the header rather than on [ModalShell], whose outer padding
+/// fills the route either way.
+void expectModalFillsViewport(WidgetTester tester, Size viewSize) {
+  expect(tester.getSize(find.byType(DialogHeader)).width, viewSize.width);
+}
+
+/// Asserts that the modal on screen sits in a card inset from the viewport,
+/// rather than taking it whole.
+void expectModalIsCard(WidgetTester tester, Size viewSize) {
+  expect(
+    tester.getSize(find.byType(DialogHeader)).width,
+    lessThan(viewSize.width),
+  );
 }
 
 extension IntTestExtension on int {

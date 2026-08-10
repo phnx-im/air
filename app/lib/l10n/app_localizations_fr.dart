@@ -104,10 +104,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Ajouter des membres';
 
   @override
-  String get addMembersScreen_error_noActiveChat =>
-      'une discussion active est obligatoire';
-
-  @override
   String get contactDetailsScreen_title => 'Profil';
 
   @override
@@ -835,6 +831,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageBubble_failedToSend => 'Échec de l\'envoi';
 
   @override
+  String get messageBubble_sent => 'Envoyé';
+
+  @override
+  String get messageBubble_delivered => 'Distribué';
+
+  @override
+  String get messageBubble_read => 'Lu';
+
+  @override
   String get chatList_newContact => 'Nouveau contact';
 
   @override
@@ -973,19 +978,19 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Galerie';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Appareil photo';
 
   @override
-  String get attachment_file => 'Fichier';
+  String get attachment_otherFiles => 'Autres fichiers';
 
   @override
   String get attachment_notFound => 'La pièce jointe n\'est plus disponible.';
 
   @override
-  String get textMessage_edited => 'modifié';
+  String get textMessage_edited => 'Modifié';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1087,7 +1092,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de signaler le spam. Veuillez réessayer.';
 
   @override
-  String get helpScreen_contactUs => 'Nous contacter';
+  String get helpScreen_contactUs => 'Contacter Air';
 
   @override
   String get helpScreen_versionInfo => 'Informations sur la version';
@@ -1099,7 +1104,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get licensesScreen_title => 'Licences';
 
   @override
-  String get contactUsScreen_title => 'Contact';
+  String get contactUsScreen_title => 'Contacter Air';
 
   @override
   String get contactUsScreen_subject => 'Objet du message';
@@ -1108,7 +1113,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUsScreen_body => 'Corps du message';
 
   @override
-  String get contactUsScreen_includeLogs => 'Partager vos journaux';
+  String get contactUsScreen_includeLogs =>
+      'Partager vos journaux (cela aide Air à corriger les bugs)';
 
   @override
   String get contactUsScreen_composeEmail => 'Composer un e-mail';
@@ -1172,6 +1178,9 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'Tout voir';
 
   @override
   String get groupMembersScreen_title => 'Membres du groupe';

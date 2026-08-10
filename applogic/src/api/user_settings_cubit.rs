@@ -27,7 +27,7 @@ use crate::{
 pub struct UserSettings {
     pub locale: Option<String>,
     pub interface_scale: Option<f64>,
-    #[frb(default = 300.0)]
+    #[frb(default = 240.0)]
     pub sidebar_width: f64,
     #[frb(default = false)]
     pub send_on_enter: bool,
@@ -46,7 +46,7 @@ impl Default for UserSettings {
         Self {
             locale: None,
             interface_scale: None,
-            sidebar_width: 300.0,
+            sidebar_width: 240.0,
             send_on_enter: false,
             read_receipts: true,
             is_developer: false,

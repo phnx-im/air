@@ -143,9 +143,7 @@ void main() {
                   ).backgroundBase.primary,
                   child: BlocProvider<LinkedDevicesCubit>.value(
                     value: cubit,
-                    child: const SingleChildScrollView(
-                      child: LinkedDevicesView(),
-                    ),
+                    child: const LinkedDevicesView(),
                   ),
                 ),
               ),
