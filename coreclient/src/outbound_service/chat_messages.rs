@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use anyhow::Context;
 use anyhow::anyhow;
-use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -23,8 +23,9 @@ use super::{OutboundService, OutboundServiceContext};
 
 /// The outcome of attempting to send a single queued chat message.
 enum SendOutcome {
-    /// The message was sent (or no longer needs sending) and can be removed
-    /// from the queue.
+    /// The message was sent, or there is nothing left to send: it was deleted
+    /// locally, a sibling client already sent it, or the chat no longer accepts
+    /// messages. It can be removed from the queue.
     Sent,
     /// The message collided with a sibling client on the DS. It is left in the
     /// queue and retried at a fresh generation by a later run.
@@ -168,14 +169,16 @@ impl OutboundServiceContext {
         // load chat and message
         let Some((chat, mut message)) = self
             .db
-            .with_read_transaction(async |txn| {
-                let message = ChatMessage::load(&mut *txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                // A message deleted locally in the meantime has nothing left to
+                // send.
+                let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
+                    return Ok(None);
+                };
                 let chat_id = message.chat_id();
-                let chat = Chat::load(&mut *txn, &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+                    return Ok(None);
+                };
 
                 // Don't send messages for blocked chats
                 if let ChatStatus::Blocked = chat.status() {
@@ -188,7 +191,10 @@ impl OutboundServiceContext {
                     return Ok(None);
                 }
 
-                ensure!(!message.is_sent(), "Message is already sent");
+                // A sibling client may have sent the message already.
+                if message.is_sent() {
+                    return Ok(None);
+                }
 
                 Ok(Some((chat, message)))
             })
