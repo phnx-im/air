@@ -166,8 +166,9 @@ impl OutboundServiceContext {
 
     /// Sends a single queued message, retrying transient failures.
     ///
-    /// Once the attempts of a transient failure are exhausted, we presume the
-    /// network to be down and fail the whole queue.
+    /// A message that cannot be sent for its own reasons is marked as failed
+    /// and dropped from the queue. Once the attempts of a transient failure are
+    /// exhausted, we presume the network to be down and fail the whole queue.
     async fn send_queued_message(
         &self,
         run_token: &CancellationToken,
@@ -198,24 +199,36 @@ impl OutboundServiceContext {
                     );
                     return Ok(RunControl::NextMessage);
                 }
-                Err(OutboundServiceError::Fatal(error)) => error,
-                Err(OutboundServiceError::Recoverable(error)) if attempt < MAX_SEND_ATTEMPTS => {
-                    warn!(%error, ?message_id, attempt, "Failed to send chat message; retrying");
-                    tokio::select! {
-                        () = tokio::time::sleep(SEND_RETRY_DELAY) => continue,
-                        () = run_token.cancelled() => return Ok(RunControl::EndRun),
-                    }
+                Err(OutboundServiceError::Fatal(error)) => {
+                    error!(%error, ?message_id, "Failed to send chat message; marking it as failed");
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                            ChatMessageQueue::new(chat_id, message_id)
+                                .remove_and_mark_as_failed(txn)
+                                .await?;
+                            Ok(())
+                        })
+                        .await?;
+                    return Ok(RunControl::NextMessage);
                 }
                 Err(OutboundServiceError::Recoverable(error)) => error,
             };
 
-            warn!(%error, ?message_id, "Failed to send chat message; failing the queue");
-            self.db
-                .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                    Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
-                })
-                .await?;
-            return Ok(RunControl::EndRun);
+            if attempt >= MAX_SEND_ATTEMPTS {
+                warn!(%error, ?message_id, "Failed to send chat message; failing the queue");
+                self.db
+                    .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                        Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
+                    })
+                    .await?;
+                return Ok(RunControl::EndRun);
+            }
+
+            warn!(%error, ?message_id, attempt, "Failed to send chat message; retrying");
+            tokio::select! {
+                () = tokio::time::sleep(SEND_RETRY_DELAY) => {}
+                () = run_token.cancelled() => return Ok(RunControl::EndRun),
+            }
         }
     }
 

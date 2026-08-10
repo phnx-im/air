@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
@@ -837,6 +839,82 @@ async fn recoverable_send_failure_is_retried() {
         count_messages_with_text(bob_user, chat_id, TEXT).await,
         1,
         "the recipient receives the retried message exactly once"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Fatal send failure fails only that message", skip_all)]
+async fn fatal_send_failure_fails_only_that_message() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user();
+    alice_user.outbound_service().run_once().await;
+
+    const DOOMED_TEXT: &str = "rejected for good";
+    const HEALTHY_TEXT: &str = "sent after a fatal failure";
+    let doomed = alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message(DOOMED_TEXT.to_owned(), [13u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    // The queue is ordered by insertion time, so the pause makes sure the
+    // doomed message is dequeued first.
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let healthy = alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message(HEALTHY_TEXT.to_owned(), [14u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+
+    // The DS rejects the first send with a permanent error. Only that message
+    // fails, the run goes on with the next queued message.
+    setup.listener_control_handle().set_reject_next_request();
+    alice_user
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        alice_user
+            .message(doomed.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .status(),
+        MessageStatus::Error,
+        "a message the DS rejects for good must be marked as failed"
+    );
+    assert!(
+        alice_user
+            .message(healthy.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_sent(),
+        "a fatal failure must not fail the rest of the queue"
+    );
+
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    assert_eq!(
+        count_messages_with_text(bob_user, chat_id, HEALTHY_TEXT).await,
+        1,
+        "the message queued behind the failed one is delivered"
+    );
+    assert_eq!(
+        count_messages_with_text(bob_user, chat_id, DOOMED_TEXT).await,
+        0,
+        "the rejected message never reaches the recipient"
     );
 }
 
