@@ -13,7 +13,9 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::db::access::WriteDbTransaction;
-use crate::groups::handle_group_not_found_on_ds;
+use crate::groups::{Group, handle_group_not_found_on_ds};
+use crate::job::JobError;
+use crate::job::chat_operation::ChatOperation;
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
@@ -57,6 +59,12 @@ enum SendOutcome {
 enum RunControl {
     NextMessage,
     EndRun,
+}
+
+/// The outcome of committing the proposals pending in a chat's group.
+enum CommitOutcome {
+    Committed,
+    ChatBlocked,
 }
 
 impl OutboundService {
@@ -239,7 +247,7 @@ impl OutboundServiceContext {
         debug!(?message_id, "sending message");
 
         // load chat and message
-        let Some((chat, mut message)) = self
+        let Some((chat, mut message, has_pending_proposals)) = self
             .db
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
                 // A message deleted locally in the meantime has nothing left to
@@ -268,13 +276,27 @@ impl OutboundServiceContext {
                     return Ok(None);
                 }
 
-                Ok(Some((chat, message)))
+                // The group is loaded as-is: a parked pending commit is a
+                // normal state here and must not fail the send.
+                let has_pending_proposals = Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .is_some_and(|group| group.mls_group().has_pending_proposals());
+
+                Ok(Some((chat, message, has_pending_proposals)))
             })
             .await
             .map_err(OutboundServiceError::fatal)?
         else {
             return Ok(SendOutcome::Sent);
         };
+
+        if has_pending_proposals {
+            match self.commit_pending_proposals(chat.id()).await? {
+                CommitOutcome::Committed => (),
+                // Nothing left to send in a blocked chat.
+                CommitOutcome::ChatBlocked => return Ok(SendOutcome::Sent),
+            }
+        }
 
         let Message::Content(content) = message.message() else {
             return Err(OutboundServiceError::fatal(anyhow!(
@@ -370,5 +392,29 @@ impl OutboundServiceContext {
             .map_err(OutboundServiceError::fatal)?;
 
         Ok(SendOutcome::Sent)
+    }
+
+    /// Commits the proposals pending in the chat's group.
+    ///
+    /// A message is encrypted at a clean group state, so pending proposals have
+    /// to be committed before it can be sent.
+    async fn commit_pending_proposals(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<CommitOutcome, OutboundServiceError> {
+        match self.execute_job(ChatOperation::update(chat_id, None)).await {
+            Ok(_) => Ok(CommitOutcome::Committed),
+            Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
+            Err(JobError::NetworkError) => Err(OutboundServiceError::recoverable(anyhow!(
+                "Network error while committing pending proposals"
+            ))),
+            // The job already cleaned up the local state.
+            Err(JobError::NotFound) => Err(OutboundServiceError::fatal(anyhow!(
+                "Chat not found while committing pending proposals"
+            ))),
+            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
+                Err(OutboundServiceError::fatal(error))
+            }
+        }
     }
 }

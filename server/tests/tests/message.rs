@@ -919,6 +919,88 @@ async fn fatal_send_failure_fails_only_that_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Sending commits pending proposals", skip_all)]
+async fn sending_commits_pending_proposals() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Bob leaves, which proposes his own removal. Nobody commits it for Alice.
+    setup
+        .get_user(&bob)
+        .user()
+        .leave_chat(chat_id)
+        .await
+        .unwrap();
+
+    let alice_user = setup.get_user(&alice).user();
+    drain_queue(alice_user).await;
+    assert_eq!(
+        alice_user.pending_removes(chat_id).await.unwrap(),
+        vec![bob.clone()],
+        "Alice's group should hold Bob's pending removal"
+    );
+
+    const TEXT: &str = "sent on top of a pending proposal";
+    let message = alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message(TEXT.to_owned(), [15u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    alice_user
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+
+    assert!(
+        alice_user
+            .message(message.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_sent(),
+        "the send path commits the pending proposal instead of failing"
+    );
+    assert!(
+        alice_user
+            .pending_removes(chat_id)
+            .await
+            .unwrap()
+            .is_empty(),
+        "the pending proposal is committed"
+    );
+    assert!(
+        !alice_user
+            .chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(&bob),
+        "Bob is removed by the commit"
+    );
+
+    let charlie_user = setup.get_user(&charlie).user();
+    drain_queue(charlie_user).await;
+    assert_eq!(
+        count_messages_with_text(charlie_user, chat_id, TEXT).await,
+        1,
+        "the remaining member receives the message"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Delete message with attachment", skip_all)]
 async fn delete_message_with_attachment() {
     let mut setup = TestBackend::single().await;
