@@ -1025,9 +1025,23 @@ impl CoreUser {
                 }
             )
         {
-            let (notification, changed_chat) = self
-                .handle_reaction(txn, group, content, sender, ds_timestamp)
-                .await?;
+            // Don't fail here, otherwise message processing of other messages will fail.
+            let mut savepoint_txn = txn.begin().await?;
+            let handled = self
+                .handle_reaction(&mut savepoint_txn, group, content, sender, ds_timestamp)
+                .await
+                .inspect_err(|error| {
+                    warn!(%error, "Cannot apply reaction; skipping");
+                })
+                .ok();
+            let (notification, changed_chat) = match handled {
+                Some(handled) => {
+                    savepoint_txn.commit().await?;
+                    handled
+                }
+                None => (None, None),
+            };
+
             // Reactions are not stored as messages; the targeted message is
             // notified as updated from within the handler.
             return Ok(HandledMessages {
