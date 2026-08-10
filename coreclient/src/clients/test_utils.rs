@@ -406,4 +406,50 @@ impl CoreUser {
 
         Ok(())
     }
+
+    /// Sends `content` into the chat's group without any local bookkeeping,
+    /// reproducing a replay of an already delivered message.
+    pub async fn send_mimi_content_without_confirmation(
+        &self,
+        chat_id: ChatId,
+        content: mimi_content::MimiContent,
+    ) -> anyhow::Result<()> {
+        use crate::groups::openmls_provider::AirOpenMlsProvider;
+
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .context("chat not found")
+            })
+            .await?;
+
+        let signer = OwnClientInfo::signer_for_group(
+            self.db().read().await?,
+            chat.group_id(),
+            self.signing_key(),
+        )
+        .await?;
+
+        let (group_state_ear_key, params) = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(&mut *txn, group_id)
+                    .await?
+                    .context("group not found")?;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let params = group.create_message(&provider, &signer, content, None)?;
+                Ok((group.group_state_ear_key().clone(), params))
+            })
+            .await?;
+
+        self.api_clients()
+            .get(&chat.owner_domain())?
+            .ds_send_message(params, &signer, &group_state_ear_key)
+            .await?;
+
+        Ok(())
+    }
 }

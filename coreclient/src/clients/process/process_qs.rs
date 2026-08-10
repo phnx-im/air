@@ -39,7 +39,8 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
-        GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::handle_message_edit,
+        GroupDataExt, GroupDataProfilePart, StatusRecord,
+        messages::edit::{MessageEdit, handle_message_edit},
         reactions::Reaction,
     },
     clients::{
@@ -1033,6 +1034,16 @@ impl CoreUser {
             });
         }
 
+        // A message we already store is a replay and must not be stored again.
+        // This must run before the edit branch, otherwise a replayed edit is
+        // applied a second time and prematurely lands in the edit history,
+        // blocking later edits of the same message.
+        if let Ok(content) = &content
+            && Box::pin(self.reconcile_known_message(txn, group, content, sender)).await?
+        {
+            return Ok(Default::default());
+        }
+
         // Message edit
         if let Ok(content) = &mut content
             && let Some(replaces) = content.replaces.as_ref()
@@ -1074,6 +1085,37 @@ impl CoreUser {
             new_messages: vec![message],
             ..Default::default()
         })
+    }
+
+    /// Reconciles an inbound message whose Mimi ID we already store. Returns
+    /// true if the message was known.
+    async fn reconcile_known_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        content: &MimiContent,
+        sender: &UserId,
+    ) -> anyhow::Result<bool> {
+        let Ok(mimi_id) = MimiId::calculate(group.group_id(), sender, content) else {
+            return Ok(false);
+        };
+        if ChatMessage::load_by_mimi_id(&mut *txn, &mimi_id)
+            .await?
+            .is_none()
+        {
+            // A Mimi ID in the edit history is a superseded version of a
+            // message. Applying it again would revert a newer edit.
+            let is_superseded_edit = MessageEdit::find_message_id(&mut *txn, &mimi_id)
+                .await?
+                .is_some();
+            if is_superseded_edit {
+                info!(?mimi_id, "Ignoring replay of a superseded message edit");
+            }
+            return Ok(is_superseded_edit);
+        }
+
+        info!(?mimi_id, "Ignoring duplicate of an already known message");
+        Ok(true)
     }
 
     /// Apply an incoming reaction (add or retraction) to the targeted message.

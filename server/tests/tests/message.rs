@@ -5,7 +5,9 @@
 use std::time::Duration;
 
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
-use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
+use aircoreclient::{
+    ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting, clients::CoreUser,
+};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
@@ -843,6 +845,58 @@ async fn recoverable_send_failure_is_retried() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Lost DS response is retried and deduplicated", skip_all)]
+async fn lost_response_is_retried_and_deduplicated() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user();
+    alice_user.outbound_service().run_once().await;
+
+    const TEXT: &str = "delivered twice, stored once";
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [12u8; 16]);
+    let message = alice_user
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+
+    // The DS accepts and fans out the first attempt, but the response never
+    // reaches Alice. The retry sends the same content again.
+    setup.listener_control_handle().set_drop_next_response();
+    alice_user
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+
+    let stored = alice_user.message(message.id()).await.unwrap().unwrap();
+    assert!(
+        stored.is_sent(),
+        "a lost response must not stop the message from being sent"
+    );
+
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    assert_eq!(
+        count_messages_with_text(bob_user, chat_id, TEXT).await,
+        1,
+        "the recipient deduplicates the two deliveries of the same message"
+    );
+    let bob_message = bob_user.last_message(chat_id).await.unwrap().unwrap();
+    assert_eq!(
+        bob_message
+            .message()
+            .mimi_content()
+            .unwrap()
+            .string_rendering()
+            .unwrap(),
+        TEXT
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Fatal send failure fails only that message", skip_all)]
 async fn fatal_send_failure_fails_only_that_message() {
     let mut setup = TestBackend::single().await;
@@ -1606,4 +1660,86 @@ async fn no_notification_for_reaction_on_others_message() {
     let processed = bob_user.fully_process_qs_messages(qs).await;
     assert_eq!(processed.reaction_notifications.len(), 1);
     assert_eq!(processed.reaction_notifications[0].reactor, charlie);
+}
+
+/// The mimi content currently stored for the message.
+async fn stored_content(user: &CoreUser, message_id: MessageId) -> MimiContent {
+    user.message(message_id)
+        .await
+        .unwrap()
+        .unwrap()
+        .message()
+        .mimi_content()
+        .unwrap()
+        .clone()
+}
+
+/// Fetches and processes the user's queue after a replayed edit, asserting
+/// that the replay neither fails nor is stored as a new message.
+async fn process_replayed_edit(user: &CoreUser) {
+    let qs_messages = user.qs_fetch_messages().await.unwrap();
+    let processed = user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "processing a replayed edit failed"
+    );
+    assert!(
+        processed.new_messages.is_empty(),
+        "a replayed edit must not be stored as a new message"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Replayed edits are ignored", skip_all)]
+async fn edit_replay_is_ignored() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let message_id = setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    let first_edit = stored_content(setup.get_user(&alice).user(), message_id).await;
+
+    // Bob receives the first edit a second time. The replay must not be
+    // applied again.
+    setup
+        .get_user(&alice)
+        .user()
+        .send_mimi_content_without_confirmation(chat_id, first_edit.clone())
+        .await
+        .unwrap();
+    process_replayed_edit(setup.get_user(&bob).user()).await;
+
+    // A second edit still applies. A replay that lands in the edit history
+    // would block it.
+    setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    let second_edit = stored_content(setup.get_user(&alice).user(), message_id).await;
+
+    // Bob receives the first edit a third time, now as a superseded version.
+    setup
+        .get_user(&alice)
+        .user()
+        .send_mimi_content_without_confirmation(chat_id, first_edit)
+        .await
+        .unwrap();
+    process_replayed_edit(setup.get_user(&bob).user()).await;
+
+    // The replay must not revert the second edit.
+    let bob_message = setup
+        .get_user(&bob)
+        .user()
+        .last_message(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        bob_message.message().mimi_content(),
+        Some(&second_edit),
+        "the replayed superseded edit must not revert the newer edit"
+    );
+
+    // The replays did not pollute the edit history: a third edit applies.
+    setup.edit_message(chat_id, &alice, vec![&bob]).await;
 }
