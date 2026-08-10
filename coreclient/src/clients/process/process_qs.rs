@@ -20,7 +20,10 @@ use aircommon::{
     utils::removed_client,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::group::GroupData;
+use airprotos::client::{
+    group::GroupData,
+    virtual_client::{VirtualClientAction, extract_virtual_client_action},
+};
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
@@ -29,8 +32,8 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{GroupId, QueuedProposal},
     prelude::{
-        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
-        ProtocolMessage, Sender, StagedCommit,
+        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessage,
+        ProcessedMessageContent, ProtocolMessage, Sender, StagedCommit,
     },
 };
 use tls_codec::DeserializeBytes;
@@ -825,6 +828,7 @@ impl CoreUser {
             .clone();
 
         let aad = processed_message.tail_aad().to_vec();
+        let key_package_batch = own_commit_key_package_batch(&processed_message)?;
 
         let chat_id = chat.id();
 
@@ -912,7 +916,7 @@ impl CoreUser {
                     &mut chat,
                     group_data_bytes,
                     &mut group_messages,
-                    None,
+                    key_package_batch,
                     ds_timestamp,
                 )
                 .await?;
@@ -1614,5 +1618,138 @@ impl CoreUser {
         }
 
         Ok(())
+    }
+}
+
+/// The key package batch announced in the SafeAAD of our own echoed commit.
+///
+/// `None` for any other message, and for own commits without the component.
+/// On this path the `DsCommitResponse` that carries the batch id has not
+/// arrived yet, so the id has to come from the commit itself.
+fn own_commit_key_package_batch(
+    processed_message: &ProcessedMessage,
+) -> anyhow::Result<Option<KeyPackageBatchId>> {
+    if !matches!(
+        processed_message.content(),
+        ProcessedMessageContent::OwnPendingCommit
+    ) {
+        return Ok(None);
+    }
+    let Some(action) = extract_virtual_client_action(processed_message)? else {
+        return Ok(None);
+    };
+    let VirtualClientAction::KeyPackageUpload(upload) = action;
+    Ok(Some(KeyPackageBatchId::from(&upload)))
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        crypto::aead::keys::IdentityLinkWrapperKey,
+        identifiers::{QsClientId, QsUserId},
+        mls_group_config::AppComponent,
+    };
+    use airprotos::client::component::AirComponent;
+    use openmls::{
+        components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
+        prelude::tls_codec::Serialize as _,
+    };
+    use uuid::Uuid;
+
+    use crate::{
+        db::access::DbAccess,
+        groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+        utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
+
+    /// The DS fans our own key package upload commit back to us before it
+    /// sends the `DsCommitResponse`. That echo has to yield the same batch id
+    /// the response would have carried, otherwise the pending upload job is
+    /// abandoned and the uploaded key packages are deleted.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn own_pending_commit_yields_announced_batch_id() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let user_id = UserId::random("example.com".parse()?);
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                OwnClientInfo {
+                    qs_user_id: QsUserId::random(),
+                    qs_client_id: QsClientId::random(&mut rand::rng()),
+                    user_id: user_id.clone(),
+                    client_id: Uuid::new_v4(),
+                    self_group_id: None,
+                    self_group_signing_key: None,
+                }
+                .store(&mut *txn)
+                .await?;
+
+                let t_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let pq_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &leaf_signer,
+                    user_id.clone(),
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id,
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(vec![VC_COMPONENT_ID]),
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+                OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
+
+                let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self-group")?;
+                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
+                let leaf_index = self_group.group().mls_group().own_leaf_index();
+                let upload = KeyPackageUpload {
+                    epoch_id: epoch_id.clone(),
+                    leaf_index,
+                    generation: 3,
+                    key_package_info: Vec::new(),
+                };
+                let params =
+                    self_group.stage_key_package_upload(&mut *txn, &signing_key, upload)?;
+
+                let (t_commit, _pq_commit) = params.bundle.commit.split();
+                let echoed_commit =
+                    MlsMessageIn::tls_deserialize_exact_bytes(&t_commit.tls_serialize_detached()?)?
+                        .try_into_protocol_message()?;
+
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let processed = self_group
+                    .group_mut()
+                    .mls_group_mut()
+                    .process_message(&provider, echoed_commit)?;
+                assert!(matches!(
+                    processed.content(),
+                    ProcessedMessageContent::OwnPendingCommit
+                ));
+
+                assert_eq!(
+                    own_commit_key_package_batch(&processed)?,
+                    Some(KeyPackageBatchId {
+                        epoch_id,
+                        leaf_index,
+                        generation: 3,
+                    })
+                );
+
+                Ok(())
+            })
+            .await
     }
 }

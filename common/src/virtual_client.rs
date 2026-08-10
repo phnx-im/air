@@ -33,3 +33,13 @@ impl KeyPackageBatchId {
             && self.generation == upload.generation
     }
 }
+
+impl From<&KeyPackageUpload> for KeyPackageBatchId {
+    fn from(upload: &KeyPackageUpload) -> Self {
+        Self {
+            epoch_id: upload.epoch_id.clone(),
+            leaf_index: upload.leaf_index,
+            generation: upload.generation,
+        }
+    }
+}
