@@ -30,19 +30,7 @@ use super::{OutboundService, OutboundServiceContext};
 const MAX_SEND_ATTEMPTS: usize = 3;
 
 /// Delay between send attempts.
-///
-/// The test build keeps the production attempt count but shortens the waits, so
-/// that exhausting the retries costs milliseconds instead of seconds.
-#[cfg(not(feature = "test_utils"))]
 const SEND_RETRY_DELAY: Duration = Duration::from_secs(1);
-#[cfg(feature = "test_utils")]
-const SEND_RETRY_DELAY: Duration = Duration::from_millis(10);
-
-/// Timeout for a single send attempt.
-#[cfg(not(feature = "test_utils"))]
-const SEND_TIMEOUT: Duration = Duration::from_secs(10);
-#[cfg(feature = "test_utils")]
-const SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The outcome of attempting to send a single queued chat message.
 enum SendOutcome {
@@ -255,6 +243,12 @@ impl OutboundServiceContext {
                 let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
                     return Ok(None);
                 };
+
+                // A sibling client may have sent the message already.
+                if message.is_sent() {
+                    return Ok(None);
+                }
+
                 let chat_id = message.chat_id();
                 let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
                     return Ok(None);
@@ -268,11 +262,6 @@ impl OutboundServiceContext {
                 // Don't send messages for chats with pending resync
                 if Resync::is_pending_for_chat(&mut *txn, &chat_id).await? {
                     debug!(?chat_id, "Skipping sending message due to pending resync");
-                    return Ok(None);
-                }
-
-                // A sibling client may have sent the message already.
-                if message.is_sent() {
                     return Ok(None);
                 }
 
@@ -319,15 +308,12 @@ impl OutboundServiceContext {
         let generation = params.generation;
 
         // send MLS message to DS
-        let send = api_client.ds_send_message(params, &signer, &group_state_ear_key);
-        let ds_timestamp = match tokio::time::timeout(SEND_TIMEOUT, send).await {
-            Ok(Ok(ts)) => ts,
-            Err(_elapsed) => {
-                return Err(OutboundServiceError::recoverable(anyhow!(
-                    "Timed out sending message to the DS"
-                )));
-            }
-            Ok(Err(ds_error)) => {
+        let ds_timestamp = match api_client
+            .ds_send_message(params, &signer, &group_state_ear_key)
+            .await
+        {
+            Ok(ts) => ts,
+            Err(ds_error) => {
                 if ds_error.is_not_found() {
                     self.db
                         .with_write_transaction(async |txn| {
