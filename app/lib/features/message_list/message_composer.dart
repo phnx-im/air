@@ -165,6 +165,8 @@ class _MessageComposerState extends State<MessageComposer>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
+    _storeDraftDebouncer.dispose();
+
     _chatDetailsCubit.storeDraft(
       draftMessage: _inputController.text.trim(),
       isCommitted: true,
@@ -361,6 +363,7 @@ class _MessageComposerState extends State<MessageComposer>
       _inputController.clear();
       _focusNode.requestFocus();
     });
+    _storeDraftDebouncer.cancel();
   }
 
   bool _editMessage(ChatDetailsCubit cubit) {
