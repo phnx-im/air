@@ -9,6 +9,8 @@ use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
 
+use super::multi_device::{count_messages_with_text, drain_queue};
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Edit message", skip_all)]
 async fn edit_message() {
@@ -783,6 +785,59 @@ async fn message_sending_failures() {
             );
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Recoverable send failure is retried", skip_all)]
+async fn recoverable_send_failure_is_retried() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user();
+    // Flush what the connection setup left queued, so that the injected failure
+    // lands on the message sent below.
+    alice_user.outbound_service().run_once().await;
+
+    const TEXT: &str = "retried after a transient failure";
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
+    let message = alice_user
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    assert!(
+        !message.is_sent(),
+        "sending is deferred to the outbound service"
+    );
+
+    // The DS rejects the first attempt with an availability error, which is
+    // recoverable, so the outbound service retries it.
+    setup.listener_control_handle().set_drop_next_request();
+    alice_user
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+
+    let stored = alice_user.message(message.id()).await.unwrap().unwrap();
+    assert!(
+        stored.is_sent(),
+        "a transient failure must not stop the message from being sent"
+    );
+    assert_ne!(
+        stored.status(),
+        MessageStatus::Error,
+        "a retried message must not be marked as failed"
+    );
+
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    assert_eq!(
+        count_messages_with_text(bob_user, chat_id, TEXT).await,
+        1,
+        "the recipient receives the retried message exactly once"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

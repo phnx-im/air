@@ -99,6 +99,19 @@ impl OutboundService<OutboundServiceContext> {
     }
 }
 
+#[cfg(feature = "test_utils")]
+impl OutboundService<OutboundServiceContext> {
+    /// Runs only the queued chat message stage of a run.
+    ///
+    /// A test that injects a one-shot DS failure needs to know which request
+    /// the failure lands on, which a full run does not guarantee.
+    pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
+        self.context
+            .send_queued_messages(&CancellationToken::new())
+            .await
+    }
+}
+
 impl<C: OutboundServiceWork> OutboundService<C> {
     fn with_context(context: C, global_lock: GlobalLock) -> Self {
         Self::build(context, global_lock, PERIODIC_WAKE_INTERVAL)

@@ -163,9 +163,28 @@ async fn link_new_device_named(
 }
 
 /// Fetches and processes all messages in the device's queue.
-async fn drain_queue(user: &CoreUser) {
+pub(crate) async fn drain_queue(user: &CoreUser) {
     let messages = user.qs_fetch_messages().await.unwrap();
     user.fully_process_qs_messages(messages).await;
+}
+
+/// How many of the chat's stored content messages render as `text`.
+pub(crate) async fn count_messages_with_text(
+    user: &CoreUser,
+    chat_id: ChatId,
+    text: &str,
+) -> usize {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter(|message| {
+            message
+                .message()
+                .mimi_content()
+                .is_some_and(|content| content.string_rendering().is_ok_and(|s| s.contains(text)))
+        })
+        .count()
 }
 
 /// The device's locally stored read-receipts setting. `None` means unset.

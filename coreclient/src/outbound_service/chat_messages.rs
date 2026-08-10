@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use anyhow::Context;
 use anyhow::anyhow;
 use mimi_content::MessageStatus;
@@ -13,13 +15,32 @@ use uuid::Uuid;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::handle_group_not_found_on_ds;
 use crate::job::pending_chat_operation::PendingChatOperation;
+use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
 use crate::{
-    Chat, ChatMessage, ChatStatus, Message, MessageId,
+    Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::ChatMessageQueue,
 };
 
 use super::{OutboundService, OutboundServiceContext};
+
+/// How often we attempt to send a message before marking it as failed.
+const MAX_SEND_ATTEMPTS: usize = 3;
+
+/// Delay between send attempts.
+///
+/// The test build keeps the production attempt count but shortens the waits, so
+/// that exhausting the retries costs milliseconds instead of seconds.
+#[cfg(not(feature = "test_utils"))]
+const SEND_RETRY_DELAY: Duration = Duration::from_secs(1);
+#[cfg(feature = "test_utils")]
+const SEND_RETRY_DELAY: Duration = Duration::from_millis(10);
+
+/// Timeout for a single send attempt.
+#[cfg(not(feature = "test_utils"))]
+const SEND_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(feature = "test_utils")]
+const SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The outcome of attempting to send a single queued chat message.
 enum SendOutcome {
@@ -30,6 +51,12 @@ enum SendOutcome {
     /// The message collided with a sibling client on the DS. It is left in the
     /// queue and retried at a fresh generation by a later run.
     Collided,
+}
+
+/// Whether the outbound service continues with the next queued message.
+enum RunControl {
+    NextMessage,
+    EndRun,
 }
 
 impl OutboundService {
@@ -127,16 +154,38 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self.send_chat_message(message_id).await {
+            match self
+                .send_queued_message(run_token, chat_id, message_id)
+                .await?
+            {
+                RunControl::NextMessage => continue,
+                RunControl::EndRun => return Ok(()),
+            }
+        }
+    }
+
+    /// Sends a single queued message, retrying transient failures.
+    ///
+    /// Once the attempts of a transient failure are exhausted, we presume the
+    /// network to be down and fail the whole queue.
+    async fn send_queued_message(
+        &self,
+        run_token: &CancellationToken,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> anyhow::Result<RunControl> {
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            let error = match self.send_chat_message(message_id).await {
                 Ok(SendOutcome::Sent) => {
-                    // Always delete the message from the queue. We don't want
-                    // to automatically retry here.
                     self.db
                         .with_write_transaction(async |txn| -> anyhow::Result<_> {
                             ChatMessageQueue::remove(txn, message_id).await?;
                             Ok(())
                         })
                         .await?;
+                    return Ok(RunControl::NextMessage);
                 }
                 Ok(SendOutcome::Collided) => {
                     // Leave the message in the queue so a later run retries it
@@ -147,23 +196,33 @@ impl OutboundServiceContext {
                         ?chat_id,
                         "Message collided, re-enqueuing for a later run"
                     );
+                    return Ok(RunControl::NextMessage);
                 }
-                Err(e) => {
-                    warn!(error = ?e, ?message_id, "Failed to send chat message");
-                    // If the message fails, we mark it and all other queued
-                    // messages as "failed" and delete them from the queue.
-                    self.db
-                        .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                            Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
-                        })
-                        .await?;
-                    return Ok(());
+                Err(OutboundServiceError::Fatal(error)) => error,
+                Err(OutboundServiceError::Recoverable(error)) if attempt < MAX_SEND_ATTEMPTS => {
+                    warn!(%error, ?message_id, attempt, "Failed to send chat message; retrying");
+                    tokio::select! {
+                        () = tokio::time::sleep(SEND_RETRY_DELAY) => continue,
+                        () = run_token.cancelled() => return Ok(RunControl::EndRun),
+                    }
                 }
-            }
+                Err(OutboundServiceError::Recoverable(error)) => error,
+            };
+
+            warn!(%error, ?message_id, "Failed to send chat message; failing the queue");
+            self.db
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
+                })
+                .await?;
+            return Ok(RunControl::EndRun);
         }
     }
 
-    async fn send_chat_message(&self, message_id: MessageId) -> anyhow::Result<SendOutcome> {
+    async fn send_chat_message(
+        &self,
+        message_id: MessageId,
+    ) -> Result<SendOutcome, OutboundServiceError> {
         debug!(?message_id, "sending message");
 
         // load chat and message
@@ -198,41 +257,50 @@ impl OutboundServiceContext {
 
                 Ok(Some((chat, message)))
             })
-            .await?
+            .await
+            .map_err(OutboundServiceError::fatal)?
         else {
             return Ok(SendOutcome::Sent);
         };
 
         let Message::Content(content) = message.message() else {
-            return Err(anyhow!(
+            return Err(OutboundServiceError::fatal(anyhow!(
                 "Messages scheduled for sending is not a content message."
-            ));
+            )));
         };
 
-        let api_client = self.api_clients.get(&chat.owner_domain())?;
+        let api_client = self
+            .api_clients
+            .get(&chat.owner_domain())
+            .map_err(OutboundServiceError::fatal)?;
 
         // load group and create MLS message
         let (group_state_ear_key, params, signer) = self
             .new_mls_message(&chat, content.content().clone(), None)
-            .await?;
+            .await
+            .map_err(OutboundServiceError::fatal)?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
 
         // send MLS message to DS
-        let ds_timestamp = match api_client
-            .ds_send_message(params, &signer, &group_state_ear_key)
-            .await
-        {
-            Ok(ts) => ts,
-            Err(ds_error) => {
+        let send = api_client.ds_send_message(params, &signer, &group_state_ear_key);
+        let ds_timestamp = match tokio::time::timeout(SEND_TIMEOUT, send).await {
+            Ok(Ok(ts)) => ts,
+            Err(_elapsed) => {
+                return Err(OutboundServiceError::recoverable(anyhow!(
+                    "Timed out sending message to the DS"
+                )));
+            }
+            Ok(Err(ds_error)) => {
                 if ds_error.is_not_found() {
                     self.db
                         .with_write_transaction(async |txn| {
                             handle_group_not_found_on_ds(txn, chat.group_id()).await
                         })
-                        .await?;
-                    return Err(ds_error.into());
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
+                    return Err(OutboundServiceError::fatal(ds_error));
                 }
 
                 // A collision here means a competing sibling client already sent
@@ -242,7 +310,13 @@ impl OutboundServiceContext {
                 if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                     return Ok(SendOutcome::Collided);
                 }
-                return Err(anyhow::Error::from(ds_error).context("DS rejected message"));
+
+                if ds_error.is_network_error() {
+                    return Err(OutboundServiceError::recoverable(ds_error));
+                }
+                return Err(OutboundServiceError::fatal(
+                    anyhow::Error::from(ds_error).context("DS rejected message"),
+                ));
             }
         };
 
@@ -279,7 +353,8 @@ impl OutboundServiceContext {
 
                 Ok(())
             })
-            .await?;
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         Ok(SendOutcome::Sent)
     }
