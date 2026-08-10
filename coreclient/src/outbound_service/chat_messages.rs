@@ -226,7 +226,7 @@ impl OutboundServiceContext {
                 warn!(%error, ?message_id, "Failed to send chat message; failing the queue");
                 self.db
                     .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                        Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
+                        Ok(ChatMessageQueue::remove_all_and_mark_as_failed(txn).await?)
                     })
                     .await?;
                 return Ok(RunControl::EndRun);
