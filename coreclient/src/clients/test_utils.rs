@@ -407,6 +407,33 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Sends the queued chat message to the DS the way the outbound service
+    /// would, but skips the confirmation and all local post-processing,
+    /// reproducing a send whose DS response was lost. The message row stays
+    /// unsent and enqueued.
+    pub async fn send_chat_message_without_confirmation(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<()> {
+        use crate::Message;
+
+        let (chat_id, content) = self
+            .db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .context("message not found")?;
+                let Message::Content(content) = message.message() else {
+                    anyhow::bail!("message {message_id:?} is not a content message");
+                };
+                Ok((message.chat_id(), content.content().clone()))
+            })
+            .await?;
+
+        self.send_mimi_content_without_confirmation(chat_id, content)
+            .await
+    }
+
     /// Sends `content` into the chat's group without any local bookkeeping,
     /// reproducing a replay of an already delivered message.
     pub async fn send_mimi_content_without_confirmation(

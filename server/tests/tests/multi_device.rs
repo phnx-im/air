@@ -1744,3 +1744,198 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
         "an unconfirmed connection chat should not be conveyed to a linked device"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test an own echo confirms an unconfirmed send", skip_all)]
+async fn multi_device_own_echo_confirms_unconfirmed_send() {
+    const TEXT: &str = "the DS response to this one got lost";
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Linking turns alice's leaf into a virtual-client leaf shared by both
+    // devices, which is what makes the DS echo decryptable for the sender.
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    let first_device = setup.get_user(&alice).user();
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
+    let message = first_device
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    let message_id = message.id();
+    assert!(
+        !message.is_sent(),
+        "the message should still be waiting for the outbound service"
+    );
+
+    // The DS accepts the message and fans it out, but the sending device never
+    // sees the response and therefore never confirms the send.
+    first_device
+        .send_chat_message_without_confirmation(message_id)
+        .await
+        .unwrap();
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, TEXT).await,
+        1,
+        "bob should have received the message once"
+    );
+
+    // The echo of our own message arrives.
+    drain_queue(first_device).await;
+
+    let stored = first_device
+        .message(message_id)
+        .await
+        .unwrap()
+        .expect("the sent message should still be stored");
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, TEXT).await,
+        1,
+        "the echo must not be stored as a second message"
+    );
+    assert!(
+        stored.is_sent(),
+        "the echo should have confirmed the unconfirmed send"
+    );
+    assert_eq!(
+        first_device
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id(),
+        message_id,
+        "the echo must not become a newer message"
+    );
+
+    // The message left the queue with the confirmation, so there is nothing
+    // left to send.
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, TEXT).await,
+        1,
+        "bob must not receive the message a second time"
+    );
+
+    // For the sibling this is a plain incoming message.
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, TEXT).await,
+        1,
+        "the sibling device should have received the message once"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test an own echo confirms an unconfirmed edit", skip_all)]
+async fn multi_device_own_echo_confirms_unconfirmed_edit() {
+    const TEXT: &str = "original text";
+    const EDITED_TEXT: &str = "edited, the DS response to this one got lost";
+    const FINAL_TEXT: &str = "edited a second time";
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Linking turns alice's leaf into a virtual-client leaf shared by both
+    // devices, which is what makes the DS echo decryptable for the sender.
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    let first_device = setup.get_user(&alice).user();
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    // A regular, confirmed send of the original message.
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [21u8; 16]);
+    let message = first_device
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    let message_id = message.id();
+    first_device.outbound_service().run_once().await;
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    // The edit is stored and reaches the DS, but the sending device never
+    // sees the response and therefore never confirms the send.
+    let original = first_device.message(message_id).await.unwrap().unwrap();
+    let edit = MimiContent::simple_markdown_message(EDITED_TEXT.to_owned(), [22u8; 16]);
+    let edited = first_device
+        .send_message(chat_id, edit, Some(original))
+        .await
+        .unwrap();
+    assert!(
+        !edited.is_sent(),
+        "the edit should still be waiting for the outbound service"
+    );
+    first_device
+        .send_chat_message_without_confirmation(message_id)
+        .await
+        .unwrap();
+
+    // The echo of the edit arrives.
+    drain_queue(first_device).await;
+
+    let stored = first_device.message(message_id).await.unwrap().unwrap();
+    assert!(
+        stored.is_sent(),
+        "the echo should have confirmed the unconfirmed edit"
+    );
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, EDITED_TEXT).await,
+        1,
+        "the echo must not be stored as a second message"
+    );
+
+    // The edit left the queue with the confirmation, so there is nothing left
+    // to send.
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, EDITED_TEXT).await,
+        1,
+        "bob should see the edit applied once"
+    );
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, EDITED_TEXT).await,
+        1,
+        "the sibling device should see the edit applied once"
+    );
+
+    // Editing the message again still works. An echo that lands in the edit
+    // history would block this edit with a conflict.
+    let original = first_device.message(message_id).await.unwrap().unwrap();
+    let second_edit = MimiContent::simple_markdown_message(FINAL_TEXT.to_owned(), [23u8; 16]);
+    first_device
+        .send_message(chat_id, second_edit, Some(original))
+        .await
+        .unwrap();
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, FINAL_TEXT).await,
+        1,
+        "bob should see the second edit"
+    );
+}
