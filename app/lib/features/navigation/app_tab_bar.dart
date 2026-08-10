@@ -155,9 +155,6 @@ class _TabBarItem extends StatelessWidget {
       press: false,
       label: _label(context, tab),
       onTap: () => context.read<NavigationCubit>().switchTab(tab),
-      onLongPress: tab == HomeTab.profile
-          ? () => context.read<NavigationCubit>().openDeveloperSettings()
-          : null,
       glyph: SizedBox(
         width: TabBarTokens.avatarSize,
         height: TabBarTokens.avatarSize,

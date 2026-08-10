@@ -22,7 +22,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/ds/components/button/button.dart';
 
-import 'package:air/features/developer/chat_debug_info_view.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
@@ -160,14 +159,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
-    final bool isDeveloper = context.select(
-      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    final bool experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
     );
     final pendingCommitFailed = context.select(
       (ChatDetailsCubit cubit) =>
           cubit.state.chat?.pendingCommitFailed ?? false,
     );
-    final bool showPendingCommitBanner = isDeveloper && pendingCommitFailed;
+    final bool showPendingCommitBanner =
+        experimentalFeatures && pendingCommitFailed;
 
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
@@ -254,24 +254,6 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         onTap: hasDetails
             ? () => context.read<NavigationCubit>().openChatDetails()
             : null,
-        onLongPress: () {
-          final chatDetailsCubit = context.read<ChatDetailsCubit>();
-          final userCubit = context.read<UserCubit>();
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => ChatDebugInfoView(
-                title: title ?? "",
-                loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
-                onUpdateGroup: () => chatDetailsCubit.updateKey(),
-                onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
-                onRequestResync: () => chatDetailsCubit.requestResync(),
-                onEraseLocalChat: () {
-                  if (chatId != null) userCubit.devEraseChat(chatId);
-                },
-              ),
-            ),
-          );
-        },
         onBack: context.breakpoint.isSmall ? () => _back(context) : null,
       ),
     );

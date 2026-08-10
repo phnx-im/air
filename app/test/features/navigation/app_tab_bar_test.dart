@@ -112,20 +112,6 @@ void main() {
       verify(() => navigationCubit.switchTab(HomeTab.chats)).called(1);
     });
 
-    testWidgets('long-pressing the profile tab opens developer settings', (
-      tester,
-    ) async {
-      useTab(HomeTab.chats);
-      when(
-        () => navigationCubit.openDeveloperSettings(),
-      ).thenAnswer((_) async {});
-      await tester.pumpWidget(buildSubject());
-
-      await tester.longPress(find.text('You'));
-
-      verify(() => navigationCubit.openDeveloperSettings()).called(1);
-    });
-
     // The mobile home layout stacks the bar over the tab content rather than
     // inside a Scaffold, so the bar has to bring its own Material. Without one
     // every label picks up the missing-Material marker: a yellow double

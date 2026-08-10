@@ -84,7 +84,6 @@ class DialogHeader extends StatelessWidget {
     super.key,
     required this.tokens,
     required this.title,
-    this.onTitleLongPress,
     this.onLeading,
     this.onTrailing,
     this.trailing,
@@ -102,9 +101,6 @@ class DialogHeader extends StatelessWidget {
   /// The fill the row paints. Has to match the surface below it to occlude
   /// content scrolling under the row.
   final Color? fill;
-
-  /// Developer hook on the title, for revealing what no slot should carry.
-  final VoidCallback? onTitleLongPress;
 
   /// Tap handler for the leading action. The button renders only when set.
   final VoidCallback? onLeading;
@@ -167,17 +163,14 @@ class DialogHeader extends StatelessWidget {
                     ),
                   )
                 : null,
-            middle: GestureDetector(
-              onLongPress: onTitleLongPress,
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: typeScale.body.regular.style(
-                  color: palette.text.primary,
-                  weight: Weight.emphasized,
-                  tight: true,
-                ),
+            middle: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typeScale.body.regular.style(
+                color: palette.text.primary,
+                weight: Weight.emphasized,
+                tight: true,
               ),
             ),
             trailing: trailingAction != null
@@ -251,7 +244,6 @@ class ModalPane extends StatefulWidget {
   const ModalPane({
     super.key,
     required this.title,
-    this.onTitleLongPress,
     this.onDismiss,
     this.onBack,
     this.trailing,
@@ -261,9 +253,6 @@ class ModalPane extends StatefulWidget {
   });
 
   final String title;
-
-  /// See [DialogHeader.onTitleLongPress].
-  final VoidCallback? onTitleLongPress;
 
   /// Closes the modal. The pattern picks its slot and glyph per presentation:
   /// a leading back arrow full-screen, a trailing `x` on a card.
@@ -373,7 +362,6 @@ class _ModalPaneState extends State<ModalPane> {
     return DialogHeader(
       tokens: DialogHeaderTokens.of(context),
       title: widget.title,
-      onTitleLongPress: widget.onTitleLongPress,
       onLeading: onBack ?? (dismissLeads ? onDismiss : null),
       leadingIcon: onBack != null || fullBleed
           ? AppIconType.arrowLeft

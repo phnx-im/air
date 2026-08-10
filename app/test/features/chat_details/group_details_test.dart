@@ -9,6 +9,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,12 +42,14 @@ void main() {
     late MockUsersCubit usersCubit;
     late MockUserCubit userCubit;
     late MockNavigationCubit navigationCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       chatDetailsCubit = MockChatDetailsCubit();
       usersCubit = MockUsersCubit();
       userCubit = MockUserCubit();
       navigationCubit = MockNavigationCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => userCubit.state,
@@ -56,7 +59,11 @@ void main() {
     Widget buildSubject({
       List<UiUserId> members = const [],
       List<UiUserProfile> profiles = const [],
+      bool developerMode = false,
     }) {
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(UserSettings(developerMode: developerMode));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: profiles.isEmpty ? userProfiles : profiles),
       );
@@ -70,6 +77,7 @@ void main() {
           BlocProvider<UsersCubit>.value(value: usersCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
@@ -182,5 +190,17 @@ void main() {
         matchesGoldenFile('goldens/group_details_mute_menu_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    testWidgets('debug info is absent outside developer mode', (tester) async {
+      await tester.pumpWidget(buildSubject());
+
+      expect(find.text('Debug info'), findsNothing);
+    });
+
+    testWidgets('debug info renders in developer mode', (tester) async {
+      await tester.pumpWidget(buildSubject(developerMode: true));
+
+      expect(find.text('Debug info'), findsOneWidget);
+    });
   });
 }

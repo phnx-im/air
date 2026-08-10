@@ -32,9 +32,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Oberflächenskalierung';
-
-  @override
   String get userSettingsScreen_help => 'Hilfe';
 
   @override

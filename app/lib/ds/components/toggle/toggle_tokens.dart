@@ -48,5 +48,13 @@ class ToggleTokens {
     thumbSize: S.s20,
   );
 
+  /// One step below [desktop], for a dense surface where a full-size track is
+  /// the loudest thing on the card. Same on both devices.
+  static const ToggleTokens compact = ToggleTokens(
+    trackWidth: S.s40,
+    trackHeight: S.s24,
+    thumbSize: S.s16,
+  );
+
   static ToggleTokens get current => DeviceType.isPhone ? phone : desktop;
 }

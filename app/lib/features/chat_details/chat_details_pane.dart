@@ -7,8 +7,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 
-import 'package:air/features/developer/chat_debug_info_view.dart'
-    show showChatDebugInfo;
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/group_details_view.dart';
@@ -60,7 +58,6 @@ class _ContactPane extends StatelessWidget {
           contactChatId: chat.id,
           isBlocked: chat.status == const UiChatStatus.blocked(),
         ),
-        onNameLongPress: () => showChatDebugInfo(context, chat),
       ),
     );
   }

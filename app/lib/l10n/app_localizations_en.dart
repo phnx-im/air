@@ -32,9 +32,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Interface scale';
-
-  @override
   String get userSettingsScreen_help => 'Help';
 
   @override

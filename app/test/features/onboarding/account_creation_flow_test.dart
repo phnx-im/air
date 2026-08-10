@@ -120,6 +120,24 @@ void main() {
       expect(find.text('Code must be 8 characters'), findsOneWidget);
     });
 
+    testWidgets('an invalid domain never reaches the server', (tester) async {
+      // The field that carries the domain is hidden, so this is a value the
+      // step validates without rendering it.
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: _validCode,
+          domain: 'not a host',
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await submit(tester, 'Join Air');
+
+      verifyNever(() => registrationCubit.submitInvitationCode());
+    });
+
     testWidgets('the profile step goes back to the code', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

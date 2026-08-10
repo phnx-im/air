@@ -65,6 +65,22 @@ Future<String?> getDeviceToken() async {
   return null;
 }
 
+/// The push token for this device, or null if this platform has no push
+/// service or the device token could not be obtained.
+Future<PlatformPushToken?> getPushToken() async {
+  final deviceToken = await getDeviceToken();
+  if (deviceToken == null) {
+    return null;
+  }
+  if (Platform.isAndroid) {
+    return PlatformPushToken.google(deviceToken);
+  }
+  if (Platform.isIOS) {
+    return PlatformPushToken.apple(deviceToken);
+  }
+  return null;
+}
+
 Future<String> getDatabaseDirectoryMobile() async {
   if (Platform.isAndroid || Platform.isIOS) {
     try {

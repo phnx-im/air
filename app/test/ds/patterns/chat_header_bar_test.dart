@@ -19,7 +19,6 @@ void main() {
     Widget buildSubject({
       String? subtitle,
       VoidCallback? onTap,
-      VoidCallback? onLongPress,
       VoidCallback? onBack,
       bool backEmphasized = false,
     }) => MaterialApp(
@@ -32,7 +31,6 @@ void main() {
           subtitle: subtitle,
           avatar: const SizedBox.square(dimension: S.s32),
           onTap: onTap,
-          onLongPress: onLongPress,
           onBack: onBack,
           backEmphasized: backEmphasized,
         ),
@@ -72,14 +70,6 @@ void main() {
           bar.right - ChatHeaderBarTokens.paddingRight - tokens.slotSize / 2;
       await tester.tapAt(Offset(slotCenter, bar.center.dy));
       expect(taps, 1);
-    });
-
-    testWidgets('onLongPress fires from the pill', (tester) async {
-      var longPresses = 0;
-      await tester.pumpWidget(buildSubject(onLongPress: () => longPresses++));
-
-      await tester.longPress(find.text(_name));
-      expect(longPresses, 1);
     });
 
     testWidgets('back button renders and fires only when handled', (

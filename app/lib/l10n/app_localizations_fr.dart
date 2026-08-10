@@ -32,9 +32,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Partagez des noms d\'utilisateur avec d\'autres pour qu\'ils puissent se connecter avec vous. Après la connexion, les noms d\'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu\'à 5 noms d\'utilisateur.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Échelle de l\'interface';
-
-  @override
   String get userSettingsScreen_help => 'Aide';
 
   @override
