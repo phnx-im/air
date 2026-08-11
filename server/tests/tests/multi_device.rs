@@ -1837,6 +1837,13 @@ async fn multi_device_read_markers_via_the_self_group() {
         one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
     let device_1 = setup.get_user(&alice).user();
 
+    for device in [device_1, &device_2] {
+        device
+            .set_user_setting(&ReadReceiptsSetting(false))
+            .await
+            .unwrap();
+    }
+
     // Device 1 reads the message. With read receipts off, the report goes to the
     // self chat instead of the chat with Bob (see `applogic::mark_as_read`).
     let message = device_1.last_message(chat_id).await.unwrap().unwrap();
