@@ -423,6 +423,7 @@ impl OutboundServiceContext {
         info!(num_chats, "Running self-updates");
 
         let mut num_updated = 0;
+        let mut num_failed = 0;
 
         for chat_id in chat_ids {
             if run_token.is_cancelled() {
@@ -436,29 +437,50 @@ impl OutboundServiceContext {
                 );
                 return Ok(PARTIAL_UPDATE_INTERVAL); // Continue after a partial batch
             }
-            if self.self_update_in_chat(chat_id).await? {
-                num_updated += 1;
+            match self.self_update_in_chat(chat_id).await? {
+                SelfUpdateOutcome::Updated => num_updated += 1,
+                SelfUpdateOutcome::Skipped => (),
+                SelfUpdateOutcome::Failed(error) => {
+                    num_failed += 1;
+                    warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
+                }
             }
         }
 
-        let skipped = num_chats.wrapping_sub(num_updated);
-        info!(num_chats, skipped, "Full self-update successful");
+        let skipped = num_chats.wrapping_sub(num_updated).wrapping_sub(num_failed);
+        info!(
+            num_chats,
+            num_updated, skipped, num_failed, "Full self-update finished"
+        );
         Ok(SELF_UPDATE_INTERVAL)
     }
 
-    async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+    /// Performs the self-update in a single chat.
+    ///
+    /// Failures that only concern this chat are reported as
+    /// [`SelfUpdateOutcome::Failed`], so that the batch can continue with the
+    /// next chat. `Err` is reserved for failures that affect every chat, e.g. an
+    /// unreachable database or network, where retrying the whole task is the
+    /// only useful thing to do.
+    async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<SelfUpdateOutcome> {
         debug!(?chat_id, "Self-update in chat");
 
         let (group, is_connection, erase_attributes, pq_due) = {
             let mut read = self.db.read().await?;
             let mut read_txn = read.begin().await?;
 
-            let Some(group) = Group::load_with_chat_id(&mut read_txn, chat_id).await? else {
-                debug!(
-                    ?chat_id,
-                    "Skipping self-update in chat because group is not found"
-                );
-                return Ok(false);
+            // Loading can fail for a single chat, e.g. when its persisted group state can no
+            // longer be decoded. Such a chat must not hold up the rest of the batch.
+            let group = match Group::load_with_chat_id(&mut read_txn, chat_id).await {
+                Ok(Some(group)) => group,
+                Ok(None) => {
+                    debug!(
+                        ?chat_id,
+                        "Skipping self-update in chat because group is not found"
+                    );
+                    return Ok(SelfUpdateOutcome::Skipped);
+                }
+                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
             };
 
             if group.mls_group().pending_commit().is_some()
@@ -470,7 +492,7 @@ impl OutboundServiceContext {
                     ?chat_id,
                     "Skipping self-update in chat because there is a pending commit"
                 );
-                return Ok(false);
+                return Ok(SelfUpdateOutcome::Skipped);
             }
 
             let now = Utc::now();
@@ -485,20 +507,26 @@ impl OutboundServiceContext {
             });
 
             if !t_due && !pq_due {
-                return Ok(false);
+                return Ok(SelfUpdateOutcome::Skipped);
             }
 
             // If a chat operation is pending, we skip updating this chat
-            if PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await? {
-                return Ok(false);
+            match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
+                Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
+                Ok(false) => (),
+                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
             }
 
-            let Some(chat) = Chat::load(&mut read_txn, &chat_id).await? else {
-                debug!(
-                    ?chat_id,
-                    "Skipping self-update in chat because chat is not found"
-                );
-                return Ok(false);
+            let chat = match Chat::load(&mut read_txn, &chat_id).await {
+                Ok(Some(chat)) => chat,
+                Ok(None) => {
+                    debug!(
+                        ?chat_id,
+                        "Skipping self-update in chat because chat is not found"
+                    );
+                    return Ok(SelfUpdateOutcome::Skipped);
+                }
+                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
             };
 
             // For connection chats, that support empty connection group titles, we can erase the data.
@@ -517,9 +545,6 @@ impl OutboundServiceContext {
         };
 
         let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
-        if migration_attrs.is_some() {
-            info!(%chat_id, "Migrating legacy group data");
-        }
 
         let job = if migration_attrs.is_some() {
             // Migration takes precedence over PQ self-update (PQ interval is long, so this is
@@ -538,21 +563,26 @@ impl OutboundServiceContext {
         let res = self.execute_job(job).await;
 
         match res {
-            Ok(_messages) => Ok(true),
+            Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
             // A network error is likely something transient that would affect
             // all chats, so we return the error to retry the task with backoff.
             Err(error @ JobError::NetworkError) => Err(error.into()),
             // The operation is no longer applicable to this chat, so we skip
             // it.
-            Err(JobError::NotFound | JobError::Blocked) => Ok(false),
-            // Any other failure is specific to this chat, so we log and skip
-            // it, but continue with the rest of the batch.
-            Err(error) => {
-                warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
-                Ok(false)
-            }
+            Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
+            // Any other failure is specific to this chat.
+            Err(error) => Ok(SelfUpdateOutcome::Failed(error.into())),
         }
     }
+}
+
+/// Result of a self-update attempt in a single chat.
+enum SelfUpdateOutcome {
+    Updated,
+    /// The update does not apply to this chat right now.
+    Skipped,
+    /// The update failed for a reason specific to this chat.
+    Failed(anyhow::Error),
 }
 
 /// Migrates the group data from the legacy format to the new format.
