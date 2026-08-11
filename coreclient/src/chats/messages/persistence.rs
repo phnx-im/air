@@ -35,10 +35,8 @@ const CURRENT_MESSAGE_VERSION: u16 = 1;
 pub struct VersionedMessage {
     #[serde(default = "VersionedMessage::unknown_message_version")]
     pub(crate) version: u16,
-    // We store the message as bytes, because deserialization depends on
-    // other parameters.
-    // TODO: Do not use cbor unsigned int array here
-    #[serde(default)]
+    // TODO: avoid double serde
+    #[serde(default, with = "aircommon::codec::bytes_compat")]
     pub(crate) content: Vec<u8>,
 }
 
@@ -1249,6 +1247,25 @@ pub(crate) mod tests {
         let bytes = PersistenceCodec::to_vec(&*VERSIONED_MESSAGE).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn versioned_message_deserializes_legacy_unsigned_int_array() {
+        #[derive(serde::Serialize)]
+        struct LegacyVersionedMessage<'a> {
+            version: u16,
+            content: &'a Vec<u8>,
+        }
+
+        let legacy_message = LegacyVersionedMessage {
+            version: VERSIONED_MESSAGE.version,
+            content: &VERSIONED_MESSAGE.content,
+        };
+        let bytes = PersistenceCodec::to_vec(&legacy_message).unwrap();
+        let decoded = PersistenceCodec::from_slice::<VersionedMessage>(&bytes).unwrap();
+
+        assert_eq!(decoded.version, VERSIONED_MESSAGE.version);
+        assert_eq!(decoded.content, VERSIONED_MESSAGE.content);
     }
 
     #[test]
