@@ -262,6 +262,15 @@ class AppLocalizationsSv extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Spara';
 
   @override
+  String get unsavedInputDialog_title => 'Är du säker på att du vill stänga?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Avbryt';
+
+  @override
+  String get unsavedInputDialog_close => 'Stäng';
+
+  @override
   String get introScreen_serverLabel =>
       'Välj en server att ansluta till för länkning.';
 

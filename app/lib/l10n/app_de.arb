@@ -76,6 +76,10 @@
   "changeGroupTitleDialog_content": "Wähle einen Titel für die Gruppe.",
   "changeGroupTitleDialog_cancel": "Abbrechen",
   "changeGroupTitleDialog_confirm": "Speichern",
+
+  "unsavedInputDialog_title": "Möchtest du wirklich schließen?",
+  "unsavedInputDialog_cancel": "Abbrechen",
+  "unsavedInputDialog_close": "Schließen",
   "introScreen_serverLabel": "Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.",
   "introScreen_serverHint": "DOMAINNAME",
 

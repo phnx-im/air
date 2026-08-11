@@ -95,6 +95,10 @@
   "changeGroupTitleDialog_cancel": "Cancel",
   "changeGroupTitleDialog_confirm": "Save",
 
+  "unsavedInputDialog_title": "Are you sure you want to close?",
+  "unsavedInputDialog_cancel": "Cancel",
+  "unsavedInputDialog_close": "Close",
+
   "introScreen_serverLabel": "Choose a server to connect to for linking.",
   "introScreen_serverHint": "DOMAIN NAME",
 
