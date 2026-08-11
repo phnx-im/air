@@ -10,7 +10,7 @@
 use openmls::{
     components::vc_derivation_info::EpochId,
     group::{MlsGroup, MlsGroupJoinConfig, VcExternalCommitJoinError, VcGroupCreationJoinError},
-    prelude::{ProtocolMessage, group_info::VerifiableGroupInfo},
+    prelude::{ProtocolMessage, RatchetTreeIn, group_info::VerifiableGroupInfo},
     storage::OpenMlsProvider,
 };
 use thiserror::Error;
@@ -19,6 +19,7 @@ use crate::{
     ApqMlsGroup,
     extension::ApqInfo,
     messages::{ApqRatchetTreeIn, VerifiableApqGroupInfo},
+    processing::compute_app_data_updates,
     psk::{ApqPskError, derive_and_store_psk},
 };
 
@@ -84,14 +85,6 @@ impl ApqMlsGroup {
     /// Application PSKs referenced by the T commit, for example connection-offer
     /// PSKs, must be stored in the provider before calling this. The combiner
     /// PSK is the only PSK this function stores itself.
-    ///
-    /// # Limitation
-    ///
-    /// [`MlsGroup::vc_join_via_sibling_external_commit`] stages the commit
-    /// without app-data updates, so it rejects a commit carrying an
-    /// `AppDataUpdate` proposal. Every APQ commit carries one for the ApqInfo
-    /// epoch bump, so this entry point needs an OpenMLS sibling-join path that
-    /// resolves those updates.
     pub fn vc_join_via_sibling_external_commit<Provider: OpenMlsProvider>(
         provider: &Provider,
         join_config: &MlsGroupJoinConfig,
@@ -110,7 +103,7 @@ impl ApqMlsGroup {
         let t_ciphersuite = t_group_info.ciphersuite();
         let (t_ratchet_tree, pq_ratchet_tree) = ratchet_tree.map(ApqRatchetTreeIn::split).unzip();
 
-        let mut pq_group = MlsGroup::vc_join_via_sibling_external_commit(
+        let mut pq_group = process_sibling_external_commit(
             provider,
             join_config,
             pq_group_info,
@@ -128,7 +121,7 @@ impl ApqMlsGroup {
             // FROM_PENDING = false, because the PQ commit is already merged by the join.
             derive_and_store_psk::<_, false>(provider, &mut pq_group, t_ciphersuite)?;
 
-            MlsGroup::vc_join_via_sibling_external_commit(
+            process_sibling_external_commit(
                 provider,
                 join_config,
                 t_group_info,
@@ -148,6 +141,29 @@ impl ApqMlsGroup {
 
         Ok(ApqMlsGroup::from_groups(t_group, pq_group))
     }
+}
+
+/// Joins one half by processing the sibling's external commit, resolving the
+/// commit's AppDataUpdate proposals like regular processing does.
+fn process_sibling_external_commit<Provider: OpenMlsProvider>(
+    provider: &Provider,
+    join_config: &MlsGroupJoinConfig,
+    group_info: VerifiableGroupInfo,
+    ratchet_tree: Option<RatchetTreeIn>,
+    external_commit: impl Into<ProtocolMessage>,
+    epoch_id: EpochId,
+) -> Result<MlsGroup, VcExternalCommitJoinError<Provider::StorageError>> {
+    let mut builder = MlsGroup::vc_external_commit_join_builder().with_config(join_config.clone());
+    if let Some(ratchet_tree) = ratchet_tree {
+        builder = builder.with_ratchet_tree(ratchet_tree);
+    }
+    let mut staged = builder.process_commit(provider, group_info, external_commit, epoch_id)?;
+    let updates = compute_app_data_updates(
+        staged.app_data_dictionary_updater(),
+        staged.app_data_update_proposals(),
+    );
+    staged.with_app_data_dictionary_updates(updates);
+    staged.into_group(provider)
 }
 
 /// Checks that the two group infos describe the two halves of the same APQMLS
