@@ -47,6 +47,24 @@ pub struct PqExternalCommitInfoIn {
     pub proposals: Vec<Vec<u8>>,
 }
 
+/// The group state the DS served at a past epoch.
+///
+/// A sibling of a virtual client fetches it to join a group one of its
+/// emulator clients created or externally joined, at exactly the epoch of
+/// that operation.
+pub struct EpochSnapshotIn {
+    pub verifiable_group_info: VerifiableGroupInfo,
+    pub ratchet_tree_in: RatchetTreeIn,
+    pub room_state: VerifiedRoomState,
+    /// Present iff the snapshot is of an APQ group.
+    pub pq: Option<PqEpochSnapshotIn>,
+}
+
+pub struct PqEpochSnapshotIn {
+    pub verifiable_group_info: VerifiableGroupInfo,
+    pub ratchet_tree_in: RatchetTreeIn,
+}
+
 #[derive(Debug)]
 pub struct WelcomeInfoIn {
     pub ratchet_tree: RatchetTreeIn,
@@ -67,6 +85,10 @@ pub struct CreateGroupParamsOut {
     /// Authenticates the creation of a self-group, whose leaves carry no user
     /// credential. Must be `None` for all other groups.
     pub creator_user_credential: Option<UserCredential>,
+    /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for the
+    /// creator's sibling clients. Set when a virtual client creates the group,
+    /// in which case the DS echoes it to the sibling queues.
+    pub group_bootstrap: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]

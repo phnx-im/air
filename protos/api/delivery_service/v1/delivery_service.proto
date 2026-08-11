@@ -20,6 +20,11 @@ service DeliveryService {
 
   rpc ExternalCommitInfo(ExternalCommitInfoRequest) returns (ExternalCommitInfoResponse);
 
+  // Returns the group state the DS served at a past epoch, so that a sibling
+  // of a virtual client can join a group at the epoch one of its emulator
+  // clients created or externally joined it.
+  rpc EpochSnapshot(EpochSnapshotRequest) returns (EpochSnapshotResponse);
+
   rpc ConnectionGroupInfo(ConnectionGroupInfoRequest) returns (ConnectionGroupInfoResponse);
 
   rpc JoinConnectionGroup(JoinConnectionGroupRequest) returns (JoinConnectionGroupResponse);
@@ -138,6 +143,10 @@ message CreateGroupPayload {
   // credential (self-groups). Must be absent for all other groups, where the
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 10;
+  // Opaque blob, encrypted for the creator's sibling clients. Set when a
+  // virtual client creates the group, in which case the DS echoes it unread to
+  // all of the creating user's client queues.
+  optional bytes group_bootstrap = 11;
 }
 
 message UserCredential {
@@ -185,6 +194,10 @@ message CreateApqGroupPayload {
   // credential (self-groups). Must be absent for all other groups, where the
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 8;
+  // Opaque blob, encrypted for the creator's sibling clients. Set when a
+  // virtual client creates the group, in which case the DS echoes it unread to
+  // all of the creating user's client queues.
+  optional bytes group_bootstrap = 9;
 }
 
 message GroupSessionData {
@@ -257,6 +270,27 @@ message ExternalCommitInfoResponse {
 
 message GroupInfo {
   bytes tls = 1;
+}
+
+// epoch snapshot
+
+// Keyed by the T leg's group id and epoch only: the snapshot of an APQ group
+// stores both legs together. Knowledge of the group state EAR key authorizes
+// the request, like it does for external commit info.
+message EpochSnapshotRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  common.v1.QualifiedGroupId qgid = 2;
+  GroupStateEarKey group_state_ear_key = 3;
+  uint64 epoch = 4;
+}
+
+message EpochSnapshotResponse {
+  GroupInfo group_info = 1;
+  RatchetTree ratchet_tree = 2;
+  RoomState room_state = 3;
+  // Present iff the group is an APQ group.
+  GroupInfo pq_group_info = 4;
+  RatchetTree pq_ratchet_tree = 5;
 }
 
 // connection group info

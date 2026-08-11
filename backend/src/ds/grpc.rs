@@ -1095,6 +1095,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }))
     }
 
+    // Storing snapshots and serving them lands with the DS-side part of
+    // multi-client group creation.
+    async fn epoch_snapshot(
+        &self,
+        _request: Request<EpochSnapshotRequest>,
+    ) -> Result<Response<EpochSnapshotResponse>, Status> {
+        Err(Status::unimplemented("epoch snapshot"))
+    }
+
     async fn connection_group_info(
         &self,
         request: Request<ConnectionGroupInfoRequest>,
