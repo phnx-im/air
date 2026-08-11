@@ -6,5 +6,6 @@
 
 pub mod component;
 pub mod group;
+pub mod group_bootstrap;
 pub mod self_group;
 pub mod virtual_client;
