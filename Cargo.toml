@@ -73,7 +73,7 @@ infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
-lru = "0.16.2"
+lru = "0.18.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
