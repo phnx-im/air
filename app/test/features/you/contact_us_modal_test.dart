@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/you/contact_us_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -132,6 +133,37 @@ void main() {
 
       expect(find.byType(ContactUsModal), findsOneWidget);
       expectModalIsCard(tester, desktopViewSize);
+    }, variant: desktopPlatform);
+
+    // A message typed but not sent is what the form holds, so the click that
+    // lands beside the card has to ask about it first.
+    testWidgets(
+      'asks before a click beside the card drops the message',
+      (tester) async {
+        sizeView(tester, desktopViewSize);
+        await open(tester);
+
+        await tester.enterText(find.byType(EditableText), 'Something broke');
+        await tester.pumpAndSettle();
+
+        await tester.tapAt(const Offset(20, 450));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ConfirmDialog), findsOneWidget);
+        expect(find.byType(ContactUsModal), findsOneWidget);
+      },
+      variant: desktopPlatform,
+    );
+
+    testWidgets('drops an untouched form without asking', (tester) async {
+      sizeView(tester, desktopViewSize);
+      await open(tester);
+
+      await tester.tapAt(const Offset(20, 450));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsNothing);
+      expect(find.byType(ContactUsModal), findsNothing);
     }, variant: desktopPlatform);
 
     // A desktop window narrow enough to sit in the small tier still gets the

@@ -76,6 +76,10 @@
   "changeGroupTitleDialog_content": "Välj ett namn för gruppen.",
   "changeGroupTitleDialog_cancel": "Avbryt",
   "changeGroupTitleDialog_confirm": "Spara",
+
+  "unsavedInputDialog_title": "Är du säker på att du vill stänga?",
+  "unsavedInputDialog_cancel": "Avbryt",
+  "unsavedInputDialog_close": "Stäng",
   "introScreen_serverLabel": "Välj en server att ansluta till för länkning.",
   "introScreen_serverHint": "DOMÄNNAMN",
 

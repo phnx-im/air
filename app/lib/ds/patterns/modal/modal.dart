@@ -10,6 +10,8 @@ import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/widgets.dart';
@@ -189,17 +191,67 @@ class DialogHeader extends StatelessWidget {
 
 /// The surface a modal's pages sit on: a [ModalShell] plus the ink surface a
 /// Material descendant looks for.
-class ModalSurface extends StatelessWidget {
-  const ModalSurface({super.key, required this.child});
+///
+/// Publishes [onDismiss] to the route holding it, so a click beside a card
+/// takes the same way out its header's close does, and collects what the pages
+/// below it hold, so both ask before dropping it.
+class ModalSurface extends StatefulWidget {
+  const ModalSurface({super.key, this.onDismiss, required this.child});
+
+  /// Closes the modal, or `null` where the page it shows has no way out.
+  ///
+  /// Only the card presentation has a scrim to click, so this goes nowhere
+  /// where the modal fills the screen.
+  final VoidCallback? onDismiss;
 
   /// A [ModalPane], or a stack of them.
   final Widget child;
 
   @override
+  State<ModalSurface> createState() => _ModalSurfaceState();
+}
+
+class _ModalSurfaceState extends State<ModalSurface> {
+  /// Held for the modal rather than for a page, because the way out published
+  /// below is the modal's whichever page is on top.
+  final ModalUnsavedInput _unsaved = ModalUnsavedInput();
+
+  /// The route to publish to, or `null` where the modal is an ordinary pushed
+  /// screen with no scrim beside it.
+  ModalCardRoute? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    _route = route is ModalCardRoute ? route : null;
+    _publish();
+  }
+
+  @override
+  void didUpdateWidget(ModalSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _publish();
+  }
+
+  @override
+  void dispose() {
+    _route?.publishDismiss(null);
+    super.dispose();
+  }
+
+  void _publish() => _route?.publishDismiss(
+    guardedDismiss(context, _unsaved, widget.onDismiss),
+  );
+
+  @override
   Widget build(BuildContext context) {
-    return ModalShell(
-      tokens: ModalShellTokens.of(context),
-      child: Material(type: MaterialType.transparency, child: child),
+    return ModalUnsavedInputScope(
+      unsaved: _unsaved,
+      child: ModalShell(
+        tokens: ModalShellTokens.of(context),
+        child: Material(type: MaterialType.transparency, child: widget.child),
+      ),
     );
   }
 }
@@ -353,7 +405,12 @@ class _ModalPaneState extends State<ModalPane> {
     // A page in a stack is handed both, so it never computes its own depth.
     final actions = ModalPageActions.maybeOf(context);
     final onBack = widget.onBack ?? actions?.onBack;
-    final onDismiss = widget.onDismiss ?? actions?.onDismiss;
+    // The same question the scrim asks, so the two ways out of a card agree.
+    final onDismiss = guardedDismiss(
+      context,
+      ModalUnsavedInputScope.maybeOf(context),
+      widget.onDismiss ?? actions?.onDismiss,
+    );
 
     final fullBleed = ModalShellTokens.isFullBleed(context);
     final dismissTrails = !fullBleed && widget.trailing == null;
@@ -488,6 +545,7 @@ class ModalScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ModalSurface(
+      onDismiss: onDismiss,
       child: ModalPane(
         title: title,
         onDismiss: onDismiss,

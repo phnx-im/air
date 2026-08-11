@@ -12,6 +12,7 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -113,82 +114,87 @@ class _EmailForm extends HookWidget {
     assert(initialSubject == null || subjects.contains(initialSubject));
 
     // The host scrolls this, so the form is a plain column.
-    return Column(
-      children: [
-        _SubjectField(
-          subjects: subjects,
-          selected: selectedSubject.value,
-          errorText: subjectError.value,
-          onSelected: (subject) {
-            selectedSubject.value = subject;
-            subjectError.value = null;
-          },
-        ),
-        const SizedBox(height: S.s16),
+    return ModalDismissGuard(
+      hasUnsavedInput: () =>
+          bodyController.text.trim().isNotEmpty ||
+          selectedSubject.value != null,
+      child: Column(
+        children: [
+          _SubjectField(
+            subjects: subjects,
+            selected: selectedSubject.value,
+            errorText: subjectError.value,
+            onSelected: (subject) {
+              selectedSubject.value = subject;
+              subjectError.value = null;
+            },
+          ),
+          const SizedBox(height: S.s16),
 
-        // Email Body
-        AppTextInput(
-          tokens: AppTextInputTokens.current,
-          controller: bodyController,
-          label: loc.contactUsScreen_body,
-          errorText: bodyError.value,
-          minLines: 6,
-          maxLines: 6,
-        ),
-        const SizedBox(height: S.s8),
+          // Email Body
+          AppTextInput(
+            tokens: AppTextInputTokens.current,
+            controller: bodyController,
+            label: loc.contactUsScreen_body,
+            errorText: bodyError.value,
+            minLines: 6,
+            maxLines: 6,
+          ),
+          const SizedBox(height: S.s8),
 
-        // Include logs checkbox
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: isUploadingLogs.value ? null : onToggleLogs,
-          child: SizedBox(
-            // The box paints at 20px, so the row carries the tap target.
-            height: S.s48,
-            child: Row(
-              spacing: S.s12,
-              children: [
-                if (isUploadingLogs.value)
-                  const SizedBox(
-                    width: S.s20,
-                    height: S.s20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: StrokeWidth.px2,
+          // Include logs checkbox
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: isUploadingLogs.value ? null : onToggleLogs,
+            child: SizedBox(
+              // The box paints at 20px, so the row carries the tap target.
+              height: S.s48,
+              child: Row(
+                spacing: S.s12,
+                children: [
+                  if (isUploadingLogs.value)
+                    const SizedBox(
+                      width: S.s20,
+                      height: S.s20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: StrokeWidth.px2,
+                      ),
+                    )
+                  else
+                    AppCheckbox(
+                      value: debugLogsUrl.value != null,
+                      onChanged: (_) => onToggleLogs(),
                     ),
-                  )
-                else
-                  AppCheckbox(
-                    value: debugLogsUrl.value != null,
-                    onChanged: (_) => onToggleLogs(),
-                  ),
-                Text(loc.contactUsScreen_includeLogs),
-              ],
+                  Text(loc.contactUsScreen_includeLogs),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: S.s8),
+          const SizedBox(height: S.s8),
 
-        // Submit button. While the log upload runs, it is merely unavailable.
-        Button(
-          onPressed: () {
-            final body = bodyController.text;
-            bodyError.value = _validateBody(body, loc);
-            subjectError.value = _validateSubject(selectedSubject.value, loc);
-            if (subjectError.value == null && bodyError.value == null) {
-              _launchEmail(
-                context,
-                selectedSubject.value,
-                body,
-                debugLogsUrl.value,
-              );
-            }
-          },
-          label: loc.contactUsScreen_composeEmail,
-          type: ButtonType.secondary,
-          state: isUploadingLogs.value
-              ? ButtonState.disabled
-              : ButtonState.active,
-        ),
-      ],
+          // Submit button. While the log upload runs, it is merely unavailable.
+          Button(
+            onPressed: () {
+              final body = bodyController.text;
+              bodyError.value = _validateBody(body, loc);
+              subjectError.value = _validateSubject(selectedSubject.value, loc);
+              if (subjectError.value == null && bodyError.value == null) {
+                _launchEmail(
+                  context,
+                  selectedSubject.value,
+                  body,
+                  debugLogsUrl.value,
+                );
+              }
+            },
+            label: loc.contactUsScreen_composeEmail,
+            type: ButtonType.secondary,
+            state: isUploadingLogs.value
+                ? ButtonState.disabled
+                : ButtonState.active,
+          ),
+        ],
+      ),
     );
   }
 
