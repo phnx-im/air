@@ -50,6 +50,7 @@ use crate::{
         invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
         usernames::ConnectUsernameProtocol,
     },
+    errors::auth_service::RedeemTokenError,
     util::{find_cause, select_until_first_ends},
 };
 
@@ -267,6 +268,7 @@ impl auth_service_server::AuthService for GrpcAs {
             return Err(Status::resource_exhausted("too many codes generated today"));
         }
 
+        let mut redeem_error: Option<RedeemTokenError> = None;
         let mut invitation_codes = Vec::new();
         for token in tokens {
             // redeem the token
@@ -276,6 +278,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 .await
             {
                 warn!(%error, "failed to redeem token to get invitation code");
+                redeem_error = Some(error);
                 continue;
             }
 
@@ -289,6 +292,15 @@ impl auth_service_server::AuthService for GrpcAs {
 
             invitation_codes.push(InvitationCode { code });
             counter!("air_invitation_codes_issued_total").increment(1);
+        }
+
+        // We only fail when nothing at all could be issued: the client sends a single token and
+        // relies on an error status to classify it as burned and drop it. Returning before the
+        // commit also rolls back the nonce state of the failed redemptions.
+        if invitation_codes.is_empty()
+            && let Some(error) = redeem_error
+        {
+            return Err(error.into());
         }
 
         txn.commit().await.map_err(|error| {
@@ -801,5 +813,200 @@ impl WithUsernameHash for RefreshUsernameRequest {
 impl WithUsernameHash for InitListenUsernameRequest {
     fn username_hash_proto(&self) -> Option<UsernameHash> {
         self.payload.as_ref()?.hash.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use airprotos::{
+        auth_service::v1::{
+            GetInvitationCodesRequest, OperationType,
+            auth_service_server::AuthService as AuthServiceRpc,
+        },
+        common::v1::{StatusDetails, StatusDetailsCode},
+    };
+    use privacypass::{
+        amortized_tokens::AmortizedBatchTokenRequest,
+        auth::authenticate::TokenChallenge,
+        common::private::{PrivateCipherSuite, PublicKey, deserialize_public_key},
+        private_tokens::Ristretto255,
+    };
+    use sqlx::PgPool;
+    use tls_codec::Serialize;
+    use tokio_util::sync::CancellationToken;
+    use tonic::{Code, Request};
+
+    use crate::{
+        air_service::BackendService,
+        auth_service::{
+            AuthService, client_record::persistence::tests::store_random_client_record,
+            privacy_pass::load_batched_token_keys,
+            user_record::persistence::tests::store_random_user_record,
+        },
+    };
+
+    use super::GrpcAs;
+
+    /// Creates an AuthService (which bootstraps the VOPRF keys) and returns the
+    /// public key used for `GetInviteCode` tokens.
+    async fn setup(pool: &PgPool) -> anyhow::Result<(AuthService, PublicKey<Ristretto255>)> {
+        let service = AuthService::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
+
+        let public_key = load_batched_token_keys(pool)
+            .await?
+            .into_iter()
+            .find(|record| record.operation_type == OperationType::GetInviteCode)
+            .map(|record| deserialize_public_key::<Ristretto255>(&record.public_key))
+            .expect("no GetInviteCode key")?;
+
+        Ok((service, public_key))
+    }
+
+    fn build_challenge() -> TokenChallenge {
+        TokenChallenge::new(
+            Ristretto255::token_type(),
+            "example.com",
+            None,
+            &["example.com".to_string()],
+        )
+    }
+
+    /// Issues a single `GetInviteCode` token for a fresh user and returns its
+    /// wire encoding. The allowance is one token per user per day, so every
+    /// token needs its own user.
+    async fn mint_token(
+        service: &AuthService,
+        public_key: PublicKey<Ristretto255>,
+        pool: &PgPool,
+    ) -> anyhow::Result<Vec<u8>> {
+        let user_record = store_random_user_record(pool).await?;
+        store_random_client_record(pool, user_record.user_id().clone()).await?;
+
+        let challenge = build_challenge();
+        let (token_request, token_state) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
+
+        let token_response = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
+            .await?;
+
+        let token = token_response
+            .issue_tokens(&token_state)?
+            .into_iter()
+            .next()
+            .expect("no token issued");
+
+        Ok(token.tls_serialize_detached()?)
+    }
+
+    async fn get_invitation_codes(
+        grpc_as: &GrpcAs,
+        tokens: Vec<Vec<u8>>,
+    ) -> Result<Vec<String>, tonic::Status> {
+        let response = grpc_as
+            .get_invitation_codes(Request::new(GetInvitationCodesRequest { tokens }))
+            .await?;
+        Ok(response
+            .into_inner()
+            .invitation_codes
+            .into_iter()
+            .map(|code| code.code)
+            .collect())
+    }
+
+    #[sqlx::test]
+    async fn get_invitation_codes_success(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_key) = setup(&pool).await?;
+        let token = mint_token(&service, public_key, &pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let codes = get_invitation_codes(&grpc_as, vec![token]).await?;
+        assert_eq!(codes.len(), 1);
+
+        Ok(())
+    }
+
+    /// A token signed with a key that was rotated out is rejected with a status
+    /// detail telling the client to fetch new keys.
+    #[sqlx::test]
+    async fn get_invitation_codes_stale_key_errors(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_key) = setup(&pool).await?;
+        let token = mint_token(&service, public_key, &pool).await?;
+
+        sqlx::query("DELETE FROM as_batched_key WHERE operation_type = $1")
+            .bind(OperationType::GetInviteCode as i16)
+            .execute(&pool)
+            .await?;
+
+        let grpc_as = GrpcAs::new(service);
+        let status = get_invitation_codes(&grpc_as, vec![token])
+            .await
+            .expect_err("stale key should be rejected");
+
+        assert_eq!(status.code(), Code::Unauthenticated);
+        let details = StatusDetails::from_status(&status).expect("no status details");
+        assert_eq!(details.code(), StatusDetailsCode::UnknownTokenKeyId);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn get_invitation_codes_double_spend_errors(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_key) = setup(&pool).await?;
+        let token = mint_token(&service, public_key, &pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let codes = get_invitation_codes(&grpc_as, vec![token.clone()]).await?;
+        assert_eq!(codes.len(), 1);
+
+        let status = get_invitation_codes(&grpc_as, vec![token])
+            .await
+            .expect_err("double spend should be rejected");
+
+        assert_eq!(status.code(), Code::Unauthenticated);
+        assert_ne!(
+            StatusDetails::from_status(&status).map(|details| details.code()),
+            Some(StatusDetailsCode::UnknownTokenKeyId)
+        );
+
+        Ok(())
+    }
+
+    /// One spent token among valid ones does not fail the whole request.
+    #[sqlx::test]
+    async fn get_invitation_codes_partial_success(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_key) = setup(&pool).await?;
+        let valid_token = mint_token(&service, public_key, &pool).await?;
+        let spent_token = mint_token(&service, public_key, &pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let codes = get_invitation_codes(&grpc_as, vec![spent_token.clone()]).await?;
+        assert_eq!(codes.len(), 1);
+
+        let codes = get_invitation_codes(&grpc_as, vec![valid_token, spent_token]).await?;
+        assert_eq!(codes.len(), 1);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn get_invitation_codes_no_tokens_ok(pool: PgPool) -> anyhow::Result<()> {
+        let (service, _public_key) = setup(&pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let codes = get_invitation_codes(&grpc_as, Vec::new()).await?;
+        assert!(codes.is_empty());
+
+        Ok(())
     }
 }
