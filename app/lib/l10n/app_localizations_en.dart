@@ -261,6 +261,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Save';
 
   @override
+  String get unsavedInputDialog_title => 'Are you sure you want to close?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Cancel';
+
+  @override
+  String get unsavedInputDialog_close => 'Close';
+
+  @override
   String get introScreen_serverLabel =>
       'Choose a server to connect to for linking.';
 

@@ -188,6 +188,9 @@ class _ModalPageStackState extends State<ModalPageStack>
         if (!didPop) widget.onBack?.call();
       },
       child: ModalSurface(
+        // The page on top decides, as it does for the header: one that has to
+        // be seen through takes the scrim's way out along with its own.
+        onDismiss: top.canDismiss ? widget.onDismiss : null,
         child: AnimatedSize(
           duration: Effect.duration(_motion),
           curve: Effect.easeOutQuart,

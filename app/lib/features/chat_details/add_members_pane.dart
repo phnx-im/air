@@ -5,6 +5,7 @@
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -80,32 +81,36 @@ class _AddMembersViewState extends State<AddMembersView> {
       ),
       // The selection list below the search field scrolls on its own.
       scrollable: false,
-      child: Column(
-        children: [
-          MemberSearchField(
-            controller: _searchController,
-            hintText: loc.groupMembersScreen_searchHint,
-            onChanged: (value) => setState(() => _query = value),
-          ),
-          Expanded(
-            child: AppScrollbar(
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(
-                  context,
-                ).copyWith(scrollbars: false),
-                child: MemberSelectionList(
-                  contacts: contacts,
-                  selectedContacts: selectedContacts,
-                  query: _query,
-                  isApq: isApq,
-                  onToggle: (contact) => context
-                      .read<AddMembersCubit>()
-                      .toggleContact(contact.userId),
+      child: ModalDismissGuard(
+        hasUnsavedInput: () =>
+            context.read<AddMembersCubit>().state.selectedContacts.isNotEmpty,
+        child: Column(
+          children: [
+            MemberSearchField(
+              controller: _searchController,
+              hintText: loc.groupMembersScreen_searchHint,
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            Expanded(
+              child: AppScrollbar(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: MemberSelectionList(
+                    contacts: contacts,
+                    selectedContacts: selectedContacts,
+                    query: _query,
+                    isApq: isApq,
+                    onToggle: (contact) => context
+                        .read<AddMembersCubit>()
+                        .toggleContact(contact.userId),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
