@@ -205,7 +205,13 @@ pub(crate) async fn mark_as_read(
     let receipts_chat_id = if read_receipts_enabled {
         Some(chat_id)
     } else {
-        service.self_chat_id().await?
+        match service.self_chat_id().await {
+            Ok(chat_id) => chat_id,
+            Err(error) => {
+                error!(%error, "Faild to load self chat");
+                return Ok(());
+            }
+        }
     };
 
     if let Some(receipts_chat_id) = receipts_chat_id
