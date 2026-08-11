@@ -11,10 +11,10 @@ use mimi_content::{MessageStatus, MimiContent};
 use openmls::group::GroupId;
 
 use crate::{
-    ChatMessage, ContentMessage, MessageId, MimiContentExt,
-    chats::StatusRecord,
+    ChatMessage, ContentMessage, MessageId,
+    chats::{StatusRecord, reactions::Reaction},
     clients::attachment::AttachmentRecord,
-    db::access::{WriteConnection, WriteDbTransaction},
+    db::access::{DbAccess, WriteConnection, WriteDbTransaction},
 };
 
 pub(crate) struct MessageEdit<'a> {
@@ -38,6 +38,67 @@ impl<'a> MessageEdit<'a> {
             mimi_content,
         }
     }
+}
+
+/// Removes what a deleted message leaves behind, keeping only the placeholder
+/// row: the replies pointing at it are repointed at the placeholder, and its
+/// edit history, attachments, reactions and own reply reference are dropped.
+///
+/// `original_mimi_id` is the ID the message had before the deletion, which is
+/// what replies and reactions still reference. `placeholder_mimi_id` is the ID
+/// of the null part that takes its place. Repointing and reaction removal have
+/// to come first, since both resolve superseded versions of the message
+/// through the edit history.
+pub(crate) async fn purge_deleted_message(
+    txn: &mut WriteDbTransaction<'_>,
+    message_id: MessageId,
+    original_mimi_id: Option<&MimiId>,
+    placeholder_mimi_id: Option<&MimiId>,
+) -> anyhow::Result<()> {
+    if let Some(original_mimi_id) = original_mimi_id
+        && let Some(placeholder_mimi_id) = placeholder_mimi_id
+    {
+        let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
+            &mut *txn,
+            &message_id,
+            original_mimi_id,
+            placeholder_mimi_id,
+        )
+        .await?;
+        for updated_message_id in updated_message_ids {
+            txn.notifier().add(updated_message_id);
+        }
+    }
+
+    Reaction::delete_by_message_versions(&mut *txn, message_id, original_mimi_id).await?;
+    MessageEdit::delete_by_message_id(&mut *txn, message_id).await?;
+    AttachmentRecord::delete_by_message_id(&mut *txn, message_id).await?;
+    ChatMessage::clear_in_reply_to(&mut *txn, message_id).await?;
+
+    Ok(())
+}
+
+/// Purges what deletions processed by older client versions left behind:
+/// edit history, attachments, reply reference and edit timestamp.
+///
+/// Stale rows are found by content, not by status: a peer's status report may
+/// have overwritten the deleted status, but every deletion under those
+/// versions stamped an edit time, and current versions purge at deletion time.
+/// The rows are re-marked as deleted so that status-based queries treat them
+/// as such again. Reactions targeting the version deleted last are not
+/// resolvable here and are swept up by the migration instead.
+pub(crate) async fn purge_stale_deleted_messages(db: &DbAccess) -> anyhow::Result<()> {
+    db.with_write_transaction(async |txn| {
+        for message in ChatMessage::load_all_edited(&mut *txn).await? {
+            if !message.message().is_deleted() {
+                continue;
+            }
+            purge_deleted_message(txn, message.id(), None, message.message().mimi_id()).await?;
+            ChatMessage::mark_deleted(&mut *txn, message.id()).await?;
+        }
+        Ok(())
+    })
+    .await
 }
 
 /// Applies an incoming edit (or delete, indicated by a null part) to the
@@ -93,29 +154,7 @@ pub(crate) async fn handle_message_edit(
         "Only edits and deletes from original users are allowed for now"
     );
 
-    if is_delete {
-        // We need to redact existing references to the message we delete.
-        if let Ok(redacted_mimi_id_bytes) = content.mimi_id(sender, group_id)
-            && let Ok(redacted_mimi_id) = MimiId::from_slice(&redacted_mimi_id_bytes)
-        {
-            let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-                &mut *txn,
-                &original_message_id,
-                original_mimi_id,
-                &redacted_mimi_id,
-            )
-            .await?;
-
-            for message_id in updated_message_ids {
-                txn.notifier().add(message_id);
-            }
-        }
-
-        // Delete edit history when message is deleted
-        MessageEdit::delete_by_message_id(&mut *txn, message.id()).await?;
-        // Delete attachments for this message
-        AttachmentRecord::delete_by_message_id(&mut *txn, message.id()).await?;
-    } else {
+    if !is_delete {
         // Store message edit
         MessageEdit::new(
             original_mimi_id,
@@ -126,19 +165,29 @@ pub(crate) async fn handle_message_edit(
         .store(&mut *txn)
         .await?;
     }
+    let original_mimi_id = *original_mimi_id;
+    let original_sender = original_sender.clone();
 
     // Update the original message
     let is_sent = true;
     message.set_content_message(ContentMessage::new(
-        original_sender.clone(),
+        original_sender,
         is_sent,
         content,
         group_id,
     ));
-    message.set_edited_at(ds_timestamp);
     if is_delete {
         message.set_status(MessageStatus::Deleted);
+        purge_deleted_message(
+            txn,
+            original_message_id,
+            Some(&original_mimi_id),
+            message.message().mimi_id(),
+        )
+        .await?;
+        message.take_in_reply_to();
     } else {
+        message.set_edited_at(ds_timestamp);
         message.set_status(MessageStatus::Unread);
     }
 
@@ -412,6 +461,264 @@ mod tests {
             .await?
             .unwrap();
         assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
+
+        Ok(())
+    }
+
+    /// Deleting a message takes its edit history, the reactions on it and its
+    /// own reply reference with it.
+    #[sqlx::test]
+    async fn test_handle_message_delete_purges_leftover_state(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let group_id = chat.group_id();
+        let domain = "localhost".parse().unwrap();
+        let alice = UserId::random(domain);
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Bob sends a message that Alice replies to
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                bob.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
+                group_id,
+            ),
+        );
+        bob_message.store(pool.write().await?).await?;
+
+        let mut alice_content =
+            MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]);
+        alice_content.in_reply_to = bob_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(alice.clone(), false, alice_content, group_id),
+        );
+        alice_message.store(pool.write().await?).await?;
+        let alice_mimi_id = *alice_message.message().mimi_id().unwrap();
+
+        // An earlier version of Alice's message, and Bob's reaction to it
+        let superseded_mimi_id = MimiId::from_slice(&[7u8; 32])?;
+        let superseded_content =
+            MimiContent::simple_markdown_message("Earlier version".to_string(), [2; 16]);
+        MessageEdit::new(
+            &superseded_mimi_id,
+            alice_message.id(),
+            TimeStamp::now(),
+            &superseded_content,
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        Reaction::new(
+            MimiId::from_slice(&[8u8; 32])?,
+            alice_mimi_id,
+            chat.id(),
+            bob.clone(),
+            "👍".to_string(),
+            TimeStamp::now(),
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        // A reaction Bob applied before Alice's edit, still targeting the
+        // superseded version
+        Reaction::new(
+            MimiId::from_slice(&[9u8; 32])?,
+            superseded_mimi_id,
+            chat.id(),
+            bob.clone(),
+            "🎉".to_string(),
+            TimeStamp::now(),
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        // Alice deletes her message
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let alice_message = handle_message_edit(
+            &mut txn,
+            group_id,
+            TimeStamp::now(),
+            &alice,
+            alice_mimi_id,
+            alice_message.null_part_content()?,
+        )
+        .await?;
+        alice_message.update(&mut txn).await?;
+
+        assert!(
+            MessageEdit::find_message_id(&mut txn, &superseded_mimi_id)
+                .await?
+                .is_none()
+        );
+        assert!(
+            Reaction::load_by_target(&mut txn, &alice_mimi_id)
+                .await?
+                .is_empty()
+        );
+        assert!(
+            Reaction::load_by_target(&mut txn, &superseded_mimi_id)
+                .await?
+                .is_empty()
+        );
+
+        let alice_message = ChatMessage::load(&mut txn, alice_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(alice_message.in_reply_to(), None);
+        assert!(alice_message.reactions().is_empty());
+
+        Ok(())
+    }
+
+    /// Rows deleted by older client versions kept their edit history, edit
+    /// timestamp and reply reference, and a peer's status report may have
+    /// overwritten their deleted status. The open-time sweep purges them by
+    /// content while leaving live edited messages alone.
+    #[sqlx::test]
+    async fn test_purge_stale_deleted_messages(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let group_id = chat.group_id();
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Bob sends a message that Alice replies to
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                bob.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
+                group_id,
+            ),
+        );
+        bob_message.store(pool.write().await?).await?;
+
+        let mut alice_content =
+            MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]);
+        alice_content.in_reply_to = bob_message
+            .message()
+            .mimi_id()
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
+        let mut alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(alice.clone(), false, alice_content, group_id),
+        );
+        alice_message.store(pool.write().await?).await?;
+
+        // An earlier version of Alice's message, and Bob's reaction to it
+        let superseded_mimi_id = MimiId::from_slice(&[7u8; 32])?;
+        let superseded_content =
+            MimiContent::simple_markdown_message("Earlier version".to_string(), [2; 16]);
+        MessageEdit::new(
+            &superseded_mimi_id,
+            alice_message.id(),
+            TimeStamp::now(),
+            &superseded_content,
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        Reaction::new(
+            MimiId::from_slice(&[8u8; 32])?,
+            superseded_mimi_id,
+            chat.id(),
+            bob.clone(),
+            "👍".to_string(),
+            TimeStamp::now(),
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        // Alice's message deleted the way older versions did it: placeholder
+        // content, an edit time stamped, and the deleted status later
+        // overwritten by a peer's status report
+        let null_content = alice_message.null_part_content()?;
+        alice_message.set_content_message(ContentMessage::new(
+            alice.clone(),
+            true,
+            null_content,
+            group_id,
+        ));
+        alice_message.set_edited_at(TimeStamp::now());
+        alice_message.set_status(mimi_content::MessageStatus::Read);
+        alice_message.update(pool.write().await?).await?;
+
+        // A live edited message from Bob that the sweep must leave alone
+        let mut edited_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                bob.clone(),
+                false,
+                MimiContent::simple_markdown_message("Edited version".to_string(), [3; 16]),
+                group_id,
+            ),
+        );
+        edited_message.store(pool.write().await?).await?;
+        let edited_superseded_mimi_id = MimiId::from_slice(&[11u8; 32])?;
+        MessageEdit::new(
+            &edited_superseded_mimi_id,
+            edited_message.id(),
+            TimeStamp::now(),
+            &MimiContent::simple_markdown_message("Original version".to_string(), [4; 16]),
+        )
+        .store(pool.write().await?)
+        .await?;
+        edited_message.set_edited_at(TimeStamp::now());
+        edited_message.update(pool.write().await?).await?;
+
+        purge_stale_deleted_messages(&pool).await?;
+
+        assert!(
+            MessageEdit::find_message_id(pool.read().await?, &superseded_mimi_id)
+                .await?
+                .is_none()
+        );
+        assert!(
+            Reaction::load_by_target(pool.read().await?, &superseded_mimi_id)
+                .await?
+                .is_empty()
+        );
+        let alice_message = ChatMessage::load(pool.read().await?, alice_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(alice_message.in_reply_to(), None);
+        assert_eq!(alice_message.edited_at(), None);
+        assert_eq!(alice_message.status(), mimi_content::MessageStatus::Deleted);
+
+        assert_eq!(
+            MessageEdit::find_message_id(pool.read().await?, &edited_superseded_mimi_id).await?,
+            Some(edited_message.id())
+        );
+        let edited_message = ChatMessage::load(pool.read().await?, edited_message.id())
+            .await?
+            .unwrap();
+        assert!(edited_message.edited_at().is_some());
 
         Ok(())
     }

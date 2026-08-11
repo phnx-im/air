@@ -469,6 +469,13 @@ impl Message {
             )
         })
     }
+
+    /// Whether this message took the place of an earlier one, that is, whether
+    /// it is an edit or a deletion.
+    pub fn is_replacement(&self) -> bool {
+        self.mimi_content()
+            .is_some_and(|content| content.replaces.is_some())
+    }
 }
 
 enum AttachmentType {

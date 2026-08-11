@@ -914,6 +914,68 @@ impl ChatMessage {
         .await
     }
 
+    /// Drop the message's own reply reference.
+    pub(crate) async fn clear_in_reply_to(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE message SET in_reply_to_mimi_id = NULL WHERE message_id = ?",
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    /// Load all messages still carrying an edit timestamp.
+    pub(crate) async fn load_all_edited(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<Self>> {
+        query_as!(
+            SqlChatMessage,
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE edited_at IS NOT NULL
+            "#,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+        .map(|records| records.into_iter().map(ChatMessage::from).collect())
+    }
+
+    /// Reset a placeholder row left behind by an older client version: a
+    /// deletion stamps no edit time, and the status must report the deletion
+    /// again after a peer's status report overwrote it.
+    pub(crate) async fn mark_deleted(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<()> {
+        let status: u8 = MessageStatus::Deleted.into();
+        query!(
+            "UPDATE message SET status = ?, edited_at = NULL WHERE message_id = ?",
+            status,
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn load_message_ids_in_reply_to_mimi_id(
         mut connection: impl ReadConnection,
         mimi_id: &MimiId,

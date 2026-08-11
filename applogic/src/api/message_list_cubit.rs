@@ -364,6 +364,12 @@ impl MessageListData {
         let len_before = self.messages.len();
 
         self.messages.remove(idx);
+
+        // A row at or after the divider is one of the rows the divider counts.
+        if state.first_unread_index.is_some_and(|first| idx >= first) {
+            state.unread_count = state.unread_count.saturating_sub(1);
+        }
+
         state.first_unread_index = match state.first_unread_index {
             Some(first_unread) if first_unread > idx => first_unread.checked_sub(1),
             Some(first_unread) if first_unread == idx => {
@@ -940,12 +946,11 @@ impl MessageListContext {
             };
 
             if op.contains(DbOperation::Remove) {
-                if self.data.message_ids_index.contains_key(message_id)
-                    && let Some(message) = self.core_user.message(*message_id).await?
-                    && message.chat_id() == self.chat_id
-                {
-                    self.remove_message_in_place(*message_id);
-                }
+                // The row is already gone, so it cannot be loaded to check
+                // which chat it belonged to. It does not have to be: every
+                // loader is chat-scoped, so an id in the index is in this chat,
+                // and `remove_message` ignores an id that is not in the index.
+                self.remove_message_in_place(*message_id);
             } else if op.contains(DbOperation::Add) {
                 if let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
@@ -1069,6 +1074,16 @@ mod tests {
         state: &mut MessageListState,
         messages: Vec<ChatMessage>,
     ) -> MessageListTransition {
+        replace_with_unread(data, state, messages, None, 0)
+    }
+
+    fn replace_with_unread(
+        data: &mut MessageListData,
+        state: &mut MessageListState,
+        messages: Vec<ChatMessage>,
+        first_unread_index: Option<usize>,
+        unread_count: usize,
+    ) -> MessageListTransition {
         data.apply_messages(
             state,
             messages,
@@ -1078,8 +1093,8 @@ mod tests {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
-                first_unread_index: None,
-                unread_count: 0,
+                first_unread_index,
+                unread_count,
                 command: None,
             },
         )
@@ -1241,6 +1256,56 @@ mod tests {
             }
             other => panic!("unexpected changes: {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_remove_unread_message_lowers_the_divider_count() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with_unread(
+            &mut data,
+            &mut state,
+            vec![first, second.clone(), third],
+            Some(1),
+            2,
+        );
+
+        data.remove_message(&mut state, second.id())
+            .expect("message should exist");
+
+        assert_eq!(state.unread_count, 1);
+        assert_eq!(state.first_unread_index, Some(1));
+    }
+
+    #[test]
+    fn test_remove_read_message_keeps_the_divider_count() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with_unread(
+            &mut data,
+            &mut state,
+            vec![first.clone(), second, third],
+            Some(1),
+            2,
+        );
+
+        data.remove_message(&mut state, first.id())
+            .expect("message should exist");
+
+        assert_eq!(state.unread_count, 2);
+        assert_eq!(state.first_unread_index, Some(0));
     }
 
     #[test]

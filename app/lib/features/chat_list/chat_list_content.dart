@@ -403,7 +403,7 @@ class _TrailingIndicator extends StatelessWidget {
 
 /// Null where there is no delivery state to report. A reader with read receipts
 /// off must not report back more than the setting does, so a read message stops
-/// at delivered.
+/// at delivered. A deleted message reports nothing at all.
 MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus status, {
   required bool readReceipts,
@@ -414,7 +414,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.read =>
     readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
   UiMessageStatus.error => MessageDeliveryStatus.failed,
-  UiMessageStatus.hidden => null,
+  UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
 class _LastMessage extends StatelessWidget {

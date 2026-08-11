@@ -178,6 +178,28 @@ impl Reaction {
         Ok(res.map(|row| row.target_mimi_id))
     }
 
+    /// Delete all reactions on a message, including those targeting versions
+    /// superseded through its edit history. Must run while the edit history
+    /// still exists.
+    pub(crate) async fn delete_by_message_versions(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        current_mimi_id: Option<&MimiId>,
+    ) -> sqlx::Result<()> {
+        query!(
+            "DELETE FROM reaction WHERE target_mimi_id IN (
+                SELECT mimi_id FROM message_edit WHERE message_id = ?
+                UNION ALL
+                SELECT ?
+            )",
+            message_id,
+            current_mimi_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn exists_by_mimi_id(
         mut connection: impl ReadConnection,
         reaction_mimi_id: &MimiId,
