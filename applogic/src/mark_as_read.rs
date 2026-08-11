@@ -208,7 +208,7 @@ pub(crate) async fn mark_as_read(
         match service.self_chat_id().await {
             Ok(chat_id) => chat_id,
             Err(error) => {
-                error!(%error, "Faild to load self chat");
+                error!(%error, "Failed to load self chat");
                 return Ok(());
             }
         }
