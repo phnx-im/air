@@ -27,6 +27,7 @@ ignore = [
     # <https://github.com/Smithay/wayland-rs/pull/938>
     { id = "RUSTSEC-2026-0194", reason = "waiting for wayland-scanner to be updated and used upstream" },
     { id = "RUSTSEC-2026-0195", reason = "waiting for wayland-scanner to be updated and used upstream" },
+    { id = "RUSTSEC-2026-0253", reason = "lru 0.16 pinned by aws-sdk-s3; no 0.16.x patch available" },
 ]
 
 [licenses]
