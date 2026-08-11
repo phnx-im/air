@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/components/reaction_chip/reaction_chip.dart';
@@ -14,8 +12,6 @@ import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
 import 'package:air/ds/patterns/reaction_bar/reaction_bar_tokens.dart';
 import 'package:air/ds/patterns/reaction_details/reaction_details.dart';
 import 'package:air/ds/patterns/reaction_details/reaction_details_tokens.dart';
-import 'package:air/ds/patterns/reaction_strip/reaction_strip.dart';
-import 'package:air/ds/patterns/reaction_strip/reaction_strip_tokens.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
@@ -65,8 +61,8 @@ void warmUpReactionEmojis(BuildContext context) {
   ], ReactionChip.glyphStyle());
 }
 
-/// Vertical space [BubbleWithReactions] reserves below the bubble for the
-/// chips that ride up over its bottom edge.
+/// Vertical space the message band reserves below the bubble for the chips
+/// that ride up over its bottom edge.
 ///
 /// The chip grows with the text scaler, so the reserve grows with it too.
 double reactionsReservedBelow(BuildContext context, bool hasReactions) {
@@ -76,169 +72,24 @@ double reactionsReservedBelow(BuildContext context, bool hasReactions) {
       ReactionChipTokens.cropWidth * 2;
 }
 
-/// Overlays a [ReactionStrip] onto the bottom edge of [bubble].
-///
-/// The layout reserves the strip's height below the bubble so following
-/// messages don't collide, and the strip lifts itself back up over the
-/// bubble's edge.
-///
-/// The reserve and the chips animate in when the first reaction arrives and
-/// out when the last one is removed. Tiles that mount with reactions render
-/// the settled state without animating.
-class BubbleWithReactions extends StatefulWidget {
-  const BubbleWithReactions({
-    super.key,
-    required this.bubble,
-    required this.reactions,
-    required this.ownUserId,
-    required this.onTap,
-  });
-
-  final Widget bubble;
-  final List<UiReaction> reactions;
-  final UiUserId ownUserId;
-
-  /// Reveals who reacted. Null stands for the collapsed `+N` chip, which
-  /// belongs to no single emoji.
-  final void Function(String? emoji) onTap;
-
-  @override
-  State<BubbleWithReactions> createState() => _BubbleWithReactionsState();
-}
-
-class _BubbleWithReactionsState extends State<BubbleWithReactions>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _reveal;
-  late final Animation<double> _chipScale;
-
-  /// Last non-empty reactions, kept while the chips animate out.
-  List<UiReaction> _reactions = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Effect.duration(MotionPreset.short),
-      value: widget.reactions.isEmpty ? 0.0 : 1.0,
-    );
-    _controller.addStatusListener(_onStatusChanged);
-    _reveal = CurvedAnimation(
-      parent: _controller,
-      curve: Effect.easeOutQuart,
-      // Mirrored so removal collapses the reserve in sync with the
-      // AnimatedPaddings tracking it in the message tile.
-      reverseCurve: const FlippedCurve(Effect.easeOutQuart),
-    );
-    _chipScale = Tween<double>(begin: 0.6, end: 1.0).animate(_reveal);
-    if (widget.reactions.isNotEmpty) {
-      _reactions = widget.reactions;
-    }
-  }
-
-  void _onStatusChanged(AnimationStatus status) {
-    // Drop the stale chips once the exit animation settled.
-    if (status == AnimationStatus.dismissed && widget.reactions.isEmpty) {
-      setState(() => _reactions = const []);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant BubbleWithReactions oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.reactions.isNotEmpty) {
-      _reactions = widget.reactions;
-      _controller.forward();
-    } else if (oldWidget.reactions.isNotEmpty) {
-      _controller.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reserve = reactionsReservedBelow(context, true);
-
-    // Constant Stack/Padding structure so the first reaction doesn't
-    // reparent the bubble subtree (which would drop its state).
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        AnimatedBuilder(
-          animation: _reveal,
-          builder: (context, child) => Padding(
-            padding: EdgeInsets.only(bottom: reserve * _reveal.value),
-            child: child,
-          ),
-          child: widget.bubble,
-        ),
-        if (_reactions.isNotEmpty)
-          // Stretched across the bubble's own box, so the strip packs to the
-          // bubble's width and starts at its leading edge.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              ignoring: widget.reactions.isEmpty,
-              child: FadeTransition(
-                opacity: _reveal,
-                child: ScaleTransition(
-                  scale: _chipScale,
-                  alignment: Alignment.bottomLeft,
-                  child: ReactionStrip(
-                    tokens: ReactionStripTokens.current,
-                    chipTokens: ReactionChipTokens.current,
-                    groups: [
-                      for (final reaction in _reactions)
-                        ReactionGroup(
-                          emoji: reaction.emoji,
-                          count: reaction.users.length,
-                          mine: reaction.users.contains(widget.ownUserId),
-                        ),
-                    ],
-                    onTapEmoji: widget.onTap,
-                    onTapOverflow: () => widget.onTap(null),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 /// Shows the [ReactionBar] as a small popover centered horizontally on
 /// [anchorRect] and placed just above it, falling back to below it when there
 /// isn't room above.
 ///
-/// [onMore] opens the full picker on top of this dialog (with a transparent
-/// barrier, see `openFullEmojiPicker`). This dialog stays alive underneath so
-/// the barrier dim doesn't flicker, and pops once the picker resolves.
+/// [onMore] closes the bar and opens the full emoji picker.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
   required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
-  required Future<void> Function() onMore,
+  required VoidCallback onMore,
 }) {
-  // Once the full picker has been opened the bar stays hidden for good,
-  // otherwise it would fade back in while this route pops (the picker's
-  // dismissal reverses [secondaryAnimation] concurrently with the pop).
-  var handedOff = false;
   // Drop taps that land during the closing transition.
   var consumed = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierColor: SemanticPalette.of(context).function.neutral.scrim,
+    barrierColor: Colors.transparent,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -265,11 +116,9 @@ Future<void> showQuickReactionMenu({
           }
           return KeyEventResult.ignored;
         },
-        // The bar fades out while the full picker covers this route.
+        // The bar fades out while another route covers this one.
         child: FadeTransition(
-          opacity: handedOff
-              ? const AlwaysStoppedAnimation(Alpha.a0)
-              : ReverseAnimation(secondaryAnimation),
+          opacity: ReverseAnimation(secondaryAnimation),
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
           child: Material(
@@ -287,14 +136,8 @@ Future<void> showQuickReactionMenu({
               onMore: () {
                 if (consumed) return;
                 consumed = true;
-                handedOff = true;
-                unawaited(
-                  onMore().whenComplete(() {
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  }),
-                );
+                Navigator.of(dialogContext).pop();
+                onMore();
               },
             ),
           ),

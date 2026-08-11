@@ -14,11 +14,8 @@ import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/widgets.dart';
 
-/// The surface a modal's content sits on: a centered card over the layout
-/// where there's room beside it, the whole screen where there isn't.
-///
-/// Pure renderer. The scrim and the barrier belong to the route, so this
-/// neither paints over nor intercepts anything behind it.
+/// The surface a modal's content sits on: a card anchored to the top of the
+/// layout where there's room beside it, the whole screen where there isn't.
 class ModalShell extends StatelessWidget {
   const ModalShell({super.key, required this.tokens, required this.child});
 
@@ -31,29 +28,38 @@ class ModalShell extends StatelessWidget {
 
     // The same signal that picked the token set, so the presentation and its
     // geometry can't disagree.
-    if (context.breakpoint.isSmall) {
+    if (ModalShellTokens.isFullBleed(context)) {
       // Full-bleed: the modal is the screen, so it owns the status bar inset.
       // viewPadding rather than padding, so the value survives an ancestor
       // having already consumed the inset.
-      return ColoredBox(
-        color: surface,
-        child: Padding(
-          padding: EdgeInsets.only(top: MediaQuery.viewPaddingOf(context).top),
-          child: child,
+      //
+      // Expanded because the iOS page transition hands the route loose
+      // constraints, where a hugging modal lets the layer below show through.
+      return SizedBox.expand(
+        child: ColoredBox(
+          color: surface,
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: MediaQuery.viewPaddingOf(context).top,
+            ),
+            child: child,
+          ),
         ),
       );
     }
 
     return Padding(
       padding: tokens.containerPadding,
-      child: Center(
+      // Top-anchored, so the header stays put however tall the body grows
+      child: Align(
+        alignment: Alignment.topCenter,
         child: Container(
-          // Hugs its content, clamped to the envelope.
+          // Hugs its content, clamped to the envelope. The height ceiling is
+          // what the padding leaves of the viewport, not a token.
           constraints: BoxConstraints(
             minWidth: tokens.minWidth,
             maxWidth: tokens.maxWidth,
             minHeight: tokens.minHeight,
-            maxHeight: tokens.maxHeight,
           ),
           decoration: BoxDecoration(
             color: surface,
@@ -83,6 +89,7 @@ class DialogHeader extends StatelessWidget {
     this.trailing,
     this.leadingIcon = AppIconType.arrowLeft,
     this.trailingIcon = AppIconType.x,
+    this.fill,
   }) : assert(
          onTrailing == null || trailing == null,
          'DialogHeader takes either onTrailing or trailing, not both',
@@ -90,6 +97,10 @@ class DialogHeader extends StatelessWidget {
 
   final DialogHeaderTokens tokens;
   final String title;
+
+  /// The fill the row paints. Has to match the surface below it to occlude
+  /// content scrolling under the row.
+  final Color? fill;
 
   /// Tap handler for the leading action. The button renders only when set.
   final VoidCallback? onLeading;
@@ -129,9 +140,9 @@ class DialogHeader extends StatelessWidget {
             : null);
 
     return ColoredBox(
-      // The shell's own resolver picks this fill, not code here, so the row
-      // can never sit on one that differs from the card it caps.
-      color: ModalShellTokens.surface(context),
+      // Defaults to the shell's resolver, so the row sits on the same fill as
+      // the card it caps.
+      color: fill ?? ModalShellTokens.surface(context),
       child: SizedBox(
         height: DialogHeaderTokens.height,
         child: Padding(
@@ -176,54 +187,104 @@ class DialogHeader extends StatelessWidget {
   }
 }
 
-/// The shape every modal in the app takes: a [DialogHeader] pinned above its
-/// content, both inside a [ModalShell].
+/// The surface a modal's pages sit on: a [ModalShell] plus the ink surface a
+/// Material descendant looks for.
+class ModalSurface extends StatelessWidget {
+  const ModalSurface({super.key, required this.child});
+
+  /// A [ModalPane], or a stack of them.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ModalShell(
+      tokens: ModalShellTokens.of(context),
+      child: Material(type: MaterialType.transparency, child: child),
+    );
+  }
+}
+
+/// What a modal page's header does when it goes back or closes, published by
+/// whatever hosts the page.
+class ModalPageActions extends InheritedWidget {
+  const ModalPageActions({
+    super.key,
+    this.onBack,
+    this.onDismiss,
+    required super.child,
+  });
+
+  /// Returns to the page below, or `null` for the page at the bottom.
+  final VoidCallback? onBack;
+
+  /// Closes the modal, from any depth.
+  final VoidCallback? onDismiss;
+
+  static ModalPageActions? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ModalPageActions>();
+
+  @override
+  bool updateShouldNotify(ModalPageActions oldWidget) =>
+      onBack != oldWidget.onBack || onDismiss != oldWidget.onDismiss;
+}
+
+/// One page of a modal: a [DialogHeader] pinned above its content.
 ///
 /// Composition only, so a feature supplies a title, its actions, and a body,
-/// and never re-derives which token set each part takes. The header is opaque
-/// and the content passes under it, so a fade bedded just below the row keeps
-/// the seam soft instead of letting text cut off at a hard edge. It shows only
-/// once there's content under the row: at rest the first line sits on the fill
-/// the fade paints, so fading it there washes it out and buries the scrollbar.
-class ModalScaffold extends StatefulWidget {
-  const ModalScaffold({
+/// and never re-derives which token set each part takes, nor which slot its
+/// dismiss belongs in. The header is opaque and the content passes under it, so
+/// a fade bedded just below the row keeps the seam soft instead of letting text
+/// cut off at a hard edge. It shows only once there's content under the row: at
+/// rest the first line sits on the fill the fade paints, so fading it there
+/// washes it out and buries the scrollbar.
+///
+/// Carries no surface of its own: a [ModalSurface] holds it, alone as a
+/// [ModalScaffold] or as one page of a stack.
+class ModalPane extends StatefulWidget {
+  const ModalPane({
     super.key,
     required this.title,
-    this.onLeading,
-    this.onTrailing,
+    this.onDismiss,
+    this.onBack,
     this.trailing,
     this.scrollable = true,
+    this.footer,
     required this.child,
-  }) : assert(
-         onTrailing == null || trailing == null,
-         'ModalScaffold takes either onTrailing or trailing, not both',
-       );
+  });
 
   final String title;
 
-  /// Tap handler for the header's leading action. The button renders only when
-  /// set.
-  final VoidCallback? onLeading;
+  /// Closes the modal. The pattern picks its slot and glyph per presentation:
+  /// a leading back arrow full-screen, a trailing `x` on a card.
+  ///
+  /// Falls back to [ModalPageActions.onDismiss].
+  final VoidCallback? onDismiss;
 
-  /// Tap handler for the header's trailing action. The icon button renders only
-  /// when set. Mutually exclusive with [trailing].
-  final VoidCallback? onTrailing;
+  /// Returns to the level the modal drilled down from. Always the leading
+  /// action, outranking [onDismiss] there.
+  ///
+  /// Falls back to [ModalPageActions.onBack].
+  final VoidCallback? onBack;
 
-  /// Action for the header's trailing slot, in place of the icon button.
-  /// Mutually exclusive with [onTrailing].
+  /// Action for the header's trailing slot. Outranks [onDismiss] there.
   final Widget? trailing;
 
   /// Whether the pattern scrolls [child] for it.
   ///
   /// A body that scrolls something of its own takes `false`: we then hand it
   /// the height the header leaves over as a tight constraint, so its own
-  /// `Expanded` resolves and its list scrolls inside the card. The card fills
-  /// its height envelope in that mode instead of hugging the content. Only the
-  /// body then knows where its scroll region starts, so the fade and the
-  /// scrollbar below are the body's to place.
+  /// `Expanded` resolves and its list scrolls inside the card. The card then
+  /// takes its full height instead of hugging the content. Only the body
+  /// knows where its scroll region starts, so the fade and the scrollbar
+  /// below are the body's to place.
   final bool scrollable;
 
-  /// The modal's content. Where [scrollable], it scrolls as one block: a modal
+  /// Content below the body and outside the scroll area, where a page pins a
+  /// full-width primary action. It carries the keyboard inset in the body's
+  /// place.
+  final Widget? footer;
+
+  /// The page's content. Where [scrollable], it scrolls as one block: a modal
   /// body is short enough that laziness buys nothing and costs the card its
   /// intrinsic height.
   final Widget child;
@@ -233,10 +294,10 @@ class ModalScaffold extends StatefulWidget {
   static const double _fadeHeight = S.s24;
 
   @override
-  State<ModalScaffold> createState() => _ModalScaffoldState();
+  State<ModalPane> createState() => _ModalPaneState();
 }
 
-class _ModalScaffoldState extends State<ModalScaffold> {
+class _ModalPaneState extends State<ModalPane> {
   /// We hold it in a notifier rather than in state so a scroll repaints the
   /// fade alone and never rebuilds the body behind it.
   final _edges = ValueNotifier<ScrollEdges>(ScrollEdges.atRest);
@@ -258,33 +319,78 @@ class _ModalScaffoldState extends State<ModalScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    return ModalShell(
-      tokens: ModalShellTokens.of(context),
-      // A modal replaces the scaffold that used to host these bodies, so it has
-      // to keep supplying the ink surface any Material descendant looks for.
-      // Transparent, so the shell's own fill is what shows.
-      child: Material(
-        type: MaterialType.transparency,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DialogHeader(
-              tokens: DialogHeaderTokens.of(context),
-              title: widget.title,
-              onLeading: widget.onLeading,
-              onTrailing: widget.onTrailing,
-              trailing: widget.trailing,
-            ),
-            // Flexible keeps a scrolling body hugging its content, so the card
-            // still sizes to it. Expanded hands a self-scrolling one the rest
-            // of the envelope, which is the bounded height its own list needs.
-            if (widget.scrollable)
-              Flexible(child: _scrollingBody(context))
-            else
-              Expanded(child: widget.child),
-          ],
-        ),
+    final footer = widget.footer;
+    final fullBleed = ModalShellTokens.isFullBleed(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _header(context),
+        // Flexible keeps a scrolling body hugging its content, so the card
+        // still sizes to it. Expanded hands a self-scrolling one every row the
+        // card has left, which is the bounded height its list needs, and does
+        // the same for a full-screen page under a footer, so the footer lands
+        // on the bottom edge rather than under a short body.
+        if (!widget.scrollable)
+          Expanded(child: widget.child)
+        else if (footer != null && fullBleed)
+          Expanded(child: _scrollingBody(context))
+        else
+          Flexible(child: _scrollingBody(context)),
+        if (footer != null) _footer(context, footer, fullBleed: fullBleed),
+      ],
+    );
+  }
+
+  /// The header, with each action resolved to a slot and a glyph.
+  ///
+  /// The pattern places the dismiss because what reads as "close this" depends
+  /// on the presentation: a trailing `x` where the modal floats as a card, the
+  /// leading back arrow every pushed screen has where it fills the screen.
+  /// Back and a host's own trailing action outrank it, so the dismiss takes
+  /// whichever slot is left.
+  Widget _header(BuildContext context) {
+    // A page in a stack is handed both, so it never computes its own depth.
+    final actions = ModalPageActions.maybeOf(context);
+    final onBack = widget.onBack ?? actions?.onBack;
+    final onDismiss = widget.onDismiss ?? actions?.onDismiss;
+
+    final fullBleed = ModalShellTokens.isFullBleed(context);
+    final dismissTrails = !fullBleed && widget.trailing == null;
+    final dismissLeads = !dismissTrails && onBack == null;
+
+    return DialogHeader(
+      tokens: DialogHeaderTokens.of(context),
+      title: widget.title,
+      onLeading: onBack ?? (dismissLeads ? onDismiss : null),
+      leadingIcon: onBack != null || fullBleed
+          ? AppIconType.arrowLeft
+          : AppIconType.x,
+      onTrailing: dismissTrails ? onDismiss : null,
+      trailing: widget.trailing,
+    );
+  }
+
+  /// The footer, below the body and outside the scroll area, so the action it
+  /// carries stays put while the content moves under it.
+  Widget _footer(
+    BuildContext context,
+    Widget footer, {
+    required bool fullBleed,
+  }) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: ModalShellTokens.contentPaddingLeft,
+        right: ModalShellTokens.contentPaddingRight,
+        top: S.s8,
+        bottom:
+            (fullBleed ? S.s16 : S.s24) +
+            math.max(viewInsets.bottom, fullBleed ? viewPadding.bottom : 0.0),
       ),
+      child: footer,
     );
   }
 
@@ -312,7 +418,17 @@ class _ModalScaffoldState extends State<ModalScaffold> {
               child: NotificationListener<ScrollNotification>(
                 onNotification: (notification) =>
                     _track(notification.depth, notification.metrics),
-                child: SingleChildScrollView(child: widget.child),
+                // No scaffold resizes for the keyboard here, so the scroll
+                // area carries the inset itself, unless a footer sits below it
+                // and carries the inset for both.
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    bottom: widget.footer != null
+                        ? 0
+                        : MediaQuery.viewInsetsOf(context).bottom,
+                  ),
+                  child: widget.child,
+                ),
               ),
             ),
           ),
@@ -325,7 +441,7 @@ class _ModalScaffoldState extends State<ModalScaffold> {
               edge: FadeEdge.top,
               child: EdgeFade(
                 edge: FadeEdge.top,
-                height: ModalScaffold._fadeHeight,
+                height: ModalPane._fadeHeight,
                 color: ModalShellTokens.surface(context),
                 curve: Curves.easeInOutQuad,
               ),
@@ -333,6 +449,80 @@ class _ModalScaffoldState extends State<ModalScaffold> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A single-page modal: one [ModalPane] on a [ModalSurface] of its own.
+class ModalScaffold extends StatelessWidget {
+  const ModalScaffold({
+    super.key,
+    required this.title,
+    this.onDismiss,
+    this.onBack,
+    this.trailing,
+    this.scrollable = true,
+    this.footer,
+    required this.child,
+  });
+
+  final String title;
+
+  /// See [ModalPane.onDismiss].
+  final VoidCallback? onDismiss;
+
+  /// See [ModalPane.onBack].
+  final VoidCallback? onBack;
+
+  /// See [ModalPane.trailing].
+  final Widget? trailing;
+
+  /// See [ModalPane.scrollable].
+  final bool scrollable;
+
+  /// See [ModalPane.footer].
+  final Widget? footer;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ModalSurface(
+      child: ModalPane(
+        title: title,
+        onDismiss: onDismiss,
+        onBack: onBack,
+        trailing: trailing,
+        scrollable: scrollable,
+        footer: footer,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// The inset a modal page's content sits in below the header.
+///
+/// Only the bottom reads the presentation: a full-screen modal ends above the
+/// home indicator, a card at its own edge.
+class ModalBody extends StatelessWidget {
+  const ModalBody({super.key, this.top = 0, required this.child});
+
+  /// Clearance between the header and the content.
+  final double top;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: ModalShellTokens.contentPaddingLeft,
+        right: ModalShellTokens.contentPaddingRight,
+        top: top,
+        bottom: ModalShellTokens.isFullBleed(context) ? S.s64 : S.s24,
+      ),
+      child: child,
     );
   }
 }

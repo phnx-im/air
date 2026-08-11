@@ -9,10 +9,8 @@ import 'package:flutter/widgets.dart';
 /// The message a reply quotes: who sent it and a couple of lines of it, behind
 /// a rule down the leading edge.
 ///
-/// Serves both places a quote appears. Inside a bubble it sits above the reply
-/// itself, hugs its text, and offers to jump to the original. In the composer
-/// it sits above the field while a reply is staged, spans the field's width,
-/// and goes nowhere.
+/// Sits above the reply itself inside a bubble, hugs its text, and offers to
+/// jump to the original.
 ///
 /// The [preview] is resolved text, not content: a deleted or unreachable
 /// original still quotes, with whatever stand-in line the host has for it.
@@ -22,7 +20,6 @@ class ReplyBlock extends StatelessWidget {
     required this.preview,
     this.senderName,
     this.fill,
-    this.stretch = false,
     this.showJumpIndicator = false,
     this.thumbnail,
     this.onTap,
@@ -38,10 +35,6 @@ class ReplyBlock extends StatelessWidget {
   /// Surface behind the quote. Null leaves the block transparent, for a host
   /// that already paints one under it.
   final Color? fill;
-
-  /// Span the available width instead of hugging the quoted text. The composer
-  /// stretches, so the staged reply matches the field it sits over.
-  final bool stretch;
 
   /// Show the arrow that says the original is still there to jump to. A
   /// [thumbnail] outranks it: a quoted picture trails its own still, which
@@ -72,9 +65,7 @@ class ReplyBlock extends StatelessWidget {
       padding: const EdgeInsets.only(left: ReplyBlockTokens.accentGap),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: stretch
-            ? CrossAxisAlignment.stretch
-            : CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (sender != null) ...[
             Text(

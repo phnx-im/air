@@ -28,7 +28,7 @@ use tracing::{error, info, warn};
 use crate::{
     StreamSink,
     api::{
-        message_content::UnresolvedMimiContent,
+        message_content::{UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage},
     },
     mark_as_read::MarkAsReadState,
@@ -236,29 +236,19 @@ impl ChatDetailsCubitBase {
     /// The not yet sent message is immediately stored in the local store and then the message is
     /// send to the DS.
     pub async fn send_message(&self, message_text: String) -> anyhow::Result<()> {
-        let mut draft = None;
-        self.core.state_tx().send_if_modified(|state| {
-            let Some(chat) = state.chat.as_mut() else {
-                return false;
-            };
-            draft = chat.draft.take();
-            draft.is_some()
-        });
-
-        // Remove stored draft
-        if draft.is_some() {
-            self.context
-                .core_user
-                .store_message_draft(self.context.chat_id, None)
-                .await?;
-        }
+        // The draft is only cleared once the message is stored, so that its
+        // text and reply/edit context survive a failed send.
+        let draft = {
+            let state = self.core.state_tx().borrow();
+            state.chat.as_ref().and_then(|chat| chat.draft.clone())
+        };
 
         let in_reply_to_mimi_id = draft
             .as_ref()
             .and_then(|d| d.in_reply_to.as_ref())
             .map(|(mimi_id, _)| *mimi_id);
 
-        let replaces = if let Some(replaces_id) = draft.and_then(|d| d.editing_id) {
+        let replaces = if let Some(replaces_id) = draft.as_ref().and_then(|d| d.editing_id) {
             // Load the original message and the Mimi ID of the original message
             let original: ChatMessage = self
                 .context
@@ -275,7 +265,8 @@ impl ChatDetailsCubitBase {
             };
 
             if plain_body == message_text {
-                // Nothing changed. Do nothing.
+                // Nothing changed, but clearing the draft leaves edit mode.
+                self.clear_draft(draft.as_ref()).await?;
                 return Ok(());
             }
             Some(original)
@@ -295,6 +286,66 @@ impl ChatDetailsCubitBase {
         )
         .await
         .inspect_err(|error| error!(%error, "Failed to send message"))?;
+
+        // We don't want to propagate the error to the UI, otherwise the user
+        // might think the message was not sent and retry, which would result in
+        // a duplicate message.
+        if let Err(error) = self.clear_draft(draft.as_ref()).await {
+            error!(%error, "Failed to clear the draft after sending");
+        }
+
+        Ok(())
+    }
+
+    /// Clears the draft in the state and in the store.
+    ///
+    /// A draft that changed since `sent_draft` was captured belongs to the
+    /// next message and is left untouched. The stored draft is removed before
+    /// the in-memory one: when the store delete fails, the draft survives in
+    /// both places instead of resurfacing from the store after a restart.
+    async fn clear_draft(&self, sent_draft: Option<&UiMessageDraft>) -> anyhow::Result<()> {
+        fn draft_version(
+            draft: Option<&UiMessageDraft>,
+        ) -> Option<(DateTime<Utc>, Option<MessageId>, Option<UiMimiId>)> {
+            draft.map(|draft| {
+                (
+                    draft.updated_at,
+                    draft.editing_id,
+                    draft.in_reply_to.as_ref().map(|(mimi_id, _)| *mimi_id),
+                )
+            })
+        }
+
+        // Without a captured draft there is nothing to clear.
+        let Some(sent_updated_at) = sent_draft.map(|draft| draft.updated_at) else {
+            return Ok(());
+        };
+        let sent_version = draft_version(sent_draft);
+        {
+            let state = self.core.state_tx().borrow();
+            let current = state.chat.as_ref().and_then(|chat| chat.draft.as_ref());
+            if draft_version(current) != sent_version {
+                return Ok(());
+            }
+        }
+
+        // The delete is keyed by the draft version, so a newer draft stored
+        // concurrently survives in the store as well.
+        self.context
+            .core_user
+            .delete_message_draft_version(self.context.chat_id, sent_updated_at)
+            .await?;
+
+        self.core.state_tx().send_if_modified(|state| {
+            let Some(chat) = state.chat.as_mut() else {
+                return false;
+            };
+            // The draft may have changed while the store delete was in flight.
+            if draft_version(chat.draft.as_ref()) != sent_version {
+                return false;
+            }
+            chat.draft.take().is_some()
+        });
 
         Ok(())
     }

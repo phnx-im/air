@@ -138,6 +138,11 @@ mod persistence {
             txn: &mut WriteDbTransaction<'_>,
             own_user: &UserId,
         ) -> sqlx::Result<Vec<ChatId>> {
+            // A report from anyone else carries their marker, not ours.
+            if self.sender.as_ref() != own_user {
+                return Ok(Vec::new());
+            }
+
             let mut newest: HashMap<ChatId, (DateTime<Utc>, MessageId)> = HashMap::new();
 
             for PerMessageStatus { mimi_id, status } in &self.report.statuses {
@@ -452,14 +457,48 @@ mod persistence {
             expected.sort();
             assert_eq!(changed_chats, expected);
 
-            let n = Chat::unread_messages_count(&mut connection, chat.id()).await?;
+            let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
             assert_eq!(
                 n, 1,
                 "only the message the sibling did not read stays unread"
             );
 
-            let n = Chat::unread_messages_count(&mut connection, other_chat.id()).await?;
+            let n =
+                Chat::unread_messages_count(&mut connection, other_chat.id(), &own_user).await?;
             assert_eq!(n, 0);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn advance_read_markers_ignores_a_report_from_someone_else(
+            pool: SqlitePool,
+        ) -> anyhow::Result<()> {
+            let pool = DbAccess::for_tests(pool);
+            let mut connection = pool.write().await?;
+
+            let own_user = UserId::random("localhost".parse().unwrap());
+            let peer = UserId::random("localhost".parse().unwrap());
+
+            let mut chat = test_chat();
+            chat.last_read = at(0);
+            chat.store(&mut connection).await?;
+
+            let message = test_chat_message_at(chat.id(), [0; 16], at(1).into());
+            message.store(&mut connection).await?;
+            let mimi_id = *message.message().mimi_id().unwrap();
+
+            let mut txn = connection.begin().await?;
+            let changed_chats =
+                StatusRecord::borrowed(&peer, read_report([mimi_id]), Utc::now().into())
+                    .advance_read_markers(&mut txn, &own_user)
+                    .await?;
+            txn.commit().await?;
+
+            assert!(changed_chats.is_empty());
+
+            let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
+            assert_eq!(n, 1, "another member must not clear our unread messages");
 
             Ok(())
         }

@@ -11,12 +11,7 @@ import 'package:flutter/widgets.dart';
 /// One cell of a [NavRail].
 @immutable
 class NavRailItem {
-  const NavRailItem({
-    required this.label,
-    required this.glyph,
-    this.onTap,
-    this.onLongPress,
-  });
+  const NavRailItem({required this.label, required this.glyph, this.onTap});
 
   final String label;
 
@@ -26,7 +21,6 @@ class NavRailItem {
   final Widget Function(Color color) glyph;
 
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
 }
 
 /// Vertical navigation rail: the desktop counterpart of the mobile tab bar.
@@ -106,7 +100,6 @@ class NavRail extends StatelessWidget {
                   active: index == activeIndex,
                   label: item.label,
                   onTap: item.onTap,
-                  onLongPress: item.onLongPress,
                   glyph: item.glyph(
                     index == activeIndex
                         ? palette.text.secondary

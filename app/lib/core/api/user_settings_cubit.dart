@@ -41,9 +41,11 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
 
   Future<void> setDefaultEmojiSkinTone({required int value});
 
-  Future<void> setInterfaceScale({required double value});
+  Future<void> setDeveloperMode({required bool value});
 
-  Future<void> setIsDeveloper({required bool value});
+  Future<void> setExperimentalFeatures({required bool value});
+
+  Future<void> setInterfaceScale({required double value});
 
   Future<void> setLocale({required String value});
 
@@ -63,10 +65,11 @@ sealed class UserSettings with _$UserSettings {
   const factory UserSettings({
     String? locale,
     double? interfaceScale,
-    @Default(300.0) double sidebarWidth,
+    @Default(240.0) double sidebarWidth,
     @Default(false) bool sendOnEnter,
     @Default(true) bool readReceipts,
-    @Default(false) bool isDeveloper,
+    @Default(false) bool developerMode,
+    @Default(false) bool experimentalFeatures,
     @Default(0) int defaultEmojiSkinTone,
   }) = _UserSettings;
 }

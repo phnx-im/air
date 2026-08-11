@@ -13,15 +13,16 @@ import 'package:flutter/widgets.dart';
 @immutable
 class HoverActionTokens {
   const HoverActionTokens({
-    this.size = S.s32,
+    this.size = S.s24,
     this.glyphSize = _glyphSize,
     this.gap = S.s8,
     this.revealMotion = MotionPreset.short,
     this.hiddenScale = _hiddenScale,
   });
 
-  /// Button diameter. A host that sits the button next to text sizes it off
-  /// that text's metrics, so the two line up.
+  /// Button diameter. Kept below the height of the text it sits beside: a
+  /// button matched to that height reads as a second bubble rather than as an
+  /// action on the first.
   final double size;
 
   /// Glyph diameter. Fixed here rather than taken from the pair for [size]:
@@ -45,7 +46,7 @@ class HoverActionTokens {
 
   static const HoverActionTokens standard = HoverActionTokens();
 
-  static const double _glyphSize = 18;
+  static const double _glyphSize = 12;
 
   static const double _hiddenScale = 0.8;
 }

@@ -287,7 +287,7 @@ void main() {
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({

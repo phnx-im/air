@@ -363,7 +363,7 @@ Widget _codeBlock(
     child: Text.rich(
       TextSpan(
         text: lines.map((line) => line.value).join('\n'),
-        style: typeScale.body.regular
+        style: typeScale.body.s
             .style(
               color: isSender
                   ? palette.message.selfText
@@ -542,7 +542,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
-      style: typeScale.body.xs.style().withSystemMonospace(),
+      style: typeScale.body.s.style().withSystemMonospace(),
     ),
     InlineElement_Link(:final destUrl, :final children) => TextSpan(
       children: children
@@ -923,7 +923,7 @@ class CustomTextEditingController extends TextEditingController {
               )
               .toList(),
         ),
-        style: typeScale.body.xs.style().withSystemMonospace(),
+        style: typeScale.body.s.style().withSystemMonospace(),
       ),
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
@@ -948,7 +948,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       InlineElement_Code() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
-        style: typeScale.body.xs.style().withSystemMonospace(),
+        style: typeScale.body.s.style().withSystemMonospace(),
       ),
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),

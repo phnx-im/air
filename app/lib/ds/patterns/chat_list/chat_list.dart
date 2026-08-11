@@ -112,6 +112,7 @@ class _ChatListState extends State<ChatList> {
       bottomFadeHeight: tokens.fades.bottomHeight,
       topSolidStop: tokens.fades.topSolidStop,
       bottomSolidStop: ChatListFadeTokens.bottomSolidStop,
+      topOpacity: tokens.fades.topOpacity,
       bottomOpacity: ChatListFadeTokens.bottomOpacity,
       contentTopPadding: widget.headerHeight + tokens.headerClearance,
       contentBottomPadding: tokens.contentBottomPadding,

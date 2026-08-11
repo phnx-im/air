@@ -87,3 +87,65 @@ class MessageInputTokens {
   /// and not to how wide the window happens to be.
   static MessageInputTokens get current => DeviceType.isPhone ? phone : desktop;
 }
+
+/// Layout tokens for the staged-reply quote shown above the field.
+abstract final class MessageInputQuoteTokens {
+  /// Gap between the field chrome's top edge and the staged quote. The chrome
+  /// has no top inset of its own, so the block carries it.
+  static const double gapAbove = S.s8;
+
+  /// Gap between the quote and the text being written. It sits outside the
+  /// fill, so the two read as separate things sharing the chrome rather than
+  /// one box crowding the other. The field drops its own top inset while
+  /// anything sits above it, so this is the whole of that gap.
+  static const double gapBelow = S.s8;
+
+  /// Inset from the chrome's side edges. Narrower than the field's own, so the
+  /// quote reads as a block set into the chrome rather than another line of
+  /// text sharing the composer's left edge.
+  static const double gapSide = S.s8;
+
+  /// Inset between the fill and the quoted text, even all round: the quote is
+  /// two short lines, and [gapBelow] keeps the field clear of the fill.
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: S.s12,
+    vertical: S.s8,
+  );
+
+  static const double radius = CornerRadius.px12;
+
+  /// The rule down the leading edge, which is what marks the text as quoted.
+  static const double accentWidth = StrokeWidth.px1;
+
+  /// Gap between the accent rule and the quoted text.
+  static const double accentGap = S.s12;
+
+  /// Gap between the sender's name and the preview under it.
+  static const double senderGap = S.s2;
+
+  /// Gap between the quoted text and the still of a quoted picture.
+  static const double thumbGap = S.s8;
+
+  /// Lines of the quoted message shown before it ellipsizes.
+  static const int previewMaxLines = 2;
+
+  /// The dismiss button: a small circle with a generous ring of hit target
+  /// around it.
+  static const double removeSize = S.s20;
+  static const double removeHitTarget = S.s32;
+  static const double removeIconSize = S.s12;
+
+  /// How far the dismiss circle hangs past the block's top-right corner, so it
+  /// reads as pinned to the corner rather than sitting inside the quote.
+  ///
+  /// Capped by the chrome's own rounded corner, which the circle has to stay
+  /// within. At [gapSide] and [gapAbove] the phone's radius clears an overhang
+  /// of about 5, so this keeps a pixel in hand.
+  static const double removeOverhang = S.s4;
+
+  /// Offset for the button, which lays out at [removeHitTarget] with the circle
+  /// centred in it, so the ring has to be backed out for [removeOverhang] to
+  /// measure from the circle's own edge.
+  static const double removeOffset =
+      -(removeOverhang + (removeHitTarget - removeSize) / 2);
+}

@@ -5,14 +5,18 @@
 import 'dart:math' as math;
 
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+import 'package:logging/logging.dart';
 
 import 'package:air/util/anchored_list/controller.dart';
 import 'package:air/util/anchored_list/data.dart';
 import 'package:air/util/anchored_list/height_cache.dart';
 import 'package:air/util/anchored_list/jump_state.dart';
+
+final _log = Logger("AnchoredList");
 
 /// A scrollable list anchored to the bottom, designed for chat UIs.
 ///
@@ -113,8 +117,14 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
   /// Reverse lookup from item identity to its current index in [data].
   /// Rebuilt on every data change so anchor resolution and child-index
-  /// callbacks are O(1).
+  /// callbacks are O(1). Only the first occurrence of an id is kept.
   Map<Object, int> _idToIndex = {};
+
+  /// Indices whose id already appeared at a lower index.
+  Set<int> _duplicateIndices = const {};
+
+  /// Duplicated ids, kept to log the warning once per distinct set.
+  Set<Object> _duplicateIds = const {};
 
   /// Set between [_onDataChanged] (which captures the pre-layout snapshot)
   /// and [_resolvePendingLayoutCorrection] (which runs during layout). Null
@@ -220,11 +230,27 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
   void _rebuildIdToIndex() {
     final newMap = <Object, int>{};
+    final duplicateIndices = <int>{};
+    final duplicateIds = <Object>{};
     final items = widget.data.items;
     for (var i = 0; i < items.length; i++) {
-      newMap[widget.idExtractor(items[i])] = i;
+      final id = widget.idExtractor(items[i]);
+      if (newMap[id] == null) {
+        newMap[id] = i;
+      } else {
+        duplicateIndices.add(i);
+        duplicateIds.add(id);
+      }
+    }
+    if (duplicateIds.isNotEmpty && !setEquals(duplicateIds, _duplicateIds)) {
+      _log.warning(
+        "Duplicate item ids in AnchoredList data: $duplicateIds. "
+        "Rendering the later occurrences without element reuse.",
+      );
     }
     _idToIndex = newMap;
+    _duplicateIndices = duplicateIndices.isEmpty ? const {} : duplicateIndices;
+    _duplicateIds = duplicateIds.isEmpty ? const {} : duplicateIds;
   }
 
   // -- Scroll correction engine --
@@ -1114,8 +1140,13 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   Widget _buildItem(BuildContext context, int index) {
     final item = widget.data[index];
     final id = widget.idExtractor(item);
+    // A repeated id key would let the sliver remap two live children onto
+    // one index and corrupt its child order.
+    final key = _duplicateIndices.contains(index)
+        ? _DuplicateItemKey(id, index)
+        : ValueKey<Object>(id);
     return _MeasuredItem(
-      key: ValueKey<Object>(id),
+      key: key,
       id: id,
       cache: _heightCache,
       child: widget.itemBuilder(context, item, index),
@@ -1362,6 +1393,22 @@ class _HeightCachingDelegate extends SliverChildBuilderDelegate {
     final remainingCount = total - lastIndex - 1;
     return trailingScrollOffset + remainingCount * avgHeight;
   }
+}
+
+/// Key for a repeated id. Not a [ValueKey], so child-index lookup skips it
+/// and the framework builds a fresh element instead of reusing one.
+class _DuplicateItemKey extends LocalKey {
+  const _DuplicateItemKey(this.id, this.index);
+
+  final Object id;
+  final int index;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _DuplicateItemKey && other.id == id && other.index == index;
+
+  @override
+  int get hashCode => Object.hash(id, index);
 }
 
 /// Wraps a child widget in a [RenderProxyBox] that records the child's

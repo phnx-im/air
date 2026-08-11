@@ -65,8 +65,8 @@ class MemberSelectionList extends HookWidget {
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        thickness: StrokeWidth.px1,
-        color: SemanticPalette.of(context).backgroundBase.primary,
+        thickness: StrokeWidth.px0_5,
+        color: SemanticPalette.of(context).separator.secondary,
       ),
       itemBuilder: (context, index) {
         final contact = sortedContacts[index];

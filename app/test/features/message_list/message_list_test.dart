@@ -463,6 +463,107 @@ final richContent = UiMimiContent(
   attachments: [],
 );
 
+/// A paragraph with an inline code span, followed by a fenced code block, so
+/// one image carries monospace at both sizes next to the proportional prose.
+final codeBlockContent = UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody:
+      'Call `main` first:\n\n```\nfn main() {\n'
+      '    let n = 21;\n    println!("{n}");\n}\n```',
+  content: const MessageContent(
+    elements: [
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Paragraph([
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text('Call '),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Code('main'),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text(' first:'),
+          ),
+        ]),
+      ),
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_CodeBlock([
+          RangedCodeBlock(start: 0, end: 0, value: 'fn main() {'),
+          RangedCodeBlock(start: 0, end: 0, value: '    let n = 21;'),
+          RangedCodeBlock(start: 0, end: 0, value: '    println!("{n}");'),
+          RangedCodeBlock(start: 0, end: 0, value: '}'),
+        ]),
+      ),
+    ],
+  ),
+  attachments: [],
+);
+
+final codeBlockMessages = [
+  // Plain prose, as the reference the monospace sits next to.
+  UiChatMessage(
+    id: 30.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:30:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Have a look at the snippet below.',
+          topicId: Uint8List(0),
+          content: simpleMessage('Have a look at the snippet below.'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+  // Incoming, so the slab carries `message.otherText`.
+  UiChatMessage(
+    id: 31.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:31:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: codeBlockContent,
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+  // Outgoing, so the same slab carries `message.selfText`.
+  UiChatMessage(
+    id: 32.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:32:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: codeBlockContent,
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+];
+
 final jumboEmojiMessages = [
   // Jumbo: single emoji from other user
   UiChatMessage(
@@ -933,13 +1034,32 @@ void main() {
         await tester.pumpWidget(buildSubject());
 
         // The reader's own last message keeps its stamp even though someone has
-        // replied since, so how far it got stays on screen.
+        // replied since. It reports how far it got rather than when it was
+        // sent: the clock belongs to the end of the chat alone.
         expect(find.byType(MessageMeta), findsNWidgets(2));
-        expect(find.text(stampLabel(3)), findsOneWidget);
+        expect(find.text('Delivered'), findsOneWidget);
+        expect(find.text(stampLabel(3)), findsNothing);
         expect(find.text(stampLabel(4)), findsOneWidget);
       });
 
-      testWidgets('stay with an edited message wherever it sits', (
+      testWidgets('read as clock, glyph and word at the end of the chat', (
+        tester,
+      ) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 2),
+          stampFixture(2, sender: 1, status: UiMessageStatus.read),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // Own and newest at once, so the row carries all three: the reader's
+        // own last word is also the end of the chat.
+        expect(find.byType(MessageMeta), findsOneWidget);
+        expect(find.text(stampLabel(2)), findsOneWidget);
+        expect(find.text('Read'), findsOneWidget);
+      });
+
+      testWidgets('mark an edited message wherever it sits, without a time', (
         tester,
       ) async {
         messageListCubit.setState([
@@ -953,10 +1073,12 @@ void main() {
 
         // The edited message, and the end of the chat.
         expect(find.byType(MessageMeta), findsNWidgets(2));
-        expect(find.text(stampLabel(2)), findsOneWidget);
+        // The marker is the reader's business; when the edit happened is not.
+        expect(find.text('Edited'), findsOneWidget);
+        expect(find.text(stampLabel(2)), findsNothing);
       });
 
-      testWidgets('stay with a send that failed', (tester) async {
+      testWidgets('report a send that failed, without a time', (tester) async {
         messageListCubit.setState([
           stampFixture(1, sender: 1, status: UiMessageStatus.error),
           stampFixture(2, sender: 1),
@@ -968,10 +1090,13 @@ void main() {
         // The failed send, the reader's own last message, and the end of the
         // chat.
         expect(find.byType(MessageMeta), findsNWidgets(3));
-        expect(find.text(stampLabel(1)), findsOneWidget);
+        expect(find.text('Failed to send'), findsOneWidget);
+        expect(find.text(stampLabel(1)), findsNothing);
       });
 
-      testWidgets('stay with a send nobody has received yet', (tester) async {
+      testWidgets('report a send nobody has received yet, without a time', (
+        tester,
+      ) async {
         messageListCubit.setState([
           stampFixture(1, sender: 1, status: UiMessageStatus.sent),
           stampFixture(2, sender: 1),
@@ -983,7 +1108,51 @@ void main() {
         // The undelivered send, the reader's own last message, and the end of
         // the chat.
         expect(find.byType(MessageMeta), findsNWidgets(3));
-        expect(find.text(stampLabel(1)), findsOneWidget);
+        expect(find.text(stampLabel(1)), findsNothing);
+      });
+
+      testWidgets('leave an edit halfway up the history unreported', (
+        tester,
+      ) async {
+        // Editing puts a message back to sent, however long ago the original
+        // arrived. Message 1 is neither the end of the chat nor the reader's
+        // own last, so the edit is all it has to report.
+        messageListCubit.setState([
+          stampFixture(
+            1,
+            sender: 1,
+            edited: true,
+            status: UiMessageStatus.sent,
+          ),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(find.byType(MessageMeta), findsNWidgets(3));
+        expect(find.text('Edited'), findsOneWidget);
+        expect(find.text('Sent'), findsNothing);
+      });
+
+      testWidgets('report an edit that failed to go out', (tester) async {
+        // A failed edit is the reader's business wherever it sits: the message
+        // on screen is not the one the chat has.
+        messageListCubit.setState([
+          stampFixture(
+            1,
+            sender: 1,
+            edited: true,
+            status: UiMessageStatus.error,
+          ),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(find.text('Edited'), findsOneWidget);
+        expect(find.text('Failed to send'), findsOneWidget);
       });
 
       testWidgets('leave a send that landed with someone alone', (
@@ -1046,6 +1215,37 @@ void main() {
         // The label rides in the row without taking any of it: the bubble sits
         // exactly where it did before the pointer arrived.
         expect(tester.getRect(body), bubbleBefore);
+      });
+
+      testWidgets('are reachable on hover on a row that takes no actions', (
+        tester,
+      ) async {
+        // A failed send takes neither a reply nor a reaction, so the hover
+        // buttons drop out of the row. The pointer is still the only way to
+        // its time, so the label has to come up without them.
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.error),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject(platform: TargetPlatform.macOS));
+
+        final label = stampLabel(1);
+        expect(find.text(label), findsNothing);
+
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await pointer.addPointer(location: Offset.zero);
+        addTearDown(pointer.removePointer);
+        await pointer.moveTo(
+          tester.getCenter(find.text('Message 1', findRichText: true)),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 700));
+
+        expect(find.text(label), findsOneWidget);
       });
 
       testWidgets('are withheld while newer messages remain unloaded', (
@@ -1203,6 +1403,22 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_jumbo_emoji.png'),
+      );
+    });
+
+    testWidgets('renders a code block next to prose', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1500);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(codeBlockMessages);
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_code_block.png'),
       );
     });
 
