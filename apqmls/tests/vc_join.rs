@@ -402,12 +402,7 @@ fn sibling_joins_group_created_by_virtual_client() {
     }
 }
 
-// Blocked upstream: `MlsGroup::vc_join_via_sibling_external_commit` stages the commit without
-// app-data updates (openmls creation.rs, `stage_commit`), so it rejects any commit carrying an
-// AppDataUpdate proposal with `MissingAppDataUpdates`. Every APQ commit carries one, for the
-// ApqInfo epoch bump.
 #[test]
-#[ignore = "needs an OpenMLS sibling-join entry point that resolves app-data updates"]
 fn sibling_joins_group_via_external_commit_of_virtual_client() {
     for mode in TEST_MODES {
         let alice = new_virtual_client("Alice (VC)", mode);
@@ -452,10 +447,7 @@ fn sibling_joins_group_via_external_commit_of_virtual_client() {
     }
 }
 
-// Blocked by the same upstream gap as
-// `sibling_joins_group_via_external_commit_of_virtual_client`.
 #[test]
-#[ignore = "needs an OpenMLS sibling-join entry point that resolves app-data updates"]
 fn sibling_join_resolves_application_psk_of_external_commit() {
     let mode = PqtMode::ConfAndAuth;
     let alice = new_virtual_client("Alice (VC)", mode);
