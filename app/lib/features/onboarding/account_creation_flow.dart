@@ -8,6 +8,7 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
@@ -160,9 +161,21 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
             )
           : null,
       footer: _footer(loc, step),
-      child: _body(loc, step),
+      // The fields belong to the flow rather than to the step showing them, so
+      // what any of them holds is what leaving the flow would drop.
+      child: ModalDismissGuard(
+        hasUnsavedInput: _hasEnteredData,
+        child: _body(loc, step),
+      ),
     );
   }
+
+  /// The domain is left out: it comes pre-filled from the server the client
+  /// points at, so counting it would make every step look half-written.
+  bool _hasEnteredData() =>
+      _codeController.text.trim().isNotEmpty ||
+      _displayNameController.text.trim().isNotEmpty ||
+      _usernameController.text.trim().isNotEmpty;
 
   Widget _footer(AppLocalizations loc, _Step step) {
     final registration = context.watch<RegistrationCubit>().state;

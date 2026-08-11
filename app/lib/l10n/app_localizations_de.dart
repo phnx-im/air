@@ -264,6 +264,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Speichern';
 
   @override
+  String get unsavedInputDialog_title => 'Möchtest du wirklich schließen?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Abbrechen';
+
+  @override
+  String get unsavedInputDialog_close => 'Schließen';
+
+  @override
   String get introScreen_serverLabel =>
       'Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.';
 

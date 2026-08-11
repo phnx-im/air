@@ -38,12 +38,28 @@ class ModalCardRoute<T> extends PageRoute<T> {
   @override
   final Color barrierColor;
 
+  /// The way out the modal on the surface shows in its header, or `null` where
+  /// it has none.
+  VoidCallback? _onDismiss;
+
+  /// Hands the route what closing the modal does, so the scrim can run it.
+  ///
+  /// Published from the surface rather than passed in, because only the modal
+  /// knows whether the page it currently shows can be left at all, and that
+  /// answer changes while the route stays put.
+  void publishDismiss(VoidCallback? onDismiss) {
+    _onDismiss = onDismiss;
+  }
+
   @override
   String? get barrierLabel => null;
 
   @override
   bool get opaque => false;
 
+  /// True for the keyboard's sake: the framework gates `Escape` on this flag.
+  /// What a click on the scrim does is the modal's to say, through
+  /// [publishDismiss].
   @override
   bool get barrierDismissible => true;
 
@@ -59,7 +75,12 @@ class ModalCardRoute<T> extends PageRoute<T> {
         end: barrierColor,
       ).chain(CurveTween(curve: barrierCurve)),
     ),
-    onDismiss: () {},
+    // The modal's own dismiss rather than the pop the framework would do: a
+    // card can sit several levels deep, where popping the route reads as "go
+    // back one" instead of closing what the click landed beside. Inert while
+    // nothing is published, which is how a modal that has to be seen through
+    // keeps the scrim from letting anyone past it.
+    onDismiss: () => _onDismiss?.call(),
     barrierSemanticsDismissible: false,
   );
 

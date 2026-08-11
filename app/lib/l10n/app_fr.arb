@@ -76,6 +76,10 @@
   "changeGroupTitleDialog_content": "Choisissez un titre pour le groupe.",
   "changeGroupTitleDialog_cancel": "Annuler",
   "changeGroupTitleDialog_confirm": "Enregistrer",
+
+  "unsavedInputDialog_title": "Voulez-vous vraiment fermer ?",
+  "unsavedInputDialog_cancel": "Annuler",
+  "unsavedInputDialog_close": "Fermer",
   "introScreen_serverLabel": "Choisissez un serveur auquel vous connecter pour l'association.",
   "introScreen_serverHint": "NOM DE DOMAINE",
 
