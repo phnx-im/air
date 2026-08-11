@@ -357,9 +357,9 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (isDeveloper, readReceipts) = context.select(
+    final (experimentalFeatures, readReceipts) = context.select(
       (UserSettingsCubit cubit) =>
-          (cubit.state.isDeveloper, cubit.state.readReceipts),
+          (cubit.state.experimentalFeaturesActive, cubit.state.readReceipts),
     );
 
     final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
@@ -373,7 +373,7 @@ class _TrailingIndicator extends StatelessWidget {
       );
     });
 
-    if (isDeveloper && pendingCommitFailed) {
+    if (experimentalFeatures && pendingCommitFailed) {
       return const ChatListStatusIndicator(
         status: MessageDeliveryStatus.failed,
       );

@@ -158,13 +158,11 @@ Future<String?> showEmojiPickerPopover({
   required BuildContext context,
   EmojiSkinVariation initialSkinTone = EmojiSkinVariation.none,
   ValueChanged<EmojiSkinVariation>? onSkinToneChanged,
-  Color? barrierColor,
 }) {
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
-    barrierColor:
-        barrierColor ?? SemanticPalette.of(context).function.neutral.scrim,
+    barrierColor: SemanticPalette.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -193,11 +191,9 @@ Future<String?> showEmojiPickerSheet({
   required BuildContext context,
   EmojiSkinVariation initialSkinTone = EmojiSkinVariation.none,
   ValueChanged<EmojiSkinVariation>? onSkinToneChanged,
-  Color? barrierColor,
 }) {
   return showAdaptiveModal<String>(
     context: context,
-    barrierColor: barrierColor,
     contentPadding: const EdgeInsets.all(_panelPadding),
     builder: (context) => SizedBox(
       height: _emojiPickerPanelSize.height,

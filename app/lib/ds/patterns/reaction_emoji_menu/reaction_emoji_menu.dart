@@ -13,7 +13,8 @@ import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu_tokens.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart' show MaterialLocalizations;
+import 'package:flutter/material.dart'
+    show Material, MaterialLocalizations, MaterialType;
 import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 
@@ -470,23 +471,26 @@ class _TonePickerPage extends StatelessWidget {
     // Only the vertical position tracks the anchor. A full-width slot plus a
     // Center keeps the card on the viewport's axis at any size, without having
     // to guess how wide it came out.
-    return Stack(
-      children: [
-        Positioned(
-          top: top,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: _ToneCard(
-              tokens: tokens,
-              options: options,
-              selected: selected,
-              helpLabel: helpLabel,
-              onPicked: onPicked,
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned(
+            top: top,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _ToneCard(
+                tokens: tokens,
+                options: options,
+                selected: selected,
+                helpLabel: helpLabel,
+                onPicked: onPicked,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

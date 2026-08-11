@@ -32,9 +32,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Oberflächenskalierung';
-
-  @override
   String get userSettingsScreen_help => 'Hilfe';
 
   @override
@@ -102,10 +99,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
-
-  @override
-  String get addMembersScreen_error_noActiveChat =>
-      'ein aktiver Chat ist erforderlich';
 
   @override
   String get contactDetailsScreen_title => 'Profil';
@@ -276,9 +269,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get introScreen_serverHint => 'DOMAINNAME';
-
-  @override
-  String get introScreen_error_invalidDomain => 'Domain ist ungültig';
 
   @override
   String get introScreen_linkExisting =>
@@ -453,9 +443,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking => 'Verknüpfe...';
-
-  @override
-  String get linkingDeviceScreen_linked => 'Gerät erfolgreich verknüpft!';
 
   @override
   String get linkingDeviceScreen_linking_confirm_title =>
@@ -815,7 +802,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.';
+      'Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';
@@ -836,6 +823,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageBubble_failedToSend => 'Senden fehlgeschlagen';
+
+  @override
+  String get messageBubble_sent => 'Gesendet';
+
+  @override
+  String get messageBubble_delivered => 'Zugestellt';
+
+  @override
+  String get messageBubble_read => 'Gelesen';
 
   @override
   String get chatList_newContact => 'Neuer Kontakt';
@@ -861,9 +857,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blockiert';
-
-  @override
-  String get chatList_muted => 'Stummgeschaltet';
 
   @override
   String get chatList_contextMenu_mute => 'Stummschalten';
@@ -940,6 +933,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get composer_editMessage => 'Nachricht bearbeiten';
 
   @override
+  String get composer_error_sendMessage =>
+      'Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.';
+
+  @override
   String get composer_error_attachment =>
       'Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.';
 
@@ -975,22 +972,19 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get attachment_tryAgain => 'Erneut versuchen';
-
-  @override
-  String get attachment_gallery => 'Galerie';
+  String get attachment_images => 'Bilder';
 
   @override
   String get attachment_camera => 'Kamera';
 
   @override
-  String get attachment_file => 'Datei';
+  String get attachment_otherFiles => 'Andere Dateien';
 
   @override
   String get attachment_notFound => 'Anhang ist nicht mehr verfügbar.';
 
   @override
-  String get textMessage_edited => 'bearbeitet';
+  String get textMessage_edited => 'Bearbeitet';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1092,7 +1086,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Spam konnte nicht gemeldet werden. Bitte versuche es erneut.';
 
   @override
-  String get helpScreen_contactUs => 'Kontakt';
+  String get helpScreen_contactUs => 'Air kontaktieren';
 
   @override
   String get helpScreen_versionInfo => 'Versionsinformationen';
@@ -1104,7 +1098,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get licensesScreen_title => 'Lizenzen';
 
   @override
-  String get contactUsScreen_title => 'Kontakt';
+  String get contactUsScreen_title => 'Air kontaktieren';
 
   @override
   String get contactUsScreen_subject => 'Nachrichtenbetreff';
@@ -1113,7 +1107,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUsScreen_body => 'Inhalt';
 
   @override
-  String get contactUsScreen_includeLogs => 'Logs teilen';
+  String get contactUsScreen_includeLogs =>
+      'Logs teilen (das hilft Air, Fehler zu beheben)';
 
   @override
   String get contactUsScreen_composeEmail => 'E-Mail verfassen';
@@ -1166,9 +1161,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupDetails_addPeople => 'Hinzufügen';
 
   @override
-  String get groupDetails_seeAll => 'Alle anzeigen';
-
-  @override
   String groupDetails_memberCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1178,6 +1170,9 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'Alle anzeigen';
 
   @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';

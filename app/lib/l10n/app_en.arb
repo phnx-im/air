@@ -5,7 +5,6 @@
   "userSettingsScreen_title": "Profile and Settings",
   "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
   "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
-  "userSettingsScreen_interfaceScale": "Interface scale",
   "userSettingsScreen_help": "Help",
   "userSettingsScreen_deleteAccount": "Delete Air account",
   "userSettingsScreen_sendWithEnter": "Send with Enter",
@@ -36,7 +35,6 @@
   "userSettingsScreen_usernamePlaceholder": "Username",
 
   "addMembersScreen_addMembers": "Add member(s)",
-  "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
   "contactDetailsScreen_title": "Profile",
   "contactDetailsScreen_chat": "Chat",
@@ -99,7 +97,6 @@
 
   "introScreen_serverLabel": "Choose a server to connect to for linking.",
   "introScreen_serverHint": "DOMAIN NAME",
-  "introScreen_error_invalidDomain": "Domain is invalid",
 
   "introScreen_linkExisting": "Link to an existing account",
   "introScreen_signUp": "Create account",
@@ -159,7 +156,6 @@
   "linkingDeviceScreen_separator": "or",
   "linkingDeviceScreen_numericCode": "Numeric code",
   "linkingDeviceScreen_linking": "Linking...",
-  "linkingDeviceScreen_linked": "Device successfully linked!",
   "linkingDeviceScreen_linking_confirm_title": "Confirm linking",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tap to edit device name",
   "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
@@ -286,7 +282,7 @@
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " created the group",
 
-  "systemMessage_onboarded": "This client has been onboarded into the group after linking.",
+  "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
 
   "timestamp_now": "Now",
   "timestamp_minutesAgo": "{count}m",
@@ -302,6 +298,9 @@
 
   "messageBubble_sending": "Sending",
   "messageBubble_failedToSend": "Failed to send",
+  "messageBubble_sent": "Sent",
+  "messageBubble_delivered": "Delivered",
+  "messageBubble_read": "Read",
 
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
@@ -312,7 +311,6 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
-  "chatList_muted": "Muted",
   "chatList_contextMenu_mute": "Mute",
   "chatList_contextMenu_unmute": "Unmute",
 
@@ -335,6 +333,7 @@
 
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",
+  "composer_error_sendMessage": "Failed to send message. Try again.",
   "composer_error_attachment": "Failed to upload attachment. Try again.",
   "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
 
@@ -355,13 +354,12 @@
     }
   },
 
-  "attachment_tryAgain": "Try again",
-  "attachment_gallery": "Gallery",
+  "attachment_images": "Images",
   "attachment_camera": "Camera",
-  "attachment_file": "File",
+  "attachment_otherFiles": "Other files",
   "attachment_notFound": "Attachment is no longer available.",
 
-  "textMessage_edited": "edited",
+  "textMessage_edited": "Edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
   "textMessage_deletedBySelf": "You deleted this message.",
@@ -406,16 +404,16 @@
   "reportSpamDialog_success": "Spam reported",
   "reportSpamDialog_error": "Failed to report spam. Try again.",
 
-  "helpScreen_contactUs": "Contact us",
+  "helpScreen_contactUs": "Contact Air",
   "helpScreen_versionInfo": "Version info",
   "helpScreen_licenses": "Licenses",
 
   "licensesScreen_title": "Licenses",
 
-  "contactUsScreen_title": "Contact",
+  "contactUsScreen_title": "Contact Air",
   "contactUsScreen_subject": "Message subject",
   "contactUsScreen_body": "Body",
-  "contactUsScreen_includeLogs": "Share your logs",
+  "contactUsScreen_includeLogs": "Share your logs (this helps Air fix bugs)",
   "contactUsScreen_composeEmail": "Compose email",
   "contactUsScreen_subject_somethingNotWorking": "Something's not working",
   "contactUsScreen_subject_iHaveAQuestion": "I have a question",
@@ -432,7 +430,6 @@
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",
   "groupDetails_addPeople": "Add people",
-  "groupDetails_seeAll": "See all",
   "groupDetails_memberCount": "{count, plural, one {{count} person} other {{count} people}}",
   "@groupDetails_memberCount": {
     "placeholders": {
@@ -441,6 +438,7 @@
       }
     }
   },
+  "groupDetails_seeAll": "See all",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",

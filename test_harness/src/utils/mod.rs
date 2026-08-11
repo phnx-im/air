@@ -157,6 +157,10 @@ pub(crate) async fn spawn_app(
                 interceptor_control_handle.set_normal();
                 return Err(Status::unavailable("cancelled for interop test"));
             }
+            Mode::RejectNextRequest => {
+                interceptor_control_handle.set_normal();
+                return Err(Status::invalid_argument("rejected for interop test"));
+            }
             _ => {}
         }
         Ok(request)

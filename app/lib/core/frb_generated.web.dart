@@ -23,7 +23,7 @@ import 'api/message_content.dart';
 import 'api/message_cubit.dart';
 import 'api/message_list_cubit.dart';
 import 'api/multi_device.dart';
-import 'api/navigation_cubit.dart';
+import 'api/notification_context.dart';
 import 'api/notifications.dart';
 import 'api/types.dart';
 import 'api/user.dart';
@@ -101,8 +101,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMultiDeviceProvisionedUser;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase;
+  get rust_arc_decrement_strong_count_NotificationContextBasePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_UiRoomStatePtr => wire
@@ -217,8 +217,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     dynamic raw,
   );
 
@@ -349,8 +349,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     dynamic raw,
   );
 
@@ -520,8 +520,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     dynamic raw,
   );
 
@@ -633,11 +633,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_multi_device_provision_event_Sse(dynamic raw);
 
   @protected
-  RustStreamSink<NavigationState> dco_decode_StreamSink_navigation_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
   RustStreamSink<UiAttachmentStatus>
   dco_decode_StreamSink_ui_attachment_status_Sse(dynamic raw);
 
@@ -736,10 +731,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DeveloperSettingsScreenType
-  dco_decode_box_autoadd_developer_settings_screen_type(dynamic raw);
-
-  @protected
   EncryptedGroupTitleDebugInfo
   dco_decode_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
 
@@ -754,13 +745,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDataDebugInfo dco_decode_box_autoadd_group_data_debug_info(dynamic raw);
 
   @protected
-  HomeNavigationState dco_decode_box_autoadd_home_navigation_state(dynamic raw);
-
-  @protected
   ImageData dco_decode_box_autoadd_image_data(dynamic raw);
-
-  @protected
-  IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
 
   @protected
   InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
@@ -779,6 +764,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageState dco_decode_box_autoadd_message_state(dynamic raw);
+
+  @protected
+  NotificationPolicy dco_decode_box_autoadd_notification_policy(dynamic raw);
 
   @protected
   PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
@@ -864,9 +852,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  YouSection dco_decode_box_autoadd_you_section(dynamic raw);
-
-  @protected
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
 
   @protected
@@ -894,11 +879,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DeleteMode dco_decode_delete_mode(dynamic raw);
 
   @protected
-  DeveloperSettingsScreenType dco_decode_developer_settings_screen_type(
-    dynamic raw,
-  );
-
-  @protected
   EncryptedGroupTitleDebugInfo dco_decode_encrypted_group_title_debug_info(
     dynamic raw,
   );
@@ -918,12 +898,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw);
 
   @protected
-  HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
-
-  @protected
-  HomeTab dco_decode_home_tab(dynamic raw);
-
-  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -934,9 +908,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InlineElement dco_decode_inline_element(dynamic raw);
-
-  @protected
-  IntroScreenType dco_decode_intro_screen_type(dynamic raw);
 
   @protected
   InvitationCode dco_decode_invitation_code(dynamic raw);
@@ -972,9 +943,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ConversationParticipant> dco_decode_list_conversation_participant(
     dynamic raw,
   );
-
-  @protected
-  List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
 
   @protected
   List<List<List<RangedBlockElement>>>
@@ -1091,9 +1059,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationState dco_decode_navigation_state(dynamic raw);
-
-  @protected
   NotificationContent dco_decode_notification_content(dynamic raw);
 
   @protected
@@ -1101,6 +1066,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NotificationId dco_decode_notification_id(dynamic raw);
+
+  @protected
+  NotificationPolicy dco_decode_notification_policy(dynamic raw);
 
   @protected
   int? dco_decode_opt_CastedPrimitive_usize(dynamic raw);
@@ -1158,10 +1126,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   ConversationNotification?
   dco_decode_opt_box_autoadd_conversation_notification(dynamic raw);
-
-  @protected
-  DeveloperSettingsScreenType?
-  dco_decode_opt_box_autoadd_developer_settings_screen_type(dynamic raw);
 
   @protected
   EncryptedGroupTitleDebugInfo?
@@ -1256,9 +1220,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UsernameValidationError? dco_decode_opt_box_autoadd_username_validation_error(
     dynamic raw,
   );
-
-  @protected
-  YouSection? dco_decode_opt_box_autoadd_you_section(dynamic raw);
 
   @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
@@ -1419,9 +1380,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
-  YouSection dco_decode_you_section(dynamic raw);
-
-  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -1503,8 +1461,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     SseDeserializer deserializer,
   );
 
@@ -1635,8 +1593,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     SseDeserializer deserializer,
   );
 
@@ -1786,8 +1744,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  NotificationContextBase
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     SseDeserializer deserializer,
   );
 
@@ -1909,11 +1867,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  RustStreamSink<NavigationState> sse_decode_StreamSink_navigation_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   RustStreamSink<UiAttachmentStatus>
   sse_decode_StreamSink_ui_attachment_status_Sse(SseDeserializer deserializer);
 
@@ -2020,12 +1973,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DeveloperSettingsScreenType
-  sse_decode_box_autoadd_developer_settings_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   EncryptedGroupTitleDebugInfo
   sse_decode_box_autoadd_encrypted_group_title_debug_info(
     SseDeserializer deserializer,
@@ -2046,17 +1993,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  HomeNavigationState sse_decode_box_autoadd_home_navigation_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   ImageData sse_decode_box_autoadd_image_data(SseDeserializer deserializer);
-
-  @protected
-  IntroScreenType sse_decode_box_autoadd_intro_screen_type(
-    SseDeserializer deserializer,
-  );
 
   @protected
   InvitationCode sse_decode_box_autoadd_invitation_code(
@@ -2083,6 +2020,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageState sse_decode_box_autoadd_message_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  NotificationPolicy sse_decode_box_autoadd_notification_policy(
     SseDeserializer deserializer,
   );
 
@@ -2206,9 +2148,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  YouSection sse_decode_box_autoadd_you_section(SseDeserializer deserializer);
-
-  @protected
   UiContentMessage sse_decode_box_ui_content_message(
     SseDeserializer deserializer,
   );
@@ -2244,11 +2183,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
 
   @protected
-  DeveloperSettingsScreenType sse_decode_developer_settings_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   EncryptedGroupTitleDebugInfo sse_decode_encrypted_group_title_debug_info(
     SseDeserializer deserializer,
   );
@@ -2270,14 +2204,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GroupDebugInfo sse_decode_group_debug_info(SseDeserializer deserializer);
 
   @protected
-  HomeNavigationState sse_decode_home_navigation_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  HomeTab sse_decode_home_tab(SseDeserializer deserializer);
-
-  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -2288,9 +2214,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InlineElement sse_decode_inline_element(SseDeserializer deserializer);
-
-  @protected
-  IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
 
   @protected
   InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
@@ -2332,11 +2255,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConversationParticipant> sse_decode_list_conversation_participant(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<IntroScreenType> sse_decode_list_intro_screen_type(
     SseDeserializer deserializer,
   );
 
@@ -2491,9 +2409,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  NavigationState sse_decode_navigation_state(SseDeserializer deserializer);
-
-  @protected
   NotificationContent sse_decode_notification_content(
     SseDeserializer deserializer,
   );
@@ -2505,6 +2420,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NotificationId sse_decode_notification_id(SseDeserializer deserializer);
+
+  @protected
+  NotificationPolicy sse_decode_notification_policy(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int? sse_decode_opt_CastedPrimitive_usize(SseDeserializer deserializer);
@@ -2572,12 +2492,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   ConversationNotification?
   sse_decode_opt_box_autoadd_conversation_notification(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  DeveloperSettingsScreenType?
-  sse_decode_opt_box_autoadd_developer_settings_screen_type(
     SseDeserializer deserializer,
   );
 
@@ -2704,11 +2618,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UsernameValidationError? sse_decode_opt_box_autoadd_username_validation_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  YouSection? sse_decode_opt_box_autoadd_you_section(
     SseDeserializer deserializer,
   );
 
@@ -2891,9 +2800,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  YouSection sse_decode_you_section(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -2992,8 +2898,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
+    NotificationContextBase self,
     SseSerializer serializer,
   );
 
@@ -3146,8 +3052,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
+    NotificationContextBase self,
     SseSerializer serializer,
   );
 
@@ -3347,8 +3253,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
+    NotificationContextBase self,
     SseSerializer serializer,
   );
 
@@ -3489,12 +3395,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_StreamSink_navigation_state_Sse(
-    RustStreamSink<NavigationState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_StreamSink_ui_attachment_status_Sse(
     RustStreamSink<UiAttachmentStatus> self,
     SseSerializer serializer,
@@ -3624,12 +3524,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_developer_settings_screen_type(
-    DeveloperSettingsScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_encrypted_group_title_debug_info(
     EncryptedGroupTitleDebugInfo self,
     SseSerializer serializer,
@@ -3651,20 +3545,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_home_navigation_state(
-    HomeNavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_image_data(
     ImageData self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_intro_screen_type(
-    IntroScreenType self,
     SseSerializer serializer,
   );
 
@@ -3701,6 +3583,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_message_state(
     MessageState self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_notification_policy(
+    NotificationPolicy self,
     SseSerializer serializer,
   );
 
@@ -3852,12 +3740,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_you_section(
-    YouSection self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_ui_content_message(
     UiContentMessage self,
     SseSerializer serializer,
@@ -3903,12 +3785,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer);
 
   @protected
-  void sse_encode_developer_settings_screen_type(
-    DeveloperSettingsScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_encrypted_group_title_debug_info(
     EncryptedGroupTitleDebugInfo self,
     SseSerializer serializer,
@@ -3936,15 +3812,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_home_navigation_state(
-    HomeNavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_home_tab(HomeTab self, SseSerializer serializer);
-
-  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -3955,12 +3822,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_inline_element(InlineElement self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_intro_screen_type(
-    IntroScreenType self,
-    SseSerializer serializer,
-  );
 
   @protected
   void sse_encode_invitation_code(
@@ -4016,12 +3877,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_conversation_participant(
     List<ConversationParticipant> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_intro_screen_type(
-    List<IntroScreenType> self,
     SseSerializer serializer,
   );
 
@@ -4221,12 +4076,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_navigation_state(
-    NavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_notification_content(
     NotificationContent self,
     SseSerializer serializer,
@@ -4241,6 +4090,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_notification_id(
     NotificationId self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_notification_policy(
+    NotificationPolicy self,
     SseSerializer serializer,
   );
 
@@ -4325,12 +4180,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_conversation_notification(
     ConversationNotification? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_developer_settings_screen_type(
-    DeveloperSettingsScreenType? self,
     SseSerializer serializer,
   );
 
@@ -4478,12 +4327,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_username_validation_error(
     UsernameValidationError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_you_section(
-    YouSection? self,
     SseSerializer serializer,
   );
 
@@ -4720,9 +4563,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_you_section(YouSection self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -4939,18 +4779,18 @@ class RustLibWire implements BaseWire {
       );
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     int ptr,
   ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
         ptr,
       );
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     int ptr,
   ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
         ptr,
       );
 
@@ -5220,12 +5060,12 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
   );
 
   external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     int ptr,
   );
 
   external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNotificationContextBase(
     int ptr,
   );
 

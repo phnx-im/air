@@ -28,6 +28,7 @@ pub enum Mode {
     DropNextResponse = 2,
     DropNextRequest = 3,
     DropConnectionOnWrite = 4,
+    RejectNextRequest = 5,
 }
 
 impl Mode {
@@ -37,6 +38,7 @@ impl Mode {
             2 => Mode::DropNextResponse,
             3 => Mode::DropNextRequest,
             4 => Mode::DropConnectionOnWrite,
+            5 => Mode::RejectNextRequest,
             _ => Mode::Normal,
         }
     }
@@ -76,6 +78,16 @@ impl ControlHandle {
     pub fn set_drop_next_request(&self) {
         self.mode
             .store(Mode::DropNextRequest as u8, Ordering::Relaxed);
+    }
+
+    /// Rejects the next request with a permanent error.
+    ///
+    /// Unlike [`Self::set_drop_next_request`], which looks like a network
+    /// outage to the client, this simulates a request the server will never
+    /// accept, however often it is retried.
+    pub fn set_reject_next_request(&self) {
+        self.mode
+            .store(Mode::RejectNextRequest as u8, Ordering::Relaxed);
     }
 
     pub(super) fn set_drop_connection_on_write(&self) {

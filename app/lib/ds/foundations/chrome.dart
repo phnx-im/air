@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/dimensions.dart';
+import 'package:flutter/foundation.dart';
 
 /// Geometry every surface's chrome shares: the bar across its top, and the
 /// controls that sit in or beside it.
@@ -25,4 +26,18 @@ abstract final class Chrome {
   /// Gap between a round control and what sits beside it: the composer's
   /// buttons and its field, the message row's avatar and its bubble.
   static const double controlGap = S.s8;
+
+  /// Inset from the leading edge to the first control on a surface reaching
+  /// the window's top-left corner, where macOS floats the traffic lights. The
+  /// width is the rail's, which is what they float over in the main window.
+  static const double windowControlsInset = S.s80;
+
+  /// Whether the native window controls float over the content at the window's
+  /// top-left. Only macOS does: Windows puts its controls on the far right and
+  /// Linux draws a header bar of its own.
+  ///
+  /// We read [defaultTargetPlatform] rather than `dart:io`, so the layout
+  /// follows the platform a test pins rather than the host it runs on.
+  static bool get windowControlsFloat =>
+      defaultTargetPlatform == TargetPlatform.macOS;
 }

@@ -21,7 +21,7 @@ semver.workspace = true
 shadow-rs.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true

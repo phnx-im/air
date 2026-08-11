@@ -26,6 +26,7 @@ const pixel8DevicePixelRatio = 2.625;
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   setUpAll(() async {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    _checkTimeZoneIsUtc();
     _mockSystemDateTimeFormatChannel(binding);
     await _loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
@@ -115,6 +116,21 @@ List<String> get _systemUiFontPaths => <String>[
     '/System/Library/Fonts/SFNSDisplay.ttf',
   ],
 ];
+
+/// Fails unless the host runs in UTC.
+///
+/// This makes sure that the goldens are recorded in UTC (this what CI does).
+/// Otherwise, goldens recorded locally and in CI differ (most of the time only
+/// slightly).
+void _checkTimeZoneIsUtc() {
+  if (DateTime.now().timeZoneOffset == Duration.zero) return;
+
+  throw StateError(
+    'Golden tests need the host in UTC, but it reports an offset of '
+    '${DateTime.now().timeZoneOffset}. Run the tests through '
+    '`just test-flutter` / `just update-goldens`, or set TZ=UTC yourself.',
+  );
+}
 
 void _setGoldenFileComparatorWithThreshold(double threshold) {
   assert(goldenFileComparator is LocalFileComparator);
