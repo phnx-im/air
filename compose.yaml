@@ -5,6 +5,10 @@
 services:
   postgres:
     image: postgres:18.3
+    # without any dependent on minio-setup, compose up fails with --wait
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -15,11 +19,6 @@ services:
       -c max_connections=1000
       -c fsync=off
       -c full_page_writes=off
-      -c ssl=on
-      -c ssl_cert_file=/etc/postgresql/certs/server.crt
-      -c ssl_key_file=/etc/postgresql/certs/server.key
-      -c ssl_ca_file=/etc/postgresql/certs/root.crt
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       start_period: 10s
@@ -29,11 +28,11 @@ services:
     ports:
       - ${COMPOSE_BIND_HOST:-127.0.0.1}:5432:5432
     volumes:
-      - postgres_data:/var/lib/postgresql:z
-      - ./backend/test_certs:/etc/postgresql/certs:Z
+      - postgres_data:/var/lib/postgresql
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -56,17 +55,14 @@ services:
       minio:
         condition: service_healthy
     restart: "no"
-    entrypoint: ["/bin/sh", "-exc"]
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
         mc alias set local http://minio:9000 minioadmin minioadmin
         mc admin user add local minioaccesskey miniosecretkey
         mc admin policy attach local readwrite --user=minioaccesskey
-        mc mb local/data
-        mc mb local/debug-logs
-
-x-podman:
-  in_pod: false
+        mc mb --ignore-existing local/data
+        mc mb --ignore-existing local/debug-logs
 
 volumes:
   postgres_data:

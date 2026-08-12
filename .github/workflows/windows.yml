@@ -11,14 +11,28 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+    paths:
+      - "app/windows/**"
+      - "app/rust_builder/windows/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/windows.yml"
+      - ".github/actions/setup-buildenv/**"
   push:
     branches: ["main"]
     paths:
-      - "coreclient/**"
       - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
       - "app/**"
+      - "applogic/**"
+      - "apqmls/**"
+      - "common/**"
+      - "coreclient/**"
+      - "macros/**"
+      - "mls-assist/**"
+      - "protos/**"
       - "Cargo.toml"
       - "Cargo.lock"
   merge_group:
