@@ -15,11 +15,6 @@ services:
       -c max_connections=1000
       -c fsync=off
       -c full_page_writes=off
-      -c ssl=on
-      -c ssl_cert_file=/etc/postgresql/certs/server.crt
-      -c ssl_key_file=/etc/postgresql/certs/server.key
-      -c ssl_ca_file=/etc/postgresql/certs/root.crt
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       start_period: 10s
@@ -30,7 +25,6 @@ services:
       - ${COMPOSE_BIND_HOST:-127.0.0.1}:5432:5432
     volumes:
       - postgres_data:/var/lib/postgresql:z
-      - ./backend/test_certs:/etc/postgresql/certs:Z
 
   minio:
     image: minio/minio:latest
@@ -62,11 +56,8 @@ services:
         mc alias set local http://minio:9000 minioadmin minioadmin
         mc admin user add local minioaccesskey miniosecretkey
         mc admin policy attach local readwrite --user=minioaccesskey
-        mc mb local/data
-        mc mb local/debug-logs
-
-x-podman:
-  in_pod: false
+        mc mb --ignore-existing local/data
+        mc mb --ignore-existing local/debug-logs
 
 volumes:
   postgres_data:
