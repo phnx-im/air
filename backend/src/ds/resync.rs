@@ -183,6 +183,7 @@ impl DsGroupState {
         )?;
 
         self.remove_profiles(removed_indices);
+        self.debug_check_member_profiles("resync");
 
         self.rekey_sender_profile(sender_index, new_sender_index);
 
@@ -347,6 +348,7 @@ impl DsGroupState {
             )?;
 
         t_group_state.remove_profiles(t_removed_indices);
+        t_group_state.debug_check_member_profiles("resync_apq");
 
         t_group_state.rekey_sender_profile(t_sender_index, t_new_sender_index);
         // Profiles are never maintained in PQ group state

@@ -64,6 +64,25 @@ pub(crate) struct DsGroupState {
     pub(super) provider: MlsAssistRustCrypto<PersistenceCodec>,
     pub(super) member_profiles: BTreeMap<LeafNodeIndex, MemberProfile>,
     pub(super) proposals: Vec<Vec<u8>>,
+    /// Profile keys as they stood at each epoch a Welcome could have been
+    /// issued at.
+    ///
+    /// A joiner asks for welcome info at the epoch of its Welcome and gets the
+    /// ratchet tree mls-assist retained for that epoch. Answering with the
+    /// current [`Self::member_profiles`] instead would pair an epoch-N member
+    /// list with epoch-M keys: leaves vacated since then have no entry, and
+    /// leaves refilled since then carry the new occupant's key, which cannot
+    /// decrypt under the old occupant's identity. Kept for the same epochs and
+    /// pruned on the same schedule as the retained trees.
+    pub(super) past_member_profiles: BTreeMap<GroupEpoch, PastMemberProfiles>,
+}
+
+/// A snapshot of the profile keys at one epoch, with the time it was taken so
+/// it can expire alongside the ratchet tree it belongs to.
+#[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
+pub(super) struct PastMemberProfiles {
+    pub(super) created_at: TimeStamp,
+    pub(super) profiles: Vec<(LeafNodeIndex, EncryptedUserProfileKey)>,
 }
 
 impl DsGroupState {
@@ -89,6 +108,7 @@ impl DsGroupState {
             room_state,
             member_profiles: client_profiles,
             proposals: Vec::new(),
+            past_member_profiles: BTreeMap::new(),
         }
     }
 
@@ -167,6 +187,52 @@ impl DsGroupState {
         )
     }
 
+    /// Records the current profile keys against `epoch`.
+    ///
+    /// Call this after a commit has been merged, so `epoch` is the one a
+    /// Welcome from that commit carries. Only epochs that added members are
+    /// ever asked for, but snapshotting unconditionally keeps this in step
+    /// with mls-assist without duplicating its "were there joiners" rule.
+    pub(super) fn snapshot_member_profiles(&mut self, epoch: GroupEpoch) {
+        let profiles = self
+            .member_profiles
+            .iter()
+            .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
+            .collect();
+        self.past_member_profiles.insert(
+            epoch,
+            PastMemberProfiles {
+                created_at: TimeStamp::now(),
+                profiles,
+            },
+        );
+        self.prune_past_member_profiles();
+    }
+
+    /// Drops snapshots older than the retention used for past group states, so
+    /// this map cannot outgrow the trees it shadows.
+    fn prune_past_member_profiles(&mut self) {
+        self.past_member_profiles
+            .retain(|_, snapshot| !snapshot.created_at.has_expired(GROUP_STATE_EXPIRATION));
+    }
+
+    /// The profile keys as of `epoch`, falling back to the current ones when
+    /// no snapshot was retained (a group written before this was introduced,
+    /// or an epoch whose snapshot has expired).
+    pub(super) fn member_profiles_at(
+        &self,
+        epoch: GroupEpoch,
+    ) -> Vec<(LeafNodeIndex, EncryptedUserProfileKey)> {
+        match self.past_member_profiles.get(&epoch) {
+            Some(snapshot) => snapshot.profiles.clone(),
+            None => self
+                .member_profiles
+                .iter()
+                .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
+                .collect(),
+        }
+    }
+
     pub(super) fn external_commit_info(&self) -> ExternalCommitInfo {
         let group_info = self.group().group_info().clone();
         let ratchet_tree = self.group().export_ratchet_tree();
@@ -195,7 +261,7 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<EncryptedDsGroupState, DsGroupStateEncryptionError> {
         let encrypted =
-            EncryptableDsGroupState::from(SerializableDsGroupStateV2::from_group_state(self)?)
+            EncryptableDsGroupState::from(SerializableDsGroupStateV3::from_group_state(self)?)
                 .encrypt(ear_key)?;
         Ok(encrypted)
     }
@@ -205,7 +271,7 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<Self, DsGroupStateDecryptionError> {
         let encryptable = EncryptableDsGroupState::decrypt(ear_key, encrypted_group_state)?;
-        let group_state = SerializableDsGroupStateV2::into_group_state(encryptable.into())?;
+        let group_state = SerializableDsGroupStateV3::into_group_state(encryptable.into())?;
         Ok(group_state)
     }
 
@@ -405,7 +471,35 @@ pub(crate) struct SerializableDsGroupStateV2 {
     proposals: Vec<Vec<u8>>,
 }
 
-impl SerializableDsGroupStateV2 {
+impl From<SerializableDsGroupStateV2> for SerializableDsGroupStateV3 {
+    fn from(v2: SerializableDsGroupStateV2) -> Self {
+        Self {
+            group_id: v2.group_id,
+            serialized_provider: v2.serialized_provider,
+            room_state: v2.room_state,
+            member_profiles: v2.member_profiles,
+            proposals: v2.proposals,
+            // No snapshots were retained before V3. `member_profiles_at` falls
+            // back to the current keys for epochs it has nothing for, which is
+            // the pre-V3 behaviour.
+            past_member_profiles: Vec::new(),
+        }
+    }
+}
+
+#[derive(TlsSize, TlsDeserializeBytes, TlsSerialize)]
+pub(crate) struct SerializableDsGroupStateV3 {
+    group_id: GroupId,
+    serialized_provider: VLBytes,
+    room_state: VLBytes,
+    member_profiles: Vec<(LeafNodeIndex, MemberProfile)>,
+    // Proposals that are valid in external commits in TLS-serialized form
+    proposals: Vec<Vec<u8>>,
+    // Profile keys per epoch, so welcome info can answer at the epoch asked for
+    past_member_profiles: Vec<(GroupEpoch, PastMemberProfiles)>,
+}
+
+impl SerializableDsGroupStateV3 {
     pub(super) fn from_group_state(
         group_state: DsGroupState,
     ) -> Result<Self, aircommon::codec::Error> {
@@ -424,6 +518,7 @@ impl SerializableDsGroupStateV2 {
             member_profiles: client_profiles,
             room_state,
             proposals: group_state.proposals,
+            past_member_profiles: group_state.past_member_profiles.into_iter().collect(),
         })
     }
 
@@ -452,6 +547,7 @@ impl SerializableDsGroupStateV2 {
             member_profiles: client_profiles,
             room_state,
             proposals: self.proposals,
+            past_member_profiles: self.past_member_profiles.into_iter().collect(),
         })
     }
 }
@@ -494,20 +590,24 @@ fn fallback_room_state(
 pub(super) enum EncryptableDsGroupState {
     V1(SerializableDsGroupStateV1),
     V2(SerializableDsGroupStateV2),
+    V3(SerializableDsGroupStateV3),
 }
 
-impl From<EncryptableDsGroupState> for SerializableDsGroupStateV2 {
+impl From<EncryptableDsGroupState> for SerializableDsGroupStateV3 {
     fn from(encryptable: EncryptableDsGroupState) -> Self {
         match encryptable {
-            EncryptableDsGroupState::V1(serializable) => serializable.into(),
-            EncryptableDsGroupState::V2(serializable) => serializable,
+            EncryptableDsGroupState::V1(serializable) => {
+                SerializableDsGroupStateV2::from(serializable).into()
+            }
+            EncryptableDsGroupState::V2(serializable) => serializable.into(),
+            EncryptableDsGroupState::V3(serializable) => serializable,
         }
     }
 }
 
-impl From<SerializableDsGroupStateV2> for EncryptableDsGroupState {
-    fn from(serializable: SerializableDsGroupStateV2) -> Self {
-        EncryptableDsGroupState::V2(serializable)
+impl From<SerializableDsGroupStateV3> for EncryptableDsGroupState {
+    fn from(serializable: SerializableDsGroupStateV3) -> Self {
+        EncryptableDsGroupState::V3(serializable)
     }
 }
 

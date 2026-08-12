@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
@@ -374,6 +374,12 @@ impl DsGroupState {
         if let Some(add_users_state) = &added_users_state {
             self.update_membership_profiles(&add_users_state.added_users)?;
         }
+        self.debug_check_member_profiles("t_commit");
+
+        // Record the keys as of this epoch, so a Welcome issued by this commit
+        // can be answered with the membership it actually describes.
+        let epoch = self.group().epoch();
+        self.snapshot_member_profiles(epoch);
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
@@ -498,6 +504,10 @@ impl DsGroupState {
         if let Some(ref add_users_state) = t_add_users_state {
             t_group_state.update_membership_profiles(&add_users_state.added_users)?;
         }
+        t_group_state.debug_check_member_profiles("apq_commit");
+
+        let epoch = t_group_state.group().epoch();
+        t_group_state.snapshot_member_profiles(epoch);
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
@@ -719,6 +729,34 @@ impl DsGroupState {
             let removed_client_profile_option = self.member_profiles.remove(&client_index);
             debug_assert!(removed_client_profile_option.is_some());
         }
+    }
+
+    /// Reports any drift between `member_profiles` and the group's occupied
+    /// leaves.
+    ///
+    /// The two must agree: a joining member reads the profile keys out of
+    /// `member_profiles` indexed by leaf, so a leaf with no entry leaves that
+    /// member's profile unresolvable, and an entry left behind by a previous
+    /// occupant decrypts to nothing under the new occupant's identity.
+    /// Neither shows up at the point it is introduced, only later at a join,
+    /// so `context` names the operation that left the state this way.
+    pub(crate) fn debug_check_member_profiles(&self, context: &str) {
+        let occupied: BTreeSet<LeafNodeIndex> = self.group().members().map(|m| m.index).collect();
+        let profiled: BTreeSet<LeafNodeIndex> = self.member_profiles.keys().copied().collect();
+        if occupied == profiled {
+            return;
+        }
+        let missing: Vec<u32> = occupied.difference(&profiled).map(|i| i.u32()).collect();
+        let stale: Vec<u32> = profiled.difference(&occupied).map(|i| i.u32()).collect();
+        error!(
+            context,
+            ?missing,
+            ?stale,
+            occupied = occupied.len(),
+            profiled = profiled.len(),
+            epoch = self.group().epoch().as_u64(),
+            "member_profiles diverged from group membership"
+        );
     }
 
     pub(super) fn create_commit_response(

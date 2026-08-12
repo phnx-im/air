@@ -984,20 +984,23 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await
             .map_err(to_status)?;
 
+        let welcome_epoch = payload.epoch.ok_or_missing_field("epoch")?.into();
         let welcome_info_params = WelcomeInfoParams {
             sender: sender.clone(),
-            epoch: payload.epoch.ok_or_missing_field("epoch")?.into(),
+            epoch: welcome_epoch,
             group_id: qgid.into(),
         };
+        // The profile keys must describe the same epoch as the ratchet tree
+        // below, not the group's current membership.
+        let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
         Ok(Response::new(WelcomeInfoResponse {
             ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
-            encrypted_user_profile_keys: group_state
-                .encrypted_user_profile_keys()
-                .into_iter()
-                .map(From::from)
+            encrypted_user_profile_keys: profiles_at_epoch
+                .iter()
+                .map(|(_, key)| key.clone().into())
                 .collect(),
             room_state: Some(
                 group_state
@@ -1006,12 +1009,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
-            indexed_encrypted_user_profile_keys: group_state
-                .member_profiles
+            indexed_encrypted_user_profile_keys: profiles_at_epoch
                 .into_iter()
-                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                .map(|(index, key)| IndexedEncryptedUserProfileKey {
                     leaf_index: index.u32(),
-                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                    encrypted_user_profile_key: Some(key.into()),
                 })
                 .collect(),
         }))
