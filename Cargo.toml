@@ -110,7 +110,11 @@ openmls_traits = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
-privacypass = "0.2.0-pre.2"
+# TODO: point back to a crates.io release once the deterministic issuance API
+# ships in one (https://github.com/raphaelrobert/privacypass/pull/65)
+privacypass = { git = "https://github.com/raphaelrobert/privacypass", rev = "b7b7d86480845a88b924ac35b102c767129f246c", features = [
+    "deterministic-issuance",
+] }
 prost = "0.14.0"
 protoc-bin-vendored = "3.1.0"
 pulldown-cmark = "0.13.0"
