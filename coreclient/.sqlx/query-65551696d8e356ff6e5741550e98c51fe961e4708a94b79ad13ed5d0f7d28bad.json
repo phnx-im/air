@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_status\n                        (message_id,  sender_user_uuid, sender_user_domain, status, created_at)\n                    VALUES (?1, ?2, ?3, ?4, ?5)\n                    ON CONFLICT (message_id, sender_user_domain, sender_user_uuid)\n                    DO UPDATE SET status = ?4, created_at = ?5\n                    WHERE NOT (\n                        message_status.status = ?6 AND (?4 = ?7 OR ?4 = ?8)\n                    )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "65551696d8e356ff6e5741550e98c51fe961e4708a94b79ad13ed5d0f7d28bad"
+}
