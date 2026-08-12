@@ -161,6 +161,9 @@ pub struct BatchedTokenKeyResponse {
     pub operation_type: i32,
     pub token_key_id: u8,
     pub public_key: Vec<u8>,
+    /// Whether this is the newest key of its operation type, i.e. the one new
+    /// token requests must be built with.
+    pub is_current: bool,
 }
 
 #[derive(Debug)]

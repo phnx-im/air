@@ -451,6 +451,7 @@ impl auth_service_server::AuthService for GrpcAs {
                     token_key_id: k.token_key_id.into(),
                     public_key: k.public_key,
                     operation_type: k.operation_type,
+                    is_current: k.is_current,
                 })
                 .collect(),
         }))

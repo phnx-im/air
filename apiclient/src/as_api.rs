@@ -502,6 +502,7 @@ impl ApiClient {
                         operation_type: k.operation_type,
                         token_key_id,
                         public_key: k.public_key,
+                        is_current: k.is_current,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?,

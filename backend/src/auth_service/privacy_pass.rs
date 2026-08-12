@@ -324,9 +324,15 @@ pub(super) struct BatchedTokenKeyRecord {
     pub(super) token_key_id: u8,
     pub(super) operation_type: OperationType,
     pub(super) public_key: Vec<u8>,
+    /// Whether this is the newest key of its operation type.
+    pub(super) is_current: bool,
 }
 
 /// Loads all VOPRF public keys from the batched key store.
+///
+/// The newest key of each operation type is marked as current. Clients need
+/// that marker to build token requests with the incoming key rather than the
+/// outgoing one while both are advertised during the overlap window.
 pub(super) async fn load_batched_token_keys(
     pool: &PgPool,
 ) -> Result<Vec<BatchedTokenKeyRecord>, sqlx::Error> {
@@ -334,7 +340,8 @@ pub(super) async fn load_batched_token_keys(
         r#"SELECT
             token_key_id,
             operation_type,
-            voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
+            voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>",
+            created_at = MAX(created_at) OVER (PARTITION BY operation_type) AS "is_current!"
         FROM as_batched_key
         ORDER BY created_at DESC"#
     )
@@ -351,6 +358,7 @@ pub(super) async fn load_batched_token_keys(
                 operation_type: OperationType::try_from(row.operation_type as i32)
                     .unwrap_or_default(),
                 public_key,
+                is_current: row.is_current,
             }
         })
         .collect())

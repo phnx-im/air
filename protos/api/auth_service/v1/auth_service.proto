@@ -280,6 +280,11 @@ message BatchedTokenKey {
   bytes public_key = 1;
   uint32 token_key_id = 2;
   OperationType operation_type = 3;
+  // Set on the newest key of each operation type. During the rotation overlap
+  // window the AS advertises both the outgoing and the incoming key, and only
+  // the current one is guaranteed to outlive the tokens minted under it, so
+  // clients must build new token requests with it.
+  bool is_current = 4;
 }
 
 message AsCredential {
