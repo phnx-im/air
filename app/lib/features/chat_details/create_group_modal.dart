@@ -16,6 +16,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -117,24 +118,29 @@ class _MemberSelectionPane extends HookWidget {
       ),
       // The selection list below the search field scrolls on its own.
       scrollable: false,
-      child: Column(
-        children: [
-          MemberSearchField(
-            controller: searchController,
-            hintText: loc.groupMembersScreen_searchHint,
-            onChanged: (value) => query.value = value,
-          ),
-          Expanded(
-            child: MemberSelectionList(
-              contacts: contacts,
-              selectedContacts: selectedContacts,
-              query: query.value,
-              isApq: isApq,
-              onToggle: (contact) =>
-                  context.read<AddMembersCubit>().toggleContact(contact.userId),
+      child: ModalDismissGuard(
+        hasUnsavedInput: () =>
+            context.read<AddMembersCubit>().state.selectedContacts.isNotEmpty,
+        child: Column(
+          children: [
+            MemberSearchField(
+              controller: searchController,
+              hintText: loc.groupMembersScreen_searchHint,
+              onChanged: (value) => query.value = value,
             ),
-          ),
-        ],
+            Expanded(
+              child: MemberSelectionList(
+                contacts: contacts,
+                selectedContacts: selectedContacts,
+                query: query.value,
+                isApq: isApq,
+                onToggle: (contact) => context
+                    .read<AddMembersCubit>()
+                    .toggleContact(contact.userId),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -211,99 +217,103 @@ class _CreateGroupDetailsPane extends HookWidget {
           isApq,
         ),
       ),
-      child: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        behavior: HitTestBehavior.translucent,
-        child: ModalBody(
-          top: S.s24,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: _GroupPicturePicker(
-                  picture: picture.value,
-                  onPick: () => _pickImage(picture),
-                ),
-              ),
-              const SizedBox(height: S.s32),
-              SizedBox(
-                width: double.infinity,
-                child: TextField(
-                  onChanged: (value) => groupName.value = value,
-                  focusNode: nameFocusNode,
-                  textInputAction: TextInputAction.next,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: FieldChrome.plain(
-                    hintText: nameFocusNode.hasFocus
-                        ? loc.groupCreationDetails_groupNameHintFocused
-                        : loc.groupCreationDetails_groupNameHint,
-                    hintStyle: Theme.of(context).textTheme.displayLarge
-                        ?.copyWith(
-                          color: palette.text.quaternary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-              ),
-              if (showHelperText) ...[
-                const SizedBox(height: S.s8),
+      child: ModalDismissGuard(
+        hasUnsavedInput: () =>
+            groupName.value.trim().isNotEmpty || picture.value != null,
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.translucent,
+          child: ModalBody(
+            top: S.s24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Center(
-                  child: Text(
-                    loc.groupCreationDetails_groupNameHelper,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: palette.text.tertiary,
-                    ),
+                  child: _GroupPicturePicker(
+                    picture: picture.value,
+                    onPick: () => _pickImage(picture),
                   ),
                 ),
-              ],
-              if (experimentalFeatures) ...[
                 const SizedBox(height: S.s32),
-                _SwitchField(
-                  onChanged: (value) {
-                    context.read<AddMembersCubit>().enableApq(value);
-                  },
-                  value: isApq,
-                  label: "Post-Quantum Encryption",
-                ),
-              ],
-              const SizedBox(height: S.s32),
-              if (selectedIds.isNotEmpty)
-                Wrap(
-                  alignment: WrapAlignment.start,
-                  spacing: S.s16,
-                  runSpacing: S.s16,
-                  children: sortedSelectedIds.map((userId) {
-                    final profile = selectedProfiles[userId];
-                    if (profile == null) {
-                      return const SizedBox.shrink();
-                    }
-                    final features = selectedFeatures[userId];
-                    final isSupported =
-                        features?.isSupported(isApq: isApq) ?? false;
-                    return Opacity(
-                      opacity: isSupported ? 1.0 : Alpha.a50,
-                      child: _SelectedParticipant(
-                        profile: profile,
-                        onRemove: () => _removeContact(context, userId),
-                      ),
-                    );
-                  }).toList(),
-                )
-              else
-                Center(
-                  child: Text(
-                    loc.groupCreationDetails_emptySelection,
+                SizedBox(
+                  width: double.infinity,
+                  child: TextField(
+                    onChanged: (value) => groupName.value = value,
+                    focusNode: nameFocusNode,
+                    textInputAction: TextInputAction.next,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: palette.text.tertiary,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: FieldChrome.plain(
+                      hintText: nameFocusNode.hasFocus
+                          ? loc.groupCreationDetails_groupNameHintFocused
+                          : loc.groupCreationDetails_groupNameHint,
+                      hintStyle: Theme.of(context).textTheme.displayLarge
+                          ?.copyWith(
+                            color: palette.text.quaternary,
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                   ),
                 ),
-            ],
+                if (showHelperText) ...[
+                  const SizedBox(height: S.s8),
+                  Center(
+                    child: Text(
+                      loc.groupCreationDetails_groupNameHelper,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.text.tertiary,
+                      ),
+                    ),
+                  ),
+                ],
+                if (experimentalFeatures) ...[
+                  const SizedBox(height: S.s32),
+                  _SwitchField(
+                    onChanged: (value) {
+                      context.read<AddMembersCubit>().enableApq(value);
+                    },
+                    value: isApq,
+                    label: "Post-Quantum Encryption",
+                  ),
+                ],
+                const SizedBox(height: S.s32),
+                if (selectedIds.isNotEmpty)
+                  Wrap(
+                    alignment: WrapAlignment.start,
+                    spacing: S.s16,
+                    runSpacing: S.s16,
+                    children: sortedSelectedIds.map((userId) {
+                      final profile = selectedProfiles[userId];
+                      if (profile == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final features = selectedFeatures[userId];
+                      final isSupported =
+                          features?.isSupported(isApq: isApq) ?? false;
+                      return Opacity(
+                        opacity: isSupported ? 1.0 : Alpha.a50,
+                        child: _SelectedParticipant(
+                          profile: profile,
+                          onRemove: () => _removeContact(context, userId),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                else
+                  Center(
+                    child: Text(
+                      loc.groupCreationDetails_emptySelection,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: palette.text.tertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

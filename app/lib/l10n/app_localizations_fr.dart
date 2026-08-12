@@ -266,6 +266,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Enregistrer';
 
   @override
+  String get unsavedInputDialog_title => 'Voulez-vous vraiment fermer ?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Annuler';
+
+  @override
+  String get unsavedInputDialog_close => 'Fermer';
+
+  @override
   String get introScreen_serverLabel =>
       'Choisissez un serveur auquel vous connecter pour l\'association.';
 

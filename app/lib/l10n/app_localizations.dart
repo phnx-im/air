@@ -552,6 +552,24 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get changeGroupTitleDialog_confirm;
 
+  /// No description provided for @unsavedInputDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to close?'**
+  String get unsavedInputDialog_title;
+
+  /// No description provided for @unsavedInputDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get unsavedInputDialog_cancel;
+
+  /// No description provided for @unsavedInputDialog_close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get unsavedInputDialog_close;
+
   /// No description provided for @introScreen_serverLabel.
   ///
   /// In en, this message translates to:

@@ -6,9 +6,12 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_page.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
+import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
@@ -104,7 +107,7 @@ Widget _footerHost({required int rows}) => Builder(
 
 /// A card opened the way a control opens one, so the route under test is the
 /// card presentation rather than the page.
-Widget _cardRouteHost() => MaterialApp(
+Widget _cardRouteHost({bool dismissible = true}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(Brightness.light),
   localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -112,9 +115,76 @@ Widget _cardRouteHost() => MaterialApp(
     builder: (context) => TextButton(
       onPressed: () => showAppModal<void>(
         context: context,
-        builder: (_) => const ModalScaffold(
+        builder: (modalContext) => ModalScaffold(
           title: 'Profile',
-          child: SizedBox(height: 100, child: Text('body')),
+          onDismiss: dismissible
+              ? () => Navigator.of(modalContext).pop()
+              : null,
+          child: const SizedBox(height: 100, child: Text('body')),
+        ),
+      ),
+      child: const Text('open'),
+    ),
+  ),
+);
+
+/// A modal holding input its user has not sent, so every way out has to ask.
+Widget _guardedModalHost({bool hasUnsavedInput = true}) => MaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: testThemeData(Brightness.light),
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  home: Builder(
+    builder: (context) => TextButton(
+      onPressed: () => showAppModal<void>(
+        context: context,
+        builder: (modalContext) => ModalScaffold(
+          title: 'Profile',
+          onDismiss: () => Navigator.of(modalContext).pop(),
+          child: ModalDismissGuard(
+            hasUnsavedInput: () => hasUnsavedInput,
+            child: const SizedBox(height: 100, child: Text('body')),
+          ),
+        ),
+      ),
+      child: const Text('open'),
+    ),
+  ),
+);
+
+/// A modal that pages, in a card route: what a click beside it does at depth is
+/// what the level it opens on would do, not what the level on top would.
+Widget _pagedCardRouteHost({
+  required VoidCallback onBack,
+  required VoidCallback onDismiss,
+  bool canDismiss = true,
+}) => MaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: testThemeData(Brightness.light),
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  home: Builder(
+    builder: (context) => TextButton(
+      onPressed: () => showAppModal<void>(
+        context: context,
+        builder: (_) => ModalPageStack(
+          onBack: onBack,
+          onDismiss: onDismiss,
+          pages: [
+            const ModalStackEntry(
+              key: ValueKey('first'),
+              child: ModalPane(
+                title: 'First',
+                child: SizedBox(height: 100, child: Text('first body')),
+              ),
+            ),
+            ModalStackEntry(
+              key: const ValueKey('second'),
+              canDismiss: canDismiss,
+              child: const ModalPane(
+                title: 'Second',
+                child: SizedBox(height: 100, child: Text('second body')),
+              ),
+            ),
+          ],
         ),
       ),
       child: const Text('open'),
@@ -342,26 +412,78 @@ void main() {
   });
 
   group('ModalCardRoute', () {
-    Future<void> openCard(WidgetTester tester) async {
+    /// Well clear of the card, which centers within a 480 envelope.
+    const besideTheCard = Offset(20, 450);
+
+    Future<void> openCard(
+      WidgetTester tester, {
+      bool dismissible = true,
+    }) async {
       sizeView(tester, desktopViewSize);
-      await tester.pumpWidget(_cardRouteHost());
+      await tester.pumpWidget(_cardRouteHost(dismissible: dismissible));
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.byType(ModalScaffold), findsOneWidget);
     }
 
-    // A card can sit several levels deep, where a stray tap beside it reads as
-    // "go back one" rather than "close".
-    testWidgets('leaves the card in place when the scrim is tapped', (
-      tester,
-    ) async {
+    testWidgets('closes the card when the scrim is tapped', (tester) async {
       await openCard(tester);
 
-      // Well clear of the card, which centers within a 480 envelope.
-      await tester.tapAt(const Offset(20, 450));
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ModalScaffold), findsNothing);
+    });
+
+    testWidgets('leaves a card with no way out where it is', (tester) async {
+      await openCard(tester, dismissible: false);
+
+      await tester.tapAt(besideTheCard);
       await tester.pumpAndSettle();
 
       expect(find.byType(ModalScaffold), findsOneWidget);
+    });
+
+    // The scrim closes what the click landed beside, which is the whole modal.
+    // Popping the route would have gone up a level instead.
+    testWidgets('closes a paged modal from a page it drilled into', (
+      tester,
+    ) async {
+      var back = 0;
+      var dismissed = 0;
+      sizeView(tester, desktopViewSize);
+      await tester.pumpWidget(
+        _pagedCardRouteHost(onBack: () => back++, onDismiss: () => dismissed++),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+
+      expect(dismissed, 1);
+      expect(back, 0);
+    });
+
+    testWidgets('leaves a page that refuses the dismiss where it is', (
+      tester,
+    ) async {
+      var dismissed = 0;
+      sizeView(tester, desktopViewSize);
+      await tester.pumpWidget(
+        _pagedCardRouteHost(
+          onBack: () {},
+          onDismiss: () => dismissed++,
+          canDismiss: false,
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+
+      expect(dismissed, 0);
     });
 
     // The framework gates its own Escape handling on the dismissible barrier
@@ -372,6 +494,108 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
 
+      expect(find.byType(ModalScaffold), findsNothing);
+    });
+  });
+
+  group('ModalDismissGuard', () {
+    const besideTheCard = Offset(20, 450);
+
+    Future<void> openModal(
+      WidgetTester tester, {
+      bool hasUnsavedInput = true,
+      Size viewSize = desktopViewSize,
+    }) async {
+      sizeView(tester, viewSize);
+      await tester.pumpWidget(
+        _guardedModalHost(hasUnsavedInput: hasUnsavedInput),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModalScaffold), findsOneWidget);
+    }
+
+    testWidgets('asks before the scrim drops what a page holds', (
+      tester,
+    ) async {
+      await openModal(tester);
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+      expect(find.byType(ModalScaffold), findsOneWidget);
+    });
+
+    testWidgets('closes the modal once the question is answered', (
+      tester,
+    ) async {
+      await openModal(tester);
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ModalScaffold), findsNothing);
+    });
+
+    testWidgets('leaves the modal where it is when the question is declined', (
+      tester,
+    ) async {
+      await openModal(tester);
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsNothing);
+      expect(find.byType(ModalScaffold), findsOneWidget);
+    });
+
+    // The scrim and the header are the two ways out of a card, so a question on
+    // one of them alone would only be half a guard.
+    testWidgets('asks before the header x drops what a page holds', (
+      tester,
+    ) async {
+      await openModal(tester);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(DialogHeader),
+          matching: find.byType(ButtonIcon),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+    });
+
+    testWidgets('drops a modal holding nothing without asking', (tester) async {
+      await openModal(tester, hasUnsavedInput: false);
+
+      await tester.tapAt(besideTheCard);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsNothing);
+      expect(find.byType(ModalScaffold), findsNothing);
+    });
+
+    // Full-screen, the way out is the system back the pattern never sees, so a
+    // question on the header alone would guard one way out of two.
+    testWidgets('leaves a full-screen modal unguarded', (tester) async {
+      await openModal(tester, viewSize: phoneViewSize);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(DialogHeader),
+          matching: find.byType(ButtonIcon),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsNothing);
       expect(find.byType(ModalScaffold), findsNothing);
     });
   });
