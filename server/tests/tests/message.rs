@@ -1743,3 +1743,87 @@ async fn edit_replay_is_ignored() {
     // The replays did not pollute the edit history: a third edit applies.
     setup.edit_message(chat_id, &alice, vec![&bob]).await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Peer read receipt keeps our unread count", skip_all)]
+async fn peer_read_receipt_does_not_move_our_read_marker() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // The invite helper leaves a message from every member behind. Clear Alice's
+    // marker, so what follows is about Charlie's message alone.
+    let newest = setup
+        .get_user(&alice)
+        .user
+        .last_message(group_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    setup
+        .get_user(&alice)
+        .user
+        .mark_chat_as_read(group_chat_id, newest.id())
+        .await
+        .unwrap();
+
+    // Charlie writes. Neither Alice nor Bob has read it.
+    let sent = setup
+        .send_message(group_chat_id, &charlie, vec![&alice, &bob], None)
+        .await;
+
+    let alice_test_user = setup.get_user(&alice);
+    let alice_user = &alice_test_user.user;
+    assert_eq!(alice_user.unread_messages_count(group_chat_id).await, 1);
+
+    // Bob reads it and reports that to the whole group, Alice included.
+    let bob_user = &setup.get_user(&bob).user;
+    let bobs_copy = bob_user
+        .message(sent.recipient_message_id(&bob))
+        .await
+        .unwrap()
+        .unwrap();
+    bob_user
+        .outbound_service()
+        .enqueue_receipts(
+            group_chat_id,
+            [(
+                bobs_copy.id(),
+                bobs_copy.message().mimi_id().unwrap(),
+                MessageStatus::Read,
+            )]
+            .into_iter(),
+        )
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    alice_test_user.fetch_and_process_qs_messages().await;
+
+    // Alice records Bob's status ...
+    let alices_copy = alice_user
+        .message(sent.recipient_message_id(&alice))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        alices_copy.status(),
+        MessageStatus::Read,
+        "Bob's read receipt should be recorded on Alice's copy of the message"
+    );
+
+    // ... but it is Bob's read marker, not hers.
+    assert_eq!(
+        alice_user.unread_messages_count(group_chat_id).await,
+        1,
+        "a read receipt from another member must not clear our unread messages"
+    );
+}
