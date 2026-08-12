@@ -993,6 +993,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         // The profile keys must describe the same epoch as the ratchet tree
         // below, not the group's current membership.
         let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
+        // The joiner derives its participant list from this, so it has to
+        // describe the same epoch as the ratchet tree below.
+        let room_state_at_epoch = group_state
+            .room_state_at(welcome_epoch)
+            .unwrap_or_else(|| group_state.room_state.clone());
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
@@ -1003,8 +1008,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .map(|(_, key)| key.clone().into())
                 .collect(),
             room_state: Some(
-                group_state
-                    .room_state
+                room_state_at_epoch
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,

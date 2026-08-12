@@ -77,12 +77,22 @@ pub(crate) struct DsGroupState {
     pub(super) past_member_profiles: BTreeMap<GroupEpoch, PastMemberProfiles>,
 }
 
-/// A snapshot of the profile keys at one epoch, with the time it was taken so
-/// it can expire alongside the ratchet tree it belongs to.
+/// What a joiner needs about one epoch, with the time it was taken so it can
+/// expire alongside the ratchet tree it belongs to.
+///
+/// Everything welcome info answers with has to describe the epoch that was
+/// asked for, not the group's current state, so each piece served next to the
+/// retained ratchet tree is captured here.
 #[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
 pub(super) struct PastMemberProfiles {
     pub(super) created_at: TimeStamp,
     pub(super) profiles: Vec<(LeafNodeIndex, EncryptedUserProfileKey)>,
+    /// The room state as of this epoch, serialized with [`PersistenceCodec`].
+    ///
+    /// The joiner builds the chat's participant list from this rather than
+    /// from the ratchet tree, so a current room state makes it name whoever
+    /// holds a leaf now instead of who held it then.
+    pub(super) room_state: VLBytes,
 }
 
 impl DsGroupState {
@@ -199,11 +209,22 @@ impl DsGroupState {
             .iter()
             .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
             .collect();
+        let room_state = match PersistenceCodec::to_vec(self.room_state.unverified()) {
+            Ok(bytes) => bytes.into(),
+            Err(error) => {
+                // Without the snapshot a later join falls back to current-epoch
+                // data, which is the behaviour this replaces. It must not fail
+                // the commit being applied.
+                error!(%error, "failed to snapshot room state; skipping this epoch");
+                return;
+            }
+        };
         self.past_member_profiles.insert(
             epoch,
             PastMemberProfiles {
                 created_at: TimeStamp::now(),
                 profiles,
+                room_state,
             },
         );
         self.prune_past_member_profiles();
@@ -219,6 +240,18 @@ impl DsGroupState {
     /// The profile keys as of `epoch`, falling back to the current ones when
     /// no snapshot was retained (a group written before this was introduced,
     /// or an epoch whose snapshot has expired).
+    /// The room state as of `epoch`, or `None` when nothing was retained for
+    /// it, in which case the caller keeps using the current one.
+    pub(super) fn room_state_at(&self, epoch: GroupEpoch) -> Option<VerifiedRoomState> {
+        let snapshot = self.past_member_profiles.get(&epoch)?;
+        let unverified = PersistenceCodec::from_slice(snapshot.room_state.as_slice())
+            .inspect_err(|error| error!(%error, "failed to load snapshotted room state"))
+            .ok()?;
+        VerifiedRoomState::verify(unverified)
+            .inspect_err(|error| error!(%error, "failed to verify snapshotted room state"))
+            .ok()
+    }
+
     pub(super) fn member_profiles_at(
         &self,
         epoch: GroupEpoch,

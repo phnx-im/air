@@ -1409,3 +1409,865 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
         );
     }
 }
+
+/// Deterministic repro for user profile keys going missing after MLS reuses a
+/// blanked leaf index.
+///
+/// The DS keys its `member_profiles` map by leaf index. Removing a member
+/// blanks its leaf, and a later Add can be placed at that same index, so the
+/// map has to follow the move. A member joining afterwards reads those
+/// profile keys out of the welcome info, which is where a stale or missing
+/// entry becomes observable: the joiner cannot decrypt the affected member's
+/// profile and falls back to the uuid-derived one.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Profile keys survive leaf index reuse", skip_all)]
+async fn user_profile_keys_survive_leaf_reuse() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // group creator, commits everything
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+    let eve = setup.add_user().await;
+    let frank = setup.add_user().await;
+    let zoe = setup.add_user().await; // joins last, after the churn
+
+    for member in [&bob, &charlie, &dave, &eve, &frank, &zoe] {
+        setup.connect_users(&alice, member).await;
+    }
+
+    // A distinctive display name per member, so a profile that fails to
+    // resolve shows up as the uuid-derived fallback instead.
+    for member in [&alice, &bob, &charlie, &dave, &eve, &frank] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+
+    // Fill leaves 1..=3.
+    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
+    let bob_index = own_leaf_index(&setup, &bob, chat_id).await;
+    let charlie_index = own_leaf_index(&setup, &charlie, chat_id).await;
+
+    // Blank two of them.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![bob.clone(), charlie.clone()])
+        .await
+        .unwrap();
+    settle(&setup, &[&alice, &dave]).await;
+
+    // These adds should land on the leaves just blanked.
+    invite_and_settle(&setup, &alice, chat_id, &[&eve, &frank]).await;
+    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
+    let frank_index = own_leaf_index(&setup, &frank, chat_id).await;
+
+    // Without reuse the test proves nothing, so make the precondition explicit.
+    let blanked = [bob_index, charlie_index];
+    let reused: Vec<u32> = [eve_index, frank_index]
+        .into_iter()
+        .filter(|index| blanked.contains(index))
+        .collect();
+    assert!(
+        !reused.is_empty(),
+        "expected a blanked leaf to be reused: blanked {blanked:?}, \
+         new occupants eve={eve_index} frank={frank_index}"
+    );
+
+    // Zoe joins only now, so her profile keys come from the churned group.
+    invite_and_settle(&setup, &alice, chat_id, &[&zoe]).await;
+
+    for member in [&alice, &dave, &eve, &frank] {
+        let profile = setup.get_user(&zoe).user.user_profile(member).await;
+        assert_ne!(
+            profile,
+            UserProfile::from_user_id(member),
+            "Zoe fell back to the uuid-derived profile for {member:?}, so its \
+             profile key was missing or undecryptable (reused leaves: {reused:?})"
+        );
+        assert_eq!(
+            profile.display_name,
+            expected_display_name(member),
+            "Zoe resolved the wrong profile for {member:?}"
+        );
+    }
+}
+
+fn expected_display_name(user_id: &aircommon::identifiers::UserId) -> DisplayName {
+    format!("member {}", user_id.uuid().simple())
+        .parse()
+        .unwrap()
+}
+
+async fn own_leaf_index(
+    setup: &TestBackend,
+    user_id: &aircommon::identifiers::UserId,
+    chat_id: aircoreclient::ChatId,
+) -> u32 {
+    setup
+        .get_user(user_id)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("member should have local group state")
+        .1
+}
+
+/// Drains each user until their queue is empty and their outbound work (the
+/// scheduled profile fetches among it) has run.
+async fn settle(setup: &TestBackend, user_ids: &[&aircommon::identifiers::UserId]) {
+    for _ in 0..3 {
+        for user_id in user_ids {
+            let user = &setup.get_user(user_id).user;
+            let qs_messages = user.qs_fetch_messages().await.unwrap();
+            user.fully_process_qs_messages(qs_messages).await;
+            user.outbound_service().run_once().await;
+        }
+    }
+}
+
+async fn invite_and_settle(
+    setup: &TestBackend,
+    inviter: &aircommon::identifiers::UserId,
+    chat_id: aircoreclient::ChatId,
+    invitees: &[&aircommon::identifiers::UserId],
+) {
+    let invitee_ids: Vec<_> = invitees.iter().map(|id| (*id).clone()).collect();
+    setup
+        .get_user(inviter)
+        .user
+        .invite_users(chat_id, &invitee_ids)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut to_settle = vec![inviter];
+    to_settle.extend_from_slice(invitees);
+    settle(setup, &to_settle).await;
+}
+
+/// Same question as [`user_profile_keys_survive_leaf_reuse`], but the leaves
+/// are vacated by the members themselves rather than by the committer.
+///
+/// A self-remove is only a proposal: it sits pending until someone else's
+/// commit sweeps it in, so the DS learns about these removals from proposals
+/// it did not receive add-info for. That is the shape the random walk hits
+/// most often.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Profile keys survive leave then leaf reuse", skip_all)]
+async fn user_profile_keys_survive_leave_then_reuse() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+    let eve = setup.add_user().await;
+    let frank = setup.add_user().await;
+    let zoe = setup.add_user().await;
+
+    for member in [&bob, &charlie, &dave, &eve, &frank, &zoe] {
+        setup.connect_users(&alice, member).await;
+    }
+
+    for member in [&alice, &bob, &charlie, &dave, &eve, &frank] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
+    let bob_index = own_leaf_index(&setup, &bob, chat_id).await;
+    let charlie_index = own_leaf_index(&setup, &charlie, chat_id).await;
+
+    // Bob and Charlie leave, which only stages self-remove proposals.
+    for leaver in [&bob, &charlie] {
+        setup
+            .get_user(leaver)
+            .user
+            .leave_chat(chat_id)
+            .await
+            .unwrap();
+    }
+    settle(&setup, &[&alice, &dave]).await;
+
+    // Alice sweeps both proposals in with a plain key update.
+    setup
+        .get_user(&alice)
+        .user
+        .update_key(chat_id)
+        .await
+        .unwrap();
+    settle(&setup, &[&alice, &dave]).await;
+
+    let remaining = setup
+        .get_user(&alice)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        !remaining.contains(&bob) && !remaining.contains(&charlie),
+        "the self-removes should have been committed by Alice's update"
+    );
+
+    invite_and_settle(&setup, &alice, chat_id, &[&eve, &frank]).await;
+    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
+    let frank_index = own_leaf_index(&setup, &frank, chat_id).await;
+
+    let blanked = [bob_index, charlie_index];
+    let reused: Vec<u32> = [eve_index, frank_index]
+        .into_iter()
+        .filter(|index| blanked.contains(index))
+        .collect();
+    assert!(
+        !reused.is_empty(),
+        "expected a vacated leaf to be reused: vacated {blanked:?}, \
+         new occupants eve={eve_index} frank={frank_index}"
+    );
+
+    invite_and_settle(&setup, &alice, chat_id, &[&zoe]).await;
+
+    for member in [&alice, &dave, &eve, &frank] {
+        let profile = setup.get_user(&zoe).user.user_profile(member).await;
+        assert_ne!(
+            profile,
+            UserProfile::from_user_id(member),
+            "Zoe fell back to the uuid-derived profile for {member:?}, so its \
+             profile key was missing or undecryptable (reused leaves: {reused:?})"
+        );
+        assert_eq!(
+            profile.display_name,
+            expected_display_name(member),
+            "Zoe resolved the wrong profile for {member:?}"
+        );
+    }
+}
+
+/// A client that misses a commit is stuck until it resyncs, and the resync
+/// has to restore its profile keys.
+///
+/// Nothing schedules a resync automatically: `ResyncRequired` builds a
+/// `Resync` and drops it (see the TODO in `process_qs::take_processed`), so
+/// today only the user can trigger one via `enqueue_group_resync`. This test
+/// desyncs Bob, then drives that manual resync and checks he comes back with
+/// working profile keys for the current members.
+///
+/// Expected to fail while the resync path is incomplete. It is kept as the
+/// executable statement of what "resync works" has to mean.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Manual resync restores profile keys", skip_all)]
+async fn manual_resync_restores_profile_keys() {
+    use std::time::Duration;
+    use tokio::time::sleep;
+
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // committer
+    let bob = setup.add_user().await; // falls behind and resyncs
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+    let eve = setup.add_user().await;
+    let frank = setup.add_user().await;
+
+    for member in [&bob, &charlie, &dave, &eve, &frank] {
+        setup.connect_users(&alice, member).await;
+    }
+
+    for member in [&alice, &bob, &charlie, &dave, &eve, &frank] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
+    let charlie_index = own_leaf_index(&setup, &charlie, chat_id).await;
+    let dave_index = own_leaf_index(&setup, &dave, chat_id).await;
+
+    // Churn the leaves around Bob: drop Charlie and Dave, then refill with
+    // Eve and Frank so the vacated indices get new occupants.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![charlie.clone(), dave.clone()])
+        .await
+        .unwrap();
+    settle(&setup, &[&alice, &bob]).await;
+
+    invite_and_settle(&setup, &alice, chat_id, &[&eve, &frank]).await;
+    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
+    let frank_index = own_leaf_index(&setup, &frank, chat_id).await;
+    let vacated = [charlie_index, dave_index];
+    let reused: Vec<u32> = [eve_index, frank_index]
+        .into_iter()
+        .filter(|index| vacated.contains(index))
+        .collect();
+    assert!(
+        !reused.is_empty(),
+        "expected a vacated leaf to be reused: vacated {vacated:?}, \
+         new occupants eve={eve_index} frank={frank_index}"
+    );
+
+    // Bob misses a commit: he acks it off his queue without processing it.
+    let bob_user = &setup.get_user(&bob).user;
+    setup
+        .get_user(&alice)
+        .user
+        .update_key(chat_id)
+        .await
+        .unwrap();
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let last = qs_messages
+        .last()
+        .expect("Bob should have the update in his queue");
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(last.sequence_number + 1).await;
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
+
+    // The next commit Bob processes is one he cannot apply, so he is now
+    // desynced. Nothing recovers him on its own.
+    setup
+        .get_user(&alice)
+        .user
+        .update_key(chat_id)
+        .await
+        .unwrap();
+    settle(&setup, &[&bob]).await;
+    settle(&setup, &[&alice, &eve, &frank]).await;
+
+    // Trigger the resync the way the app does, and let it run.
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob_user.outbound_service().run_once().await;
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "Bob's resync should have completed"
+    );
+    settle(&setup, &[&alice, &eve, &frank]).await;
+    settle(&setup, &[&bob]).await;
+
+    // Bob rebuilt his group state from the DS, so his profile keys for the
+    // current members must all still resolve. Settle generously first, so a
+    // failure here cannot be blamed on a pending profile fetch.
+    for _ in 0..5 {
+        settle(&setup, &[&bob, &alice, &eve, &frank]).await;
+    }
+
+    // Control: Frank sits in the same group at the same epoch and joined by
+    // Welcome rather than by resync. He resolves the same profiles fine, so
+    // the keys are available and this is not a matter of settling longer.
+    assert_profiles_resolve(
+        &setup,
+        &frank,
+        &[&alice, &eve],
+        "control (joined by welcome)",
+    )
+    .await;
+
+    // Bob differs only in how he got here. Note the assertion holds if Bob
+    // cached a profile before resyncing, which is why nothing above fetches
+    // profiles on Bob's behalf.
+    assert_profiles_resolve(&setup, &bob, &[&alice, &eve, &frank], "after resync").await;
+}
+
+/// Asserts `observer` resolves each member's real profile rather than the
+/// uuid-derived fallback that a missing profile key produces.
+async fn assert_profiles_resolve(
+    setup: &TestBackend,
+    observer: &aircommon::identifiers::UserId,
+    members: &[&aircommon::identifiers::UserId],
+    context: &str,
+) {
+    for member in members {
+        let profile = setup.get_user(observer).user.user_profile(member).await;
+        assert_ne!(
+            profile,
+            UserProfile::from_user_id(member),
+            "{context}: {observer:?} fell back to the uuid-derived profile for \
+             {member:?}, so its profile key was missing or undecryptable"
+        );
+        assert_eq!(
+            profile.display_name,
+            expected_display_name(member),
+            "{context}: {observer:?} resolved the wrong profile for {member:?}"
+        );
+    }
+}
+
+/// A member that is removed and then invited back has to end up with working
+/// group state and profile keys.
+///
+/// This is the case the random-walk harness hits constantly and the one the
+/// earlier tests here miss: they check a *fresh* joiner, who has no local
+/// state for the group. A returning member does. OpenMLS marks an evicted
+/// group as unusable (`MlsGroupStateError::UseAfterEviction`), so the new
+/// Welcome has to displace that state rather than be blocked by it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Removed member can be invited back", skip_all)]
+async fn removed_member_can_be_invited_back() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // committer
+    let bob = setup.add_user().await; // removed, then invited back
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+
+    for member in [&bob, &charlie, &dave] {
+        setup.connect_users(&alice, member).await;
+    }
+
+    for member in [&alice, &bob, &charlie, &dave] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
+
+    // Alice removes Bob, which marks Bob's local group state as evicted.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![bob.clone()])
+        .await
+        .unwrap();
+    settle(&setup, &[&alice, &bob, &charlie, &dave]).await;
+
+    let participants = setup
+        .get_user(&alice)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        !participants.contains(&bob),
+        "Bob should be out of the group before being invited back"
+    );
+
+    // Alice invites Bob back into the same group.
+    invite_and_settle(&setup, &alice, chat_id, &[&bob]).await;
+    for _ in 0..3 {
+        settle(&setup, &[&bob, &alice, &charlie, &dave]).await;
+    }
+
+    let alice_participants = setup
+        .get_user(&alice)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        alice_participants.contains(&bob),
+        "Alice should see Bob back in the group"
+    );
+
+    // Bob must have usable local state for the group again, at Alice's epoch.
+    let alice_epoch = setup
+        .get_user(&alice)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("Alice should have group state")
+        .0;
+    let bob_state = setup
+        .get_user(&bob)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap();
+    let (bob_epoch, _) = bob_state.expect(
+        "Bob should have local group state after being invited back, \
+         but his evicted state was never replaced",
+    );
+    assert_eq!(
+        bob_epoch, alice_epoch,
+        "Bob rejoined but is stuck at a different epoch than Alice"
+    );
+
+    let bob_participants = setup
+        .get_user(&bob)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        bob_participants, alice_participants,
+        "Bob's membership view diverges from Alice's after being invited back"
+    );
+
+    // Control: Charlie never left, and resolves the same profiles fine.
+    assert_profiles_resolve(&setup, &charlie, &[&alice, &dave], "control (never left)").await;
+    assert_profiles_resolve(&setup, &bob, &[&alice, &charlie, &dave], "after re-invite").await;
+
+    // And the group must still work for Bob in both directions.
+    setup
+        .send_message(chat_id, &bob, vec![&alice, &charlie, &dave], None)
+        .await;
+    setup
+        .send_message(chat_id, &alice, vec![&bob, &charlie, &dave], None)
+        .await;
+}
+
+/// A single commit that both removes and adds, with the vacated leaf reused
+/// by the new member in that same commit.
+///
+/// The DS applies `remove_profiles` and then `update_membership_profiles` to
+/// the same commit, so a leaf freed and refilled in one step exercises both
+/// against one index. The random walk produces this whenever a pending
+/// self-remove is swept in by an invite rather than by a plain update.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Add and self-remove in one commit", skip_all)]
+async fn add_and_self_remove_in_one_commit() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await; // leaves, swept in by the invite commit
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+    let eve = setup.add_user().await; // added by that same commit
+    let zoe = setup.add_user().await; // fresh joiner afterwards
+
+    for member in [&bob, &charlie, &dave, &eve, &zoe] {
+        setup.connect_users(&alice, member).await;
+    }
+
+    for member in [&alice, &bob, &charlie, &dave, &eve] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
+    let bob_index = own_leaf_index(&setup, &bob, chat_id).await;
+
+    // Bob leaves. This only stages a self-remove proposal.
+    setup.get_user(&bob).user.leave_chat(chat_id).await.unwrap();
+    // Alice picks up the proposal but does not commit it yet.
+    settle(&setup, &[&alice]).await;
+
+    // Alice's invite commit should carry both the pending self-remove and the
+    // add, so Eve may land on the leaf Bob just vacated.
+    invite_and_settle(&setup, &alice, chat_id, &[&eve]).await;
+    for _ in 0..2 {
+        settle(&setup, &[&alice, &charlie, &dave, &eve]).await;
+    }
+
+    let participants = setup
+        .get_user(&alice)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        !participants.contains(&bob),
+        "Bob's self-remove should have been swept in by the invite commit"
+    );
+    assert!(participants.contains(&eve), "Eve should have been added");
+
+    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
+    tracing::info!(bob_index, eve_index, "leaf indices across the mixed commit");
+
+    // Everyone still in the group must resolve every other member's profile.
+    assert_profiles_resolve(
+        &setup,
+        &eve,
+        &[&alice, &charlie, &dave],
+        "eve after mixed commit",
+    )
+    .await;
+    assert_profiles_resolve(
+        &setup,
+        &charlie,
+        &[&alice, &dave, &eve],
+        "charlie after mixed commit",
+    )
+    .await;
+
+    // And a member joining afterwards reads those profile keys back from the DS.
+    invite_and_settle(&setup, &alice, chat_id, &[&zoe]).await;
+    for _ in 0..2 {
+        settle(&setup, &[&zoe, &alice, &charlie, &dave, &eve]).await;
+    }
+    assert_profiles_resolve(
+        &setup,
+        &zoe,
+        &[&alice, &charlie, &dave, &eve],
+        "fresh joiner after mixed commit",
+    )
+    .await;
+}
+
+/// Inviting many members in a single commit must register a profile key for
+/// every one of them.
+///
+/// The DS pairs the commit's Add proposals with the profile keys carried in
+/// the AAD using `zip`, and `validate_added_users` only length-checks the
+/// welcome attribution infos, not the profile keys. A `zip` silently
+/// truncates, so any divergence loses the tail. The random-walk harness
+/// invites in batches of 50 and shows profile keys missing for almost every
+/// member straight after bootstrap, while the small batches used by the
+/// other tests here never surface it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Large invite batch preserves profile keys", skip_all)]
+async fn large_invite_batch_preserves_profile_keys() {
+    const BATCH: usize = 24;
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let mut invitees = Vec::with_capacity(BATCH);
+    for _ in 0..BATCH {
+        invitees.push(setup.add_user().await);
+    }
+    let joiner = setup.add_user().await;
+
+    // Profiles are set before connecting, the way the stress harness does it
+    // on member creation. Setting a profile rotates the user profile key, so
+    // whether it happens before or after the contact is established changes
+    // which key the inviter carries into the commit.
+    for member in invitees.iter().chain(std::iter::once(&alice)) {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+    for member in invitees.iter().chain(std::iter::once(&joiner)) {
+        setup.connect_users(&alice, member).await;
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+
+    // The whole batch in one commit, the way bootstrap does it.
+    setup
+        .get_user(&alice)
+        .user
+        .invite_users(chat_id, &invitees)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let everyone: Vec<&aircommon::identifiers::UserId> =
+        std::iter::once(&alice).chain(invitees.iter()).collect();
+    for _ in 0..2 {
+        settle(&setup, &everyone).await;
+    }
+
+    // A member from the batch must resolve all the others.
+    let observer = &invitees[0];
+    let others: Vec<&aircommon::identifiers::UserId> = std::iter::once(&alice)
+        .chain(invitees.iter().skip(1))
+        .collect();
+    assert_profiles_resolve(&setup, observer, &others, "batch member").await;
+
+    // And so must someone joining afterwards, who reads the profile keys back
+    // out of the DS rather than from the commit.
+    invite_and_settle(&setup, &alice, chat_id, &[&joiner]).await;
+    for _ in 0..2 {
+        settle(&setup, &[&joiner]).await;
+    }
+    let all: Vec<&aircommon::identifiers::UserId> =
+        std::iter::once(&alice).chain(invitees.iter()).collect();
+    assert_profiles_resolve(&setup, &joiner, &all, "joiner after large batch").await;
+}
+
+/// A member joining from a Welcome that is several epochs stale.
+///
+/// `ds_welcome_info` answers for the epoch asked for, so the ratchet tree it
+/// returns is historical. The profile keys shipped with it have to describe
+/// that same epoch. Serving the group's current keys instead means any leaf
+/// that changed hands in between resolves to the wrong occupant, and the
+/// ciphertext is bound to a user id, so it does not decrypt.
+///
+/// The joiner is deliberately stopped after its Welcome and before it catches
+/// up: later commits carry added members' profile keys in their AAD, which
+/// would re-deliver the keys and hide the problem.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Stale welcome epoch keeps profile keys", skip_all)]
+async fn stale_welcome_epoch_preserves_profile_keys() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // committer
+    let bob = setup.add_user().await; // joins from a stale Welcome
+    let charlie = setup.add_user().await; // leaves the group, freeing his leaf
+    let dave = setup.add_user().await; // stays throughout
+    let eve = setup.add_user().await; // takes over Charlie's leaf
+
+    for member in [&bob, &charlie, &dave, &eve] {
+        setup.connect_users(&alice, member).await;
+    }
+    for member in [&alice, &bob, &charlie, &dave, &eve] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&charlie, &dave]).await;
+    let charlie_index = own_leaf_index(&setup, &charlie, chat_id).await;
+
+    // Alice invites Bob. Bob's Welcome describes this epoch, with Charlie
+    // still in the group. Bob does not touch his queue yet.
+    setup
+        .get_user(&alice)
+        .user
+        .invite_users(chat_id, slice::from_ref(&bob))
+        .await
+        .unwrap()
+        .unwrap();
+    settle(&setup, &[&alice, &charlie, &dave]).await;
+
+    // The group moves on: Charlie's leaf is vacated and handed to Eve.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await
+        .unwrap();
+    settle(&setup, &[&alice, &dave]).await;
+    invite_and_settle(&setup, &alice, chat_id, &[&eve]).await;
+    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
+    assert_eq!(
+        eve_index, charlie_index,
+        "the test needs Eve to take over Charlie's leaf, otherwise nothing \
+         changed hands between Bob's Welcome and now"
+    );
+
+    // Bob processes his Welcome and nothing else, so his view is the epoch the
+    // Welcome describes rather than the group's current one.
+    let queued = setup.get_user(&bob).user.qs_fetch_messages().await.unwrap();
+    let mut joined = false;
+    let mut consumed = 0usize;
+    for message in queued {
+        let bob_user = &setup.get_user(&bob).user;
+        bob_user.fully_process_qs_messages(vec![message]).await;
+        consumed += 1;
+        if bob_user.chat_participants(chat_id).await.is_some() {
+            joined = true;
+            break;
+        }
+    }
+    assert!(
+        joined,
+        "Bob should have joined after processing his Welcome"
+    );
+    tracing::info!(consumed, "messages Bob processed before joining");
+    // Everything still queued is deliberately left unprocessed.
+    for _ in 0..3 {
+        setup
+            .get_user(&bob)
+            .user
+            .outbound_service()
+            .run_once()
+            .await;
+    }
+
+    // Bob is at the Welcome's epoch, where Charlie is still a member.
+    let bob_view = setup
+        .get_user(&bob)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    let bob_epoch = setup
+        .get_user(&bob)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap();
+    let alice_epoch = setup
+        .get_user(&alice)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap();
+    // Bob's two views of the same group must agree. The ratchet tree is the
+    // epoch his Welcome describes; the participant list is derived from the
+    // room state that came with it. If the DS answers with a current room
+    // state, the list names whoever holds a leaf now rather than who held it
+    // at that epoch.
+    let mls_view = setup
+        .get_user(&bob)
+        .user
+        .group_members(chat_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        bob_view, mls_view,
+        "Bob's participant list disagrees with his own ratchet tree: the two \
+         halves of his welcome info describe different epochs"
+    );
+    assert!(
+        bob_view.contains(&charlie),
+        "Bob should still see Charlie, who was a member at his Welcome's epoch"
+    );
+    assert!(
+        !bob_view.contains(&eve),
+        "Bob should not see Eve, who joined after his Welcome's epoch"
+    );
+
+    assert_profiles_resolve(&setup, &bob, &[&alice, &charlie, &dave], "stale welcome").await;
+}
