@@ -75,7 +75,9 @@ pub(crate) fn load_attachment_image(
 ) -> anyhow::Result<Option<ReencodedAttachmentImage>> {
     let file_size = fs::metadata(path)?.len();
 
-    let reader = ImageReader::open(path)?.with_guessed_format()?;
+    let reader = ImageReader::open(path)
+        .context("reading image")?
+        .with_guessed_format()?;
     let Some(format) = reader.format() else {
         return Ok(None);
     };
@@ -103,7 +105,7 @@ pub(crate) fn load_attachment_image(
             }
         }
         _ => {
-            let decoder = reader.into_decoder()?;
+            let decoder = reader.into_decoder().context("decoding image")?;
             load_still_image(decoder, file_size)?
         }
     };
@@ -137,7 +139,7 @@ fn load_still_image<D: ImageDecoder>(
 ) -> anyhow::Result<ReencodedAttachmentImage> {
     let orientation = decoder.orientation().ok();
 
-    let image = DynamicImage::from_decoder(decoder)?;
+    let image = DynamicImage::from_decoder(decoder).context("decoding image to RGBA buffer")?;
     let mut image = resize(
         image,
         MAX_ATTACHMENT_IMAGE_WIDTH,
@@ -157,7 +159,8 @@ fn load_still_image<D: ImageDecoder>(
 
     // `blurhash::encode` can only fail if the components dimension is out of range
     // => We should never get an error here.
-    let blurhash = blurhash::encode(4, 3, width, height, &image_rgba)?;
+    let blurhash =
+        blurhash::encode(4, 3, width, height, &image_rgba).context("computing blurhash")?;
 
     info!(
         from_bytes = file_size,

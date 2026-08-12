@@ -134,7 +134,8 @@ impl CoreUser {
             StorageObjectType::Attachment,
             &attachment.content,
         )
-        .await?
+        .await
+        .context("encrypt and provision")?
         {
             Ok(result) => result,
             Err(error) => return Ok(Err(error)),

@@ -555,7 +555,7 @@ class _MessageComposerState extends State<MessageComposer>
                   break;
               }
             } catch (e) {
-              _log.severe("Failed to upload attachment: $e", e);
+              _log.severe("Failed to upload attachment", e);
               showErrorBannerStandalone((loc) => loc.composer_error_attachment);
             } finally {
               if (isTempFile) {
