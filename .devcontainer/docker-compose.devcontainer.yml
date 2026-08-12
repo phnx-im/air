@@ -35,23 +35,6 @@ services:
       SQLX_OFFLINE: "true"
     command: sleep infinity
 
-  generate-db-certs:
-    image: alpine:3
-    working_dir: /workspace/backend
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        apk add --no-cache bash openssl
-        TEST_CERT_DIR_NAME=test_certs bash scripts/generate_test_certs.sh
-    restart: "no"
-    volumes:
-      - .:/workspace:cached
-
-  postgres:
-    depends_on:
-      generate-db-certs:
-        condition: service_completed_successfully
-
   minio-setup:
     entrypoint: >
       sh -ec "
