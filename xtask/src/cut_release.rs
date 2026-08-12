@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(clap::Args)]
 pub(crate) struct CutArgs {
-    /// Commit to cut the release branch at (defaults to main's HEAD).
+    /// Commit to cut the release branch at (defaults to origin/main).
     commit: Option<String>,
     /// Next version on main after the cut (skips the prompt).
     #[arg(long, value_name = "major|minor|patch|X.Y.Z")]
@@ -44,8 +44,8 @@ impl std::str::FromStr for NextVersion {
     }
 }
 
-/// Cuts a `release/0.X` branch at the given commit (defaults to the current
-/// `main` HEAD) and commits the version bump on a `merge-release/0.X`
+/// Cuts a `release/0.X` branch at the given commit (defaults to `origin/main`,
+/// which is fetched first) and commits the version bump on a `merge-release/0.X`
 /// branch that merges the release branch back into main via a PR, asking
 /// whether the next version is a major, minor or patch increment or a
 /// custom version. Store builds are then published from the release branch,
@@ -68,26 +68,39 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
         "cut-release requires a clean working tree"
     );
 
-    let commit = args.commit.as_deref().unwrap_or("HEAD");
+    // The cut is anchored on origin/main, so unpushed local commits stay out of
+    // the release and a stale local main cannot silently drop merged work.
+    cmd!(shell, "git fetch origin main").run()?;
+
+    let commit = args.commit.as_deref().unwrap_or("origin/main");
     let spec = format!("{commit}^{{commit}}");
     let commit = cmd!(shell, "git rev-parse --verify --quiet {spec}")
         .read()
         .with_context(|| format!("{commit} is not a commit"))?;
     let commit = commit.trim().to_owned();
-    cmd!(shell, "git merge-base --is-ancestor {commit} HEAD")
+    cmd!(shell, "git merge-base --is-ancestor {commit} origin/main")
         .quiet()
         .run()
-        .with_context(|| format!("{commit} is not on main"))?;
+        .with_context(|| format!("{commit} is not on origin/main"))?;
 
-    let current = bump_version::determine_current_version(repo_root.as_ref())?;
+    let current = version_at_commit(&shell, "origin/main")?;
     let at_commit = version_at_commit(&shell, &commit)?;
     ensure!(
         at_commit == current,
-        "version at {commit} is {at_commit}, but main is at {current}; \
+        "version at {commit} is {at_commit}, but origin/main is at {current}; \
          the commit must be from the current release cycle"
     );
 
     let release_branch = format!("release/{}.{}", current.major, current.minor);
+    // ls-remote rather than the remote-tracking ref, which the fetch above
+    // only updates for main.
+    let release_head = format!("refs/heads/{release_branch}");
+    let existing = cmd!(shell, "git ls-remote --heads origin {release_head}").read()?;
+    ensure!(
+        existing.trim().is_empty(),
+        "{release_branch} already exists on origin"
+    );
+
     let next = match args.next {
         Some(NextVersion::Bump(bump)) => bump_version::increment(&current, bump),
         Some(NextVersion::Version(version)) => version,
