@@ -191,6 +191,11 @@ const KEY_ROTATION_PERIOD_DAYS: i64 = 90;
 /// token redemption.
 const KEY_OVERLAP_DAYS: i64 = 7;
 
+/// Class of the advisory lock that serializes key rotation. The two-int form
+/// of `pg_advisory_xact_lock` shares one namespace across the database, so the
+/// class separates rotation locks from any other advisory lock use.
+const KEY_ROTATION_LOCK_CLASS: i32 = 0x4b45_5952;
+
 /// Checks whether key rotation is needed and performs it if so.
 ///
 /// Creates a new VOPRF keypair if no key exists or if the current key is older
@@ -225,8 +230,21 @@ async fn rotate_keys_if_needed_for_operation_type(
     pool: &PgPool,
     operation_type: OperationType,
 ) -> Result<bool, RotateKeysError> {
-    // TODO: lock the row, in case multiple servers are running on the same DB
-    let needs_rotation = sqlx::query_scalar!(
+    let mut transaction = pool.begin().await?;
+
+    // Replicas share the database, so the staleness check has to be serialized
+    // against the key creation it guards: otherwise two servers both find the
+    // key stale and create one each, and every extra live key grants an extra
+    // token batch per allowance epoch.
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock($1, $2)",
+        KEY_ROTATION_LOCK_CLASS,
+        operation_type as i32,
+    )
+    .execute(&mut *transaction)
+    .await?;
+
+    let rotated = sqlx::query_scalar!(
         "SELECT NOT EXISTS(
             SELECT 1 FROM as_batched_key
             WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)
@@ -234,24 +252,21 @@ async fn rotate_keys_if_needed_for_operation_type(
         operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *transaction)
     .await?
     .unwrap_or(true);
 
-    let rotated = if needs_rotation {
-        let mut transaction = pool.begin().await?;
-        {
-            let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
-            let server = Server::<Ristretto255>::new();
-            server.create_keypair(&key_store).await?;
-        }
-        transaction.commit().await?;
+    if rotated {
+        let conn_mutex = Mutex::new(&mut *transaction);
+        let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
+        let server = Server::<Ristretto255>::new();
+        server.create_keypair(&key_store).await?;
+    }
+    transaction.commit().await?;
+
+    if rotated {
         info!(%operation_type, "created new VOPRF keypair");
-        true
-    } else {
-        false
-    };
+    }
 
     // Remove keys past the overlap window.
     let max_age_days = (KEY_ROTATION_PERIOD_DAYS + KEY_OVERLAP_DAYS) as i32;
@@ -475,13 +490,68 @@ mod persistence {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::LazyLock;
+    use std::{sync::LazyLock, time::Duration};
 
     use aircommon::codec::PersistenceCodec;
     use rand::{SeedableRng, rngs::StdRng};
-    use sqlx::PgPool;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use tokio::time::timeout;
 
     use super::*;
+
+    /// Rotation serializes on a per-operation-type advisory lock: while one
+    /// replica holds it, another cannot reach its staleness check, so the two
+    /// can never both decide that a key is missing.
+    #[sqlx::test]
+    async fn rotation_waits_for_the_advisory_lock(pool: PgPool) -> anyhow::Result<()> {
+        let operation_type = OperationType::AddUsername;
+        rotate_keys_if_needed(&pool).await?;
+
+        // Age the key past the rotation period so rotation has work to do.
+        sqlx::query!(
+            "UPDATE as_batched_key
+            SET created_at = now() - make_interval(days => 91)
+            WHERE operation_type = $1",
+            operation_type as i16,
+        )
+        .execute(&pool)
+        .await?;
+
+        // Its own pool, so the run holds a connection independent of ours.
+        let replica = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with((*pool.connect_options()).clone())
+            .await?;
+
+        let mut blocker = pool.begin().await?;
+        sqlx::query!(
+            "SELECT pg_advisory_xact_lock($1, $2)",
+            KEY_ROTATION_LOCK_CLASS,
+            operation_type as i32,
+        )
+        .execute(&mut *blocker)
+        .await?;
+
+        let mut rotation = Box::pin(rotate_keys_if_needed(&replica));
+        assert!(
+            timeout(Duration::from_millis(250), &mut rotation)
+                .await
+                .is_err(),
+            "rotation must block while the lock is held"
+        );
+
+        blocker.rollback().await?;
+        assert!(rotation.await?.contains(&operation_type));
+
+        let keys = load_batched_token_keys(&pool)
+            .await?
+            .into_iter()
+            .filter(|key| key.operation_type == operation_type)
+            .count();
+        assert_eq!(keys, 2, "the aged key plus exactly one new key");
+
+        Ok(())
+    }
 
     /// Insert two VOPRF keys and retrieve each by ID.
     #[sqlx::test]
