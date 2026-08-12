@@ -24,7 +24,7 @@ use crate::{
     usernames::UsernameRecord,
 };
 
-use super::OutboundServiceContext;
+use super::{OutboundServiceContext, error::OutboundServiceError};
 
 /// Number of key packages to upload (excluding the last resort key package)
 #[cfg(not(feature = "test_utils"))]
@@ -437,13 +437,14 @@ impl OutboundServiceContext {
                 );
                 return Ok(PARTIAL_UPDATE_INTERVAL); // Continue after a partial batch
             }
-            match self.self_update_in_chat(chat_id).await? {
-                SelfUpdateOutcome::Updated => num_updated += 1,
-                SelfUpdateOutcome::Skipped => (),
-                SelfUpdateOutcome::Failed(error) => {
+            match self.self_update_in_chat(chat_id).await {
+                Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
+                Ok(SelfUpdateOutcome::Skipped) => (),
+                Err(OutboundServiceError::Fatal(error)) => {
                     num_failed += 1;
                     warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
                 }
+                Err(OutboundServiceError::Recoverable(error)) => return Err(error),
             }
         }
 
@@ -458,16 +459,26 @@ impl OutboundServiceContext {
     /// Performs the self-update in a single chat.
     ///
     /// Failures that only concern this chat are reported as
-    /// [`SelfUpdateOutcome::Failed`], so that the batch can continue with the
-    /// next chat. `Err` is reserved for failures that affect every chat, e.g. an
-    /// unreachable database or network, where retrying the whole task is the
-    /// only useful thing to do.
-    async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<SelfUpdateOutcome> {
+    /// [`OutboundServiceError::Fatal`], so that the batch can continue with the
+    /// next chat. [`OutboundServiceError::Recoverable`] is reserved for failures
+    /// that affect every chat, e.g. an unreachable database or network, where
+    /// retrying the whole task is the only useful thing to do.
+    async fn self_update_in_chat(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
         let (group, is_connection, erase_attributes, pq_due) = {
-            let mut read = self.db.read().await?;
-            let mut read_txn = read.begin().await?;
+            let mut read = self
+                .db
+                .read()
+                .await
+                .map_err(OutboundServiceError::recoverable)?;
+            let mut read_txn = read
+                .begin()
+                .await
+                .map_err(OutboundServiceError::recoverable)?;
 
             // Loading can fail for a single chat, e.g. when its persisted group state can no
             // longer be decoded. Such a chat must not hold up the rest of the batch.
@@ -480,7 +491,7 @@ impl OutboundServiceContext {
                     );
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
-                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
 
             if group.mls_group().pending_commit().is_some()
@@ -514,7 +525,7 @@ impl OutboundServiceContext {
             match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
                 Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
                 Ok(false) => (),
-                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 
             let chat = match Chat::load(&mut read_txn, &chat_id).await {
@@ -526,7 +537,7 @@ impl OutboundServiceContext {
                     );
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
-                Err(error) => return Ok(SelfUpdateOutcome::Failed(error.into())),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
 
             // For connection chats, that support empty connection group titles, we can erase the data.
@@ -560,18 +571,17 @@ impl OutboundServiceContext {
             // Pure T-only update
             ChatOperation::update(chat_id, None)
         };
-        let res = self.execute_job(job).await;
-
-        match res {
+        match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
             // A network error is likely something transient that would affect
-            // all chats, so we return the error to retry the task with backoff.
-            Err(error @ JobError::NetworkError) => Err(error.into()),
+            // all chats, so we retry the whole task with backoff.
+            Err(error @ JobError::NetworkError) => Err(OutboundServiceError::recoverable(error)),
             // The operation is no longer applicable to this chat, so we skip
             // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
-            // Any other failure is specific to this chat.
-            Err(error) => Ok(SelfUpdateOutcome::Failed(error.into())),
+            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
+                Err(OutboundServiceError::fatal(error))
+            }
         }
     }
 }
@@ -581,8 +591,6 @@ enum SelfUpdateOutcome {
     Updated,
     /// The update does not apply to this chat right now.
     Skipped,
-    /// The update failed for a reason specific to this chat.
-    Failed(anyhow::Error),
 }
 
 /// Migrates the group data from the legacy format to the new format.
