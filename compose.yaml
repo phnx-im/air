@@ -5,6 +5,9 @@
 services:
   postgres:
     image: postgres:18.3
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -28,6 +31,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -50,7 +54,7 @@ services:
       minio:
         condition: service_healthy
     restart: "no"
-    entrypoint: ["/bin/sh", "-exc"]
+    entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
         mc alias set local http://minio:9000 minioadmin minioadmin
