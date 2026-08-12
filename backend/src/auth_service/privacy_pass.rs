@@ -4,7 +4,10 @@
 
 use std::collections::HashSet;
 
-use aircommon::codec::{BlobDecoded, BlobEncoded};
+use aircommon::{
+    codec::{BlobDecoded, BlobEncoded},
+    identifiers::UserId,
+};
 use airprotos::auth_service::v1::OperationType;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -191,6 +194,11 @@ const KEY_ROTATION_PERIOD_DAYS: i64 = 90;
 /// token redemption.
 const KEY_OVERLAP_DAYS: i64 = 7;
 
+/// Retention of `as_token_issuance` rows. A row only matters while its
+/// allowance epoch can still be claimed, and 40 days covers the longest epoch
+/// (one month) plus margin.
+const ISSUANCE_RETENTION_DAYS: i32 = 40;
+
 /// Class of the advisory lock that serializes key rotation. The two-int form
 /// of `pg_advisory_xact_lock` shares one namespace across the database, so the
 /// class separates rotation locks from any other advisory lock use.
@@ -306,6 +314,23 @@ async fn rotate_keys_if_needed_for_operation_type(
         );
     }
 
+    // Prune issuance records whose allowance epoch has long passed.
+    let issuances_removed = sqlx::query!(
+        "DELETE FROM as_token_issuance \
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
+        ISSUANCE_RETENTION_DAYS
+    )
+    .execute(pool)
+    .await?;
+
+    if issuances_removed.rows_affected() > 0 {
+        info!(
+            removed = issuances_removed.rows_affected(),
+            "removed expired token issuance records"
+        );
+    }
+
     Ok(rotated)
 }
 
@@ -377,14 +402,82 @@ impl TokenAllowance {
     }
 }
 
+/// Tuple that bounds idempotent issuance to one batch.
+pub(in crate::auth_service) struct TokenIssuanceKey<'a> {
+    pub(in crate::auth_service) user_id: &'a UserId,
+    pub(in crate::auth_service) operation_type: OperationType,
+    pub(in crate::auth_service) allowance_epoch: i32,
+    pub(in crate::auth_service) key_fingerprint: &'a [u8],
+}
+
 mod persistence {
     use aircommon::identifiers::UserId;
     use airprotos::auth_service::v1::OperationType;
     use chrono::{DateTime, Utc};
-    use sqlx::{PgExecutor, PgTransaction, query};
+    use sqlx::{PgConnection, PgExecutor, PgTransaction, query, query_scalar};
 
-    use super::TokenAllowance;
+    use super::{TokenAllowance, TokenIssuanceKey};
     use crate::errors::StorageError;
+
+    impl TokenIssuanceKey<'_> {
+        /// Claims the issuance row for this key, returning the request hash it
+        /// was already claimed with, if any.
+        ///
+        /// `None` means this call took the row, so the batch is issued for the
+        /// first time. The insert is the whole lock: concurrent identical
+        /// requests both evaluate and, because evaluation is deterministic,
+        /// finalize to the same tokens.
+        pub(in crate::auth_service) async fn claim(
+            &self,
+            connection: &mut PgConnection,
+            request_hash: &[u8],
+        ) -> Result<Option<Vec<u8>>, StorageError> {
+            let inserted = query!(
+                "INSERT INTO as_token_issuance (
+                    user_uuid,
+                    user_domain,
+                    operation_type,
+                    allowance_epoch,
+                    key_fingerprint,
+                    request_hash
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT DO NOTHING
+                ",
+                self.user_id.uuid(),
+                self.user_id.domain() as _,
+                self.operation_type as i16,
+                self.allowance_epoch,
+                self.key_fingerprint,
+                request_hash,
+            )
+            .execute(&mut *connection)
+            .await?;
+
+            if inserted.rows_affected() > 0 {
+                return Ok(None);
+            }
+
+            // A conflicting insert that later rolled back leaves no row. That
+            // reads as a first issuance, which is what it is.
+            query_scalar!(
+                "SELECT request_hash FROM as_token_issuance
+                WHERE user_uuid = $1
+                    AND user_domain = $2
+                    AND operation_type = $3
+                    AND allowance_epoch = $4
+                    AND key_fingerprint = $5
+                ",
+                self.user_id.uuid(),
+                self.user_id.domain() as _,
+                self.operation_type as i16,
+                self.allowance_epoch,
+                self.key_fingerprint,
+            )
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(StorageError::from)
+        }
+    }
 
     impl TokenAllowance {
         pub(in crate::auth_service) async fn ensure_exists(
