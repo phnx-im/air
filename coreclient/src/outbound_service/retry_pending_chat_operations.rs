@@ -19,6 +19,7 @@ use crate::{
     groups::{Group, VerifiedGroup},
     job::{JobError, pending_chat_operation::PendingChatOperation},
     outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
+    privacy_pass,
 };
 
 impl OutboundServiceContext {
@@ -33,13 +34,16 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            // Turn pending setting changes into a self-group commit when the
-            // self-group is free. Runs every iteration: when a settings
-            // operation completes with changes left pending (the user
-            // re-toggled while it was in flight), the next iteration issues a
-            // fresh commit.
+            // Turn pending self-group state into a commit when the self-group
+            // is free. Runs every iteration: when an operation completes with
+            // work left pending (the user re-toggled a setting while the commit
+            // was in flight, or only one of the two kinds got a turn), the next
+            // iteration issues a fresh commit.
             if let Err(error) = self.ensure_settings_operation().await {
                 error!(%error, "Failed to stage pending setting changes");
+            }
+            if let Err(error) = self.ensure_token_seed_operation().await {
+                error!(%error, "Failed to stage pending token seeds");
             }
 
             let now = chrono::Utc::now();
@@ -97,6 +101,34 @@ impl OutboundServiceContext {
 
                 let update = SettingsUpdate::collect(&mut *txn).await?;
                 PendingChatOperation::create_settings_update(txn, &signer, group, update).await?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Stages a self-group commit publishing the token seeds that still have to
+    /// reach the siblings, if any.
+    ///
+    /// These are fresh proposals, and seeds that won a divergence and are
+    /// re-broadcast so the sibling holding the losing seed converges. A device
+    /// gets no tokens under a key until its seed is agreed, so this runs on
+    /// every outbound wake until the commit lands.
+    async fn ensure_token_seed_operation(&self) -> anyhow::Result<()> {
+        let Some((self_group_id, signer)) = self.self_group_signer().await? else {
+            return Ok(());
+        };
+
+        self.db
+            .with_write_transaction(async |txn| {
+                let seeds = privacy_pass::seeds_to_broadcast(&mut *txn).await?;
+                if seeds.is_empty() {
+                    return Ok(());
+                }
+                let Some(group) = free_self_group(txn, &self_group_id).await? else {
+                    return Ok(());
+                };
+
+                PendingChatOperation::create_token_seeds(txn, &signer, group, seeds).await?;
                 Ok(())
             })
             .await

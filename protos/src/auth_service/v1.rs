@@ -21,14 +21,6 @@ impl OperationType {
         }
     }
 
-    pub fn low_tokens_threshold(&self) -> u16 {
-        match self {
-            OperationType::Unspecified => 0,
-            OperationType::AddUsername => 5,
-            OperationType::GetInviteCode => 1,
-        }
-    }
-
     pub fn valid_until_starting_at(&self, at: DateTime<Utc>) -> DateTime<Utc> {
         match self {
             OperationType::Unspecified => at,

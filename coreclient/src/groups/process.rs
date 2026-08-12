@@ -47,6 +47,7 @@ use crate::{
     },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
+    privacy_pass,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -78,6 +79,14 @@ async fn apply_self_group_payload(
             // Fields a sibling's accepted commit covered are no longer ours to
             // change.
             SettingChanges::remove_covered(txn, &merged).await?;
+        }
+    }
+
+    if own_echo {
+        privacy_pass::complete_sent_seeds(txn, &payload.token_seeds).await?;
+    } else {
+        for seed in &payload.token_seeds {
+            privacy_pass::apply_incoming_seed(txn, seed).await?;
         }
     }
 

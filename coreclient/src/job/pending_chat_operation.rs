@@ -19,7 +19,7 @@ use aircommon::{
 };
 use airprotos::client::{
     group::GroupData,
-    self_group::{LinkedDevice, SettingsUpdate},
+    self_group::{LinkedDevice, SettingsUpdate, TokenSeed},
 };
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::{commit_builder::ApqCommitMessageBundle, messages::ApqKeyPackage};
@@ -56,6 +56,7 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
+    privacy_pass,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -98,6 +99,13 @@ pub(super) enum OperationType {
         /// sent with the still-intended value are done.
         update: SettingsUpdate,
     },
+    TokenSeeds {
+        params: Box<ApqGroupOperationParamsOut>,
+        /// The seeds this commit publishes. When the commit is accepted they
+        /// become the agreed seeds of their keys, because the DS ordering that
+        /// accepted the commit is what decides the first writer.
+        seeds: Vec<TokenSeed>,
+    },
     SelfGroupKeyPackageUpload {
         params: Box<ApqGroupOperationParamsOut>,
         batch_id: KeyPackageBatchId,
@@ -121,6 +129,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
             OperationType::SettingsUpdate { .. } => "settings_update",
+            OperationType::TokenSeeds { .. } => "token_seeds",
             OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
             OperationType::SelfGroupRemove { .. } => "self_group_remove",
             OperationType::SelfGroupAdd { .. } => "self_group_add",
@@ -180,6 +189,7 @@ impl OperationType {
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
             | OperationType::SettingsUpdate { .. }
+            | OperationType::TokenSeeds { .. }
             | OperationType::SelfGroupKeyPackageUpload { .. }
             | OperationType::SelfGroupRemove { .. }
             | OperationType::SelfGroupAdd { .. } => true,
@@ -201,6 +211,7 @@ impl OperationType {
         !matches!(
             self,
             OperationType::SettingsUpdate { .. }
+                | OperationType::TokenSeeds { .. }
                 | OperationType::SelfGroupRemove { .. }
                 | OperationType::SelfGroupAdd { .. }
         )
@@ -320,6 +331,9 @@ impl PendingChatOperation {
             OperationType::SettingsUpdate { update, .. } => {
                 SettingChanges::complete_sent(txn, update).await
             }
+            OperationType::TokenSeeds { seeds, .. } => {
+                privacy_pass::complete_sent_seeds(txn, seeds).await
+            }
             _ => Ok(()),
         }
     }
@@ -345,6 +359,11 @@ impl PendingChatOperation {
     ) -> anyhow::Result<()> {
         match &self.operation {
             OperationType::SettingsUpdate { .. } => SettingChanges::roll_back_and_clear(txn).await,
+            // The seeds were never agreed, so dropping the proposals lets a
+            // later replenishment run propose again.
+            OperationType::TokenSeeds { seeds, .. } => {
+                privacy_pass::roll_back_sent_seeds(txn, seeds).await
+            }
             _ => Ok(()),
         }
     }
@@ -489,6 +508,7 @@ impl PendingChatOperation {
                     .await
             }
             OperationType::SettingsUpdate { params, .. }
+            | OperationType::TokenSeeds { params, .. }
             | OperationType::SelfGroupRemove { params }
             | OperationType::SelfGroupAdd { params }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
@@ -814,6 +834,33 @@ impl PendingChatOperation {
             OperationType::SettingsUpdate {
                 params: Box::new(params),
                 update,
+            },
+        );
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Stages a self-group commit publishing token seeds and stores it as a
+    /// pending chat operation.
+    ///
+    /// Takes the loaded self-group for the same reason
+    /// [`Self::create_settings_update`] does.
+    pub(crate) async fn create_token_seeds(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        mut group: VerifiedGroup,
+        seeds: Vec<TokenSeed>,
+    ) -> anyhow::Result<Self> {
+        let params = group
+            .group_mut()
+            .stage_token_seeds(txn, signer, &seeds)
+            .await?;
+
+        let job = Self::new(
+            group,
+            OperationType::TokenSeeds {
+                params: Box::new(params),
+                seeds,
             },
         );
         job.store(txn).await?;

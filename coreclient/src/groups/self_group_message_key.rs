@@ -199,6 +199,27 @@ impl Group {
             .await
     }
 
+    /// Stages a self-group commit that publishes token seeds to the siblings.
+    ///
+    /// A commit of its own rather than a field on the settings snapshot: seeds
+    /// are set-once with first-writer-wins, while a settings snapshot carries
+    /// last-writer-wins values and would cover an in-flight seed proposal.
+    pub(crate) async fn stage_token_seeds(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        seeds: &[TokenSeed],
+    ) -> Result<ApqGroupOperationParamsOut> {
+        let messages = seeds
+            .iter()
+            .cloned()
+            .map(SelfGroupMessage::TokenSeed)
+            .collect();
+        let proposal = self.self_group_messages_proposal(txn, messages).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
+
     /// Stages a self-group commit whose only payload is an `AppEphemeral`
     /// proposal.
     ///
