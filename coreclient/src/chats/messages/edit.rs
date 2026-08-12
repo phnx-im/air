@@ -723,6 +723,84 @@ mod tests {
         Ok(())
     }
 
+    /// The migration drops reactions whose target resolves through neither a
+    /// message nor its edit history, and keeps reactions targeting superseded
+    /// versions of live edited messages.
+    #[sqlx::test]
+    async fn test_purge_migration_keeps_reactions_resolvable_through_edits(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let current_mimi_id = *message.message().mimi_id().unwrap();
+
+        // An earlier version of the live message
+        let superseded_mimi_id = MimiId::from_slice(&[7u8; 32])?;
+        MessageEdit::new(
+            &superseded_mimi_id,
+            message.id(),
+            TimeStamp::now(),
+            &MimiContent::simple_markdown_message("Earlier version".to_string(), [2; 16]),
+        )
+        .store(pool.write().await?)
+        .await?;
+
+        // A target matching neither table, left by a deletion that took the
+        // message row and its edit history with it
+        let dangling_mimi_id = MimiId::from_slice(&[6u8; 32])?;
+
+        let sender = UserId::random("localhost".parse().unwrap());
+        for (reaction_id, target) in [
+            ([8u8; 32], current_mimi_id),
+            ([9u8; 32], superseded_mimi_id),
+            ([10u8; 32], dangling_mimi_id),
+        ] {
+            Reaction::new(
+                MimiId::from_slice(&reaction_id)?,
+                target,
+                chat.id(),
+                sender.clone(),
+                "👍".to_string(),
+                TimeStamp::now(),
+            )
+            .store(pool.write().await?)
+            .await?;
+        }
+
+        let mut connection = pool.write().await?;
+        sqlx::raw_sql(include_str!(
+            "../../../migrations/20260811120000_purge_deleted_message_state.sql"
+        ))
+        .execute(connection.as_mut())
+        .await?;
+        drop(connection);
+
+        assert_eq!(
+            Reaction::load_by_target(pool.read().await?, &current_mimi_id)
+                .await?
+                .len(),
+            1
+        );
+        assert_eq!(
+            Reaction::load_by_target(pool.read().await?, &superseded_mimi_id)
+                .await?
+                .len(),
+            1
+        );
+        assert!(
+            Reaction::load_by_target(pool.read().await?, &dangling_mimi_id)
+                .await?
+                .is_empty()
+        );
+
+        Ok(())
+    }
+
     /// When multiple messages reply to the same message, deleting it should update all of their
     /// `in_reply_to` references.
     #[sqlx::test]
