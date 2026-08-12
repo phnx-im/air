@@ -4,6 +4,7 @@
 
 mod bump_version;
 mod cut_release;
+mod expire_version;
 mod generate_emoji;
 mod prune_unused_l10n;
 mod publish_linux_packages;
@@ -30,6 +31,9 @@ enum Commands {
     /// Cut a release/0.X branch from main and prepare its merge-back PR.
     #[command(name = "cut-release")]
     CutRelease(cut_release::CutArgs),
+    /// Expire client versions older than the given version on the server.
+    #[command(name = "expire-version")]
+    ExpireVersion(expire_version::ExpireArgs),
     /// Scan Flutter / mobile sources for unused localization keys and prune them from ARB files.
     #[command(name = "prune-unused-l10n")]
     PruneUnusedL10n(prune_unused_l10n::PruneArgs),
@@ -47,6 +51,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::BumpVersion(args) => bump_version::run(args),
         Commands::CutRelease(args) => cut_release::run(args),
+        Commands::ExpireVersion(args) => expire_version::run(args),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),

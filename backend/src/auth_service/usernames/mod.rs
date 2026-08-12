@@ -287,7 +287,7 @@ mod tests {
         Ok(AuthService::initialize(
             pool.clone(),
             "example.com".parse()?,
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?)

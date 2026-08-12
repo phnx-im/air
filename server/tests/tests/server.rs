@@ -19,6 +19,7 @@ use aircoreclient::{
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
 
+use airbackend::version::{VersionExpiration, VersionPolicy};
 use airprotos::{
     auth_service::v1::auth_service_server,
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -28,7 +29,6 @@ use airprotos::{
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::Utc;
 use mimi_content::MimiContent;
-use semver::VersionReq;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tonic::{Code, codegen::http, transport::Channel};
@@ -1014,7 +1014,11 @@ async fn invitation_code() {
 )]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
-        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            // everything below this version is already expired
+            before: semver::Version::new(999, 0, 0),
+            expires_at: chrono::Utc::now() - chrono::Duration::days(1),
+        }]),
         ..Default::default()
     })
     .await;
@@ -1049,6 +1053,44 @@ async fn unsupported_client_version() {
 
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Client version expiry warning on listen queue", skip_all)]
+async fn client_version_expiry_warning() {
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(10);
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            // everything below this version expires in the future
+            before: semver::Version::new(999, 0, 0),
+            expires_at,
+        }]),
+        ..Default::default()
+    })
+    .await;
+
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event notifies about the upcoming expiry.
+    let response = stream.next().await.unwrap();
+    let Some(listen_response::Event::VersionExpires(notification)) = response.event else {
+        panic!("expected version expires notification, got {response:?}");
+    };
+    assert_eq!(
+        notification.expires_at.unwrap().seconds,
+        expires_at.timestamp()
+    );
+
+    // Then the queue-empty sentinel follows.
+    assert_matches!(
+        stream.next().await,
+        Some(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        })
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

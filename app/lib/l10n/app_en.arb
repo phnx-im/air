@@ -488,6 +488,15 @@
   "appOutdatedScreen_message": "Update to keep using Air",
   "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
   "appOutdatedScreen_action": "Update",
+  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
+  "@versionExpiryBanner_message": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "versionExpiryBanner_dismiss": "Dismiss",
 
   "contactRequestDialog_title": "Contact request",
   "contactRequestDialog_avatarHint": "Tap to reveal their picture",

@@ -2253,6 +2253,18 @@ abstract class AppLocalizations {
   /// **'Update'**
   String get appOutdatedScreen_action;
 
+  /// No description provided for @versionExpiryBanner_message.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Air by {date} to keep using it'**
+  String versionExpiryBanner_message(String date);
+
+  /// No description provided for @versionExpiryBanner_dismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get versionExpiryBanner_dismiss;
+
   /// No description provided for @contactRequestDialog_title.
   ///
   /// In en, this message translates to:

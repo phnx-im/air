@@ -42,6 +42,10 @@ abstract class UiUser implements RustOpaqueInterface {
   UiUserId get userId;
 
   List<UiUsername> get usernames;
+
+  /// When set, the server will block this client's version at the returned
+  /// time.
+  DateTime? get versionExpiresAt;
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>

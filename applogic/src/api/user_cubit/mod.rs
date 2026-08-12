@@ -12,6 +12,7 @@ pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -66,6 +67,7 @@ struct UiUserInner {
     unsupported_version: bool,
     /// Another device of this user removed this one from the self group.
     account_unlinked: bool,
+    version_expires_at: Option<DateTime<Utc>>,
 }
 
 impl UiUser {
@@ -139,6 +141,13 @@ impl UiUser {
     pub fn account_unlinked(&self) -> bool {
         self.inner.account_unlinked
     }
+
+    /// When set, the server will block this client's version at the returned
+    /// time.
+    #[frb(getter, sync)]
+    pub fn version_expires_at(&self) -> Option<DateTime<Utc>> {
+        self.inner.version_expires_at
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -177,6 +186,7 @@ impl UserCubitBase {
             usernames: Vec::new(),
             unsupported_version: false,
             account_unlinked: false,
+            version_expires_at: None,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());

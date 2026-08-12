@@ -188,6 +188,10 @@ bump-version *args='':
 cut-release *args='':
     cargo xtask cut-release {{args}}
 
+# Expire client versions older than the given version on the server.
+expire-version version days='15':
+    cargo xtask expire-version {{version}} --in-days {{days}}
+
 # Install fvm.
 install-fvm:
     # If this fails, call this to get the new sha256sum:

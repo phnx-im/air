@@ -56,6 +56,10 @@ impl QsStreamProcessor {
                 warn!("ignoring QS listen payload event");
                 QsProcessEventResult::Ignored
             }
+            Some(listen_response::Event::VersionExpires(_)) => {
+                // handled in the applogic layer before processing
+                QsProcessEventResult::Ignored
+            }
             Some(listen_response::Event::Message(message)) => match message.try_into() {
                 Ok(message) => {
                     // Invariant: after a message there is always an Empty event as sentinel

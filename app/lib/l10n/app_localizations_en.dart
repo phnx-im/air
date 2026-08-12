@@ -1283,6 +1283,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appOutdatedScreen_action => 'Update';
 
   @override
+  String versionExpiryBanner_message(String date) {
+    return 'Update Air by $date to keep using it';
+  }
+
+  @override
+  String get versionExpiryBanner_dismiss => 'Dismiss';
+
+  @override
   String get contactRequestDialog_title => 'Contact request';
 
   @override

@@ -530,6 +530,7 @@ impl CoreUser {
                     }
                 }
                 Some(listen_response::Event::Payload(_)) => {}
+                Some(listen_response::Event::VersionExpires(_)) => {}
                 None => {}
             }
         }

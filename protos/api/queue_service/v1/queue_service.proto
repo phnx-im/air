@@ -334,7 +334,14 @@ message ListenResponse {
     QueueEmpty empty = 1;
     QueueMessage message = 2;
     QueueEventPayload payload = 3;
+    VersionExpiresNotification version_expires = 4;
   }
+}
+
+// Event notifying the listening client that its version expires soon and
+// will then be blocked by the server
+message VersionExpiresNotification {
+  common.v1.Timestamp expires_at = 1;
 }
 
 // Event notifying recipients that the queue is empty

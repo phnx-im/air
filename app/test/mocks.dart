@@ -36,6 +36,7 @@ class MockUiUser implements UiUser {
     required int id,
     this.accountUnlinked = false,
     this.usernames = const [],
+    this.versionExpiresAt,
   }) : _userId = id.userId();
 
   final UiUserId _userId;
@@ -57,6 +58,9 @@ class MockUiUser implements UiUser {
 
   @override
   final bool accountUnlinked;
+
+  @override
+  final DateTime? versionExpiresAt;
 }
 
 class MockUsersState implements UsersState {

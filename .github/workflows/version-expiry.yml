@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# When a release/0.X branch is merged back into main (which we do once the
+# release is live in the app stores), schedule the expiry of all client
+# versions below 0.X in 15 days. Expired clients are blocked by the server
+# until they update.
+#
+# Note: release branches must be merged with a merge commit (not squashed),
+# otherwise the merge cannot be detected here.
+
+name: Expire old client version
+
+concurrency:
+  group: ${{ github.workflow }}
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  expire-old-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Detect merged release branch
+        id: detect
+        run: |
+          # Only merge commits are of interest
+          if ! git rev-parse -q --verify HEAD^2 >/dev/null; then
+            echo "Not a merge commit; nothing to do."
+            exit 0
+          fi
+
+          # A release merge either still has its branch head on origin or
+          # mentions the branch in the merge commit subject.
+          subject=$(git log -1 --format=%s HEAD)
+          if ! git branch -r --contains HEAD^2 | grep -qE 'origin/release/' \
+            && ! grep -qE 'release/[0-9]+\.[0-9]+' <<<"$subject"; then
+            echo "Not a release branch merge; nothing to do."
+            exit 0
+          fi
+
+          # The released version is the version on the merged branch.
+          released=$(git show HEAD^2:app/pubspec.yaml | sed -n 's/^version: \([0-9]*\.[0-9]*\)\..*/\1/p')
+          if [[ -z "$released" ]]; then
+            echo "::error::Could not determine the released version"
+            exit 1
+          fi
+          echo "Released version: $released"
+          echo "before=$released.0" >> "$GITHUB_OUTPUT"
+
+      - name: Schedule expiry of versions below the release
+        if: steps.detect.outputs.before
+        run: cargo run -p xtask -- expire-version "${{ steps.detect.outputs.before }}"
+
+      - name: Commit and deploy
+        if: steps.detect.outputs.before
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo "Expirations unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/configuration/version_expirations.yaml
+          git commit -m "chore: expire client versions below ${{ steps.detect.outputs.before }}"
+          git push origin HEAD:main
+          # Pushes with GITHUB_TOKEN do not trigger workflows; deploy the
+          # server explicitly so the new expirations go live.
+          gh workflow run backend.yml --ref main

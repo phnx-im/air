@@ -12,6 +12,7 @@ import 'package:air/ds/patterns/nux/nux_scaffold.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,7 +31,90 @@ class UpdateRequiredScreen extends StatelessWidget {
     final showUpdateButton = DeviceType.isPhone;
     return isOutdated
         ? UpdateRequiredView(showUpdateButton: showUpdateButton)
-        : child;
+        : VersionExpiryBanner(child: child);
+  }
+}
+
+/// Banner shown above the app content when the server announced that this
+/// client's version expires soon. Dismissible until the next app start.
+class VersionExpiryBanner extends StatefulWidget {
+  const VersionExpiryBanner({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<VersionExpiryBanner> createState() => _VersionExpiryBannerState();
+}
+
+class _VersionExpiryBannerState extends State<VersionExpiryBanner> {
+  DateTime? _dismissedFor;
+
+  @override
+  Widget build(BuildContext context) {
+    final expiresAt = context.select(
+      (UserCubit cubit) => cubit.state.versionExpiresAt,
+    );
+    if (expiresAt == null || expiresAt == _dismissedFor) {
+      return widget.child;
+    }
+
+    final palette = SemanticPalette.of(context);
+    final loc = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    final date = DateFormat.yMMMd(locale).format(expiresAt.toLocal());
+    final onAccent = palette.function.neutral.toggleWhite;
+
+    final banner = Material(
+      color: palette.accentBrand.primary,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: S.s16,
+            vertical: S.s4,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  loc.versionExpiryBanner_message(date),
+                  style: typeScale.body.s.style(color: onAccent),
+                ),
+              ),
+              if (DeviceType.isPhone)
+                TextButton(
+                  onPressed: _handleUpdateNow,
+                  child: Text(
+                    loc.appOutdatedScreen_action,
+                    style: typeScale.body.s.style(
+                      color: onAccent,
+                      weight: Weight.emphasized,
+                    ),
+                  ),
+                ),
+              IconButton(
+                onPressed: () => setState(() => _dismissedFor = expiresAt),
+                tooltip: loc.versionExpiryBanner_dismiss,
+                icon: Icon(Icons.close, size: S.s16, color: onAccent),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return Column(
+      children: [
+        banner,
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: widget.child,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -90,25 +174,25 @@ class UpdateRequiredView extends StatelessWidget {
       ),
     );
   }
+}
 
-  void _handleUpdateNow() async {
-    const String iOSAppStoreUrl =
-        "https://beta.itunes.apple.com/v1/app/6749467927";
-    const String androidPlayStoreUrl =
-        "https://play.google.com/store/apps/details?id=ms.air";
+void _handleUpdateNow() async {
+  const String iOSAppStoreUrl =
+      "https://beta.itunes.apple.com/v1/app/6749467927";
+  const String androidPlayStoreUrl =
+      "https://play.google.com/store/apps/details?id=ms.air";
 
-    Uri url;
+  Uri url;
 
-    if (Platform.isIOS) {
-      url = Uri.parse(iOSAppStoreUrl);
-    } else if (Platform.isAndroid) {
-      url = Uri.parse(androidPlayStoreUrl);
-    } else {
-      return;
-    }
+  if (Platform.isIOS) {
+    url = Uri.parse(iOSAppStoreUrl);
+  } else if (Platform.isAndroid) {
+    url = Uri.parse(androidPlayStoreUrl);
+  } else {
+    return;
+  }
 
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 }

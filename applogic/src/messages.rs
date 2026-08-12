@@ -40,6 +40,7 @@ impl User {
                 listen_response::Event::Empty(_) => unreachable!(),
                 listen_response::Event::Message(queue_message) => queue_message.try_into().ok(),
                 listen_response::Event::Payload(_) => None,
+                listen_response::Event::VersionExpires(_) => None,
             });
 
         let mut messages: Vec<QueueMessage> = Vec::new();

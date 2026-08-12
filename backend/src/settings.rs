@@ -11,6 +11,8 @@ use chrono::Duration;
 use serde::Deserialize;
 use zeroize::Zeroize;
 
+use crate::version::VersionExpiration;
+
 /// Configuration for the server.
 #[derive(Deserialize, Clone, Debug)]
 pub struct Settings {
@@ -46,11 +48,13 @@ pub struct ApplicationSettings {
     ///
     /// Can *not* be changed after the first start of the server.
     pub domain: String,
-    /// SemVer version requirement for the client
+    /// Expiration times for client versions
     ///
-    /// Only clients satisfying this requirement will be able to connect to the server. When empty,
-    /// no version requirement is enforced.
-    pub versionreq: Option<semver::VersionReq>,
+    /// All client versions below an entry's `before` version expire at that entry's `expires_at`
+    /// (the earliest matching entry wins). Expired clients can no longer connect to the server.
+    /// When empty, no versions expire.
+    #[serde(default)]
+    pub version_expirations: Vec<VersionExpiration>,
     /// Special invitation code that is never redeemed.
     ///
     /// This code can be used to register as many users as desired. Useful for testing.

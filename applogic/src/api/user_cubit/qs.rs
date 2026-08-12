@@ -4,8 +4,9 @@
 
 use std::sync::Arc;
 
+use aircommon::time::TimeStamp;
 use aircoreclient::clients::{
-    ListenResponse,
+    ListenResponse, listen_response,
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
@@ -70,11 +71,13 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
         let (stream, responder) = match self.cubit_context.core_user.listen_queue().await {
             Ok(stream) => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
-                    if !state.inner.unsupported_version {
+                    if !state.inner.unsupported_version && state.inner.version_expires_at.is_none()
+                    {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
                     inner.unsupported_version = false;
+                    inner.version_expires_at = None;
                     true
                 });
                 stream
@@ -100,6 +103,21 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
     }
 
     async fn handle_event(&mut self, event: ListenResponse) -> bool {
+        if let Some(listen_response::Event::VersionExpires(notification)) = &event.event {
+            let expires_at = notification
+                .expires_at
+                .map(|timestamp| TimeStamp::from(timestamp).into());
+            self.cubit_context.state_tx.send_if_modified(|state| {
+                if state.inner.version_expires_at == expires_at {
+                    return false;
+                }
+                let inner = Arc::make_mut(&mut state.inner);
+                inner.version_expires_at = expires_at;
+                true
+            });
+            return true;
+        }
+
         let result = match self.cubit_context.core_user.process_qs_event(event).await {
             Ok(result) => result,
             Err(error) => {

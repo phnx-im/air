@@ -19,7 +19,7 @@ pub async fn run_username_command(
     let auth_service = AuthService::new(
         &configuration.database,
         domain,
-        configuration.application.versionreq,
+        airbackend::version::VersionPolicy::new(configuration.application.version_expirations),
         CancellationToken::new(),
     )
     .await

@@ -63,11 +63,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Failed to bind");
 
-    let version_req = configuration.application.versionreq.as_ref();
+    let version_policy =
+        airbackend::version::VersionPolicy::new(configuration.application.version_expirations);
     info!(
         %domain,
         %listen_addr,
-        version_req =? version_req.map(|v| v.to_string()),
+        ?version_policy,
         "Starting server"
     );
     let network_provider = MockNetworkProvider::new();
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
     let mut ds_result = Ds::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await;
@@ -99,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
         ds_result = Ds::new(
             &configuration.database,
             domain.clone(),
-            version_req.cloned(),
+            version_policy.clone(),
             shutdown.clone(),
         )
         .await;
@@ -116,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
     let qs = Qs::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await
@@ -129,7 +130,7 @@ async fn main() -> anyhow::Result<()> {
     let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await

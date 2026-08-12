@@ -115,8 +115,9 @@ impl GrpcQs {
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.qs.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+        let verified =
+            crate::version::verify_client_version(&self.qs.version_policy, client_metadata)?;
+        Ok(verified.version)
     }
 }
 
@@ -526,7 +527,8 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        let client_version = self.verify_client_version(
+        let verified_version = crate::version::verify_client_version(
+            &self.qs.version_policy,
             init_request
                 .payload
                 .as_ref()
@@ -555,7 +557,7 @@ impl QueueService for GrpcQs {
         let queue_messages = self
             .qs
             .queues
-            .listen(client_id, client_version, sequence_number_start)
+            .listen(client_id, verified_version.version, sequence_number_start)
             .await?;
         let events = queue_messages.map(|message| match message {
             Some(event) => event,
@@ -563,6 +565,18 @@ impl QueueService for GrpcQs {
                 event: Some(listen_response::Event::Empty(QueueEmpty {})),
             },
         });
+
+        // Notify the client up front if its version expires soon.
+        let version_expires = verified_version
+            .expires_at
+            .map(|expires_at| ListenResponse {
+                event: Some(listen_response::Event::VersionExpires(
+                    VersionExpiresNotification {
+                        expires_at: Some(TimeStamp::from(expires_at).into()),
+                    },
+                )),
+            });
+        let events = tokio_stream::iter(version_expires).chain(events);
 
         self.update_client_activity_and_report_metrics(client_id)
             .await
