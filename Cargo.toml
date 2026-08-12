@@ -67,7 +67,25 @@ h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.13"
 ignore = "0.4"
-image = { version = "0.25.1", features = ["avif-native"] }
+# default formats minus avif and exr, which pull in the unmaintained paste
+# crate (RUSTSEC-2024-0436) via ravif and exr
+image = { version = "0.25.1", default-features = false, features = [
+    "rayon",
+    "avif-native",
+    "bmp",
+    "dds",
+    "ff",
+    "gif",
+    "hdr",
+    "ico",
+    "jpeg",
+    "png",
+    "pnm",
+    "qoi",
+    "tga",
+    "tiff",
+    "webp",
+] }
 indexmap = "2.0"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
