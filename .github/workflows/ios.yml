@@ -4,41 +4,13 @@
 
 name: Build iOS app
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 on:
-  pull_request:
-    branches: ["main"]
-    paths:
-      - "app/ios/**"
-      - "app/fastlane/apple.rb"
-      - "app/fastlane/ios.rb"
-      - "app/rust_builder/ios/**"
-      - "app/.fvmrc"
-      - "app/pubspec.yaml"
-      - "app/pubspec.lock"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".github/workflows/ios.yml"
-      - ".github/actions/setup-buildenv/**"
-  push:
-    branches:
-      - main
-    paths:
-      - "apiclient/**"
-      - "app/**"
-      - "applogic/**"
-      - "apqmls/**"
-      - "common/**"
-      - "coreclient/**"
-      - "macros/**"
-      - "mls-assist/**"
-      - "protos/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-  merge_group:
+  workflow_call:
+    inputs:
+      upload:
+        description: "Upload the app to TestFlight"
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -54,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Fetch all commit metadata (build number is derived from number of commits)
+          # Fetch all commit metadata (client build metadata is derived from git history)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
@@ -96,11 +68,11 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         working-directory: app
-        run: bundle exec fastlane ios beta_ios ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'upload_to_test_flight:true' || '' }} --verbose
+        run: bundle exec fastlane ios beta_ios ${{ inputs.upload && 'upload_to_test_flight:true' || '' }} --verbose
 
       - name: Upload build logs on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-logs
           path: ~/Library/Logs/gym/Runner-Runner.log
