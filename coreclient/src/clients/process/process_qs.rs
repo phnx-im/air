@@ -368,12 +368,12 @@ impl CoreUser {
             .await?;
         }
 
-        // Our settings commit was accepted: complete the pending setting
-        // changes it asserted before the operation is deleted. Only self-group
-        // commits can carry a settings update. Boxed because the loaded
-        // operation carries the full group state.
+        // Our self-group commit was accepted: complete the pending intent it
+        // asserted before the operation is deleted. Only self-group commits
+        // carry settings or token seeds. Boxed because the loaded operation
+        // carries the full group state.
         if group.is_self_group() {
-            Box::pin(PendingChatOperation::complete_settings_intent(
+            Box::pin(PendingChatOperation::complete_self_group_intent_of_group(
                 &mut *txn,
                 group.group_id(),
             ))

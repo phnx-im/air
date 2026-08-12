@@ -258,7 +258,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
-                        self.roll_back_settings_if_any(txn).await?;
+                        self.roll_back_self_group_intent(txn).await?;
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -271,7 +271,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.roll_back_settings_if_any(txn).await?;
+                        self.roll_back_self_group_intent(txn).await?;
                         let group = self.group.group_mut();
                         group.discard_pending_commit(&mut *txn).await?;
                         Self::delete(txn, self.group.group_id()).await?;
@@ -308,43 +308,45 @@ impl PendingChatOperation {
         matches!(self.operation, OperationType::Leave(_))
     }
 
-    pub(crate) fn is_settings_update(&self) -> bool {
-        matches!(self.operation, OperationType::SettingsUpdate { .. })
-    }
-
-    /// The settings snapshot this operation sends, if it is a settings update.
-    fn settings_update(&self) -> Option<&SettingsUpdate> {
-        match &self.operation {
-            OperationType::SettingsUpdate { update, .. } => Some(update),
-            _ => None,
-        }
-    }
-
-    /// Completes the pending [`SettingChanges`] asserted by the group's
-    /// pending settings operation, if any. Called when one of our own commits
-    /// is merged through the queue path, before the operation is deleted.
-    pub(crate) async fn complete_settings_intent(
-        txn: &mut WriteDbTransaction<'_>,
-        group_id: &GroupId,
-    ) -> anyhow::Result<()> {
-        if let Some(operation) = Self::load_by_group_id(&mut *txn, group_id).await?
-            && let Some(update) = operation.settings_update()
-        {
-            SettingChanges::complete_sent(txn, update).await?;
-        }
-        Ok(())
-    }
-
-    /// Rolls back the pending setting changes on terminal failure of a
-    /// settings operation. No-op for other operation kinds.
-    async fn roll_back_settings_if_any(
+    /// Completes the pending intent this operation asserted, now that its commit
+    /// was accepted. No-op for operations that carry no self-group state.
+    async fn complete_self_group_intent(
         &self,
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
-        if self.is_settings_update() {
-            SettingChanges::roll_back_and_clear(txn).await?;
+        match &self.operation {
+            // Fields the user re-toggled while the commit was in flight stay
+            // pending and are re-issued by the outbound service.
+            OperationType::SettingsUpdate { update, .. } => {
+                SettingChanges::complete_sent(txn, update).await
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Completes the pending intent asserted by the group's pending self-group
+    /// operation, if any. Called when one of our own commits is merged through
+    /// the queue path, before the operation is deleted.
+    pub(crate) async fn complete_self_group_intent_of_group(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        if let Some(operation) = Self::load_by_group_id(&mut *txn, group_id).await? {
+            operation.complete_self_group_intent(txn).await?;
         }
         Ok(())
+    }
+
+    /// Gives up the pending intent on terminal failure. No-op for operations
+    /// that carry no self-group state.
+    async fn roll_back_self_group_intent(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> anyhow::Result<()> {
+        match &self.operation {
+            OperationType::SettingsUpdate { .. } => SettingChanges::roll_back_and_clear(txn).await,
+            _ => Ok(()),
+        }
     }
 
     pub async fn execute_internal(
@@ -629,13 +631,9 @@ impl PendingChatOperation {
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
-                // Our settings commit was accepted: complete the pending
-                // setting changes it asserted. Fields the user re-toggled
-                // while the commit was in flight stay pending and are
-                // re-issued by the outbound service.
-                if let OperationType::SettingsUpdate { update, .. } = &self.operation {
-                    SettingChanges::complete_sent(txn, update).await?;
-                }
+                // Our self-group commit was accepted: complete the pending
+                // intent it asserted.
+                self.complete_self_group_intent(txn).await?;
 
                 // Unless this is a leave operation that hasn't been confirmed
                 // by the DS, we can delete the pending operation now.
