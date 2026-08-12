@@ -648,6 +648,55 @@ async fn store_batch_tokens(
     }
 }
 
+/// Discards every token, seed and batch record, as a VOPRF key rotation does.
+///
+/// Exposed for tests, which need the state a rotation leaves behind (no seed for
+/// the current key on any device) without driving a rotation on the AS.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn reset_for_key_rotation(db: &DbAccess) -> anyhow::Result<()> {
+    let mut records = persistence::load_committed_seeds(db.read().await?).await?;
+    records.extend(persistence::load_seeds_needing_broadcast(db.read().await?).await?);
+
+    db.with_write_transaction(async |txn| -> sqlx::Result<()> {
+        for record in &records {
+            persistence::delete_seed(&mut *txn, record.operation_type, &record.key_fingerprint)
+                .await?;
+            persistence::delete_batches_for_key(
+                &mut *txn,
+                record.operation_type,
+                &record.key_fingerprint,
+            )
+            .await?;
+        }
+        for operation_type in OperationType::all() {
+            persistence::delete_all_tokens(&mut *txn, operation_type).await?;
+            persistence::delete_all_batches(&mut *txn, operation_type).await?;
+        }
+        Ok(())
+    })
+    .await?;
+    Ok(())
+}
+
+/// The cached tokens of an operation type, in consumption order.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn cached_tokens(
+    mut connection: impl ReadConnection,
+    operation_type: OperationType,
+) -> sqlx::Result<Vec<Vec<u8>>> {
+    let mut ids = persistence::load_token_ids(&mut connection, operation_type).await?;
+    // Consumption is FIFO by row id, which the id order reproduces.
+    ids.sort_by_key(|id| id.id);
+
+    let mut tokens = Vec::with_capacity(ids.len());
+    for id in &ids {
+        if let Some(token) = TokenId::load(&mut connection, id).await? {
+            tokens.push(token.into_bytes());
+        }
+    }
+    Ok(tokens)
+}
+
 /// Consumes one token from local storage.
 pub(crate) async fn consume_token(
     connection: impl WriteConnection,
