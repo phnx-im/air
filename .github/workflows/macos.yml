@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Build macOS app
+name: Build app
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,15 +11,31 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+    paths:
+      - "app/macos/**"
+      - "app/fastlane/apple.rb"
+      - "app/fastlane/macos.rb"
+      - "app/rust_builder/macos/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/macos.yml"
+      - ".github/actions/setup-buildenv/**"
   push:
     branches:
       - main
     paths:
-      - "coreclient/**"
       - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
       - "app/**"
+      - "applogic/**"
+      - "apqmls/**"
+      - "common/**"
+      - "coreclient/**"
+      - "macros/**"
+      - "mls-assist/**"
+      - "protos/**"
       - "Cargo.toml"
       - "Cargo.lock"
   merge_group:

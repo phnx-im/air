@@ -11,15 +11,31 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+    paths:
+      - "app/ios/**"
+      - "app/fastlane/apple.rb"
+      - "app/fastlane/ios.rb"
+      - "app/rust_builder/ios/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/ios.yml"
+      - ".github/actions/setup-buildenv/**"
   push:
     branches:
       - main
     paths:
-      - "coreclient/**"
       - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
       - "app/**"
+      - "applogic/**"
+      - "apqmls/**"
+      - "common/**"
+      - "coreclient/**"
+      - "macros/**"
+      - "mls-assist/**"
+      - "protos/**"
       - "Cargo.toml"
       - "Cargo.lock"
   merge_group:

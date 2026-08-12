@@ -11,6 +11,17 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+    paths:
+      - "app/android/**"
+      - "app/fastlane/android.rb"
+      - "app/rust_builder/android/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/android.yml"
+      - ".github/actions/setup-buildenv/**"
   push:
     branches:
       - main
