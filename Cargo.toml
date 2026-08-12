@@ -84,12 +84,12 @@ minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 num_enum = "0.7"
-openmls = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
-openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["clonable"] }
-openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "27716a22d4057176277df578d1b079b8391823f5", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
+openmls_basic_credential = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["clonable"] }
+openmls_memory_storage = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_rust_crypto = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_sqlite_storage = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_traits = { git = "https://github.com/phnx-im/openmls", rev = "f538f07220b9f087b5bb9265a37217f434293eb9", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
