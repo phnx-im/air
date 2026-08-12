@@ -96,6 +96,62 @@ async fn delete_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "No receipts for a deletion", skip_all)]
+async fn no_receipts_for_deleted_message() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_alice_bob = setup.connect_users(&alice, &bob).await;
+
+    setup
+        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .await;
+
+    let message_id = setup
+        .get_user(&alice)
+        .user
+        .last_message(chat_alice_bob)
+        .await
+        .unwrap()
+        .unwrap()
+        .id();
+
+    setup.delete_message(&alice, vec![&bob], message_id).await;
+
+    // Bob has processed the deletion, so anything he scheduled for it goes out
+    // now.
+    let bob_test_user = setup.get_user(&bob);
+    bob_test_user.user.outbound_service().run_once().await;
+
+    // Opening the chat must not report a read status for the deletion either.
+    let bob_last_message = bob_test_user
+        .user
+        .last_message(chat_alice_bob)
+        .await
+        .unwrap()
+        .unwrap();
+    let (_, marked_as_read) = bob_test_user
+        .user
+        .mark_chat_as_read(chat_alice_bob, bob_last_message.id())
+        .await
+        .unwrap();
+    assert!(marked_as_read.is_empty());
+    bob_test_user.user.outbound_service().run_once().await;
+
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+
+    let deleted = setup
+        .get_user(&alice)
+        .user
+        .message(message_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(deleted.status(), MessageStatus::Deleted);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Delete messages that were replied to", skip_all)]
 async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
