@@ -5,6 +5,7 @@
 services:
   postgres:
     image: postgres:18.3
+    # without any dependent on minio-setup, compose up fails with --wait
     depends_on:
       minio-setup:
         condition: service_completed_successfully
