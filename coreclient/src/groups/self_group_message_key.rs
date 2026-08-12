@@ -5,8 +5,9 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates today) under a symmetric key that is scoped to a single self-group
-//! epoch. The key is derived from the MLS safe exporter of the T group for
+//! updates and Privacy Pass token seeds) under a symmetric key that is scoped to
+//! a single self-group epoch. The key is derived from the MLS safe exporter of
+//! the T group for
 //! [`AIR_COMPONENT_ID`] and then run through one further KDF step.
 //!
 //! The MLS application export tree is a puncturable PRF: exporting the same
@@ -36,7 +37,9 @@ use aircommon::{
 };
 use airprotos::client::{
     component::{AIR_COMPONENT_ID, AirComponent},
-    self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+    self_group::{
+        AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
+    },
 };
 use anyhow::{Result, anyhow, ensure};
 use openmls::prelude::{
@@ -311,6 +314,7 @@ impl Group {
             for message in messages.0 {
                 match message {
                     SelfGroupMessage::SettingsUpdate(update) => extracted.updates.push(update),
+                    SelfGroupMessage::TokenSeed(seed) => extracted.token_seeds.push(seed),
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -326,11 +330,13 @@ impl Group {
 pub(crate) struct SelfGroupPayload {
     /// Settings snapshots, in the order the commit carried them.
     pub(crate) updates: Vec<SettingsUpdate>,
+    /// Token seeds published by the sender.
+    pub(crate) token_seeds: Vec<TokenSeed>,
 }
 
 impl SelfGroupPayload {
     pub(crate) fn is_empty(&self) -> bool {
-        self.updates.is_empty()
+        self.updates.is_empty() && self.token_seeds.is_empty()
     }
 }
 
@@ -807,6 +813,7 @@ mod derivation_tests {
         let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
 
         assert_eq!(extracted.updates, vec![update]);
+        assert!(extracted.token_seeds.is_empty());
 
         txn.commit().await?;
         Ok(())

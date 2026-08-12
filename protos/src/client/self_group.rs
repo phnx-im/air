@@ -5,7 +5,8 @@
 //! Wire format for data synchronized across a user's own clients through the
 //! self-group.
 //!
-//! Settings updates travel as `AppEphemeral` proposals with component id
+//! Settings updates and Privacy Pass token seeds travel as `AppEphemeral`
+//! proposals with component id
 //! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
 //! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
 //! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Every enum in
@@ -70,15 +71,49 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 /// ```cddl
 /// SelfGroupMessage = {
 ///   1: SettingsUpdate                ; tagged union; unknown tags are skipped
+///   2: TokenSeed
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum SelfGroupMessage {
     #[tag(1)]
     SettingsUpdate(SettingsUpdate),
+    #[tag(2)]
+    TokenSeed(TokenSeed),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
+}
+
+/// The Privacy Pass token seed of one (operation type, VOPRF key).
+///
+/// All of a user's devices derive their token requests from the same seed, which
+/// is what lets the AS answer a repeat of a request for free and gives every
+/// device the same tokens. The seed is set-once per key: the AS locks an
+/// allowance epoch to the first request hash it sees, so a device deriving from
+/// another seed gets a conflict instead of tokens.
+///
+/// Not a [`SettingsUpdate`] field. Settings are user-editable values with
+/// last-writer-wins semantics, and any settings snapshot would cover an
+/// in-flight seed proposal. A seed is set-once with first-writer-wins.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// TokenSeed = {
+///   1: uint,           ; operation_type, the proto enum value
+///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
+///   3: bstr .size 32,  ; seed
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct TokenSeed {
+    #[tag(1)]
+    pub operation_type: u32,
+    #[tag(2)]
+    pub key_fingerprint: [u8; 32],
+    #[tag(3)]
+    pub seed: [u8; 32],
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -357,6 +392,98 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
+    // 1b. `TokenSeed` encode/decode and wire shape.
+
+    fn sample_seed() -> TokenSeed {
+        TokenSeed {
+            operation_type: 1,
+            key_fingerprint: [0xab; 32],
+            seed: [0xcd; 32],
+        }
+    }
+
+    #[test]
+    fn token_seed_roundtrip_and_wire_shape() {
+        let seed = sample_seed();
+        let bytes = PersistenceCodec::to_vec(&seed).unwrap();
+        let decoded: TokenSeed = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(seed, decoded);
+
+        // The first byte is the persistence codec version, then a 3-entry map.
+        assert_eq!(bytes[1], 0xA3);
+    }
+
+    #[test]
+    fn token_seed_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_seed()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// The fixed-size fields are length-checked on decode, so a seed of the
+    /// wrong length is a decode error rather than a silently truncated seed.
+    #[test]
+    fn token_seed_rejects_wrong_length() {
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct LooseTokenSeed {
+            #[tag(1)]
+            operation_type: u32,
+            #[tag(2)]
+            key_fingerprint: Vec<u8>,
+            #[tag(3)]
+            seed: Vec<u8>,
+        }
+
+        let loose = LooseTokenSeed {
+            operation_type: 1,
+            key_fingerprint: vec![0xab; 32],
+            seed: vec![0xcd; 31],
+        };
+        let bytes = PersistenceCodec::to_vec(&loose).unwrap();
+        assert!(PersistenceCodec::from_slice::<TokenSeed>(&bytes).is_err());
+    }
+
+    #[test]
+    fn token_seed_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::TokenSeed(sample_seed())]);
+        let key = message_key_from([5u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// An old client that predates tag 2 skips a seed message instead of
+    /// failing, and still reads the settings update next to it.
+    #[test]
+    fn token_seed_is_skipped_by_a_settings_only_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageV1 {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: None,
+        };
+        let newer = vec![
+            SelfGroupMessage::TokenSeed(sample_seed()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageV1> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageV1::Unknown,
+                SelfGroupMessageV1::SettingsUpdate(update),
+            ]
+        );
+    }
+
     // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
     //    `Unknown`.
 
@@ -365,7 +492,7 @@ mod test {
     enum SelfGroupMessageV2 {
         #[tag(1)]
         SettingsUpdate(SettingsUpdate),
-        #[tag(2)]
+        #[tag(3)]
         Something(u64),
         #[unknown]
         Unknown,
