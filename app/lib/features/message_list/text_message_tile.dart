@@ -193,7 +193,10 @@ class TextMessageTile extends HookWidget {
   /// that never landed, so an edited row keeps its marker and leaves the
   /// delivery state to the rows that report one anyway.
   Widget? _stamp(BuildContext context, {required bool showsTime}) {
-    final isEdited = contentMessage.edited;
+    // A deleted message reports neither: what it once said and how far it got
+    // are both gone with it. Rows deleted before deletions stopped stamping an
+    // edit time still carry one, so the marker goes by the status.
+    final isEdited = contentMessage.edited && status != UiMessageStatus.deleted;
     final wantsAttention =
         isSender &&
         switch (status) {
@@ -201,7 +204,8 @@ class TextMessageTile extends HookWidget {
           UiMessageStatus.sent => !isEdited,
           UiMessageStatus.delivered ||
           UiMessageStatus.read ||
-          UiMessageStatus.hidden => false,
+          UiMessageStatus.hidden ||
+          UiMessageStatus.deleted => false,
         };
     // The end of the chat and the reader's own last word in it. The latter
     // keeps reporting even once someone has replied since.
@@ -236,7 +240,8 @@ class TextMessageTile extends HookWidget {
 }
 
 /// How far an own message got, as the stamp reports it. A hidden message
-/// reports nothing: its delivery is not the reader's business.
+/// reports nothing: its delivery is not the reader's business. Neither does a
+/// deleted one: there is no longer a message to have arrived.
 MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus status, {
   required bool readReceipts,
@@ -247,7 +252,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.read =>
     readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
   UiMessageStatus.error => MessageDeliveryStatus.failed,
-  UiMessageStatus.hidden => null,
+  UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
 /// The stamp under a message bubble: the time it was sent, and how far it got.

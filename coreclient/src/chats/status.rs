@@ -57,14 +57,18 @@ mod persistence {
                 }
                 already_handled.insert(mimi_id);
 
-                // Load the message id
+                // Load the message id. A deleted message keeps reporting the
+                // deletion: a report for its placeholder, sent by a peer
+                // running an older version, must not overwrite that.
                 let mimi_id = mimi_id.as_slice();
                 let status: u8 = (*status).into();
+                let deleted_status: u8 = MessageStatus::Deleted.into();
                 let Some(message_id) = query_scalar!(
                     r#"SELECT message_id AS "message_id: MessageId"
                         FROM message
-                        WHERE mimi_id = ?"#,
+                        WHERE mimi_id = ? AND status != ?"#,
                     mimi_id,
+                    deleted_status,
                 )
                 .fetch_optional(txn.as_mut())
                 .await?
@@ -293,6 +297,53 @@ mod persistence {
 
             assert_eq!(status_a, u8::from(MessageStatus::Read));
             assert_eq!(status_b, u8::from(MessageStatus::Deleted));
+
+            Ok(())
+        }
+
+        /// A report for a deletion placeholder must not overwrite the deleted
+        /// status. Peers running older versions still send such reports.
+        #[sqlx::test]
+        async fn report_does_not_overwrite_deleted_status(pool: SqlitePool) -> anyhow::Result<()> {
+            let pool = DbAccess::for_tests(pool);
+
+            let alice = UserId::random("localhost".parse().unwrap());
+
+            let chat = test_chat();
+            chat.store(pool.write().await?).await?;
+
+            let mut message = test_chat_message_with_salt(chat.id(), [0; 16]);
+            message.store(pool.write().await?).await?;
+            message.set_status(MessageStatus::Deleted);
+            message.update(pool.write().await?).await?;
+            let mimi_id = message.message().mimi_id().unwrap();
+
+            let report = MessageStatusReport {
+                statuses: vec![PerMessageStatus {
+                    mimi_id: mimi_id.as_ref().to_vec(),
+                    status: MessageStatus::Read,
+                }],
+            };
+
+            let mut connection = pool.write().await?;
+            let mut txn = connection.begin().await?;
+            StatusRecord::borrowed(&alice, report, Utc::now().into())
+                .store_report(&mut txn)
+                .await?;
+            txn.commit().await?;
+
+            let status: u8 = query_scalar("SELECT status FROM message WHERE message_id = ?")
+                .bind(message.id())
+                .fetch_one(pool.read().await?.as_mut())
+                .await?;
+            assert_eq!(status, u8::from(MessageStatus::Deleted));
+
+            let count: i64 =
+                query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
+                    .bind(message.id())
+                    .fetch_one(pool.read().await?.as_mut())
+                    .await?;
+            assert_eq!(count, 0);
 
             Ok(())
         }

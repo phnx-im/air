@@ -393,6 +393,8 @@ pub enum UiMessageStatus {
     Hidden,
     /// Sending the message failed.
     Error,
+    /// The message was deleted and only its placeholder remains.
+    Deleted,
 }
 
 impl UiChatMessage {
@@ -400,7 +402,13 @@ impl UiChatMessage {
         mut chat_message: ChatMessage,
         local_attachment_ids: &[AttachmentId],
     ) -> Self {
+        // A deleted message has nothing to report but the deletion. The
+        // deletion is derived from the content rather than the stored status,
+        // which peer reports could overwrite before the store guarded against
+        // that.
+        let is_deleted = chat_message.message().is_deleted();
         let status = match chat_message.status() {
+            _ if is_deleted => UiMessageStatus::Deleted,
             MessageStatus::Error => UiMessageStatus::Error,
             MessageStatus::Read => UiMessageStatus::Read,
             MessageStatus::Delivered => UiMessageStatus::Delivered,

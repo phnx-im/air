@@ -589,6 +589,9 @@ impl Chat {
 
         let unread_status: u8 = MessageStatus::Unread.into();
         let delivered_status: u8 = MessageStatus::Delivered.into();
+        let deleted_status: u8 = MessageStatus::Deleted.into();
+        // A deleted message has nothing left to report on, and the report would
+        // overwrite the sender's own deleted row.
         let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
             Record,
             r#"SELECT
@@ -603,6 +606,7 @@ impl Chat {
                 AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
+                AND m.status != ?8
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
             chat_id,
             old_timestamp,
@@ -611,6 +615,7 @@ impl Chat {
             unread_status,
             delivered_status,
             timestamp,
+            deleted_status,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))

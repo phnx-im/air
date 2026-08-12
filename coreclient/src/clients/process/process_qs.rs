@@ -962,13 +962,15 @@ impl CoreUser {
         // Schedule delivery receipts for incoming new and updated messages.
         // Messages of the own user are skipped: they are echoes of another
         // device of ours, and a receipt for them would mark our own message as
-        // delivered.
+        // delivered. Deletions are skipped as well: there is nothing left to
+        // report on, and the report would overwrite the sender's deleted row.
         let delivery_receipts = messages
             .iter()
             .chain(&updated_messages)
             .filter_map(|message| {
                 if let Message::Content(content_message) = message.message()
                     && content_message.sender() != self.user_id()
+                    && !message.message().is_deleted()
                     && let Disposition::Render | Disposition::Attachment =
                         content_message.content().nested_part.disposition()
                     && let Some(mimi_id) = content_message.mimi_id()
@@ -1170,14 +1172,19 @@ impl CoreUser {
                 message_id = ?existing.id(),
                 "Own message echo confirms an unconfirmed send"
             );
-            // An edited message keeps its timestamp and records the echo
-            // timestamp as the edit time (mirrors the post-processing of a
-            // confirmed send in the outbound service).
-            if existing.edited_at().is_some() {
+            // A message that replaced an earlier one keeps its timestamp and,
+            // unless it is a deletion, records the echo timestamp as the edit
+            // time (mirrors the post-processing of a confirmed send in the
+            // outbound service).
+            let is_replacement = existing.message().is_replacement();
+            let is_deletion = existing.message().is_deleted();
+            if is_replacement {
                 existing
                     .mark_as_sent(&mut *txn, existing.timestamp().into())
                     .await?;
-                existing.set_edited_at(ds_timestamp);
+                if !is_deletion {
+                    existing.set_edited_at(ds_timestamp);
+                }
                 existing.update(&mut *txn).await?;
             } else {
                 existing.mark_as_sent(&mut *txn, ds_timestamp).await?;

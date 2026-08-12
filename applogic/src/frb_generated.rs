@@ -12072,6 +12072,7 @@ impl SseDecode for crate::api::types::UiMessageStatus {
             3 => crate::api::types::UiMessageStatus::Read,
             4 => crate::api::types::UiMessageStatus::Hidden,
             5 => crate::api::types::UiMessageStatus::Error,
+            6 => crate::api::types::UiMessageStatus::Deleted,
             _ => unreachable!("Invalid variant for UiMessageStatus: {}", inner),
         };
     }
@@ -14940,6 +14941,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageStatus {
             Self::Read => 3.into_dart(),
             Self::Hidden => 4.into_dart(),
             Self::Error => 5.into_dart(),
+            Self::Deleted => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -17847,6 +17849,7 @@ impl SseEncode for crate::api::types::UiMessageStatus {
                 crate::api::types::UiMessageStatus::Read => 3,
                 crate::api::types::UiMessageStatus::Hidden => 4,
                 crate::api::types::UiMessageStatus::Error => 5,
+                crate::api::types::UiMessageStatus::Deleted => 6,
                 _ => {
                     unimplemented!("");
                 }
