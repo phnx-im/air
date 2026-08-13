@@ -466,8 +466,8 @@ impl ChatDetailsCubitBase {
                     draft.is_committed = is_committed;
                     true
                 }
-                Some(draft) if draft.is_committed != is_committed => {
-                    draft.is_committed = is_committed;
+                Some(draft) if is_committed && !draft.is_committed => {
+                    draft.is_committed = true;
                     true
                 }
                 Some(_) => false,

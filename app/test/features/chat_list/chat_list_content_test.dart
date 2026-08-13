@@ -383,5 +383,40 @@ void main() {
         matchesGoldenFile('goldens/chat_list_content_muted.png'),
       );
     });
+
+    // The draft chat, whose preview is the draft whatever navigation does.
+    final draftChat = chats[3];
+
+    Future<void> pumpDraftChat(
+      WidgetTester tester, {
+      required HomeNavigationState home,
+    }) async {
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(NavigationState.home(home: home));
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [draftChat.id]));
+
+      await tester.pumpWidget(buildSubject(chats: [draftChat]));
+    }
+
+    testWidgets('shows the draft of a closed chat', (tester) async {
+      await pumpDraftChat(
+        tester,
+        home: HomeNavigationState(chatOpen: false, chatId: draftChat.id),
+      );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+    });
+
+    testWidgets('keeps the draft of the open chat', (tester) async {
+      await pumpDraftChat(
+        tester,
+        home: HomeNavigationState(chatOpen: true, chatId: draftChat.id),
+      );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+    });
   });
 }

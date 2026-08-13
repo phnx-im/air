@@ -425,10 +425,6 @@ class _LastMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCurrentChat = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId == chat.id,
-    );
-
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
@@ -464,7 +460,7 @@ class _LastMessage extends StatelessWidget {
       return Text(loc.textMessage_deleted, style: italicStyle);
     }
 
-    final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
+    final showDraft = draftMessage?.isNotEmpty == true;
 
     final prefixStyle = showDraft
         ? italicStyle
