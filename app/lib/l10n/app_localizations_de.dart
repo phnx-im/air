@@ -1341,15 +1341,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_newMessages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count neue Nachrichten',
-      one: '$count neue Nachricht',
-    );
-    return '$_temp0';
-  }
+  String get messageList_newMessages => 'Neue Nachrichten';
 
   @override
   String get messageList_reactions_react => 'Reagieren';

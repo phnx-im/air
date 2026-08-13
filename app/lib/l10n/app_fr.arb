@@ -429,7 +429,7 @@
   "memberSelectionList_client_not_supported": "Ce contact a une application obsolète qui doit être mise à jour.",
   "homeTab_chats": "Discussions",
   "homeTab_profile": "Profil",
-  "messageList_newMessages": "{count, plural, one {{count} nouveau message} other {{count} nouveaux messages}}",
+  "messageList_newMessages": "Nouveaux messages",
   "messageList_reactions_react": "Réagir",
   "messageList_reactions_remove": "Supprimer",
   "messageList_reactions_you": "Vous",

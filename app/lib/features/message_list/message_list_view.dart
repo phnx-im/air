@@ -611,7 +611,6 @@ class _MessageListViewState extends State<MessageListView>
 
     if (!showDateDivider && !isFirstUnread) return tile;
 
-    final unreadCount = isFirstUnread ? state.unreadCount : 0;
     // The inline [DateDivider] is hidden (but keeps its layout space) only
     // once its pill has actually risen to the floating pill's slot — i.e.
     // when this message is the oldest visible *and* the controller reports
@@ -641,7 +640,7 @@ class _MessageListViewState extends State<MessageListView>
     return Column(
       children: [
         ?inlineDivider,
-        if (isFirstUnread) UnreadDivider(count: unreadCount),
+        if (isFirstUnread) const UnreadDivider(),
         tile,
       ],
     );

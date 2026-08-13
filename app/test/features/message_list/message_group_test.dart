@@ -222,16 +222,12 @@ void main() {
     });
 
     testWidgets('break at the unread divider', (tester) async {
-      messageListCubit.setState(
-        [
-          _message(1, sender: 2),
-          _message(2, sender: 2, after: const Duration(minutes: 1)),
-          _message(3, sender: 2, after: const Duration(minutes: 2)),
-          _message(4, sender: 2, after: const Duration(minutes: 3)),
-        ],
-        firstUnreadIndex: 2,
-        unreadCount: 2,
-      );
+      messageListCubit.setState([
+        _message(1, sender: 2),
+        _message(2, sender: 2, after: const Duration(minutes: 1)),
+        _message(3, sender: 2, after: const Duration(minutes: 2)),
+        _message(4, sender: 2, after: const Duration(minutes: 3)),
+      ], firstUnreadIndex: 2);
 
       await tester.pumpWidget(buildSubject());
 
