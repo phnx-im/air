@@ -503,14 +503,7 @@
   "homeTab_chats": "Chats",
   "homeTab_profile": "You",
 
-  "messageList_newMessages": "{count, plural, one {{count} new message} other {{count} new messages}}",
-  "@messageList_newMessages": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
+  "messageList_newMessages": "New messages",
 
   "messageList_reactions_react": "React",
   "messageList_reactions_remove": "Remove",

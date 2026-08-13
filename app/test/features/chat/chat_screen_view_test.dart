@@ -398,7 +398,6 @@ void main() {
         messageListCubit.setState(
           messages,
           firstUnreadIndex: messages.length - unread,
-          unreadCount: unread,
         );
 
         await tester.pumpWidget(buildSubject());

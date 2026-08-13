@@ -45,8 +45,6 @@ pub struct MessageListState {
     pub is_at_bottom: bool,
     /// Index of the first unread message (set on initial load only)
     pub first_unread_index: Option<usize>,
-    /// Number of unread messages shown in the unread divider.
-    pub unread_count: usize,
     /// Monotonic revision incremented for every emitted transition.
     pub revision: usize,
 }
@@ -111,7 +109,6 @@ enum LoadDirection {
         has_newer: bool,
         is_at_bottom: bool,
         first_unread_index: Option<usize>,
-        unread_count: usize,
         command: Option<MessageListCommand>,
     },
     /// Prepend older messages before the current window
@@ -175,7 +172,6 @@ impl MessageListData {
                 has_newer,
                 is_at_bottom,
                 first_unread_index,
-                unread_count,
                 command: next_command,
             } => {
                 let messages: Vec<UiChatMessage> = new_messages
@@ -197,7 +193,6 @@ impl MessageListData {
                 state.has_newer = has_newer;
                 state.is_at_bottom = is_at_bottom;
                 state.first_unread_index = first_unread_index;
-                state.unread_count = unread_count;
 
                 changes.push(MessageListChange::Reload {
                     messages: newest_first(&self.messages),
@@ -312,7 +307,6 @@ impl MessageListData {
     ) -> Option<MessageListTransition> {
         state.first_unread_index?;
         state.first_unread_index = None;
-        state.unread_count = 0;
 
         // The divider lives in the state, not in the messages, so dropping it
         // changes no message. Dart still has to hear about it, hence the
@@ -364,11 +358,6 @@ impl MessageListData {
         let len_before = self.messages.len();
 
         self.messages.remove(idx);
-
-        // A row at or after the divider is one of the rows the divider counts.
-        if state.first_unread_index.is_some_and(|first| idx >= first) {
-            state.unread_count = state.unread_count.saturating_sub(1);
-        }
 
         state.first_unread_index = match state.first_unread_index {
             Some(first_unread) if first_unread > idx => first_unread.checked_sub(1),
@@ -629,7 +618,6 @@ impl MessageListContext {
                 };
 
             let first_unread_index = messages.iter().position(|m| m.id() == unread_id);
-            let unread_count = self.core_user.unread_messages_count(self.chat_id).await;
 
             let mut state = self.state_tx.borrow().clone();
             let transition = self.data.apply_messages(
@@ -642,7 +630,6 @@ impl MessageListContext {
                     has_newer,
                     is_at_bottom: !has_newer,
                     first_unread_index,
-                    unread_count,
                     command: None,
                 },
             );
@@ -693,7 +680,6 @@ impl MessageListContext {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
-                unread_count: 0,
                 command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -918,7 +904,6 @@ impl MessageListContext {
                 has_newer,
                 is_at_bottom: !has_newer,
                 first_unread_index: None,
-                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToId { message_id }),
             },
         );
@@ -1074,7 +1059,7 @@ mod tests {
         state: &mut MessageListState,
         messages: Vec<ChatMessage>,
     ) -> MessageListTransition {
-        replace_with_unread(data, state, messages, None, 0)
+        replace_with_unread(data, state, messages, None)
     }
 
     fn replace_with_unread(
@@ -1082,7 +1067,6 @@ mod tests {
         state: &mut MessageListState,
         messages: Vec<ChatMessage>,
         first_unread_index: Option<usize>,
-        unread_count: usize,
     ) -> MessageListTransition {
         data.apply_messages(
             state,
@@ -1094,7 +1078,6 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index,
-                unread_count,
                 command: None,
             },
         )
@@ -1119,7 +1102,6 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
-                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1259,7 +1241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_unread_message_lowers_the_divider_count() {
+    fn test_remove_first_unread_message_moves_the_divider_to_its_successor() {
         let alice = UserId::random("localhost".parse().unwrap());
         let first = new_test_message_with_id(&alice, 1, 0);
         let second = new_test_message_with_id(&alice, 2, 1);
@@ -1271,20 +1253,19 @@ mod tests {
         replace_with_unread(
             &mut data,
             &mut state,
-            vec![first, second.clone(), third],
+            vec![first, second.clone(), third.clone()],
             Some(1),
-            2,
         );
 
         data.remove_message(&mut state, second.id())
             .expect("message should exist");
 
-        assert_eq!(state.unread_count, 1);
         assert_eq!(state.first_unread_index, Some(1));
+        assert_eq!(data.messages[1].id, third.id());
     }
 
     #[test]
-    fn test_remove_read_message_keeps_the_divider_count() {
+    fn test_remove_read_message_shifts_the_divider_index() {
         let alice = UserId::random("localhost".parse().unwrap());
         let first = new_test_message_with_id(&alice, 1, 0);
         let second = new_test_message_with_id(&alice, 2, 1);
@@ -1296,16 +1277,15 @@ mod tests {
         replace_with_unread(
             &mut data,
             &mut state,
-            vec![first.clone(), second, third],
+            vec![first.clone(), second.clone(), third],
             Some(1),
-            2,
         );
 
         data.remove_message(&mut state, first.id())
             .expect("message should exist");
 
-        assert_eq!(state.unread_count, 2);
         assert_eq!(state.first_unread_index, Some(0));
+        assert_eq!(data.messages[0].id, second.id());
     }
 
     #[test]
@@ -1354,7 +1334,6 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: Some(1),
-                unread_count: 1,
                 command: None,
             },
         );
@@ -1371,7 +1350,6 @@ mod tests {
         assert_eq!(transition.revision, 2);
         assert_eq!(state.revision, 2);
         assert_eq!(state.first_unread_index, None);
-        assert_eq!(state.unread_count, 0);
 
         assert!(data.clear_first_unread_index(&mut state).is_none());
         assert_eq!(state.revision, 2);

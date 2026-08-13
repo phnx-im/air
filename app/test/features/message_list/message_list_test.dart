@@ -1451,11 +1451,7 @@ void main() {
 
       // Use a small subset so the golden stays compact. The divider lands at
       // index 2, mid-group for Eve, and has to break the group in two.
-      messageListCubit.setState(
-        messages.take(6).toList(),
-        firstUnreadIndex: 2,
-        unreadCount: 4,
-      );
+      messageListCubit.setState(messages.take(6).toList(), firstUnreadIndex: 2);
 
       await tester.pumpWidget(buildSubject());
 
