@@ -995,25 +995,28 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles_at_epoch
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut a, mut b), (index, key)| {
+                a.push(key.clone().into());
+                b.push(IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(key.into()),
+                });
+                (a, b)
+            });
+
         Ok(Response::new(WelcomeInfoResponse {
             ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
-            encrypted_user_profile_keys: profiles_at_epoch
-                .iter()
-                .map(|(_, key)| key.clone().into())
-                .collect(),
+            encrypted_user_profile_keys,
             room_state: Some(
                 room_state_at_epoch
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
-            indexed_encrypted_user_profile_keys: profiles_at_epoch
-                .into_iter()
-                .map(|(index, key)| IndexedEncryptedUserProfileKey {
-                    leaf_index: index.u32(),
-                    encrypted_user_profile_key: Some(key.into()),
-                })
-                .collect(),
+            indexed_encrypted_user_profile_keys,
         }))
     }
 

@@ -10,7 +10,7 @@ use aircommon::{
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
-            keys::{EncryptedUserProfileKey, GroupStateEarKey},
+            keys::{EncryptedUserProfileKey, EncryptedUserProfileKeyCtype, GroupStateEarKey},
         },
         errors::{DecryptionError, EncryptionError},
     },
@@ -182,11 +182,7 @@ impl DsGroupState {
 
     /// Records the current profile keys against `epoch`.
     pub(super) fn snapshot_member_profiles(&mut self, epoch: GroupEpoch) {
-        let profiles = self
-            .member_profiles
-            .iter()
-            .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
-            .collect();
+        let profiles = self.current_member_profiles().collect();
         let room_state = match PersistenceCodec::to_vec(self.room_state.unverified()) {
             Ok(bytes) => bytes.into(),
             Err(error) => {
@@ -241,11 +237,7 @@ impl DsGroupState {
     ) -> Vec<(LeafNodeIndex, EncryptedUserProfileKey)> {
         match self.past_member_profiles.get(&epoch) {
             Some(snapshot) => snapshot.profiles.clone(),
-            None => self
-                .member_profiles
-                .iter()
-                .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
-                .collect(),
+            None => self.current_member_profiles().collect(),
         }
     }
 
@@ -387,6 +379,14 @@ impl DsGroupState {
         self.member_profiles
             .get(&member_index)
             .map(|cp| cp.client_queue_config.clone())
+    }
+
+    fn current_member_profiles(
+        &self,
+    ) -> impl Iterator<Item = (LeafNodeIndex, Ciphertext<EncryptedUserProfileKeyCtype>)> {
+        self.member_profiles
+            .iter()
+            .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
     }
 }
 
@@ -648,6 +648,19 @@ mod test {
     fn test_encrypted_ds_group_state_serde_json() {
         let state = EncryptedDsGroupState::dummy();
         insta::assert_json_snapshot!(state);
+    }
+
+    #[test]
+    fn test_past_member_profiles_tls_stability() {
+        use tls_codec::Serialize as _;
+
+        let profiles = PastMemberProfiles {
+            created_at: TimeStamp::from(0i64),
+            profiles: vec![(LeafNodeIndex::new(0), EncryptedUserProfileKey::dummy())],
+            room_state: vec![1u8, 2, 3].into(),
+        };
+        let serialized = profiles.tls_serialize_detached().unwrap();
+        insta::assert_binary_snapshot!("past_member_profiles.tls", serialized);
     }
 
     static DELETED_QUEUES: LazyLock<Vec<SealedClientReference>> = LazyLock::new(|| {
