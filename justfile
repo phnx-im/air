@@ -176,10 +176,6 @@ run-server:
 @build-number:
     bash scripts/build-number.sh
 
-# Print the app version (patch level from the commit count outside release branches).
-@build-name:
-    bash scripts/build-name.sh
-
 # Increment version numbers (minor by default, --patch on release branches).
 bump-version *args='':
     cargo xtask bump-version {{args}}

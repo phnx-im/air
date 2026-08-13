@@ -38,7 +38,6 @@ platform :android do
         end
 
         current_build_number = sh("just build-number").strip.to_i
-        current_build_name = sh("just build-name").strip
 
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation
@@ -47,7 +46,7 @@ platform :android do
 
         sh "just flutter precache --android"
         sh "just flutter pub get"
-        sh "just flutter build #{build_target} --flavor #{flavor} --release --target-platform android-arm64 --build-number=#{current_build_number} --build-name=#{current_build_name}"
+        sh "just flutter build #{build_target} --flavor #{flavor} --release --target-platform android-arm64 --build-number=#{current_build_number}"
 
         if upload_to_play_store
           metadata_path = File.expand_path("../stores/android/metadata", __dir__)

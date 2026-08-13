@@ -127,7 +127,6 @@ def apple_build(platform, with_signing:, api_key:)
   end
 
   build_number = sh("just build-number").strip.to_i
-  build_name = sh("just build-name").strip
 
   setup_ci()
 
@@ -136,8 +135,7 @@ def apple_build(platform, with_signing:, api_key:)
   # Build with flutter first to create the necessary ephemeral files
   flutter_options = skip_signing ? ["--debug"] + target[:flutter_debug_options] : ["--release"]
   sh "just flutter build #{target[:flutter_target]} --flavor production " \
-     "--config-only #{flutter_options.join(' ')} --build-number=#{build_number} " \
-     "--build-name=#{build_name}"
+     "--config-only #{flutter_options.join(' ')} --build-number=#{build_number}"
 
   cocoapods(
     podfile: "#{target[:xcode_dir]}/Podfile"
