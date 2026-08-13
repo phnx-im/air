@@ -468,7 +468,6 @@ async fn resync() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
@@ -908,7 +907,6 @@ async fn key_package_upload() {
         alice_user
             .invite_users(chat_id, slice::from_ref(&bob))
             .await
-            .unwrap()
             .unwrap();
         let bob_user = &setup.get_user(&bob).user;
         let messages = bob_user.qs_fetch_messages().await.unwrap();

@@ -763,9 +763,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
 
   @protected
-  InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
-
-  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
 
   @protected
@@ -949,9 +946,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
-
-  @protected
-  InviteUsersError dco_decode_invite_users_error(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_isize(dynamic raw);
@@ -1192,9 +1186,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
-
-  @protected
-  InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw);
 
   @protected
   MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
@@ -2111,11 +2102,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  InviteUsersError sse_decode_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   );
@@ -2363,9 +2349,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   InvitationCodesState sse_decode_invitation_codes_state(
     SseDeserializer deserializer,
   );
-
-  @protected
-  InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
@@ -2678,11 +2661,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(
     SseDeserializer deserializer,
   );
 
@@ -3798,12 +3776,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_invite_users_error(
-    InviteUsersError self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -4112,12 +4084,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_invitation_codes_state(
     InvitationCodesState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_invite_users_error(
-    InviteUsersError self,
     SseSerializer serializer,
   );
 
@@ -4511,12 +4477,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_invite_users_error(
-    InviteUsersError? self,
     SseSerializer serializer,
   );
 

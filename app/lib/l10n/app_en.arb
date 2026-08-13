@@ -1180,15 +1180,6 @@
       }
     }
   },
-  "newChatDialog_error_incompatibleClient": "Couldn't create new group chat with name {chatName} because one of the contacts has an incompatible client.",
-  "@newChatDialog_error_incompatibleClient": {
-    "description": "Error shown when a group cannot be created because a member runs an app version that is too old.",
-    "placeholders": {
-      "chatName": {
-        "type": "String"
-      }
-    }
-  },
 
   "newConnectionDialog_newConnectionTitle": "Add Air contact",
   "@newConnectionDialog_newConnectionTitle": {
@@ -1628,6 +1619,41 @@
   "@groupCreationDetails_emptySelection": {
     "description": "Shown in place of the member list when no members have been picked."
   },
+  "groupCreationDetails_membersNotAddedTitle": "Some people couldn't be added",
+  "@groupCreationDetails_membersNotAddedTitle": {
+    "description": "Title of the dialog shown when the group was created but some picked members could not be added."
+  },
+  "groupCreationDetails_membersNotAddedMessage": "{count, plural, one {Your group {groupName} was created, but {memberNames} couldn't be added.} other {Your group {groupName} was created, but {memberNames} couldn't be added.}}",
+  "@groupCreationDetails_membersNotAddedMessage": {
+    "description": "Body of that dialog, naming the group and the members that were left out.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "groupName": {
+        "type": "String"
+      },
+      "memberNames": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreationDetails_membersNotAddedOthers": "{memberNames} and {count, plural, one {{count} other} other {{count} others}}",
+  "@groupCreationDetails_membersNotAddedOthers": {
+    "description": "Shortens a long list of left out members to the first few names plus a count of the rest.",
+    "placeholders": {
+      "memberNames": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCreationDetails_membersNotAddedConfirm": "Okay",
+  "@groupCreationDetails_membersNotAddedConfirm": {
+    "description": "Button that dismisses the dialog about members that could not be added."
+  },
 
   "addMembersScreen_addMembers": "Add members",
   "@addMembersScreen_addMembers": {
@@ -1789,6 +1815,14 @@
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",
   "@memberSelectionList_client_not_supported": {
     "description": "Shown next to a contact who cannot be picked because their app version is too old."
+  },
+  "memberSelectionList_cantBeAddedTitle": "Can't be added",
+  "@memberSelectionList_cantBeAddedTitle": {
+    "description": "Header of the list section holding contacts that cannot be added to the group."
+  },
+  "memberSelectionList_cantBeAddedDescription": "These people can't be added to the group. This could be because their account is no longer active or because their app version is too old.",
+  "@memberSelectionList_cantBeAddedDescription": {
+    "description": "Explains why the contacts under the “Can't be added” header cannot be picked."
   },
 
   "homeTab_chats": "Chats",
