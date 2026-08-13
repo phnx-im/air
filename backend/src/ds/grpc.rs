@@ -990,14 +990,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             epoch: welcome_epoch,
             group_id: qgid.into(),
         };
-        // The profile keys must describe the same epoch as the ratchet tree
-        // below, not the group's current membership.
         let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
-        // The joiner derives its participant list from this, so it has to
-        // describe the same epoch as the ratchet tree below.
-        let room_state_at_epoch = group_state
-            .room_state_at(welcome_epoch)
-            .unwrap_or_else(|| group_state.room_state.clone());
+        let room_state_at_epoch = group_state.room_state_at(welcome_epoch);
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;

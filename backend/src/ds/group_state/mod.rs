@@ -64,34 +64,17 @@ pub(crate) struct DsGroupState {
     pub(super) provider: MlsAssistRustCrypto<PersistenceCodec>,
     pub(super) member_profiles: BTreeMap<LeafNodeIndex, MemberProfile>,
     pub(super) proposals: Vec<Vec<u8>>,
-    /// Profile keys as they stood at each epoch a Welcome could have been
-    /// issued at.
-    ///
-    /// A joiner asks for welcome info at the epoch of its Welcome and gets the
-    /// ratchet tree mls-assist retained for that epoch. Answering with the
-    /// current [`Self::member_profiles`] instead would pair an epoch-N member
-    /// list with epoch-M keys: leaves vacated since then have no entry, and
-    /// leaves refilled since then carry the new occupant's key, which cannot
-    /// decrypt under the old occupant's identity. Kept for the same epochs and
-    /// pruned on the same schedule as the retained trees.
+    /// Profile keys at each epoch a Welcome could have been issued at.
     pub(super) past_member_profiles: BTreeMap<GroupEpoch, PastMemberProfiles>,
 }
 
 /// What a joiner needs about one epoch, with the time it was taken so it can
 /// expire alongside the ratchet tree it belongs to.
-///
-/// Everything welcome info answers with has to describe the epoch that was
-/// asked for, not the group's current state, so each piece served next to the
-/// retained ratchet tree is captured here.
 #[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
 pub(super) struct PastMemberProfiles {
     pub(super) created_at: TimeStamp,
     pub(super) profiles: Vec<(LeafNodeIndex, EncryptedUserProfileKey)>,
     /// The room state as of this epoch, serialized with [`PersistenceCodec`].
-    ///
-    /// The joiner builds the chat's participant list from this rather than
-    /// from the ratchet tree, so a current room state makes it name whoever
-    /// holds a leaf now instead of who held it then.
     pub(super) room_state: VLBytes,
 }
 
@@ -198,11 +181,6 @@ impl DsGroupState {
     }
 
     /// Records the current profile keys against `epoch`.
-    ///
-    /// Call this after a commit has been merged, so `epoch` is the one a
-    /// Welcome from that commit carries. Only epochs that added members are
-    /// ever asked for, but snapshotting unconditionally keeps this in step
-    /// with mls-assist without duplicating its "were there joiners" rule.
     pub(super) fn snapshot_member_profiles(&mut self, epoch: GroupEpoch) {
         let profiles = self
             .member_profiles
@@ -237,21 +215,26 @@ impl DsGroupState {
             .retain(|_, snapshot| !snapshot.created_at.has_expired(GROUP_STATE_EXPIRATION));
     }
 
+    /// The room state as of `epoch`, falling back to the current one when
+    /// no snapshot was retained (a group written before this was introduced,
+    /// or an epoch whose snapshot has expired).
+    pub(super) fn room_state_at(&self, epoch: GroupEpoch) -> VerifiedRoomState {
+        self.past_member_profiles
+            .get(&epoch)
+            .and_then(|snapshot| {
+                let unverified = PersistenceCodec::from_slice(snapshot.room_state.as_slice())
+                    .inspect_err(|error| error!(%error, "failed to load snapshotted room state"))
+                    .ok()?;
+                VerifiedRoomState::verify(unverified)
+                    .inspect_err(|error| error!(%error, "failed to verify snapshotted room state"))
+                    .ok()
+            })
+            .unwrap_or_else(|| self.room_state.clone())
+    }
+
     /// The profile keys as of `epoch`, falling back to the current ones when
     /// no snapshot was retained (a group written before this was introduced,
     /// or an epoch whose snapshot has expired).
-    /// The room state as of `epoch`, or `None` when nothing was retained for
-    /// it, in which case the caller keeps using the current one.
-    pub(super) fn room_state_at(&self, epoch: GroupEpoch) -> Option<VerifiedRoomState> {
-        let snapshot = self.past_member_profiles.get(&epoch)?;
-        let unverified = PersistenceCodec::from_slice(snapshot.room_state.as_slice())
-            .inspect_err(|error| error!(%error, "failed to load snapshotted room state"))
-            .ok()?;
-        VerifiedRoomState::verify(unverified)
-            .inspect_err(|error| error!(%error, "failed to verify snapshotted room state"))
-            .ok()
-    }
-
     pub(super) fn member_profiles_at(
         &self,
         epoch: GroupEpoch,
@@ -512,9 +495,7 @@ impl From<SerializableDsGroupStateV2> for SerializableDsGroupStateV3 {
             room_state: v2.room_state,
             member_profiles: v2.member_profiles,
             proposals: v2.proposals,
-            // No snapshots were retained before V3. `member_profiles_at` falls
-            // back to the current keys for epochs it has nothing for, which is
-            // the pre-V3 behaviour.
+            // No snapshots were retained before V3.
             past_member_profiles: Vec::new(),
         }
     }

@@ -374,7 +374,9 @@ impl DsGroupState {
         if let Some(add_users_state) = &added_users_state {
             self.update_membership_profiles(&add_users_state.added_users)?;
         }
-        self.debug_check_member_profiles("t_commit");
+
+        #[cfg(debug_assertions)]
+        self.check_member_profiles("t_commit");
 
         // Record this epoch only when the commit added someone. Welcome info
         // is served from the ratchet tree mls-assist retains, and it retains
@@ -508,7 +510,9 @@ impl DsGroupState {
         if let Some(ref add_users_state) = t_add_users_state {
             t_group_state.update_membership_profiles(&add_users_state.added_users)?;
         }
-        t_group_state.debug_check_member_profiles("apq_commit");
+
+        #[cfg(debug_assertions)]
+        t_group_state.check_member_profiles("apq_commit");
 
         if t_add_users_state.is_some() {
             let epoch = t_group_state.group().epoch();
@@ -737,16 +741,8 @@ impl DsGroupState {
         }
     }
 
-    /// Reports any drift between `member_profiles` and the group's occupied
-    /// leaves.
-    ///
-    /// The two must agree: a joining member reads the profile keys out of
-    /// `member_profiles` indexed by leaf, so a leaf with no entry leaves that
-    /// member's profile unresolvable, and an entry left behind by a previous
-    /// occupant decrypts to nothing under the new occupant's identity.
-    /// Neither shows up at the point it is introduced, only later at a join,
-    /// so `context` names the operation that left the state this way.
-    pub(crate) fn debug_check_member_profiles(&self, context: &str) {
+    #[cfg(debug_assertions)]
+    pub(crate) fn check_member_profiles(&self, context: &str) {
         let occupied: BTreeSet<LeafNodeIndex> = self.group().members().map(|m| m.index).collect();
         let profiled: BTreeSet<LeafNodeIndex> = self.member_profiles.keys().copied().collect();
         if occupied == profiled {
