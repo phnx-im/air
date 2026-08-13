@@ -224,6 +224,14 @@ impl SentMessage<'_> {
     }
 }
 
+/// A display name derived deterministically from a user id, so a profile
+/// that fails to resolve shows up as the uuid-derived fallback instead.
+pub fn expected_display_name(user_id: &UserId) -> DisplayName {
+    format!("member {}", user_id.uuid().simple())
+        .parse()
+        .unwrap()
+}
+
 impl TestBackend {
     pub async fn single() -> Self {
         Self::single_with_params(Default::default()).await
@@ -1137,6 +1145,66 @@ impl TestBackend {
         self.groups.insert(chat_id, member_set);
 
         chat_id
+    }
+
+    pub async fn own_leaf_index(&self, user_id: &UserId, chat_id: ChatId) -> u32 {
+        self.get_user(user_id)
+            .user
+            .group_epoch_and_own_index(chat_id)
+            .await
+            .unwrap()
+            .expect("member should have local group state")
+            .1
+    }
+
+    /// Drains each user until their queue is empty and their outbound work
+    /// (the scheduled profile fetches among it) has run.
+    pub async fn settle(&self, user_ids: &[&UserId]) {
+        for _ in 0..3 {
+            for user_id in user_ids {
+                let user = &self.get_user(user_id).user;
+                let qs_messages = user.qs_fetch_messages().await.unwrap();
+                user.fully_process_qs_messages(qs_messages).await;
+                user.outbound_service().run_once().await;
+            }
+        }
+    }
+
+    pub async fn invite_and_settle(&self, inviter: &UserId, chat_id: ChatId, invitees: &[&UserId]) {
+        let invitee_ids: Vec<_> = invitees.iter().map(|id| (*id).clone()).collect();
+        self.get_user(inviter)
+            .user
+            .invite_users(chat_id, &invitee_ids)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut to_settle = vec![inviter];
+        to_settle.extend_from_slice(invitees);
+        self.settle(&to_settle).await;
+    }
+
+    /// Asserts `observer` resolves each member's real profile rather than
+    /// the uuid-derived fallback that a missing profile key produces.
+    pub async fn assert_profiles_resolve(
+        &self,
+        observer: &UserId,
+        members: &[&UserId],
+        context: &str,
+    ) {
+        for member in members {
+            let profile = self.get_user(observer).user.user_profile(member).await;
+            assert_ne!(
+                profile,
+                UserProfile::from_user_id(member),
+                "{context}: {observer:?} fell back to the uuid-derived profile for \
+                 {member:?}, so its profile key was missing or undecryptable"
+            );
+            assert_eq!(
+                profile.display_name,
+                expected_display_name(member),
+                "{context}: {observer:?} resolved the wrong profile for {member:?}"
+            );
+        }
     }
 
     /// Has the inviter invite the invitees to the given group and has everyone

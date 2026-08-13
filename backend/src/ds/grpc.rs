@@ -984,36 +984,39 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await
             .map_err(to_status)?;
 
+        let welcome_epoch = payload.epoch.ok_or_missing_field("epoch")?.into();
         let welcome_info_params = WelcomeInfoParams {
             sender: sender.clone(),
-            epoch: payload.epoch.ok_or_missing_field("epoch")?.into(),
+            epoch: welcome_epoch,
             group_id: qgid.into(),
         };
+        let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
+        let room_state_at_epoch = group_state.room_state_at(welcome_epoch);
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles_at_epoch
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut a, mut b), (index, key)| {
+                a.push(key.clone().into());
+                b.push(IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(key.into()),
+                });
+                (a, b)
+            });
+
         Ok(Response::new(WelcomeInfoResponse {
             ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
-            encrypted_user_profile_keys: group_state
-                .encrypted_user_profile_keys()
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            encrypted_user_profile_keys,
             room_state: Some(
-                group_state
-                    .room_state
+                room_state_at_epoch
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
-            indexed_encrypted_user_profile_keys: group_state
-                .member_profiles
-                .into_iter()
-                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
-                    leaf_index: index.u32(),
-                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
-                })
-                .collect(),
+            indexed_encrypted_user_profile_keys,
         }))
     }
 

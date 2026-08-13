@@ -41,7 +41,7 @@ use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
@@ -667,7 +667,7 @@ impl CoreUser {
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
-        info!(
+        debug!(
             sequence_number_start,
             "listening to QS queue from sequence number"
         );
