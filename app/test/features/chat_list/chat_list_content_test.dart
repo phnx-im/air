@@ -4,10 +4,11 @@
 
 import 'dart:typed_data';
 
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/api/markdown.dart';
-import 'package:air/core/core.dart';
+import 'package:air/core/core.dart' hide ChatsRepository;
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -245,24 +246,6 @@ MessageContent simpleMessage(String msg) {
   );
 }
 
-ChatDetailsCubitCreate createMockChatDetailsCubitFactory(
-  List<UiChatDetails> chats,
-) =>
-    ({
-      required UserCubit userCubit,
-      required UserSettingsCubit userSettingsCubit,
-      required ChatId chatId,
-      required ChatsRepository chatsRepository,
-      required AttachmentsRepository attachmentsRepository,
-      bool withMembers = true,
-    }) {
-      final chat = chats.firstWhere((chat) => chat.id == chatId);
-      final state = ChatDetailsState(chat: chat, members: []);
-      final cubit = MockChatDetailsCubit();
-      when(() => cubit.state).thenReturn(state);
-      return cubit;
-    };
-
 void main() {
   group('ChatListContent', () {
     late MockNavigationCubit navigationCubit;
@@ -292,13 +275,8 @@ void main() {
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-      ],
+    }) => RepositoryProvider<ChatsRepository>.value(
+      value: FakeChatsRepository(chats),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -314,13 +292,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Scaffold(
-                  body: ChatListContent(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                ),
+                home: const Scaffold(body: ChatListContent()),
               );
             },
           ),

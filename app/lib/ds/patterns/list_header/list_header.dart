@@ -219,52 +219,5 @@ class _Title extends StatelessWidget {
         ),
       ),
     );
-
-    // return Container(
-    //   constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
-    //   padding: tokens.pillPadding,
-    //   decoration: BoxDecoration(
-    //     color: fill.withValues(alpha: fill.a * r),
-    //     borderRadius: BorderRadius.circular(ListHeaderTokens.pillRadius),
-    //     // Outside-aligned so the stroke grows outward from the pill's edge
-    //     // rather than inward: the label and its padding never shift as the
-    //     // border comes in.
-    //     border: ListHeaderTokens.pillBorderWidth > 0
-    //         ? Border.all(
-    //             color: border.withValues(alpha: border.a * r),
-    //             width: ListHeaderTokens.pillBorderWidth,
-    //             strokeAlign: BorderSide.strokeAlignOutside,
-    //           )
-    //         : null,
-    //     boxShadow: [
-    //       for (final shadow in ListHeaderTokens.pillShadow)
-    //         shadow.copyWith(
-    //           color: shadow.color.withValues(alpha: shadow.color.a * r),
-    //         ),
-    //     ],
-    //   ),
-    //   // No alignment here: a Container with one expands to its parent's
-    //   // bounded width instead of hugging its label.
-    //   child: Row(
-    //     mainAxisSize: MainAxisSize.min,
-    //     children: [
-    //       Flexible(
-    //         child: Text(
-    //           title,
-    //           maxLines: 1,
-    //           overflow: TextOverflow.ellipsis,
-    //           // Emphasized, like the modal header's: this label names the
-    //           // screen, where the chat header's pill carries a person's name
-    //           // and stays plain.
-    //           style: typeScale.body.regular.style(
-    //             color: palette.text.primary,
-    //             weight: Weight.emphasized,
-    //             tight: true,
-    //           ),
-    //         ),
-    //       ),
-    //     ],
-    //   ),
-    // );
   }
 }

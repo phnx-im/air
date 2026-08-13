@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_list_item_cubit.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
 import 'package:air/ds/components/counter/counter.dart';
@@ -43,8 +42,8 @@ Color chatListBackgroundColor(BuildContext context) =>
     SemanticPalette.of(context).backgroundBase.primary;
 
 /// The chats, resolved from [ChatListCubit] and handed to the design system's
-/// list: each row gets its own [ChatDetailsCubit], and every piece of localized
-/// copy is picked here.
+/// list: each row gets its own [ChatListItemCubit], and every piece of
+/// localized copy is picked here.
 class ChatListContent extends StatelessWidget {
   const ChatListContent({
     super.key,

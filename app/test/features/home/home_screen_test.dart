@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -77,6 +78,9 @@ void main() {
         RepositoryProvider<AttachmentsRepository>.value(
           value: MockAttachmentsRepository(),
         ),
+        RepositoryProvider<chats_repository.ChatsRepository>.value(
+          value: FakeChatsRepository(chats),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -95,13 +99,9 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: HomeScreenDesktopLayout(
-                  chatList: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                  chat: const ChatScreenView(
+                home: const HomeScreenDesktopLayout(
+                  chatList: ChatListView(),
+                  chat: ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
                   ),
                 ),

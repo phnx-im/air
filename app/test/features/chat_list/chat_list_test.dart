@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
-import 'package:air/core/core.dart';
+import 'package:air/core/core.dart' hide ChatsRepository;
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -25,7 +26,6 @@ void main() {
     late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
-    late MockChatDetailsCubit chatDetailsCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
@@ -33,7 +33,6 @@ void main() {
       userCubit = MockUserCubit();
       chatListCubit = MockChatListCubit();
       contactsCubit = MockUsersCubit();
-      chatDetailsCubit = MockChatDetailsCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
       when(
@@ -44,22 +43,14 @@ void main() {
         () => contactsCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));
-      when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(isDeveloper: false));
     });
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-      ],
+    }) => RepositoryProvider<ChatsRepository>.value(
+      value: FakeChatsRepository(chats),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -75,13 +66,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Scaffold(
-                  body: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                ),
+                home: const Scaffold(body: ChatListView()),
               );
             },
           ),

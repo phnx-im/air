@@ -5,6 +5,7 @@
 import 'dart:io';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -23,8 +24,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 
-import '../features/chat_list/chat_list_content_test.dart'
-    show createMockChatDetailsCubitFactory;
 import '../helpers.dart';
 import '../features/message_list/message_list_test.dart';
 import '../mocks.dart';
@@ -107,6 +106,9 @@ void main() {
         RepositoryProvider<AttachmentsRepository>.value(
           value: MockAttachmentsRepository(),
         ),
+        RepositoryProvider<chats_repository.ChatsRepository>.value(
+          value: FakeChatsRepository(chats),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -129,16 +131,10 @@ void main() {
                 subtitle: subtitle,
                 frameColor: frameColor,
                 device: ProductShotDevices.forPlatform(platform),
-                child: Stack(
+                child: const Stack(
                   children: [
-                    Positioned.fill(
-                      child: ChatListView(
-                        scaffold: true,
-                        createChatDetailsCubit:
-                            createMockChatDetailsCubitFactory(chats),
-                      ),
-                    ),
-                    const Positioned(
+                    Positioned.fill(child: ChatListView(scaffold: true)),
+                    Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
@@ -578,6 +574,9 @@ void main() {
         RepositoryProvider<AttachmentsRepository>.value(
           value: attachmentsRepository,
         ),
+        RepositoryProvider<chats_repository.ChatsRepository>.value(
+          value: FakeChatsRepository(chats),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -603,13 +602,9 @@ void main() {
                 device: ProductShotDevices.forPlatform(
                   ProductShotPlatform.macos,
                 ),
-                child: HomeScreenDesktopLayout(
-                  chatList: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                  chat: const ChatScreenView(
+                child: const HomeScreenDesktopLayout(
+                  chatList: ChatListView(),
+                  chat: ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
                   ),
                 ),
