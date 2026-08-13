@@ -37,7 +37,7 @@ platform :android do
           end
         end
 
-        current_build_number = sh("git rev-list --count HEAD").strip.to_i
+        current_build_number = sh("just build-number").strip.to_i
 
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation

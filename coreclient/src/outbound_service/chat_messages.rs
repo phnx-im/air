@@ -350,12 +350,18 @@ impl OutboundServiceContext {
         // post-processing:
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                // adjust message status and edited_at timestamp
-                if message.edited_at().is_some() {
+                // A message that replaced an earlier one keeps that one's place
+                // in the chat, so the DS timestamp becomes the edit time rather
+                // than the row's timestamp. A deletion records no edit time.
+                let is_replacement = message.message().is_replacement();
+                let is_deletion = message.message().is_deleted();
+                if is_replacement {
                     message
                         .mark_as_sent(&mut *txn, message.timestamp().into())
                         .await?;
-                    message.set_edited_at(ds_timestamp);
+                    if !is_deletion {
+                        message.set_edited_at(ds_timestamp);
+                    }
                 } else {
                     message.mark_as_sent(&mut *txn, ds_timestamp).await?;
                 }

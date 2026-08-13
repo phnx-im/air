@@ -937,6 +937,51 @@ async fn self_update() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_update_continues_after_a_broken_chat() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let broken_chat = setup.create_group(&alice).await;
+    let healthy_chat = setup.create_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Chats are updated ordered by their self-update time, so the broken chat comes first.
+    alice_core
+        .set_self_updated_at(broken_chat, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    let healthy_updated_at = DateTime::UNIX_EPOCH + Duration::seconds(1);
+    alice_core
+        .set_self_updated_at(healthy_chat, healthy_updated_at)
+        .await
+        .unwrap();
+
+    alice_core
+        .corrupt_mls_group_state(broken_chat)
+        .await
+        .unwrap();
+
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    let at = alice_core
+        .self_updated_at(healthy_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        healthy_updated_at < at,
+        "Chat after the broken one was not self-updated"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 

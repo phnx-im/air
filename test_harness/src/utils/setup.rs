@@ -935,12 +935,12 @@ impl TestBackend {
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
 
-        let message = test_sender
-            .user
-            .last_message(chat_id)
-            .await
-            .unwrap()
-            .unwrap();
+        // A confirmed deletion replaces the message in place: the placeholder
+        // keeps the original's timestamp and leaves no edit marker behind.
+        let message = test_sender.user.message(message_id).await.unwrap().unwrap();
+        assert!(message.message().is_deleted());
+        assert_eq!(message.timestamp(), deleted_at);
+        assert_eq!(message.edited_at(), None);
 
         for recipient_id in &recipients {
             let recipient = self.users.get_mut(recipient_id).unwrap();

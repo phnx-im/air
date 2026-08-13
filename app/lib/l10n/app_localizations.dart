@@ -2316,8 +2316,8 @@ abstract class AppLocalizations {
   /// No description provided for @messageList_newMessages.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} new message} other {{count} new messages}}'**
-  String messageList_newMessages(int count);
+  /// **'New messages'**
+  String get messageList_newMessages;
 
   /// No description provided for @messageList_reactions_react.
   ///

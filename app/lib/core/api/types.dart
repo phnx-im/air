@@ -417,6 +417,9 @@ enum UiMessageStatus {
 
   /// Sending the message failed.
   error,
+
+  /// The message was deleted and only its placeholder remains.
+  deleted,
 }
 
 /// An emoji reaction on a message, aggregated across the users who applied it.

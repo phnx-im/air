@@ -10766,7 +10766,6 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
         let mut var_hasNewer = <bool>::sse_decode(deserializer);
         let mut var_isAtBottom = <bool>::sse_decode(deserializer);
         let mut var_firstUnreadIndex = <Option<usize>>::sse_decode(deserializer);
-        let mut var_unreadCount = <usize>::sse_decode(deserializer);
         let mut var_revision = <usize>::sse_decode(deserializer);
         return crate::api::message_list_cubit::MessageListState {
             is_connection_chat: var_isConnectionChat,
@@ -10774,7 +10773,6 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
             has_newer: var_hasNewer,
             is_at_bottom: var_isAtBottom,
             first_unread_index: var_firstUnreadIndex,
-            unread_count: var_unreadCount,
             revision: var_revision,
         };
     }
@@ -12072,6 +12070,7 @@ impl SseDecode for crate::api::types::UiMessageStatus {
             3 => crate::api::types::UiMessageStatus::Read,
             4 => crate::api::types::UiMessageStatus::Hidden,
             5 => crate::api::types::UiMessageStatus::Error,
+            6 => crate::api::types::UiMessageStatus::Deleted,
             _ => unreachable!("Invalid variant for UiMessageStatus: {}", inner),
         };
     }
@@ -13963,7 +13962,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_list_cubit::MessageLi
             self.has_newer.into_into_dart().into_dart(),
             self.is_at_bottom.into_into_dart().into_dart(),
             self.first_unread_index.into_into_dart().into_dart(),
-            self.unread_count.into_into_dart().into_dart(),
             self.revision.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -14940,6 +14938,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageStatus {
             Self::Read => 3.into_dart(),
             Self::Hidden => 4.into_dart(),
             Self::Error => 5.into_dart(),
+            Self::Deleted => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -16785,7 +16784,6 @@ impl SseEncode for crate::api::message_list_cubit::MessageListState {
         <bool>::sse_encode(self.has_newer, serializer);
         <bool>::sse_encode(self.is_at_bottom, serializer);
         <Option<usize>>::sse_encode(self.first_unread_index, serializer);
-        <usize>::sse_encode(self.unread_count, serializer);
         <usize>::sse_encode(self.revision, serializer);
     }
 }
@@ -17847,6 +17845,7 @@ impl SseEncode for crate::api::types::UiMessageStatus {
                 crate::api::types::UiMessageStatus::Read => 3,
                 crate::api::types::UiMessageStatus::Hidden => 4,
                 crate::api::types::UiMessageStatus::Error => 5,
+                crate::api::types::UiMessageStatus::Deleted => 6,
                 _ => {
                     unimplemented!("");
                 }

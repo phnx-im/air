@@ -12,6 +12,7 @@ import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/ds/patterns/message_meta/message_meta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,32 +33,33 @@ DateTime _timestamp(int id) =>
     DateTime.parse('2023-01-01T00:00:00.000Z').add(Duration(minutes: id * 6));
 
 /// Create a deleted message (replaces != null, content == null)
-UiChatMessage _deletedMessage({required int id, required int senderId}) =>
-    UiChatMessage(
-      id: id.messageId(),
-      chatId: _chatId,
-      timestamp: _timestamp(id),
-      message: UiMessage_Content(
-        UiContentMessage(
-          sender: senderId.userId(),
-          sent: true,
-          edited: false,
-          content: UiMimiContent(
-            replaces: Uint8List.fromList([
-              1,
-              2,
-              3,
-              4,
-            ]), // Non-null marks as deleted
-            topicId: Uint8List(0),
-            content: null, // null content indicates message was deleted
-            attachments: [],
-          ),
-        ),
+///
+/// [edited] models a row deleted before deletions stopped stamping an edit
+/// time, which the placeholder must not report either.
+UiChatMessage _deletedMessage({
+  required int id,
+  required int senderId,
+  bool edited = false,
+}) => UiChatMessage(
+  id: id.messageId(),
+  chatId: _chatId,
+  timestamp: _timestamp(id),
+  message: UiMessage_Content(
+    UiContentMessage(
+      sender: senderId.userId(),
+      sent: true,
+      edited: edited,
+      content: UiMimiContent(
+        replaces: Uint8List.fromList([1, 2, 3, 4]), // Non-null marks as deleted
+        topicId: Uint8List(0),
+        content: null, // null content indicates message was deleted
+        attachments: [],
       ),
-      status: UiMessageStatus.sent,
-      reactions: [],
-    );
+    ),
+  ),
+  status: UiMessageStatus.deleted,
+  reactions: [],
+);
 
 /// Create a regular text message
 UiChatMessage _textMessage({
@@ -221,6 +223,35 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/deleted_message_group.png'),
       );
+    });
+
+    testWidgets('keeps the time but reports no edit or delivery state', (
+      tester,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      // The newest row and the reader's own last word in the chat, so it is
+      // where a delivery state would surface if any did.
+      final messages = [
+        _textMessage(id: 1, senderId: 2, text: 'Hello!'),
+        _deletedMessage(id: 2, senderId: 1, edited: true),
+      ];
+
+      messageListCubit.setState(messages, isConnectionChat: true);
+
+      await tester.pumpWidget(buildSubject(messages, isConnectionChat: true));
+
+      // The end of the chat is the one row that still reads as a clock, and a
+      // deletion takes the delivery state and the edit marker with it rather
+      // than the time. It is also the only row carrying a stamp at all here.
+      final stamp = tester.widget<MessageMeta>(find.byType(MessageMeta));
+      expect(stamp.timestamp, isNotNull);
+      expect(stamp.status, isNull);
+      expect(stamp.statusLabel, isNull);
+      expect(stamp.editedLabel, isNull);
     });
   });
 }
