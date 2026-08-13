@@ -154,7 +154,7 @@ mod persistence {
             )
             .execute(connection.as_mut())
             .await?;
-            if self.is_committed && result.rows_affected() > 0 {
+            if result.rows_affected() > 0 {
                 connection.notifier().update(chat_id);
             }
             Ok(())
