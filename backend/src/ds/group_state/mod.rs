@@ -201,7 +201,6 @@ impl DsGroupState {
                 room_state,
             },
         );
-        self.prune_past_member_profiles();
     }
 
     /// Drops snapshots older than the retention used for past group states, so
@@ -265,9 +264,10 @@ impl DsGroupState {
     }
 
     pub(super) fn encrypt(
-        self,
+        mut self,
         ear_key: &GroupStateEarKey,
     ) -> Result<EncryptedDsGroupState, DsGroupStateEncryptionError> {
+        self.prune_past_member_profiles();
         let encrypted =
             EncryptableDsGroupState::from(SerializableDsGroupStateV3::from_group_state(self)?)
                 .encrypt(ear_key)?;
