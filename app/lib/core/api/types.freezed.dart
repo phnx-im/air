@@ -1787,6 +1787,137 @@ $UiMimiContentCopyWith<$Res> get mimiContent {
 }
 
 /// @nodoc
+mixin _$UiLastReaction {
+
+ UiUserId get reactor; String get emoji;
+/// Create a copy of UiLastReaction
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiLastReactionCopyWith<UiLastReaction> get copyWith => _$UiLastReactionCopyWithImpl<UiLastReaction>(this as UiLastReaction, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLastReaction&&(identical(other.reactor, reactor) || other.reactor == reactor)&&(identical(other.emoji, emoji) || other.emoji == emoji));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reactor,emoji);
+
+@override
+String toString() {
+  return 'UiLastReaction(reactor: $reactor, emoji: $emoji)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiLastReactionCopyWith<$Res>  {
+  factory $UiLastReactionCopyWith(UiLastReaction value, $Res Function(UiLastReaction) _then) = _$UiLastReactionCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId reactor, String emoji
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiLastReactionCopyWithImpl<$Res>
+    implements $UiLastReactionCopyWith<$Res> {
+  _$UiLastReactionCopyWithImpl(this._self, this._then);
+
+  final UiLastReaction _self;
+  final $Res Function(UiLastReaction) _then;
+
+/// Create a copy of UiLastReaction
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? reactor = null,Object? emoji = null,}) {
+  return _then(_self.copyWith(
+reactor: null == reactor ? _self.reactor : reactor // ignore: cast_nullable_to_non_nullable
+as UiUserId,emoji: null == emoji ? _self.emoji : emoji // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+
+
+class _UiLastReaction implements UiLastReaction {
+  const _UiLastReaction({required this.reactor, required this.emoji});
+  
+
+@override final  UiUserId reactor;
+@override final  String emoji;
+
+/// Create a copy of UiLastReaction
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$UiLastReactionCopyWith<_UiLastReaction> get copyWith => __$UiLastReactionCopyWithImpl<_UiLastReaction>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLastReaction&&(identical(other.reactor, reactor) || other.reactor == reactor)&&(identical(other.emoji, emoji) || other.emoji == emoji));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reactor,emoji);
+
+@override
+String toString() {
+  return 'UiLastReaction(reactor: $reactor, emoji: $emoji)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$UiLastReactionCopyWith<$Res> implements $UiLastReactionCopyWith<$Res> {
+  factory _$UiLastReactionCopyWith(_UiLastReaction value, $Res Function(_UiLastReaction) _then) = __$UiLastReactionCopyWithImpl;
+@override @useResult
+$Res call({
+ UiUserId reactor, String emoji
+});
+
+
+
+
+}
+/// @nodoc
+class __$UiLastReactionCopyWithImpl<$Res>
+    implements _$UiLastReactionCopyWith<$Res> {
+  __$UiLastReactionCopyWithImpl(this._self, this._then);
+
+  final _UiLastReaction _self;
+  final $Res Function(_UiLastReaction) _then;
+
+/// Create a copy of UiLastReaction
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? reactor = null,Object? emoji = null,}) {
+  return _then(_UiLastReaction(
+reactor: null == reactor ? _self.reactor : reactor // ignore: cast_nullable_to_non_nullable
+as UiUserId,emoji: null == emoji ? _self.emoji : emoji // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiMessage {
 
  Object get field0;

@@ -418,5 +418,100 @@ void main() {
 
       expect(find.textContaining('Some draft message'), findsOne);
     });
+
+    Future<void> pumpReactionChat(
+      WidgetTester tester, {
+      required UiLastReaction reaction,
+      UiMessageDraft? draft,
+    }) async {
+      final chat = reactedChat(reaction: reaction, draft: draft);
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chat.id]));
+
+      await tester.pumpWidget(buildSubject(chats: [chat]));
+    }
+
+    testWidgets('reports a reaction on the last message', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+      );
+
+      expect(find.text('Bob reacted 👍 to "Hello Alice"'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_reaction.png'),
+      );
+    });
+
+    testWidgets('names the reader as the reactor', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 1.userId(), emoji: '👍'),
+      );
+
+      expect(find.text('You reacted 👍 to "Hello Alice"'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_reaction_by_you.png'),
+      );
+    });
+
+    testWidgets('keeps the draft over a reaction', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+        draft: UiMessageDraft(
+          message: 'Some draft message',
+          editingId: null,
+          updatedAt: DateTime.now(),
+          isCommitted: true,
+        ),
+      );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+      expect(find.textContaining('reacted'), findsNothing);
+    });
   });
 }
+
+/// A contact chat whose last message, "Hello Alice", carries [reaction].
+UiChatDetails reactedChat({
+  required UiLastReaction reaction,
+  UiMessageDraft? draft,
+}) => UiChatDetails(
+  id: 7.chatId(),
+  status: const UiChatStatus.active(),
+  isApq: false,
+  chatType: UiChatType_Connection(userProfiles[1]),
+  unreadMessages: 0,
+  messagesCount: 10,
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  lastMessage: UiChatMessage(
+    id: 7.messageId(),
+    chatId: 7.chatId(),
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Hello Alice',
+          topicId: Uint8List(0),
+          content: simpleMessage('Hello Alice'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [
+      UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
+    ],
+  ),
+  lastReaction: reaction,
+  draft: draft,
+  mutedUntil: null,
+  pendingCommitFailed: false,
+);

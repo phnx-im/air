@@ -17,8 +17,8 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
-    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
-    SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
+    MessageDraft, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -100,6 +100,7 @@ pub struct UiChatDetails {
     pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
+    pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
@@ -345,6 +346,23 @@ impl From<UiChatMuted> for ChatMuted {
 ")]
 pub struct _MessageId {
     pub uuid: Uuid,
+}
+
+/// UI representation of a [`LastReaction`]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiLastReaction {
+    pub reactor: UiUserId,
+    pub emoji: String,
+}
+
+impl From<LastReaction> for UiLastReaction {
+    fn from(LastReaction { reactor, emoji }: LastReaction) -> Self {
+        Self {
+            reactor: reactor.into(),
+            emoji,
+        }
+    }
 }
 
 /// An emoji reaction on a message, aggregated across the users who applied it.

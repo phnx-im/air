@@ -265,6 +265,8 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqué",
+  "chatList_reaction": "{user} a réagi {emoji} à \"{message}\"",
+  "chatList_reactionByYou": "Vous avez réagi {emoji} à \"{message}\"",
   "chatList_contextMenu_mute": "Mettre en sourdine",
   "chatList_contextMenu_unmute": "Désactiver la sourdine",
   "newChatDialog_error": "Impossible d'ajouter une discussion avec le nom {chatName}",

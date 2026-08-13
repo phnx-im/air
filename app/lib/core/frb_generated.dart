@@ -9120,6 +9120,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiLastReaction dco_decode_box_autoadd_ui_last_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ui_last_reaction(raw);
+  }
+
+  @protected
   UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_message_draft(raw);
@@ -10180,6 +10186,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiLastReaction? dco_decode_opt_box_autoadd_ui_last_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_ui_last_reaction(raw);
+  }
+
+  @protected
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_message_draft(raw);
@@ -10447,8 +10459,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
@@ -10457,10 +10469,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       messagesCount: dco_decode_CastedPrimitive_usize(arr[4]),
       unreadMessages: dco_decode_CastedPrimitive_usize(arr[5]),
       lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[6]),
-      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[7]),
-      isApq: dco_decode_bool(arr[8]),
-      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[9]),
-      pendingCommitFailed: dco_decode_bool(arr[10]),
+      lastReaction: dco_decode_opt_box_autoadd_ui_last_reaction(arr[7]),
+      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[8]),
+      isApq: dco_decode_bool(arr[9]),
+      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[10]),
+      pendingCommitFailed: dco_decode_bool(arr[11]),
     );
   }
 
@@ -10664,6 +10677,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  UiLastReaction dco_decode_ui_last_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return UiLastReaction(
+      reactor: dco_decode_ui_user_id(arr[0]),
+      emoji: dco_decode_String(arr[1]),
+    );
   }
 
   @protected
@@ -12347,6 +12372,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiLastReaction sse_decode_box_autoadd_ui_last_reaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ui_last_reaction(deserializer));
+  }
+
+  @protected
   UiMessageDraft sse_decode_box_autoadd_ui_message_draft(
     SseDeserializer deserializer,
   ) {
@@ -13831,6 +13864,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiLastReaction? sse_decode_opt_box_autoadd_ui_last_reaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_ui_last_reaction(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
     SseDeserializer deserializer,
   ) {
@@ -14156,6 +14202,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
       deserializer,
     );
+    var var_lastReaction = sse_decode_opt_box_autoadd_ui_last_reaction(
+      deserializer,
+    );
     var var_draft = sse_decode_opt_box_autoadd_ui_message_draft(deserializer);
     var var_isApq = sse_decode_bool(deserializer);
     var var_mutedUntil = sse_decode_opt_box_autoadd_ui_chat_muted(deserializer);
@@ -14168,6 +14217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       messagesCount: var_messagesCount,
       unreadMessages: var_unreadMessages,
       lastMessage: var_lastMessage,
+      lastReaction: var_lastReaction,
       draft: var_draft,
       isApq: var_isApq,
       mutedUntil: var_mutedUntil,
@@ -14393,6 +14443,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  UiLastReaction sse_decode_ui_last_reaction(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_reactor = sse_decode_ui_user_id(deserializer);
+    var var_emoji = sse_decode_String(deserializer);
+    return UiLastReaction(reactor: var_reactor, emoji: var_emoji);
   }
 
   @protected
@@ -16390,6 +16448,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_ui_last_reaction(
+    UiLastReaction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_last_reaction(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_ui_message_draft(
     UiMessageDraft self,
     SseSerializer serializer,
@@ -17750,6 +17817,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_last_reaction(
+    UiLastReaction? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_ui_last_reaction(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_message_draft(
     UiMessageDraft? self,
     SseSerializer serializer,
@@ -18044,6 +18124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_CastedPrimitive_usize(self.messagesCount, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
+    sse_encode_opt_box_autoadd_ui_last_reaction(self.lastReaction, serializer);
     sse_encode_opt_box_autoadd_ui_message_draft(self.draft, serializer);
     sse_encode_bool(self.isApq, serializer);
     sse_encode_opt_box_autoadd_ui_chat_muted(self.mutedUntil, serializer);
@@ -18231,6 +18312,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_invitation_code(field0, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_ui_last_reaction(
+    UiLastReaction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_user_id(self.reactor, serializer);
+    sse_encode_String(self.emoji, serializer);
   }
 
   @protected

@@ -28,6 +28,7 @@ pub use crate::{
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,
+        reactions::LastReaction,
     },
     clients::{
         add_contact::AddUsernameContactError,

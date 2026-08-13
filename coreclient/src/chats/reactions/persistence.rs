@@ -295,4 +295,159 @@ impl Reaction {
         .await
         .map(|rows| rows.into_iter().map(Reaction::from).collect())
     }
+
+    /// Load the last reaction on a given message that `user_id` is party to:
+    /// one on a message they sent, or one they made themselves.
+    pub(crate) async fn last_by_target_for_user(
+        mut connection: impl ReadConnection,
+        target_mimi_id: &MimiId,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Reaction>> {
+        let user_uuid = user_id.uuid();
+        let user_domain = user_id.domain();
+        query_as!(
+            SqlReaction,
+            r#"SELECT
+                r.reaction_mimi_id AS "reaction_mimi_id: _",
+                r.target_mimi_id AS "target_mimi_id: _",
+                r.chat_id AS "chat_id: _",
+                r.sender_user_uuid AS "sender_user_uuid: _",
+                r.sender_user_domain AS "sender_user_domain: _",
+                r.emoji,
+                r.created_at AS "created_at: _"
+            FROM reaction r
+            INNER JOIN message m ON m.mimi_id = r.target_mimi_id
+            WHERE r.target_mimi_id = ?1
+                AND (
+                    (m.sender_user_uuid = ?2 AND m.sender_user_domain = ?3)
+                    OR (r.sender_user_uuid = ?2 AND r.sender_user_domain = ?3)
+                )
+            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC
+            LIMIT 1"#,
+            target_mimi_id,
+            user_uuid,
+            user_domain,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(|row| row.map(Reaction::from))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::SqlitePool;
+
+    use crate::{
+        chats::{
+            messages::persistence::tests::test_chat_message_from, persistence::tests::test_chat,
+        },
+        db::access::DbAccess,
+    };
+
+    use super::*;
+
+    fn user() -> UserId {
+        UserId::random("localhost".parse().unwrap())
+    }
+
+    fn at(secs: i64) -> TimeStamp {
+        TimeStamp::from(secs * 1_000_000_000)
+    }
+
+    #[sqlx::test]
+    async fn last_reaction_covers_own_messages_and_own_reactions(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let own_user = user();
+        let other = user();
+        let third = user();
+
+        let chat = test_chat();
+        chat.store(&mut connection).await?;
+
+        let own_message = test_chat_message_from(chat.id(), [1; 16], at(1), own_user.clone());
+        let other_message = test_chat_message_from(chat.id(), [2; 16], at(2), other.clone());
+        let third_message = test_chat_message_from(chat.id(), [3; 16], at(3), third.clone());
+        for message in [&own_message, &other_message, &third_message] {
+            message.store(&mut connection).await?;
+        }
+        let own_target = *own_message.message().mimi_id().unwrap();
+        let other_target = *other_message.message().mimi_id().unwrap();
+        let third_target = *third_message.message().mimi_id().unwrap();
+
+        // Someone else on our message, ourselves on someone else's, and two
+        // other people between themselves.
+        for (id, target, reactor, secs) in [
+            (1u8, own_target, &other, 10),
+            (2, other_target, &own_user, 11),
+            (3, third_target, &other, 12),
+        ] {
+            Reaction::new(
+                MimiId::from_slice(&[id; 32]).unwrap(),
+                target,
+                chat.id(),
+                reactor.clone(),
+                format!("emoji-{id}"),
+                at(secs),
+            )
+            .store(&mut connection)
+            .await?;
+        }
+
+        let on_own = Reaction::last_by_target_for_user(&mut connection, &own_target, &own_user)
+            .await?
+            .unwrap();
+        assert_eq!(on_own.sender, other);
+
+        let by_own = Reaction::last_by_target_for_user(&mut connection, &other_target, &own_user)
+            .await?
+            .unwrap();
+        assert_eq!(by_own.sender, own_user);
+
+        let between_others =
+            Reaction::last_by_target_for_user(&mut connection, &third_target, &own_user).await?;
+        assert!(between_others.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn last_reaction_is_the_newest_one(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let own_user = user();
+        let other = user();
+
+        let chat = test_chat();
+        chat.store(&mut connection).await?;
+
+        let message = test_chat_message_from(chat.id(), [1; 16], at(1), own_user.clone());
+        message.store(&mut connection).await?;
+        let target = *message.message().mimi_id().unwrap();
+
+        for (id, secs) in [(1, 30), (2, 10), (3, 20)] {
+            Reaction::new(
+                MimiId::from_slice(&[id; 32]).unwrap(),
+                target,
+                chat.id(),
+                other.clone(),
+                format!("emoji-{id}"),
+                at(secs),
+            )
+            .store(&mut connection)
+            .await?;
+        }
+
+        let last = Reaction::last_by_target_for_user(&mut connection, &target, &own_user)
+            .await?
+            .unwrap();
+        assert_eq!(last.emoji, "emoji-1");
+
+        Ok(())
+    }
 }

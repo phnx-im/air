@@ -462,6 +462,31 @@ class _LastMessage extends StatelessWidget {
 
     final showDraft = draftMessage?.isNotEmpty == true;
 
+    // === Reactions ===
+    final reaction = chat.lastReaction;
+    final reactedTo = switch (lastMessage?.message) {
+      UiMessage_Content(field0: final content) =>
+        content.content.plaintextPreview(loc),
+      _ => null,
+    };
+    if (!showDraft && reaction != null && reactedTo != null) {
+      final reactor = reaction.reactor == ownClientId
+          ? null
+          : context.select(
+              (UsersCubit cubit) =>
+                  cubit.state.displayName(userId: reaction.reactor),
+            );
+      return Text(
+        reactor == null
+            ? loc.chatList_reactionByYou(reaction.emoji, reactedTo)
+            : loc.chatList_reaction(reactor, reaction.emoji, reactedTo),
+        style: previewStyle,
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
     final prefixStyle = showDraft
         ? italicStyle
         : typeScale.body.s.style(

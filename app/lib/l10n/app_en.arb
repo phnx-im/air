@@ -315,6 +315,31 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
+  "chatList_reaction": "{user} reacted {emoji} to \"{message}\"",
+  "@chatList_reaction": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      },
+      "emoji": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "chatList_reactionByYou": "You reacted {emoji} to \"{message}\"",
+  "@chatList_reactionByYou": {
+    "placeholders": {
+      "emoji": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "chatList_contextMenu_mute": "Mute",
   "chatList_contextMenu_unmute": "Unmute",
 

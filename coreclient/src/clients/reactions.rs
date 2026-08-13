@@ -11,7 +11,7 @@ use indexmap::IndexMap;
 
 use crate::{
     Chat, ChatId, ChatMessage, MessageId,
-    chats::reactions::{Reaction, reaction_content, reaction_tombstone_content},
+    chats::reactions::{LastReaction, Reaction, reaction_content, reaction_tombstone_content},
     clients::block_contact::BlockedContactError,
     db::access::WriteConnection,
 };
@@ -108,6 +108,19 @@ impl CoreUser {
                     .push(reaction.sender);
                 reactions
             }))
+    }
+
+    /// The most recent reaction on the message with `target_mimi_id` that we are
+    /// party to: one on a message we sent, or one we made ourselves.
+    pub async fn last_reaction(
+        &self,
+        target_mimi_id: &MimiId,
+    ) -> anyhow::Result<Option<LastReaction>> {
+        let mut connection = self.db().read().await?;
+        let reaction =
+            Reaction::last_by_target_for_user(&mut connection, target_mimi_id, self.user_id())
+                .await?;
+        Ok(reaction.map(From::from))
     }
 
     /// Remove an emoji reaction we previously added to a message, and send the
