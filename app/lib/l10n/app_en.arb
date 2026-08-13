@@ -319,7 +319,6 @@
   "chatList_contextMenu_unmute": "Unmute",
 
   "newChatDialog_error": "Failed to create new group chat with name {chatName}",
-  "newChatDialog_error_incompatibleClient": "Couldn't create new group chat with name {chatName} because one of the contacts has an incompatible client.",
 
   "newConnectionDialog_newConnectionTitle": "Add Air contact",
   "newConnectionDialog_newConnectionDescription": "Enter the username of the person you want to message.",
@@ -453,6 +452,33 @@
   "groupCreationDetails_groupNameHelper": "Use at least one character",
   "groupCreationDetails_create": "Create",
   "groupCreationDetails_emptySelection": "No members",
+  "groupCreationDetails_membersNotAddedTitle": "Some people couldn't be added",
+  "groupCreationDetails_membersNotAddedMessage": "{count, plural, one {Your group {groupName} was created, but {memberNames} couldn't be added.} other {Your group {groupName} was created, but {memberNames} couldn't be added.}}",
+  "@groupCreationDetails_membersNotAddedMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "groupName": {
+        "type": "String"
+      },
+      "memberNames": {
+        "type": "String"
+      }
+    }
+  },
+  "groupCreationDetails_membersNotAddedOthers": "{memberNames} and {count, plural, one {{count} other} other {{count} others}}",
+  "@groupCreationDetails_membersNotAddedOthers": {
+    "placeholders": {
+      "memberNames": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCreationDetails_membersNotAddedConfirm": "Okay",
 
   "addMembersScreen_addMembers": "Add members",
   "addMembersScreen_done": "Done",
@@ -499,6 +525,8 @@
   "errorBanner_ok": "OK",
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",
+  "memberSelectionList_cantBeAddedTitle": "Can't be added",
+  "memberSelectionList_cantBeAddedDescription": "These people can't be added to the group. This could be because their account is no longer active or because their app version is too old.",
 
   "homeTab_chats": "Chats",
   "homeTab_profile": "You",

@@ -1527,12 +1527,6 @@ abstract class AppLocalizations {
   /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(Object chatName);
 
-  /// No description provided for @newChatDialog_error_incompatibleClient.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
-  String newChatDialog_error_incompatibleClient(Object chatName);
-
   /// No description provided for @newConnectionDialog_newConnectionTitle.
   ///
   /// In en, this message translates to:
@@ -2085,6 +2079,37 @@ abstract class AppLocalizations {
   /// **'No members'**
   String get groupCreationDetails_emptySelection;
 
+  /// No description provided for @groupCreationDetails_membersNotAddedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Some people couldn\'t be added'**
+  String get groupCreationDetails_membersNotAddedTitle;
+
+  /// No description provided for @groupCreationDetails_membersNotAddedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {Your group {groupName} was created, but {memberNames} couldn\'t be added.} other {Your group {groupName} was created, but {memberNames} couldn\'t be added.}}'**
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  );
+
+  /// No description provided for @groupCreationDetails_membersNotAddedOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'{memberNames} and {count, plural, one {{count} other} other {{count} others}}'**
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  );
+
+  /// No description provided for @groupCreationDetails_membersNotAddedConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get groupCreationDetails_membersNotAddedConfirm;
+
   /// No description provided for @addMembersScreen_done.
   ///
   /// In en, this message translates to:
@@ -2300,6 +2325,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This contact has an outdated app which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
+
+  /// No description provided for @memberSelectionList_cantBeAddedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t be added'**
+  String get memberSelectionList_cantBeAddedTitle;
+
+  /// No description provided for @memberSelectionList_cantBeAddedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'These people can\'t be added to the group. This could be because their account is no longer active or because their app version is too old.'**
+  String get memberSelectionList_cantBeAddedDescription;
 
   /// No description provided for @homeTab_chats.
   ///

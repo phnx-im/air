@@ -28,7 +28,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -1005,7 +1005,7 @@ impl PendingChatOperation {
         signer: &UserSigningKey,
         chat_id: ChatId,
         new_members: Vec<UserId>,
-    ) -> Result<Self, JobError<ChatOperationError>> {
+    ) -> Result<(Option<Self>, Vec<UserId>), JobError<ChatOperationError>> {
         // Load local data to prepare add operation
         let mut group = Group::load_verified_with_chat_id(&mut connection, chat_id)
             .await?
@@ -1037,8 +1037,11 @@ impl PendingChatOperation {
         }
 
         // Fetch add infos from the server and produce one PreparedInvitee per
-        // entry so the staging API doesn't need parallel vectors.
+        // entry so the staging API doesn't need parallel vectors. Candidates
+        // whose key package is not compatible with the group are left out of
+        // the commit and reported back.
         let mut invitees = Vec::with_capacity(buildups.len());
+        let mut users_not_added = Vec::new();
         for InviteeBuildup {
             contact,
             user_credential,
@@ -1048,6 +1051,18 @@ impl PendingChatOperation {
             let add_info = contact
                 .fetch_add_infos(&mut connection, api_clients, group.is_apq())
                 .await?;
+            if let Err(incompatibility) = group
+                .group()
+                .check_invitee_compatibility(&add_info.key_package)?
+            {
+                warn!(
+                    user_id = ?user_credential.user_id(),
+                    %incompatibility,
+                    "Leaving incompatible user out of the add operation"
+                );
+                users_not_added.push(user_credential.user_id().clone());
+                continue;
+            }
             invitees.push(PreparedInvitee {
                 add_info,
                 wai_key,
@@ -1055,12 +1070,17 @@ impl PendingChatOperation {
             });
         }
 
-        connection
+        if invitees.is_empty() {
+            return Ok((None, users_not_added));
+        }
+
+        let job = connection
             .with_transaction(async |txn| {
                 let own_id = signer.credential().user_id();
 
                 // Room policy check (doesn't apply changes to room state yet)
-                for target in &new_members {
+                for invitee in &invitees {
+                    let target = invitee.user_credential.user_id();
                     group.verify_role_change(own_id, target, RoleIndex::Regular)?;
                 }
 
@@ -1093,9 +1113,11 @@ impl PendingChatOperation {
                 let pending_chat_operation = PendingChatOperation::new(group, operation_type);
                 pending_chat_operation.store(txn).await?;
 
-                Ok(pending_chat_operation)
+                Ok::<_, JobError<ChatOperationError>>(pending_chat_operation)
             })
-            .await
+            .await?;
+
+        Ok((Some(job), users_not_added))
     }
 
     pub(crate) async fn create_self_group_key_package_upload(

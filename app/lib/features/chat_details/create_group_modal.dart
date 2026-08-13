@@ -15,6 +15,7 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
@@ -357,13 +358,16 @@ class _CreateGroupDetailsPane extends HookWidget {
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
     final selectedContacts = addMembersCubit.state.selectedContacts;
-    final supportedSelectedContacts = addMembersCubit.state.contacts
-        .where((contact) {
-          if (!selectedContacts.contains(contact.userId)) return false;
-          return contact.isSupported(isApq: isApq);
-        })
-        .map((contact) => contact.userId)
-        .toList();
+    final supportedContacts = <UiUserId>[];
+    final unsupportedContacts = <UiUserId>[];
+    for (final contact in addMembersCubit.state.contacts) {
+      if (!selectedContacts.contains(contact.userId)) continue;
+      if (contact.isSupported(isApq: isApq)) {
+        supportedContacts.add(contact.userId);
+      } else {
+        unsupportedContacts.add(contact.userId);
+      }
+    }
 
     isCreating.value = true;
 
@@ -375,27 +379,17 @@ class _CreateGroupDetailsPane extends HookWidget {
         picture: picture,
         isApq: isApq,
       );
-      final error = await userCubit.addUserToChat(
-        chatId,
-        supportedSelectedContacts,
-      );
-      switch (error) {
-        // No error
-        case null:
-          if (!context.mounted) return;
-          navigationCubit.pop();
-          await navigationCubit.openChat(chatId);
-          break;
-        case InviteUsersError_IncompatibleClient(:final reason):
-          _log.severe(
-            'Failed to create group "$groupName" due to incompatible client: $reason',
-            reason,
-          );
-          showErrorBannerStandalone(
-            (loc) => loc.newChatDialog_error_incompatibleClient(groupName),
-          );
-          break;
+      final failedToAdd = supportedContacts.isEmpty
+          ? const <UiUserId>[]
+          : await userCubit.addUserToChat(chatId, supportedContacts);
+      final notAdded = [...unsupportedContacts, ...failedToAdd];
+      if (!context.mounted) return;
+      if (notAdded.isNotEmpty) {
+        await _showMembersNotAddedDialog(context, groupName, notAdded);
       }
+      if (!context.mounted) return;
+      navigationCubit.pop();
+      await navigationCubit.openChat(chatId);
     } catch (error, stackTrace) {
       _log.severe(
         'Failed to create group "$groupName": $error',
@@ -406,6 +400,37 @@ class _CreateGroupDetailsPane extends HookWidget {
     } finally {
       isCreating.value = false;
     }
+  }
+
+  Future<void> _showMembersNotAddedDialog(
+    BuildContext context,
+    String groupName,
+    List<UiUserId> notAdded,
+  ) async {
+    final usersState = context.read<UsersCubit>().state;
+    final names = notAdded
+        .map((userId) => usersState.displayName(userId: userId))
+        .sorted((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final loc = AppLocalizations.of(context);
+    final shownNames = names.take(3).join(', ');
+    final memberNames = names.length > 3
+        ? loc.groupCreationDetails_membersNotAddedOthers(
+            shownNames,
+            names.length - 3,
+          )
+        : shownNames;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ConfirmDialog(
+        title: loc.groupCreationDetails_membersNotAddedTitle,
+        message: loc.groupCreationDetails_membersNotAddedMessage(
+          names.length,
+          groupName,
+          memberNames,
+        ),
+        confirm: loc.groupCreationDetails_membersNotAddedConfirm,
+      ),
+    );
   }
 }
 

@@ -1032,7 +1032,7 @@ impl Chat {
             r#"SELECT EXISTS(
                 SELECT 1 FROM chat c
                 INNER JOIN "group" t ON c.group_id = t.group_id
-                INNER JOIN pq_group pq ON pq.group_id = t.group_id
+                INNER JOIN pq_group pq ON pq.t_group_id = t.group_id
                 WHERE chat_id = ?
             ) AS "exists: _""#,
             chat_id,
@@ -1080,6 +1080,48 @@ pub mod tests {
             muted_until: None,
             notified_until: None,
         }
+    }
+
+    /// The PQ group is keyed by its own group id and points at the T group
+    /// through `t_group_id`, so the two ids must not be conflated.
+    #[sqlx::test]
+    async fn load_is_apq(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let chat = test_chat();
+        chat.store(&mut txn).await?;
+        sqlx::query(
+            r#"INSERT INTO "group" (
+                group_id,
+                identity_link_wrapper_key,
+                group_state_ear_key,
+                room_state
+            ) VALUES (?, ?, ?, ?)"#,
+        )
+        .bind(chat.group_id.as_slice())
+        .bind([0u8; 32].as_slice())
+        .bind([0u8; 32].as_slice())
+        .bind([0u8; 32].as_slice())
+        .execute(txn.as_mut())
+        .await?;
+
+        assert!(!Chat::load_is_apq(&mut txn, chat.id).await?);
+
+        sqlx::query(
+            "INSERT INTO pq_group (group_id, t_group_id, self_updated_at)
+            VALUES (?, ?, ?)",
+        )
+        .bind([1u8; 32].as_slice())
+        .bind(chat.group_id.as_slice())
+        .bind(0)
+        .execute(txn.as_mut())
+        .await?;
+
+        assert!(Chat::load_is_apq(&mut txn, chat.id).await?);
+
+        Ok(())
     }
 
     #[sqlx::test]

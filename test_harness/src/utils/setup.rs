@@ -1173,14 +1173,19 @@ impl TestBackend {
             .await
             .expect("Error getting group members.");
 
-        let invite_messages = inviter
+        let invite_result = inviter
             .invite_users(
                 chat_id,
                 &invitees.iter().cloned().cloned().collect::<Vec<_>>(),
             )
             .await
-            .expect("Fatal error inviting users")
-            .expect("Specific error inviting users");
+            .expect("Error inviting users");
+        assert!(
+            invite_result.users_not_added.is_empty(),
+            "Users unexpectedly not added: {:?}",
+            invite_result.users_not_added
+        );
+        let invite_messages = invite_result.messages;
 
         let mut expected_messages = HashSet::new();
         for invitee_id in &invitees {
