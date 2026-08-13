@@ -97,7 +97,6 @@ pub struct UiChatDetails {
     pub status: UiChatStatus,
     pub chat_type: UiChatType,
     pub last_used: DateTime<Local>,
-    pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
     pub draft: Option<UiMessageDraft>,

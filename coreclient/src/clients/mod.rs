@@ -749,10 +749,6 @@ impl CoreUser {
             .unwrap_or(0)
     }
 
-    pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::messages_count(self.db().read().await?, chat_id).await
-    }
-
     pub async fn set_chat_muted_until(
         &self,
         chat_id: ChatId,
