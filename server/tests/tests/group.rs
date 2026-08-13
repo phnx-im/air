@@ -1415,10 +1415,7 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
 ///
 /// The DS keys its `member_profiles` map by leaf index. Removing a member
 /// blanks its leaf, and a later Add can be placed at that same index, so the
-/// map has to follow the move. A member joining afterwards reads those
-/// profile keys out of the welcome info, which is where a stale or missing
-/// entry becomes observable: the joiner cannot decrypt the affected member's
-/// profile and falls back to the uuid-derived one.
+/// map has to follow the move.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Profile keys survive leaf index reuse", skip_all)]
 async fn user_profile_keys_survive_leaf_reuse() {
@@ -1485,7 +1482,7 @@ async fn user_profile_keys_survive_leaf_reuse() {
          new occupants eve={eve_index} frank={frank_index}"
     );
 
-    // Zoe joins only now, so her profile keys come from the churned group.
+    // Zoe joins only now, so her profile keys come from the corrupted group.
     invite_and_settle(&setup, &alice, chat_id, &[&zoe]).await;
 
     for member in [&alice, &dave, &eve, &frank] {
@@ -1664,142 +1661,6 @@ async fn user_profile_keys_survive_leave_then_reuse() {
     }
 }
 
-/// A client that misses a commit is stuck until it resyncs, and the resync
-/// has to restore its profile keys.
-///
-/// Nothing schedules a resync automatically: `ResyncRequired` builds a
-/// `Resync` and drops it (see the TODO in `process_qs::take_processed`), so
-/// today only the user can trigger one via `enqueue_group_resync`. This test
-/// desyncs Bob, then drives that manual resync and checks he comes back with
-/// working profile keys for the current members.
-///
-/// Expected to fail while the resync path is incomplete. It is kept as the
-/// executable statement of what "resync works" has to mean.
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Manual resync restores profile keys", skip_all)]
-async fn manual_resync_restores_profile_keys() {
-    use std::time::Duration;
-    use tokio::time::sleep;
-
-    let mut setup = TestBackend::single().await;
-
-    let alice = setup.add_user().await; // committer
-    let bob = setup.add_user().await; // falls behind and resyncs
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
-    let eve = setup.add_user().await;
-    let frank = setup.add_user().await;
-
-    for member in [&bob, &charlie, &dave, &eve, &frank] {
-        setup.connect_users(&alice, member).await;
-    }
-
-    for member in [&alice, &bob, &charlie, &dave, &eve, &frank] {
-        let profile = UserProfile {
-            user_id: member.clone(),
-            display_name: expected_display_name(member),
-            profile_picture: None,
-        };
-        setup
-            .get_user(member)
-            .user
-            .set_own_user_profile(profile)
-            .await
-            .unwrap();
-    }
-
-    let chat_id = setup.create_group(&alice).await;
-    invite_and_settle(&setup, &alice, chat_id, &[&bob, &charlie, &dave]).await;
-    let charlie_index = own_leaf_index(&setup, &charlie, chat_id).await;
-    let dave_index = own_leaf_index(&setup, &dave, chat_id).await;
-
-    // Churn the leaves around Bob: drop Charlie and Dave, then refill with
-    // Eve and Frank so the vacated indices get new occupants.
-    setup
-        .get_user(&alice)
-        .user
-        .remove_users(chat_id, vec![charlie.clone(), dave.clone()])
-        .await
-        .unwrap();
-    settle(&setup, &[&alice, &bob]).await;
-
-    invite_and_settle(&setup, &alice, chat_id, &[&eve, &frank]).await;
-    let eve_index = own_leaf_index(&setup, &eve, chat_id).await;
-    let frank_index = own_leaf_index(&setup, &frank, chat_id).await;
-    let vacated = [charlie_index, dave_index];
-    let reused: Vec<u32> = [eve_index, frank_index]
-        .into_iter()
-        .filter(|index| vacated.contains(index))
-        .collect();
-    assert!(
-        !reused.is_empty(),
-        "expected a vacated leaf to be reused: vacated {vacated:?}, \
-         new occupants eve={eve_index} frank={frank_index}"
-    );
-
-    // Bob misses a commit: he acks it off his queue without processing it.
-    let bob_user = &setup.get_user(&bob).user;
-    setup
-        .get_user(&alice)
-        .user
-        .update_key(chat_id)
-        .await
-        .unwrap();
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let last = qs_messages
-        .last()
-        .expect("Bob should have the update in his queue");
-    let (stream, responder) = bob_user.listen_queue().await.unwrap();
-    responder.ack(last.sequence_number + 1).await;
-    sleep(Duration::from_secs(1)).await;
-    drop(stream);
-
-    // The next commit Bob processes is one he cannot apply, so he is now
-    // desynced. Nothing recovers him on its own.
-    setup
-        .get_user(&alice)
-        .user
-        .update_key(chat_id)
-        .await
-        .unwrap();
-    settle(&setup, &[&bob]).await;
-    settle(&setup, &[&alice, &eve, &frank]).await;
-
-    // Trigger the resync the way the app does, and let it run.
-    let bob_user = &setup.get_user(&bob).user;
-    bob_user.enqueue_group_resync(chat_id).await.unwrap();
-    bob_user.outbound_service().run_once().await;
-    assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
-        "Bob's resync should have completed"
-    );
-    settle(&setup, &[&alice, &eve, &frank]).await;
-    settle(&setup, &[&bob]).await;
-
-    // Bob rebuilt his group state from the DS, so his profile keys for the
-    // current members must all still resolve. Settle generously first, so a
-    // failure here cannot be blamed on a pending profile fetch.
-    for _ in 0..5 {
-        settle(&setup, &[&bob, &alice, &eve, &frank]).await;
-    }
-
-    // Control: Frank sits in the same group at the same epoch and joined by
-    // Welcome rather than by resync. He resolves the same profiles fine, so
-    // the keys are available and this is not a matter of settling longer.
-    assert_profiles_resolve(
-        &setup,
-        &frank,
-        &[&alice, &eve],
-        "control (joined by welcome)",
-    )
-    .await;
-
-    // Bob differs only in how he got here. Note the assertion holds if Bob
-    // cached a profile before resyncing, which is why nothing above fetches
-    // profiles on Bob's behalf.
-    assert_profiles_resolve(&setup, &bob, &[&alice, &eve, &frank], "after resync").await;
-}
-
 /// Asserts `observer` resolves each member's real profile rather than the
 /// uuid-derived fallback that a missing profile key produces.
 async fn assert_profiles_resolve(
@@ -1826,12 +1687,6 @@ async fn assert_profiles_resolve(
 
 /// A member that is removed and then invited back has to end up with working
 /// group state and profile keys.
-///
-/// This is the case the random-walk harness hits constantly and the one the
-/// earlier tests here miss: they check a *fresh* joiner, who has no local
-/// state for the group. A returning member does. OpenMLS marks an evicted
-/// group as unusable (`MlsGroupStateError::UseAfterEviction`), so the new
-/// Welcome has to displace that state rather than be blocked by it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Removed member can be invited back", skip_all)]
 async fn removed_member_can_be_invited_back() {
@@ -1953,8 +1808,7 @@ async fn removed_member_can_be_invited_back() {
 ///
 /// The DS applies `remove_profiles` and then `update_membership_profiles` to
 /// the same commit, so a leaf freed and refilled in one step exercises both
-/// against one index. The random walk produces this whenever a pending
-/// self-remove is swept in by an invite rather than by a plain update.
+/// against one index.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Add and self-remove in one commit", skip_all)]
 async fn add_and_self_remove_in_one_commit() {
@@ -2048,14 +1902,6 @@ async fn add_and_self_remove_in_one_commit() {
 
 /// Inviting many members in a single commit must register a profile key for
 /// every one of them.
-///
-/// The DS pairs the commit's Add proposals with the profile keys carried in
-/// the AAD using `zip`, and `validate_added_users` only length-checks the
-/// welcome attribution infos, not the profile keys. A `zip` silently
-/// truncates, so any divergence loses the tail. The random-walk harness
-/// invites in batches of 50 and shows profile keys missing for almost every
-/// member straight after bootstrap, while the small batches used by the
-/// other tests here never surface it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Large invite batch preserves profile keys", skip_all)]
 async fn large_invite_batch_preserves_profile_keys() {

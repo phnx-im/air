@@ -183,6 +183,7 @@ impl DsGroupState {
         )?;
 
         self.remove_profiles(removed_indices);
+        #[cfg(debug_assertions)]
         self.debug_check_member_profiles("resync");
 
         self.rekey_sender_profile(sender_index, new_sender_index);
@@ -348,6 +349,7 @@ impl DsGroupState {
             )?;
 
         t_group_state.remove_profiles(t_removed_indices);
+        #[cfg(debug_assertions)]
         t_group_state.debug_check_member_profiles("resync_apq");
 
         t_group_state.rekey_sender_profile(t_sender_index, t_new_sender_index);
