@@ -376,10 +376,14 @@ impl DsGroupState {
         }
         self.debug_check_member_profiles("t_commit");
 
-        // Record the keys as of this epoch, so a Welcome issued by this commit
-        // can be answered with the membership it actually describes.
-        let epoch = self.group().epoch();
-        self.snapshot_member_profiles(epoch);
+        // Record this epoch only when the commit added someone. Welcome info
+        // is served from the ratchet tree mls-assist retains, and it retains
+        // one only for epochs with potential joiners, so a snapshot for any
+        // other epoch could never be served.
+        if added_users_state.is_some() {
+            let epoch = self.group().epoch();
+            self.snapshot_member_profiles(epoch);
+        }
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
@@ -506,8 +510,10 @@ impl DsGroupState {
         }
         t_group_state.debug_check_member_profiles("apq_commit");
 
-        let epoch = t_group_state.group().epoch();
-        t_group_state.snapshot_member_profiles(epoch);
+        if t_add_users_state.is_some() {
+            let epoch = t_group_state.group().epoch();
+            t_group_state.snapshot_member_profiles(epoch);
+        }
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
