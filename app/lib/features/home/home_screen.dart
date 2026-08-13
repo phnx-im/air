@@ -65,7 +65,15 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             },
           ),
         ),
-        const Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          // The boundary keeps the bar out of the route's layer, which is
+          // re-recorded during scrolling; without it the whole pill repaints
+          // on every scroll frame.
+          child: RepaintBoundary(child: AppTabBar()),
+        ),
       ],
     );
   }
