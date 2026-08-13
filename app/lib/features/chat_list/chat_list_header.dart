@@ -4,7 +4,6 @@
 
 import 'dart:async';
 
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -74,13 +73,9 @@ class _ComposeButton extends StatelessWidget {
   }
 
   void _newContact(BuildContext context) {
-    final chatListCubit = context.read<ChatListCubit>();
     showDialog(
       context: context,
-      builder: (BuildContext context) => BlocProvider.value(
-        value: chatListCubit,
-        child: const AddContactDialog(),
-      ),
+      builder: (BuildContext context) => const AddContactDialog(),
     );
   }
 

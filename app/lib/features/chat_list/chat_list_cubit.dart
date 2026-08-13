@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:air/core/core.dart' hide ChatsRepository;
 import 'package:air/features/chat/chats_repository.dart';
@@ -35,19 +34,4 @@ class ChatListCubit extends Cubit<ChatListState> {
     await _order.cancel();
     return super.close();
   }
-
-  Future<AddUsernameContactError?> createContactChat({
-    required UiUsername username,
-    required UsernameHash hash,
-  }) => _chatRepository.createContactChat(username: username, hash: hash);
-
-  Future<ChatId> createGroupChat({
-    required String groupName,
-    Uint8List? picture,
-    required bool isApq,
-  }) => _chatRepository.createGroupChat(
-    groupName: groupName,
-    picture: picture,
-    isApq: isApq,
-  );
 }
