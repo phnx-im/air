@@ -843,9 +843,9 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .or(chat.last_message_at())
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
-    let last_reaction = match last_message.as_ref().and_then(|m| m.message().mimi_id()) {
-        Some(mimi_id) => core_user
-            .last_reaction(mimi_id)
+    let last_reaction = match last_message.as_ref() {
+        Some(message) => core_user
+            .last_reaction(message)
             .await
             .inspect_err(|error| error!(%error, "Failed to load the last reaction"))
             .ok()
@@ -873,6 +873,8 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_used,
         messages_count,
         unread_messages,
+        // The row reports on the last message but never opens its attachment,
+        // so it does without the local attachment ids.
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),
         last_reaction: last_reaction.map(Into::into),
         draft,

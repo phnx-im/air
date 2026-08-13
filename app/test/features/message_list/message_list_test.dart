@@ -43,6 +43,7 @@ final firstMessageContent = UiMimiContent(
 final firstDeletedMessageContent = UiMimiContent(
   topicId: Uint8List(0),
   attachments: [],
+
   replaces: Uint8List(0),
 );
 
@@ -708,6 +709,7 @@ final attachmentMessages = [
               description: "Failing golden tests",
             ),
           ],
+          firstAttachmentType: UiAttachmentType.file,
         ),
       ),
     ),
@@ -728,6 +730,7 @@ final attachmentMessages = [
           plainBody: "Look what I've got to eat",
           content: simpleMessage("Look what I've got to eat"),
           attachments: [imageAttachment],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),
@@ -746,6 +749,7 @@ final attachmentMessages = [
         content: UiMimiContent(
           topicId: Uint8List(0),
           attachments: [imageAttachment],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),
@@ -773,6 +777,7 @@ final attachmentMessages = [
               ),
             ),
           ],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),

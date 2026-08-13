@@ -298,35 +298,36 @@ impl Reaction {
 
     /// Load the last reaction on a given message that `user_id` is party to:
     /// one on a message they sent, or one they made themselves.
+    ///
+    /// `target_is_own` says whether they sent the target message. The caller
+    /// already holds it, so the target never has to be joined back in.
     pub(crate) async fn last_by_target_for_user(
         mut connection: impl ReadConnection,
         target_mimi_id: &MimiId,
         user_id: &UserId,
+        target_is_own: bool,
     ) -> sqlx::Result<Option<Reaction>> {
         let user_uuid = user_id.uuid();
         let user_domain = user_id.domain();
         query_as!(
             SqlReaction,
             r#"SELECT
-                r.reaction_mimi_id AS "reaction_mimi_id: _",
-                r.target_mimi_id AS "target_mimi_id: _",
-                r.chat_id AS "chat_id: _",
-                r.sender_user_uuid AS "sender_user_uuid: _",
-                r.sender_user_domain AS "sender_user_domain: _",
-                r.emoji,
-                r.created_at AS "created_at: _"
-            FROM reaction r
-            INNER JOIN message m ON m.mimi_id = r.target_mimi_id
-            WHERE r.target_mimi_id = ?1
-                AND (
-                    (m.sender_user_uuid = ?2 AND m.sender_user_domain = ?3)
-                    OR (r.sender_user_uuid = ?2 AND r.sender_user_domain = ?3)
-                )
-            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC
+                reaction_mimi_id AS "reaction_mimi_id: _",
+                target_mimi_id AS "target_mimi_id: _",
+                chat_id AS "chat_id: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                emoji,
+                created_at AS "created_at: _"
+            FROM reaction
+            WHERE target_mimi_id = ?1
+                AND (?4 OR (sender_user_uuid = ?2 AND sender_user_domain = ?3))
+            ORDER BY created_at DESC, reaction_mimi_id DESC
             LIMIT 1"#,
             target_mimi_id,
             user_uuid,
             user_domain,
+            target_is_own,
         )
         .fetch_optional(connection.as_mut())
         .await
@@ -398,18 +399,21 @@ mod tests {
             .await?;
         }
 
-        let on_own = Reaction::last_by_target_for_user(&mut connection, &own_target, &own_user)
-            .await?
-            .unwrap();
+        let on_own =
+            Reaction::last_by_target_for_user(&mut connection, &own_target, &own_user, true)
+                .await?
+                .unwrap();
         assert_eq!(on_own.sender, other);
 
-        let by_own = Reaction::last_by_target_for_user(&mut connection, &other_target, &own_user)
-            .await?
-            .unwrap();
+        let by_own =
+            Reaction::last_by_target_for_user(&mut connection, &other_target, &own_user, false)
+                .await?
+                .unwrap();
         assert_eq!(by_own.sender, own_user);
 
         let between_others =
-            Reaction::last_by_target_for_user(&mut connection, &third_target, &own_user).await?;
+            Reaction::last_by_target_for_user(&mut connection, &third_target, &own_user, false)
+                .await?;
         assert!(between_others.is_none());
 
         Ok(())
@@ -443,7 +447,7 @@ mod tests {
             .await?;
         }
 
-        let last = Reaction::last_by_target_for_user(&mut connection, &target, &own_user)
+        let last = Reaction::last_by_target_for_user(&mut connection, &target, &own_user, true)
             .await?
             .unwrap();
         assert_eq!(last.emoji, "emoji-1");

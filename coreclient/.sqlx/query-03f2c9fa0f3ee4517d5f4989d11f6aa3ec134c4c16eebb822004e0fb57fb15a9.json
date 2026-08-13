@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                r.reaction_mimi_id AS \"reaction_mimi_id: _\",\n                r.target_mimi_id AS \"target_mimi_id: _\",\n                r.chat_id AS \"chat_id: _\",\n                r.sender_user_uuid AS \"sender_user_uuid: _\",\n                r.sender_user_domain AS \"sender_user_domain: _\",\n                r.emoji,\n                r.created_at AS \"created_at: _\"\n            FROM reaction r\n            INNER JOIN message m ON m.mimi_id = r.target_mimi_id\n            WHERE r.target_mimi_id = ?1\n                AND (\n                    (m.sender_user_uuid = ?2 AND m.sender_user_domain = ?3)\n                    OR (r.sender_user_uuid = ?2 AND r.sender_user_domain = ?3)\n                )\n            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC\n            LIMIT 1",
+  "query": "SELECT\n                reaction_mimi_id AS \"reaction_mimi_id: _\",\n                target_mimi_id AS \"target_mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                emoji,\n                created_at AS \"created_at: _\"\n            FROM reaction\n            WHERE target_mimi_id = ?1\n                AND (?4 OR (sender_user_uuid = ?2 AND sender_user_domain = ?3))\n            ORDER BY created_at DESC, reaction_mimi_id DESC\n            LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -82,7 +82,7 @@
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 4
     },
     "nullable": [
       false,
@@ -94,5 +94,5 @@
       false
     ]
   },
-  "hash": "f4db03b3245a4d454b12f5c58e7a83364a346fa5756937546fbf5ae1aa117e00"
+  "hash": "03f2c9fa0f3ee4517d5f4989d11f6aa3ec134c4c16eebb822004e0fb57fb15a9"
 }

@@ -466,6 +466,11 @@ impl UiChatMessage {
         }
     }
 
+    /// Converts a message whose attachments the caller will not open, and whose
+    /// local attachment ids it therefore has no reason to load.
+    ///
+    /// The attachments themselves do not survive this, but
+    /// [`UiMimiContent::attachment_type`] does.
     pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
         Self::from_message(message, &[])
     }

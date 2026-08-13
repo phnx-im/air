@@ -110,16 +110,27 @@ impl CoreUser {
             }))
     }
 
-    /// The most recent reaction on the message with `target_mimi_id` that we are
-    /// party to: one on a message we sent, or one we made ourselves.
+    /// The most recent reaction on `target` that we are party to: one on a
+    /// message we sent, or one we made ourselves.
+    ///
+    /// Takes the message rather than its [`MimiId`] so that the id and its
+    /// sender cannot disagree.
     pub async fn last_reaction(
         &self,
-        target_mimi_id: &MimiId,
+        target: &ChatMessage,
     ) -> anyhow::Result<Option<LastReaction>> {
+        let Some(target_mimi_id) = target.message().mimi_id() else {
+            return Ok(None);
+        };
+        let target_is_own = target.message().sender() == Some(self.user_id());
         let mut connection = self.db().read().await?;
-        let reaction =
-            Reaction::last_by_target_for_user(&mut connection, target_mimi_id, self.user_id())
-                .await?;
+        let reaction = Reaction::last_by_target_for_user(
+            &mut connection,
+            target_mimi_id,
+            self.user_id(),
+            target_is_own,
+        )
+        .await?;
         Ok(reaction.map(From::from))
     }
 

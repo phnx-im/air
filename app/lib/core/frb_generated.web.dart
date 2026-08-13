@@ -791,6 +791,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
+  UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw);
+
+  @protected
   UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
 
   @protected
@@ -1186,6 +1189,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
 
   @protected
+  UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw);
+
+  @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -1288,6 +1294,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
+
+  @protected
+  UiAttachmentType dco_decode_ui_attachment_type(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
@@ -2068,6 +2077,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
 
   @protected
+  UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
     SseDeserializer deserializer,
   );
@@ -2583,6 +2597,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAttachmentType? sse_decode_opt_box_autoadd_ui_attachment_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   );
@@ -2715,6 +2734,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiAttachmentStatus sse_decode_ui_attachment_status(
     SseDeserializer deserializer,
   );
+
+  @protected
+  UiAttachmentType sse_decode_ui_attachment_type(SseDeserializer deserializer);
 
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
@@ -3648,6 +3670,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_ui_attachment_type(
+    UiAttachmentType self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -4293,6 +4321,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_attachment_type(
+    UiAttachmentType? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_chat_details(
     UiChatDetails? self,
     SseSerializer serializer,
@@ -4454,6 +4488,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_attachment_status(
     UiAttachmentStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_attachment_type(
+    UiAttachmentType self,
     SseSerializer serializer,
   );
 

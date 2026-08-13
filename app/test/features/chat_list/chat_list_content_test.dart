@@ -429,6 +429,7 @@ void main() {
         () => chatListCubit.state,
       ).thenReturn(ChatListState(chatIds: [chat.id]));
 
+      sizeView(tester, const Size(400, 120));
       await tester.pumpWidget(buildSubject(chats: [chat]));
     }
 
@@ -473,8 +474,127 @@ void main() {
       expect(find.textContaining('Some draft message'), findsOne);
       expect(find.textContaining('reacted'), findsNothing);
     });
+
+    Future<void> pumpAttachmentChat(
+      WidgetTester tester,
+      UiAttachment attachment, {
+      UiUserId? sender,
+    }) async {
+      final chat = attachmentChat(attachment, sender: sender);
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chat.id]));
+
+      sizeView(tester, const Size(400, 120));
+      await tester.pumpWidget(buildSubject(chats: [chat]));
+    }
+
+    testWidgets('stands in for a picture with an emoji', (tester) async {
+      await pumpAttachmentChat(tester, pictureAttachment);
+
+      expect(find.text('You: 🖼️'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_picture.png'),
+      );
+    });
+
+    testWidgets('stands in for a file with an emoji', (tester) async {
+      await pumpAttachmentChat(tester, fileAttachment);
+
+      expect(find.text('You: 📎'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_file.png'),
+      );
+    });
+
+    // A chat with a single contact names no sender, so the emoji stands alone.
+    testWidgets('stands in for a picture from the contact', (tester) async {
+      await pumpAttachmentChat(
+        tester,
+        pictureAttachment,
+        sender: userProfiles[1].userId,
+      );
+
+      expect(find.text('🖼️'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_picture_by_contact.png'),
+      );
+    });
+
+    testWidgets('stands in for a file from the contact', (tester) async {
+      await pumpAttachmentChat(
+        tester,
+        fileAttachment,
+        sender: userProfiles[1].userId,
+      );
+
+      expect(find.text('📎'), findsOne);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_file_by_contact.png'),
+      );
+    });
   });
 }
+
+final pictureAttachment = UiAttachment(
+  attachmentId: 1.attachmentId(),
+  filename: 'image.png',
+  contentType: 'image/png',
+  size: 1024,
+  imageMetadata: const UiImageMetadata(
+    blurhash: 'LEHLk~WB2yk8pyo0adR*.7kCMdnj',
+    width: 100,
+    height: 50,
+  ),
+);
+
+final fileAttachment = UiAttachment(
+  attachmentId: 2.attachmentId(),
+  filename: 'notes.pdf',
+  contentType: 'application/pdf',
+  size: 1024,
+  imageMetadata: null,
+);
+
+/// A contact chat whose last message is [attachment], sent by [sender] (the
+/// reader by default) with nothing written alongside it.
+UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
+    UiChatDetails(
+      id: 8.chatId(),
+      status: const UiChatStatus.active(),
+      isApq: false,
+      chatType: UiChatType_Connection(userProfiles[1]),
+      unreadMessages: 0,
+      messagesCount: 10,
+      lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      lastMessage: UiChatMessage(
+        id: 8.messageId(),
+        chatId: 8.chatId(),
+        timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: sender ?? 1.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              topicId: Uint8List(0),
+              attachments: [attachment],
+              firstAttachmentType: attachment.imageMetadata != null
+                  ? UiAttachmentType.image
+                  : UiAttachmentType.file,
+            ),
+          ),
+        ),
+        status: UiMessageStatus.sent,
+        reactions: [],
+      ),
+      mutedUntil: null,
+      pendingCommitFailed: false,
+    );
 
 /// A contact chat whose last message, "Hello Alice", carries [reaction].
 UiChatDetails reactedChat({
