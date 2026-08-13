@@ -4,7 +4,7 @@
 
 export 'api/attachments_repository.dart';
 export 'api/chat_details_cubit.dart';
-export 'api/chat_publisher.dart';
+export 'api/chats_data_source.dart';
 export 'api/chats_repository.dart';
 export 'api/invitation_code.dart';
 export 'api/invitation_codes_cubit.dart';

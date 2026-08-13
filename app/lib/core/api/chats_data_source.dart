@@ -16,12 +16,12 @@ import 'types.dart';
 import 'user_cubit.dart';
 
 // These functions are ignored because they are not marked as `pub`: `affected`, `contains`, `initial_load`, `is_empty`, `load_chats`, `of`, `record`, `reload`, `remove`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatKeys`, `ChatsPublisherInner`, `LocalState`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatKeys`, `ChatsDataSourceInner`, `LocalState`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>
-abstract class ChatsPublisher implements RustOpaqueInterface {
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
+abstract class ChatsDataSource implements RustOpaqueInterface {
   Future<void> close();
 
   Future<AddUsernameContactError?> createContactChat({
@@ -37,10 +37,10 @@ abstract class ChatsPublisher implements RustOpaqueInterface {
 
   Future<void> mute({required ChatId chatId, UiChatMuted? mutedUntil});
 
-  factory ChatsPublisher({required UserCubitBase userCubit}) => RustLib
+  factory ChatsDataSource({required UserCubitBase userCubit}) => RustLib
       .instance
       .api
-      .crateApiChatPublisherChatsPublisherNew(userCubit: userCubit);
+      .crateApiChatsDataSourceChatsDataSourceNew(userCubit: userCubit);
 
   /// Long running task
   ///
@@ -52,7 +52,7 @@ abstract class ChatsPublisher implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>
 abstract class UsernameHash implements RustOpaqueInterface {}
 
-/// A delta [`ChatsPublisher`] emits in its stream.
+/// A delta [`ChatsDataSource`] emits in its stream.
 class ChatsDelta {
   final List<UiChatDetails> upserted;
   final Set<ChatId> removed;

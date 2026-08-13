@@ -28,7 +28,7 @@
 
 use crate::api::attachments_repository::*;
 use crate::api::chat_details_cubit::*;
-use crate::api::chat_publisher::*;
+use crate::api::chats_data_source::*;
 use crate::api::chats_repository::*;
 use crate::api::invitation_codes_cubit::*;
 use crate::api::linked_devices_cubit::*;
@@ -55,7 +55,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1869917009;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -420420151;
 
 // Section: executor
 
@@ -1636,7 +1636,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
                     })().await)
                 } })
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_close_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_close_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1644,7 +1644,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_close_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_close",
+            debug_name: "ChatsDataSource_close",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1659,7 +1659,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_close_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -1679,7 +1679,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_close_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::chat_publisher::ChatsPublisher::close(&*api_that_guard);
+                        crate::api::chats_data_source::ChatsDataSource::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -1687,7 +1687,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_close_impl(
         },
     )
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1695,7 +1695,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_create_contact_chat",
+            debug_name: "ChatsDataSource_create_contact_chat",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1710,7 +1710,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             let api_hash = <UsernameHash>::sse_decode(&mut deserializer);
@@ -1736,7 +1736,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::chat_publisher::ChatsPublisher::create_contact_chat(
+                            crate::api::chats_data_source::ChatsDataSource::create_contact_chat(
                                 &*api_that_guard,
                                 api_username,
                                 api_hash,
@@ -1750,7 +1750,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(
         },
     )
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_create_group_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1758,7 +1758,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_create_group_chat",
+            debug_name: "ChatsDataSource_create_group_chat",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1773,7 +1773,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_group_name = <String>::sse_decode(&mut deserializer);
             let api_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
@@ -1800,7 +1800,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::chat_publisher::ChatsPublisher::create_group_chat(
+                            crate::api::chats_data_source::ChatsDataSource::create_group_chat(
                                 &*api_that_guard,
                                 api_group_name,
                                 api_picture,
@@ -1815,7 +1815,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(
         },
     )
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_mute_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1823,7 +1823,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_mute",
+            debug_name: "ChatsDataSource_mute",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1838,7 +1838,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
             let api_muted_until =
@@ -1864,7 +1864,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = crate::api::chat_publisher::ChatsPublisher::mute(
+                        let output_ok = crate::api::chats_data_source::ChatsDataSource::mute(
                             &*api_that_guard,
                             api_chat_id,
                             api_muted_until,
@@ -1878,14 +1878,14 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(
         },
     )
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_new_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_new",
+            debug_name: "ChatsDataSource_new",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -1921,14 +1921,14 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_new_impl(
                 }
                 let api_user_cubit_guard = api_user_cubit_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok(
-                    crate::api::chat_publisher::ChatsPublisher::new(&*api_user_cubit_guard),
+                    crate::api::chats_data_source::ChatsDataSource::new(&*api_user_cubit_guard),
                 )?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__chat_publisher__ChatsPublisher_stream_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1936,7 +1936,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_stream_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsPublisher_stream",
+            debug_name: "ChatsDataSource_stream",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1951,10 +1951,10 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_stream_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::chat_publisher::ChatsDelta,
+                crate::api::chats_data_source::ChatsDelta,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -1979,7 +1979,7 @@ fn wire__crate__api__chat_publisher__ChatsPublisher_stream_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
-                            crate::api::chat_publisher::ChatsPublisher::stream(
+                            crate::api::chats_data_source::ChatsDataSource::stream(
                                 &*api_that_guard,
                                 api_sink,
                             )
@@ -9868,7 +9868,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>
@@ -9958,11 +9958,11 @@ impl SseDecode for ChatDetailsCubitBase {
     }
 }
 
-impl SseDecode for ChatsPublisher {
+impl SseDecode for ChatsDataSource {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>,
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -10237,7 +10237,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10485,7 +10485,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        crate::api::chat_publisher::ChatsDelta,
+        crate::api::chats_data_source::ChatsDelta,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10852,14 +10852,14 @@ impl SseDecode for crate::api::types::ChatId {
     }
 }
 
-impl SseDecode for crate::api::chat_publisher::ChatsDelta {
+impl SseDecode for crate::api::chats_data_source::ChatsDelta {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_upserted = <Vec<crate::api::types::UiChatDetails>>::sse_decode(deserializer);
         let mut var_removed =
             <std::collections::HashSet<crate::api::types::ChatId>>::sse_decode(deserializer);
         let mut var_order = <Option<Vec<crate::api::types::ChatId>>>::sse_decode(deserializer);
-        return crate::api::chat_publisher::ChatsDelta {
+        return crate::api::chats_data_source::ChatsDelta {
             upserted: var_upserted,
             removed: var_removed,
             order: var_order,
@@ -13457,11 +13457,11 @@ fn pde_ffi_dispatcher_primary_impl(
 29 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_store_draft_impl(port, ptr, rust_vec_len, data_len),
 30 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 31 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_upload_attachment_impl(port, ptr, rust_vec_len, data_len),
-32 => wire__crate__api__chat_publisher__ChatsPublisher_close_impl(port, ptr, rust_vec_len, data_len),
-33 => wire__crate__api__chat_publisher__ChatsPublisher_create_contact_chat_impl(port, ptr, rust_vec_len, data_len),
-34 => wire__crate__api__chat_publisher__ChatsPublisher_create_group_chat_impl(port, ptr, rust_vec_len, data_len),
-35 => wire__crate__api__chat_publisher__ChatsPublisher_mute_impl(port, ptr, rust_vec_len, data_len),
-37 => wire__crate__api__chat_publisher__ChatsPublisher_stream_impl(port, ptr, rust_vec_len, data_len),
+32 => wire__crate__api__chats_data_source__ChatsDataSource_close_impl(port, ptr, rust_vec_len, data_len),
+33 => wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl(port, ptr, rust_vec_len, data_len),
+34 => wire__crate__api__chats_data_source__ChatsDataSource_create_group_chat_impl(port, ptr, rust_vec_len, data_len),
+35 => wire__crate__api__chats_data_source__ChatsDataSource_mute_impl(port, ptr, rust_vec_len, data_len),
+37 => wire__crate__api__chats_data_source__ChatsDataSource_stream_impl(port, ptr, rust_vec_len, data_len),
 40 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_clear_copied_codes_impl(port, ptr, rust_vec_len, data_len),
 41 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
 43 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_mark_invitation_code_as_copied_impl(port, ptr, rust_vec_len, data_len),
@@ -13598,9 +13598,11 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        36 => {
-            wire__crate__api__chat_publisher__ChatsPublisher_new_impl(ptr, rust_vec_len, data_len)
-        }
+        36 => wire__crate__api__chats_data_source__ChatsDataSource_new_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
         38 => wire__crate__api__chats_repository__ChatsRepository_new_impl(
             ptr,
             rust_vec_len,
@@ -13849,16 +13851,16 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatDetailsCubitBase>> for Cha
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<ChatsPublisher> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<ChatsDataSource> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
             .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ChatsPublisher> {}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ChatsDataSource> {}
 
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatsPublisher>> for ChatsPublisher {
-    fn into_into_dart(self) -> FrbWrapper<ChatsPublisher> {
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatsDataSource>> for ChatsDataSource {
+    fn into_into_dart(self) -> FrbWrapper<ChatsDataSource> {
         self.into()
     }
 }
@@ -14440,7 +14442,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::ChatId>>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::chat_publisher::ChatsDelta {
+impl flutter_rust_bridge::IntoDart for crate::api::chats_data_source::ChatsDelta {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.upserted.into_into_dart().into_dart(),
@@ -14451,13 +14453,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::chat_publisher::ChatsDelta {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::chat_publisher::ChatsDelta
+    for crate::api::chats_data_source::ChatsDelta
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_publisher::ChatsDelta>
-    for crate::api::chat_publisher::ChatsDelta
+impl flutter_rust_bridge::IntoIntoDart<crate::api::chats_data_source::ChatsDelta>
+    for crate::api::chats_data_source::ChatsDelta
 {
-    fn into_into_dart(self) -> crate::api::chat_publisher::ChatsDelta {
+    fn into_into_dart(self) -> crate::api::chats_data_source::ChatsDelta {
         self
     }
 }
@@ -16530,10 +16532,10 @@ impl SseEncode for ChatDetailsCubitBase {
     }
 }
 
-impl SseEncode for ChatsPublisher {
+impl SseEncode for ChatsDataSource {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -16784,7 +16786,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17048,7 +17050,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        crate::api::chat_publisher::ChatsDelta,
+        crate::api::chats_data_source::ChatsDelta,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -17379,7 +17381,7 @@ impl SseEncode for crate::api::types::ChatId {
     }
 }
 
-impl SseEncode for crate::api::chat_publisher::ChatsDelta {
+impl SseEncode for crate::api::chats_data_source::ChatsDelta {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::types::UiChatDetails>>::sse_encode(self.upserted, serializer);
@@ -19477,7 +19479,7 @@ mod io {
     use super::*;
     use crate::api::attachments_repository::*;
     use crate::api::chat_details_cubit::*;
-    use crate::api::chat_publisher::*;
+    use crate::api::chats_data_source::*;
     use crate::api::chats_repository::*;
     use crate::api::invitation_codes_cubit::*;
     use crate::api::linked_devices_cubit::*;
@@ -19531,17 +19533,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -19828,7 +19830,7 @@ mod web {
     use super::*;
     use crate::api::attachments_repository::*;
     use crate::api::chat_details_cubit::*;
-    use crate::api::chat_publisher::*;
+    use crate::api::chats_data_source::*;
     use crate::api::chats_repository::*;
     use crate::api::invitation_codes_cubit::*;
     use crate::api::linked_devices_cubit::*;
@@ -19884,17 +19886,17 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsPublisher>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

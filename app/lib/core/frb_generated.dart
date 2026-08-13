@@ -8,7 +8,7 @@ import 'package:convert/convert.dart';
 
 import 'api/attachments_repository.dart';
 import 'api/chat_details_cubit.dart';
-import 'api/chat_publisher.dart';
+import 'api/chats_data_source.dart';
 import 'api/chats_repository.dart';
 import 'api/invitation_code.dart';
 import 'api/invitation_codes_cubit.dart';
@@ -92,7 +92,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1869917009;
+  int get rustContentHash => -420420151;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -267,36 +267,36 @@ abstract class RustLibApi extends BaseApi {
     required String path,
   });
 
-  Future<void> crateApiChatPublisherChatsPublisherClose({
-    required ChatsPublisher that,
+  Future<void> crateApiChatsDataSourceChatsDataSourceClose({
+    required ChatsDataSource that,
   });
 
   Future<AddUsernameContactError?>
-  crateApiChatPublisherChatsPublisherCreateContactChat({
-    required ChatsPublisher that,
+  crateApiChatsDataSourceChatsDataSourceCreateContactChat({
+    required ChatsDataSource that,
     required UiUsername username,
     required UsernameHash hash,
   });
 
-  Future<ChatId> crateApiChatPublisherChatsPublisherCreateGroupChat({
-    required ChatsPublisher that,
+  Future<ChatId> crateApiChatsDataSourceChatsDataSourceCreateGroupChat({
+    required ChatsDataSource that,
     required String groupName,
     Uint8List? picture,
     required bool isApq,
   });
 
-  Future<void> crateApiChatPublisherChatsPublisherMute({
-    required ChatsPublisher that,
+  Future<void> crateApiChatsDataSourceChatsDataSourceMute({
+    required ChatsDataSource that,
     required ChatId chatId,
     UiChatMuted? mutedUntil,
   });
 
-  ChatsPublisher crateApiChatPublisherChatsPublisherNew({
+  ChatsDataSource crateApiChatsDataSourceChatsDataSourceNew({
     required UserCubitBase userCubit,
   });
 
-  Stream<ChatsDelta> crateApiChatPublisherChatsPublisherStream({
-    required ChatsPublisher that,
+  Stream<ChatsDelta> crateApiChatsDataSourceChatsDataSourceStream({
+    required ChatsDataSource that,
   });
 
   ChatsRepository crateApiChatsRepositoryChatsRepositoryNew({
@@ -956,13 +956,13 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ChatsPublisher;
+  get rust_arc_increment_strong_count_ChatsDataSource;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ChatsPublisher;
+  get rust_arc_decrement_strong_count_ChatsDataSource;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatsPublisherPtr;
+  get rust_arc_decrement_strong_count_ChatsDataSourcePtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_ChatsRepository;
@@ -2408,14 +2408,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiChatPublisherChatsPublisherClose({
-    required ChatsPublisher that,
+  Future<void> crateApiChatsDataSourceChatsDataSourceClose({
+    required ChatsDataSource that,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
             that,
             serializer,
           );
@@ -2430,23 +2430,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiChatPublisherChatsPublisherCloseConstMeta,
+        constMeta: kCrateApiChatsDataSourceChatsDataSourceCloseConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiChatPublisherChatsPublisherCloseConstMeta =>
+  TaskConstMeta get kCrateApiChatsDataSourceChatsDataSourceCloseConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_close",
+        debugName: "ChatsDataSource_close",
         argNames: ["that"],
       );
 
   @override
   Future<AddUsernameContactError?>
-  crateApiChatPublisherChatsPublisherCreateContactChat({
-    required ChatsPublisher that,
+  crateApiChatsDataSourceChatsDataSourceCreateContactChat({
+    required ChatsDataSource that,
     required UiUsername username,
     required UsernameHash hash,
   }) {
@@ -2454,7 +2454,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
             that,
             serializer,
           );
@@ -2476,7 +2476,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
-            kCrateApiChatPublisherChatsPublisherCreateContactChatConstMeta,
+            kCrateApiChatsDataSourceChatsDataSourceCreateContactChatConstMeta,
         argValues: [that, username, hash],
         apiImpl: this,
       ),
@@ -2484,15 +2484,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiChatPublisherChatsPublisherCreateContactChatConstMeta =>
+  get kCrateApiChatsDataSourceChatsDataSourceCreateContactChatConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_create_contact_chat",
+        debugName: "ChatsDataSource_create_contact_chat",
         argNames: ["that", "username", "hash"],
       );
 
   @override
-  Future<ChatId> crateApiChatPublisherChatsPublisherCreateGroupChat({
-    required ChatsPublisher that,
+  Future<ChatId> crateApiChatsDataSourceChatsDataSourceCreateGroupChat({
+    required ChatsDataSource that,
     required String groupName,
     Uint8List? picture,
     required bool isApq,
@@ -2501,7 +2501,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
             that,
             serializer,
           );
@@ -2519,7 +2519,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_chat_id,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiChatPublisherChatsPublisherCreateGroupChatConstMeta,
+        constMeta:
+            kCrateApiChatsDataSourceChatsDataSourceCreateGroupChatConstMeta,
         argValues: [that, groupName, picture, isApq],
         apiImpl: this,
       ),
@@ -2527,15 +2528,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiChatPublisherChatsPublisherCreateGroupChatConstMeta =>
+  get kCrateApiChatsDataSourceChatsDataSourceCreateGroupChatConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_create_group_chat",
+        debugName: "ChatsDataSource_create_group_chat",
         argNames: ["that", "groupName", "picture", "isApq"],
       );
 
   @override
-  Future<void> crateApiChatPublisherChatsPublisherMute({
-    required ChatsPublisher that,
+  Future<void> crateApiChatsDataSourceChatsDataSourceMute({
+    required ChatsDataSource that,
     required ChatId chatId,
     UiChatMuted? mutedUntil,
   }) {
@@ -2543,7 +2544,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
             that,
             serializer,
           );
@@ -2560,21 +2561,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiChatPublisherChatsPublisherMuteConstMeta,
+        constMeta: kCrateApiChatsDataSourceChatsDataSourceMuteConstMeta,
         argValues: [that, chatId, mutedUntil],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiChatPublisherChatsPublisherMuteConstMeta =>
+  TaskConstMeta get kCrateApiChatsDataSourceChatsDataSourceMuteConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_mute",
+        debugName: "ChatsDataSource_mute",
         argNames: ["that", "chatId", "mutedUntil"],
       );
 
   @override
-  ChatsPublisher crateApiChatPublisherChatsPublisherNew({
+  ChatsDataSource crateApiChatsDataSourceChatsDataSourceNew({
     required UserCubitBase userCubit,
   }) {
     return handler.executeSync(
@@ -2589,25 +2590,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiChatPublisherChatsPublisherNewConstMeta,
+        constMeta: kCrateApiChatsDataSourceChatsDataSourceNewConstMeta,
         argValues: [userCubit],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiChatPublisherChatsPublisherNewConstMeta =>
+  TaskConstMeta get kCrateApiChatsDataSourceChatsDataSourceNewConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_new",
+        debugName: "ChatsDataSource_new",
         argNames: ["userCubit"],
       );
 
   @override
-  Stream<ChatsDelta> crateApiChatPublisherChatsPublisherStream({
-    required ChatsPublisher that,
+  Stream<ChatsDelta> crateApiChatsDataSourceChatsDataSourceStream({
+    required ChatsDataSource that,
   }) {
     final sink = RustStreamSink<ChatsDelta>();
     unawaited(
@@ -2615,7 +2616,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         NormalTask(
           callFfi: (port_) {
             final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
               that,
               serializer,
             );
@@ -2631,7 +2632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: null,
           ),
-          constMeta: kCrateApiChatPublisherChatsPublisherStreamConstMeta,
+          constMeta: kCrateApiChatsDataSourceChatsDataSourceStreamConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -2640,9 +2641,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiChatPublisherChatsPublisherStreamConstMeta =>
+  TaskConstMeta get kCrateApiChatsDataSourceChatsDataSourceStreamConstMeta =>
       const TaskConstMeta(
-        debugName: "ChatsPublisher_stream",
+        debugName: "ChatsDataSource_stream",
         argNames: ["that", "sink"],
       );
 
@@ -8414,12 +8415,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_ChatsPublisher => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher;
+  get rust_arc_increment_strong_count_ChatsDataSource => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_ChatsPublisher => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher;
+  get rust_arc_decrement_strong_count_ChatsDataSource => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_ChatsRepository => wire
@@ -8598,12 +8599,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ChatsDataSourceImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -8808,12 +8809,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ChatsDataSourceImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -9097,12 +9098,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return ChatsDataSourceImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -11774,12 +11775,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalSseDecode(
+    return ChatsDataSourceImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -12038,12 +12039,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalSseDecode(
+    return ChatsDataSourceImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -12343,12 +12344,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ChatsPublisher
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
+  ChatsDataSource
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return ChatsPublisherImpl.frbInternalSseDecode(
+    return ChatsDataSourceImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -15715,13 +15716,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
-    ChatsPublisher self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
+    ChatsDataSource self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as ChatsPublisherImpl).frbInternalSseEncode(move: true),
+      (self as ChatsDataSourceImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -16003,13 +16004,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
-    ChatsPublisher self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
+    ChatsDataSource self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as ChatsPublisherImpl).frbInternalSseEncode(move: false),
+      (self as ChatsDataSourceImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -16403,13 +16404,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsPublisher(
-    ChatsPublisher self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
+    ChatsDataSource self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as ChatsPublisherImpl).frbInternalSseEncode(move: null),
+      (self as ChatsDataSourceImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -19919,32 +19920,32 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
 }
 
 @sealed
-class ChatsPublisherImpl extends RustOpaque implements ChatsPublisher {
+class ChatsDataSourceImpl extends RustOpaque implements ChatsDataSource {
   // Not to be used by end users
-  ChatsPublisherImpl.frbInternalDcoDecode(List<dynamic> wire)
+  ChatsDataSourceImpl.frbInternalDcoDecode(List<dynamic> wire)
     : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
-  ChatsPublisherImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+  ChatsDataSourceImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
     : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        RustLib.instance.api.rust_arc_increment_strong_count_ChatsPublisher,
+        RustLib.instance.api.rust_arc_increment_strong_count_ChatsDataSource,
     rustArcDecrementStrongCount:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ChatsPublisher,
+        RustLib.instance.api.rust_arc_decrement_strong_count_ChatsDataSource,
     rustArcDecrementStrongCountPtr:
-        RustLib.instance.api.rust_arc_decrement_strong_count_ChatsPublisherPtr,
+        RustLib.instance.api.rust_arc_decrement_strong_count_ChatsDataSourcePtr,
   );
 
-  Future<void> close() =>
-      RustLib.instance.api.crateApiChatPublisherChatsPublisherClose(that: this);
+  Future<void> close() => RustLib.instance.api
+      .crateApiChatsDataSourceChatsDataSourceClose(that: this);
 
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
-  }) =>
-      RustLib.instance.api.crateApiChatPublisherChatsPublisherCreateContactChat(
+  }) => RustLib.instance.api
+      .crateApiChatsDataSourceChatsDataSourceCreateContactChat(
         that: this,
         username: username,
         hash: hash,
@@ -19954,15 +19955,16 @@ class ChatsPublisherImpl extends RustOpaque implements ChatsPublisher {
     required String groupName,
     Uint8List? picture,
     required bool isApq,
-  }) => RustLib.instance.api.crateApiChatPublisherChatsPublisherCreateGroupChat(
-    that: this,
-    groupName: groupName,
-    picture: picture,
-    isApq: isApq,
-  );
+  }) => RustLib.instance.api
+      .crateApiChatsDataSourceChatsDataSourceCreateGroupChat(
+        that: this,
+        groupName: groupName,
+        picture: picture,
+        isApq: isApq,
+      );
 
   Future<void> mute({required ChatId chatId, UiChatMuted? mutedUntil}) =>
-      RustLib.instance.api.crateApiChatPublisherChatsPublisherMute(
+      RustLib.instance.api.crateApiChatsDataSourceChatsDataSourceMute(
         that: this,
         chatId: chatId,
         mutedUntil: mutedUntil,
@@ -19973,7 +19975,7 @@ class ChatsPublisherImpl extends RustOpaque implements ChatsPublisher {
   /// One delta carrying every chat and the full order, then one delta per database change.
   /// Returns when cancelled.
   Stream<ChatsDelta> stream() => RustLib.instance.api
-      .crateApiChatPublisherChatsPublisherStream(that: this);
+      .crateApiChatsDataSourceChatsDataSourceStream(that: this);
 }
 
 @sealed

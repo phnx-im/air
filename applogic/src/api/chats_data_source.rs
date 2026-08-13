@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-/// A delta [`ChatsPublisher`] emits in its stream.
+/// A delta [`ChatsDataSource`] emits in its stream.
 pub struct ChatsDelta {
     pub upserted: Vec<UiChatDetails>,
     pub removed: HashSet<ChatId>,
@@ -42,24 +42,24 @@ impl ChatsDelta {
 
 #[frb(opaque)]
 #[derive(Clone)]
-pub struct ChatsPublisher {
-    inner: Arc<ChatsPublisherInner>,
+pub struct ChatsDataSource {
+    inner: Arc<ChatsDataSourceInner>,
 }
 
 #[frb(ignore)]
-struct ChatsPublisherInner {
+struct ChatsDataSourceInner {
     core_user: CoreUser,
     cancel: CancellationToken,
     _guard: DropGuard,
 }
 
-impl ChatsPublisher {
+impl ChatsDataSource {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
         let cancel = CancellationToken::new();
         let guard = cancel.clone().drop_guard();
         Self {
-            inner: Arc::new(ChatsPublisherInner {
+            inner: Arc::new(ChatsDataSourceInner {
                 core_user: user_cubit.core_user().clone(),
                 cancel,
                 _guard: guard,
@@ -141,7 +141,7 @@ impl ChatsPublisher {
     }
 }
 
-impl ChatsPublisherInner {
+impl ChatsDataSourceInner {
     /// Loads the initial state and publishes it to the stream (in chunks).
     ///
     /// Returns the loaded state.

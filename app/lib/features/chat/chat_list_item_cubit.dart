@@ -44,7 +44,7 @@ class ChatListItemCubit extends Cubit<ChatListItemState> {
     return super.close();
   }
 
-  // Commands: the write lands in the database, the publisher emits a delta,
+  // Commands: the write lands in the database, the data source emits a delta,
   // the new state arrives through the subscription => no optimistic local
   // mutation => there is only a single path into the state.
 

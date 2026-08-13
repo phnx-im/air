@@ -35,13 +35,13 @@ abstract interface class ChatsRepository {
 
 class RustChatsRepository implements ChatsRepository {
   RustChatsRepository({required UserCubitBase userCubit})
-    : _publisher = ChatsPublisher(userCubit: userCubit) {
-    _deltas = _publisher.stream().listen(_apply);
+    : _dataSource = ChatsDataSource(userCubit: userCubit) {
+    _deltas = _dataSource.stream().listen(_apply);
   }
 
-  // Publisher and subscription
+  // Data source and subscription
 
-  final ChatsPublisher _publisher;
+  final ChatsDataSource _dataSource;
   late final StreamSubscription<ChatsDelta> _deltas;
 
   // State
@@ -76,24 +76,24 @@ class RustChatsRepository implements ChatsRepository {
 
   @override
   Future<void> mute(ChatId id, {required UiChatMuted until}) =>
-      _publisher.mute(chatId: id, mutedUntil: until);
+      _dataSource.mute(chatId: id, mutedUntil: until);
 
   @override
   Future<void> unmute(ChatId id) =>
-      _publisher.mute(chatId: id, mutedUntil: null);
+      _dataSource.mute(chatId: id, mutedUntil: null);
 
   @override
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
-  }) => _publisher.createContactChat(username: username, hash: hash);
+  }) => _dataSource.createContactChat(username: username, hash: hash);
 
   @override
   Future<ChatId> createGroupChat({
     required String groupName,
     Uint8List? picture,
     required bool isApq,
-  }) => _publisher.createGroupChat(
+  }) => _dataSource.createGroupChat(
     groupName: groupName,
     picture: picture,
     isApq: isApq,
@@ -104,7 +104,7 @@ class RustChatsRepository implements ChatsRepository {
     await _deltas.cancel();
     await _chatChanges.close();
     await _orderChanges.close();
-    await _publisher.close();
+    await _dataSource.close();
   }
 
   // Internals
