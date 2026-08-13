@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Build app
+name: Build macOS app
 
 on:
   workflow_call:
