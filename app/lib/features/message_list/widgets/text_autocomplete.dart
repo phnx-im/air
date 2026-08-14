@@ -142,13 +142,13 @@ class TextAutocompleteController<T> {
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageDown) {
-      // Page Down jumps straight to the last suggestion.
-      _overlayController.highlightEdge(end: true);
+      // Page Down advances the highlight by one viewport of rows.
+      _overlayController.movePage(1);
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageUp) {
-      // Page Up jumps straight to the first suggestion.
-      _overlayController.highlightEdge(end: false);
+      // Page Up moves the highlight back by one viewport of rows.
+      _overlayController.movePage(-1);
       return KeyEventResult.handled;
     }
     if (evt is KeyDownEvent &&

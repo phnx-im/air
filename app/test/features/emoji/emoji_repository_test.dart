@@ -37,7 +37,7 @@ void main() {
     });
 
     test('dedupes to one result per emoji', () {
-      final results = EmojiRepository.search('a');
+      final results = EmojiRepository.search('a', limit: 1000);
       final glyphs = results.map((e) => e.emoji).toList();
       expect(glyphs.toSet().length, glyphs.length);
     });
@@ -53,15 +53,32 @@ void main() {
       },
     );
 
-    test('sorts results by short name', () {
-      final names = EmojiRepository.search('giggle').map((e) => e.shortName);
-      final sorted = [...names]..sort();
-      expect(names, sorted);
+    test('sorts short name matches at the same word position by name', () {
+      // Every `face_*` short name matches at word 0, and '_' sorts before any
+      // letter, so they are the leading run of the result.
+      final leading = EmojiRepository.search('face', limit: 1000)
+          .map((e) => e.shortName)
+          .takeWhile((name) => name.startsWith('face_'))
+          .toList();
+      expect(leading.length, greaterThan(1));
+      expect(leading, [...leading]..sort());
     });
 
     test('results are first sourced from shortcodes', () {
       final names = EmojiRepository.search('face').map((e) => e.shortName);
       expect(names.first, "face_holding_back_tears");
+    });
+
+    test('matches a short name spanning a word separator', () {
+      final names = EmojiRepository.search('sweat_dr').map((e) => e.shortName);
+      expect(names, ['sweat_drops']);
+    });
+
+    test('respects the limit', () {
+      // Across both groups: 'a' fills the first, 'satisf' only the second.
+      expect(EmojiRepository.search('a', limit: 5), hasLength(5));
+      expect(EmojiRepository.search('satisf', limit: 1), hasLength(1));
+      expect(EmojiRepository.search('', limit: 3), hasLength(3));
     });
 
     test('ranks short name words before aliases', () {
@@ -76,7 +93,8 @@ void main() {
     });
 
     test('empty query returns the first emojis in canonical order', () {
-      final results = EmojiRepository.search('');
+      final results = EmojiRepository.search('', limit: 3);
+      expect(results.length, 3);
       expect(results.first.emoji, _grinning);
     });
   });

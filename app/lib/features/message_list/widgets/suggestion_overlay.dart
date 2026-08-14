@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -56,8 +57,7 @@ class SuggestionOverlayController<T> {
   SuggestionOverlayAnimationPhase _animationPhase =
       SuggestionOverlayAnimationPhase.none; // Current animation state.
   ValueChanged<Size>? _onSizeChanged; // Listener notified when overlay resizes.
-  final GlobalKey _highlightedItemKey =
-      GlobalKey(); // Attached to the highlighted row only.
+  final List<GlobalKey> _itemKeys = []; // One per row index, grown on demand.
 
   bool get isVisible => _visible && _suggestions.isNotEmpty;
   bool get isPointerDown => _pointerDown;
@@ -70,7 +70,16 @@ class SuggestionOverlayController<T> {
   AnimationController get animationController => _animationController;
   SuggestionOverlayAnimationPhase get animationPhase => _animationPhase;
   GlobalKey get overlayKey => _overlayKey;
-  GlobalKey get highlightedItemKey => _highlightedItemKey;
+
+  /// Key for the row at [index]. Stable across rebuilds, so a row keeps its
+  /// element when the highlight moves, and reused across queries so typing
+  /// doesn't force every row to be rebuilt from scratch.
+  GlobalKey itemKey(int index) {
+    while (_itemKeys.length <= index) {
+      _itemKeys.add(GlobalKey());
+    }
+    return _itemKeys[index];
+  }
 
   set onSizeChanged(ValueChanged<Size>? listener) {
     _onSizeChanged = listener;
@@ -134,22 +143,38 @@ class SuggestionOverlayController<T> {
       0,
       _suggestions.length - 1,
     );
-    if (newIndex == _highlightIndex) {
-      return;
+    if (newIndex != _highlightIndex) {
+      _highlightIndex = newIndex;
+      _markNeedsBuild();
     }
-    _highlightIndex = newIndex;
-    _markNeedsBuild();
+    // Scroll even when the index didn't move, so an already-clamped key press
+    // still pulls a row the user scrolled away from back into view.
     _scrollToHighlighted(movingDown: delta > 0);
   }
 
-  /// Jump the keyboard highlight straight to the first or last suggestion.
-  void highlightEdge({required bool end}) {
+  /// Move the keyboard highlight by one viewport of rows.
+  void movePage(int delta) {
     if (!isVisible || _suggestions.isEmpty) {
       return;
     }
-    _highlightIndex = end ? _suggestions.length - 1 : 0;
-    _markNeedsBuild();
-    _scrollToHighlighted(movingDown: end);
+    moveHighlight(delta * _rowsPerViewport());
+  }
+
+  /// How many rows fit in the scroll viewport, measured from the highlighted
+  /// row. Falls back to a single row before the overlay has been laid out.
+  int _rowsPerViewport() {
+    final itemContext = _itemKeys.length > _highlightIndex
+        ? _itemKeys[_highlightIndex].currentContext
+        : null;
+    if (itemContext == null) {
+      return 1;
+    }
+    final box = itemContext.findRenderObject() as RenderBox?;
+    final position = Scrollable.maybeOf(itemContext)?.position;
+    if (box == null || position == null || box.size.height <= 0) {
+      return 1;
+    }
+    return max(1, position.viewportDimension ~/ box.size.height);
   }
 
   /// Scroll the highlighted row into view without moving it if it's
@@ -159,8 +184,11 @@ class SuggestionOverlayController<T> {
   /// than an animation could finish, each new call would cancel the
   /// previous one before it reached the target.
   void _scrollToHighlighted({required bool movingDown}) {
+    WidgetsBinding.instance.scheduleFrame();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final itemContext = _highlightedItemKey.currentContext;
+      final itemContext = _itemKeys.length > _highlightIndex
+          ? _itemKeys[_highlightIndex].currentContext
+          : null;
       if (itemContext == null) {
         return;
       }
@@ -375,7 +403,7 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
                 final item = suggestions[index];
                 final isHighlighted = index == controller.highlightIndex;
                 return InkWell(
-                  key: isHighlighted ? controller.highlightedItemKey : null,
+                  key: controller.itemKey(index),
                   onTap: () => controller.selectSuggestion(index),
                   child: itemBuilder(context, item, isHighlighted),
                 );

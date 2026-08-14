@@ -64,8 +64,9 @@ class EmojiRepository {
   /// (case-insensitive), deduped to one entry per emoji. Emojis matching on a
   /// word of their own short name come first, ranked by the position of that
   /// word, then by short name. Emojis matching only through an alias or tag
-  /// follow. An empty [query] returns the first [limit] emojis
-  /// in canonical order.
+  /// follow. A [query] spanning a word separator matches whole short names
+  /// only. An empty [query] returns the first [limit] emojis in canonical
+  /// order.
   static List<data.Emoji> search(String query, {int limit = 50}) {
     final normalized = query.toLowerCase();
     if (normalized.isEmpty) {
@@ -73,6 +74,17 @@ class EmojiRepository {
           .expand((category) => category.$2)
           .take(limit)
           .toList();
+    }
+
+    // `tagsToIndex` is keyed by single words, so a query spanning a separator
+    // ('sweat_dr') can only match a short name as a whole.
+    if (normalized.contains('_') || normalized.contains('-')) {
+      final matching = data.emojisByCategory
+          .expand((category) => category.$2)
+          .where((emoji) => emoji.shortName.startsWith(normalized))
+          .toList();
+      matching.sort((a, b) => a.shortName.compareTo(b.shortName));
+      return matching.take(limit).toList();
     }
 
     final seen = <data.EmojiRef>{};
