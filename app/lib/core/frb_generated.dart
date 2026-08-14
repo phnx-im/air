@@ -10447,20 +10447,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
       chatType: dco_decode_ui_chat_type(arr[2]),
       lastUsed: dco_decode_Chrono_Local(arr[3]),
-      messagesCount: dco_decode_CastedPrimitive_usize(arr[4]),
-      unreadMessages: dco_decode_CastedPrimitive_usize(arr[5]),
-      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[6]),
-      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[7]),
-      isApq: dco_decode_bool(arr[8]),
-      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[9]),
-      pendingCommitFailed: dco_decode_bool(arr[10]),
+      unreadMessages: dco_decode_CastedPrimitive_usize(arr[4]),
+      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[5]),
+      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[6]),
+      isApq: dco_decode_bool(arr[7]),
+      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[8]),
+      pendingCommitFailed: dco_decode_bool(arr[9]),
     );
   }
 
@@ -14151,7 +14150,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_status = sse_decode_ui_chat_status(deserializer);
     var var_chatType = sse_decode_ui_chat_type(deserializer);
     var var_lastUsed = sse_decode_Chrono_Local(deserializer);
-    var var_messagesCount = sse_decode_CastedPrimitive_usize(deserializer);
     var var_unreadMessages = sse_decode_CastedPrimitive_usize(deserializer);
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
       deserializer,
@@ -14165,7 +14163,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       status: var_status,
       chatType: var_chatType,
       lastUsed: var_lastUsed,
-      messagesCount: var_messagesCount,
       unreadMessages: var_unreadMessages,
       lastMessage: var_lastMessage,
       draft: var_draft,
@@ -18041,7 +18038,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_ui_chat_status(self.status, serializer);
     sse_encode_ui_chat_type(self.chatType, serializer);
     sse_encode_Chrono_Local(self.lastUsed, serializer);
-    sse_encode_CastedPrimitive_usize(self.messagesCount, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
     sse_encode_opt_box_autoadd_ui_message_draft(self.draft, serializer);

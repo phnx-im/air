@@ -831,10 +831,6 @@ impl ChatDetailsContext {
 
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
 pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
-    let messages_count = core_user
-        .messages_count(chat.id())
-        .await
-        .unwrap_or_default();
     let unread_messages = core_user.unread_messages_count(chat.id()).await;
     let last_message = core_user.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
@@ -862,7 +858,6 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         status: chat.status.into(),
         chat_type,
         last_used,
-        messages_count,
         unread_messages,
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),
         draft,

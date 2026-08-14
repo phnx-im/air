@@ -143,7 +143,6 @@ class UiChatDetails {
   final UiChatStatus status;
   final UiChatType chatType;
   final DateTime lastUsed;
-  final int messagesCount;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
   final UiMessageDraft? draft;
@@ -156,7 +155,6 @@ class UiChatDetails {
     required this.status,
     required this.chatType,
     required this.lastUsed,
-    required this.messagesCount,
     required this.unreadMessages,
     this.lastMessage,
     this.draft,
@@ -171,7 +169,6 @@ class UiChatDetails {
       status.hashCode ^
       chatType.hashCode ^
       lastUsed.hashCode ^
-      messagesCount.hashCode ^
       unreadMessages.hashCode ^
       lastMessage.hashCode ^
       draft.hashCode ^
@@ -188,7 +185,6 @@ class UiChatDetails {
           status == other.status &&
           chatType == other.chatType &&
           lastUsed == other.lastUsed &&
-          messagesCount == other.messagesCount &&
           unreadMessages == other.unreadMessages &&
           lastMessage == other.lastMessage &&
           draft == other.draft &&

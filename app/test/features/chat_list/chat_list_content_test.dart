@@ -37,7 +37,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
@@ -74,7 +73,6 @@ final chats = [
       UiUsername(plaintext: 'eve_03'),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
@@ -113,7 +111,6 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -147,7 +144,6 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -185,7 +181,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
     mutedUntil: null,
@@ -198,7 +193,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[2]),
     unreadMessages: 3,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 6.messageId(),
