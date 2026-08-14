@@ -26,11 +26,13 @@ import 'package:air/platform/notifications.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 
 final _appRouter = AppRouter();
 
@@ -350,8 +352,13 @@ class LoadableUserCubitProvider extends StatelessWidget {
           (UserSettingsCubit cubit) => cubit.isAttached,
         );
         return switch (loadableUser) {
-          LoadingUser() || UnloadedUser() => child,
-          LoadedUser() when !settingsAttached => child,
+          // Neither the login state nor the destination is settled yet.
+          // Stay on the splash instead of the intro screen: a returning
+          // user would otherwise see its sign-up chrome flash before
+          // landing on Home.
+          LoadingUser() => const _LoadingSplash(),
+          LoadedUser() when !settingsAttached => const _LoadingSplash(),
+          UnloadedUser() => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
             key: ValueKey(user.clientRecordId),
             child: MultiBlocProvider(
@@ -402,5 +409,18 @@ class LoadableUserCubitProvider extends StatelessWidget {
   bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) {
     return (previous is LoadedUser || current is LoadedUser) &&
         previous != current;
+  }
+}
+
+/// Shown while the initial user load is in flight, in place of [IntroScreen].
+///
+/// Blank on the same surface, so it reads as a continuation of the native
+/// launch screen rather than as its own screen.
+class _LoadingSplash extends StatelessWidget {
+  const _LoadingSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(color: NuxScaffoldTokens.surface(context));
   }
 }
