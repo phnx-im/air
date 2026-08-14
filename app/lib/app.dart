@@ -31,7 +31,7 @@ import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
-import 'package:air/features/chat/chats_repository.dart' as chats;
+import 'package:air/features/chat/chats_repository.dart';
 
 final _appRouter = AppRouter();
 
@@ -361,8 +361,8 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     // immediately download pending attachments
                     lazy: false,
                   ),
-                  RepositoryProvider<chats.ChatsRepository>(
-                    create: (context) => chats.RustChatsRepository(
+                  RepositoryProvider<ChatsRepository>(
+                    create: (context) => RustChatsRepository(
                       userCubit: context.read<UserCubit>().impl,
                     ),
                     dispose: (repository) => unawaited(repository.dispose()),

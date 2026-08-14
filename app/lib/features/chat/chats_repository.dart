@@ -11,9 +11,13 @@ abstract interface class ChatsRepository {
   bool get isLoaded;
 
   List<ChatId> get order;
+
+  /// Must replay the current order on subscription.
   Stream<List<ChatId>> watchOrder();
 
   UiChatDetails? getChat(ChatId id);
+
+  /// Must replay the current chat details on subscription.
   Stream<UiChatDetails?> watchChat(ChatId id);
 
   Future<void> mute(ChatId id, {required UiChatMuted until});
@@ -64,15 +68,26 @@ class RustChatsRepository implements ChatsRepository {
   List<ChatId> get order => _order;
 
   @override
-  Stream<List<ChatId>> watchOrder() => _orderChanges.stream;
+  Stream<List<ChatId>> watchOrder() => Stream.multi((controller) {
+    controller.add(_order);
+    final sub = _orderChanges.stream.listen(
+      controller.add,
+      onDone: controller.close,
+    );
+    controller.onCancel = sub.cancel;
+  });
 
   @override
   UiChatDetails? getChat(ChatId id) => _chats[id];
 
   @override
-  Stream<UiChatDetails?> watchChat(ChatId id) => _chatChanges.stream
-      .where((ids) => ids.contains(id))
-      .map((_) => _chats[id]);
+  Stream<UiChatDetails?> watchChat(ChatId id) => Stream.multi((controller) {
+    controller.add(_chats[id]);
+    final sub = _chatChanges.stream
+        .where((ids) => ids.contains(id))
+        .listen((_) => controller.add(_chats[id]), onDone: controller.close);
+    controller.onCancel = sub.cancel;
+  });
 
   @override
   Future<void> mute(ChatId id, {required UiChatMuted until}) =>

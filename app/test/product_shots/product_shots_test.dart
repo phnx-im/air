@@ -7,7 +7,6 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -71,7 +70,6 @@ void main() {
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
-    late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -79,7 +77,6 @@ void main() {
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
-      chatListCubit = MockChatListCubit();
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
@@ -90,9 +87,6 @@ void main() {
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(isDeveloper: false));
@@ -113,7 +107,6 @@ void main() {
               BlocProvider<NavigationCubit>.value(value: navigationCubit),
               BlocProvider<UserCubit>.value(value: userCubit),
               BlocProvider<UsersCubit>.value(value: usersCubit),
-              BlocProvider<ChatListCubit>.value(value: chatListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
             ],
             child: SDTFScope(
@@ -501,7 +494,6 @@ void main() {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
-    late MockChatListCubit chatListCubit;
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -511,7 +503,6 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
-      chatListCubit = MockChatListCubit();
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
@@ -521,9 +512,6 @@ void main() {
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(isDeveloper: false));
@@ -581,7 +569,6 @@ void main() {
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),

@@ -6,7 +6,6 @@ import 'dart:typed_data';
 
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -249,7 +248,6 @@ MessageContent simpleMessage(String msg) {
 void main() {
   group('ChatListContent', () {
     late MockNavigationCubit navigationCubit;
-    late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -258,7 +256,6 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
-      chatListCubit = MockChatListCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
       when(
@@ -282,7 +279,6 @@ void main() {
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: SDTFScope(
@@ -301,10 +297,6 @@ void main() {
     );
 
     testWidgets('renders correctly when there are no chats', (tester) async {
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chatIds: []));
-
       await tester.pumpWidget(buildSubject(chats: []));
 
       await expectLater(
@@ -324,12 +316,6 @@ void main() {
         20,
         (index) => chats[index % chats.length],
       );
-      final testChatIds = testChats.map((chat) => chat.id).toList();
-
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: testChatIds));
-
       await tester.pumpWidget(buildSubject(chats: testChats));
 
       await expectLater(
@@ -344,10 +330,6 @@ void main() {
       ).thenReturn(const NavigationState.home());
 
       final testChats = [chats[0], chats[5], chats[2]];
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: testChats.map((c) => c.id).toList()));
-
       await tester.pumpWidget(buildSubject(chats: testChats));
 
       await expectLater(
