@@ -141,8 +141,7 @@ class TextAutocompleteController<T> {
       _overlayController.moveHighlight(-1);
       return KeyEventResult.handled;
     }
-    if (!modifierKeyPressed &&
-        evt.logicalKey == LogicalKeyboardKey.pageDown) {
+    if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageDown) {
       // Page Down jumps straight to the last suggestion.
       _overlayController.highlightEdge(end: true);
       return KeyEventResult.handled;
