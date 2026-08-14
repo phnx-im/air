@@ -227,7 +227,6 @@ final chats = [
       UiChatAttributes(title: 'Photographs', picture: null),
     ),
     unreadMessages: 1,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 7.messageId(),
@@ -266,7 +265,6 @@ final chats = [
       UiChatAttributes(title: 'Archive Enthusiasts', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 8.messageId(),
@@ -305,7 +303,6 @@ final chats = [
       UiChatAttributes(title: 'Fun with Friends', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 10.messageId(),
@@ -635,7 +632,6 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       isApq: false,
       chatType: UiChatType_Connection(userProfiles[1]),
       unreadMessages: 0,
-      messagesCount: 10,
       lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
       lastMessage: UiChatMessage(
         id: 8.messageId(),
@@ -672,7 +668,6 @@ UiChatDetails reactedChat({
   isApq: false,
   chatType: UiChatType_Connection(userProfiles[1]),
   unreadMessages: 0,
-  messagesCount: 10,
   lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
   lastMessage: UiChatMessage(
     id: 7.messageId(),
