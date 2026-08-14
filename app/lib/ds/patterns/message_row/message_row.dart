@@ -82,7 +82,7 @@ class MessageRow extends StatelessWidget {
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
-                SizedBox(width: tokens.avatarSize, child: _avatar()),
+                SizedBox(width: tokens.avatarSize, child: avatar),
                 const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
@@ -102,17 +102,6 @@ class MessageRow extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  /// The avatar lifted off the foot of its column. We use a transform rather
-  /// than a margin, so the lift never adds to the row's height.
-  Widget? _avatar() {
-    final avatar = this.avatar;
-    if (avatar == null) return null;
-    return Transform.translate(
-      offset: const Offset(0, -MessageRowTokens.avatarBottomNudge),
-      child: avatar,
     );
   }
 }
