@@ -16,7 +16,6 @@ import 'package:air/ds/patterns/media_message/media_message.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
-import 'package:air/ds/patterns/message_meta/message_meta_tokens.dart';
 import 'package:air/ds/patterns/message_row/message_row.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/ds/patterns/message_text/message_text.dart';
@@ -137,23 +136,10 @@ class TextMessageTile extends HookWidget {
         outgoing: isSender,
         reserveAvatar: withParticipant,
         avatar: withAvatar && profile != null
-            ? AnimatedPadding(
-                duration: Effect.duration(MotionPreset.short),
-                curve: Effect.easeOutQuart,
-                // Tracks what [MessageBand] hangs below the bubble -- the
-                // reserve the chips animate open, and the stamp under it -- so
-                // the avatar stays level with the bubble's last line. This is
-                // an incoming row, so the two never share a line.
-                padding: EdgeInsets.only(
-                  bottom:
-                      reactionsReservedBelow(context, reactions.isNotEmpty) +
-                      (stamp != null ? MessageMetaTokens.heightOf(context) : 0),
-                ),
-                child: UserAvatar(
-                  profile: profile,
-                  size: tokens.avatarSize,
-                  onPressed: openMemberDetails,
-                ),
+            ? UserAvatar(
+                profile: profile,
+                size: tokens.avatarSize,
+                onPressed: openMemberDetails,
               )
             : null,
         senderName: withName ? profile?.displayName : null,
@@ -224,7 +210,9 @@ class TextMessageTile extends HookWidget {
 
     return _MessageStamp(
       timestamp: showsTime ? timestamp : null,
-      isSelf: isSender,
+      // The stamp hugs the bubble's trailing edge wherever [MessageBand]
+      // anchors it there, which is on own messages and beside reaction chips.
+      alignEnd: isSender || reactions.isNotEmpty,
       status: delivery,
       statusLabel: switch (delivery) {
         MessageDeliveryStatus.sending => loc.messageBubble_sending,
@@ -262,14 +250,14 @@ MessageDeliveryStatus? _deliveryStatus(
 class _MessageStamp extends StatelessWidget {
   const _MessageStamp({
     required this.timestamp,
-    required this.isSelf,
+    required this.alignEnd,
     required this.status,
     required this.statusLabel,
     required this.editedLabel,
   });
 
   final DateTime? timestamp;
-  final bool isSelf;
+  final bool alignEnd;
   final MessageDeliveryStatus? status;
   final String? statusLabel;
   final String? editedLabel;
@@ -278,7 +266,7 @@ class _MessageStamp extends StatelessWidget {
   Widget build(BuildContext context) {
     MessageMeta meta(String? label) => MessageMeta(
       timestamp: label,
-      isSelf: isSelf,
+      alignEnd: alignEnd,
       status: status,
       statusLabel: statusLabel,
       editedLabel: editedLabel,
