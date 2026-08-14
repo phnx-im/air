@@ -94,21 +94,7 @@ class CoreClient {
     Uint8List? profilePicture,
     String invitationCode,
   ) async {
-    PlatformPushToken? pushToken;
-
-    if (Platform.isAndroid) {
-      final String? deviceToken = await getDeviceToken();
-
-      if (deviceToken != null) {
-        pushToken = PlatformPushToken.google(deviceToken);
-      }
-    } else if (Platform.isIOS) {
-      final String? deviceToken = await getDeviceToken();
-
-      if (deviceToken != null) {
-        pushToken = PlatformPushToken.apple(deviceToken);
-      }
-    }
+    final pushToken = await getPushToken();
 
     user = await User.newInstance(
       domain: domain,
@@ -135,18 +121,11 @@ class CoreClient {
       return;
     }
 
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    final pushToken = await getPushToken();
+    if (pushToken == null) {
       return;
     }
 
-    final deviceToken = await getDeviceToken();
-    if (deviceToken == null) {
-      return;
-    }
-
-    final pushToken = Platform.isAndroid
-        ? PlatformPushToken.google(deviceToken)
-        : PlatformPushToken.apple(deviceToken);
     try {
       await currentUser.updatePushToken(pushToken);
     } catch (error, stackTrace) {

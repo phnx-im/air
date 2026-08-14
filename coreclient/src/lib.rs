@@ -28,6 +28,7 @@ pub use crate::{
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,
+        reactions::LastReaction,
     },
     clients::{
         add_contact::AddUsernameContactError,
@@ -42,7 +43,9 @@ pub use crate::{
         invite_users::InviteUsersError,
         linked_devices::{LinkedDevicesSetting, current_platform},
         safety_code::SafetyCode,
-        user_settings::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting},
+        user_settings::{
+            DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
+        },
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{

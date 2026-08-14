@@ -89,7 +89,7 @@ void main() {
       );
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>
@@ -514,7 +514,7 @@ void main() {
       );
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),

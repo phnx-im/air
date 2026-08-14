@@ -48,11 +48,6 @@ class ChatHeaderBarTokens {
     right: S.s16,
   );
 
-  /// Pixels of scroll over which the pill's fill and shadow ramp in from
-  /// transparent. At the top of the conversation nothing sits under the bar, so
-  /// there's nothing for the pill to separate from.
-  static const double pillRevealDistance = S.s40;
-
   static const double pillRadius = CornerRadius.full;
 
   // The avatar sits 4px in from the pill's leading, top, and bottom edges.

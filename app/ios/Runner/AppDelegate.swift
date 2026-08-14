@@ -281,14 +281,7 @@ private let kStoreNotificationsPendingName =
 
     // Get device token
     private func getDeviceToken(result: FlutterResult) {
-        if let token = deviceToken {
-            result(token)
-        } else {
-            result(
-                FlutterError(
-                    code: "UNAVAILABLE", message: "Device token not available",
-                    details: nil))
-        }
+        result(deviceToken)
     }
 
     // Allow to write to the given URL when the device is locked

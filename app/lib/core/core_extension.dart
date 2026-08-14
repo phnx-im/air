@@ -119,23 +119,6 @@ extension ImageDataExtension on Uint8List {
       ImageData(data: this, hash: ImageData.computeHash(this));
 }
 
-extension NavigationStateExtension on NavigationState {
-  ChatId? get chatId => switch (this) {
-    NavigationState_Home(:final home) => home.chatId,
-    NavigationState_Intro() => null,
-  };
-
-  ChatId? get openChatId => switch (this) {
-    NavigationState_Home(:final home) when home.chatOpen => home.chatId,
-    NavigationState_Intro() || NavigationState_Home() => null,
-  };
-
-  bool get safetyCodeOpen => switch (this) {
-    NavigationState_Home(:final home) => home.safetyCodeOpen,
-    NavigationState_Intro() => false,
-  };
-}
-
 extension DartNotificationServiceExtension on DartNotificationService {
   static DartNotificationService create() => DartNotificationService(
     send: sendNotification,
@@ -200,13 +183,15 @@ extension UiMimiContentExtension on UiMimiContent {
       return null;
     }
 
-    return plainBody?.isNotEmpty == true
-        ? plainBody!.replaceAll(RegExp(r'\n+'), ' ')
-        : attachments.isNotEmpty
-        ? attachments.first.imageMetadata != null
-              ? loc.chatList_imageEmoji
-              : loc.chatList_fileEmoji
-        : null;
+    if (plainBody?.isNotEmpty == true) {
+      return plainBody!.replaceAll(RegExp(r'\n+'), ' ');
+    }
+
+    return switch (firstAttachmentType) {
+      UiAttachmentType.image => loc.chatList_imageEmoji,
+      UiAttachmentType.file => loc.chatList_fileEmoji,
+      null => null,
+    };
   }
 
   bool get isDeleted => replaces != null && content == null;

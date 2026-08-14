@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:collection';
-
 import 'package:air/features/emoji/emoji_data.dart' as data;
 
 enum EmojiSkinVariation {
@@ -63,9 +61,13 @@ class EmojiRepository {
   }
 
   /// Up to [limit] emojis whose shortcode words start with [query]
-  /// (case-insensitive). Results are deduped to one entry per emoji. An empty
-  /// [query] returns the first [limit] emojis in canonical order.
-  static List<data.Emoji> search(String query, {int limit = 20}) {
+  /// (case-insensitive), deduped to one entry per emoji. Emojis matching on a
+  /// word of their own short name come first, ranked by the position of that
+  /// word, then by short name. Emojis matching only through an alias or tag
+  /// follow. A [query] spanning a word separator matches whole short names
+  /// only. An empty [query] returns the first [limit] emojis in canonical
+  /// order.
+  static List<data.Emoji> search(String query, {int limit = 50}) {
     final normalized = query.toLowerCase();
     if (normalized.isEmpty) {
       return data.emojisByCategory
@@ -74,26 +76,20 @@ class EmojiRepository {
           .toList();
     }
 
-    final seen = <(int, int)>{};
-    final matchingShortcodes = SplayTreeSet<data.Emoji>(
-      (a, b) => a.shortName.compareTo(b.shortName),
-    );
-    for (final (catId, category) in data.emojisByCategory.indexed) {
-      for (final (index, emoji) in category.$2.indexed) {
-        if (!emoji.shortName.startsWith(normalized)) {
-          continue;
-        }
-        if (!seen.add((catId, index))) {
-          continue;
-        }
-
-        matchingShortcodes.add(emoji);
-      }
+    // `tagsToIndex` is keyed by single words, so a query spanning a separator
+    // ('sweat_dr') can only match a short name as a whole.
+    if (normalized.contains('_') || normalized.contains('-')) {
+      final matching = data.emojisByCategory
+          .expand((category) => category.$2)
+          .where((emoji) => emoji.shortName.startsWith(normalized))
+          .toList();
+      matching.sort((a, b) => a.shortName.compareTo(b.shortName));
+      return matching.take(limit).toList();
     }
 
-    final matchingTags = SplayTreeSet<data.Emoji>(
-      (a, b) => a.shortName.compareTo(b.shortName),
-    );
+    final seen = <data.EmojiRef>{};
+    final byShortName = <(int, data.Emoji)>[];
+    final byAlias = <data.Emoji>[];
     for (final entry in data.tagsToIndex.entries) {
       if (!entry.key.startsWith(normalized)) {
         continue;
@@ -102,13 +98,28 @@ class EmojiRepository {
         if (!seen.add(ref)) {
           continue;
         }
-        final (catId, index) = ref;
-        matchingTags.add(data.emojisByCategory[catId].$2[index]);
+        final emoji = data.emojisByCategory[ref.$1].$2[ref.$2];
+        final position = emoji.shortName
+            .split('_')
+            .indexWhere((word) => word.startsWith(normalized));
+        if (position < 0) {
+          byAlias.add(emoji);
+        } else {
+          byShortName.add((position, emoji));
+        }
       }
     }
 
-    final matching = matchingShortcodes.take(limit).toList();
-    matching.addAll(matchingTags.take(limit - matching.length));
+    byShortName.sort((a, b) {
+      final byPosition = a.$1.compareTo(b.$1);
+      return byPosition != 0
+          ? byPosition
+          : a.$2.shortName.compareTo(b.$2.shortName);
+    });
+    byAlias.sort((a, b) => a.shortName.compareTo(b.shortName));
+
+    final matching = byShortName.map((match) => match.$2).take(limit).toList();
+    matching.addAll(byAlias.take(limit - matching.length));
     return matching;
   }
 }

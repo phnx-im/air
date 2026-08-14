@@ -37,7 +37,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
@@ -74,7 +73,6 @@ final chats = [
       UiUsername(plaintext: 'eve_03'),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
@@ -113,7 +111,6 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -147,7 +144,6 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -185,20 +181,18 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // A muted contact
+  // A muted contact, with our own reaction to the last message
   UiChatDetails(
     id: 6.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
     chatType: UiChatType_Connection(userProfiles[2]),
     unreadMessages: 3,
-    messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 6.messageId(),
@@ -207,12 +201,12 @@ final chats = [
       message: UiMessage_Content(
         UiContentMessage(
           sender: 3.userId(),
-          sent: false,
+          sent: true,
           edited: false,
           content: UiMimiContent(
-            plainBody: 'Hey, are you there?',
+            plainBody: "Don't forget: I muted this chat!",
             topicId: Uint8List(0),
-            content: simpleMessage('Hey, are you there?'),
+            content: simpleMessage("Don't forget: I muted this chat!"),
             attachments: [],
           ),
         ),
@@ -221,6 +215,117 @@ final chats = [
       reactions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
+    lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
+    pendingCommitFailed: false,
+  ),
+  // Chat where I sent a picture
+  UiChatDetails(
+    id: 7.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Photographs', picture: null),
+    ),
+    unreadMessages: 1,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 7.messageId(),
+      chatId: 7.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 3.userId(),
+          sent: false,
+          edited: false,
+          content: UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [
+              UiAttachment(
+                attachmentId: 1.attachmentId(),
+                filename: "image.webp",
+                contentType: "image/webp",
+                size: 1024,
+              ),
+            ],
+            firstAttachmentType: .image,
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    pendingCommitFailed: false,
+  ),
+  // Chat where someone sent a file
+  UiChatDetails(
+    id: 8.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Archive Enthusiasts', picture: null),
+    ),
+    unreadMessages: 0,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 8.messageId(),
+      chatId: 8.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 1.userId(),
+          sent: false,
+          edited: false,
+          content: UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [
+              UiAttachment(
+                attachmentId: 2.attachmentId(),
+                filename: "file.pdf",
+                contentType: "application/pdf",
+                size: 128,
+              ),
+            ],
+            firstAttachmentType: .file,
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    pendingCommitFailed: false,
+  ),
+  // A muted group, with a reaction from someone to our own message
+  UiChatDetails(
+    id: 9.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Fun with Friends', picture: null),
+    ),
+    unreadMessages: 0,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 10.messageId(),
+      chatId: 10.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 2.userId(),
+          sent: true,
+          edited: false,
+          content: UiMimiContent(
+            plainBody: "Heya!",
+            topicId: Uint8List(0),
+            content: simpleMessage("Heya!"),
+            attachments: [],
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    mutedUntil: const UiChatMuted.forever(),
+    lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
   ),
 ];
@@ -267,7 +372,7 @@ void main() {
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(isDeveloper: false));
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({
@@ -324,18 +429,219 @@ void main() {
       );
     });
 
-    testWidgets('renders muted chat correctly', (tester) async {
+    // The draft chat, whose preview is the draft whatever navigation does.
+    final draftChat = chats[3];
+
+    Future<void> pumpDraftChat(
+      WidgetTester tester, {
+      required HomeNavigationState home,
+    }) async {
       when(
         () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      ).thenReturn(NavigationState.home(home: home));
 
-      final testChats = [chats[0], chats[5], chats[2]];
-      await tester.pumpWidget(buildSubject(chats: testChats));
+      await tester.pumpWidget(buildSubject(chats: [draftChat]));
+    }
 
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_muted.png'),
+    testWidgets('shows the draft of a closed chat', (tester) async {
+      await pumpDraftChat(
+        tester,
+        home: HomeNavigationState(chatOpen: false, chatId: draftChat.id),
       );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+    });
+
+    testWidgets('keeps the draft of the open chat', (tester) async {
+      await pumpDraftChat(
+        tester,
+        home: HomeNavigationState(chatOpen: true, chatId: draftChat.id),
+      );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+    });
+
+    Future<void> pumpReactionChat(
+      WidgetTester tester, {
+      required UiLastReaction reaction,
+      UiMessageDraft? draft,
+    }) async {
+      final chat = reactedChat(reaction: reaction, draft: draft);
+
+      sizeView(tester, const Size(400, 120));
+      await tester.pumpWidget(buildSubject(chats: [chat]));
+    }
+
+    testWidgets('reports a reaction on the last message', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+      );
+
+      expect(find.text('Bob reacted 👍 to "Hello Alice"'), findsOne);
+    });
+
+    testWidgets('names the reader as the reactor', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 1.userId(), emoji: '👍'),
+      );
+
+      expect(find.text('You reacted 👍 to "Hello Alice"'), findsOne);
+    });
+
+    testWidgets('keeps the draft over a reaction', (tester) async {
+      await pumpReactionChat(
+        tester,
+        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+        draft: UiMessageDraft(
+          message: 'Some draft message',
+          editingId: null,
+          updatedAt: DateTime.now(),
+          isCommitted: true,
+        ),
+      );
+
+      expect(find.textContaining('Some draft message'), findsOne);
+      expect(find.textContaining('reacted'), findsNothing);
+    });
+
+    Future<void> pumpAttachmentChat(
+      WidgetTester tester,
+      UiAttachment attachment, {
+      UiUserId? sender,
+    }) async {
+      final chat = attachmentChat(attachment, sender: sender);
+
+      sizeView(tester, const Size(400, 120));
+      await tester.pumpWidget(buildSubject(chats: [chat]));
+    }
+
+    testWidgets('stands in for a picture with an emoji', (tester) async {
+      await pumpAttachmentChat(tester, pictureAttachment);
+
+      expect(find.text('You: 🖼️'), findsOne);
+    });
+
+    testWidgets('stands in for a file with an emoji', (tester) async {
+      await pumpAttachmentChat(tester, fileAttachment);
+
+      expect(find.text('You: 📎'), findsOne);
+    });
+
+    // A chat with a single contact names no sender, so the emoji stands alone.
+    testWidgets('stands in for a picture from the contact', (tester) async {
+      await pumpAttachmentChat(
+        tester,
+        pictureAttachment,
+        sender: userProfiles[1].userId,
+      );
+
+      expect(find.text('🖼️'), findsOne);
+    });
+
+    testWidgets('stands in for a file from the contact', (tester) async {
+      await pumpAttachmentChat(
+        tester,
+        fileAttachment,
+        sender: userProfiles[1].userId,
+      );
+
+      expect(find.text('📎'), findsOne);
     });
   });
 }
+
+final pictureAttachment = UiAttachment(
+  attachmentId: 1.attachmentId(),
+  filename: 'image.png',
+  contentType: 'image/png',
+  size: 1024,
+  imageMetadata: const UiImageMetadata(
+    blurhash: 'LEHLk~WB2yk8pyo0adR*.7kCMdnj',
+    width: 100,
+    height: 50,
+  ),
+);
+
+final fileAttachment = UiAttachment(
+  attachmentId: 2.attachmentId(),
+  filename: 'notes.pdf',
+  contentType: 'application/pdf',
+  size: 1024,
+  imageMetadata: null,
+);
+
+/// A contact chat whose last message is [attachment], sent by [sender] (the
+/// reader by default) with nothing written alongside it.
+UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
+    UiChatDetails(
+      id: 8.chatId(),
+      status: const UiChatStatus.active(),
+      isApq: false,
+      chatType: UiChatType_Connection(userProfiles[1]),
+      unreadMessages: 0,
+      lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      lastMessage: UiChatMessage(
+        id: 8.messageId(),
+        chatId: 8.chatId(),
+        timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: sender ?? 1.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              topicId: Uint8List(0),
+              attachments: [attachment],
+              firstAttachmentType: attachment.imageMetadata != null
+                  ? UiAttachmentType.image
+                  : UiAttachmentType.file,
+            ),
+          ),
+        ),
+        status: UiMessageStatus.sent,
+        reactions: [],
+      ),
+      mutedUntil: null,
+      pendingCommitFailed: false,
+    );
+
+/// A contact chat whose last message, "Hello Alice", carries [reaction].
+UiChatDetails reactedChat({
+  required UiLastReaction reaction,
+  UiMessageDraft? draft,
+}) => UiChatDetails(
+  id: 7.chatId(),
+  status: const UiChatStatus.active(),
+  isApq: false,
+  chatType: UiChatType_Connection(userProfiles[1]),
+  unreadMessages: 0,
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  lastMessage: UiChatMessage(
+    id: 7.messageId(),
+    chatId: 7.chatId(),
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Hello Alice',
+          topicId: Uint8List(0),
+          content: simpleMessage('Hello Alice'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [
+      UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
+    ],
+  ),
+  lastReaction: reaction,
+  draft: draft,
+  mutedUntil: null,
+  pendingCommitFailed: false,
+);

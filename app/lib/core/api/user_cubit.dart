@@ -8,7 +8,7 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import 'chats_data_source.dart';
-import 'navigation_cubit.dart';
+import 'notification_context.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
@@ -18,8 +18,8 @@ import 'user.dart';
 part 'user_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_unlinked`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `UiUserInner`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;
@@ -92,10 +92,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   factory UserCubitBase({
     required User user,
-    required NavigationCubitBase navigation,
+    required NotificationContextBase notificationContext,
   }) => RustLib.instance.api.crateApiUserCubitUserCubitBaseNew(
     user: user,
-    navigation: navigation,
+    notificationContext: notificationContext,
   );
 
   /// Extracts the linking code from a scanned QR payload, validating that it targets this user's

@@ -18,8 +18,8 @@ enum MessageSeparatorVariant {
 
 /// A break between two sections of a conversation.
 ///
-/// The label is the host's: the day names and the unread count are localized
-/// and change with the clock, so the separator only paints what it's handed.
+/// The label is the host's. The day names are localized and change with the
+/// clock, so the separator only paints what it's handed.
 class MessageSeparator extends StatelessWidget {
   const MessageSeparator({
     super.key,
@@ -87,9 +87,7 @@ class MessageSeparatorPill extends StatelessWidget {
     final unread = variant == MessageSeparatorVariant.unread;
 
     return Container(
-      padding: unread
-          ? MessageSeparatorTokens.unreadPillPadding
-          : MessageSeparatorTokens.datePillPadding,
+      padding: MessageSeparatorTokens.pillPadding,
       decoration: BoxDecoration(
         // The date pill has to lift off the conversation window in both
         // shells, and in dark those differ (the phone runs on base.primary,

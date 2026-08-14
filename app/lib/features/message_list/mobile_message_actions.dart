@@ -135,6 +135,7 @@ class _MobileMessageActionView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
+    final scrim = SemanticPalette.of(context).function.neutral.scrim;
     final barTokens = ReactionBarTokens.current;
     final barHeight =
         barTokens.itemSize + ReactionBarTokens.containerPadding.vertical;
@@ -232,7 +233,6 @@ class _MobileMessageActionView extends StatelessWidget {
         // Interpolate bubble position while morphing into the scaled state.
         final eased = animation.value;
         final double animatedScale = lerpDouble(1.0, scale, eased)!;
-        final double backgroundOpacity = (eased * 0.65).clamp(0.0, 0.65);
         final double blurSigma = lerpDouble(0.0, 16.0, eased)!;
         final double top = lerpDouble(startTop, targetTop, eased)!;
         final double left = startLeft;
@@ -253,7 +253,7 @@ class _MobileMessageActionView extends StatelessWidget {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                 child: Container(
-                  color: Colors.black.withValues(alpha: backgroundOpacity),
+                  color: scrim.withValues(alpha: scrim.a * eased),
                 ),
               ),
             ),

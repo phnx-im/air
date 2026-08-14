@@ -26,8 +26,10 @@ abstract final class MessageMetaTokens {
   /// Space between the bubble and the stamp.
   static const double bubbleGap = S.s4;
 
-  /// Space below the stamp, toward the next message.
-  static const double bottomPadding = S.s2;
+  /// Space below the stamp, toward the next message. Wider than [bubbleGap]
+  /// once the list's own gap between rows is counted, so the stamp reads as
+  /// belonging to the message above it rather than the one below.
+  static const double bottomPadding = S.s4;
 
   /// Inset on the bubble's own side, so the stamp's text lines up with the
   /// text inside the bubble. Matches the bubble's content inset. A host whose

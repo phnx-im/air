@@ -347,9 +347,9 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (isDeveloper, readReceipts) = context.select(
+    final (experimentalFeatures, readReceipts) = context.select(
       (UserSettingsCubit cubit) =>
-          (cubit.state.isDeveloper, cubit.state.readReceipts),
+          (cubit.state.experimentalFeaturesActive, cubit.state.readReceipts),
     );
 
     final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
@@ -359,7 +359,7 @@ class _TrailingIndicator extends StatelessWidget {
       return (chat.unreadMessages, chat.lastMessage, chat.pendingCommitFailed);
     });
 
-    if (isDeveloper && pendingCommitFailed) {
+    if (experimentalFeatures && pendingCommitFailed) {
       return const ChatListStatusIndicator(
         status: MessageDeliveryStatus.failed,
       );
@@ -389,7 +389,7 @@ class _TrailingIndicator extends StatelessWidget {
 
 /// Null where there is no delivery state to report. A reader with read receipts
 /// off must not report back more than the setting does, so a read message stops
-/// at delivered.
+/// at delivered. A deleted message reports nothing at all.
 MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus status, {
   required bool readReceipts,
@@ -400,7 +400,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.read =>
     readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
   UiMessageStatus.error => MessageDeliveryStatus.failed,
-  UiMessageStatus.hidden => null,
+  UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
 class _LastMessage extends StatelessWidget {
@@ -411,10 +411,6 @@ class _LastMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCurrentChat = context.select(
-      (NavigationCubit cubit) => cubit.state.chatId == chat.id,
-    );
-
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
@@ -450,7 +446,32 @@ class _LastMessage extends StatelessWidget {
       return Text(loc.textMessage_deleted, style: italicStyle);
     }
 
-    final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
+    final showDraft = draftMessage?.isNotEmpty == true;
+
+    // === Reactions ===
+    final reaction = chat.lastReaction;
+    final reactedTo = switch (lastMessage?.message) {
+      UiMessage_Content(field0: final content) =>
+        content.content.plaintextPreview(loc),
+      _ => null,
+    };
+    if (!showDraft && reaction != null && reactedTo != null) {
+      final reactor = reaction.reactor == ownClientId
+          ? null
+          : context.select(
+              (UsersCubit cubit) =>
+                  cubit.state.displayName(userId: reaction.reactor),
+            );
+      return Text(
+        reactor == null
+            ? loc.chatList_reactionByYou(reaction.emoji, reactedTo)
+            : loc.chatList_reaction(reactor, reaction.emoji, reactedTo),
+        style: previewStyle,
+        maxLines: 2,
+        softWrap: true,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
 
     final prefixStyle = showDraft
         ? italicStyle

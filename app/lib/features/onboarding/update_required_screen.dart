@@ -7,7 +7,9 @@ import 'dart:io';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/fixed_width/fixed_width.dart';
+import 'package:air/ds/patterns/nux/nux_pill.dart';
+import 'package:air/ds/patterns/nux/nux_scaffold.dart';
+import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -42,85 +44,49 @@ class UpdateRequiredView extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(
-          loc.appOutdatedScreen_title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: palette.backgroundBase.secondary,
+    return NuxScaffold(
+      tokens: NuxScaffoldTokens.of(context),
+      // The same slot as the start screen's language picker, so the two
+      // signed-out screens read as one place.
+      top: NuxPill(
+        icon: AppIconType.circleAlert,
+        label: loc.appOutdatedScreen_title,
       ),
-      backgroundColor: palette.backgroundBase.secondary,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: S.s16),
-          child: Center(
-            child: FixedWidth(
-              child: Column(
-                crossAxisAlignment: .center,
-                children: [
-                  const SizedBox(height: 3 * S.s96),
-
-                  SizedBox(
-                    width: 104,
-                    child: SvgPicture.asset(
-                      'assets/images/logo.svg',
-                      colorFilter: ColorFilter.mode(
-                        palette.text.primary,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 2 * S.s96),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
-                    child: Text(
-                      loc.appOutdatedScreen_message,
-                      style: typeScale.header.l.style(
-                        weight: Weight.emphasized,
-                      ),
-                      textAlign: .center,
-                    ),
-                  ),
-
-                  const SizedBox(height: S.s16),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
-                    child: Text(
-                      loc.appOutdatedScreen_description,
-                      style: typeScale.body.regular.style(
-                        color: palette.text.secondary,
-                      ),
-                      textAlign: .center,
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  if (showUpdateButton)
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: S.s24),
-                        width: context.breakpoint.isSmall
-                            ? double.infinity
-                            : null,
-                        child: Button(
-                          onPressed: _handleUpdateNow,
-                          label: loc.appOutdatedScreen_action,
-                        ),
-                      ),
-                    ),
-
-                  const SizedBox(height: S.s16),
-                ],
-              ),
-            ),
-          ),
+      body: SizedBox(
+        width: 104,
+        child: SvgPicture.asset(
+          'assets/images/logo.svg',
+          colorFilter: ColorFilter.mode(palette.text.primary, BlendMode.srcIn),
         ),
+      ),
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            loc.appOutdatedScreen_message,
+            style: typeScale.header.l.style(weight: Weight.emphasized),
+            textAlign: .center,
+          ),
+
+          const SizedBox(height: S.s16),
+
+          Text(
+            loc.appOutdatedScreen_description,
+            style: typeScale.body.regular.style(color: palette.text.secondary),
+            textAlign: .center,
+          ),
+
+          // Only a store has an update to send us to, so a desktop build
+          // shows no button.
+          if (showUpdateButton) ...[
+            const SizedBox(height: S.s24),
+            Button(
+              onPressed: _handleUpdateNow,
+              label: loc.appOutdatedScreen_action,
+            ),
+          ],
+        ],
       ),
     );
   }

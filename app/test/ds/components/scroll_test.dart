@@ -137,6 +137,7 @@ void main() {
           bottomFadeHeight: 120,
           topSolidStop: 0.3,
           bottomSolidStop: 0.1,
+          topOpacity: 1.0,
           bottomOpacity: 1.0,
           edges: edges,
           builder: (topPadding, bottomPadding) => const SizedBox.expand(),

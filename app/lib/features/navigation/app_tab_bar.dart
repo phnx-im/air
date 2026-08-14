@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -27,8 +26,8 @@ class AppTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeTab = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
-        NavigationState_Home(:final home) => home.activeTab,
-        NavigationState_Intro() => HomeTab.chats,
+        HomeState(:final home) => home.activeTab,
+        IntroState() => HomeTab.chats,
       },
     );
     final palette = SemanticPalette.of(context);
@@ -156,9 +155,6 @@ class _TabBarItem extends StatelessWidget {
       press: false,
       label: _label(context, tab),
       onTap: () => context.read<NavigationCubit>().switchTab(tab),
-      onLongPress: tab == HomeTab.profile
-          ? () => context.read<NavigationCubit>().openDeveloperSettings()
-          : null,
       glyph: SizedBox(
         width: TabBarTokens.avatarSize,
         height: TabBarTokens.avatarSize,

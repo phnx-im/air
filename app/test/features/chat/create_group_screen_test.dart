@@ -7,13 +7,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/ds/components/toggle/toggle.dart';
-import 'package:air/features/chat_details/create_group_screen.dart';
+import 'package:air/features/chat_details/create_group_modal.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 
 import '../../helpers.dart';
@@ -62,15 +63,17 @@ void main() {
     registerFallbackValue(AppState.foreground);
   });
 
-  group('CreateGroupScreen', () {
+  group('CreateGroupModal', () {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
+      userSettingsCubit = MockUserSettingsCubit();
 
       when(
         () => navigationCubit.state,
@@ -82,21 +85,31 @@ void main() {
       ).thenReturn(MockUsersState(profiles: _profiles));
     });
 
-    Widget buildSubject() => MultiBlocProvider(
-      providers: [
-        BlocProvider<NavigationCubit>.value(value: navigationCubit),
-        BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<UsersCubit>.value(value: usersCubit),
-      ],
-      child: Builder(
-        builder: (context) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const CreateGroupScreen(),
+    Widget buildSubject({bool experimentalFeatures = true}) {
+      // The switch sits inside developer mode, so both flags make it in effect.
+      when(() => userSettingsCubit.state).thenReturn(
+        UserSettings(
+          developerMode: experimentalFeatures,
+          experimentalFeatures: experimentalFeatures,
         ),
-      ),
-    );
+      );
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: const CreateGroupModal(),
+          ),
+        ),
+      );
+    }
 
     testWidgets('member selection step', (tester) async {
       await tester.pumpWidget(buildSubject());
@@ -108,7 +121,7 @@ void main() {
       );
     });
 
-    testWidgets('details step with hidden APQ toggle revealed', (tester) async {
+    testWidgets('details step with the APQ toggle', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
@@ -122,13 +135,9 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      // Long-press the title to reveal the hidden APQ toggle.
-      await tester.longPress(find.text('Group details'));
-      await tester.pumpAndSettle();
-
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/create_group_details_hidden_settings.png'),
+        matchesGoldenFile('goldens/create_group_details_apq_toggle.png'),
       );
     });
 
@@ -148,9 +157,7 @@ void main() {
         await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
 
-        // Reveal the hidden APQ toggle and turn it on.
-        await tester.longPress(find.text('Group details'));
-        await tester.pumpAndSettle();
+        // Turn the APQ toggle on.
         await tester.tap(find.byType(Toggle));
         await tester.pumpAndSettle();
 
@@ -171,9 +178,7 @@ void main() {
         await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
 
-        // Reveal the hidden APQ toggle and turn it on.
-        await tester.longPress(find.text('Group details'));
-        await tester.pumpAndSettle();
+        // Turn the APQ toggle on.
         await tester.tap(find.byType(Toggle));
         await tester.pumpAndSettle();
 
@@ -193,5 +198,17 @@ void main() {
         );
       },
     );
+
+    testWidgets('the APQ toggle stays hidden without experiments', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject(experimentalFeatures: false));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Post-Quantum Encryption'), findsNothing);
+    });
   });
 }

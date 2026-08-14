@@ -30,6 +30,7 @@ import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
 import 'package:air/features/message_list/image_viewer.dart';
 import 'package:air/features/message_list/jump_highlight.dart';
+import 'package:air/features/message_list/message_band.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/message_renderer.dart';
@@ -115,14 +116,14 @@ class TextMessageTile extends HookWidget {
         : null;
 
     void openMemberDetails() {
-      unawaited(
-        context.read<NavigationCubit>().openMemberDetails(
-          contentMessage.sender,
-        ),
-      );
+      context.read<NavigationCubit>().openMemberDetails(contentMessage.sender);
     }
 
-    final stamp = _stamp(context);
+    // The time belongs to the end of the chat alone. The reader's own last
+    // message reports how far it got instead, in words, so a row that has been
+    // replied to since trades its clock for a delivery state.
+    final showsTime = isNewest;
+    final stamp = _stamp(context, showsTime: showsTime);
 
     // Outside the row rather than around the bubble: the timestamp column hangs
     // off the list's trailing edge, which is the row's own edge and not the
@@ -135,25 +136,16 @@ class TextMessageTile extends HookWidget {
         outgoing: isSender,
         reserveAvatar: withParticipant,
         avatar: withAvatar && profile != null
-            ? AnimatedPadding(
-                duration: Effect.duration(MotionPreset.short),
-                curve: Effect.easeOutQuart,
-                // Tracks the animated reserve in [BubbleWithReactions] so the
-                // avatar stays level with the bubble as the chips push it up.
-                padding: EdgeInsets.only(
-                  bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
-                ),
-                child: UserAvatar(
-                  profile: profile,
-                  size: tokens.avatarSize,
-                  onPressed: openMemberDetails,
-                ),
+            ? UserAvatar(
+                profile: profile,
+                size: tokens.avatarSize,
+                onPressed: openMemberDetails,
               )
             : null,
         senderName: withName ? profile?.displayName : null,
         onTapSender: withName && profile != null ? openMemberDetails : null,
-        footer: stamp,
         child: _MessageView(
+          stamp: stamp,
           messageId: messageId,
           contentMessage: contentMessage,
           inReplyToMessage: inReplyToMessage,
@@ -162,7 +154,7 @@ class TextMessageTile extends HookWidget {
           reactions: reactions,
           ownUserId: ownUserId,
           timestamp: timestamp,
-          showsStamp: stamp != null,
+          showsTime: showsTime,
           bubbleKey: bubbleKey,
         ),
       ),
@@ -171,26 +163,38 @@ class TextMessageTile extends HookWidget {
 
   /// The stamp under the bubble, or null where the message carries none.
   ///
-  /// The conversation shows its time where the time is the reader's business:
-  /// at the end of the chat, on the reader's own last word in it, and on a
-  /// message that still wants attention -- an edit, a send in flight, a send
-  /// that reached the server but nobody else yet, a send that failed.
-  /// Everywhere else the time is a keystroke away, from the hover tooltip or
-  /// the drag-to-reveal column, and the rows stay quiet.
-  Widget? _stamp(BuildContext context) {
-    final isEdited = contentMessage.edited;
+  /// [showsTime] marks the end of the chat, which is the one row that still
+  /// reads as a clock. Everywhere else the time is a gesture away, from the
+  /// hover label or the drag-to-reveal column, and the rows stay quiet.
+  ///
+  /// What a row does carry is what the reader may have to act on: how far an
+  /// own send got, and whether the message was edited. The reader's own last
+  /// message reports its delivery state whatever that state is; older rows do
+  /// so only while the send is unfinished -- in flight, landed on the server
+  /// but nowhere else, or failed.
+  ///
+  /// An edit is the exception: it puts the message it replaces back to sent
+  /// until the other side reports on the new content, and the original had
+  /// long since arrived. Reporting that on an older row reads as a message
+  /// that never landed, so an edited row keeps its marker and leaves the
+  /// delivery state to the rows that report one anyway.
+  Widget? _stamp(BuildContext context, {required bool showsTime}) {
+    // A deleted message reports neither: what it once said and how far it got
+    // are both gone with it. Rows deleted before deletions stopped stamping an
+    // edit time still carry one, so the marker goes by the status.
+    final isEdited = contentMessage.edited && status != UiMessageStatus.deleted;
     final wantsAttention =
         isSender &&
         switch (status) {
-          UiMessageStatus.sending ||
-          UiMessageStatus.sent ||
-          UiMessageStatus.error => true,
+          UiMessageStatus.sending || UiMessageStatus.error => true,
+          UiMessageStatus.sent => !isEdited,
           UiMessageStatus.delivered ||
           UiMessageStatus.read ||
-          UiMessageStatus.hidden => false,
+          UiMessageStatus.hidden ||
+          UiMessageStatus.deleted => false,
         };
-    // The reader's own last message keeps its stamp even once someone has
-    // replied since, so how far it got stays on screen.
+    // The end of the chat and the reader's own last word in it. The latter
+    // keeps reporting even once someone has replied since.
     final isPrimary = isNewest || isNewestOwn;
     if (!isPrimary && !isEdited && !wantsAttention) return null;
 
@@ -205,14 +209,18 @@ class TextMessageTile extends HookWidget {
         : null;
 
     return _MessageStamp(
-      timestamp: timestamp,
-      isSelf: isSender,
+      timestamp: showsTime ? timestamp : null,
+      // The stamp hugs the bubble's trailing edge wherever [MessageBand]
+      // anchors it there, which is on own messages and beside reaction chips.
+      alignEnd: isSender || reactions.isNotEmpty,
       status: delivery,
-      // Only the states the reader may have to act on are spelled out.
       statusLabel: switch (delivery) {
-        MessageDeliveryStatus.failed => loc.messageBubble_failedToSend,
         MessageDeliveryStatus.sending => loc.messageBubble_sending,
-        _ => null,
+        MessageDeliveryStatus.sent => loc.messageBubble_sent,
+        MessageDeliveryStatus.delivered => loc.messageBubble_delivered,
+        MessageDeliveryStatus.read => loc.messageBubble_read,
+        MessageDeliveryStatus.failed => loc.messageBubble_failedToSend,
+        null => null,
       },
       editedLabel: isEdited ? loc.textMessage_edited : null,
     );
@@ -220,7 +228,8 @@ class TextMessageTile extends HookWidget {
 }
 
 /// How far an own message got, as the stamp reports it. A hidden message
-/// reports nothing: its delivery is not the reader's business.
+/// reports nothing: its delivery is not the reader's business. Neither does a
+/// deleted one: there is no longer a message to have arrived.
 MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus status, {
   required bool readReceipts,
@@ -231,39 +240,42 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.read =>
     readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
   UiMessageStatus.error => MessageDeliveryStatus.failed,
-  UiMessageStatus.hidden => null,
+  UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
 /// The stamp under a message bubble: the time it was sent, and how far it got.
+///
+/// A null [timestamp] leaves the stamp to the delivery state and the edited
+/// marker, and costs the row its live clock along with the time.
 class _MessageStamp extends StatelessWidget {
   const _MessageStamp({
     required this.timestamp,
-    required this.isSelf,
+    required this.alignEnd,
     required this.status,
     required this.statusLabel,
     required this.editedLabel,
   });
 
-  final DateTime timestamp;
-  final bool isSelf;
+  final DateTime? timestamp;
+  final bool alignEnd;
   final MessageDeliveryStatus? status;
   final String? statusLabel;
   final String? editedLabel;
 
   @override
   Widget build(BuildContext context) {
-    return MessageTimestamp(
-      timestamp: timestamp,
-      builder: (context, label) => MessageMeta(
-        timestamp: label,
-        isSelf: isSelf,
-        status: status,
-        statusLabel: statusLabel,
-        editedLabel: editedLabel,
-        // The row already insets its footer to the bubble's text.
-        contentOffset: S.s0,
-      ),
+    MessageMeta meta(String? label) => MessageMeta(
+      timestamp: label,
+      alignEnd: alignEnd,
+      status: status,
+      statusLabel: statusLabel,
+      editedLabel: editedLabel,
     );
+
+    final at = timestamp;
+    if (at == null) return meta(null);
+
+    return MessageTimestamp(timestamp: at, builder: (_, label) => meta(label));
   }
 }
 
@@ -271,6 +283,7 @@ class _MessageStamp extends StatelessWidget {
 /// swipe-to-reply, the hover affordances, and the reaction chips.
 class _MessageView extends HookWidget {
   const _MessageView({
+    required this.stamp,
     required this.messageId,
     required this.contentMessage,
     required this.inReplyToMessage,
@@ -279,9 +292,12 @@ class _MessageView extends HookWidget {
     required this.reactions,
     required this.ownUserId,
     required this.timestamp,
-    required this.showsStamp,
+    required this.showsTime,
     required this.bubbleKey,
   });
+
+  /// The stamp under the bubble, or null on a row that carries none.
+  final Widget? stamp;
 
   final MessageId messageId;
   final UiContentMessage contentMessage;
@@ -292,9 +308,9 @@ class _MessageView extends HookWidget {
   final UiUserId ownUserId;
   final DateTime timestamp;
 
-  /// Whether the row already carries its own stamp, in which case the hover
-  /// tooltip has nothing left to tell the reader.
-  final bool showsStamp;
+  /// Whether the row already carries the time under the bubble, in which case
+  /// the hover label has nothing left to tell the reader.
+  final bool showsTime;
 
   /// Keys the bubble for everything that has to find it: the menus that anchor
   /// on it, and the time reveal around the row.
@@ -336,6 +352,7 @@ class _MessageView extends HookWidget {
     final isHidden = status == UiMessageStatus.hidden && !isRevealed.value;
 
     return _MessageShell(
+      stamp: stamp,
       contentMessage: contentMessage,
       inReplyToMessage: inReplyToMessage,
       isSender: isSender,
@@ -359,7 +376,7 @@ class _MessageView extends HookWidget {
       isHovered: isHovered,
       reactButtonKey: reactButtonKey,
       timestamp: timestamp,
-      showsStamp: showsStamp,
+      showsTime: showsTime,
     );
   }
 }
@@ -370,6 +387,7 @@ class _MessageView extends HookWidget {
 /// the layout below reads as plain widget code.
 class _MessageShell extends StatelessWidget {
   const _MessageShell({
+    required this.stamp,
     required this.contentMessage,
     required this.inReplyToMessage,
     required this.isSender,
@@ -384,8 +402,11 @@ class _MessageShell extends StatelessWidget {
     required this.isHovered,
     required this.reactButtonKey,
     required this.timestamp,
-    required this.showsStamp,
+    required this.showsTime,
   });
+
+  /// See [_MessageView.stamp].
+  final Widget? stamp;
 
   final UiContentMessage contentMessage;
   final UiInReplyToMessage? inReplyToMessage;
@@ -403,15 +424,11 @@ class _MessageShell extends StatelessWidget {
 
   final DateTime timestamp;
 
-  /// See [_MessageView.showsStamp].
-  final bool showsStamp;
+  /// See [_MessageView.showsTime].
+  final bool showsTime;
 
-  /// Reveal-on-hover buttons, sized to match a single-line message bubble.
-  static final HoverActionTokens _hoverTokens = HoverActionTokens(
-    size:
-        typeScale.body.regular.lineHeightPx +
-        MessageBubbleTokens.padding.vertical,
-  );
+  /// Reveal-on-hover buttons.
+  static const HoverActionTokens _hoverTokens = HoverActionTokens.standard;
 
   bool get _withHoverActions => !isMobilePlatform && isReplyable;
 
@@ -490,7 +507,9 @@ class _MessageShell extends StatelessWidget {
               : (details) => _openContextMenu(context, details, actions),
           enableSelection: isDesktopPlatform,
           detached: false,
-          affordance: _withHoverActions ? _hoverActions(context) : null,
+          // Always hung on a desktop row: a message nobody can reply to still
+          // answers for its time.
+          affordance: _hoverAffordance(context),
         ),
       ),
     );
@@ -535,8 +554,9 @@ class _MessageShell extends StatelessWidget {
     maxWidth: bubbleMaxWidth,
   );
 
-  /// The bubble, its reaction chips, the gestures on it, and the hover buttons
-  /// beside it -- everything that has to line up with the bubble's own box.
+  /// The bubble, its reaction chips, the stamp under it, the gestures on it,
+  /// and the hover buttons beside it -- everything that has to line up with
+  /// the bubble's own box.
   Widget _unit(
     BuildContext context, {
     required double bubbleMaxWidth,
@@ -562,14 +582,17 @@ class _MessageShell extends StatelessWidget {
         child: bubble,
       );
     }
-    bubble = BubbleWithReactions(
+    final band = MessageBand(
+      outgoing: isSender,
+      bubble: bubble,
+      stamp: stamp,
+      affordance: affordance,
       reactions: commands.reactions,
       ownUserId: commands.ownUserId,
-      onTap: commands.showReactors,
-      bubble: bubble,
+      onTapReaction: commands.showReactors,
     );
 
-    final interactive = MouseRegion(
+    return MouseRegion(
       cursor: SystemMouseCursors.basic,
       child: AnimatedOpacity(
         opacity: detached ? Alpha.a0 : Alpha.a100,
@@ -605,20 +628,11 @@ class _MessageShell extends StatelessWidget {
                     }
                   : null,
               onLongPress: onLongPress,
-              child: bubble,
+              child: band,
             ),
           ),
         ),
       ),
-    );
-
-    if (affordance == null) return interactive;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: isSender
-          ? [affordance, interactive]
-          : [interactive, affordance],
     );
   }
 
@@ -630,27 +644,40 @@ class _MessageShell extends StatelessWidget {
     child: child,
   );
 
-  /// React stays adjacent to the bubble, reply sits on the outer edge, and the
-  /// message's time hangs off the end of the two.
-  Widget _hoverActions(BuildContext context) {
-    final tokens = _hoverTokens;
+  /// What the pointer raises beside the bubble: react stays adjacent to it,
+  /// reply sits on the outer edge, and the message's time hangs off the end of
+  /// the two.
+  ///
+  /// A message nobody can reply to -- deleted, or failed on the way out --
+  /// drops the buttons and keeps the time, which is the only way its time is
+  /// reachable on a desktop.
+  Widget _hoverAffordance(BuildContext context) {
+    const tokens = _hoverTokens;
     final surface = isSender
         ? HoverActionSurface.self
         : HoverActionSurface.other;
+    final withButtons = _withHoverActions;
 
-    return AnimatedPadding(
-      duration: Effect.duration(MotionPreset.short),
-      curve: Effect.easeOutQuart,
-      // Tracks the animated reserve in [BubbleWithReactions] so the buttons
-      // stay centered on the bubble rather than on the bubble plus its chips.
+    return Padding(
+      // Only the gap to the bubble: the band centers the buttons on the bubble
+      // itself, and the time carries its own clearance.
       padding: EdgeInsets.only(
-        bottom: reactionsReservedBelow(context, commands.reactions.isNotEmpty),
-        left: isSender ? S.s0 : tokens.gap,
-        right: isSender ? tokens.gap : S.s0,
+        left: !isSender && withButtons ? tokens.gap : S.s0,
+        right: isSender && withButtons ? tokens.gap : S.s0,
       ),
       child: ValueListenableBuilder<bool>(
         valueListenable: isHovered,
         builder: (context, hovered, _) {
+          // The time keeps its own clearance from the buttons, so it sits
+          // outside their row rather than inside its spacing.
+          final time = MessageHoverTime(
+            timestamp: timestamp,
+            hovered: hovered,
+            isSelf: isSender,
+            enabled: !showsTime,
+          );
+          if (!withButtons) return time;
+
           final react = HoverAction(
             key: reactButtonKey,
             tokens: tokens,
@@ -670,14 +697,6 @@ class _MessageShell extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: tokens.gap,
             children: isSender ? [reply, react] : [react, reply],
-          );
-          // The time keeps its own clearance from the buttons, so it sits
-          // outside their row rather than inside its spacing.
-          final time = MessageHoverTime(
-            timestamp: timestamp,
-            hovered: hovered,
-            isSelf: isSender,
-            enabled: !showsStamp,
           );
           return Row(
             mainAxisSize: MainAxisSize.min,
@@ -767,10 +786,7 @@ class _MessageCommands {
     );
   }
 
-  /// Pass [barrierColor] transparent when the picker opens on top of the
-  /// quick-reaction bar, whose barrier stays alive underneath so the dim
-  /// doesn't flicker.
-  Future<void> openFullEmojiPicker({Color? barrierColor}) async {
+  Future<void> openFullEmojiPicker() async {
     // Capture the cubit before the await so the picker can persist tone
     // changes.
     final settings = context.read<UserSettingsCubit>();
@@ -783,13 +799,11 @@ class _MessageCommands {
             context: context,
             initialSkinTone: skinTone,
             onSkinToneChanged: onSkinToneChanged,
-            barrierColor: barrierColor,
           )
         : await showEmojiPickerPopover(
             context: context,
             initialSkinTone: skinTone,
             onSkinToneChanged: onSkinToneChanged,
-            barrierColor: barrierColor,
           );
     if (emoji != null && context.mounted) {
       sendReaction(emoji);
@@ -812,7 +826,7 @@ class _MessageCommands {
         anchorRect: anchorRect,
         skinTone: skinTone,
         onReact: sendReaction,
-        onMore: () => openFullEmojiPicker(barrierColor: Colors.transparent),
+        onMore: () => unawaited(openFullEmojiPicker()),
       ),
     );
   }

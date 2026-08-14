@@ -17,14 +17,12 @@ import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/ds/components/button/button.dart';
 
-import 'package:air/features/developer/chat_debug_info_view.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
@@ -104,14 +102,9 @@ class ChatScreenView extends StatefulWidget {
 class _ChatScreenViewState extends State<ChatScreenView> {
   final _scrollToBottomController = ScrollToBottomController();
 
-  /// How much conversation sits scrolled under the header, 0 at the top of the
-  /// loaded history. Drives the header pill's reveal.
-  final _headerScrollOffset = ValueNotifier<double>(0);
-
   @override
   void dispose() {
     _scrollToBottomController.dispose();
-    _headerScrollOffset.dispose();
     super.dispose();
   }
 
@@ -167,14 +160,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
-    final bool isDeveloper = context.select(
-      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    final bool experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
     );
     final pendingCommitFailed = context.select(
       (ChatDetailsCubit cubit) =>
           cubit.state.chat?.pendingCommitFailed ?? false,
     );
-    final bool showPendingCommitBanner = isDeveloper && pendingCommitFailed;
+    final bool showPendingCommitBanner =
+        experimentalFeatures && pendingCommitFailed;
 
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
@@ -195,13 +189,12 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     return Scaffold(
       backgroundColor: MessageListView.backgroundColor(context),
       extendBodyBehindAppBar: true,
-      appBar: _ChatHeader(scrollOffset: _headerScrollOffset),
+      appBar: const _ChatHeader(),
       body: Stack(
         children: [
           MessageListView(
             createMessageCubit: widget.createMessageCubit,
             scrollToBottomController: _scrollToBottomController,
-            headerScrollOffset: _headerScrollOffset,
           ),
           if (showPendingCommitBanner)
             const Positioned(
@@ -236,9 +229,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 }
 
 class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
-  const _ChatHeader({required this.scrollOffset});
-
-  final ValueListenable<double> scrollOffset;
+  const _ChatHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -257,36 +248,14 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     final tokens = ChatHeaderBarTokens.current;
     return SafeArea(
       bottom: false,
-      child: ValueListenableBuilder<double>(
-        valueListenable: scrollOffset,
-        builder: (context, offset, _) => ChatHeaderBar(
-          tokens: tokens,
-          name: title ?? "",
-          avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
-          scrollOffset: offset,
-          onTap: hasDetails
-              ? () => context.read<NavigationCubit>().openChatDetails()
-              : null,
-          onLongPress: () {
-            final chatDetailsCubit = context.read<ChatDetailsCubit>();
-            final userCubit = context.read<UserCubit>();
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDebugInfoView(
-                  title: title ?? "",
-                  loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
-                  onUpdateGroup: () => chatDetailsCubit.updateKey(),
-                  onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
-                  onRequestResync: () => chatDetailsCubit.requestResync(),
-                  onEraseLocalChat: () {
-                    if (chatId != null) userCubit.devEraseChat(chatId);
-                  },
-                ),
-              ),
-            );
-          },
-          onBack: context.breakpoint.isSmall ? () => _back(context) : null,
-        ),
+      child: ChatHeaderBar(
+        tokens: tokens,
+        name: title ?? "",
+        avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
+        onTap: hasDetails
+            ? () => context.read<NavigationCubit>().openChatDetails()
+            : null,
+        onBack: context.breakpoint.isSmall ? () => _back(context) : null,
       ),
     );
   }

@@ -15,7 +15,7 @@ use aircoreclient::{
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Utc};
-use mimi_content::MimiContent;
+use mimi_content::{MessageStatus, MimiContent};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -163,9 +163,28 @@ async fn link_new_device_named(
 }
 
 /// Fetches and processes all messages in the device's queue.
-async fn drain_queue(user: &CoreUser) {
+pub(crate) async fn drain_queue(user: &CoreUser) {
     let messages = user.qs_fetch_messages().await.unwrap();
     user.fully_process_qs_messages(messages).await;
+}
+
+/// How many of the chat's stored content messages render as `text`.
+pub(crate) async fn count_messages_with_text(
+    user: &CoreUser,
+    chat_id: ChatId,
+    text: &str,
+) -> usize {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter(|message| {
+            message
+                .message()
+                .mimi_content()
+                .is_some_and(|content| content.string_rendering().is_ok_and(|s| s.contains(text)))
+        })
+        .count()
 }
 
 /// The device's locally stored read-receipts setting. `None` means unset.
@@ -1723,5 +1742,380 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
     assert!(
         new_device.chat(&pending_chat_id).await.is_none(),
         "an unconfirmed connection chat should not be conveyed to a linked device"
+    );
+}
+
+async fn one_unread_message_on_both_devices(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    chat_id: ChatId,
+) -> (CoreUser, TempDir) {
+    let (device_2, tmp_2) = link_new_device(setup, alice).await;
+    // Device 2's onboarding turns Alice's leaf into a virtual-client leaf, which
+    // is what fans a message out to both of her devices in the first place.
+    device_2.outbound_service().run_once().await;
+
+    let device_1 = setup.get_user(alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+
+    // Bob drains first, so he sends at the epoch device 2's onboarding left behind.
+    let bob_user = setup.get_user(bob).user();
+    drain_queue(bob_user).await;
+    bob_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("from bob".to_owned(), [1u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    assert_eq!(device_1.unread_messages_count(chat_id).await, 1);
+    assert_eq!(device_2.unread_messages_count(chat_id).await, 1);
+
+    (device_2, tmp_2)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test read markers follow a sibling", skip_all)]
+async fn multi_device_read_markers_follow_a_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (device_2, _tmp_2) =
+        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_1 = setup.get_user(&alice).user();
+
+    // Device 1 reads the message and sends the receipt for it.
+    let message = device_1.last_message(chat_id).await.unwrap().unwrap();
+    let (marked, _) = device_1
+        .mark_chat_as_read(chat_id, message.id())
+        .await
+        .unwrap();
+    assert!(marked);
+    device_1
+        .outbound_service()
+        .enqueue_receipts(
+            chat_id,
+            [(
+                message.id(),
+                message.message().mimi_id().unwrap(),
+                MessageStatus::Read,
+            )]
+            .into_iter(),
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    // The receipt is also device 1's read marker: device 2 follows it.
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "device 2 should follow the read marker of its sibling"
+    );
+
+    // Bob writes again, so device 2 has something unread that is not ours. The
+    // unread count drops our own messages by itself, but not his.
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    bob_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("from bob again".to_owned(), [3u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    assert_eq!(device_2.unread_messages_count(chat_id).await, 1);
+
+    // Sending is an implicit read of everything before it, so a message from
+    // device 1 carries Bob's older one with it on device 2 as well.
+    device_1
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("from device 1".to_owned(), [2u8; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "a message we sent from another device reads the chat up to it"
+    );
+    assert_eq!(device_2.global_unread_messages_count().await.unwrap(), 0);
+}
+
+/// With read receipts disabled, the read receipts travel through the self group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test read markers via the self group", skip_all)]
+async fn multi_device_read_markers_via_the_self_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (device_2, _tmp_2) =
+        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_1 = setup.get_user(&alice).user();
+
+    for device in [device_1, &device_2] {
+        device
+            .set_user_setting(&ReadReceiptsSetting(false))
+            .await
+            .unwrap();
+    }
+
+    // Device 1 reads the message. With read receipts off, the report goes to the
+    // self chat instead of the chat with Bob (see `applogic::mark_as_read`).
+    let message = device_1.last_message(chat_id).await.unwrap().unwrap();
+    let (marked, _) = device_1
+        .mark_chat_as_read(chat_id, message.id())
+        .await
+        .unwrap();
+    assert!(marked);
+    device_1
+        .outbound_service()
+        .enqueue_receipts(
+            self_chat_id(device_1).await,
+            [(
+                message.id(),
+                message.message().mimi_id().unwrap(),
+                MessageStatus::Read,
+            )]
+            .into_iter(),
+        )
+        .await
+        .unwrap();
+    device_1.outbound_service().run_once().await;
+
+    drain_queue(&device_2).await;
+    assert_eq!(
+        device_2.unread_messages_count(chat_id).await,
+        0,
+        "device 2 should follow a read marker sent through the self group"
+    );
+
+    // Bob is not a member of the self group and must not learn that Alice read
+    // his message.
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue(bob_user).await;
+    let bobs_message = bob_user.last_message(chat_id).await.unwrap().unwrap();
+    assert_eq!(
+        bobs_message.status(),
+        MessageStatus::Delivered,
+        "a read marker sent through the self group must not reach the other \
+         members, while delivery receipts still do"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test an own echo confirms an unconfirmed send", skip_all)]
+async fn multi_device_own_echo_confirms_unconfirmed_send() {
+    const TEXT: &str = "the DS response to this one got lost";
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Linking turns alice's leaf into a virtual-client leaf shared by both
+    // devices, which is what makes the DS echo decryptable for the sender.
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    let first_device = setup.get_user(&alice).user();
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
+    let message = first_device
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    let message_id = message.id();
+    assert!(
+        !message.is_sent(),
+        "the message should still be waiting for the outbound service"
+    );
+
+    // The DS accepts the message and fans it out, but the sending device never
+    // sees the response and therefore never confirms the send.
+    first_device
+        .send_chat_message_without_confirmation(message_id)
+        .await
+        .unwrap();
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, TEXT).await,
+        1,
+        "bob should have received the message once"
+    );
+
+    // The echo of our own message arrives.
+    drain_queue(first_device).await;
+
+    let stored = first_device
+        .message(message_id)
+        .await
+        .unwrap()
+        .expect("the sent message should still be stored");
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, TEXT).await,
+        1,
+        "the echo must not be stored as a second message"
+    );
+    assert!(
+        stored.is_sent(),
+        "the echo should have confirmed the unconfirmed send"
+    );
+    assert_eq!(
+        first_device
+            .last_message(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id(),
+        message_id,
+        "the echo must not become a newer message"
+    );
+
+    // The message left the queue with the confirmation, so there is nothing
+    // left to send.
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, TEXT).await,
+        1,
+        "bob must not receive the message a second time"
+    );
+
+    // For the sibling this is a plain incoming message.
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, TEXT).await,
+        1,
+        "the sibling device should have received the message once"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test an own echo confirms an unconfirmed edit", skip_all)]
+async fn multi_device_own_echo_confirms_unconfirmed_edit() {
+    const TEXT: &str = "original text";
+    const EDITED_TEXT: &str = "edited, the DS response to this one got lost";
+    const FINAL_TEXT: &str = "edited a second time";
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Linking turns alice's leaf into a virtual-client leaf shared by both
+    // devices, which is what makes the DS echo decryptable for the sender.
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    let first_device = setup.get_user(&alice).user();
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    // A regular, confirmed send of the original message.
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [21u8; 16]);
+    let message = first_device
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    let message_id = message.id();
+    first_device.outbound_service().run_once().await;
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    drain_queue(bob_device).await;
+
+    // The edit is stored and reaches the DS, but the sending device never
+    // sees the response and therefore never confirms the send.
+    let original = first_device.message(message_id).await.unwrap().unwrap();
+    let edit = MimiContent::simple_markdown_message(EDITED_TEXT.to_owned(), [22u8; 16]);
+    let edited = first_device
+        .send_message(chat_id, edit, Some(original))
+        .await
+        .unwrap();
+    assert!(
+        !edited.is_sent(),
+        "the edit should still be waiting for the outbound service"
+    );
+    first_device
+        .send_chat_message_without_confirmation(message_id)
+        .await
+        .unwrap();
+
+    // The echo of the edit arrives.
+    drain_queue(first_device).await;
+
+    let stored = first_device.message(message_id).await.unwrap().unwrap();
+    assert!(
+        stored.is_sent(),
+        "the echo should have confirmed the unconfirmed edit"
+    );
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, EDITED_TEXT).await,
+        1,
+        "the echo must not be stored as a second message"
+    );
+
+    // The edit left the queue with the confirmation, so there is nothing left
+    // to send.
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, EDITED_TEXT).await,
+        1,
+        "bob should see the edit applied once"
+    );
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, EDITED_TEXT).await,
+        1,
+        "the sibling device should see the edit applied once"
+    );
+
+    // Editing the message again still works. An echo that lands in the edit
+    // history would block this edit with a conflict.
+    let original = first_device.message(message_id).await.unwrap().unwrap();
+    let second_edit = MimiContent::simple_markdown_message(FINAL_TEXT.to_owned(), [23u8; 16]);
+    first_device
+        .send_message(chat_id, second_edit, Some(original))
+        .await
+        .unwrap();
+    first_device.outbound_service().run_once().await;
+
+    drain_queue(bob_device).await;
+    assert_eq!(
+        count_messages_with_text(bob_device, chat_id, FINAL_TEXT).await,
+        1,
+        "bob should see the second edit"
     );
 }

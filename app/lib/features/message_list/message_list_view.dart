@@ -42,15 +42,10 @@ class MessageListView extends StatefulWidget {
     super.key,
     this.createMessageCubit = MessageCubit.new,
     this.scrollToBottomController,
-    this.headerScrollOffset,
   });
 
   final MessageCubitCreate createMessageCubit;
   final ScrollToBottomController? scrollToBottomController;
-
-  /// Reports how much content sits scrolled under the top of the viewport, 0 at
-  /// the top of the loaded history. Drives the chat header pill's reveal.
-  final ValueNotifier<double>? headerScrollOffset;
 
   /// The surface the list paints on: the window in the two-pane layout, where
   /// the chat is the content pane, or its own background tier when it fills the
@@ -273,13 +268,11 @@ class _MessageListViewState extends State<MessageListView>
     _markCurrentVisibleMessageAsRead();
   }
 
-  // The list is reversed, so pixels count from the bottom and what sits under
-  // the header is maxScrollExtent - pixels.
-  void _updateScrollOffsets(ScrollMetrics metrics) {
-    final headerOffset = max(0.0, metrics.maxScrollExtent - metrics.pixels);
+  // The list is reversed, so pixels count from the bottom: they measure what
+  // sits scrolled under the composer.
+  void _updateBottomFadeOffset(ScrollMetrics metrics) {
     final bottomOffset = max(0.0, metrics.pixels);
     runFrameSafe(() {
-      widget.headerScrollOffset?.value = headerOffset;
       _bottomFadeOffset.value = bottomOffset;
     });
   }
@@ -287,7 +280,7 @@ class _MessageListViewState extends State<MessageListView>
   /// Shows the floating header during active scroll and hides it again
   /// after [_floatingHeaderHideDelay] of inactivity.
   bool _handleScrollNotification(ScrollNotification notification) {
-    _updateScrollOffsets(notification.metrics);
+    _updateBottomFadeOffset(notification.metrics);
     if (notification is ScrollStartNotification) {
       _downwardDragSinceStart = 0;
       _keyboardDismissedThisDrag = false;
@@ -412,11 +405,11 @@ class _MessageListViewState extends State<MessageListView>
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       // Metrics notifications cover the initial layout and content growth,
-      // where no scroll activity fires: the pill has to already be revealed
+      // where no scroll activity fires: the fade has to already be settled
       // when a chat opens at the bottom of its history.
       Widget list = NotificationListener<ScrollMetricsNotification>(
         onNotification: (notification) {
-          _updateScrollOffsets(notification.metrics);
+          _updateBottomFadeOffset(notification.metrics);
           return false;
         },
         child: NotificationListener<ScrollNotification>(
@@ -618,7 +611,6 @@ class _MessageListViewState extends State<MessageListView>
 
     if (!showDateDivider && !isFirstUnread) return tile;
 
-    final unreadCount = isFirstUnread ? state.unreadCount : 0;
     // The inline [DateDivider] is hidden (but keeps its layout space) only
     // once its pill has actually risen to the floating pill's slot — i.e.
     // when this message is the oldest visible *and* the controller reports
@@ -648,7 +640,7 @@ class _MessageListViewState extends State<MessageListView>
     return Column(
       children: [
         ?inlineDivider,
-        if (isFirstUnread) UnreadDivider(count: unreadCount),
+        if (isFirstUnread) const UnreadDivider(),
         tile,
       ],
     );

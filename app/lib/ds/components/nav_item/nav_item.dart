@@ -19,7 +19,6 @@ class NavItem extends StatelessWidget {
     required this.label,
     this.active = false,
     this.onTap,
-    this.onLongPress,
     this.enabled = true,
     this.press = true,
   });
@@ -29,7 +28,6 @@ class NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
   final bool enabled;
 
   /// Whether a tap paints the pressed state. The tab bar passes false: its
@@ -40,7 +38,6 @@ class NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return StateLayer(
       onTap: onTap,
-      onLongPress: onLongPress,
       enabled: enabled,
       borderRadius: tokens.radius,
       surface: tokens.surface,

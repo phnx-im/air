@@ -14,7 +14,7 @@ class ConfirmDialog extends StatelessWidget {
     super.key,
 
     required this.title,
-    required this.message,
+    this.message,
     this.cancel,
     required this.confirm,
 
@@ -23,7 +23,10 @@ class ConfirmDialog extends StatelessWidget {
   });
 
   final String title;
-  final String message;
+
+  /// What the title leaves to say. A dialog whose title asks the whole question
+  /// leaves it out rather than repeating itself.
+  final String? message;
   final String? cancel;
   final String confirm;
 
@@ -35,6 +38,7 @@ class ConfirmDialog extends StatelessWidget {
     final tokens = DialogTokens.current;
     final palette = SemanticPalette.of(context);
     final cancel = this.cancel;
+    final message = this.message;
 
     return AppDialog(
       child: Column(
@@ -49,13 +53,17 @@ class ConfirmDialog extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: tokens.titleBodyGap),
+          if (message != null) ...[
+            SizedBox(height: tokens.titleBodyGap),
 
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: typeScale.body.regular.style(color: palette.text.secondary),
-          ),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: typeScale.body.regular.style(
+                color: palette.text.secondary,
+              ),
+            ),
+          ],
 
           SizedBox(height: tokens.bodyActionsGap),
 

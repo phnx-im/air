@@ -167,7 +167,7 @@ class MainActivity : FlutterFragmentActivity() {
                             result.success(token)
                         } else {
                             Log.w(TAG, "Fetching FCM registration token failed" + task.exception)
-                            result.error("NoDeviceToken", "Device token not available", "")
+                            result.success(null)
                         }
                     }
                 }

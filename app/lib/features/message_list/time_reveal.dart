@@ -5,6 +5,8 @@
 import 'dart:math' show max;
 
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/message_list/timestamp.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/widgets.dart';
 
@@ -19,11 +21,17 @@ const double _labelGap = S.s16;
 /// two meridiems where the pattern carries one.
 ///
 /// One width serves the whole list, so it has to hold the widest label any row
-/// can show rather than the one the column happens to pass.
+/// can show rather than the one the column happens to pass. The stamp is not
+/// always a clock, so the relative forms are measured alongside these, see
+/// [_measureColumn].
 final List<DateTime> _widestClocks = [
   DateTime(2026, 1, 1, 0, 58),
   DateTime(2026, 1, 1, 22, 58),
 ];
+
+/// The oldest a message can be and still read in minutes, which is the widest
+/// that form gets.
+const int _widestMinutes = 59;
 
 /// Drives the timestamp column every row in a list shares, so one drag reveals
 /// the whole conversation's times rather than a single row's.
@@ -131,21 +139,31 @@ class _TimeRevealScope extends InheritedWidget {
 /// Spells out the tracking the token leaves open: the measuring happens at the
 /// list and the drawing down in a row, and the ambient text style is not the
 /// same in both places.
-TextStyle _clockStyle(BuildContext context) => typeScale.body.mini
+TextStyle _labelStyle(BuildContext context) => typeScale.body.mini
     .style(color: SemanticPalette.of(context).text.tertiary)
     .copyWith(letterSpacing: typeScale.body.mini.letterSpacing);
 
+/// The widest the column has to be for the labels this locale can print.
+///
+/// Every form [messageStampLabel] can produce is measured, not just the clock:
+/// a recent message reads "Now" or in minutes, and in some locales those run
+/// wider than any clock does.
 double _measureColumn(BuildContext context) {
   // Resolve the style the way [Text] does: a bare [TextPainter] falls back to
   // the engine's default font family rather than the one the label renders in.
-  final style = DefaultTextStyle.of(context).style.merge(_clockStyle(context));
+  final style = DefaultTextStyle.of(context).style.merge(_labelStyle(context));
   final formats = TimeFormats.of(context);
+  final loc = AppLocalizations.of(context);
   final direction = Directionality.of(context);
   final scaler = MediaQuery.textScalerOf(context);
   var label = 0.0;
-  for (final at in _widestClocks) {
+  for (final candidate in [
+    for (final at in _widestClocks) formats.clock(at),
+    loc.timestamp_now,
+    loc.timestamp_minutesAgo(_widestMinutes),
+  ]) {
     final painter = TextPainter(
-      text: TextSpan(text: formats.clock(at), style: style),
+      text: TextSpan(text: candidate, style: style),
       textDirection: direction,
       textScaler: scaler,
     )..layout();
@@ -155,8 +173,8 @@ double _measureColumn(BuildContext context) {
   return _restingInset + label;
 }
 
-/// Rides a message's clock time in from the trailing edge of the list as the
-/// shared reveal rises.
+/// Rides a message's time in from the trailing edge of the list as the shared
+/// reveal rises.
 ///
 /// Wraps a whole row, gutter and all: the column belongs to the list's edge, so
 /// a label lands in the same place whoever sent the message. A row steps aside
@@ -231,9 +249,12 @@ class _TimeRevealRowState extends State<TimeRevealRow> {
     );
   }
 
-  Widget _label() => Text(
-    TimeFormats.of(context).clock(widget.timestamp.toLocal()),
-    style: _clockStyle(context),
+  /// The same stamp the meta row and the hover label carry, so one message
+  /// reads the same however the reader reaches its time.
+  Widget _label() => MessageTimestamp(
+    timestamp: widget.timestamp,
+    builder: (context, label) =>
+        Text(label, softWrap: false, style: _labelStyle(context)),
   );
 
   /// What the row's own layout says about the label: how far the row has to

@@ -60,18 +60,16 @@ use crate::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
         create_user::QsRegisteredUserState,
-        linked_devices::merge_device_entry_locally,
         listen_response,
         own_client_info::OwnClientInfo,
         process::process_qs::ProcessedQsMessages,
         store::{ClientRecord, UserCreationState},
         user_settings::{SettingsUpdateExt, apply_settings_update},
     },
-    contacts::{ContactAddInfos, ContactKeyPackage},
     groups::{
-        Group, PreparedInvitee, client_auth_info::StorableUserCredential,
-        openmls_provider::AirOpenMlsProvider,
+        Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
     },
+    job::chat_operation::ChatOperation,
     key_stores::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
@@ -472,7 +470,7 @@ impl CoreUser {
         let api_client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
 
-        let self_group = self.ensure_self_group().await?;
+        let self_group = Box::pin(self.ensure_self_group()).await?;
         let self_group_id = self_group.group_id().clone();
         let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
 
@@ -663,6 +661,10 @@ impl CoreUser {
     /// The entry already carries the name the confirming user chose: it travelled
     /// to the new device in the provisioning package, so both sides agree without
     /// this side substituting anything.
+    ///
+    /// The commit is staged and sent by the job system, so a failed send leaves
+    /// the self group either retryable or clean, never stuck on a dead staged
+    /// commit.
     async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
         let SelfGroupJoinRequest {
             key_package,
@@ -678,111 +680,8 @@ impl CoreUser {
             warn!(%error, "failed to process queued messages before self-group add");
         }
 
-        let api_client = self.api_client()?;
-        let self_group_signature_key = self.self_group_signature_key().await?;
-        let user_id = self.user_id().clone();
-        let wai_key = self.key_store().wai_ear_key.clone();
-        let qs_client_reference = self.create_own_client_reference();
-
-        // Stage the add commit against a fresh copy of the self group.
-        let (mut group, params, group_state_ear_key, encrypted_user_profile_key) = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let self_group_id = OwnClientInfo::load_self_group_id(&mut *txn)
-                    .await?
-                    .context("no self group")?;
-                let mut group = Group::load_clean_verified(&mut *txn, &self_group_id)
-                    .await?
-                    .context("self group not found")?;
-
-                // Room policy is keyed on the client id, so reject a credential whose id is
-                // already a member of the self group before staging the add.
-                group.validate_self_group_add(key_package.t_credential())?;
-
-                let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
-
-                // Record the new device locally and let the add commit carry the
-                // resulting snapshot, so the siblings learn it without a second
-                // commit advancing the epoch behind our back.
-                merge_device_entry_locally(&mut *txn, device).await?;
-                let update = SettingsUpdate::collect(&mut *txn).await?;
-                let settings_proposal = group
-                    .group_mut()
-                    .self_group_settings_proposal(txn, &update)
-                    .await?;
-
-                let invitee = PreparedInvitee {
-                    add_info: ContactAddInfos {
-                        key_package: ContactKeyPackage::Apq(Box::new(key_package)),
-                        user_profile_key: user_profile_key.clone(),
-                    },
-                    wai_key: wai_key.clone(),
-                    // Only used for its `user_id()` (to bind the profile-key
-                    // ciphertext); the new device shares our user id.
-                    user_credential: self.signing_key().credential().clone(),
-                };
-                // Sign the commit with the per-device self-group key, but sign the
-                // WAI with the shared client key so the joiner can verify it
-                // against our user credential.
-                let params = group
-                    .group_mut()
-                    .stage_apq_invite(
-                        &mut *txn,
-                        &self_group_signature_key,
-                        self.signing_key(),
-                        vec![invitee],
-                        Some(settings_proposal),
-                    )
-                    .await?
-                    .map_err(|validation| {
-                        anyhow!("self-group invite leaf validation: {validation:?}")
-                    })?;
-                let group_state_ear_key = group.group_state_ear_key().clone();
-                let encrypted_user_profile_key =
-                    user_profile_key.encrypt(group.identity_link_wrapper_key(), &user_id)?;
-                Ok((
-                    group,
-                    params,
-                    group_state_ear_key,
-                    encrypted_user_profile_key,
-                ))
-            })
-            .await?;
-
-        // Send the commit to the DS. The DS verifies request envelopes from
-        // self-group members against the leaf's signature key, so the envelope
-        // is signed with the per-device self-group key.
-        let ds_timestamp = api_client
-            .ds_apq_group_operation(
-                params,
-                &self_group_signature_key,
-                &group_state_ear_key,
-                qs_client_reference,
-                encrypted_user_profile_key,
-            )
-            .await?;
-
-        // Merge the pending commit if the DS accepted it. The queue handler
-        // runs concurrently and may have already merged it while processing
-        // the DS commit response, so we might also skip it here.
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                let stored_epoch = Group::load(&mut *txn, group.group_id())
-                    .await?
-                    .context("self group not found")?
-                    .mls_group()
-                    .epoch();
-                if stored_epoch > group.mls_group().epoch() {
-                    debug!("self-group add commit already merged by the queue handler");
-                    return Ok(());
-                }
-                group.merge_pending_commit(txn, None, ds_timestamp).await?;
-                group
-                    .group_mut()
-                    .store_update(&mut *txn, None, None)
-                    .await?;
-                Ok(())
-            })
+        let chat_id = self.self_chat_id().await?.context("no self group")?;
+        self.execute_job(ChatOperation::add_client(chat_id, key_package, device))
             .await?;
 
         Ok(())

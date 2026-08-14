@@ -4,15 +4,15 @@
 
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 /// The grid one message sits in: an avatar column, the sender's name above the
-/// bubble, the bubble itself, and a footer under it.
+/// bubble, and the bubble itself.
 ///
 /// An incoming row hugs the leading edge and keeps a gutter on the far side, an
 /// [outgoing] one mirrors both. Everything but the geometry comes from the
-/// host: [avatar] and [footer] are slots, and the row itself never knows who
-/// sent what.
+/// host: [avatar] is a slot, and the row itself never knows who sent what.
 class MessageRow extends StatelessWidget {
   const MessageRow({
     super.key,
@@ -23,7 +23,6 @@ class MessageRow extends StatelessWidget {
     this.reserveAvatar = false,
     this.senderName,
     this.onTapSender,
-    this.footer,
   });
 
   final MessageRowTokens tokens;
@@ -57,16 +56,12 @@ class MessageRow extends StatelessWidget {
   /// chat where the other person is already on screen.
   final VoidCallback? onTapSender;
 
-  /// Delivery status, timestamp, or anything else trailing the message. Takes
-  /// the bubble's text inset, so it lines up under the first character.
-  final Widget? footer;
-
   @override
   Widget build(BuildContext context) {
+    final avatar = this.avatar;
     final withAvatar = !outgoing && (reserveAvatar || avatar != null);
     final inset = tokens.contentInset(withAvatar: withAvatar);
     final name = senderName;
-    final footer = this.footer;
 
     return Padding(
       padding: tokens.padding,
@@ -85,11 +80,19 @@ class MessageRow extends StatelessWidget {
               child: _SenderName(name: name, onTap: onTapSender),
             ),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            // The message reports the bubble's bottom edge as its baseline,
+            // see [MessageBand]. Aligning on it rather than on the row's end
+            // keeps the avatar level with the bubble however much the message
+            // hangs below it (reaction chips, the stamp under the bubble).
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
-                SizedBox(width: tokens.avatarSize, child: _avatar()),
+                SizedBox(
+                  width: tokens.avatarSize,
+                  child: avatar != null ? _BottomBaseline(child: avatar) : null,
+                ),
                 const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
@@ -107,30 +110,31 @@ class MessageRow extends StatelessWidget {
               if (!outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
             ],
           ),
-          if (footer != null)
-            Padding(
-              padding: outgoing
-                  ? const EdgeInsets.only(
-                      right: MessageRowTokens.bubbleTextInset,
-                    )
-                  : EdgeInsets.only(left: inset),
-              child: footer,
-            ),
         ],
       ),
     );
   }
+}
 
-  /// The avatar lifted off the foot of its column. We use a transform rather
-  /// than a margin, so the lift never adds to the row's height.
-  Widget? _avatar() {
-    final avatar = this.avatar;
-    if (avatar == null) return null;
-    return Transform.translate(
-      offset: const Offset(0, -MessageRowTokens.avatarBottomNudge),
-      child: avatar,
-    );
-  }
+/// Gives the avatar a baseline at its bottom edge, which is what the row
+/// aligns with the baseline the message reports at the bubble's bottom edge.
+class _BottomBaseline extends SingleChildRenderObjectWidget {
+  const _BottomBaseline({required Widget child}) : super(child: child);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderBottomBaseline();
+}
+
+class _RenderBottomBaseline extends RenderProxyBox {
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => size.height;
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => child?.getDryLayout(constraints).height ?? constraints.smallest.height;
 }
 
 /// The sender's name, kept out of the selection so drag-selecting a

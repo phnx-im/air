@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/core.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -48,8 +47,8 @@ class YouDetailPane extends StatelessWidget {
     final section =
         context.select(
           (NavigationCubit cubit) => switch (cubit.state) {
-            NavigationState_Home(:final home) => home.youSection,
-            NavigationState_Intro() => null,
+            HomeState(:final home) => home.youSection,
+            IntroState() => null,
           },
         ) ??
         YouSection.profile;
@@ -68,6 +67,7 @@ class YouDetailPane extends StatelessWidget {
         bottomFadeHeight: YouFadeTokens.desktop.bottomHeight,
         topSolidStop: YouFadeTokens.topSolidStop,
         bottomSolidStop: YouFadeTokens.bottomSolidStop,
+        topOpacity: YouFadeTokens.topOpacity,
         bottomOpacity: YouFadeTokens.bottomOpacity,
         contentTopPadding: Chrome.barHeight,
         contentBottomPadding: Chrome.barHeight,

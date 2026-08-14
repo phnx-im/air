@@ -576,6 +576,21 @@ pub(crate) mod test {
         }
     }
 
+    pub(crate) fn test_pending_attachment_record(
+        remote_attachment_id: RemoteAttachmentId,
+    ) -> PendingAttachmentRecord {
+        PendingAttachmentRecord {
+            remote_attachment_id,
+            size: 123,
+            enc_alg: EncryptionAlgorithm::Aes256Gcm,
+            enc_key: b"key".to_vec(),
+            nonce: b"nonce".to_vec(),
+            aad: b"aad".to_vec(),
+            hash_alg: HashAlgorithm::Sha3_512,
+            hash: b"hash".to_vec(),
+        }
+    }
+
     #[sqlx::test]
     async fn attachment_record_store_and_load(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
