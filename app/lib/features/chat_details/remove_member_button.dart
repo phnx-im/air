@@ -36,10 +36,7 @@ class RemoveMemberButton extends StatelessWidget {
       onPressed: () => _confirmRemoval(context),
       size: compact ? ButtonSize.small : ButtonSize.current,
       type: ButtonType.secondary,
-      // Compact repeats on every row of a member list, where a run of red
-      // chips reads as an alarm rather than as one destructive choice. The
-      // danger tone is reserved for the single action on a profile.
-      tone: compact ? ButtonTone.normal : ButtonTone.danger,
+      tone: ButtonTone.danger,
       state: enabled ? ButtonState.active : ButtonState.disabled,
       label: loc.removeUserButton_text,
     );

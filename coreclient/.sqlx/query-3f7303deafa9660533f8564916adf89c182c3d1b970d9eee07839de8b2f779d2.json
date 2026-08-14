@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT message_id AS \"message_id: MessageId\"\n                        FROM message\n                        WHERE mimi_id = ? AND status != ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: MessageId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3f7303deafa9660533f8564916adf89c182c3d1b970d9eee07839de8b2f779d2"
+}

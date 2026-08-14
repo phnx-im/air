@@ -9,6 +9,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::{Context, Result, anyhow, bail};
+use chrono::{DateTime, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
@@ -232,14 +233,25 @@ impl CoreUser {
             .await
     }
 
+    /// Deletes the chat's message draft, but only the version with
+    /// `updated_at`. Newer drafts stored concurrently are ignored.
+    pub async fn delete_message_draft_version(
+        &self,
+        chat_id: ChatId,
+        updated_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                MessageDraft::delete_version(txn, chat_id, updated_at).await?;
+                Ok(())
+            })
+            .await
+    }
+
     pub async fn commit_all_message_drafts(&self) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
             .await
-    }
-
-    pub async fn messages_count(&self, chat_id: ChatId) -> anyhow::Result<usize> {
-        Ok(self.try_messages_count(chat_id).await?)
     }
 
     pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {

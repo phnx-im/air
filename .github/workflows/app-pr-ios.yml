@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build iOS app (PR)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Heavy platform builds only run on PRs that touch the platform, and always in
+# the merge queue.
+on:
+  pull_request:
+    branches: ["main", "release/**"]
+    paths:
+      - "app/ios/**"
+      - "app/fastlane/apple.rb"
+      - "app/fastlane/ios.rb"
+      - "app/rust_builder/ios/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "scripts/build-name.sh"
+      - "scripts/build-number.sh"
+      - ".github/workflows/ios.yml"
+      - ".github/workflows/app-pr-ios.yml"
+      - ".github/actions/setup-buildenv/**"
+  merge_group:
+
+jobs:
+  ios:
+    uses: ./.github/workflows/ios.yml
+    secrets: inherit

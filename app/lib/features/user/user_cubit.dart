@@ -19,7 +19,10 @@ class UserCubit implements StateStreamableSource<UiUser> {
     required User user,
     required NavigationCubit navigationCubit,
     required Stream<AppState> appStateStream,
-  }) : _impl = UserCubitBase(user: user, navigation: navigationCubit.base) {
+  }) : _impl = UserCubitBase(
+         user: user,
+         notificationContext: navigationCubit.notificationContext,
+       ) {
     _appStateSubscription = appStateStream.listen((appState) {
       _appState = appState;
       _impl.setAppState(appState: appState);

@@ -6,7 +6,6 @@
 target
 .DS_Store
 .vscode
-backend/test_certs/
 .ruby-version
 .env
 app/macos/build

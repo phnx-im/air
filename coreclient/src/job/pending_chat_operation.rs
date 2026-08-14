@@ -8,7 +8,7 @@ use aircommon::{
         RoomPolicyIdentity, UserCredential,
         keys::{SelfGroupSigningKey, UserSigningKey},
     },
-    crypto::indexed_aead::keys::UserProfileKey,
+    crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
         ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
@@ -17,9 +17,12 @@ use aircommon::{
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::{group::GroupData, self_group::SettingsUpdate};
+use airprotos::client::{
+    group::GroupData,
+    self_group::{LinkedDevice, SettingsUpdate},
+};
 use anyhow::{Context as _, anyhow, bail};
-use apqmls::commit_builder::ApqCommitMessageBundle;
+use apqmls::{commit_builder::ApqCommitMessageBundle, messages::ApqKeyPackage};
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::{group::GroupId, prelude::KeyPackageRef};
@@ -32,9 +35,14 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
-        CoreUser, api_clients::ApiClients, own_client_info::OwnClientInfo,
-        update_key::update_chat_attributes, user_settings::SettingChanges,
+        CoreUser,
+        api_clients::ApiClients,
+        linked_devices::merge_device_entry_locally,
+        own_client_info::OwnClientInfo,
+        update_key::update_chat_attributes,
+        user_settings::{SettingChanges, SettingsUpdateExt},
     },
+    contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
@@ -99,6 +107,9 @@ pub(super) enum OperationType {
     SelfGroupRemove {
         params: Box<ApqGroupOperationParamsOut>,
     },
+    SelfGroupAdd {
+        params: Box<ApqGroupOperationParamsOut>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -112,6 +123,7 @@ impl std::fmt::Display for OperationType {
             OperationType::SettingsUpdate { .. } => "settings_update",
             OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
             OperationType::SelfGroupRemove { .. } => "self_group_remove",
+            OperationType::SelfGroupAdd { .. } => "self_group_add",
         };
         f.write_str(label)
     }
@@ -169,7 +181,8 @@ impl OperationType {
             | OperationType::ApqOther { .. }
             | OperationType::SettingsUpdate { .. }
             | OperationType::SelfGroupKeyPackageUpload { .. }
-            | OperationType::SelfGroupRemove { .. } => true,
+            | OperationType::SelfGroupRemove { .. }
+            | OperationType::SelfGroupAdd { .. } => true,
         }
     }
 
@@ -187,7 +200,9 @@ impl OperationType {
     fn marks_commit_failed(&self) -> bool {
         !matches!(
             self,
-            OperationType::SettingsUpdate { .. } | OperationType::SelfGroupRemove { .. }
+            OperationType::SettingsUpdate { .. }
+                | OperationType::SelfGroupRemove { .. }
+                | OperationType::SelfGroupAdd { .. }
         )
     }
 }
@@ -473,6 +488,7 @@ impl PendingChatOperation {
             }
             OperationType::SettingsUpdate { params, .. }
             | OperationType::SelfGroupRemove { params }
+            | OperationType::SelfGroupAdd { params }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
@@ -837,6 +853,77 @@ impl PendingChatOperation {
         let job = Self::new(
             self_group.into_verified_group(),
             OperationType::SelfGroupRemove {
+                params: Box::new(params),
+            },
+        );
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Stages a self-group commit adding a newly linked device's leaf.
+    ///
+    /// The commit also carries the device's metadata entry, so the siblings
+    /// learn it without a second commit advancing the epoch behind our back.
+    pub(super) async fn create_add_client(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &UserSigningKey,
+        wai_key: &WelcomeAttributionInfoEarKey,
+        key_package: ApqKeyPackage,
+        device: LinkedDevice,
+    ) -> anyhow::Result<Self> {
+        let own_info = OwnClientInfo::load(&mut *txn).await?;
+        let self_group_id = own_info.self_group_id.context("no self group")?;
+        let self_group_signer = own_info
+            .self_group_signing_key
+            .context("self-group signer was not initialized")?;
+
+        let mut group = Group::load_clean_verified(&mut *txn, &self_group_id)
+            .await?
+            .context("self group not found")?;
+
+        // Room policy is keyed on the client id, so reject a credential whose id
+        // is already a member of the self group before staging the add.
+        group.validate_self_group_add(key_package.t_credential())?;
+
+        let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
+
+        // Record the new device locally and let the add commit carry the
+        // resulting snapshot.
+        merge_device_entry_locally(&mut *txn, device).await?;
+        let update = SettingsUpdate::collect(&mut *txn).await?;
+        let settings_proposal = group
+            .group_mut()
+            .self_group_settings_proposal(txn, &update)
+            .await?;
+
+        let invitee = PreparedInvitee {
+            add_info: ContactAddInfos {
+                key_package: ContactKeyPackage::Apq(Box::new(key_package)),
+                user_profile_key,
+            },
+            wai_key: wai_key.clone(),
+            // Only used for its `user_id()`, which binds the profile-key
+            // ciphertext. The new device shares our user id.
+            user_credential: signer.credential().clone(),
+        };
+        // Sign the commit with the per-device self-group key, but sign the WAI
+        // with the shared client key so the joiner can verify it against our
+        // user credential.
+        let params = group
+            .group_mut()
+            .stage_apq_invite(
+                &mut *txn,
+                &self_group_signer,
+                signer,
+                vec![invitee],
+                Some(settings_proposal),
+            )
+            .await?
+            .map_err(|validation| anyhow!("self-group invite leaf validation: {validation:?}"))?;
+
+        let job = Self::new(
+            group,
+            OperationType::SelfGroupAdd {
                 params: Box::new(params),
             },
         );
@@ -1844,6 +1931,227 @@ mod tests {
                 Ok(())
             })
             .await?;
+
+        Ok(())
+    }
+
+    /// Builds a single-member APQ self group owned by a fresh client, with the
+    /// own client info and own user profile key the self-group paths expect.
+    async fn setup_self_group() -> anyhow::Result<(DbAccess, UserId, UserSigningKey, GroupId)> {
+        use openmls::components::vc_derivation_info::VC_COMPONENT_ID;
+
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+
+        let t_group_id = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        let pq_group_id = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                OwnClientInfo {
+                    qs_user_id: QsUserId::random(),
+                    qs_client_id: QsClientId::random(&mut rand::rng()),
+                    user_id: user_id.clone(),
+                    client_id: self_group_signing_key.credential().client_id(),
+                    self_group_id: Some(t_group_id.clone()),
+                    self_group_signing_key: Some(self_group_signing_key.clone()),
+                }
+                .store(&mut *txn)
+                .await?;
+
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &leaf_signer,
+                    user_id.clone(),
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id.clone(),
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(vec![VC_COMPONENT_ID]),
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+
+                UserProfileKey::random(&user_id)?
+                    .store_own(&mut *txn)
+                    .await?;
+
+                Ok(())
+            })
+            .await?;
+
+        Ok((pool, user_id, user_signing_key, t_group_id))
+    }
+
+    /// An APQ key package for a second device joining the self group, shaped
+    /// like the one a freshly linked device generates.
+    async fn linked_device_key_package(
+        txn: &mut WriteDbTransaction<'_>,
+        user_id: &UserId,
+        client_id: Uuid,
+    ) -> anyhow::Result<ApqKeyPackage> {
+        use aircommon::{
+            crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
+            identifiers::{ClientConfig, QsReference},
+            mls_group_config::{
+                APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+                default_key_package_extensions, default_leaf_node_extensions,
+                self_group_leaf_node_capabilities,
+            },
+        };
+        use apqmls::authentication::ApqCredentialWithKey;
+        use openmls::prelude::{
+            Credential, CredentialType, CredentialWithKey, Extension, SignaturePublicKey,
+            UnknownExtension,
+        };
+        use tls_codec::Serialize as _;
+
+        use crate::groups::openmls_provider::AirOpenMlsProvider;
+
+        let signer = SelfGroupSigningKey::generate(client_id)?;
+        let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
+        let credential = ApqCredentialWithKey {
+            t_credential: CredentialWithKey {
+                credential: signer.credential().to_credential()?,
+                signature_key: signature_key.clone(),
+            },
+            pq_credential: CredentialWithKey {
+                credential: Credential::new(CredentialType::Basic, Vec::new()),
+                signature_key,
+            },
+        };
+
+        let client_reference = QsReference {
+            client_homeserver_domain: user_id.domain().clone(),
+            sealed_reference: ClientConfig {
+                client_id: QsClientId::random(&mut rand::rng()),
+                push_token_ear_key: None,
+            }
+            .encrypt(
+                ClientIdDecryptionKey::generate()?.encryption_key(),
+                &[],
+                &[],
+            ),
+        };
+        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
+        leaf_node_extensions.add(Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(client_reference.tls_serialize_detached()?),
+        ))?;
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let bundle = ApqKeyPackage::builder()
+            .key_package_extensions(default_key_package_extensions::<AirComponent>())
+            .leaf_node_capabilities(self_group_leaf_node_capabilities())
+            .leaf_node_extensions(leaf_node_extensions)
+            .build(&provider, APQ_CIPHERSUITE, &signer, credential)?;
+        Ok(bundle.into_key_package())
+    }
+
+    fn linked_device(client_id: Uuid) -> LinkedDevice {
+        LinkedDevice {
+            client_id,
+            name: "Work laptop".to_owned(),
+            ..Default::default()
+        }
+    }
+
+    /// The linking add stages its commit and persists the job in the same
+    /// transaction, so a send that never happens leaves a job to retry rather
+    /// than an orphaned staged commit.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn create_add_client_stores_job_with_staged_commit() -> anyhow::Result<()> {
+        let (pool, user_id, signing_key, group_id) = setup_self_group().await?;
+        let wai_key = WelcomeAttributionInfoEarKey::random()?;
+        let client_id = Uuid::new_v4();
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                PendingChatOperation::create_add_client(
+                    txn,
+                    &signing_key,
+                    &wai_key,
+                    key_package,
+                    linked_device(client_id),
+                )
+                .await?;
+                Ok(())
+            })
+            .await?;
+
+        // The job is persisted and decodes back into an add.
+        let job = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+            .await?
+            .expect("add job should be stored");
+        assert!(matches!(job.operation, OperationType::SelfGroupAdd { .. }));
+        assert_eq!(job.operation.to_string(), "self_group_add");
+
+        // The staged commit is durable, so the self group no longer loads clean.
+        assert!(
+            Group::load_clean_verified(pool.read().await?, &group_id)
+                .await
+                .is_err(),
+            "the staged add commit should block a clean load"
+        );
+
+        Ok(())
+    }
+
+    /// Discarding the add job (what a foreign commit and the terminal-failure
+    /// path both do) drops the staged commit, so the self group is usable
+    /// again instead of being wedged by a failed linking attempt.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn discard_add_client_op_unwedges_self_group() -> anyhow::Result<()> {
+        let (pool, user_id, signing_key, group_id) = setup_self_group().await?;
+        let wai_key = WelcomeAttributionInfoEarKey::random()?;
+        let client_id = Uuid::new_v4();
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let mut job = PendingChatOperation::create_add_client(
+                    txn,
+                    &signing_key,
+                    &wai_key,
+                    key_package,
+                    linked_device(client_id),
+                )
+                .await?;
+
+                job.group
+                    .group_mut()
+                    .discard_pending_commit(&mut *txn)
+                    .await?;
+                job.discard(txn).await?;
+                Ok(())
+            })
+            .await?;
+
+        assert!(
+            PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+                .await?
+                .is_none(),
+            "the add job should be gone"
+        );
+        assert!(
+            Group::load_clean_verified(pool.read().await?, &group_id)
+                .await?
+                .is_some(),
+            "the self group should load clean again"
+        );
 
         Ok(())
     }

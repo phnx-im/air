@@ -31,9 +31,7 @@ sealed class RegistrationState with _$RegistrationState {
     ImageData? avatar,
     @Default('') String displayName,
     @Default(false) bool isSigningUp,
-    @Default(false) bool needsUsernameOnboarding,
     @Default(false) bool isCheckingInvitationCode,
-    String? usernameSuggestion,
     String? invitationCode,
   }) = _RegistrationState;
 
@@ -62,21 +60,6 @@ class RegistrationCubit extends Cubit<RegistrationState> {
 
   void setInvitationCode(String value) {
     emit(state.copyWith(invitationCode: value));
-  }
-
-  void startUsernameOnboarding(String suggestion) {
-    emit(
-      state.copyWith(
-        needsUsernameOnboarding: true,
-        usernameSuggestion: suggestion,
-      ),
-    );
-  }
-
-  void clearUsernameOnboarding() {
-    emit(
-      state.copyWith(needsUsernameOnboarding: false, usernameSuggestion: null),
-    );
   }
 
   Future<CheckInvitationCodeError?> submitInvitationCode() async {

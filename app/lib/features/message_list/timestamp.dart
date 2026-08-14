@@ -34,7 +34,8 @@ class MessageTimestamp extends StatelessWidget {
   );
 }
 
-/// A message's time, on its own.
+/// A message's time, on its own. Set like the stamp under a bubble, so an
+/// event's time and a message's read as the same label.
 class Timestamp extends StatelessWidget {
   const Timestamp(this.timestamp, {super.key});
 
@@ -46,8 +47,9 @@ class Timestamp extends StatelessWidget {
     builder: (context, label) => SelectionContainer.disabled(
       child: Text(
         label,
-        style: typeScale.body.xs.style(
+        style: typeScale.body.mini.style(
           color: SemanticPalette.of(context).text.tertiary,
+          tight: true,
         ),
       ),
     ),

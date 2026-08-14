@@ -12,7 +12,7 @@ import 'package:air/ds/components/button_cta/button_cta.dart';
 import 'package:air/ds/components/button_cta/button_cta_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/patterns/modal/modal_tokens.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
@@ -26,6 +26,8 @@ import 'package:air/features/chat_details/block_contact_button.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
 import 'package:air/features/chat_details/unblock_contact_button.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart'
+    show ChatDebugInfoRow;
 
 final _log = Logger("ContactDetails");
 
@@ -64,36 +66,21 @@ class MemberRelationship extends Relationship {
       'MemberRelationship(groupChatId: $groupChatId, groupTitle: $groupTitle, canKick: $canKick)';
 }
 
-/// Body of the profile modal, shared by a one-to-one chat and a group member.
-///
-/// Content only: the card, the header, and the scrolling are the modal's, so
-/// this contributes the horizontal inset and the space the last button needs
-/// to clear the bottom of the screen.
+/// Body of the profile modal page, shared by a one-to-one chat and a group
+/// member. Content only: surface, header, and scrolling are the modal's.
 class ContactDetailsView extends StatelessWidget {
   const ContactDetailsView({
     super.key,
     required this.profile,
     required this.relationship,
-    this.onNameLongPress,
   });
 
   final UiUserProfile profile;
   final Relationship relationship;
 
-  /// Developer hook. The modal header has no room for one, so it hangs off the
-  /// name instead.
-  final VoidCallback? onNameLongPress;
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: ModalShellTokens.contentPaddingLeft,
-        right: ModalShellTokens.contentPaddingRight,
-        // A full-screen modal ends above the home indicator, a card ends at its
-        // own edge.
-        bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
-      ),
+    return ModalBody(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -101,13 +88,10 @@ class ContactDetailsView extends StatelessWidget {
 
           const SizedBox(height: S.s16),
 
-          GestureDetector(
-            onLongPress: onNameLongPress,
-            child: Text(
-              profile.displayName,
-              textAlign: TextAlign.center,
-              style: typeScale.header.xl.style(weight: Weight.emphasized),
-            ),
+          Text(
+            profile.displayName,
+            textAlign: TextAlign.center,
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
           const SizedBox(height: S.s24),
@@ -117,6 +101,10 @@ class ContactDetailsView extends StatelessWidget {
           const SizedBox(height: S.s24),
 
           _Actions(profile: profile, relationship: relationship),
+
+          // Only for a contact: a member's pane is scoped to the group, so the
+          // chat behind it is not this profile's.
+          if (relationship is ContactRelationship) const ChatDebugInfoRow(),
         ],
       ),
     );
@@ -145,6 +133,7 @@ class _CallToActions extends StatelessWidget {
             tokens: tokens,
             label: loc.contactDetailsScreen_chat,
             icon: AppIconType.messageCircle,
+            type: ButtonCTAType.secondary,
             onPressed: () => _handleChat(context),
           ),
         ),
@@ -157,7 +146,8 @@ class _CallToActions extends StatelessWidget {
             label: loc.contactDetailsScreen_viewSafetyCode,
             icon: AppIconType.shield,
             type: ButtonCTAType.secondary,
-            onPressed: () => context.read<NavigationCubit>().openSafetyCode(),
+            onPressed: () =>
+                context.read<NavigationCubit>().openSafetyCode(profile.userId),
           ),
         ),
 
@@ -247,11 +237,7 @@ class _Actions extends StatelessWidget {
             memberId: profile.userId,
             displayName: profile.displayName,
             enabled: true,
-            onRemoved: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-            },
+            onRemoved: () => context.read<NavigationCubit>().pop(),
           ),
         ],
       ],

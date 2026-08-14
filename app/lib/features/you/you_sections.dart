@@ -4,6 +4,9 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/developer/developer_settings_section.dart';
+import 'package:air/features/developer/developer_unlock.dart';
+import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -11,10 +14,10 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
 import 'package:air/features/you/change_display_name_dialog.dart';
-import 'package:air/features/you/contact_us_screen.dart';
+import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
-import 'package:air/features/you/invitation_codes_screen.dart';
+import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -39,6 +42,7 @@ String youSectionTitle(AppLocalizations loc, YouSection section) =>
       YouSection.account => loc.userSettingsScreen_accountSection,
       YouSection.preferences => loc.youSection_preferences,
       YouSection.help => loc.userSettingsScreen_helpSection,
+      YouSection.developer => loc.youSection_developer,
     };
 
 /// The body of one profile section, shared by the two-pane detail pane and the
@@ -56,6 +60,7 @@ class YouSectionContent extends StatelessWidget {
     YouSection.account => const AccountSection(),
     YouSection.preferences => const PreferencesSection(),
     YouSection.help => const HelpSection(),
+    YouSection.developer => const DeveloperSettingsContent(),
   };
 }
 
@@ -274,18 +279,7 @@ class _InviteCodes extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return FieldContainer(
-      onTap: () {
-        // Note: We want to share the cubit between this widget and the screen,
-        // because we want to synchronize the data between the two.
-        final invitationCodesCubit = context.read<InvitationCodesCubit>();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => InvitationCodesScreen(
-              invitationCodesCubit: invitationCodesCubit,
-            ),
-          ),
-        );
-      },
+      onTap: () => showInvitationCodes(context),
       child: Row(
         children: [
           AppIcon.users(color: palette.text.secondary, size: S.s24),
@@ -394,7 +388,6 @@ class PreferencesSection extends HookWidget {
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
-        if (DeviceType.isDesktop) const _InterfaceScaleSetting(),
       ],
     );
   }
@@ -468,53 +461,6 @@ class _SendOnEnterSetting extends HookWidget {
   }
 }
 
-class _InterfaceScaleSetting extends HookWidget {
-  const _InterfaceScaleSetting();
-
-  @override
-  Widget build(BuildContext context) {
-    // The slider carries the user's own factor, which systemInterfaceScale
-    // multiplies rather than replaces, so it starts at 100% everywhere.
-    final interfaceScale = useState(
-      useMemoized(() {
-        final value = context.read<UserSettingsCubit>().state.interfaceScale;
-        return 100 * (value ?? 1.0);
-      }),
-    );
-
-    final loc = AppLocalizations.of(context);
-
-    return FieldContainer(
-      height: null,
-      child: Row(
-        children: [
-          Text(
-            loc.userSettingsScreen_interfaceScale,
-            style: typeScale.body.regular.style(),
-          ),
-          const SizedBox(width: S.s12),
-          Expanded(
-            child: Slider(
-              min: 50,
-              max: 300,
-              divisions: ((300 - 50) / 10).truncate(),
-              value: interfaceScale.value,
-              label: interfaceScale.value.truncate().toString(),
-              activeColor: SemanticPalette.of(context).text.secondary,
-              onChanged: (value) => interfaceScale.value = value,
-              onChangeEnd: (value) {
-                context.read<UserSettingsCubit>().setInterfaceScale(
-                  value: value / 100,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Help: reaching us, and telling us which build you are on.
 class HelpSection extends HookWidget {
   const HelpSection({super.key});
@@ -530,16 +476,13 @@ class HelpSection extends HookWidget {
     };
 
     final loc = AppLocalizations.of(context);
+    final onVersionTap = useDeveloperUnlock();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FieldContainer(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const ContactUsScreen()),
-            );
-          },
+          onTap: () => showContactUs(context),
           child: Row(
             children: [
               Text(
@@ -554,6 +497,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Clipboard.setData(ClipboardData(text: version));
+            // The row carries the unlock gesture, whose countdown already says
+            // what a run of taps is doing.
+            if (onVersionTap()) return;
             showSnackBarStandalone(
               (loc) =>
                   SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),

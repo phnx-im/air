@@ -18,9 +18,7 @@ void main() {
   group('ChatHeaderBar', () {
     Widget buildSubject({
       String? subtitle,
-      double scrollOffset = 0,
       VoidCallback? onTap,
-      VoidCallback? onLongPress,
       VoidCallback? onBack,
       bool backEmphasized = false,
     }) => MaterialApp(
@@ -32,9 +30,7 @@ void main() {
           name: _name,
           subtitle: subtitle,
           avatar: const SizedBox.square(dimension: S.s32),
-          scrollOffset: scrollOffset,
           onTap: onTap,
-          onLongPress: onLongPress,
           onBack: onBack,
           backEmphasized: backEmphasized,
         ),
@@ -49,20 +45,8 @@ void main() {
       return tester.widget<Container>(pill).decoration! as BoxDecoration;
     }
 
-    testWidgets('pill is invisible at the top of the conversation', (
-      tester,
-    ) async {
+    testWidgets('pill always carries its surface', (tester) async {
       await tester.pumpWidget(buildSubject());
-
-      expect(pillDecoration(tester).color!.a, 0.0);
-    });
-
-    testWidgets('pill is fully revealed past the reveal distance', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        buildSubject(scrollOffset: ChatHeaderBarTokens.pillRevealDistance),
-      );
 
       expect(
         pillDecoration(tester).color,
@@ -86,14 +70,6 @@ void main() {
           bar.right - ChatHeaderBarTokens.paddingRight - tokens.slotSize / 2;
       await tester.tapAt(Offset(slotCenter, bar.center.dy));
       expect(taps, 1);
-    });
-
-    testWidgets('onLongPress fires from the pill', (tester) async {
-      var longPresses = 0;
-      await tester.pumpWidget(buildSubject(onLongPress: () => longPresses++));
-
-      await tester.longPress(find.text(_name));
-      expect(longPresses, 1);
     });
 
     testWidgets('back button renders and fires only when handled', (

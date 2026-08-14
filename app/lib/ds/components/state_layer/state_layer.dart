@@ -3,7 +3,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+
+/// Whether a pointer hover lifts the surface, and on what terms.
+enum HoverLift {
+  /// The surface only takes the hover wash.
+  none,
+
+  /// The surface lifts whatever width it ends up at.
+  always,
+
+  /// The surface lifts only where it picked its own width. One stretched to a
+  /// width it was handed grows into the margin around it rather than within
+  /// its own footprint, which reads as the layout shifting under the pointer.
+  selfSized,
+}
 
 /// One interaction layer every interactive component shares, so they all
 /// hover, press and focus the same way:
@@ -34,7 +49,7 @@ class StateLayer extends StatefulWidget {
     this.selected = false,
     this.press = true,
     this.pressScale,
-    this.hoverScale = false,
+    this.hoverLift = HoverLift.none,
   });
 
   /// Corner radius of the host surface, so the wash and focus ring line up.
@@ -75,10 +90,10 @@ class StateLayer extends StatefulWidget {
   /// value only to deviate.
   final bool? pressScale;
 
-  /// Whether a pointer hover lifts the surface to [StateTokens.hoverScale].
-  /// The lift only applies while hovered, so it is inert on touch and a call
-  /// site can pass a plain true.
-  final bool hoverScale;
+  /// Whether a pointer hover lifts the surface to [StateTokens.hoverScale],
+  /// and on what terms. The lift only applies while hovered, so it is inert
+  /// on touch and a call site can name its terms unconditionally.
+  final HoverLift hoverLift;
 
   @override
   State<StateLayer> createState() => _StateLayerState();
@@ -137,7 +152,9 @@ class _StateLayerState extends State<StateLayer> {
     // Touch dips on press, a pointer lifts on hover and settles back on click.
     final scale = pressed
         ? (pressScale ? StateTokens.pressedScale : 1.0)
-        : (widget.hoverScale && hovered ? StateTokens.hoverScale : 1.0);
+        : (widget.hoverLift != HoverLift.none && hovered
+              ? StateTokens.hoverScale
+              : 1.0);
 
     // Only grab gestures when there's actually something to tap, so an inert
     // surface doesn't swallow a tap meant for a handler behind it.
@@ -162,10 +179,15 @@ class _StateLayerState extends State<StateLayer> {
         onTapCancel: interactive ? () => _setPressed(false) : null,
         onTap: interactive ? widget.onTap : null,
         onLongPress: interactive ? widget.onLongPress : null,
-        child: AnimatedScale(
-          scale: scale,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 1.0, end: scale),
           duration: duration,
           curve: Effect.easeOutQuart,
+          builder: (context, value, child) => _LiftScale(
+            scale: value,
+            selfSizedOnly: widget.hoverLift == HoverLift.selfSized,
+            child: child!,
+          ),
           child: Stack(
             // Pass constraints straight through so a component still fills a
             // tight slot instead of shrinking down to its content width.
@@ -219,5 +241,110 @@ class _StateLayerState extends State<StateLayer> {
         ),
       ),
     );
+  }
+}
+
+/// Scales its child around its center the way `Transform.scale` does, except
+/// that under [selfSizedOnly] a scale above 1.0 is dropped where the width
+/// came from the parent.
+class _LiftScale extends SingleChildRenderObjectWidget {
+  const _LiftScale({
+    required this.scale,
+    required this.selfSizedOnly,
+    required Widget super.child,
+  });
+
+  final double scale;
+  final bool selfSizedOnly;
+
+  @override
+  _RenderLiftScale createRenderObject(BuildContext context) =>
+      _RenderLiftScale(scale, selfSizedOnly);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderLiftScale renderObject) {
+    renderObject
+      ..scale = scale
+      ..selfSizedOnly = selfSizedOnly;
+  }
+}
+
+class _RenderLiftScale extends RenderProxyBox {
+  _RenderLiftScale(this._scale, this._selfSizedOnly);
+
+  double _scale;
+
+  set scale(double value) {
+    if (_scale == value) {
+      return;
+    }
+    _scale = value;
+    markNeedsPaint();
+  }
+
+  bool _selfSizedOnly;
+
+  set selfSizedOnly(bool value) {
+    if (_selfSizedOnly == value) {
+      return;
+    }
+    _selfSizedOnly = value;
+    markNeedsPaint();
+  }
+
+  /// The scale we actually paint. Only growth is held back: a dip lands inside
+  /// the footprint wherever the width came from. Reading the value rather than
+  /// the hover flag also keeps the settle-back from popping, since every frame
+  /// on the way down is held at 1.0 too.
+  double get _effective =>
+      _scale > 1.0 && _selfSizedOnly && constraints.hasTightWidth
+      ? 1.0
+      : _scale;
+
+  Matrix4 get _transform {
+    final center = size.center(Offset.zero);
+    final scale = _effective;
+    return Matrix4.translationValues(center.dx, center.dy, 0.0)
+      ..multiply(Matrix4.diagonal3Values(scale, scale, 1.0))
+      ..multiply(Matrix4.translationValues(-center.dx, -center.dy, 0.0));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child == null) {
+      return;
+    }
+    if (_effective == 1.0) {
+      layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    layer = context.pushTransform(
+      needsCompositing,
+      offset,
+      _transform,
+      super.paint,
+      oldLayer: layer is TransformLayer ? layer as TransformLayer? : null,
+    );
+  }
+
+  // A lift paints past the layout box, so the box check is skipped and the
+  // child answers for the overhang, the same way `RenderTransform` does it.
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      hitTestChildren(result, position: position);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      result.addWithPaintTransform(
+        transform: _transform,
+        position: position,
+        hitTest: (result, position) =>
+            super.hitTestChildren(result, position: position),
+      );
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    transform.multiply(_transform);
   }
 }

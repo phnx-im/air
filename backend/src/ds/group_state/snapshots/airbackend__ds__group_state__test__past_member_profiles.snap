@@ -1,0 +1,6 @@
+---
+source: backend/src/ds/group_state/mod.rs
+expression: serialized
+extension: tls
+snapshot_kind: binary
+---

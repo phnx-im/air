@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM message_draft WHERE chat_id = ? AND updated_at = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "b72857dd8964991c44a5f64941dc0b5a23173f3d9f8d657c1d1b1b6bab97607f"
+}

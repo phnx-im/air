@@ -35,10 +35,8 @@ const CURRENT_MESSAGE_VERSION: u16 = 1;
 pub struct VersionedMessage {
     #[serde(default = "VersionedMessage::unknown_message_version")]
     pub(crate) version: u16,
-    // We store the message as bytes, because deserialization depends on
-    // other parameters.
-    // TODO: Do not use cbor unsigned int array here
-    #[serde(default)]
+    // TODO: avoid double serde
+    #[serde(default, with = "aircommon::codec::bytes_compat")]
     pub(crate) content: Vec<u8>,
 }
 
@@ -914,6 +912,68 @@ impl ChatMessage {
         .await
     }
 
+    /// Drop the message's own reply reference.
+    pub(crate) async fn clear_in_reply_to(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE message SET in_reply_to_mimi_id = NULL WHERE message_id = ?",
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    /// Load all messages still carrying an edit timestamp.
+    pub(crate) async fn load_all_edited(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<Self>> {
+        query_as!(
+            SqlChatMessage,
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE edited_at IS NOT NULL
+            "#,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+        .map(|records| records.into_iter().map(ChatMessage::from).collect())
+    }
+
+    /// Reset a placeholder row left behind by an older client version: a
+    /// deletion stamps no edit time, and the status must report the deletion
+    /// again after a peer's status report overwrote it.
+    pub(crate) async fn mark_deleted(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<()> {
+        let status: u8 = MessageStatus::Deleted.into();
+        query!(
+            "UPDATE message SET status = ?, edited_at = NULL WHERE message_id = ?",
+            status,
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn load_message_ids_in_reply_to_mimi_id(
         mut connection: impl ReadConnection,
         mimi_id: &MimiId,
@@ -1088,9 +1148,23 @@ pub(crate) mod tests {
         salt: [u8; 16],
         timestamp: TimeStamp,
     ) -> ChatMessage {
+        test_chat_message_from(
+            chat_id,
+            salt,
+            timestamp,
+            UserId::random("localhost".parse().unwrap()),
+        )
+    }
+
+    pub(crate) fn test_chat_message_from(
+        chat_id: ChatId,
+        salt: [u8; 16],
+        timestamp: TimeStamp,
+        sender: UserId,
+    ) -> ChatMessage {
         let chat_message_id = MessageId::random();
         let message = Message::Content(Box::new(ContentMessage::new(
-            UserId::random("localhost".parse().unwrap()),
+            sender,
             false,
             MimiContent::simple_markdown_message("Hello world!".to_string(), salt),
             &GroupId::from_slice(&[0]),
@@ -1235,6 +1309,25 @@ pub(crate) mod tests {
         let bytes = PersistenceCodec::to_vec(&*VERSIONED_MESSAGE).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn versioned_message_deserializes_legacy_unsigned_int_array() {
+        #[derive(serde::Serialize)]
+        struct LegacyVersionedMessage<'a> {
+            version: u16,
+            content: &'a Vec<u8>,
+        }
+
+        let legacy_message = LegacyVersionedMessage {
+            version: VERSIONED_MESSAGE.version,
+            content: &VERSIONED_MESSAGE.content,
+        };
+        let bytes = PersistenceCodec::to_vec(&legacy_message).unwrap();
+        let decoded = PersistenceCodec::from_slice::<VersionedMessage>(&bytes).unwrap();
+
+        assert_eq!(decoded.version, VERSIONED_MESSAGE.version);
+        assert_eq!(decoded.content, VERSIONED_MESSAGE.content);
     }
 
     #[test]

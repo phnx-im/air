@@ -164,7 +164,6 @@ class MockMessageListCubit implements MessageListCubit {
     bool hasNewer = false,
     bool isAtBottom = false,
     int? firstUnreadIndex,
-    int unreadCount = 0,
     int revision = 0,
   }) {
     _syncMessageData(
@@ -174,7 +173,6 @@ class MockMessageListCubit implements MessageListCubit {
       hasNewer: hasNewer,
       isAtBottom: isAtBottom,
       firstUnreadIndex: firstUnreadIndex,
-      unreadCount: unreadCount,
       revision: revision,
     );
     if (!_controller.isClosed) {
@@ -196,7 +194,6 @@ class MockMessageListCubit implements MessageListCubit {
       isAtBottom: prev.isAtBottom,
       // Appending at the newest end leaves oldest-first indices unchanged.
       firstUnreadIndex: prev.firstUnreadIndex,
-      unreadCount: prev.unreadCount,
       revision: prev.revision + 1,
     );
     _state = MessageListStateWrapper.test(
@@ -222,7 +219,6 @@ class MockMessageListCubit implements MessageListCubit {
     bool hasNewer = false,
     bool isAtBottom = false,
     int? firstUnreadIndex,
-    int unreadCount = 0,
     int revision = 0,
   }) {
     // AnchoredListData: index 0 = newest; messages is oldest-first
@@ -234,7 +230,6 @@ class MockMessageListCubit implements MessageListCubit {
       hasNewer: hasNewer,
       isAtBottom: isAtBottom,
       firstUnreadIndex: firstUnreadIndex,
-      unreadCount: unreadCount,
       revision: revision,
     );
     _state = MessageListStateWrapper.test(

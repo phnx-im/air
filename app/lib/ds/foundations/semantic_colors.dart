@@ -131,7 +131,6 @@ class MessagePalette {
   final Color selfListPrefix, otherListPrefix;
   final Color selfTableBorder, otherTableBorder;
   final Color selfCheckboxCheck, otherCheckboxCheck;
-  final Color selfEditedLabel, otherEditedLabel;
 
   const MessagePalette({
     required this.selfBackground,
@@ -144,8 +143,6 @@ class MessagePalette {
     required this.otherTableBorder,
     required this.selfCheckboxCheck,
     required this.otherCheckboxCheck,
-    required this.selfEditedLabel,
-    required this.otherEditedLabel,
   });
 }
 
@@ -529,8 +526,6 @@ final MessagePalette _lightMessagePalette = MessagePalette(
   otherTableBorder: Primitive.neutral(NeutralShade.s300),
   selfCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
   otherCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
-  selfEditedLabel: Primitive.neutral(NeutralShade.s600),
-  otherEditedLabel: Primitive.neutral(NeutralShade.s600),
 );
 
 final MessagePalette _darkMessagePalette = MessagePalette(
@@ -544,6 +539,4 @@ final MessagePalette _darkMessagePalette = MessagePalette(
   otherTableBorder: Primitive.neutral(NeutralShade.s800),
   selfCheckboxCheck: Primitive.neutral(NeutralShade.s0),
   otherCheckboxCheck: Primitive.neutral(NeutralShade.s0),
-  selfEditedLabel: Primitive.neutral(NeutralShade.s400),
-  otherEditedLabel: Primitive.neutral(NeutralShade.s400),
 );

@@ -5,6 +5,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/features/chat_details/mute_button.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
@@ -24,12 +25,21 @@ const desktopPhysicalSize = Size(1400, 1000);
 void main() {
   group('ContactDetails', () {
     late MockChatDetailsCubit chatDetailsCubit;
+    late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() {
       chatDetailsCubit = MockChatDetailsCubit();
+      userSettingsCubit = MockUserSettingsCubit();
     });
 
-    Widget buildSubject(Relationship relationship, {UiChatMuted? mutedUntil}) {
+    Widget buildSubject(
+      Relationship relationship, {
+      UiChatMuted? mutedUntil,
+      bool developerMode = false,
+    }) {
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(UserSettings(developerMode: developerMode));
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(
           chat: UiChatDetails(
@@ -37,7 +47,6 @@ void main() {
             status: chat.status,
             chatType: chat.chatType,
             lastUsed: chat.lastUsed,
-            messagesCount: chat.messagesCount,
             unreadMessages: chat.unreadMessages,
             lastMessage: chat.lastMessage,
             draft: chat.draft,
@@ -48,8 +57,11 @@ void main() {
           members: const [],
         ),
       );
-      return BlocProvider<ChatDetailsCubit>.value(
-        value: chatDetailsCubit,
+      return MultiBlocProvider(
+        providers: [
+          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testLightTheme,
@@ -195,5 +207,43 @@ void main() {
         matchesGoldenFile('goldens/contact_details_mute_menu_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    testWidgets('debug info is absent outside developer mode', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          ContactRelationship(contactChatId: chat.id, isBlocked: false),
+        ),
+      );
+
+      expect(find.text('Debug info'), findsNothing);
+    });
+
+    testWidgets('debug info renders in developer mode', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          ContactRelationship(contactChatId: chat.id, isBlocked: false),
+          developerMode: true,
+        ),
+      );
+
+      expect(find.text('Debug info'), findsOneWidget);
+    });
+
+    testWidgets('a member carries no debug info', (tester) async {
+      // The member pane is scoped to the group, so the chat behind it is not
+      // this profile's.
+      await tester.pumpWidget(
+        buildSubject(
+          MemberRelationship(
+            groupChatId: chat.id,
+            groupTitle: 'Group',
+            canKick: true,
+          ),
+          developerMode: true,
+        ),
+      );
+
+      expect(find.text('Debug info'), findsNothing);
+    });
   });
 }

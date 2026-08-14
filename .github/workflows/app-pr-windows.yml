@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build Windows app (PR)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Heavy platform builds only run on PRs that touch the platform, and always in
+# the merge queue.
+on:
+  pull_request:
+    branches: ["main", "release/**"]
+    paths:
+      - "app/windows/**"
+      - "app/rust_builder/windows/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "scripts/build-name.sh"
+      - "scripts/build-number.sh"
+      - ".github/workflows/windows.yml"
+      - ".github/workflows/app-pr-windows.yml"
+      - ".github/actions/setup-buildenv/**"
+  merge_group:
+
+jobs:
+  windows:
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit

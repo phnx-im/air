@@ -589,6 +589,9 @@ impl Chat {
 
         let unread_status: u8 = MessageStatus::Unread.into();
         let delivered_status: u8 = MessageStatus::Delivered.into();
+        let deleted_status: u8 = MessageStatus::Deleted.into();
+        // A deleted message has nothing left to report on, and the report would
+        // overwrite the sender's own deleted row.
         let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
             Record,
             r#"SELECT
@@ -603,6 +606,7 @@ impl Chat {
                 AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
+                AND m.status != ?8
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
             chat_id,
             old_timestamp,
@@ -611,6 +615,7 @@ impl Chat {
             unread_status,
             delivered_status,
             timestamp,
+            deleted_status,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
@@ -653,10 +658,13 @@ impl Chat {
 
     pub(crate) async fn global_unread_message_count(
         mut connection: impl ReadConnection,
+        own_user: &UserId,
     ) -> sqlx::Result<usize> {
-        // We exclude deleted messages and messages from muted chats.
+        // We exclude deleted messages, messages from muted chats and messages
+        // sent by another device of ours.
         let excluded_status: u8 = MessageStatus::Deleted.into();
         let now = Utc::now();
+        let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
         query_scalar!(
             r#"SELECT
                 COUNT(m.chat_id) AS "count: i64"
@@ -668,12 +676,15 @@ impl Chat {
                 c.chat_id = m.chat_id
                 AND m.sender_user_uuid IS NOT NULL
                 AND m.sender_user_domain IS NOT NULL
+                AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND m.timestamp > c.last_read
                 AND m.status != ?1
             WHERE
                 c.muted_until IS NULL OR c.muted_until <= ?2"#,
             excluded_status,
             now,
+            our_user_uuid,
+            our_user_domain,
         )
         .fetch_one(connection.as_mut())
         .await
@@ -746,32 +757,15 @@ impl Chat {
         Ok(())
     }
 
-    pub(crate) async fn messages_count(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-    ) -> sqlx::Result<usize> {
-        query_scalar!(
-            r#"SELECT
-                COUNT(*) AS "count: _"
-            FROM
-                message m
-            WHERE
-                m.chat_id = ?
-                AND m.sender_user_uuid IS NOT NULL
-                AND m.sender_user_domain IS NOT NULL"#,
-            chat_id
-        )
-        .fetch_one(connection.as_mut())
-        .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
-    }
-
     pub(crate) async fn unread_messages_count(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
+        own_user: &UserId,
     ) -> sqlx::Result<usize> {
-        // We exclude deleted messages from the unread count.
+        // We exclude deleted messages and messages sent by another device of
+        // ours from the unread count.
         let excluded_status: u8 = MessageStatus::Deleted.into();
+        let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
         query_scalar!(
             r#"SELECT
                 COUNT(*) AS "count: _"
@@ -781,6 +775,7 @@ impl Chat {
                 chat_id = ?1
                 AND sender_user_uuid IS NOT NULL
                 AND sender_user_domain IS NOT NULL
+                AND (sender_user_uuid != ?3 OR sender_user_domain != ?4)
                 AND status != ?2
                 AND timestamp >
                 (
@@ -792,7 +787,9 @@ impl Chat {
                         chat_id = ?1
                 )"#,
             chat_id,
-            excluded_status
+            excluded_status,
+            our_user_uuid,
+            our_user_domain,
         )
         .fetch_one(connection.as_mut())
         .await
@@ -1041,7 +1038,10 @@ pub mod tests {
 
     use crate::{
         InactiveChat, MessageDraft,
-        chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
+        chats::messages::persistence::tests::{
+            test_chat_message, test_chat_message_at, test_chat_message_from,
+            test_chat_message_with_salt,
+        },
         clients::block_contact::BlockedContact,
         db::access::DbAccess,
     };
@@ -1391,6 +1391,8 @@ pub mod tests {
         let pool = DbAccess::for_tests(pool);
         let mut connection = pool.write().await?;
 
+        let own_user = UserId::random("localhost".parse().unwrap());
+
         let chat_a = test_chat();
         chat_a.store(&mut connection).await?;
 
@@ -1403,13 +1405,7 @@ pub mod tests {
         message_a.store(&mut connection).await?;
         message_b.store(&mut connection).await?;
 
-        let n = Chat::messages_count(&mut connection, chat_a.id()).await?;
-        assert_eq!(n, 1);
-
-        let n = Chat::messages_count(&mut connection, chat_b.id()).await?;
-        assert_eq!(n, 1);
-
-        let n = Chat::global_unread_message_count(&mut connection).await?;
+        let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 2);
 
         let mut txn = connection.begin().await?;
@@ -1419,41 +1415,62 @@ pub mod tests {
         )
         .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut connection, chat_a.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_a.id(), &own_user).await?;
         assert_eq!(n, 1);
 
         let mut txn = connection.begin().await?;
         Chat::mark_as_read(&mut txn, [(chat_a.id(), Utc::now())]).await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut connection, chat_a.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_a.id(), &own_user).await?;
         assert_eq!(n, 0);
 
         let mut txn = connection.begin().await?;
-        Chat::mark_as_read_until_message_id(
-            &mut txn,
-            chat_b.id(),
-            MessageId::random(),
-            &UserId::random("localhost".parse().unwrap()),
-        )
-        .await?;
+        Chat::mark_as_read_until_message_id(&mut txn, chat_b.id(), MessageId::random(), &own_user)
+            .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut connection, chat_b.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_b.id(), &own_user).await?;
         assert_eq!(n, 1);
 
         let mut txn = connection.begin().await?;
-        Chat::mark_as_read_until_message_id(
-            &mut txn,
-            chat_b.id(),
-            message_b.id(),
-            &UserId::random("localhost".parse().unwrap()),
-        )
-        .await?;
+        Chat::mark_as_read_until_message_id(&mut txn, chat_b.id(), message_b.id(), &own_user)
+            .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut connection, chat_b.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_b.id(), &own_user).await?;
         assert_eq!(n, 0);
 
-        let n = Chat::global_unread_message_count(&mut connection).await?;
+        let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 0);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn own_messages_are_not_unread(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let own_user = UserId::random("localhost".parse().unwrap());
+
+        let chat = test_chat();
+        chat.store(&mut connection).await?;
+
+        // Echo of a message sent by another device of ours.
+        let own_message =
+            test_chat_message_from(chat.id(), [0; 16], Utc::now().into(), own_user.clone());
+        own_message.store(&mut connection).await?;
+
+        let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
+        assert_eq!(n, 0);
+        let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
+        assert_eq!(n, 0);
+
+        let other_message = test_chat_message_with_salt(chat.id(), [1; 16]);
+        other_message.store(&mut connection).await?;
+
+        let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
+        assert_eq!(n, 1);
+        let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
+        assert_eq!(n, 1);
 
         Ok(())
     }
@@ -1495,7 +1512,7 @@ pub mod tests {
         txn.commit().await?;
         assert!(marked);
 
-        let n = Chat::unread_messages_count(&mut connection, chat.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
         assert_eq!(n, 0, "both messages should be read");
 
         // Now attempt to mark as read with the older message (simulating a
@@ -1508,7 +1525,7 @@ pub mod tests {
         txn.commit().await?;
         assert!(!marked, "last_read must not go backwards");
 
-        let n = Chat::unread_messages_count(&mut connection, chat.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
         assert_eq!(n, 0, "messages must still be read after stale mark-as-read");
 
         Ok(())

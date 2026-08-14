@@ -119,23 +119,6 @@ extension ImageDataExtension on Uint8List {
       ImageData(data: this, hash: ImageData.computeHash(this));
 }
 
-extension NavigationStateExtension on NavigationState {
-  ChatId? get chatId => switch (this) {
-    NavigationState_Home(:final home) => home.chatId,
-    NavigationState_Intro() => null,
-  };
-
-  ChatId? get openChatId => switch (this) {
-    NavigationState_Home(:final home) when home.chatOpen => home.chatId,
-    NavigationState_Intro() || NavigationState_Home() => null,
-  };
-
-  bool get safetyCodeOpen => switch (this) {
-    NavigationState_Home(:final home) => home.safetyCodeOpen,
-    NavigationState_Intro() => false,
-  };
-}
-
 extension DartNotificationServiceExtension on DartNotificationService {
   static DartNotificationService create() => DartNotificationService(
     send: sendNotification,

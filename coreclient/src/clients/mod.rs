@@ -41,7 +41,7 @@ use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
@@ -667,7 +667,7 @@ impl CoreUser {
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
-        info!(
+        debug!(
             sequence_number_start,
             "listening to QS queue from sequence number"
         );
@@ -729,7 +729,7 @@ impl CoreUser {
 
     /// Returns how many messages are marked as unread across all chats.
     pub async fn global_unread_messages_count(&self) -> sqlx::Result<usize> {
-        Chat::global_unread_message_count(self.db().read().await?).await
+        Chat::global_unread_message_count(self.db().read().await?, self.user_id()).await
     }
 
     /// Returns how many messages in the chat with the given ID are
@@ -743,14 +743,10 @@ impl CoreUser {
         else {
             return 0;
         };
-        Chat::unread_messages_count(connection, chat_id)
+        Chat::unread_messages_count(connection, chat_id, self.user_id())
             .await
             .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
             .unwrap_or(0)
-    }
-
-    pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
     pub async fn set_chat_muted_until(

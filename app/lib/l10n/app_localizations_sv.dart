@@ -32,9 +32,6 @@ class AppLocalizationsSv extends AppLocalizations {
       'Dela användarnamn med personer du vill ansluta till. Användarnamn är inte synliga för andra, inte ens dina Air-kontakter. Du kan ha upp till 5 användarnamn.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Gränssnittsskala';
-
-  @override
   String get userSettingsScreen_help => 'Hjälp';
 
   @override
@@ -102,9 +99,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get addMembersScreen_addMembers => 'Lägg till medlemmar';
-
-  @override
-  String get addMembersScreen_error_noActiveChat => 'en aktiv chatt krävs';
 
   @override
   String get contactDetailsScreen_title => 'Profil';
@@ -266,6 +260,15 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get changeGroupTitleDialog_confirm => 'Spara';
+
+  @override
+  String get unsavedInputDialog_title => 'Är du säker på att du vill stänga?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Avbryt';
+
+  @override
+  String get unsavedInputDialog_close => 'Stäng';
 
   @override
   String get introScreen_serverLabel =>
@@ -821,6 +824,15 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageBubble_failedToSend => 'Kunde inte skicka';
 
   @override
+  String get messageBubble_sent => 'Skickat';
+
+  @override
+  String get messageBubble_delivered => 'Levererat';
+
+  @override
+  String get messageBubble_read => 'Läst';
+
+  @override
   String get chatList_newContact => 'Ny kontakt';
 
   @override
@@ -920,6 +932,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get composer_editMessage => 'Redigera meddelande';
 
   @override
+  String get composer_error_sendMessage =>
+      'Kunde inte skicka meddelandet. Försök igen.';
+
+  @override
   String get composer_error_attachment =>
       'Kunde inte ladda upp bilagan. Försök igen.';
 
@@ -955,19 +971,19 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get attachment_gallery => 'Galleri';
+  String get attachment_images => 'Bilder';
 
   @override
   String get attachment_camera => 'Kamera';
 
   @override
-  String get attachment_file => 'Fil';
+  String get attachment_otherFiles => 'Andra filer';
 
   @override
   String get attachment_notFound => 'Bilagan är inte längre tillgänglig.';
 
   @override
-  String get textMessage_edited => 'redigerad';
+  String get textMessage_edited => 'Redigerad';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1068,7 +1084,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Kunde inte rapportera spam. Försök igen.';
 
   @override
-  String get helpScreen_contactUs => 'Kontakta oss';
+  String get helpScreen_contactUs => 'Kontakta Air';
 
   @override
   String get helpScreen_versionInfo => 'Versionsinformation';
@@ -1080,7 +1096,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get licensesScreen_title => 'Licenser';
 
   @override
-  String get contactUsScreen_title => 'Kontakt';
+  String get contactUsScreen_title => 'Kontakta Air';
 
   @override
   String get contactUsScreen_subject => 'Ämne';
@@ -1089,7 +1105,8 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body => 'Meddelande';
 
   @override
-  String get contactUsScreen_includeLogs => 'Dela dina loggar';
+  String get contactUsScreen_includeLogs =>
+      'Dela dina loggar (det hjälper Air att åtgärda buggar)';
 
   @override
   String get contactUsScreen_composeEmail => 'Skriv e-post';
@@ -1151,6 +1168,9 @@ class AppLocalizationsSv extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get groupDetails_seeAll => 'Visa alla';
 
   @override
   String get groupMembersScreen_title => 'Gruppmedlemmar';
@@ -1309,15 +1329,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_newMessages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count nya meddelanden',
-      one: '$count nytt meddelande',
-    );
-    return '$_temp0';
-  }
+  String get messageList_newMessages => 'Nya meddelanden';
 
   @override
   String get messageList_reactions_react => 'Reagera';

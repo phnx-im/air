@@ -7,12 +7,11 @@ import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:flutter/widgets.dart';
 
 /// The grid one message sits in: an avatar column, the sender's name above the
-/// bubble, the bubble itself, and a footer under it.
+/// bubble, and the bubble itself.
 ///
 /// An incoming row hugs the leading edge and keeps a gutter on the far side, an
 /// [outgoing] one mirrors both. Everything but the geometry comes from the
-/// host: [avatar] and [footer] are slots, and the row itself never knows who
-/// sent what.
+/// host: [avatar] is a slot, and the row itself never knows who sent what.
 class MessageRow extends StatelessWidget {
   const MessageRow({
     super.key,
@@ -23,7 +22,6 @@ class MessageRow extends StatelessWidget {
     this.reserveAvatar = false,
     this.senderName,
     this.onTapSender,
-    this.footer,
   });
 
   final MessageRowTokens tokens;
@@ -57,16 +55,11 @@ class MessageRow extends StatelessWidget {
   /// chat where the other person is already on screen.
   final VoidCallback? onTapSender;
 
-  /// Delivery status, timestamp, or anything else trailing the message. Takes
-  /// the bubble's text inset, so it lines up under the first character.
-  final Widget? footer;
-
   @override
   Widget build(BuildContext context) {
     final withAvatar = !outgoing && (reserveAvatar || avatar != null);
     final inset = tokens.contentInset(withAvatar: withAvatar);
     final name = senderName;
-    final footer = this.footer;
 
     return Padding(
       padding: tokens.padding,
@@ -107,15 +100,6 @@ class MessageRow extends StatelessWidget {
               if (!outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
             ],
           ),
-          if (footer != null)
-            Padding(
-              padding: outgoing
-                  ? const EdgeInsets.only(
-                      right: MessageRowTokens.bubbleTextInset,
-                    )
-                  : EdgeInsets.only(left: inset),
-              child: footer,
-            ),
         ],
       ),
     );

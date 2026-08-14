@@ -138,12 +138,6 @@ abstract class AppLocalizations {
   /// **'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.'**
   String get userSettingsScreen_userNamesDescription;
 
-  /// No description provided for @userSettingsScreen_interfaceScale.
-  ///
-  /// In en, this message translates to:
-  /// **'Interface scale'**
-  String get userSettingsScreen_interfaceScale;
-
   /// No description provided for @userSettingsScreen_help.
   ///
   /// In en, this message translates to:
@@ -275,12 +269,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add members'**
   String get addMembersScreen_addMembers;
-
-  /// No description provided for @addMembersScreen_error_noActiveChat.
-  ///
-  /// In en, this message translates to:
-  /// **'an active chat is obligatory'**
-  String get addMembersScreen_error_noActiveChat;
 
   /// No description provided for @contactDetailsScreen_title.
   ///
@@ -563,6 +551,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save'**
   String get changeGroupTitleDialog_confirm;
+
+  /// No description provided for @unsavedInputDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to close?'**
+  String get unsavedInputDialog_title;
+
+  /// No description provided for @unsavedInputDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get unsavedInputDialog_cancel;
+
+  /// No description provided for @unsavedInputDialog_close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get unsavedInputDialog_close;
 
   /// No description provided for @introScreen_serverLabel.
   ///
@@ -1437,6 +1443,24 @@ abstract class AppLocalizations {
   /// **'Failed to send'**
   String get messageBubble_failedToSend;
 
+  /// No description provided for @messageBubble_sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent'**
+  String get messageBubble_sent;
+
+  /// No description provided for @messageBubble_delivered.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered'**
+  String get messageBubble_delivered;
+
+  /// No description provided for @messageBubble_read.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get messageBubble_read;
+
   /// No description provided for @chatList_newContact.
   ///
   /// In en, this message translates to:
@@ -1599,6 +1623,12 @@ abstract class AppLocalizations {
   /// **'Edit message'**
   String get composer_editMessage;
 
+  /// No description provided for @composer_error_sendMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send message. Try again.'**
+  String get composer_error_sendMessage;
+
   /// No description provided for @composer_error_attachment.
   ///
   /// In en, this message translates to:
@@ -1635,11 +1665,11 @@ abstract class AppLocalizations {
   /// **'{size} {byteUnit}'**
   String attachmentSize(double size, Object byteUnit);
 
-  /// No description provided for @attachment_gallery.
+  /// No description provided for @attachment_images.
   ///
   /// In en, this message translates to:
-  /// **'Gallery'**
-  String get attachment_gallery;
+  /// **'Images'**
+  String get attachment_images;
 
   /// No description provided for @attachment_camera.
   ///
@@ -1647,11 +1677,11 @@ abstract class AppLocalizations {
   /// **'Camera'**
   String get attachment_camera;
 
-  /// No description provided for @attachment_file.
+  /// No description provided for @attachment_otherFiles.
   ///
   /// In en, this message translates to:
-  /// **'File'**
-  String get attachment_file;
+  /// **'Other files'**
+  String get attachment_otherFiles;
 
   /// No description provided for @attachment_notFound.
   ///
@@ -1662,7 +1692,7 @@ abstract class AppLocalizations {
   /// No description provided for @textMessage_edited.
   ///
   /// In en, this message translates to:
-  /// **'edited'**
+  /// **'Edited'**
   String get textMessage_edited;
 
   /// No description provided for @textMessage_hiddenPlaceholder.
@@ -1848,7 +1878,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpScreen_contactUs.
   ///
   /// In en, this message translates to:
-  /// **'Contact us'**
+  /// **'Contact Air'**
   String get helpScreen_contactUs;
 
   /// No description provided for @helpScreen_versionInfo.
@@ -1872,7 +1902,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactUsScreen_title.
   ///
   /// In en, this message translates to:
-  /// **'Contact'**
+  /// **'Contact Air'**
   String get contactUsScreen_title;
 
   /// No description provided for @contactUsScreen_subject.
@@ -1890,7 +1920,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactUsScreen_includeLogs.
   ///
   /// In en, this message translates to:
-  /// **'Share your logs'**
+  /// **'Share your logs (this helps Air fix bugs)'**
   String get contactUsScreen_includeLogs;
 
   /// No description provided for @contactUsScreen_composeEmail.
@@ -1988,6 +2018,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
+
+  /// No description provided for @groupDetails_seeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get groupDetails_seeAll;
 
   /// No description provided for @groupMembersScreen_title.
   ///
@@ -2280,8 +2316,8 @@ abstract class AppLocalizations {
   /// No description provided for @messageList_newMessages.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} new message} other {{count} new messages}}'**
-  String messageList_newMessages(int count);
+  /// **'New messages'**
+  String get messageList_newMessages;
 
   /// No description provided for @messageList_reactions_react.
   ///

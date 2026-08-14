@@ -608,4 +608,103 @@ void main() {
       }
     });
   });
+
+  group('AnchoredList duplicate ids', () {
+    // Duplicate ids violate the id contract but must render gracefully
+    // instead of corrupting the sliver's element tree.
+    Widget buildDuplicatesSubject({required AnchoredListData<int> data}) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 400,
+              height: 800,
+              child: AnchoredList<int>(
+                data: data,
+                idExtractor: (item) => item,
+                canLoadOlder: false,
+                canLoadNewer: false,
+                paginationThreshold: 100,
+                itemBuilder: (context, item, index) => SizedBox(
+                  height: 100,
+                  child: ColoredBox(
+                    color: Colors.blue,
+                    child: Text('item $item'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Future<AnchoredListData<int>> pumpSubject(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final data = AnchoredListData<int>(List.generate(30, (index) => index));
+      await tester.pumpWidget(buildDuplicatesSubject(data: data));
+      await tester.pump();
+      return data;
+    }
+
+    testWidgets('a duplicate id survives subsequent inserts', (tester) async {
+      final data = await pumpSubject(tester);
+
+      // Item 5 is already on screen, so both copies get a live element.
+      data.insert(0, 5);
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'duplicate insert');
+
+      // Every following insert shifts the indices of both copies.
+      data.insert(0, 100);
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'first shift');
+
+      data.insert(0, 101);
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'second shift');
+
+      // The older copy sits in the cache region below the visible window,
+      // hence skipOffstage: false.
+      expect(find.text('item 5', skipOffstage: false), findsNWidgets(2));
+      expect(find.text('item 100'), findsOneWidget);
+      expect(find.text('item 101'), findsOneWidget);
+    });
+
+    testWidgets('an identity-colliding update survives a subsequent insert', (
+      tester,
+    ) async {
+      final data = await pumpSubject(tester);
+
+      // The row at index 3 takes on the id of the row at index 7.
+      data.update(3, 7);
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'identity collision');
+
+      data.insert(0, 100);
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'shift after collision');
+
+      expect(find.text('item 7', skipOffstage: false), findsNWidgets(2));
+    });
+
+    testWidgets('unique ids keep element reuse working', (tester) async {
+      final data = await pumpSubject(tester);
+
+      data.insert(0, 100);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      expect(find.text('item 100'), findsOneWidget);
+      for (var item = 0; item < 7; item++) {
+        expect(find.text('item $item'), findsOneWidget);
+      }
+    });
+  });
 }

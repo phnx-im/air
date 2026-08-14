@@ -15,7 +15,8 @@ export 'package:air/ds/components/button/button_tokens.dart';
 /// dips, a pointer lifts.
 ///
 /// The pill takes the width it's given, with [alignment] placing the content
-/// inside it.
+/// inside it. A pill that was handed its width only washes on hover: lifting
+/// would push its edges out into the margin around it.
 class Button extends StatelessWidget {
   const Button({
     super.key,
@@ -57,7 +58,7 @@ class Button extends StatelessWidget {
       enabled: active,
       onTap: onPressed,
       onLongPress: onLongPress,
-      hoverScale: true,
+      hoverLift: HoverLift.selfSized,
       background: DecoratedBox(
         decoration: BoxDecoration(
           color: colors.fill,
@@ -123,31 +124,22 @@ class Button extends StatelessWidget {
     final fill = switch ((type, tone)) {
       (.primary, .danger) => palette.function.danger,
       (.primary, .normal) => palette.accentBrand.primary,
-      (.secondary, _) => palette.accentBrand.tertiary,
+      (.secondary, .danger) => palette.fill.tertiary,
+      (.secondary, .normal) => palette.fill.secondary,
     };
 
     final label = switch ((type, tone)) {
       (.primary, .danger) => palette.function.neutral.white,
       (.primary, .normal) => palette.function.neutral.toggleWhite,
       (.secondary, .danger) => palette.function.danger,
-      (.secondary, .normal) => palette.function.neutral.toggleBlack,
-    };
-
-    // A secondary button carries a tinted fill rather than a solid one, so its
-    // glyph takes the text color instead of the label's tone color.
-    final glyph = switch (type) {
-      ButtonType.secondary => palette.text.primary,
-      ButtonType.primary => label,
+      (.secondary, .normal) => palette.text.primary,
     };
 
     final fade = state == ButtonState.disabled
         ? StateTokens.disabledContent
         : Alpha.a100;
+    final content = label.withValues(alpha: label.a * fade);
 
-    return (
-      fill: fill,
-      label: label.withValues(alpha: label.a * fade),
-      glyph: glyph.withValues(alpha: glyph.a * fade),
-    );
+    return (fill: fill, label: content, glyph: content);
   }
 }

@@ -13,15 +13,20 @@ class AppBarBackButton extends StatelessWidget {
     super.key,
     this.foregroundColor,
     this.backgroundColor,
+    this.leadingInset = S.s16,
   });
 
   final Color? foregroundColor;
   final Color? backgroundColor;
 
+  /// Inset from the bar's leading edge to the button. Wider where native
+  /// window controls float over that corner, see [Chrome.windowControlsInset].
+  final double leadingInset;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: S.s16),
+      padding: EdgeInsets.only(left: leadingInset),
       child: Align(
         alignment: Alignment.centerLeft,
         child: ButtonIcon(

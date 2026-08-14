@@ -23,6 +23,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
+    chats::messages::edit::purge_stale_deleted_messages,
     clients::{own_client_info::OwnClientInfo, store::ClientRecord},
     db::{access::DbAccess, notification::DbNotificationsSender},
     utils::global_lock::GlobalLock,
@@ -261,6 +262,13 @@ pub async fn open_client_db(
     // The client-id migration defaults the column to the nil UUID for clients that existed
     // before it.
     OwnClientInfo::backfill_client_id(db.write().await?).await?;
+
+    // Deletions processed by older client versions left state behind. The
+    // purge reruns on every open, so a failure only defers it and must not
+    // block opening the DB.
+    if let Err(error) = purge_stale_deleted_messages(&db).await {
+        error!(%error, "Failed to purge stale deleted messages");
+    }
 
     Ok(db)
 }

@@ -41,7 +41,6 @@ class MessageListStateWrapper {
   bool get isAtBottom => state.isAtBottom;
   bool? get isConnectionChat => state.isConnectionChat;
   int? get firstUnreadIndex => state.firstUnreadIndex;
-  int get unreadCount => state.unreadCount;
 
   UiChatMessage? messageAt(int oldestFirstIndex) {
     final idx = messageData.length - oldestFirstIndex - 1;

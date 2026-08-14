@@ -107,7 +107,7 @@ class ButtonIcon extends StatelessWidget {
         enabled: enabled,
         onTap: onPressed,
         onLongPress: onLongPress,
-        hoverScale: true,
+        hoverLift: HoverLift.always,
         background: _Surface(
           variant: variant,
           fill: bg,
