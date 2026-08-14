@@ -757,26 +757,6 @@ impl Chat {
         Ok(())
     }
 
-    pub(crate) async fn messages_count(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-    ) -> sqlx::Result<usize> {
-        query_scalar!(
-            r#"SELECT
-                COUNT(*) AS "count: _"
-            FROM
-                message m
-            WHERE
-                m.chat_id = ?
-                AND m.sender_user_uuid IS NOT NULL
-                AND m.sender_user_domain IS NOT NULL"#,
-            chat_id
-        )
-        .fetch_one(connection.as_mut())
-        .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
-    }
-
     pub(crate) async fn unread_messages_count(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
@@ -1424,12 +1404,6 @@ pub mod tests {
 
         message_a.store(&mut connection).await?;
         message_b.store(&mut connection).await?;
-
-        let n = Chat::messages_count(&mut connection, chat_a.id()).await?;
-        assert_eq!(n, 1);
-
-        let n = Chat::messages_count(&mut connection, chat_b.id()).await?;
-        assert_eq!(n, 1);
 
         let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 2);

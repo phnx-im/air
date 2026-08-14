@@ -47,7 +47,6 @@ void main() {
             status: chat.status,
             chatType: chat.chatType,
             lastUsed: chat.lastUsed,
-            messagesCount: chat.messagesCount,
             unreadMessages: chat.unreadMessages,
             lastMessage: chat.lastMessage,
             draft: chat.draft,

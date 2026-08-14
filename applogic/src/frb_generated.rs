@@ -11760,7 +11760,6 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
         let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
-        let mut var_messagesCount = <usize>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
@@ -11775,7 +11774,6 @@ impl SseDecode for crate::api::types::UiChatDetails {
             status: var_status,
             chat_type: var_chatType,
             last_used: var_lastUsed,
-            messages_count: var_messagesCount,
             unread_messages: var_unreadMessages,
             last_message: var_lastMessage,
             last_reaction: var_lastReaction,
@@ -14591,7 +14589,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.status.into_into_dart().into_dart(),
             self.chat_type.into_into_dart().into_dart(),
             self.last_used.into_into_dart().into_dart(),
-            self.messages_count.into_into_dart().into_dart(),
             self.unread_messages.into_into_dart().into_dart(),
             self.last_message.into_into_dart().into_dart(),
             self.last_reaction.into_into_dart().into_dart(),
@@ -17707,7 +17704,6 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
         <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
-        <usize>::sse_encode(self.messages_count, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
