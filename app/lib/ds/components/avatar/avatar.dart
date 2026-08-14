@@ -42,34 +42,27 @@ class Avatar extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final image = this.image;
 
-    // A picture covers the circle, so the fill under it only shows while it
-    // decodes: a flat tint reads as a placeholder, where the gradient would
-    // read as a fallback that then swaps out.
-    final circle = Container(
-      width: size,
-      height: size,
+    // One decoration, not a background plus a foreground. A BoxDecoration
+    // paints its color and then its image, which is the same result as laying
+    // the picture over a tinted circle, for one render object instead of two.
+    // The tint only shows while the picture decodes: a flat one reads as a
+    // placeholder, where the gradient would read as a fallback that then swaps
+    // out.
+    final circle = DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: image == null ? AvatarTokens.gradientFor(gradientSeed) : null,
         color: image == null ? null : palette.text.quaternary,
+        image: image == null
+            ? null
+            : DecorationImage(image: image, fit: BoxFit.cover),
       ),
-      foregroundDecoration: image == null
-          ? null
-          : BoxDecoration(
-              shape: BoxShape.circle,
-              image: DecorationImage(image: image, fit: BoxFit.cover),
-            ),
-      child: Center(
-        // We size the letter off the circle, so text scaling would spill it
-        // over the edge instead of enlarging it.
-        child: MediaQuery.withNoTextScaling(
-          child: Text(
-            displayName.characters.firstOrNull?.toUpperCase() ?? "",
-            style: typeScale.body.regular
-                .style(color: palette.function.neutral.white)
-                .copyWith(fontSize: AvatarTokens.letterSize(size)),
-          ),
-        ),
+      child: SizedBox.square(
+        dimension: size,
+        // Only the letter, and only where it can be seen. Under a picture it is
+        // a grapheme break, a paragraph layout and a MediaQuery dependency for
+        // something never painted.
+        child: image != null ? null : _Letter(displayName: displayName, size: size),
       ),
     );
 
@@ -80,6 +73,38 @@ class Avatar extends StatelessWidget {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(onTap: onTap, child: circle),
+    );
+  }
+}
+
+/// The fallback initial, drawn only when no picture covers it.
+class _Letter extends StatelessWidget {
+  const _Letter({required this.displayName, required this.size});
+
+  final String displayName;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    // Grapheme clusters rather than code units, so an emoji or a combining
+    // mark yields one character instead of half of one.
+    final initial = displayName.characters.firstOrNull?.toUpperCase();
+    if (initial == null || initial.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Center(
+      child: Text(
+        initial,
+        // We size the letter off the circle, so text scaling would spill it
+        // over the edge instead of enlarging it. Set on the Text rather than
+        // through MediaQuery.withNoTextScaling, which costs a Builder, a
+        // dependency on the whole MediaQueryData and a copy of it.
+        textScaler: TextScaler.noScaling,
+        style: typeScale.body.regular
+            .style(color: SemanticPalette.of(context).function.neutral.white)
+            .copyWith(fontSize: AvatarTokens.letterSize(size)),
+      ),
     );
   }
 }
