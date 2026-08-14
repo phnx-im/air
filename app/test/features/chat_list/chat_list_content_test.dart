@@ -191,7 +191,7 @@ final chats = [
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // A muted contact
+  // A muted contact, with our own reaction to the last message
   UiChatDetails(
     id: 6.chatId(),
     status: const UiChatStatus.active(),
@@ -207,12 +207,12 @@ final chats = [
       message: UiMessage_Content(
         UiContentMessage(
           sender: 3.userId(),
-          sent: false,
+          sent: true,
           edited: false,
           content: UiMimiContent(
-            plainBody: 'Hey, are you there?',
+            plainBody: "Don't forget: I muted this chat!",
             topicId: Uint8List(0),
-            content: simpleMessage('Hey, are you there?'),
+            content: simpleMessage("Don't forget: I muted this chat!"),
             attachments: [],
           ),
         ),
@@ -221,6 +221,7 @@ final chats = [
       reactions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
+    lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
     pendingCommitFailed: false,
   ),
   // Chat where I sent a picture
@@ -299,6 +300,41 @@ final chats = [
       status: UiMessageStatus.sent,
       reactions: [],
     ),
+    pendingCommitFailed: false,
+  ),
+  // A muted group, with a reaction from someone to our own message
+  UiChatDetails(
+    id: 9.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Fun with Friends', picture: null),
+    ),
+    unreadMessages: 0,
+    messagesCount: 10,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 10.messageId(),
+      chatId: 10.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 2.userId(),
+          sent: true,
+          edited: false,
+          content: UiMimiContent(
+            plainBody: "Heya!",
+            topicId: Uint8List(0),
+            content: simpleMessage("Heya!"),
+            attachments: [],
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    mutedUntil: const UiChatMuted.forever(),
+    lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
   ),
 ];
