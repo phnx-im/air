@@ -12,8 +12,6 @@ import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
 
 class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
-  static const int suggestionLimit = 5;
-
   /// Returns a trigger when the caret sits after a valid colon shortcode.
   @override
   AutocompleteTrigger? findTrigger(TextEditingValue value) {
@@ -61,7 +59,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   /// Fetch suggestions for a shortcode from the emoji repository.
   @override
   FutureOr<List<Emoji>> suggestionsFor(String query) async {
-    return EmojiRepository.search(query, limit: suggestionLimit);
+    return EmojiRepository.search(query);
   }
 
   /// Replace the trigger text with the selected emoji character.
@@ -90,6 +88,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
       borderRadius: BorderRadius.circular(CornerRadius.px16),
       elevation: 8,
       maxWidth: Measure.m320,
+      maxHeight: Measure.m240,
     );
   }
 

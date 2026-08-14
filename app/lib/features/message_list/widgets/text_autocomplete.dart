@@ -127,21 +127,28 @@ class TextAutocompleteController<T> {
         HardwareKeyboard.instance.isMetaPressed ||
         HardwareKeyboard.instance.isControlPressed;
 
-    if (evt is! KeyDownEvent) {
+    if (evt is! KeyDownEvent && evt is! KeyRepeatEvent) {
       return null;
     }
 
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.arrowDown) {
-      // Down arrow advances the highlight.
       _overlayController.moveHighlight(1);
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.arrowUp) {
-      // Up arrow moves the highlight backward.
       _overlayController.moveHighlight(-1);
       return KeyEventResult.handled;
     }
-    if (!modifierKeyPressed &&
+    if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageDown) {
+      _overlayController.movePage(1);
+      return KeyEventResult.handled;
+    }
+    if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageUp) {
+      _overlayController.movePage(-1);
+      return KeyEventResult.handled;
+    }
+    if (evt is KeyDownEvent &&
+        !modifierKeyPressed &&
         (evt.logicalKey == LogicalKeyboardKey.enter ||
             evt.logicalKey == LogicalKeyboardKey.tab)) {
       // Enter/Tab confirm the highlighted suggestion.
@@ -149,7 +156,7 @@ class TextAutocompleteController<T> {
         return KeyEventResult.handled;
       }
     }
-    if (evt.logicalKey == LogicalKeyboardKey.escape) {
+    if (evt is KeyDownEvent && evt.logicalKey == LogicalKeyboardKey.escape) {
       // Escape closes the overlay but keeps focus in the field.
       unawaited(_overlayController.dismiss());
       return KeyEventResult.handled;
