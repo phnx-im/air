@@ -78,6 +78,22 @@ pub(crate) struct Reaction {
     pub(crate) created_at: TimeStamp,
 }
 
+/// The most recent reaction on a message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LastReaction {
+    pub reactor: UserId,
+    pub emoji: String,
+}
+
+impl From<Reaction> for LastReaction {
+    fn from(reaction: Reaction) -> Self {
+        Self {
+            reactor: reaction.sender,
+            emoji: reaction.emoji,
+        }
+    }
+}
+
 impl Reaction {
     pub(crate) fn new(
         reaction_mimi_id: MimiId,

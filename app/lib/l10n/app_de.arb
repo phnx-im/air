@@ -265,6 +265,8 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockiert",
+  "chatList_reaction": "{user} hat mit {emoji} auf \"{message}\" reagiert",
+  "chatList_reactionByYou": "Du hast mit {emoji} auf \"{message}\" reagiert",
   "chatList_contextMenu_mute": "Stummschalten",
   "chatList_contextMenu_unmute": "Stummschaltung aufheben",
   "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",

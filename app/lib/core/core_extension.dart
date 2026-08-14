@@ -183,13 +183,15 @@ extension UiMimiContentExtension on UiMimiContent {
       return null;
     }
 
-    return plainBody?.isNotEmpty == true
-        ? plainBody!.replaceAll(RegExp(r'\n+'), ' ')
-        : attachments.isNotEmpty
-        ? attachments.first.imageMetadata != null
-              ? loc.chatList_imageEmoji
-              : loc.chatList_fileEmoji
-        : null;
+    if (plainBody?.isNotEmpty == true) {
+      return plainBody!.replaceAll(RegExp(r'\n+'), ' ');
+    }
+
+    return switch (firstAttachmentType) {
+      UiAttachmentType.image => loc.chatList_imageEmoji,
+      UiAttachmentType.file => loc.chatList_fileEmoji,
+      null => null,
+    };
   }
 
   bool get isDeleted => replaces != null && content == null;

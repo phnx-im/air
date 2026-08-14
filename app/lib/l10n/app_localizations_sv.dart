@@ -858,6 +858,16 @@ class AppLocalizationsSv extends AppLocalizations {
   String get chatList_blocked => 'Blockerad';
 
   @override
+  String chatList_reaction(String user, String emoji, String message) {
+    return '$user reagerade $emoji på \"$message\"';
+  }
+
+  @override
+  String chatList_reactionByYou(String emoji, String message) {
+    return 'Du reagerade $emoji på \"$message\"';
+  }
+
+  @override
   String get chatList_contextMenu_mute => 'Tysta';
 
   @override

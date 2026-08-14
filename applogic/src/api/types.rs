@@ -17,8 +17,8 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
-    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
-    SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
+    MessageDraft, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -99,6 +99,7 @@ pub struct UiChatDetails {
     pub last_used: DateTime<Local>,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
+    pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
@@ -346,6 +347,23 @@ pub struct _MessageId {
     pub uuid: Uuid,
 }
 
+/// UI representation of a [`LastReaction`]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiLastReaction {
+    pub reactor: UiUserId,
+    pub emoji: String,
+}
+
+impl From<LastReaction> for UiLastReaction {
+    fn from(LastReaction { reactor, emoji }: LastReaction) -> Self {
+        Self {
+            reactor: reactor.into(),
+            emoji,
+        }
+    }
+}
+
 /// An emoji reaction on a message, aggregated across the users who applied it.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
@@ -447,6 +465,11 @@ impl UiChatMessage {
         }
     }
 
+    /// Converts a message whose attachments the caller will not open, and whose
+    /// local attachment ids it therefore has no reason to load.
+    ///
+    /// The attachments themselves do not survive this, but
+    /// [`UiMimiContent::attachment_type`] does.
     pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
         Self::from_message(message, &[])
     }

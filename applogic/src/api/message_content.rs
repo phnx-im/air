@@ -66,6 +66,15 @@ pub struct UiMimiContent {
     pub in_reply_to: Option<Vec<u8>>,
     pub content: Option<MessageContent>,
     pub attachments: Vec<UiAttachment>,
+    pub first_attachment_type: Option<UiAttachmentType>,
+}
+
+/// Whether an attachment is a picture or some other file.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiAttachmentType {
+    Image,
+    File,
 }
 
 /// [`UiAttachment`] without local attachment ID
@@ -100,6 +109,14 @@ pub struct UiImageMetadata {
 
 impl UnresolvedMimiContent {
     pub(crate) fn resolve(self, local_attachment_ids: &[AttachmentId]) -> UiMimiContent {
+        let first_attachment_type = self.attachments.first().map(|attachment| {
+            if attachment.image_metadata.is_some() {
+                UiAttachmentType::Image
+            } else {
+                UiAttachmentType::File
+            }
+        });
+
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
@@ -113,6 +130,7 @@ impl UnresolvedMimiContent {
                 image_metadata: attachment.image_metadata,
             })
             .collect();
+
         UiMimiContent {
             plain_body: self.plain_body,
             replaces: self.replaces,
@@ -120,6 +138,7 @@ impl UnresolvedMimiContent {
             in_reply_to: self.in_reply_to,
             content: self.content,
             attachments,
+            first_attachment_type,
         }
     }
 }

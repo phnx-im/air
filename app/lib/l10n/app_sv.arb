@@ -265,6 +265,8 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
+  "chatList_reaction": "{user} reagerade {emoji} på \"{message}\"",
+  "chatList_reactionByYou": "Du reagerade {emoji} på \"{message}\"",
   "chatList_contextMenu_mute": "Tysta",
   "chatList_contextMenu_unmute": "Sluta tysta",
   "newChatDialog_error": "Kunde inte skapa en ny gruppchatt med namnet {chatName}",
