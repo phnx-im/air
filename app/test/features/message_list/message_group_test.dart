@@ -5,8 +5,10 @@
 import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_row/message_row.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/user/avatar.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_list_view.dart';
@@ -32,6 +34,8 @@ UiChatMessage _message(
   int id, {
   required int sender,
   Duration after = Duration.zero,
+  String? text,
+  List<UiReaction> reactions = const [],
 }) => UiChatMessage(
   id: id.messageId(),
   chatId: _chatId,
@@ -42,15 +46,15 @@ UiChatMessage _message(
       sent: true,
       edited: false,
       content: UiMimiContent(
-        plainBody: 'Message $id',
+        plainBody: text ?? 'Message $id',
         topicId: Uint8List(0),
-        content: simpleMessage('Message $id'),
+        content: simpleMessage(text ?? 'Message $id'),
         attachments: [],
       ),
     ),
   ),
   status: UiMessageStatus.read,
-  reactions: [],
+  reactions: reactions,
 );
 
 /// A non-content message, which never joins a group.
@@ -283,6 +287,81 @@ void main() {
         expect(find.text('Bob'), findsOneWidget);
       },
     );
+
+    testWidgets('rest the avatar on the bottom edge of the last bubble', (
+      tester,
+    ) async {
+      messageListCubit.setState([
+        _message(1, sender: 2),
+        _message(2, sender: 2, after: const Duration(minutes: 1)),
+        // A newer group, so the row above ends its group without carrying
+        // the newest-message stamp.
+        _message(3, sender: 3, after: const Duration(minutes: 2)),
+      ]);
+
+      await tester.pumpWidget(buildSubject());
+
+      Rect rectOf(int id, Type type) => tester.getRect(
+        find.descendant(of: rowOf(id), matching: find.byType(type)),
+      );
+
+      // Row 2 carries nothing below the bubble, row 3 carries the newest
+      // message's stamp.
+      expect(
+        rectOf(2, UserAvatar).bottom,
+        moreOrLessEquals(rectOf(2, MessageBubble).bottom),
+      );
+      expect(
+        rectOf(3, UserAvatar).bottom,
+        moreOrLessEquals(rectOf(3, MessageBubble).bottom),
+      );
+    });
+
+    testWidgets('rest the avatar on the bubble above the reaction chips', (
+      tester,
+    ) async {
+      const long =
+          'A message long enough that its bubble runs most of the way across '
+          'the conversation, which is what leaves the chips the stamp room.';
+      messageListCubit.setState([
+        // The stamp shares the chips' line on the wide bubble and drops below
+        // the run on the narrow one, and the avatar has to clear both.
+        _message(
+          1,
+          sender: 2,
+          text: 'Hi',
+          reactions: [
+            UiReaction(emoji: '👍', users: [1.userId(), 3.userId()]),
+            UiReaction(emoji: '🎉', users: [1.userId()]),
+            UiReaction(emoji: '💖', users: [3.userId()]),
+          ],
+        ),
+        _message(
+          2,
+          sender: 3,
+          after: const Duration(minutes: 1),
+          text: long,
+          reactions: [
+            UiReaction(emoji: '👍', users: [1.userId()]),
+          ],
+        ),
+      ]);
+
+      await tester.pumpWidget(buildSubject());
+
+      Rect rectOf(int id, Type type) => tester.getRect(
+        find.descendant(of: rowOf(id), matching: find.byType(type)),
+      );
+
+      expect(
+        rectOf(1, UserAvatar).bottom,
+        moreOrLessEquals(rectOf(1, MessageBubble).bottom),
+      );
+      expect(
+        rectOf(2, UserAvatar).bottom,
+        moreOrLessEquals(rectOf(2, MessageBubble).bottom),
+      );
+    });
 
     testWidgets('sit closer together inside a group than between groups', (
       tester,

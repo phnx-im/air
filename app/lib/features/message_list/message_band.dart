@@ -26,10 +26,11 @@ const double _stampGap = S.s8;
 /// settled state without animating.
 ///
 /// Where the bubble is wide enough to carry the run and the stamp side by
-/// side, the stamp keeps the place it would have had without any reactions and
-/// the chips fill the space beside it, which spares the row a line of chrome.
-/// Only an own message can: an incoming one anchors both to the leading edge,
-/// where they would run into each other.
+/// side, the stamp shares the chips' line, which spares the row a line of
+/// chrome. The chips anchor to the bubble's leading edge and the stamp to its
+/// trailing one -- an own message's stamp rests there anyway, and an incoming
+/// one moves there while the message has reactions -- so the two never
+/// collide.
 class MessageBand extends StatefulWidget {
   const MessageBand({
     super.key,
@@ -129,6 +130,10 @@ class _MessageBandState extends State<MessageBand>
       reserve: reactionsReservedBelow(context, true),
       lift: tokens.lift,
       outgoing: widget.outgoing,
+      // Keyed to the live reactions rather than the lingering chips, so the
+      // stamp changes edge in the same frame as the inset inside it, which
+      // the host builds from the same list.
+      stampAtEnd: widget.outgoing || widget.reactions.isNotEmpty,
       bubble: widget.bubble,
       chips: _reactions.isEmpty ? null : _chips(tokens),
       stamp: widget.stamp,
@@ -171,6 +176,7 @@ class _BandLayout
     required this.reserve,
     required this.lift,
     required this.outgoing,
+    required this.stampAtEnd,
     required this.bubble,
     required this.chips,
     required this.stamp,
@@ -187,6 +193,10 @@ class _BandLayout
   final double lift;
 
   final bool outgoing;
+
+  /// Anchor the stamp to the bubble's trailing edge, where it can share the
+  /// chips' line.
+  final bool stampAtEnd;
   final Widget bubble;
   final Widget? chips;
   final Widget? stamp;
@@ -205,7 +215,7 @@ class _BandLayout
 
   @override
   _RenderBand createRenderObject(BuildContext context) =>
-      _RenderBand(reveal, reserve, lift, outgoing);
+      _RenderBand(reveal, reserve, lift, outgoing, stampAtEnd);
 
   @override
   void updateRenderObject(BuildContext context, _RenderBand renderObject) {
@@ -213,13 +223,20 @@ class _BandLayout
       ..reveal = reveal
       ..reserve = reserve
       ..lift = lift
-      ..outgoing = outgoing;
+      ..outgoing = outgoing
+      ..stampAtEnd = stampAtEnd;
   }
 }
 
 class _RenderBand extends RenderBox
     with SlottedContainerRenderObjectMixin<_BandSlot, RenderBox> {
-  _RenderBand(this._reveal, this._reserve, this._lift, this._outgoing);
+  _RenderBand(
+    this._reveal,
+    this._reserve,
+    this._lift,
+    this._outgoing,
+    this._stampAtEnd,
+  );
 
   Animation<double> _reveal;
   set reveal(Animation<double> value) {
@@ -250,6 +267,13 @@ class _RenderBand extends RenderBox
   set outgoing(bool value) {
     if (value == _outgoing) return;
     _outgoing = value;
+    markNeedsLayout();
+  }
+
+  bool _stampAtEnd;
+  set stampAtEnd(bool value) {
+    if (value == _stampAtEnd) return;
+    _stampAtEnd = value;
     markNeedsLayout();
   }
 
@@ -314,10 +338,10 @@ class _RenderBand extends RenderBox
     final affordanceSize = affordance?.size ?? Size.zero;
 
     // The stamp hangs off the bubble's trailing edge and the run starts at its
-    // leading one, so on an own message the two only meet where the bubble is
-    // too narrow to carry both.
+    // leading one, so the two only meet where the bubble is too narrow to
+    // carry both.
     final shared =
-        _outgoing &&
+        _stampAtEnd &&
         chips != null &&
         stamp != null &&
         runWidth + _stampGap + stampSize.width <= bubbleSize.width;
@@ -362,12 +386,26 @@ class _RenderBand extends RenderBox
       );
     }
     if (stamp != null) {
-      _place(
-        stamp,
-        Offset(_outgoing ? size.width - stampSize.width : 0, stampTop),
-      );
+      // Never past the band's leading edge: a stamp wider than an incoming
+      // bubble starts at the edge instead of hanging out of the row.
+      final stampLeft = _stampAtEnd
+          ? math.max(0.0, bubbleLeft + bubbleSize.width - stampSize.width)
+          : 0.0;
+      _place(stamp, Offset(stampLeft, stampTop));
     }
   }
+
+  /// The bubble's bottom edge. The row aligns the avatar column on it, which
+  /// keeps whatever the band hangs below the bubble out of the alignment.
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      _bubble?.size.height;
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => _bubble?.getDryLayout(constraints.loosen()).height;
 
   void _place(RenderBox child, Offset offset) {
     (child.parentData! as BoxParentData).offset = offset;
