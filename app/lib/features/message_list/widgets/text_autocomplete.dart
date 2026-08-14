@@ -132,22 +132,18 @@ class TextAutocompleteController<T> {
     }
 
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.arrowDown) {
-      // Down arrow advances the highlight; holding it repeats via KeyRepeatEvent.
       _overlayController.moveHighlight(1);
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.arrowUp) {
-      // Up arrow moves the highlight backward; holding it repeats via KeyRepeatEvent.
       _overlayController.moveHighlight(-1);
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageDown) {
-      // Page Down advances the highlight by one viewport of rows.
       _overlayController.movePage(1);
       return KeyEventResult.handled;
     }
     if (!modifierKeyPressed && evt.logicalKey == LogicalKeyboardKey.pageUp) {
-      // Page Up moves the highlight back by one viewport of rows.
       _overlayController.movePage(-1);
       return KeyEventResult.handled;
     }
