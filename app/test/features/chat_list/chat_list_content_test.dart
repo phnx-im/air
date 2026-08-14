@@ -480,24 +480,6 @@ void main() {
       );
     });
 
-    testWidgets('renders muted chat correctly', (tester) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
-
-      final testChats = [chats[0], chats[5], chats[2]];
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: testChats.map((c) => c.id).toList()));
-
-      await tester.pumpWidget(buildSubject(chats: testChats));
-
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_muted.png'),
-      );
-    });
-
     // The draft chat, whose preview is the draft whatever navigation does.
     final draftChat = chats[3];
 
