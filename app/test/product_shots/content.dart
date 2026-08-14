@@ -400,6 +400,7 @@ final fredMessages = [
               ),
             ),
           ],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),

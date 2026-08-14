@@ -466,8 +466,8 @@ impl ChatDetailsCubitBase {
                     draft.is_committed = is_committed;
                     true
                 }
-                Some(draft) if draft.is_committed != is_committed => {
-                    draft.is_committed = is_committed;
+                Some(draft) if is_committed && !draft.is_committed => {
+                    draft.is_committed = true;
                     true
                 }
                 Some(_) => false,
@@ -839,6 +839,15 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .or(chat.last_message_at())
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
+    let last_reaction = match last_message.as_ref() {
+        Some(message) => core_user
+            .last_reaction(message)
+            .await
+            .inspect_err(|error| error!(%error, "Failed to load the last reaction"))
+            .ok()
+            .flatten(),
+        None => None,
+    };
 
     let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
@@ -859,7 +868,10 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         chat_type,
         last_used,
         unread_messages,
+        // The row reports on the last message but never opens its attachment,
+        // so it does without the local attachment ids.
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),
+        last_reaction: last_reaction.map(Into::into),
         draft,
         is_apq,
         muted_until: chat.muted_until.map(Into::into),

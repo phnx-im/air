@@ -99,6 +99,7 @@ void main() {
       return UiMimiContent(
         topicId: topicId,
         attachments: [],
+
         content: MessageContent(
           elements: [
             RangedBlockElement(
@@ -128,6 +129,7 @@ void main() {
             size: 1024,
           ),
         ],
+        firstAttachmentType: UiAttachmentType.file,
         content: MessageContent(
           elements: [
             RangedBlockElement(
@@ -150,6 +152,7 @@ void main() {
       final msg = UiMimiContent(
         topicId: topicId,
         attachments: [],
+
         content: MessageContent(
           elements: [
             RangedBlockElement(
@@ -172,6 +175,7 @@ void main() {
       final msg = UiMimiContent(
         topicId: topicId,
         attachments: [],
+
         content: MessageContent(
           elements: [
             RangedBlockElement(

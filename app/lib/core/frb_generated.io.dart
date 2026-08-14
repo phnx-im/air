@@ -789,6 +789,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
+  UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw);
+
+  @protected
   UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
 
   @protected
@@ -817,6 +820,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInactiveChat dco_decode_box_autoadd_ui_inactive_chat(dynamic raw);
+
+  @protected
+  UiLastReaction dco_decode_box_autoadd_ui_last_reaction(dynamic raw);
 
   @protected
   UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw);
@@ -1181,6 +1187,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
 
   @protected
+  UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw);
+
+  @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -1199,6 +1208,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiInReplyToMessage? dco_decode_opt_box_autoadd_ui_in_reply_to_message(
     dynamic raw,
   );
+
+  @protected
+  UiLastReaction? dco_decode_opt_box_autoadd_ui_last_reaction(dynamic raw);
 
   @protected
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
@@ -1282,6 +1294,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
 
   @protected
+  UiAttachmentType dco_decode_ui_attachment_type(dynamic raw);
+
+  @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
 
   @protected
@@ -1325,6 +1340,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
+
+  @protected
+  UiLastReaction dco_decode_ui_last_reaction(dynamic raw);
 
   @protected
   UiLinkedDevice dco_decode_ui_linked_device(dynamic raw);
@@ -2057,6 +2075,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
 
   @protected
+  UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
     SseDeserializer deserializer,
   );
@@ -2101,6 +2124,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInactiveChat sse_decode_box_autoadd_ui_inactive_chat(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLastReaction sse_decode_box_autoadd_ui_last_reaction(
     SseDeserializer deserializer,
   );
 
@@ -2567,6 +2595,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAttachmentType? sse_decode_opt_box_autoadd_ui_attachment_type(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   );
@@ -2593,6 +2626,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInReplyToMessage? sse_decode_opt_box_autoadd_ui_in_reply_to_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLastReaction? sse_decode_opt_box_autoadd_ui_last_reaction(
     SseDeserializer deserializer,
   );
 
@@ -2696,6 +2734,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAttachmentType sse_decode_ui_attachment_type(SseDeserializer deserializer);
+
+  @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
 
   @protected
@@ -2741,6 +2782,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
+
+  @protected
+  UiLastReaction sse_decode_ui_last_reaction(SseDeserializer deserializer);
 
   @protected
   UiLinkedDevice sse_decode_ui_linked_device(SseDeserializer deserializer);
@@ -3624,6 +3668,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_ui_attachment_type(
+    UiAttachmentType self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -3680,6 +3730,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_inactive_chat(
     UiInactiveChat self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_last_reaction(
+    UiLastReaction self,
     SseSerializer serializer,
   );
 
@@ -4263,6 +4319,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_attachment_type(
+    UiAttachmentType? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_chat_details(
     UiChatDetails? self,
     SseSerializer serializer,
@@ -4295,6 +4357,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_in_reply_to_message(
     UiInReplyToMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_last_reaction(
+    UiLastReaction? self,
     SseSerializer serializer,
   );
 
@@ -4422,6 +4490,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_attachment_type(
+    UiAttachmentType self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -4490,6 +4564,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_invitation_code(
     UiInvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_last_reaction(
+    UiLastReaction self,
     SseSerializer serializer,
   );
 
