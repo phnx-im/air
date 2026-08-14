@@ -64,6 +64,17 @@ void main() {
       expect(names.first, "face_holding_back_tears");
     });
 
+    test('ranks short name words before aliases', () {
+      // `sweat` is a word of the first two short names, and only an alias of
+      // :anxious: (whose alias is `cold_sweat`).
+      final results = EmojiRepository.search('sweat');
+      expect(results.take(3).map((e) => e.shortName), [
+        'sweat_drops',
+        'grinning_face_with_sweat',
+        'anxious',
+      ]);
+    });
+
     test('empty query returns the first emojis in canonical order', () {
       final results = EmojiRepository.search('');
       expect(results.first.emoji, _grinning);
