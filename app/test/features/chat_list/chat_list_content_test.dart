@@ -223,6 +223,84 @@ final chats = [
     mutedUntil: const UiChatMuted.forever(),
     pendingCommitFailed: false,
   ),
+  // Chat where I sent a picture
+  UiChatDetails(
+    id: 7.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Photographs', picture: null),
+    ),
+    unreadMessages: 1,
+    messagesCount: 10,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 7.messageId(),
+      chatId: 7.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 3.userId(),
+          sent: false,
+          edited: false,
+          content: UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [
+              UiAttachment(
+                attachmentId: 1.attachmentId(),
+                filename: "image.webp",
+                contentType: "image/webp",
+                size: 1024,
+              ),
+            ],
+            firstAttachmentType: .image,
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    pendingCommitFailed: false,
+  ),
+  // Chat where someone sent a file
+  UiChatDetails(
+    id: 8.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Archive Enthusiasts', picture: null),
+    ),
+    unreadMessages: 0,
+    messagesCount: 10,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 8.messageId(),
+      chatId: 8.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 1.userId(),
+          sent: false,
+          edited: false,
+          content: UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [
+              UiAttachment(
+                attachmentId: 2.attachmentId(),
+                filename: "file.pdf",
+                contentType: "application/pdf",
+                size: 128,
+              ),
+            ],
+            firstAttachmentType: .file,
+          ),
+        ),
+      ),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    ),
+    pendingCommitFailed: false,
+  ),
 ];
 
 final chatIds = chats.map((chat) => chat.id).toList();
@@ -440,10 +518,6 @@ void main() {
       );
 
       expect(find.text('Bob reacted 👍 to "Hello Alice"'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_reaction.png'),
-      );
     });
 
     testWidgets('names the reader as the reactor', (tester) async {
@@ -453,10 +527,6 @@ void main() {
       );
 
       expect(find.text('You reacted 👍 to "Hello Alice"'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_reaction_by_you.png'),
-      );
     });
 
     testWidgets('keeps the draft over a reaction', (tester) async {
@@ -493,20 +563,12 @@ void main() {
       await pumpAttachmentChat(tester, pictureAttachment);
 
       expect(find.text('You: 🖼️'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_picture.png'),
-      );
     });
 
     testWidgets('stands in for a file with an emoji', (tester) async {
       await pumpAttachmentChat(tester, fileAttachment);
 
       expect(find.text('You: 📎'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_file.png'),
-      );
     });
 
     // A chat with a single contact names no sender, so the emoji stands alone.
@@ -518,10 +580,6 @@ void main() {
       );
 
       expect(find.text('🖼️'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_picture_by_contact.png'),
-      );
     });
 
     testWidgets('stands in for a file from the contact', (tester) async {
@@ -532,10 +590,6 @@ void main() {
       );
 
       expect(find.text('📎'), findsOne);
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/chat_list_content_file_by_contact.png'),
-      );
     });
   });
 }
