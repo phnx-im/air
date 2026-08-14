@@ -4,7 +4,7 @@
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
-import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';

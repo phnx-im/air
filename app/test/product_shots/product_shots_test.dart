@@ -98,71 +98,70 @@ void main() {
       ).thenReturn(const UserSettings(isDeveloper: false));
     });
 
-    Widget buildSubject(
-      ProductShotPlatform platform,
-    ) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shotSize = _productShotSizeFor(platform);
-              final shot = ProductShot(
-                size: shotSize,
-                backgroundColor: backgroundColor,
-                titleColor: titleColor,
-                subtitleColor: subtitleColor,
-                title: title,
-                subtitle: subtitle,
-                frameColor: frameColor,
-                device: ProductShotDevices.forPlatform(platform),
-                child: const Stack(
-                  children: [
-                    Positioned.fill(child: ChatListView(scaffold: true)),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AppTabBar(),
+    Widget buildSubject(ProductShotPlatform platform) =>
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AttachmentsRepository>.value(
+              value: MockAttachmentsRepository(),
+            ),
+            RepositoryProvider<chats_repository.ChatsRepository>.value(
+              value: FakeChatsRepository(chats),
+            ),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: usersCubit),
+              BlocProvider<ChatListCubit>.value(value: chatListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+            ],
+            child: SDTFScope(
+              child: Builder(
+                builder: (context) {
+                  final shotSize = _productShotSizeFor(platform);
+                  final shot = ProductShot(
+                    size: shotSize,
+                    backgroundColor: backgroundColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    title: title,
+                    subtitle: subtitle,
+                    frameColor: frameColor,
+                    device: ProductShotDevices.forPlatform(platform),
+                    child: const Stack(
+                      children: [
+                        Positioned.fill(child: ChatListView(scaffold: true)),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: AppTabBar(),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  );
 
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: ThemeMode.light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: Brightness.light),
-                    child: shot,
-                  ),
-                ),
-              );
-            },
+                  return MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: testLightTheme,
+                    themeMode: ThemeMode.light,
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    home: Material(
+                      child: MediaQuery(
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(platformBrightness: Brightness.light),
+                        child: shot,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
 
     testProductShot(
       "Chat List (iOS)",
@@ -570,7 +569,6 @@ void main() {
       required String subtitle,
     }) => MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
         RepositoryProvider<AttachmentsRepository>.value(
           value: attachmentsRepository,
         ),

@@ -4,7 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';

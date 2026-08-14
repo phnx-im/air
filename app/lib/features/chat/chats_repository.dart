@@ -13,7 +13,7 @@ abstract interface class ChatsRepository {
   List<ChatId> get order;
   Stream<List<ChatId>> watchOrder();
 
-  UiChatDetails getChat(ChatId id);
+  UiChatDetails? getChat(ChatId id);
   Stream<UiChatDetails?> watchChat(ChatId id);
 
   Future<void> mute(ChatId id, {required UiChatMuted until});
@@ -67,7 +67,7 @@ class RustChatsRepository implements ChatsRepository {
   Stream<List<ChatId>> watchOrder() => _orderChanges.stream;
 
   @override
-  UiChatDetails getChat(ChatId id) => _chats[id]!;
+  UiChatDetails? getChat(ChatId id) => _chats[id];
 
   @override
   Stream<UiChatDetails?> watchChat(ChatId id) => _chatChanges.stream

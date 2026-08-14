@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_composer.dart';
@@ -51,7 +52,7 @@ class ChatScreen extends StatelessWidget {
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
             chatId: chatId,
-            chatsRepository: context.read<ChatsRepository>(),
+            chat: context.read<ChatsRepository>().getChat(chatId),
             attachmentsRepository: context.read<AttachmentsRepository>(),
           ),
         ),

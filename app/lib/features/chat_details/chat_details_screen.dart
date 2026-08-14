@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -39,7 +40,7 @@ class ChatDetailsScreen extends StatelessWidget {
           userCubit: context.read<UserCubit>(),
           userSettingsCubit: context.read<UserSettingsCubit>(),
           chatId: chatId,
-          chatsRepository: context.read<ChatsRepository>(),
+          chat: context.read<ChatsRepository>().getChat(chatId),
           attachmentsRepository: context.read<AttachmentsRepository>(),
         );
       },

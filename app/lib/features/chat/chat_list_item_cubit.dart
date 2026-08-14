@@ -4,7 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'chats_repository.dart';
@@ -26,7 +26,7 @@ sealed class ChatListItemState with _$ChatListItemState {
 class ChatListItemCubit extends Cubit<ChatListItemState> {
   ChatListItemCubit({required ChatsRepository repository, required this.chatId})
     : _repository = repository,
-      super(ChatListItemState(chat: repository.getChat(chatId))) {
+      super(ChatListItemState(chat: repository.getChat(chatId)!)) {
     _sub = _repository.watchChat(chatId).listen((chat) {
       // Null mean the chat is gone. The corresponding row will be disposed, so
       // we don't update the state here.

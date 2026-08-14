@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';

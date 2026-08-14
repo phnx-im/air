@@ -7,6 +7,7 @@ import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -41,9 +42,9 @@ class GroupMembersScreen extends StatelessWidget {
           create: (context) => ChatDetailsCubit(
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatsRepository: context.read<ChatsRepository>(),
             attachmentsRepository: context.read<AttachmentsRepository>(),
             chatId: chatId,
+            chat: context.read<ChatsRepository>().getChat(chatId),
           ),
         ),
         BlocProvider(

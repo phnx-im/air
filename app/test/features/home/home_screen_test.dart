@@ -74,7 +74,6 @@ void main() {
 
     Widget buildSubject() => MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
         RepositoryProvider<AttachmentsRepository>.value(
           value: MockAttachmentsRepository(),
         ),

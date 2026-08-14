@@ -10,7 +10,7 @@ import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
-import 'package:air/core/core.dart' hide ChatsRepository;
+import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/field/field_chrome.dart';

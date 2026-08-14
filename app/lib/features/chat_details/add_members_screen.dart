@@ -5,6 +5,7 @@
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,9 +48,9 @@ class AddMembersScreen extends StatelessWidget {
             create: (context) => ChatDetailsCubit(
               userCubit: context.read<UserCubit>(),
               userSettingsCubit: context.read<UserSettingsCubit>(),
-              chatsRepository: context.read<ChatsRepository>(),
               attachmentsRepository: context.read<AttachmentsRepository>(),
               chatId: chatId,
+              chat: context.read<ChatsRepository>().getChat(chatId),
               withMembers: false,
             ),
           ),

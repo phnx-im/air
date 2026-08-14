@@ -361,13 +361,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     // immediately download pending attachments
                     lazy: false,
                   ),
-                  RepositoryProvider<ChatsRepository>(
-                    create: (context) => ChatsRepository(
-                      userCubit: context.read<UserCubit>().impl,
-                    ),
-                    // immediately cache chats
-                    lazy: false,
-                  ),
                   RepositoryProvider<chats.ChatsRepository>(
                     create: (context) => chats.RustChatsRepository(
                       userCubit: context.read<UserCubit>().impl,

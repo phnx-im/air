@@ -9,7 +9,6 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import '../lib.dart';
 import 'attachments_repository.dart';
-import 'chats_repository.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -73,14 +72,14 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required UserCubitBase userCubit,
     required UserSettingsCubitBase userSettingsCubit,
     required ChatId chatId,
-    required ChatsRepository chatsRepository,
+    UiChatDetails? chat,
     required AttachmentsRepository attachmentsRepository,
     required bool withMembers,
   }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
     userCubit: userCubit,
     userSettingsCubit: userSettingsCubit,
     chatId: chatId,
-    chatsRepository: chatsRepository,
+    chat: chat,
     attachmentsRepository: attachmentsRepository,
     withMembers: withMembers,
   );

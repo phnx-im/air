@@ -279,8 +279,6 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
 
-class MockChatsRepository extends Mock implements ChatsRepository {}
-
 /// A [chats_repository.ChatsRepository] serving a fixed set of chats.
 class FakeChatsRepository implements chats_repository.ChatsRepository {
   FakeChatsRepository(List<UiChatDetails> chats)

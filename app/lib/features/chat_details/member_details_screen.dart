@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/features/chat_details/safety_code_screen.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -35,9 +36,9 @@ class MemberDetailsScreen extends StatelessWidget {
           create: (context) => ChatDetailsCubit(
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatsRepository: context.read<ChatsRepository>(),
             attachmentsRepository: context.read<AttachmentsRepository>(),
             chatId: chatId,
+            chat: context.read<ChatsRepository>().getChat(chatId),
           ),
         ),
         BlocProvider(
