@@ -37,7 +37,7 @@ void main() {
     });
 
     test('dedupes to one result per emoji', () {
-      final results = EmojiRepository.search('a', limit: 1000);
+      final results = EmojiRepository.search('a');
       final glyphs = results.map((e) => e.emoji).toList();
       expect(glyphs.toSet().length, glyphs.length);
     });
@@ -53,33 +53,19 @@ void main() {
       },
     );
 
-    test('respects the limit', () {
-      expect(
-        EmojiRepository.search('a', limit: 5).length,
-        lessThanOrEqualTo(5),
-      );
-    });
-
     test('sorts results by short name', () {
-      final names = EmojiRepository.search(
-        'giggle',
-        limit: 1000,
-      ).map((e) => e.shortName);
+      final names = EmojiRepository.search('giggle').map((e) => e.shortName);
       final sorted = [...names]..sort();
       expect(names, sorted);
     });
 
     test('results are first sourced from shortcodes', () {
-      final names = EmojiRepository.search(
-        'face',
-        limit: 1000,
-      ).map((e) => e.shortName);
+      final names = EmojiRepository.search('face').map((e) => e.shortName);
       expect(names.first, "face_holding_back_tears");
     });
 
     test('empty query returns the first emojis in canonical order', () {
-      final results = EmojiRepository.search('', limit: 3);
-      expect(results.length, 3);
+      final results = EmojiRepository.search('');
       expect(results.first.emoji, _grinning);
     });
   });

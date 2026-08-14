@@ -64,14 +64,11 @@ class EmojiRepository {
 
   /// Up to [limit] emojis whose shortcode words start with [query]
   /// (case-insensitive). Results are deduped to one entry per emoji. An empty
-  /// [query] returns the first [limit] emojis in canonical order.
-  static List<data.Emoji> search(String query, {int limit = 20}) {
+  /// [query] returns the first emojis in canonical order.
+  static List<data.Emoji> search(String query) {
     final normalized = query.toLowerCase();
     if (normalized.isEmpty) {
-      return data.emojisByCategory
-          .expand((category) => category.$2)
-          .take(limit)
-          .toList();
+      return data.emojisByCategory.expand((category) => category.$2).toList();
     }
 
     final seen = <(int, int)>{};
@@ -107,8 +104,8 @@ class EmojiRepository {
       }
     }
 
-    final matching = matchingShortcodes.take(limit).toList();
-    matching.addAll(matchingTags.take(limit - matching.length));
+    final matching = matchingShortcodes.toList();
+    matching.addAll(matchingTags.take(matching.length));
     return matching;
   }
 }

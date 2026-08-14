@@ -15,12 +15,14 @@ class SuggestionOverlayStyle {
     required this.borderRadius,
     required this.elevation,
     required this.maxWidth,
+    required this.maxHeight,
   });
 
   final Color backgroundColor;
   final BorderRadius borderRadius;
   final double elevation;
   final double maxWidth;
+  final double maxHeight;
 }
 
 enum SuggestionOverlayAnimationPhase { none, entering, exiting }
@@ -54,6 +56,8 @@ class SuggestionOverlayController<T> {
   SuggestionOverlayAnimationPhase _animationPhase =
       SuggestionOverlayAnimationPhase.none; // Current animation state.
   ValueChanged<Size>? _onSizeChanged; // Listener notified when overlay resizes.
+  final GlobalKey _highlightedItemKey =
+      GlobalKey(); // Attached to the highlighted row only.
 
   bool get isVisible => _visible && _suggestions.isNotEmpty;
   bool get isPointerDown => _pointerDown;
@@ -66,6 +70,7 @@ class SuggestionOverlayController<T> {
   AnimationController get animationController => _animationController;
   SuggestionOverlayAnimationPhase get animationPhase => _animationPhase;
   GlobalKey get overlayKey => _overlayKey;
+  GlobalKey get highlightedItemKey => _highlightedItemKey;
 
   set onSizeChanged(ValueChanged<Size>? listener) {
     _onSizeChanged = listener;
@@ -111,6 +116,7 @@ class SuggestionOverlayController<T> {
       _animationController.value = 1;
     }
     _scheduleSizeUpdate();
+    _scrollToHighlighted(movingDown: false);
   }
 
   /// Update the overlay anchor offset without rebuilding tiles.
@@ -119,19 +125,54 @@ class SuggestionOverlayController<T> {
     _markNeedsBuild();
   }
 
-  /// Move the keyboard highlight, wrapping the list length.
+  /// Move the keyboard highlight, clamped to the list bounds.
   void moveHighlight(int delta) {
     if (!isVisible || _suggestions.isEmpty) {
       return;
     }
-    final length = _suggestions.length;
-    var newIndex = _highlightIndex + delta;
-    newIndex %= length;
-    if (newIndex < 0) {
-      newIndex += length;
+    final newIndex = (_highlightIndex + delta).clamp(
+      0,
+      _suggestions.length - 1,
+    );
+    if (newIndex == _highlightIndex) {
+      return;
     }
     _highlightIndex = newIndex;
     _markNeedsBuild();
+    _scrollToHighlighted(movingDown: delta > 0);
+  }
+
+  /// Jump the keyboard highlight straight to the first or last suggestion.
+  void highlightEdge({required bool end}) {
+    if (!isVisible || _suggestions.isEmpty) {
+      return;
+    }
+    _highlightIndex = end ? _suggestions.length - 1 : 0;
+    _markNeedsBuild();
+    _scrollToHighlighted(movingDown: end);
+  }
+
+  /// Scroll the highlighted row into view without moving it if it's
+  /// already visible.
+  ///
+  /// Jumps instantly rather than animating: with key-repeat firing faster
+  /// than an animation could finish, each new call would cancel the
+  /// previous one before it reached the target.
+  void _scrollToHighlighted({required bool movingDown}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final itemContext = _highlightedItemKey.currentContext;
+      if (itemContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          itemContext,
+          alignmentPolicy: movingDown
+              ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+              : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        ),
+      );
+    });
   }
 
   /// Select the currently highlighted suggestion, if any.
@@ -323,17 +364,23 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
         borderRadius: style.borderRadius,
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: style.maxWidth),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(suggestions.length, (index) {
-              final item = suggestions[index];
-              final isHighlighted = index == controller.highlightIndex;
-              return InkWell(
-                onTap: () => controller.selectSuggestion(index),
-                child: itemBuilder(context, item, isHighlighted),
-              );
-            }),
+          constraints: BoxConstraints(
+            maxWidth: style.maxWidth,
+            maxHeight: style.maxHeight,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(suggestions.length, (index) {
+                final item = suggestions[index];
+                final isHighlighted = index == controller.highlightIndex;
+                return InkWell(
+                  key: isHighlighted ? controller.highlightedItemKey : null,
+                  onTap: () => controller.selectSuggestion(index),
+                  child: itemBuilder(context, item, isHighlighted),
+                );
+              }),
+            ),
           ),
         ),
       ),
