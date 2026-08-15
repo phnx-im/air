@@ -40,7 +40,6 @@ hex.workspace = true
 image.workspace = true
 indexmap.workspace = true
 jni.workspace = true
-lru.workspace = true
 memmap2.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
