@@ -37,9 +37,11 @@ class TimeFormats {
         : null;
     return TimeFormats(
       locale: locale,
-      timePattern: patterns?.timePattern ??
+      timePattern:
+          patterns?.timePattern ??
           _cached('jm|$locale', () => DateFormat.jm(locale)).pattern!,
-      datePattern: patterns?.datePattern ??
+      datePattern:
+          patterns?.datePattern ??
           _cached('yMd|$locale', () => DateFormat.yMd(locale)).pattern!,
     );
   }
@@ -70,9 +72,9 @@ class TimeFormats {
 
   /// Numeric date with the year dropped, e.g. `5/20`.
   String dateWithoutYear(DateTime at) => _cached(
-        'dy|$datePattern',
-        () => DateFormat(_withoutYear(datePattern)),
-      ).format(at);
+    'dy|$datePattern',
+    () => DateFormat(_withoutYear(datePattern)),
+  ).format(at);
 
   /// Weekday, month and day, e.g. `Wed, May 20`.
   String weekdayMonthDay(DateTime at) =>

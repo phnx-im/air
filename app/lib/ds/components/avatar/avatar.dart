@@ -62,7 +62,9 @@ class Avatar extends StatelessWidget {
         // Only the letter, and only where it can be seen. Under a picture it is
         // a grapheme break, a paragraph layout and a MediaQuery dependency for
         // something never painted.
-        child: image != null ? null : _Letter(displayName: displayName, size: size),
+        child: image != null
+            ? null
+            : _Letter(displayName: displayName, size: size),
       ),
     );
 
