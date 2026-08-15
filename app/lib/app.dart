@@ -26,7 +26,6 @@ import 'package:air/platform/notifications.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
@@ -351,51 +350,55 @@ class LoadableUserCubitProvider extends StatelessWidget {
         final settingsAttached = context.select(
           (UserSettingsCubit cubit) => cubit.isAttached,
         );
+
+        Widget resolved(Widget child) {
+          unawaited(dismissSplashScreen());
+          return child;
+        }
+
         return switch (loadableUser) {
-          // Neither the login state nor the destination is settled yet.
-          // Stay on the splash instead of the intro screen: a returning
-          // user would otherwise see its sign-up chrome flash before
-          // landing on Home.
           LoadingUser() => const _LoadingSplash(),
           LoadedUser() when !settingsAttached => const _LoadingSplash(),
-          UnloadedUser() => child,
-          LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.clientRecordId),
-            child: MultiBlocProvider(
-              providers: [
-                // Logged-in user and contacts are accessible everywhere inside
-                // the app after the user is loaded.
-                BlocProvider<UserCubit>(
-                  create: (context) => UserCubit(
-                    user: user,
-                    navigationCubit: context.read<NavigationCubit>(),
-                    appStateStream: appStateController.stream,
-                  ),
-                ),
-                BlocProvider<UsersCubit>(
-                  create: (context) =>
-                      UsersCubit(userCubit: context.read<UserCubit>()),
-                ),
-              ],
-              child: MultiRepositoryProvider(
+          UnloadedUser() => resolved(child),
+          LoadedUser(:final user) || UnloadingUser(:final user) => resolved(
+            KeyedSubtree(
+              key: ValueKey(user.clientRecordId),
+              child: MultiBlocProvider(
                 providers: [
-                  RepositoryProvider<AttachmentsRepository>(
-                    create: (context) => AttachmentsRepository(
-                      userCubit: context.read<UserCubit>().impl,
+                  // Logged-in user and contacts are accessible everywhere
+                  // inside the app after the user is loaded.
+                  BlocProvider<UserCubit>(
+                    create: (context) => UserCubit(
+                      user: user,
+                      navigationCubit: context.read<NavigationCubit>(),
+                      appStateStream: appStateController.stream,
                     ),
-                    // immediately download pending attachments
-                    lazy: false,
                   ),
-                  RepositoryProvider<ChatsRepository>(
-                    create: (context) => ChatsRepository(
-                      userCubit: context.read<UserCubit>().impl,
-                    ),
-                    // immediately cache chats
-                    lazy: false,
+                  BlocProvider<UsersCubit>(
+                    create: (context) =>
+                        UsersCubit(userCubit: context.read<UserCubit>()),
                   ),
                 ],
-                child: UnlinkedDeviceHandler(
-                  child: UpdateRequiredScreen(child: child),
+                child: MultiRepositoryProvider(
+                  providers: [
+                    RepositoryProvider<AttachmentsRepository>(
+                      create: (context) => AttachmentsRepository(
+                        userCubit: context.read<UserCubit>().impl,
+                      ),
+                      // immediately download pending attachments
+                      lazy: false,
+                    ),
+                    RepositoryProvider<ChatsRepository>(
+                      create: (context) => ChatsRepository(
+                        userCubit: context.read<UserCubit>().impl,
+                      ),
+                      // immediately cache chats
+                      lazy: false,
+                    ),
+                  ],
+                  child: UnlinkedDeviceHandler(
+                    child: UpdateRequiredScreen(child: child),
+                  ),
                 ),
               ),
             ),
@@ -405,17 +408,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
     );
   }
 
-  /// Checks if [LoadableUser] was loaded or unloaded
   bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) {
-    return (previous is LoadedUser || current is LoadedUser) &&
-        previous != current;
+    return previous != current &&
+        (previous is LoadedUser ||
+            current is LoadedUser ||
+            previous is LoadingUser);
   }
 }
 
-/// Shown while the initial user load is in flight, in place of [IntroScreen].
-///
-/// Blank on the same surface, so it reads as a continuation of the native
-/// launch screen rather than as its own screen.
 class _LoadingSplash extends StatelessWidget {
   const _LoadingSplash();
 
