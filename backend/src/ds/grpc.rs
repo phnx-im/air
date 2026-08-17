@@ -713,6 +713,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
+
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
 
@@ -830,6 +837,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
 
         // Extract chat related data
         let encrypted_user_profile_key = payload

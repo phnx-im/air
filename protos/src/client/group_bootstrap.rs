@@ -20,11 +20,9 @@
 //! sibling which registered epoch to derive the key from. The padding hides the
 //! variable length of the connection context.
 //!
-//! Every struct here is a tagged map and every enum a tagged union with an
-//! `#[unknown]` catch-all, so a client can adopt new tags before all of a
-//! user's devices understand them. A tagged map defaults absent fields, which
-//! means fields that are required by this protocol are `Option` and a receiver
-//! rejects a payload that leaves them out.
+//! A tagged map defaults absent fields, so fields that are required by this
+//! protocol are still `Option`. A receiver rejects a payload that leaves them
+//! out.
 //!
 //! Keys and secrets travel as plain byte strings rather than as their Rust
 //! types, so that the encoding does not depend on the `serde` shape of a type

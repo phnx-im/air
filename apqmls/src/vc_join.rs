@@ -34,6 +34,16 @@ impl ApqMlsGroup {
     /// No PSK is stored here. Like the creating sibling's build, this join
     /// produces the epoch-0 state, and the combiner PSK for the T half is
     /// derived when the first commit is processed.
+    ///
+    /// The provider's storage should span the whole call in one transaction.
+    /// The T half consumes operation-tree generations of the emulation epoch as
+    /// it persists, and neither a failing PQ half nor a crash between the halves
+    /// can restore them. A joining sibling has to consume exactly the
+    /// generations the creating sibling consumed, so it cannot re-derive the
+    /// join from fresh ones. Without a transaction, a half-completed join
+    /// leaves the group permanently unjoinable through this entry point. The
+    /// rollback deletes in this function are a best-effort fallback for
+    /// non-transactional providers and do not restore consumed generations.
     pub fn vc_join_at_creation<Provider: OpenMlsProvider>(
         provider: &Provider,
         join_config: &MlsGroupJoinConfig,
@@ -85,6 +95,16 @@ impl ApqMlsGroup {
     /// Application PSKs referenced by the T commit, for example connection-offer
     /// PSKs, must be stored in the provider before calling this. The combiner
     /// PSK is the only PSK this function stores itself.
+    ///
+    /// The provider's storage should span the whole call in one transaction.
+    /// The PQ half consumes operation-tree generations of the emulation epoch as
+    /// it persists, and neither a failing T half nor a crash between the halves
+    /// can restore them. A joining sibling has to consume exactly the
+    /// generations the committing sibling consumed, so it cannot re-derive the
+    /// join from fresh ones. Without a transaction, a half-completed join
+    /// leaves the group permanently unjoinable through this entry point. The
+    /// rollback deletes in this function are a best-effort fallback for
+    /// non-transactional providers and do not restore consumed generations.
     pub fn vc_join_via_sibling_external_commit<Provider: OpenMlsProvider>(
         provider: &Provider,
         join_config: &MlsGroupJoinConfig,

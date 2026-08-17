@@ -52,6 +52,7 @@ pub struct PqExternalCommitInfoIn {
 /// A sibling of a virtual client fetches it to join a group one of its
 /// emulator clients created or externally joined, at exactly the epoch of
 /// that operation.
+#[derive(Debug)]
 pub struct EpochSnapshotIn {
     pub verifiable_group_info: VerifiableGroupInfo,
     pub ratchet_tree_in: RatchetTreeIn,
@@ -60,6 +61,7 @@ pub struct EpochSnapshotIn {
     pub pq: Option<PqEpochSnapshotIn>,
 }
 
+#[derive(Debug)]
 pub struct PqEpochSnapshotIn {
     pub verifiable_group_info: VerifiableGroupInfo,
     pub ratchet_tree_in: RatchetTreeIn,
