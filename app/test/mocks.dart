@@ -183,8 +183,15 @@ class MockMessageListCubit implements MessageListCubit {
   /// window (index 0), mirroring a `NewerPageLoaded` pagination transition,
   /// then emits an updated state. Unlike [setState] this does not reload, so
   /// the AnchoredList sees an insert diff rather than a full reset.
-  void appendNewer(List<UiChatMessage> newer, {bool hasNewer = false}) {
+  void appendNewer(
+    List<UiChatMessage> newer, {
+    bool hasNewer = false,
+    bool isIncoming = false,
+  }) {
     messageData.insertAll(0, newer.reversed.toList());
+    if (isIncoming && !_incomingMessages.isClosed) {
+      _incomingMessages.add(newer.map((m) => m.id).toSet());
+    }
     final prev = _state.state;
     final rustState = MessageListState(
       isConnectionChat: prev.isConnectionChat ?? false,

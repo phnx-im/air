@@ -32,6 +32,7 @@ import 'package:air/platform/haptics.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
@@ -92,6 +93,7 @@ class ChatListContent extends HookWidget {
           ),
         );
       },
+      cacheExtent: const ScrollCacheExtent.viewport(3),
       onScrollOffset: onScrollOffset,
     );
 
@@ -522,13 +524,22 @@ class _LastUpdated extends StatelessWidget {
   final UiChatDetails chat;
 
   @override
-  Widget build(BuildContext context) => LiveTime(
-    format: (context, now) => chatListStampLabel(
-      chat.lastUsed,
-      now: now,
-      formats: TimeFormats.of(context),
-      loc: AppLocalizations.of(context),
-    ),
-    builder: (context, label) => ChatListTimestamp(label: label),
-  );
+  Widget build(BuildContext context) {
+    // Resolved here rather than inside [format], which runs on every clock tick
+    // for every live row. TimeFormats.of walks the element tree looking for an
+    // SDTFScope, which is not for free. Both of these change only with the locale
+    // or the platform's patterns, and either rebuilds this widget.
+    final formats = TimeFormats.of(context);
+    final loc = AppLocalizations.of(context);
+
+    return LiveTime(
+      format: (context, now) => chatListStampLabel(
+        chat.lastUsed,
+        now: now,
+        formats: formats,
+        loc: loc,
+      ),
+      builder: (context, label) => ChatListTimestamp(label: label),
+    );
+  }
 }

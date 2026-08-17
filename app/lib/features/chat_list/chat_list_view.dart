@@ -6,7 +6,6 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/features/chat_list/chat_list_header.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 /// Where the scrollbar track stops above the bottom edge, short of the fade so
@@ -78,7 +77,7 @@ class _ChatListViewState extends State<ChatListView> {
 class _Header extends StatelessWidget {
   const _Header({required this.scrollOffset, required this.topInset});
 
-  final ValueListenable<double> scrollOffset;
+  final ValueNotifier<double>? scrollOffset;
 
   /// Status-bar inset. The header floats over a full-bleed list, so it cannot
   /// rely on a SafeArea to clear the notch.
@@ -88,10 +87,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: topInset),
-      child: ValueListenableBuilder<double>(
-        valueListenable: scrollOffset,
-        builder: (context, offset, _) => ChatListHeader(scrollOffset: offset),
-      ),
+      child: ChatListHeader(scrollOffset: scrollOffset),
     );
   }
 }

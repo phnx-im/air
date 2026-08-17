@@ -100,14 +100,20 @@ class _AppScrollbarState extends State<AppScrollbar> with FrameSafeState {
             widget.child,
             Positioned.fill(
               child: IgnorePointer(
-                child: ValueListenableBuilder<_ThumbState>(
-                  valueListenable: _thumb,
-                  builder: (context, thumb, _) => _Thumb(
-                    thumb: thumb,
-                    tokens: tokens,
-                    color: color,
-                    trackTop: widget.trackTop,
-                    trackBottom: widget.trackBottom,
+                // The boundary keeps the thumb's every-frame movement from
+                // re-recording the layer it shares with the host's chrome:
+                // without it, each scroll frame repaints the whole Scaffold
+                // above the viewport.
+                child: RepaintBoundary(
+                  child: ValueListenableBuilder<_ThumbState>(
+                    valueListenable: _thumb,
+                    builder: (context, thumb, _) => _Thumb(
+                      thumb: thumb,
+                      tokens: tokens,
+                      color: color,
+                      trackTop: widget.trackTop,
+                      trackBottom: widget.trackBottom,
+                    ),
                   ),
                 ),
               ),

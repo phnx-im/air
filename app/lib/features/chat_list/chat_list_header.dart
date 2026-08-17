@@ -16,10 +16,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {
-  const ChatListHeader({super.key, this.scrollOffset = 0});
+  const ChatListHeader({super.key, this.scrollOffset});
 
   /// The list's scroll offset, which reveals the title pill.
-  final double scrollOffset;
+  final ValueNotifier<double>? scrollOffset;
 
   @override
   Widget build(BuildContext context) {
