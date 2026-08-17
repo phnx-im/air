@@ -206,7 +206,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   Widget _body(AppLocalizations loc, _Step step) {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
-      behavior: HitTestBehavior.translucent,
+      behavior: .translucent,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           ModalShellTokens.contentPaddingLeft,
@@ -215,8 +215,8 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
           S.s12,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: .stretch,
+          mainAxisSize: .min,
           children: switch (step) {
             _Step.invitationCode => _invitationCodeStep(loc),
             _Step.profile => _profileStep(loc),
@@ -256,7 +256,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
           ),
           FilteringTextInputFormatter.allow(RegExp(_codeAlphabet)),
         ],
-        textCapitalization: TextCapitalization.characters,
+        textCapitalization: .characters,
         keyboardType: TextInputType.visiblePassword,
         onChanged: (value) {
           context.read<RegistrationCubit>().setInvitationCode(value);
@@ -307,7 +307,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         tokens: AppTextInputTokens.current,
         controller: _usernameController,
         autofocus: true,
-        textInputAction: TextInputAction.done,
+        textInputAction: .done,
         label: loc.usernameOnboarding_usernameInputName,
         hintText: loc.usernameOnboarding_usernameInputHint,
         helperText: loc.usernameOnboarding_syntax,
@@ -629,10 +629,7 @@ class _AvatarPicker extends StatelessWidget {
       return Container(
         width: _size,
         height: _size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: palette.fill.tertiary,
-        ),
+        decoration: BoxDecoration(shape: .circle, color: palette.fill.tertiary),
         alignment: Alignment.center,
         child: const IgnorePointer(
           child: IconTheme(
@@ -647,7 +644,7 @@ class _AvatarPicker extends StatelessWidget {
       child: Image(
         width: _size,
         height: _size,
-        fit: BoxFit.cover,
+        fit: .cover,
         image: CachedMemoryImage.fromImageData(avatar),
       ),
     );

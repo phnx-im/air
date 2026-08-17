@@ -14,7 +14,7 @@ use aircommon::{
         },
         errors::{DecryptionError, EncryptionError},
     },
-    identifiers::{QsReference, SealedClientReference, UserId},
+    identifiers::{QsReference, SealedClientReference},
     messages::client_ds::WelcomeInfoParams,
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
@@ -308,33 +308,6 @@ impl DsGroupState {
     ) -> impl Iterator<Item = QsReference> {
         self.other_member_profiles(sender_index)
             .map(|(_, client_profile)| client_profile.client_queue_config.clone())
-    }
-
-    /// The same as [`Self::other_destination_clients`], but each destination is
-    /// paired with whether it is another client of the sending user. It
-    /// unfortunately requires parsing of the client's leaf credential.
-    pub(crate) fn other_destinations(
-        &self,
-        sender_index: LeafNodeIndex,
-    ) -> impl Iterator<Item = (QsReference, bool)> {
-        let is_self_group = self.is_self_group();
-        let sender_user_id = self.leaf_user_id(sender_index);
-        self.other_member_profiles(sender_index)
-            .map(move |(client_index, client_profile)| {
-                let is_sibling = is_self_group
-                    || sender_user_id.as_ref().is_some_and(|sender_user_id| {
-                        self.leaf_user_id(*client_index).as_ref() == Some(sender_user_id)
-                    });
-                (client_profile.client_queue_config.clone(), is_sibling)
-            })
-    }
-
-    /// The user owning `leaf_index`, if the leaf carries a user credential.
-    fn leaf_user_id(&self, leaf_index: LeafNodeIndex) -> Option<UserId> {
-        match self.leaf_credential(leaf_index)? {
-            LeafCredential::User(credential) => Some(credential.user_id().clone()),
-            LeafCredential::SelfGroup(_) => None,
-        }
     }
 
     /// Returns `true` if the group context's [`AirComponent`] marks this group as a

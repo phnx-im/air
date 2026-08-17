@@ -5,7 +5,7 @@
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 /// One page of a [ModalPageStack].
@@ -123,7 +123,7 @@ class _ModalPageStackState extends State<ModalPageStack>
   }
 
   void _onTravelled(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
+    if (status != .completed) return;
     setState(() => _transition = null);
   }
 
@@ -209,7 +209,7 @@ class _ModalPageStackState extends State<ModalPageStack>
     return KeyedSubtree(
       key: _identityOf(page.key),
       child: Material(
-        type: MaterialType.canvas,
+        type: .canvas,
         color: ModalShellTokens.surface(context),
         child: ModalPageActions(
           onBack: canGoBack && page.canGoBack ? widget.onBack : null,

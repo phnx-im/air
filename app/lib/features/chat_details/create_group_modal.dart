@@ -214,11 +214,11 @@ class _CreateGroupDetailsPane extends HookWidget {
             groupName.value.trim().isNotEmpty || picture.value != null,
         child: GestureDetector(
           onTap: () => FocusScope.of(context).unfocus(),
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           child: ModalBody(
             top: S.s24,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: .start,
               children: [
                 Center(
                   child: _GroupPicturePicker(
@@ -232,11 +232,11 @@ class _CreateGroupDetailsPane extends HookWidget {
                   child: TextField(
                     onChanged: (value) => groupName.value = value,
                     focusNode: nameFocusNode,
-                    textInputAction: TextInputAction.next,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    textInputAction: .next,
+                    textAlign: .center,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.displayLarge?.copyWith(fontWeight: .bold),
                     decoration: FieldChrome.plain(
                       hintText: nameFocusNode.hasFocus
                           ? loc.groupCreationDetails_groupNameHintFocused
@@ -244,7 +244,7 @@ class _CreateGroupDetailsPane extends HookWidget {
                       hintStyle: Theme.of(context).textTheme.displayLarge
                           ?.copyWith(
                             color: palette.text.quaternary,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: .bold,
                           ),
                     ),
                   ),
@@ -254,7 +254,7 @@ class _CreateGroupDetailsPane extends HookWidget {
                   Center(
                     child: Text(
                       loc.groupCreationDetails_groupNameHelper,
-                      textAlign: TextAlign.center,
+                      textAlign: .center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: palette.text.tertiary,
                       ),
@@ -274,7 +274,7 @@ class _CreateGroupDetailsPane extends HookWidget {
                 const SizedBox(height: S.s32),
                 if (selectedIds.isNotEmpty)
                   Wrap(
-                    alignment: WrapAlignment.start,
+                    alignment: .start,
                     spacing: S.s16,
                     runSpacing: S.s16,
                     children: sortedSelectedIds.map((userId) {
@@ -298,7 +298,7 @@ class _CreateGroupDetailsPane extends HookWidget {
                   Center(
                     child: Text(
                       loc.groupCreationDetails_emptySelection,
-                      textAlign: TextAlign.center,
+                      textAlign: .center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: palette.text.tertiary,
                       ),
@@ -417,10 +417,10 @@ class _GroupPicturePicker extends StatelessWidget {
         width: 192,
         height: 192,
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
+          shape: .circle,
           color: palette.backgroundBase.quaternary,
           image: picture != null
-              ? DecorationImage(image: MemoryImage(picture!), fit: BoxFit.cover)
+              ? DecorationImage(image: MemoryImage(picture!), fit: .cover)
               : null,
         ),
         child: picture == null
@@ -448,10 +448,10 @@ class _SelectedParticipant extends StatelessWidget {
     return SizedBox(
       width: 72,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Stack(
-            clipBehavior: Clip.none,
+            clipBehavior: .none,
             children: [
               UserAvatar(profile: profile, size: 48),
               Positioned(
@@ -463,7 +463,7 @@ class _SelectedParticipant extends StatelessWidget {
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
+                      shape: .circle,
                       color: palette.text.primary,
                       border: Border.all(
                         color: palette.backgroundBase.primary,
@@ -484,9 +484,9 @@ class _SelectedParticipant extends StatelessWidget {
           const SizedBox(height: S.s8),
           Text(
             profile.displayName,
-            textAlign: TextAlign.center,
+            textAlign: .center,
             maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
             style: Theme.of(
               context,
             ).textTheme.labelSmall?.copyWith(height: 1.2),

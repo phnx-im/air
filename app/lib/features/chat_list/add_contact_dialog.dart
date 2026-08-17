@@ -38,8 +38,8 @@ class AddContactDialog extends HookWidget {
 
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           Center(
             child: Text(

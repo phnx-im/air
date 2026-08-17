@@ -8,13 +8,13 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
 
-ThemeData darkTheme = themeData(Brightness.dark);
-ThemeData lightTheme = themeData(Brightness.light);
+ThemeData darkTheme = themeData(.dark);
+ThemeData lightTheme = themeData(.light);
 
 ThemeData themeData(Brightness brightness) {
   final palette = switch (brightness) {
-    Brightness.dark => darkSemanticPalette,
-    Brightness.light => lightSemanticPalette,
+    .dark => darkSemanticPalette,
+    .light => lightSemanticPalette,
   };
 
   final base = ThemeData(
@@ -34,7 +34,7 @@ ThemeData themeData(Brightness brightness) {
       elevation: 0,
       iconTheme: IconThemeData(color: palette.text.primary),
       centerTitle: true,
-      systemOverlayStyle: brightness == Brightness.light
+      systemOverlayStyle: brightness == .light
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
     ),

@@ -50,7 +50,7 @@ class GroupDetailsView extends StatelessWidget {
 
     return ModalBody(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           Center(
             child: ChatAvatar(
@@ -109,7 +109,7 @@ class _GroupTitle extends StatelessWidget {
       onTap: () => _changeGroupTitle(context),
       child: Text(
         chat.title,
-        textAlign: TextAlign.center,
+        textAlign: .center,
         style: typeScale.header.xl.style(weight: Weight.emphasized),
       ),
     );
@@ -162,7 +162,7 @@ class _PeopleSection extends HookWidget {
         context.read<NavigationCubit>().openGroupMembers();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         ListRow(
           tokens: rowTokens,
@@ -170,7 +170,7 @@ class _PeopleSection extends HookWidget {
           labelStyle: typeScale.body.regular.style(weight: Weight.emphasized),
           separator: false,
           trailing: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               Text(
                 loc.groupDetails_seeAll,

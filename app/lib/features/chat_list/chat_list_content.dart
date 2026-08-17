@@ -318,8 +318,8 @@ class _BlockedPreview extends StatelessWidget {
       TextSpan(
         children: [
           WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
+            alignment: .baseline,
+            baseline: .alphabetic,
             child: Padding(
               padding: const EdgeInsets.only(
                 right: ChatListItemTokens.previewIconGap,
@@ -333,9 +333,7 @@ class _BlockedPreview extends StatelessWidget {
           TextSpan(text: loc.chatList_blocked),
         ],
       ),
-      style: typeScale.body.s
-          .style(color: color)
-          .copyWith(fontStyle: FontStyle.italic),
+      style: typeScale.body.s.style(color: color).copyWith(fontStyle: .italic),
     );
   }
 }
@@ -415,7 +413,7 @@ class _LastMessage extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     final previewStyle = typeScale.body.s.style(color: palette.text.tertiary);
-    final italicStyle = previewStyle.copyWith(fontStyle: FontStyle.italic);
+    final italicStyle = previewStyle.copyWith(fontStyle: .italic);
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
@@ -469,7 +467,7 @@ class _LastMessage extends StatelessWidget {
         style: previewStyle,
         maxLines: 2,
         softWrap: true,
-        overflow: TextOverflow.ellipsis,
+        overflow: .ellipsis,
       );
     }
 
@@ -512,7 +510,7 @@ class _LastMessage extends StatelessWidget {
       ),
       maxLines: 2,
       softWrap: true,
-      overflow: TextOverflow.ellipsis,
+      overflow: .ellipsis,
     );
   }
 }
