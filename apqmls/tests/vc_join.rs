@@ -6,22 +6,23 @@ use apqmls::{
     ApqMlsGroup,
     authentication::{ApqSignatureKeyPair, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
-    extension::{APQMLS_COMPONENT_ID, PqtMode},
+    extension::{APQMLS_COMPONENT_ID, ApqInfo, PqtMode},
     messages::{ApqMlsMessageIn, ApqMlsMessageOut, ApqRatchetTreeIn, VerifiableApqGroupInfo},
-    vc_join::{VcCreationJoinError, VcSiblingExternalCommitJoinError},
+    vc_join::{ApqGroupInfoLinkageError, VcCreationJoinError, VcSiblingExternalCommitJoinError},
 };
 use openmls::{
     component::{ComponentId, ComponentType},
     components::vc_derivation_info::{EpochId, VC_COMPONENT_ID},
     group::{
-        MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
-        StagedWelcome, VcExternalCommitJoinError, VcGroupCreationJoinError,
+        GroupContext, GroupEpoch, GroupId, MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig,
+        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, StagedWelcome, VcExternalCommitJoinError,
+        VcGroupCreationJoinError,
     },
     prelude::{
         AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite, Credential,
         Extension, ExtensionType, Extensions, KeyPackage, LeafNode, LeafNodeParameters,
-        MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
-        ProcessedMessageContent, ProtocolMessage,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
+        ProcessedMessageContent, ProtocolMessage, group_info::VerifiableGroupInfo,
     },
     schedule::{
         PreSharedKeyId,
@@ -215,6 +216,28 @@ fn export_join_info(
         .into_verifiable_group_info()
         .unwrap();
     (group_info, group.export_ratchet_tree().into())
+}
+
+/// The two halves' group infos separately, so tests can recombine them.
+fn export_half_group_infos(
+    client: &Client<OpenMlsRustCrypto>,
+    group: &ApqMlsGroup,
+) -> (VerifiableGroupInfo, VerifiableGroupInfo) {
+    let (t_message, pq_message) = group
+        .export_group_info(client.provider.crypto(), &client.signer, false)
+        .unwrap()
+        .split();
+    (
+        verifiable_group_info(t_message),
+        verifiable_group_info(pq_message),
+    )
+}
+
+fn verifiable_group_info(message: MlsMessageOut) -> VerifiableGroupInfo {
+    let MlsMessageBodyIn::GroupInfo(group_info) = roundtrip(message).extract() else {
+        panic!("expected a group info");
+    };
+    group_info
 }
 
 /// An external join on the shared virtual-client leaf, optionally carrying
@@ -570,4 +593,206 @@ fn sibling_external_commit_join_with_foreign_epoch_id_fails() {
             .unwrap()
             .is_none()
     );
+}
+
+#[test]
+fn creation_join_rolls_back_t_half_when_pq_half_fails() {
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_virtual_client("Alice (VC)", mode);
+
+    let alice_a_group = create_vc_group(&alice.a, mode, alice.epoch_id.clone());
+    let (group_info, ratchet_tree) = export_join_info(&alice.a, &alice_a_group);
+
+    // The PQ half is served the T half's ratchet tree. The linkage check only looks at the group
+    // infos and passes, and the T half joins and persists, so the PQ half is the first to fail, on
+    // the leaf signatures of the foreign tree.
+    let (t_ratchet_tree, _pq_ratchet_tree) = ratchet_tree.split();
+    let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree.clone(), t_ratchet_tree);
+
+    let result = ApqMlsGroup::vc_join_at_creation(
+        &alice.b.provider,
+        &join_config(),
+        group_info,
+        Some(ratchet_tree),
+        alice.epoch_id.clone(),
+    );
+    assert!(result.is_err());
+
+    assert!(
+        MlsGroup::load(alice.b.provider.storage(), alice_a_group.t_group.group_id())
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn sibling_external_commit_join_rolls_back_pq_half_when_t_half_fails() {
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_virtual_client("Alice (VC)", mode);
+    let bob = new_client("Bob", mode);
+    let mut bob_group = create_group(&bob, mode);
+
+    // The application PSK is only stored by the committing sibling and by Bob, so the joining
+    // sibling cannot resolve it. The PQ half has nothing to do with the proposal and is joined and
+    // merged first, so the T half is the first to fail.
+    let psk_ids = store_application_psk(
+        [&alice.a.provider, &bob.provider],
+        mode.default_ciphersuite().t_ciphersuite(),
+        b"connection offer",
+        b"connection offer psk",
+    );
+
+    let (group_info, ratchet_tree) = export_join_info(&bob, &bob_group);
+    let (sibling_group_info, sibling_ratchet_tree) = export_join_info(&bob, &bob_group);
+
+    let (_alice_a_group, bundle) = external_vc_join(
+        &alice.a,
+        &alice.epoch_id,
+        group_info,
+        ratchet_tree,
+        vec![PreSharedKeyProposal::new(psk_ids[0].clone())],
+    );
+    process_and_merge(&bob, &mut bob_group, bundle.commit.clone());
+
+    let (t_commit, pq_commit) = protocol_messages(bundle.commit);
+    let result = ApqMlsGroup::vc_join_via_sibling_external_commit(
+        &alice.b.provider,
+        &join_config(),
+        sibling_group_info,
+        Some(sibling_ratchet_tree),
+        t_commit,
+        pq_commit,
+        alice.epoch_id.clone(),
+    );
+    assert!(result.is_err());
+
+    assert!(
+        MlsGroup::load(alice.b.provider.storage(), bob_group.pq_group().group_id())
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn creation_join_with_group_infos_of_different_groups_fails() {
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_virtual_client("Alice (VC)", mode);
+    let bob = new_client("Bob", mode);
+
+    let first_group = create_group(&bob, mode);
+    let second_group = create_group(&bob, mode);
+    let (t_group_info, _) = export_half_group_infos(&bob, &first_group);
+    let (_, pq_group_info) = export_half_group_infos(&bob, &second_group);
+
+    let result = ApqMlsGroup::vc_join_at_creation(
+        &alice.b.provider,
+        &join_config(),
+        VerifiableApqGroupInfo::new(t_group_info, pq_group_info),
+        None,
+        alice.epoch_id.clone(),
+    );
+    assert!(matches!(
+        result,
+        Err(VcCreationJoinError::Linkage(
+            ApqGroupInfoLinkageError::ApqInfoMismatch
+        ))
+    ));
+}
+
+/// Swapping the two halves' group infos leaves their ApqInfo equal, so the
+/// group-ID check is the first one to fail.
+#[test]
+fn creation_join_with_swapped_group_infos_fails() {
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_virtual_client("Alice (VC)", mode);
+    let bob = new_client("Bob", mode);
+
+    let bob_group = create_group(&bob, mode);
+    let (t_group_info, pq_group_info) = export_half_group_infos(&bob, &bob_group);
+
+    let result = ApqMlsGroup::vc_join_at_creation(
+        &alice.b.provider,
+        &join_config(),
+        VerifiableApqGroupInfo::new(pq_group_info, t_group_info),
+        None,
+        alice.epoch_id.clone(),
+    );
+    assert!(matches!(
+        result,
+        Err(VcCreationJoinError::Linkage(
+            ApqGroupInfoLinkageError::GroupIdMismatch
+        ))
+    ));
+}
+
+#[test]
+fn creation_join_with_mismatched_ciphersuite_fails() {
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_virtual_client("Alice (VC)", mode);
+    let bob = new_client("Bob", mode);
+    let ciphersuite = mode.default_ciphersuite();
+
+    // A real APQ group always carries an ApqInfo that agrees with the ciphersuites of its halves, so
+    // the mismatch is built from two plain MLS groups on the traditional ciphersuite that carry a
+    // hand-made ApqInfo. It names their group IDs, so the ApqInfo and group-ID checks pass, but it
+    // claims the post-quantum ciphersuite for the PQ half.
+    let t_group_id = GroupId::from_slice(b"plain_t_group");
+    let pq_group_id = GroupId::from_slice(b"plain_pq_group");
+    let apq_info = ApqInfo {
+        t_session_group_id: t_group_id.clone(),
+        pq_session_group_id: pq_group_id.clone(),
+        mode,
+        t_cipher_suite: ciphersuite.t_ciphersuite(),
+        pq_cipher_suite: ciphersuite.pq_ciphersuite(),
+        t_epoch: GroupEpoch::from(0),
+        pq_epoch: GroupEpoch::from(0),
+    };
+    let mut dictionary = AppDataDictionary::new();
+    dictionary.insert(
+        APQMLS_COMPONENT_ID,
+        apq_info.tls_serialize_detached().unwrap(),
+    );
+    let extensions = Extensions::<GroupContext>::from_vec(vec![Extension::AppDataDictionary(
+        AppDataDictionaryExtension::new(dictionary),
+    )])
+    .unwrap();
+
+    let create_config = MlsGroupCreateConfig::builder()
+        .ciphersuite(ciphersuite.t_ciphersuite())
+        .capabilities(vc_capabilities())
+        .with_group_context_extensions(extensions)
+        .build();
+    let plain_group = |group_id: GroupId| {
+        MlsGroup::new_with_group_id(
+            &bob.provider,
+            bob.signer.t_signer(),
+            &create_config,
+            group_id,
+            bob.credential_with_key.t_credential.clone(),
+        )
+        .unwrap()
+    };
+    let t_group = plain_group(t_group_id);
+    let pq_group = plain_group(pq_group_id);
+
+    let export_group_info = |group: &MlsGroup| {
+        verifiable_group_info(
+            group
+                .export_group_info(bob.provider.crypto(), bob.signer.t_signer(), false)
+                .unwrap(),
+        )
+    };
+    let result = ApqMlsGroup::vc_join_at_creation(
+        &alice.b.provider,
+        &join_config(),
+        VerifiableApqGroupInfo::new(export_group_info(&t_group), export_group_info(&pq_group)),
+        None,
+        alice.epoch_id.clone(),
+    );
+    assert!(matches!(
+        result,
+        Err(VcCreationJoinError::Linkage(
+            ApqGroupInfoLinkageError::CiphersuiteMismatch
+        ))
+    ));
 }

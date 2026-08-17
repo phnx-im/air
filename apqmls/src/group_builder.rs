@@ -113,6 +113,12 @@ impl GroupBuilder {
     /// two `key_package` generations: the T half first, then the PQ half.
     /// Sibling emulator clients reconstruct the same state with
     /// [`ApqMlsGroup::vc_join_at_creation`].
+    ///
+    /// The provider's storage should span the whole build in one transaction.
+    /// The T half consumes its generation as it persists, and neither a failing
+    /// PQ half nor a crash between the halves can restore it. For the creator
+    /// that only wastes generations, because a retry derives the group from
+    /// fresh ones.
     pub fn vc_emulation(mut self, emulation_group_id: &GroupId) -> Self {
         self.vc_emulation_group_id = Some(emulation_group_id.clone());
         self
