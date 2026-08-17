@@ -1,0 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+--
+-- No schema change. This version marks completion of the one-time
+-- `OwnClientInfo::backfill_client_id` code migration: it is applied only
+-- after that code has run successfully.

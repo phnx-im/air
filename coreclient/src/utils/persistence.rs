@@ -17,6 +17,7 @@ use sqlx::{
     encode::IsNull,
     error::BoxDynError,
     migrate,
+    migrate::Migrator,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use strum::VariantArray;
@@ -25,11 +26,11 @@ use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
-    clients::{
-        own_client_info::{OwnClientInfo, OwnClientMigration, OwnClientMigrations},
-        store::ClientRecord,
+    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
+    db::{
+        access::{DbAccess, WriteConnection},
+        notification::DbNotificationsSender,
     },
-    db::{access::DbAccess, notification::DbNotificationsSender},
     utils::global_lock::GlobalLock,
 };
 
@@ -251,48 +252,91 @@ fn client_db_name(client_record_id: Uuid) -> String {
 pub async fn open_client_db(
     client_db_path: &str,
     client_record_id: Uuid,
-) -> sqlx::Result<DbAccess> {
+) -> anyhow::Result<DbAccess> {
     let client_db_name = client_db_name(client_record_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     info!(db_url, "opening client DB");
     let opts: SqliteConnectOptions = db_url.parse()?;
 
     let write_pool = write_pool(opts.clone()).await?;
-    migrate!().run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
-
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    run_pending_migrations(&db).await;
+    run_client_migrations(&db).await?;
 
     Ok(db)
 }
 
-async fn run_pending_migrations(db: &DbAccess) {
-    for migration in OwnClientMigration::VARIANTS {
-        if let Err(error) = run_migration(db, *migration).await {
-            error!(%error, ?migration, "client DB migration failed, will retry on next open");
+#[derive(Debug, Clone, Copy, strum::VariantArray)]
+#[repr(i64)]
+/// To add a new migration, add your variant here with the matching
+/// sqlx migration version as value, then follow the compiler.
+enum RustMigration {
+    OwnClientIdBackfill = 20260817150000,
+    StaleDeletedMessagesPurge = 20260817150100,
+}
+
+impl RustMigration {
+    /// Runs `code` immediately before applying the SQL migration `version`, but
+    /// only if that migration has not already been applied.
+    async fn run(&self, migrator: &Migrator, db: &DbAccess) -> anyhow::Result<()> {
+        let version = *self as i64;
+        anyhow::ensure!(
+            migrator.version_exists(version),
+            "no migration file for paired code migration version {version}",
+        );
+
+        let mut connection = db.write().await?;
+        let mut txn = connection.begin().await?;
+
+        // Bring the DB up to date with everything before `version`, without applying `version` itself.
+        migrator.run_to(version - 1, txn.as_mut()).await?;
+
+        let already_applied = sqlx::query_scalar::<_, i64>(
+            "SELECT 1 FROM _sqlx_migrations WHERE version = ? AND success = 1",
+        )
+        .bind(version)
+        .fetch_optional(txn.as_mut())
+        .await?
+        .is_some();
+
+        if !already_applied {
+            match self {
+                RustMigration::OwnClientIdBackfill => {
+                    OwnClientInfo::backfill_client_id(&mut txn).await?
+                }
+                RustMigration::StaleDeletedMessagesPurge => {
+                    purge_stale_deleted_messages(&mut txn).await?
+                }
+            }
         }
+
+        migrator.run_to(version, txn.as_mut()).await?;
+
+        txn.commit().await?;
+
+        Ok(())
     }
 }
 
-async fn run_migration(db: &DbAccess, migration: OwnClientMigration) -> anyhow::Result<()> {
-    if OwnClientMigrations::is_done(db.read().await?, migration).await? {
-        return Ok(());
+/// Runs the client DB's SQL migrations, interleaved with one-time code
+/// migrations that must not rerun on every open.
+///
+/// Each code migration is paired with the version of the SQL migration that
+/// follows it: that migration's row in `_sqlx_migrations` doubles as the
+/// "done" marker for the code.
+async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
+    let migrator = migrate!();
+
+    // Run all code migrations (and any migration without code before it).
+    for extra_code_migrations in RustMigration::VARIANTS {
+        extra_code_migrations.run(&migrator, db).await?;
     }
-    db.with_write_transaction(async |txn| {
-        match migration {
-            OwnClientMigration::BackfillClientId => {
-                OwnClientInfo::backfill_client_id(&mut *txn).await?
-            }
-            OwnClientMigration::PurgedStaleDeletedMessages => {
-                purge_stale_deleted_messages(&mut *txn).await?
-            }
-        }
-        OwnClientMigrations::mark_done(&mut *txn, migration).await?;
-        Ok(())
-    })
-    .await
+
+    // Apply the remaining SQL migrations.
+    migrator.run(db.write().await?.as_mut()).await?;
+
+    Ok(())
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {
@@ -339,13 +383,24 @@ impl From<GroupIdWrapper> for GroupId {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::UserId;
+    use aircommon::identifiers::{QsClientId, QsUserId, UserId};
     use chrono::Utc;
     use tempfile::tempdir;
     use uuid::Uuid;
 
     use super::*;
     use crate::clients::store::{ClientRecord, ClientRecordState};
+
+    #[test]
+    fn extra_code_migrations_are_sorted_by_version() {
+        let versions: Vec<i64> = RustMigration::VARIANTS
+            .iter()
+            .map(|migration| *migration as i64)
+            .collect();
+        let mut sorted_versions = versions.clone();
+        sorted_versions.sort_unstable();
+        assert_eq!(versions, sorted_versions);
+    }
 
     async fn store_record(
         air_db: &DbAccess,
@@ -543,6 +598,64 @@ mod tests {
                 .await?
                 .is_none()
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn own_client_id_backfill_runs_once() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let user_id = UserId::random("localhost".parse()?);
+        let mut rng = rand::rng();
+
+        // Fully migrate a fresh DB; this consumes the marker migration since there is nothing to
+        // backfill yet.
+        let db = open_client_db(db_path, client_record_id).await?;
+        db.close().await;
+
+        // Roll back past the marker and insert an `own_client_info` row the way an old,
+        // pre-backfill client would have left it on disk: with a nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations WHERE version >= ?")
+            .bind(RustMigration::OwnClientIdBackfill as i64)
+            .execute(db.write().await?.as_mut())
+            .await?;
+        sqlx::query(
+            "INSERT INTO own_client_info (qs_user_id, qs_client_id, user_uuid, user_domain)
+            VALUES (?, ?, ?, ?)",
+        )
+        .bind(QsUserId::random())
+        .bind(QsClientId::random(&mut rng))
+        .bind(user_id.uuid())
+        .bind(user_id.domain().to_string())
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        // Reopening reruns the marker's code, backfilling the nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_ne!(client_id, Uuid::nil());
+        db.close().await;
+
+        // Reset it to nil directly. The marker has re-applied, so a further open must leave it
+        // alone rather than backfilling it again.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("UPDATE own_client_info SET client_id = ?")
+            .bind(Uuid::nil())
+            .execute(db.write().await?.as_mut())
+            .await?;
+        db.close().await;
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_eq!(client_id, Uuid::nil());
 
         Ok(())
     }
