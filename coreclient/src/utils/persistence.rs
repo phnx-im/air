@@ -19,12 +19,16 @@ use sqlx::{
     migrate,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
+use strum::VariantArray;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
-    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
+    clients::{
+        own_client_info::{OwnClientInfo, OwnClientMigration, OwnClientMigrations},
+        store::ClientRecord,
+    },
     db::{access::DbAccess, notification::DbNotificationsSender},
     utils::global_lock::GlobalLock,
 };
@@ -259,18 +263,36 @@ pub async fn open_client_db(
 
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    // The client-id migration defaults the column to the nil UUID for clients that existed
-    // before it.
-    OwnClientInfo::backfill_client_id(db.write().await?).await?;
-
-    // Deletions processed by older client versions left state behind. The
-    // purge reruns on every open, so a failure only defers it and must not
-    // block opening the DB.
-    if let Err(error) = purge_stale_deleted_messages(&db).await {
-        error!(%error, "Failed to purge stale deleted messages");
-    }
+    run_pending_migrations(&db).await;
 
     Ok(db)
+}
+
+async fn run_pending_migrations(db: &DbAccess) {
+    for migration in OwnClientMigration::VARIANTS {
+        if let Err(error) = run_migration(db, *migration).await {
+            error!(%error, ?migration, "client DB migration failed, will retry on next open");
+        }
+    }
+}
+
+async fn run_migration(db: &DbAccess, migration: OwnClientMigration) -> anyhow::Result<()> {
+    if OwnClientMigrations::is_done(db.read().await?, migration).await? {
+        return Ok(());
+    }
+    db.with_write_transaction(async |txn| {
+        match migration {
+            OwnClientMigration::BackfillClientId => {
+                OwnClientInfo::backfill_client_id(&mut *txn).await?
+            }
+            OwnClientMigration::PurgedStaleDeletedMessages => {
+                purge_stale_deleted_messages(&mut *txn).await?
+            }
+        }
+        OwnClientMigrations::mark_done(&mut *txn, migration).await?;
+        Ok(())
+    })
+    .await
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {

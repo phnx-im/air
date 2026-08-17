@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO own_client_migration (user_uuid, user_domain, migration)\n            SELECT user_uuid, user_domain, ? FROM own_client_info",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0b94d95c9b9932784f4d0cc8aea2e959c6d9c4c781c4c320f4a0e2edf987be1e"
+}

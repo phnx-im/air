@@ -12,7 +12,10 @@ use uuid::Uuid;
 
 use crate::db::access::ReadConnection;
 
+mod migrations;
 mod persistence;
+
+pub(crate) use migrations::{OwnClientMigration, OwnClientMigrations};
 
 /// The purpose of this struct is to be stored in the local DB for use as
 /// reference for other tables.
