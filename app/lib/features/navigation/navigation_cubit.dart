@@ -28,6 +28,30 @@ class NavigationCubit extends Cubit<NavigationState> {
     notificationContext.setPolicy(policy: change.nextState.notificationPolicy);
   }
 
+  /// A home state restored from the platform's state-restoration bundle,
+  /// waiting for a user to load before it can be applied.
+  HomeNavigationState? _restoredHome;
+
+  void setRestoredHome(HomeNavigationState home) => _restoredHome = home;
+
+  /// Returns and clears the restored home state, so a later re-login doesn't
+  /// reapply a stale restore.
+  HomeNavigationState? takeRestoredHome() {
+    final home = _restoredHome;
+    _restoredHome = null;
+    return home;
+  }
+
+  /// Applies a restored home state, mirroring [openChat]'s side effect when
+  /// it restores an open chat.
+  Future<void> applyRestoredHome(HomeNavigationState home) async {
+    emit(NavigationState.home(home: home));
+    final chatId = home.chatId;
+    if (home.chatOpen && chatId != null) {
+      await notificationContext.chatOpened(chatId: chatId);
+    }
+  }
+
   // Navigation actions
 
   void openIntro() => emit(const NavigationState.intro());

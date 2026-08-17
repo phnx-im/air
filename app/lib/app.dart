@@ -10,6 +10,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/navigation/navigation_restoration.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -225,6 +226,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                     : appLocale;
 
                 return MaterialApp.router(
+                  restorationScopeId: 'root',
                   scrollBehavior: const AppScrollBehavior(),
                   scaffoldMessengerKey: scaffoldMessengerKey,
                   onGenerateTitle: (context) =>
@@ -240,25 +242,29 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                   theme: lightTheme,
                   darkTheme: darkTheme,
                   routerConfig: _appRouter,
-                  builder: (context, router) => LoadableUserCubitProvider(
-                    appStateController: _appStateController,
-                    child: BlocListener<NavigationCubit, NavigationState>(
-                      // Drop the keyboard focus whenever we navigate, e.g. leaving
-                      // a chat's message composer to open the contact/chat
-                      // details. Otherwise the composer's FocusNode keeps focus
-                      // while sitting under the pushed screens, and on iOS the
-                      // keyboard reappears when a pageless route on top (like the
-                      // safety code screen) is popped, because Flutter restores
-                      // focus to it.
-                      //
-                      // Only touch devices have a software keyboard, and on
-                      // desktop we want the composer to keep its focus, so this
-                      // is scoped to non-desktop. The listener already only fires
-                      // when the navigation state actually changes.
-                      listenWhen: (previous, current) => !DeviceType.isDesktop,
-                      listener: (context, state) =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
-                      child: router!,
+                  builder: (context, router) => NavigationRestorationScope(
+                    navigationCubit: _navigationCubit,
+                    child: LoadableUserCubitProvider(
+                      appStateController: _appStateController,
+                      child: BlocListener<NavigationCubit, NavigationState>(
+                        // Drop the keyboard focus whenever we navigate, e.g. leaving
+                        // a chat's message composer to open the contact/chat
+                        // details. Otherwise the composer's FocusNode keeps focus
+                        // while sitting under the pushed screens, and on iOS the
+                        // keyboard reappears when a pageless route on top (like the
+                        // safety code screen) is popped, because Flutter restores
+                        // focus to it.
+                        //
+                        // Only touch devices have a software keyboard, and on
+                        // desktop we want the composer to keep its focus, so this
+                        // is scoped to non-desktop. The listener already only fires
+                        // when the navigation state actually changes.
+                        listenWhen: (previous, current) =>
+                            !DeviceType.isDesktop,
+                        listener: (context, state) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                        child: router!,
+                      ),
                     ),
                   ),
                 );
@@ -313,7 +319,12 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final navigationState = navigationCubit.state;
             if (navigationState is! HomeState &&
                 !navigationState.isCreatingAccount) {
-              navigationCubit.openHome();
+              final restoredHome = navigationCubit.takeRestoredHome();
+              if (restoredHome != null) {
+                await navigationCubit.applyRestoredHome(restoredHome);
+              } else {
+                navigationCubit.openHome();
+              }
             }
             final userLocaleCode = userSettingsCubit.state.locale;
             final appLocale = appLocaleCubit.state;
