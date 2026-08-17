@@ -7,7 +7,8 @@ use std::{
     path::PathBuf,
 };
 
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
+use semver::Version;
 use serde::Deserialize;
 use zeroize::Zeroize;
 
@@ -46,11 +47,13 @@ pub struct ApplicationSettings {
     ///
     /// Can *not* be changed after the first start of the server.
     pub domain: String,
-    /// SemVer version requirement for the client
+    /// List of version expirations
     ///
-    /// Only clients satisfying this requirement will be able to connect to the server. When empty,
-    /// no version requirement is enforced.
-    pub versionreq: Option<semver::VersionReq>,
+    /// 1. Version older than some entry -> the earliest matching expires_on governs: past means
+    ///    blocked, future means allowed-with-warning.
+    /// 2. Otherwise -> allowed, unconditionally. This includes versions newer than any entry.
+    #[serde(default)]
+    pub version_expirations: Vec<VersionExpiration>,
     /// Special invitation code that is never redeemed.
     ///
     /// This code can be used to register as many users as desired. Useful for testing.
@@ -61,6 +64,15 @@ pub struct ApplicationSettings {
     /// and allow open registration.
     #[serde(default = "default_true")]
     pub invitationonly: bool,
+}
+
+/// A version expiration entry
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+pub struct VersionExpiration {
+    /// The version that is no longer allowed.
+    pub older_than: Version,
+    /// When any version < `older_than` is not allowed anymore.
+    pub expires_on: DateTime<Utc>,
 }
 
 fn default_listen() -> SocketAddr {

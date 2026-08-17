@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::{
     air_service::{BackendService, ServiceCreationError},
     ds::storage::Storage,
+    version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
 
@@ -40,7 +41,7 @@ pub struct Ds {
     reserved_group_ids: Arc<Mutex<HashSet<Uuid>>>,
     db_pool: PgPool,
     storage: Option<Storage>,
-    client_version_req: Option<semver::VersionReq>,
+    version_policy: VersionPolicy,
 }
 
 #[derive(Debug)]
@@ -50,7 +51,7 @@ impl BackendService for Ds {
     async fn initialize(
         db_pool: PgPool,
         domain: Fqdn,
-        client_version_req: Option<semver::VersionReq>,
+        version_policy: VersionPolicy,
         _stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let ds = Self {
@@ -58,7 +59,7 @@ impl BackendService for Ds {
             reserved_group_ids: Default::default(),
             db_pool,
             storage: None,
-            client_version_req,
+            version_policy,
         };
 
         Ok(ds)

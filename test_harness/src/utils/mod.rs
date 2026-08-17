@@ -129,7 +129,7 @@ pub(crate) async fn spawn_app(
 
     let TestBackendParams {
         rate_limits,
-        client_version_req,
+        version_policy,
         invitation_only,
         unredeemable_code,
         max_attachment_size,
@@ -177,7 +177,7 @@ pub(crate) async fn spawn_app(
     let mut ds = Ds::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
@@ -196,7 +196,7 @@ pub(crate) async fn spawn_app(
     let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
@@ -228,7 +228,7 @@ pub(crate) async fn spawn_app(
     let qs = Qs::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
