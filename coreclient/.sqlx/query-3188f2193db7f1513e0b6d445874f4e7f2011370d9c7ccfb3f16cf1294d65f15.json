@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM receipt_queue\n                        WHERE locked_by = ?1 AND mimi_id = ?2 AND status = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "3188f2193db7f1513e0b6d445874f4e7f2011370d9c7ccfb3f16cf1294d65f15"
+}

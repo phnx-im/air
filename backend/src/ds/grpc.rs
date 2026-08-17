@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{ClientCredential, keys::ClientVerifyingKey},
+    credentials::{LeafCredential, keys::ClientVerifyingKey},
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
-            keys::LeafVerifyingKeyRef,
             private_keys::SignatureVerificationError,
             signable::{Verifiable, VerifiedStruct},
         },
@@ -40,14 +39,16 @@ use mls_assist::{
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
-use tls_codec::DeserializeBytes;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
 
 use crate::{
     auth_service::AsConnector,
-    ds::{attachments::ProvisionObjectError, group_state::MemberProfile, process::Provider},
+    ds::{
+        attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
+        group_state::MemberProfile, process::Provider,
+    },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -177,21 +178,57 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
+    /// Loads the T group state and, if `pq_qgid` is given, also the PQ group state, both from
+    /// the same DB transaction (with the shared `ear_key`) so that external-commit callers see
+    /// a consistent snapshot across both legs of an APQ group.
+    async fn load_group_state_immutable_pair(
+        &self,
+        qgid: &QualifiedGroupId,
+        pq_qgid: Option<&QualifiedGroupId>,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(DsGroupState, Option<DsGroupState>), LoadGroupStateError> {
+        let mut txn = self
+            .ds
+            .db_pool
+            .begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ")
+            .await
+            .map_err(|error| {
+                error!(%error, "Failed to start transaction");
+                Status::internal("Failed to start transaction")
+            })?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut txn, qgid, ear_key)
+            .await?;
+        let pq_group_state = match pq_qgid {
+            Some(pq_qgid) => {
+                let (_, pq_group_state) = self
+                    .load_group_state::<false>(&mut txn, pq_qgid, ear_key)
+                    .await?;
+                Some(pq_group_state)
+            }
+            None => None,
+        };
+        Ok((group_state, pq_group_state))
+    }
+
     /// Fans out a message to the given clients (concurrently).
+    ///
+    /// Each destination carries its own notification-suppression flag, so that
+    /// a message can reach the sender's other clients without waking them.
     ///
     /// The parallelism is limited by a constant. Logs failures but does not
     /// fail the whole operation.
     async fn fan_out_message(
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
-        destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
-        suppress_notifications: bool,
+        destination_clients: impl IntoIterator<Item = (identifiers::QsReference, bool)>,
+        broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
         let fan_out_payload = fan_out_payload.into();
         let timestamp = fan_out_payload.timestamp();
 
         let mut join_set: JoinSet<Result<(), <Qep as QsConnector>::EnqueueError>> = JoinSet::new();
-        for client_reference in destination_clients {
+        for (client_reference, suppress_notifications) in destination_clients {
             while MAX_CONCURRENT_FANOUTS <= join_set.len() {
                 join_set
                     .join_next()
@@ -206,6 +243,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 payload: fan_out_payload.clone(),
                 client_reference,
                 suppress_notifications: suppress_notifications.into(),
+                broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
+                virtual_client_hint: None,
             }));
         }
 
@@ -229,9 +268,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
         destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
+        broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
-        self.fan_out_message(fan_out_payload, destination_clients, true)
-            .await
+        self.fan_out_message(
+            fan_out_payload,
+            destination_clients
+                .into_iter()
+                .map(|client_reference| (client_reference, true)),
+            broadcast_to_all_client_queues,
+        )
+        .await
     }
 
     async fn encrypt_and_persist(
@@ -370,6 +416,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
+        sender_index: Option<LeafNodeIndex>,
         f: impl AsyncFnOnce(ApqVerificationData<'_, P>) -> Result<ApqFanOut<T>, Status>,
     ) -> Result<T, Status>
     where
@@ -390,19 +437,46 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (txn, mut t_group_state, t_group_data) = self
             .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
             .await?;
+        let t_apq_info = t_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on T group"))?;
         let (payload, t_sender_index) =
-            resolve_and_verify(request, &t_message, &t_group_state, None)?;
+            resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
 
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
+        let pq_apq_info = pq_group_state
+            .apq_info()
+            .ok_or_else(|| Status::failed_precondition("Missing APQ info on PQ group"))?;
+
+        if t_apq_info.group_id() != pq_apq_info.group_id() {
+            return Err(Status::failed_precondition(
+                "T and PQ group IDs do not match",
+            ));
+        }
+        if t_message.group_id() != &t_apq_info.t_session_group_id {
+            return Err(Status::failed_precondition(
+                "T message group ID does not match T APQ group ID",
+            ));
+        }
+        if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
+            return Err(Status::failed_precondition(
+                "PQ message group ID does not match PQ APQ group ID",
+            ));
+        }
 
         // Check that the T/PQ indices and signature keys match
-        let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
-        else {
-            return Err(Status::invalid_argument(
-                "unexpected pq sender: expected member",
-            ));
+        let pq_sender_index = match sender_index {
+            Some(index) => index,
+            None => match pq_message.sender().ok_or_missing_field("sender")? {
+                Sender::Member(index) => *index,
+                _ => {
+                    return Err(Status::invalid_argument(
+                        "unexpected pq sender: expected member",
+                    ));
+                }
+            },
         };
         if t_sender_index != pq_sender_index {
             return Err(Status::invalid_argument(
@@ -422,6 +496,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 "t and pq credentials do not match",
             ));
         }
+        let broadcast_to_all_client_queues = t_group_state.broadcast_to_all_client_queues();
 
         // Process group operation
         let ApqFanOut {
@@ -451,8 +526,12 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         })?;
 
         // Fan out
-        self.fan_out_message_without_notifications(qs_payload, destination_clients)
-            .await;
+        self.fan_out_message_without_notifications(
+            qs_payload,
+            destination_clients,
+            broadcast_to_all_client_queues,
+        )
+        .await;
         for message in individual {
             if let Err(error) = self
                 .qs_connector
@@ -523,14 +602,32 @@ where
             )),
         }
     })?;
-    let verifying_key: LeafVerifyingKeyRef = group_state
+    let sender_key = sender_verifying_key(group_state, sender_index)?;
+    let payload: P = request.verify(&sender_key).map_err(InvalidSignature)?;
+    Ok((payload, sender_index))
+}
+
+/// The key that authenticates requests from the leaf at `sender_index`.
+///
+/// User credentials embed the user's verifying key. Self-group credentials carry no key
+/// material, so requests are verified against the leaf's own MLS signature key, which is
+/// unique per client.
+fn sender_verifying_key(
+    group_state: &DsGroupState,
+    sender_index: LeafNodeIndex,
+) -> Result<ClientVerifyingKey, Status> {
+    let leaf = group_state
         .group()
         .leaf(sender_index)
-        .ok_or(Status::invalid_argument("unknown sender"))?
-        .signature_key()
-        .into();
-    let payload: P = request.verify(verifying_key).map_err(InvalidSignature)?;
-    Ok((payload, sender_index))
+        .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
+    let credential = LeafCredential::from_credential(leaf.credential())
+        .map_err(|_| Status::invalid_argument("invalid credential"))?;
+    match credential {
+        LeafCredential::User(credential) => Ok(credential.verifying_key().clone()),
+        LeafCredential::SelfGroup(_) => Ok(ClientVerifyingKey::from_bytes(
+            leaf.signature_key().as_slice().to_vec(),
+        )),
+    }
 }
 
 /// Extracted data in leaf verification
@@ -608,18 +705,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // TODO: signature verification?
-        let request = request.into_inner();
-        let payload = request.payload.ok_or_missing_field("payload")?;
+        // First use the unverified payload. It is verified below against the creator's user
+        // credential.
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-
-        let reserved_group_id = self
-            .ds
-            .claim_reserved_group_id(qgid.group_uuid())
-            .await
-            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // create group
         let group_info: MlsMessageIn = payload
@@ -645,26 +740,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             Status::internal("failed to create group")
         })?;
 
-        // Extract user id
-        let members = group.members().collect::<Vec<_>>();
-
-        let &[own_leaf] = &members.as_slice() else {
-            error!(members = %members.len(), "group must have exactly one member");
-            return Err(Status::invalid_argument(
-                "group must have exactly one member",
-            ));
-        };
-
         let credential =
-            ClientCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
-                .map_err(|_| Status::invalid_argument("invalid credential"))?;
-        let user_id = credential.user_id().uuid();
+            Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
 
         // Configure the rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[b"user_uuid", user_id.as_bytes()],
+            &[b"user_uuid", credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -679,6 +762,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 "Too many requests, please try again later",
             ));
         }
+
+        // Now we can verify the payload
+        let payload: CreateGroupPayload = request
+            .verify(credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        let reserved_group_id = self
+            .ds
+            .claim_reserved_group_id(qgid.group_uuid())
+            .await
+            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // encrypt and store group state
         let encrypted_user_profile_key = payload
@@ -728,7 +822,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateApqGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // First use unverified payload; later we verify it using the client credential from the
+        // First use unverified payload; later we verify it using the user credential from the
         // leaf node.
         let payload = request
             .inner()
@@ -770,16 +864,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
-        let t_client_credential = Self::extract_credential(&t_group_state.group)?;
+        let t_user_credential = Self::creator_credential(
+            &t_group_state.group,
+            payload.creator_user_credential.as_ref(),
+        )?;
 
         // Configure and apply rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[
-                b"user_uuid",
-                t_client_credential.user_id().uuid().as_bytes(),
-            ],
+            &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -795,7 +889,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         // Now we can verify the payload
         let payload: CreateApqGroupPayload = request
-            .verify(t_client_credential.verifying_key())
+            .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
 
         // Extract pq group state (PQ group uses the same ear_key as the T group)
@@ -806,9 +900,18 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
+        // The T leg carries the meaningful creator credential, enforced above via
+        // `creator_credential`. The PQ leg's leaf holds only an empty placeholder credential, so we
+        // cannot check its variant. Instead the two legs must agree on the self-group flag, which
+        // transfers the T-leg consistency to the PQ leg.
+        if t_group_state.is_self_group() != pq_group_state.is_self_group() {
+            return Err(Status::invalid_argument(
+                "self-group flag mismatch between t and pq groups",
+            ));
+        }
 
         // Check that the t and pq client signature keys match
-        Self::verify_signing_key(&pq_group_state.group, t_client_credential.verifying_key())?;
+        Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
 
         // Encrypt and store group state
         let t_reserved_group_id = self
@@ -881,36 +984,39 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await
             .map_err(to_status)?;
 
+        let welcome_epoch = payload.epoch.ok_or_missing_field("epoch")?.into();
         let welcome_info_params = WelcomeInfoParams {
             sender: sender.clone(),
-            epoch: payload.epoch.ok_or_missing_field("epoch")?.into(),
+            epoch: welcome_epoch,
             group_id: qgid.into(),
         };
+        let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
+        let room_state_at_epoch = group_state.room_state_at(welcome_epoch);
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles_at_epoch
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut a, mut b), (index, key)| {
+                a.push(key.clone().into());
+                b.push(IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(key.into()),
+                });
+                (a, b)
+            });
+
         Ok(Response::new(WelcomeInfoResponse {
             ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
-            encrypted_user_profile_keys: group_state
-                .encrypted_user_profile_keys()
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            encrypted_user_profile_keys,
             room_state: Some(
-                group_state
-                    .room_state
+                room_state_at_epoch
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
-            indexed_encrypted_user_profile_keys: group_state
-                .member_profiles
-                .into_iter()
-                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
-                    leaf_index: index.u32(),
-                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
-                })
-                .collect(),
+            indexed_encrypted_user_profile_keys,
         }))
     }
 
@@ -926,13 +1032,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
+        let pq_qgid = request
+            .pq_qgid
+            .as_ref()
+            .map(TryRefInto::try_ref_into)
+            .transpose()?;
 
-        let (_, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
+        let (group_state, pq_group_state) = self
+            .load_group_state_immutable_pair(&qgid, pq_qgid.as_ref(), &ear_key)
             .await
             .map_err(to_status)?;
 
         let commit_info = group_state.external_commit_info();
+        let pq_commit_info = pq_group_state
+            .as_ref()
+            .map(DsGroupState::external_commit_info);
 
         Ok(Response::new(ExternalCommitInfoResponse {
             group_info: Some(
@@ -968,6 +1082,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
                 })
                 .collect(),
+            pq_group_info: pq_commit_info
+                .as_ref()
+                .map(|info| info.group_info.clone().try_into())
+                .transpose()
+                .invalid_tls("pq_group_info")?,
+            pq_ratchet_tree: pq_commit_info
+                .as_ref()
+                .map(|info| info.ratchet_tree.try_ref_into())
+                .transpose()
+                .invalid_tls("pq_ratchet_tree")?,
+            pq_proposals: pq_commit_info
+                .map(|info| info.proposals.into_iter().map(From::from).collect())
+                .unwrap_or_default(),
         }))
     }
 
@@ -1051,6 +1178,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 &qgid,
                 &ear_key,
                 async |group_state, _group_data| {
+                    if group_state.is_apq() {
+                        return Err(Status::failed_precondition(
+                            "Non APQ operation on an APQ group",
+                        ));
+                    }
+
                     let params = JoinConnectionGroupParams {
                         external_commit,
                         qs_client_reference: request
@@ -1059,13 +1192,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                             .try_into()?,
                     };
 
+                    // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
+
                     let group_message = group_state.join_connection_group(params)?;
 
                     group_state.proposals.clear();
 
                     let timestamp = self
-                        .fan_out_message_without_notifications(group_message, destination_clients)
+                        .fan_out_message_without_notifications(
+                            group_message,
+                            destination_clients,
+                            true,
+                        )
                         .await;
                     Ok(timestamp)
                 },
@@ -1101,16 +1240,32 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verified_data;
 
-                let destination_clients: Vec<_> = group_state
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ resync",
+                    ));
+                }
+
+                let mut destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let group_message = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state.resync_client(external_commit, sender_index)?;
+
+                // A sibling emulator client took over the virtual client's leaf;
+                // the leaf's previous occupant has to process the commit to follow
+                // onto it.
+                destination_clients.extend(outcome.sibling_queue);
 
                 group_state.proposals.clear();
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        outcome.message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
@@ -1118,6 +1273,72 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         Ok(Response::new(ResyncResponse {
             fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
+    async fn apq_resync(
+        &self,
+        request: Request<SignedRequest<ApqResyncRequest>>,
+    ) -> Result<Response<ApqResyncResponse>, Status> {
+        let request = request.into_inner();
+
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
+
+        let fanout_timestamp: TimeStamp = self
+            .update_apq_group_state(
+                request,
+                Some(sender_index),
+                async |ApqVerificationData {
+                           payload: _,
+                           t_group_state,
+                           pq_group_state,
+                           t_message: t_external_commit,
+                           pq_message: pq_external_commit,
+                           t_sender_index,
+                           ear_key: _,
+                       }: ApqVerificationData<'_, ApqResyncPayload>| {
+                    // Collect destination clients *before* the commit is accepted.
+                    let mut destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
+
+                    let outcome = DsGroupState::apq_resync_client(
+                        t_group_state,
+                        pq_group_state,
+                        t_external_commit,
+                        pq_external_commit,
+                        t_sender_index,
+                    )?;
+
+                    // A sibling emulator client took over the virtual client's
+                    // leaf; its previous occupant has to follow onto it.
+                    destination_clients.extend(outcome.sibling_queue);
+
+                    t_group_state.proposals.clear();
+                    pq_group_state.proposals.clear();
+
+                    let timestamp = TimeStamp::now();
+                    let apq_payload =
+                        QsQueueMessagePayload::apq_mls_message(timestamp, outcome.message);
+
+                    Ok(ApqFanOut {
+                        broadcast: (apq_payload, destination_clients),
+                        individual: Default::default(),
+                        value: timestamp,
+                    })
+                },
+            )
+            .await?;
+
+        Ok(Response::new(ApqResyncResponse {
+            fanout_timestamp: Some(fanout_timestamp.into()),
         }))
     }
 
@@ -1149,14 +1370,25 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verification_data;
 
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ self remove",
+                    ));
+                }
+
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let group_message = group_state.self_remove_client(remove_proposal)?;
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        group_message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
@@ -1190,6 +1422,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let fanout_timestamp = self
             .update_apq_group_state(
                 request,
+                None,
                 async |ApqVerificationData {
                            payload: _,
                            t_group_state,
@@ -1260,14 +1493,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: SendMessagePayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: SendMessagePayload = request.verify(&sender_key).map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
@@ -1280,16 +1507,27 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await?;
         }
 
-        let destination_clients = group_state.other_destination_clients(sender_index);
+        let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
+
+        // The sender's own clients need the message, but a push notification for
+        // it would wake them for something their user just did themselves.
+        let destination_clients = group_state.other_destinations(sender_index).map(
+            |(client_reference, is_sender_sibling)| {
+                (
+                    client_reference,
+                    suppress_notifications || is_sender_sibling,
+                )
+            },
+        );
 
         let timestamp = self
             .fan_out_message(
                 message.into_serialized_mls_message(),
                 destination_clients,
-                suppress_notifications,
+                broadcast_to_all_client_queues,
             )
             .await;
 
@@ -1326,22 +1564,92 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verification_data;
 
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ delete",
+                    ));
+                }
+
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let group_message = group_state.delete_group(commit)?;
 
                 group_state.proposals.clear();
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        group_message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
             .await?;
 
         Ok(Response::new(DeleteGroupResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
+    async fn apq_delete_group(
+        &self,
+        request: Request<SignedRequest<ApqDeleteGroupRequest>>,
+    ) -> Result<Response<ApqDeleteGroupResponse>, Status> {
+        let request = request.into_inner();
+
+        request
+            .inner()
+            .signature
+            .as_ref()
+            .ok_or_missing_field("signature")?;
+
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let timestamp: TimeStamp = self
+            .update_apq_group_state(request, None, async |verification_data| {
+                let ApqVerificationData::<'_, ApqDeleteGroupPayload> {
+                    payload: _,
+                    t_group_state,
+                    pq_group_state,
+                    t_message,
+                    pq_message,
+                    t_sender_index,
+                    ear_key: _,
+                } = verification_data;
+                let destination_clients: Vec<_> = t_group_state
+                    .other_destination_clients(t_sender_index)
+                    .collect();
+
+                let pq_serialized = pq_group_state.delete_pq_group(pq_message)?;
+                let t_serialized = t_group_state.delete_group(t_message)?;
+
+                t_group_state.proposals.clear();
+                pq_group_state.proposals.clear();
+
+                let timestamp = TimeStamp::now();
+                let serialized_apq_message =
+                    SerializedMlsMessage::combine_apq(t_serialized, pq_serialized);
+                let apq_payload =
+                    QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+
+                Ok(ApqFanOut {
+                    broadcast: (apq_payload, destination_clients),
+                    individual: Default::default(),
+                    value: timestamp,
+                })
+            })
+            .await?;
+
+        Ok(Response::new(ApqDeleteGroupResponse {
             fanout_timestamp: Some(timestamp.into()),
         }))
     }
@@ -1365,7 +1673,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let (destination_clients, fan_out_payload, individual_fan_out_messages) = self
+        let (
+            destination_clients,
+            fan_out_payload,
+            individual_fan_out_messages,
+            broadcast_to_all_client_queues,
+        ) = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, GroupOperationPayload, true> {
                     ear_key,
@@ -1405,29 +1718,38 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let (group_message, mut individual_fan_out_messages) =
+                let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
                     group_state.group_operation(params, ear_key).await?;
 
                 group_state.proposals.clear();
 
                 let fan_out_payload: DsFanOutPayload = group_message.into();
 
-                let commit_response = group_state
-                    .create_commit_response(sender_index, fan_out_payload.timestamp())?;
+                let commit_response = group_state.create_commit_response(
+                    sender_index,
+                    fan_out_payload.timestamp(),
+                    virtual_client_hint,
+                )?;
                 individual_fan_out_messages.push(commit_response);
 
                 Ok((
                     destination_clients,
                     fan_out_payload,
                     individual_fan_out_messages,
+                    broadcast_to_all_client_queues,
                 ))
             })
             .await?;
 
         // Fan out the commit message to existing members
         let timestamp = self
-            .fan_out_message_without_notifications(fan_out_payload, destination_clients)
+            .fan_out_message_without_notifications(
+                fan_out_payload,
+                destination_clients,
+                broadcast_to_all_client_queues,
+            )
             .await;
 
         // Dispatch individual fan out messages to new members
@@ -1471,6 +1793,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let fanout_timestamp = self
             .update_apq_group_state(
                 request,
+                None,
                 async |ApqVerificationData {
                            payload,
                            t_group_state,
@@ -1508,27 +1831,31 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 
-                    // Collect destination clients before processing the commit so that new invitees (added by
+                    // Make sure you collect destination clients before processing the commit so that new invitees (added by
                     // this commit) don't receive the commit message before their welcome bundle.
                     let destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
                         .collect();
 
-                    let (serialized_apq_message, t_add_users_state, pq_welcome) =
-                        DsGroupState::process_apq_group_operation(
-                            t_group_state,
-                            pq_group_state,
-                            t_message,
-                            pq_message,
-                            t_add_users_info,
-                            pq_add_users_info,
-                        )?;
+                    let ProcessedApqGroupOperation {
+                        serialized_message,
+                        t_add_users_state,
+                        pq_welcome,
+                        virtual_client_hint,
+                    } = DsGroupState::process_apq_group_operation(
+                        t_group_state,
+                        pq_group_state,
+                        t_message,
+                        pq_message,
+                        t_add_users_info,
+                        pq_add_users_info,
+                    )?;
 
                     // Fan out the commit message to the destination clients
                     let timestamp = TimeStamp::now();
 
                     let apq_payload =
-                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_message);
 
                     // Generate welcome bundles for new members
                     let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
@@ -1556,8 +1883,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
-                    let commit_response =
-                        t_group_state.create_commit_response(t_sender_index, timestamp)?;
+                    let commit_response = t_group_state.create_commit_response(
+                        t_sender_index,
+                        timestamp,
+                        virtual_client_hint,
+                    )?;
                     individual_fan_out_messages.push(commit_response);
 
                     Ok(ApqFanOut {
@@ -1602,14 +1932,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &ear_key,
             async |group_state, _group_data| {
                 // verify signature
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
+                let sender_key = sender_verifying_key(group_state, sender_index)?;
                 let payload: UpdateProfileKeyPayload =
-                    request.verify(verifying_key).map_err(InvalidSignature)?;
+                    request.verify(&sender_key).map_err(InvalidSignature)?;
 
                 let user_profile_key = payload
                     .encrypted_user_profile_key
@@ -1629,9 +1954,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                self.fan_out_message_without_notifications(fan_out_payload, destination_clients)
-                    .await;
+                self.fan_out_message_without_notifications(
+                    fan_out_payload,
+                    destination_clients,
+                    broadcast_to_all_client_queues,
+                )
+                .await;
                 Ok(())
             },
         )
@@ -1674,14 +2004,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request.verify(verifying_key).map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -1756,14 +2081,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request.verify(verifying_key).map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -1810,6 +2130,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?;
+
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
@@ -1831,17 +2152,25 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let _: TargetedMessagePayload = request.verify(verifying_key).map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: TargetedMessagePayload =
+            request.verify(&sender_key).map_err(InvalidSignature)?;
+
+        if let Some(tags) = payload.collision_tags {
+            let msg_epoch = message.epoch().as_u64();
+            super::collision_tags::check_and_insert(
+                &self.ds.db_pool,
+                qgid.group_uuid(),
+                msg_epoch as i64,
+                tags,
+            )
+            .await?;
+        }
 
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)
             .ok_or_else(|| Status::invalid_argument("unknown recipient"))?;
+        let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = false;
@@ -1852,6 +2181,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),
+            broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
+            virtual_client_hint: None,
         };
 
         let timestamp = fan_out_message.payload.timestamp();
@@ -2021,6 +2352,12 @@ impl WithGroupStateEarKey for DeleteGroupRequest {
     }
 }
 
+impl WithGroupStateEarKey for ApqDeleteGroupRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
 impl WithGroupStateEarKey for GroupOperationRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
@@ -2052,6 +2389,12 @@ impl WithGroupStateEarKey for WelcomeInfoPayload {
 }
 
 impl WithGroupStateEarKey for ResyncRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
+impl WithGroupStateEarKey for ApqResyncRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
     }
@@ -2194,6 +2537,44 @@ impl WithApqMessage for ApqGroupOperationRequest {
         let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
         let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
         let pq_message = commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqDeleteGroupRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
+        let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
+        let pq_message = commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqResyncRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let external_commit = payload
+            .external_commit
+            .as_ref()
+            .ok_or_missing_field("external_commit")?;
+        let t_message = external_commit
+            .t_message
+            .as_ref()
+            .ok_or_missing_field("t_message")?;
+        let pq_message = external_commit
             .pq_message
             .as_ref()
             .ok_or_missing_field("pq_message")?;

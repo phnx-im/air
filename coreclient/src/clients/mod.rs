@@ -15,9 +15,7 @@ use airapiclient::{
     qs_api::{QsListenResponder, QsRequestError},
 };
 use aircommon::{
-    credentials::{
-        ClientCredential, ClientCredentialCsr, ClientCredentialPayload, keys::ClientSigningKey,
-    },
+    credentials::{UserCredential, UserCredentialCsr, UserCredentialPayload, keys::UserSigningKey},
     crypto::{
         RatchetDecryptionKey,
         aead::keys::WelcomeAttributionInfoEarKey,
@@ -43,8 +41,9 @@ use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
+use uuid::Uuid;
 
 use crate::{
     Asset, ChatMuted, PartialContact, UsernameRecord,
@@ -91,6 +90,7 @@ mod delete_account;
 mod event_loop;
 pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
+pub(crate) mod linked_devices;
 mod message;
 pub mod multi_device;
 pub(crate) mod own_client_info;
@@ -113,7 +113,11 @@ pub(crate) mod user_settings;
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
+#[cfg(not(feature = "test_utils"))]
 pub(crate) const CONNECTION_PACKAGES: usize = 50;
+
+#[cfg(feature = "test_utils")]
+pub(crate) const CONNECTION_PACKAGES: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {
@@ -123,6 +127,7 @@ pub struct CoreUser {
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
     db: DbAccess,
+    client_record_id: Uuid,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     qs_user_id: QsUserId,
@@ -131,7 +136,7 @@ pub(crate) struct CoreUserInner {
     db_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
-    _event_loop_cancel: DropGuard,
+    event_loop_cancel: DropGuard,
 }
 
 impl CoreUserInner {
@@ -178,12 +183,14 @@ impl CoreUser {
         let air_db = open_air_db(db_path).await?;
 
         // Open client specific db
-        let client_db = open_client_db(&user_id, db_path).await?;
+        let client_record_id = Uuid::new_v4();
+        let client_db = open_client_db(db_path, client_record_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
         Self::new_with_connections(
             user_id,
+            client_record_id,
             server_url,
             push_token,
             air_db,
@@ -194,8 +201,10 @@ impl CoreUser {
         .await
     }
 
+    #[expect(clippy::too_many_arguments)]
     async fn new_with_connections(
         user_id: UserId,
+        client_record_id: Uuid,
         server_url: Option<Url>,
         push_token: Option<PushToken>,
         air_db: DbAccess,
@@ -205,75 +214,108 @@ impl CoreUser {
     ) -> Result<Self> {
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state =
-            UserCreationState::new(&client_db, &air_db, user_id, push_token, invitation_code)
-                .await?;
+        let user_creation_state = UserCreationState::new(
+            &client_db,
+            &air_db,
+            user_id,
+            client_record_id,
+            push_token,
+            invitation_code,
+        )
+        .await?;
 
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
             .await?;
 
         OwnClientInfo {
             qs_user_id: *final_state.qs_user_id(),
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
+            client_id: Uuid::new_v4(),
+            self_group_id: None,          // Created lazily on first use
+            self_group_signing_key: None, // Same as above
         }
         .store(client_db.write().await?)
         .await?;
 
-        let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
+        let self_user =
+            final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
+        self_user.publish_own_device_entry(Utc::now()).await;
 
         Ok(self_user)
     }
 
-    /// Load a user from the database.
+    /// Load the client identified by `client_record_id` from the database.
     ///
-    /// If a user creation process with a matching `UserId` was interrupted before, this will
-    /// resume that process.
-    pub async fn load(user_id: &UserId, db_path: &str) -> Result<CoreUser> {
-        Self::load_impl(user_id, db_path, None).await
+    /// If a user creation process of this client was interrupted before, this
+    /// will resume that process.
+    pub async fn load(db_path: &str, client_record_id: Uuid) -> Result<CoreUser> {
+        Self::load_impl(db_path, client_record_id, None).await
     }
 
     /// Same as [`load`], but allows to override the server URL.
     #[cfg(feature = "test_utils")]
     pub async fn load_with_server_url(
-        user_id: &UserId,
         db_path: &str,
+        client_record_id: Uuid,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        Self::load_impl(user_id, db_path, server_url).await
+        Self::load_impl(db_path, client_record_id, server_url).await
     }
 
     async fn load_impl(
-        user_id: &UserId,
         db_path: &str,
+        client_record_id: Uuid,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        let client_db = open_client_db(user_id, db_path).await?;
+        let air_db = open_air_db(db_path).await?;
+        let record = ClientRecord::load(air_db.read().await?, client_record_id)
+            .await?
+            .context("missing client record")?;
+        let user_id = record.user_id;
+        let client_db = open_client_db(db_path, client_record_id).await?;
 
-        let user_creation_state = UserCreationState::load(client_db.read().await?, user_id)
+        let user_creation_state = UserCreationState::load(client_db.read().await?, &user_id)
             .await?
             .context("missing user creation state")?;
-
-        let air_db = open_air_db(db_path).await?;
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
             .await?;
-        ClientRecord::set_default(air_db.write().await?, user_id).await?;
+
+        ClientRecord::set_default(air_db.write().await?, client_record_id).await?;
+        let client_created_at = ClientRecord::load(air_db.read().await?, client_record_id)
+            .await?
+            .context("unable to load client record")?
+            .created_at;
 
         let global_lock = open_lock_file(db_path)?;
 
-        Ok(final_state.into_self_user(client_db, api_clients, global_lock))
+        let self_user =
+            final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
+        self_user.publish_own_device_entry(client_created_at).await;
+
+        Ok(self_user)
+    }
+
+    /// Publishes this device's linked-devices entry.
+    ///
+    /// A missing entry only degrades the device list to a fallback label, so it
+    /// must never stop a client from starting.
+    async fn publish_own_device_entry(&self, created_at: DateTime<Utc>) {
+        if let Err(error) = self.ensure_own_device_entry(created_at).await {
+            error!(%error, "failed to publish this device's linked-devices entry");
+        }
     }
 
     /// Delete this user on the server and locally.
     ///
     /// The user database is also deleted. The client record is removed from the air database.
     pub async fn delete(self, db_path: &str) -> anyhow::Result<()> {
-        let user_id = self.user_id().clone();
+        let client_record_id = self.client_record_id();
         self.delete_ephemeral().await?;
-        delete_client_database(db_path, &user_id).await?;
+        delete_client_database(db_path, client_record_id).await?;
         Ok(())
     }
 
@@ -293,7 +335,12 @@ impl CoreUser {
         &self.inner.db
     }
 
-    pub(crate) fn signing_key(&self) -> &ClientSigningKey {
+    /// Random UUID naming this client's DB file and identifying its client record
+    pub fn client_record_id(&self) -> Uuid {
+        self.inner.client_record_id
+    }
+
+    pub(crate) fn signing_key(&self) -> &UserSigningKey {
         &self.inner.key_store.signing_key
     }
 
@@ -316,6 +363,13 @@ impl CoreUser {
     /// Stop the outbound service and wait until it is fully stopped.
     pub async fn stop_outbound_service(&self) {
         self.inner.outbound_service.stop().await;
+    }
+
+    /// Stops local background work and closes this user's database connections.
+    pub async fn close_local_database(&self) {
+        self.inner.event_loop_cancel.token().cancel();
+        self.stop_outbound_service().await;
+        self.inner.db.close().await;
     }
 
     pub(crate) fn key_store(&self) -> &MemoryUserKeyStore {
@@ -613,7 +667,7 @@ impl CoreUser {
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
-        info!(
+        debug!(
             sequence_number_start,
             "listening to QS queue from sequence number"
         );
@@ -675,7 +729,7 @@ impl CoreUser {
 
     /// Returns how many messages are marked as unread across all chats.
     pub async fn global_unread_messages_count(&self) -> sqlx::Result<usize> {
-        Chat::global_unread_message_count(self.db().read().await?).await
+        Chat::global_unread_message_count(self.db().read().await?, self.user_id()).await
     }
 
     /// Returns how many messages in the chat with the given ID are
@@ -689,14 +743,10 @@ impl CoreUser {
         else {
             return 0;
         };
-        Chat::unread_messages_count(connection, chat_id)
+        Chat::unread_messages_count(connection, chat_id, self.user_id())
             .await
             .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
             .unwrap_or(0)
-    }
-
-    pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
     pub async fn set_chat_muted_until(
@@ -707,6 +757,22 @@ impl CoreUser {
         self.db()
             .with_write_transaction(async |txn| {
                 Chat::set_muted_until(txn, chat_id, muted_until).await?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Advance the chat notification watermark.
+    ///
+    /// Called when user dismisses a notification. Never moves backwards.
+    pub async fn set_chat_notified_until(
+        &self,
+        chat_id: ChatId,
+        notified_until: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_notified_until(txn, chat_id, notified_until).await?;
                 Ok(())
             })
             .await

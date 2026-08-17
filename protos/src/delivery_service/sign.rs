@@ -63,6 +63,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::ApqDeleteGroupRequest,
+    payload = super::v1::ApqDeleteGroupPayload,
+    key_type = ClientKeyType,
+    label = "ApqDeleteGroupPayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::TargetedMessageRequest,
     payload = super::v1::TargetedMessagePayload,
     key_type = ClientKeyType,
@@ -83,6 +91,14 @@ impl_signed_payload!(
     payload = super::v1::ResyncPayload,
     key_type = ClientKeyType,
     label = "ResyncPayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
+    request = super::v1::ApqResyncRequest,
+    payload = super::v1::ApqResyncPayload,
+    key_type = ClientKeyType,
+    label = "ApqResyncPayload",
     seal = private_mod::Seal,
 );
 

@@ -3,72 +3,73 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import '../../helpers.dart';
 
 void main() {
-  group('AppButton', () {
-    String sizeLabel(AppButtonSize size) =>
-        size == AppButtonSize.small ? 'Small' : 'Large';
+  group('Button', () {
+    String sizeLabel(ButtonSize size) =>
+        size == ButtonSize.small ? 'Small' : 'Large';
 
     List<Widget> buildButtonConfigs() => [
-      for (final size in AppButtonSize.values) ...[
-        AppButton(
+      for (final size in ButtonSize.values) ...[
+        Button(
           label: "${sizeLabel(size)} Primary",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
+          type: ButtonType.primary,
+          state: ButtonState.active,
           onPressed: () {},
         ),
-        AppButton(
-          label: "${sizeLabel(size)} Primary Inactive",
+        Button(
+          label: "${sizeLabel(size)} Primary Disabled",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.inactive,
+          type: ButtonType.primary,
+          state: ButtonState.disabled,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Primary Danger",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
-          tone: AppButtonTone.danger,
+          type: ButtonType.primary,
+          state: ButtonState.active,
+          tone: ButtonTone.danger,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Primary Icon",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
+          type: ButtonType.primary,
+          state: ButtonState.active,
           icon: (size, color) =>
               Container(width: size.width, height: size.height, color: color),
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Secondary",
           size: size,
-          type: AppButtonType.secondary,
-          state: AppButtonState.active,
+          type: ButtonType.secondary,
+          state: ButtonState.active,
           onPressed: () {},
         ),
-        AppButton(
-          label: "${sizeLabel(size)} Secondary Inactive",
+        Button(
+          label: "${sizeLabel(size)} Secondary Disabled",
           size: size,
-          type: AppButtonType.secondary,
-          state: AppButtonState.inactive,
+          type: ButtonType.secondary,
+          state: ButtonState.disabled,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Secondary Danger",
           size: size,
-          type: AppButtonType.secondary,
-          tone: AppButtonTone.danger,
+          type: ButtonType.secondary,
+          tone: ButtonTone.danger,
           onPressed: () {},
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
       ],
     ];
 
@@ -80,8 +81,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Scaffold(
             body: Padding(
-              padding: const EdgeInsets.all(Spacing.px16),
-              child: Column(spacing: Spacing.px8, children: widgets),
+              padding: const EdgeInsets.all(S.s16),
+              child: Column(spacing: S.s8, children: widgets),
             ),
           ),
         );
@@ -109,6 +110,56 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/buttons_dark.png'),
       );
+    });
+
+    group('hover lift', () {
+      const label = 'Hover';
+
+      Widget hoverSubject(Widget button) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: testLightTheme,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(body: Center(child: button)),
+      );
+
+      /// Hovers the button and reports how much it grew, measured on the label
+      /// since the lift is a paint transform that leaves the layout alone.
+      Future<double> hoverGrowth(WidgetTester tester, Widget button) async {
+        await tester.pumpWidget(hoverSubject(button));
+        final resting = tester.getRect(find.text(label)).width;
+
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await pointer.addPointer(location: Offset.zero);
+        addTearDown(pointer.removePointer);
+
+        await pointer.moveTo(tester.getCenter(find.byType(Button)));
+        await tester.pumpAndSettle();
+
+        return tester.getRect(find.text(label)).width / resting;
+      }
+
+      testWidgets('a button that picked its own width lifts', (tester) async {
+        final growth = await hoverGrowth(
+          tester,
+          Button(label: label, onPressed: () {}),
+        );
+
+        expect(growth, closeTo(StateTokens.hoverScale, 0.001));
+      }, variant: desktopPlatform);
+
+      testWidgets('a button handed its width stays put', (tester) async {
+        final growth = await hoverGrowth(
+          tester,
+          SizedBox(
+            width: 320,
+            child: Button(label: label, onPressed: () {}),
+          ),
+        );
+
+        expect(growth, 1.0);
+      }, variant: desktopPlatform);
     });
   });
 }

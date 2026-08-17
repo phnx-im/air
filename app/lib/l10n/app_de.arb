@@ -4,7 +4,6 @@
   "userSettingsScreen_title": "Profil und Einstellungen",
   "userSettingsScreen_profileDescription": "Dein Anzeigename und dein Profilbild sind für deine Air-Kontakte und Mitglieder deiner Gruppen sichtbar.",
   "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
-  "userSettingsScreen_interfaceScale": "Oberflächenskalierung",
   "userSettingsScreen_help": "Hilfe",
   "userSettingsScreen_deleteAccount": "Air-Konto löschen",
   "userSettingsScreen_sendWithEnter": "Mit Eingabetaste senden",
@@ -13,22 +12,25 @@
   "userSettingsScreen_readReceiptsDescription": "Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.",
   "userSettingsScreen_displayNameLabel": "Anzeigename",
   "userSettingsScreen_usernamesSection": "Benutzernamen",
-  "userSettingsScreen_settingsSection": "Einstellungen",
   "userSettingsScreen_helpSection": "Hilfe",
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Benutzername",
   "userSettingsScreen_inviteCodes": "Einladungscodes",
 
   "userSettingsScreen_devices": "Geräte",
+
+  "youSection_profile": "Profil",
+  "youSection_preferences": "Einstellungen",
+  "youSection_developer": "Entwickler",
   "settingsScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "removeUsernameDialog_title": "Benutzername entfernen",
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
   "removeUsernameDialog_cancel": "Abbrechen",
   "removeUsernameDialog_remove": "Entfernen",
   "addMembersScreen_addMembers": "Mitglieder hinzufügen",
-  "addMembersScreen_error_noActiveChat": "ein aktiver Chat ist erforderlich",
+  "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Chat",
-  "contactDetailsScreen_viewSafetyCode": "Sicherheitscode anzeigen",
+  "contactDetailsScreen_viewSafetyCode": "Sicherheitscode",
   "contactDetailsScreen_mute": "Stummschalten",
   "contactDetailsScreen_unmute": "Stummschaltung aufheben",
   "safetyCodeScreen_title": "Sicherheitscode",
@@ -74,9 +76,12 @@
   "changeGroupTitleDialog_content": "Wähle einen Titel für die Gruppe.",
   "changeGroupTitleDialog_cancel": "Abbrechen",
   "changeGroupTitleDialog_confirm": "Speichern",
+
+  "unsavedInputDialog_title": "Möchtest du wirklich schließen?",
+  "unsavedInputDialog_cancel": "Abbrechen",
+  "unsavedInputDialog_close": "Schließen",
   "introScreen_serverLabel": "Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.",
   "introScreen_serverHint": "DOMAINNAME",
-  "introScreen_error_invalidDomain": "Domain ist ungültig",
 
   "introScreen_linkExisting": "Mit einem bestehenden Konto verknüpfen",
   "introScreen_signUp": "Konto erstellen",
@@ -133,7 +138,6 @@
   "linkingDeviceScreen_separator": "oder",
   "linkingDeviceScreen_numericCode": "Numerischer Code",
   "linkingDeviceScreen_linking": "Verknüpfe...",
-  "linkingDeviceScreen_linked": "Gerät erfolgreich verknüpft!",
   "linkingDeviceScreen_linking_confirm_title": "Verknüpfung bestätigen",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tippe, um den Namen zu ändern.",
   "linkingDeviceScreen_linking_confirm_body": "Du bist dabei, ein neues Gerät zu verknüpfen, das vollen Zugriff auf dein Air-Konto haben wird. Tu dies nur, wenn das Gerät dir gehört.",
@@ -148,9 +152,9 @@
   "linkingDeviceScreen_error_codesExpired_reload": "Neu laden",
   "linkingDevicesScreen_error_title": "Verknüpfung fehlgeschlagen",
   "linkingDevicesScreen_error_generic": "Ein unbekannter Fehler ist aufgetreten.",
+  "linkingDevicesScreen_error_sessionNotFound": "Der eingegebene Code ist ungültig.",
   "linkingDevicesScreen_error_dismiss": "Erneut versuchen",
 
-  "linkedDevicesScreen_title": "Geräte",
   "linkedDevicesScreen_thisDevice": "Dieses Gerät",
   "linkedDevicesScreen_linkedDevices": "Verknüpfte Geräte",
   "linkedDevicesScreen_linkedOn": "Verknüpft am {date}",
@@ -163,13 +167,16 @@
   },
   "linkedDevicesScreen_editNameHint": "Tippe auf ein Gerät, um den Namen zu ändern.",
   "linkedDevicesScreen_linkDevice": "Gerät verknüpfen",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}} Du kannst bis zu {remaining} weitere verknüpfen.",
+  "linkedDevicesScreen_unknownDevice": "Unbekanntes Gerät",
+  "linkedDevicesScreen_renameError_title": "Umbenennen fehlgeschlagen.",
+  "linkedDevicesScreen_renameError": "Das Gerät {deviceName} konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_unlinkError_title": "Aufheben der Verknüpfung fehlgeschlagen.",
+  "linkedDevicesScreen_unlinkError": "Die Verknüpfung des Geräts {deviceName} konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Keine Geräte verknüpft.} one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }
@@ -196,7 +203,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändern",
   "linkedDevicesScreen_unlinkDialog_title": "Geräteverknüpfung aufheben",
-  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.",
+  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_unlinkDialog_confirm": "Verknüpfung aufheben",
 
@@ -240,12 +247,16 @@
   "systemMessage_userChangedPicture_infix": " hat das Gruppenbild geändert",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " hat die Gruppe erstellt",
+  "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.",
   "timestamp_now": "Jetzt",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Heute",
   "date_yesterday": "Gestern",
   "messageBubble_sending": "Wird gesendet",
   "messageBubble_failedToSend": "Senden fehlgeschlagen",
+  "messageBubble_sent": "Gesendet",
+  "messageBubble_delivered": "Zugestellt",
+  "messageBubble_read": "Gelesen",
   "chatList_newContact": "Neuer Kontakt",
   "chatList_newGroup": "Neue Gruppe",
   "chatList_emptyMessage": "Füge deinen ersten Air-Kontakt hinzu, um loszulegen.",
@@ -254,7 +265,8 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockiert",
-  "chatList_muted": "Stummgeschaltet",
+  "chatList_reaction": "{user} hat mit {emoji} auf \"{message}\" reagiert",
+  "chatList_reactionByYou": "Du hast mit {emoji} auf \"{message}\" reagiert",
   "chatList_contextMenu_mute": "Stummschalten",
   "chatList_contextMenu_unmute": "Stummschaltung aufheben",
   "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",
@@ -275,6 +287,7 @@
 
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",
+  "composer_error_sendMessage": "Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.",
   "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
   "composer_error_attachment_too_large": "Der Anhang ist zu groß. Die maximale Größe beträgt {maxSize}, die tatsächliche Größe beträgt {actualSize}.",
 
@@ -294,12 +307,11 @@
       }
     }
   },
-  "attachment_tryAgain": "Erneut versuchen",
-  "attachment_gallery": "Galerie",
+  "attachment_images": "Bilder",
   "attachment_camera": "Kamera",
-  "attachment_file": "Datei",
+  "attachment_otherFiles": "Andere Dateien",
   "attachment_notFound": "Anhang ist nicht mehr verfügbar.",
-  "textMessage_edited": "bearbeitet",
+  "textMessage_edited": "Bearbeitet",
   "textMessage_hiddenPlaceholder": "Blockierter Benutzer, tippe, um die Nachricht anzuzeigen",
   "textMessage_deleted": "Nachricht gelöscht",
   "textMessage_deletedBySelf": "Du hast diese Nachricht gelöscht.",
@@ -340,14 +352,14 @@
   "reportSpamDialog_reportSpam": "Spam melden",
   "reportSpamDialog_success": "Spam gemeldet",
   "reportSpamDialog_error": "Spam konnte nicht gemeldet werden. Bitte versuche es erneut.",
-  "helpScreen_contactUs": "Kontakt",
+  "helpScreen_contactUs": "Air kontaktieren",
   "helpScreen_versionInfo": "Versionsinformationen",
   "helpScreen_licenses": "Lizenzen",
   "licensesScreen_title": "Lizenzen",
-  "contactUsScreen_title": "Kontakt",
+  "contactUsScreen_title": "Air kontaktieren",
   "contactUsScreen_subject": "Nachrichtenbetreff",
   "contactUsScreen_body": "Inhalt",
-  "contactUsScreen_includeLogs": "Logs teilen",
+  "contactUsScreen_includeLogs": "Logs teilen (das hilft Air, Fehler zu beheben)",
   "contactUsScreen_composeEmail": "E-Mail verfassen",
   "contactUsScreen_subject_somethingNotWorking": "Etwas funktioniert nicht",
   "contactUsScreen_subject_iHaveAQuestion": "Ich habe eine Frage",
@@ -359,10 +371,10 @@
   "contactUsScreen_body_logsUrl": "Hier sind einige Logs, die dir bei der Fehlersuche helfen: {url}",
   "contactUsScreen_errorLaunchingEmail": "E-Mail-Client konnte nicht geöffnet werden",
   "contactUsScreen_errorUploadingLogs": "Logs konnten nicht hochgeladen werden",
+  "groupDetails_title": "Gruppendetails",
   "groupDetails_leaveChat": "Verlassen",
   "groupDetails_deleteChat": "Löschen",
   "groupDetails_addPeople": "Hinzufügen",
-  "groupDetails_seeAll": "Alle anzeigen",
   "groupDetails_memberCount": "{count, plural, one {{count} Mitglied} other {{count} Mitglieder}}",
   "@groupDetails_memberCount": {
     "placeholders": {
@@ -371,7 +383,7 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Gruppe",
+  "groupDetails_seeAll": "Alle anzeigen",
   "groupMembersScreen_title": "Gruppenmitglieder",
   "groupMembersScreen_searchHint": "Suchen",
   "groupCreationScreen_title": "Mitglieder hinzufügen",
@@ -420,5 +432,12 @@
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
-  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}"
+  "messageList_newMessages": "Neue Nachrichten",
+  "messageList_reactions_react": "Reagieren",
+  "messageList_reactions_remove": "Entfernen",
+  "messageList_reactions_you": "Du",
+  "messageList_reactions_all": "Alle · {total}",
+  "emojiPicker_searchHint": "Emoji suchen",
+  "emojiPicker_empty": "Keine Emojis gefunden",
+  "emojiPicker_skinToneHelp": "Legt deinen Standard-Hautton fest"
 }

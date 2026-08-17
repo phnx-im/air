@@ -281,14 +281,7 @@ private let kStoreNotificationsPendingName =
 
     // Get device token
     private func getDeviceToken(result: FlutterResult) {
-        if let token = deviceToken {
-            result(token)
-        } else {
-            result(
-                FlutterError(
-                    code: "UNAVAILABLE", message: "Device token not available",
-                    details: nil))
-        }
+        result(deviceToken)
     }
 
     // Allow to write to the given URL when the device is locked
@@ -461,6 +454,10 @@ func sendNotification(
     content.body = body
     content.sound = UNNotificationSound.default
     content.userInfo["chatId"] = chatId?.uuidString
+    // Group the per-message notifications by chat in the notification center
+    if let chatId = chatId {
+        content.threadIdentifier = chatId.uuidString
+    }
 
     let request = UNNotificationRequest(
         identifier: identifier.uuidString,

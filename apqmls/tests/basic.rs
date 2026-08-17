@@ -6,8 +6,12 @@ use apqmls::{
     ApqMlsGroup, authentication::ApqSigner, extension::PqtMode, messages::ApqMlsMessageIn,
 };
 use openmls::{
-    group::{GroupId, MlsGroupJoinConfig},
-    prelude::{Credential, LeafNodeIndex, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent},
+    group::{GroupId, MlsGroup, MlsGroupJoinConfig},
+    prelude::{
+        Capabilities, Credential, Extension, ExtensionType, Extensions, LeafNodeIndex,
+        LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
+        UnknownExtension,
+    },
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use tls_codec::{Deserialize as _, Serialize};
@@ -134,6 +138,76 @@ fn update_group() {
     for ciphersuite in TEST_MODE {
         let joined_group = join_group_helper(ciphersuite);
         update_group_helper(joined_group);
+    }
+}
+
+/// The T and PQ leaf node parameters must each be applied to their own group,
+/// not swapped or overwritten by one another.
+#[test]
+fn update_with_leaf_node_parameters() {
+    const MARKER_EXTENSION_TYPE: u16 = 0xff00;
+
+    // The marker extension must be advertised in the capabilities; all other
+    // APQMLS-specific support is augmented by the commit builder.
+    fn marker_parameters(data: &[u8]) -> LeafNodeParameters {
+        let extension = Extension::Unknown(MARKER_EXTENSION_TYPE, UnknownExtension(data.to_vec()));
+        LeafNodeParameters::builder()
+            .with_capabilities(Capabilities::new(
+                None,
+                None,
+                Some(&[ExtensionType::Unknown(MARKER_EXTENSION_TYPE)]),
+                None,
+                None,
+            ))
+            .with_extensions(Extensions::from_vec(vec![extension]).unwrap())
+            .build()
+    }
+
+    fn marker(group: &MlsGroup) -> &[u8] {
+        &group
+            .own_leaf_node()
+            .unwrap()
+            .extensions()
+            .unknown(MARKER_EXTENSION_TYPE)
+            .unwrap()
+            .0
+    }
+
+    for mode in TEST_MODE {
+        let JoinedGroup {
+            alice,
+            bob,
+            mut alice_group,
+            mut bob_group,
+        } = join_group_helper(mode);
+
+        // Alice does an update with distinguishable leaf node parameters
+        let alice_commit_bundle = alice_group
+            .commit_builder()
+            .force_self_update(true)
+            .leaf_node_parameters(marker_parameters(b"t"), marker_parameters(b"pq"))
+            .finalize(&alice.provider, &alice.signer, |_| true, |_| true)
+            .unwrap();
+        alice_group.merge_pending_commit(&alice.provider).unwrap();
+
+        // Each group's new leaf carries its own parameters
+        assert_eq!(marker(&alice_group.t_group), b"t".as_slice());
+        assert_eq!(marker(alice_group.pq_group()), b"pq".as_slice());
+
+        // Bob processes Alice's update
+        let message_in = ApqMlsMessageIn::try_from(alice_commit_bundle.commit).unwrap();
+        let protocol_message = message_in.into_protocol_message().unwrap();
+        let processed_message = bob_group
+            .process_message(&bob.provider, protocol_message, compare_credentials)
+            .unwrap();
+        bob_group
+            .merge_staged_commit(
+                &bob.provider,
+                processed_message.into_staged_commit().unwrap(),
+            )
+            .unwrap();
+
+        assert_groups_eq(&mut alice_group, &mut bob_group);
     }
 }
 

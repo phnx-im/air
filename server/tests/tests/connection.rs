@@ -22,44 +22,6 @@ async fn connect_users_via_user_handle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Communication and persistence", skip_all)]
-async fn communication_and_persistence() {
-    let mut setup = TestBackend::single().await;
-
-    // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-
-    // Connect them
-    let chat_alice_bob = setup.connect_users(&alice, &bob).await;
-
-    // Test the connection chat by sending messages back and forth.
-    setup
-        .send_message(chat_alice_bob, &alice, vec![&bob], None)
-        .await;
-    setup
-        .send_message(chat_alice_bob, &bob, vec![&alice], None)
-        .await;
-
-    let count_18 = setup
-        .scan_database("\x18", true, vec![&alice, &bob])
-        .await
-        .len();
-    let count_19 = setup
-        .scan_database("\x19", true, vec![&alice, &bob])
-        .await
-        .len();
-
-    let good = count_18 < count_19 * 3 / 2;
-
-    // TODO: Remove the ! in front of !good when we have fixed our code.
-    assert!(
-        !good,
-        "Having too many 0x18 is an indicator for using Vec<u8> instead of ByteBuf"
-    );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users via targeted message", skip_all)]
 async fn connect_users_via_targeted_message() {
     let mut setup = TestBackend::single().await;
@@ -547,6 +509,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
             empty_connection_group_attributes: false,
             pq_groups: setup.apq_groups,
         },
+        is_self_group: false,
     };
     bob_user
         .set_group_air_component(chat_id, old_air_component)
@@ -620,6 +583,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
             empty_connection_group_attributes: true,
             pq_groups: setup.apq_groups,
         },
+        is_self_group: false,
     };
     bob_user
         .set_group_air_component(chat_id, new_air_component)

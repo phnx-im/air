@@ -55,6 +55,12 @@ pub struct ApplicationSettings {
     ///
     /// This code can be used to register as many users as desired. Useful for testing.
     pub unredeemablecode: Option<String>,
+    /// Whether registration requires a valid invitation code.
+    ///
+    /// Defaults to `true`. Set to `false` to disable invitation codes entirely
+    /// and allow open registration.
+    #[serde(default = "default_true")]
+    pub invitationonly: bool,
 }
 
 fn default_listen() -> SocketAddr {
@@ -297,5 +303,9 @@ mod duration_millis {
 }
 
 fn default_require_content_length() -> bool {
+    true
+}
+
+fn default_true() -> bool {
     true
 }

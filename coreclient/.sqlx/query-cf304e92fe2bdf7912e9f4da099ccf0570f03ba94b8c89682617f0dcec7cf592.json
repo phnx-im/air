@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO proposal (group_id, proposal_ref, proposal) VALUES (?1, ?2, ?3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "cf304e92fe2bdf7912e9f4da099ccf0570f03ba94b8c89682617f0dcec7cf592"
+}

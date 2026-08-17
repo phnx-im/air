@@ -14,6 +14,7 @@ use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
     openmls::{
+        group::GroupEpoch,
         prelude::{
             GroupId, LeafNodeIndex, MlsMessageOut, RatchetTreeIn, group_info::VerifiableGroupInfo,
         },
@@ -22,7 +23,10 @@ use mls_assist::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{crypto::aead::keys::EncryptedUserProfileKey, identifiers::QsReference};
+use crate::{
+    credentials::UserCredential, crypto::aead::keys::EncryptedUserProfileKey,
+    identifiers::QsReference,
+};
 
 use super::welcome_attribution_info::EncryptedWelcomeAttributionInfo;
 
@@ -33,6 +37,14 @@ pub struct ExternalCommitInfoIn {
     pub room_state: VerifiedRoomState,
     pub proposals: Vec<Vec<u8>>,
     pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+    /// Present iff the request carried a `pq_qgid`, i.e. the caller is joining an APQ group.
+    pub pq: Option<PqExternalCommitInfoIn>,
+}
+
+pub struct PqExternalCommitInfoIn {
+    pub group_info: VerifiableGroupInfo,
+    pub ratchet_tree: RatchetTreeIn,
+    pub proposals: Vec<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -52,6 +64,9 @@ pub struct CreateGroupParamsOut {
     pub group_info: MlsMessageOut,
     pub room_state: VerifiedRoomState,
     pub pq: Option<CreatePqGroupParamsOut>,
+    /// Authenticates the creation of a self-group, whose leaves carry no user
+    /// credential. Must be `None` for all other groups.
+    pub creator_user_credential: Option<UserCredential>,
 }
 
 #[derive(Debug)]
@@ -136,6 +151,8 @@ pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
     pub suppress_notifications: bool,
+    pub epoch: GroupEpoch,
+    pub generation: u32,
     pub collision_tags: Vec<SendMessageCollisionTag>,
 }
 
@@ -151,6 +168,8 @@ pub enum TargetedMessageType {
 pub struct TargetedMessageParamsOut {
     pub sender: LeafNodeIndex,
     pub message_type: TargetedMessageType,
+    pub generation: u32,
+    pub collision_tags: Vec<SendMessageCollisionTag>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

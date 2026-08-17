@@ -103,7 +103,12 @@ pub(crate) fn load_attachment_image(
             }
         }
         _ => {
-            let decoder = reader.into_decoder()?;
+            let decoder = match reader.into_decoder() {
+                Ok(decoder) => decoder,
+                // format support not compiled in, upload as a regular file
+                Err(image::ImageError::Unsupported(_)) => return Ok(None),
+                Err(error) => return Err(error.into()),
+            };
             load_still_image(decoder, file_size)?
         }
     };

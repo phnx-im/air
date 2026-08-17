@@ -3,17 +3,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::AirProtocolVersion,
+    crypto::hpke::HpkeDecryptable,
+    identifiers::{ClientConfig, QsClientId},
+    messages::AirProtocolVersion,
+    virtual_client::KeyPackageBatchId,
 };
+use sqlx::PgTransaction;
 use tls_codec::Serialize;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     messages::{
-        intra_backend::DsFanOutMessage,
+        intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
         qs_qs::{QsToQsMessage, QsToQsPayload},
     },
-    qs::errors::EnqueueError,
+    qs::{errors::EnqueueError, staged_key_package::StagedKeyPackages},
 };
 
 use super::{
@@ -39,6 +43,7 @@ impl Qs {
     ) -> Result<(), QsEnqueueError<N>> {
         let own_domain = self.domain.clone();
         if message.client_reference.client_homeserver_domain != own_domain {
+            // Federated message
             let qs_to_qs_message = QsToQsMessage {
                 protocol_version: AirProtocolVersion::Alpha,
                 sender: own_domain.clone(),
@@ -63,6 +68,7 @@ impl Qs {
                     }
                 })?
         } else {
+            // Local message
             let decryption_key = StorableClientIdDecryptionKey::load(&self.db_pool)
                 .await
                 .map_err(|_| QsEnqueueError::StorageError)?
@@ -84,35 +90,128 @@ impl Qs {
                 client_config.push_token_ear_key
             };
 
-            let client_ids =
+            // When broadcasting, fan out to all of the user's emulator clients.
+            // Otherwise, deliver only to the requested clients.
+            let client_ids = if message.broadcast_to_all_client_queues.into() {
                 QsClientRecord::load_client_ids(&self.db_pool, &client_config.client_id)
                     .await
                     .map_err(|_| QsEnqueueError::StorageError)?
-                    .ok_or(EnqueueError::ClientNotFound)?;
-            for qs_client_id in client_ids {
-                match QsClientRecord::enqueue(
-                    &self.db_pool,
-                    qs_client_id,
-                    self.queues(),
-                    push_notification_provider,
-                    &message.payload,
-                    push_token_ear_key.as_ref(),
-                )
-                .await
-                {
-                    Ok(()) => (),
-                    Err(EnqueueError::ClientNotFound) => {
-                        // Sibling was soft-deleted mid fan-out => drop silently
+                    .ok_or(EnqueueError::ClientNotFound)?
+            } else {
+                vec![client_config.client_id]
+            };
+
+            // Clients that should be notified with a push notification.
+            let mut clients_to_notify = Vec::new();
+
+            match &message.virtual_client_hint {
+                // Promote staged key packages: a special case of a fan-out which must be atomic.
+                // That's why we bundle the promotion and fan-out in the same transaction.
+                //
+                // Note: Self-group commits are never broadcast, so in practice this transaction
+                // covers only a single enqueue.
+                Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => {
+                    let mut txn = self
+                        .db_pool
+                        .begin()
+                        .await
+                        .map_err(|_| QsEnqueueError::StorageError)?;
+
+                    // Promote before the fan-out: the user record lock taken by the promote is the
+                    // root of this transaction's lock order.
+                    Self::promote_staged_key_packages(&mut txn, &client_config.client_id, batch_id)
+                        .await?;
+
+                    for qs_client_id in client_ids {
+                        match QsClientRecord::enqueue(
+                            &mut txn,
+                            qs_client_id,
+                            self.queues(),
+                            &message.payload,
+                        )
+                        .await
+                        {
+                            Ok(client_record) => clients_to_notify.extend(client_record),
+                            Err(EnqueueError::ClientNotFound) => {
+                                // Sibling was soft-deleted mid fan-out => drop silently
+                            }
+                            // Anything else aborted the transaction, so the promote is rolled back
+                            // with it. The acting emulator gets no echo and retries.
+                            Err(error) => {
+                                error!(
+                                    %error, %qs_client_id,
+                                    "Failed to enqueue message; aborting promote and fan-out"
+                                );
+                                return Err(error.into());
+                            }
+                        }
                     }
-                    Err(error) => {
-                        error!(
-                            %error,
-                            %qs_client_id, "Failed to enqueue message; message will be lost"
-                        );
+
+                    txn.commit()
+                        .await
+                        .map_err(|_| QsEnqueueError::StorageError)?;
+                }
+                // The usual fan-out: enqueue message for each client in its own transaction.
+                None => {
+                    for qs_client_id in client_ids {
+                        match self
+                            .enqueue_in_own_transaction(qs_client_id, &message.payload)
+                            .await
+                        {
+                            Ok(client_record) => clients_to_notify.extend(client_record),
+                            Err(EnqueueError::ClientNotFound) => {
+                                // Sibling was soft-deleted mid fan-out => drop silently
+                            }
+                            Err(error) => {
+                                error!(
+                                    %error, %qs_client_id,
+                                    "Failed to enqueue message; message will be lost"
+                                );
+                            }
+                        }
                     }
                 }
             }
+
+            // Send push notifications for clients that should be notified.
+            for client_record in clients_to_notify {
+                client_record
+                    .send_push_notification(
+                        &self.db_pool,
+                        push_notification_provider,
+                        push_token_ear_key.as_ref(),
+                    )
+                    .await;
+            }
         }
+        Ok(())
+    }
+
+    /// Enqueues a message for a single client in its own transaction.
+    async fn enqueue_in_own_transaction(
+        &self,
+        client_id: QsClientId,
+        payload: &DsFanOutPayload,
+    ) -> Result<Option<QsClientRecord>, EnqueueError> {
+        let mut txn = self.db_pool.begin().await?;
+        let client_record =
+            QsClientRecord::enqueue(&mut txn, client_id, self.queues(), payload).await?;
+        txn.commit().await?;
+        Ok(client_record)
+    }
+
+    async fn promote_staged_key_packages(
+        txn: &mut PgTransaction<'_>,
+        client_id: &QsClientId,
+        batch_id: &KeyPackageBatchId,
+    ) -> Result<(), EnqueueError> {
+        let Some(user_id) = QsClientRecord::load_user_id(txn.as_mut(), client_id).await? else {
+            // Client was deleted between the DS fan-out and here => nothing to promote. The
+            // fan-out below drops the message for the same reason.
+            warn!(%client_id, "Cannot promote staged key packages: unknown client");
+            return Ok(());
+        };
+        StagedKeyPackages::promote(txn, &user_id, batch_id).await?;
         Ok(())
     }
 }
@@ -202,6 +301,8 @@ mod tests {
                 sealed_reference,
             },
             suppress_notifications: false.into(),
+            broadcast_to_all_client_queues: true.into(),
+            virtual_client_hint: None,
         };
 
         qs.enqueue_message(

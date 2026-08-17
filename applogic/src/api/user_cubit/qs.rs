@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use aircoreclient::clients::{
     ListenResponse,
-    process::process_qs::{ProcessedQsMessages, QsProcessEventResult},
+    process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
 use tokio_stream::Stream;
@@ -18,7 +18,7 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask},
 };
 
-use super::{AppState, CubitContext};
+use super::{AppState, CubitContext, UiUser};
 
 #[derive(Debug)]
 #[frb(ignore)]
@@ -31,25 +31,35 @@ impl CubitContext {
         &self,
         ProcessedQsMessages {
             new_chats,
-            changed_chats: _,
             new_messages,
             errors: _,
             processed: _,
             new_connections,
             reaction_notifications,
+            chats_with_changed_notifications,
         }: ProcessedQsMessages,
     ) {
         let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
         let user = User::from_core_user(self.core_user.clone());
         user.new_chat_notifications(&new_chats, &mut notifications)
             .await;
-        user.new_message_notifications(&new_messages, &mut notifications)
+        let chat_notifications = user
+            .message_and_reaction_notifications(
+                &new_messages,
+                &reaction_notifications,
+                &chats_with_changed_notifications,
+            )
             .await;
-        user.reaction_notifications(&reaction_notifications, &mut notifications)
-            .await;
+        notifications.extend(chat_notifications.additions);
         user.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;
         self.show_notifications(notifications).await;
+
+        if !chat_notifications.empty_chats.is_empty() {
+            self.notification_service
+                .cancel_chat_notifications(chat_notifications.empty_chats)
+                .await;
+        }
     }
 }
 
@@ -105,6 +115,13 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 self.cubit_context
                     .show_notifications_for_processed_qs_messages(processed)
                     .await;
+                // A commit in this batch may have removed this device from the
+                // self group, which the app has to act on.
+                UiUser::reload_account_unlinked(
+                    &self.cubit_context.state_tx,
+                    &self.cubit_context.core_user,
+                )
+                .await;
             }
             QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
         };

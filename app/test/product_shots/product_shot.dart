@@ -49,6 +49,10 @@ class ProductShot extends StatelessWidget {
       bottom: dev.safeArea.bottom,
     );
 
+    // Landscape canvases (desktop store screenshots) get their own spacing:
+    // the portrait fractions are tuned for phone shots and would overflow.
+    final isLandscape = size.width > size.height;
+
     return Center(
       child: Container(
         width: size.width,
@@ -56,8 +60,10 @@ class ProductShot extends StatelessWidget {
         color: backgroundColor,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final outerPadding = EdgeInsets.all(size.width * 0.1);
-            const frameHeightFraction = 0.7;
+            final outerPadding = EdgeInsets.all(
+              isLandscape ? size.height * 0.05 : size.width * 0.1,
+            );
+            final frameHeightFraction = isLandscape ? 0.62 : 0.7;
             final frameHeight = size.height * frameHeightFraction;
             final scaleY = frameHeight / dev.screenSize.height;
 
@@ -67,7 +73,12 @@ class ProductShot extends StatelessWidget {
 
             final scaleFactor = math.min(scaleX, scaleY);
 
-            final headerHeight = size.height * (1 - frameHeightFraction - 0.1);
+            final headerHeight = isLandscape
+                ? size.height * 0.24
+                : size.height * (1 - frameHeightFraction - 0.1);
+            // Font sizes derive from the canvas width, which is far too large
+            // on a landscape canvas, so reference the height there instead.
+            final fontReference = isLandscape ? size.height : size.width;
 
             return Padding(
               padding: outerPadding,
@@ -76,24 +87,28 @@ class ProductShot extends StatelessWidget {
                 children: [
                   SizedBox(
                     height: headerHeight,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(height: headerHeight * 0.05),
-                          _ShotTitle(
-                            text: title,
-                            color: titleColor,
-                            size: size.width,
-                          ),
-                          SizedBox(height: headerHeight * 0.05),
-                          _ShotSubtitle(
-                            text: subtitle,
-                            color: subtitleColor,
-                            size: size.width,
-                          ),
-                        ],
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SizedBox(height: headerHeight * 0.05),
+                            _ShotTitle(
+                              text: title,
+                              color: titleColor,
+                              size: fontReference,
+                            ),
+                            SizedBox(height: headerHeight * 0.05),
+                            _ShotSubtitle(
+                              text: subtitle,
+                              color: subtitleColor,
+                              size: fontReference,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

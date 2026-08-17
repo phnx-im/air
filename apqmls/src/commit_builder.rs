@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
+    components::vc_derivation_info::EpochId,
     group::{
         CommitBuilder as MlsGroupCommitBuilder, CommitBuilderStageError, CommitMessageBundle,
         CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, Initial, MlsGroup,
@@ -19,9 +20,9 @@ use tap::Pipe as _;
 use thiserror::Error;
 
 use crate::{
-    ApqMlsGroup, ApqMlsGroupMut,
+    ApqCiphersuite, ApqMlsGroup, ApqMlsGroupMut,
     authentication::ApqSigner,
-    extension::APQMLS_COMPONENT_ID,
+    extension::{APQMLS_COMPONENT_ID, ensure_leaf_node_parameters},
     messages::{ApqGroupInfo, ApqKeyPackage, ApqMlsMessageOut, ApqWelcome},
     psk::{ApqPskError, derive_and_store_psk},
 };
@@ -52,7 +53,10 @@ pub struct ApqCommitMessageBundle {
 }
 
 impl ApqCommitMessageBundle {
-    fn from_bundles(t_bundle: CommitMessageBundle, pq_bundle: CommitMessageBundle) -> Self {
+    pub(crate) fn from_bundles(
+        t_bundle: CommitMessageBundle,
+        pq_bundle: CommitMessageBundle,
+    ) -> Self {
         let (t_commit, t_welcome, t_group_info) = t_bundle.into_contents();
         let (pq_commit, pq_welcome, pq_group_info) = pq_bundle.into_contents();
 
@@ -113,6 +117,7 @@ struct ConfigValues {
     proposed_adds: Vec<ApqKeyPackage>,
     proposed_removals: Vec<LeafNodeIndex>,
     create_group_info: bool,
+    vc_epoch_id: Option<EpochId>,
 }
 
 impl ConfigValues {
@@ -126,11 +131,13 @@ impl ConfigValues {
         if let Some(force) = self.force_self_update {
             builder = builder.force_self_update(force);
         }
-        if let Some(t_leaf_node_parameters) = &self.t_leaf_node_parameters {
-            builder = builder.leaf_node_parameters(t_leaf_node_parameters.clone());
-        }
-        if let Some(pq_leaf_node_parameters) = &self.pq_leaf_node_parameters {
-            builder = builder.leaf_node_parameters(pq_leaf_node_parameters.clone());
+        let leaf_node_parameters = if IS_TRADITIONAL {
+            &self.t_leaf_node_parameters
+        } else {
+            &self.pq_leaf_node_parameters
+        };
+        if let Some(leaf_node_parameters) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(leaf_node_parameters.clone());
         }
         let (t_kps, pq_kps): (Vec<_>, Vec<_>) = self
             .proposed_adds
@@ -180,6 +187,12 @@ impl<'a> CommitBuilder<'a> {
     /// Sets whether or not the commit should force a self-update. Defaults to `false`.
     pub fn force_self_update(mut self, force_self_update: bool) -> Self {
         self.values.force_self_update = Some(force_self_update);
+        self
+    }
+
+    /// Sets the virtual-client emulation epoch.
+    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
+        self.values.vc_epoch_id = Some(epoch_id);
         self
     }
 
@@ -251,12 +264,24 @@ impl<'a> CommitBuilder<'a> {
     ///
     /// TODO: Split this up to enable sans-io usage.
     pub fn finalize<S: ApqSigner, Provider: OpenMlsProvider>(
-        self,
+        mut self,
         provider: &Provider,
         signer: &S,
         t_f: impl FnMut(&QueuedProposal) -> bool,
         pq_f: impl FnMut(&QueuedProposal) -> bool,
     ) -> Result<ApqCommitMessageBundle, CreateCommitError<Provider::StorageError>> {
+        // Augment the configured leaf node parameters with the support required in an APQMLS group
+        let apq_ciphersuite = ApqCiphersuite::new(
+            self.group.t_group.ciphersuite(),
+            self.group.pq_group.ciphersuite(),
+        );
+        if let Some(params) = &mut self.values.t_leaf_node_parameters {
+            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+        }
+        if let Some(params) = &mut self.values.pq_leaf_node_parameters {
+            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+        }
+
         let mut apq_info = self
             .group
             .apq_info()
@@ -273,11 +298,18 @@ impl<'a> CommitBuilder<'a> {
             AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, apq_info_component_data.data());
 
         // Create the PQ commit first s.t. we can export the PSK for the T group.
-        let mut pq_builder = self
+        let pq_builder = self
             .group
             .pq_group
             .commit_builder()
-            .pipe(|b| self.values.apply::<false>(b))
+            .pipe(|b| self.values.apply::<false>(b));
+        let pq_builder = match &self.values.vc_epoch_id {
+            Some(epoch_id) => {
+                pq_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+            }
+            None => pq_builder,
+        };
+        let mut pq_builder = pq_builder
             .add_proposal(Proposal::AppDataUpdate(Box::new(
                 app_data_update_proposal.clone(),
             )))
@@ -301,11 +333,18 @@ impl<'a> CommitBuilder<'a> {
         .pipe(Box::new)
         .pipe(Proposal::PreSharedKey);
 
-        let mut t_builder = self
+        let t_builder = self
             .group
             .t_group
             .commit_builder()
-            .pipe(|b| self.values.apply::<true>(b))
+            .pipe(|b| self.values.apply::<true>(b));
+        let t_builder = match &self.values.vc_epoch_id {
+            Some(epoch_id) => {
+                t_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+            }
+            None => t_builder,
+        };
+        let mut t_builder = t_builder
             .add_proposal(psk_proposal)
             .add_proposal(Proposal::AppDataUpdate(Box::new(app_data_update_proposal)))
             .load_psks(provider.storage())?

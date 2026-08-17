@@ -6,10 +6,10 @@ use std::{
     fmt::Display,
     fs,
     future::ready,
+    io,
     path::{Path, PathBuf},
 };
 
-use aircommon::identifiers::UserId;
 use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::{
@@ -20,9 +20,11 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
-    clients::store::ClientRecord,
+    chats::messages::edit::purge_stale_deleted_messages,
+    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
     db::{access::DbAccess, notification::DbNotificationsSender},
     utils::global_lock::GlobalLock,
 };
@@ -54,11 +56,45 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     migrate!("migrations/air").run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
-    Ok(DbAccess::with_split_pools(
-        write_pool,
-        read_pool,
-        DbNotificationsSender::new(),
-    ))
+    let air_db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
+
+    if let Err(error) = rename_legacy_client_dbs(db_path, &air_db).await {
+        error!(%error, "Failed to rename legacy client DBs");
+    }
+
+    Ok(air_db)
+}
+
+/// Renames legacy client DB files (named after the user id) to the random DB UUID name from the
+/// client record.
+///
+/// Legacy client DBs were created before the client record carried a DB UUID. The migration assigns
+/// a random UUID to each record; the file is renamed here. Idempotent: does nothing when no legacy
+/// file exists.
+async fn rename_legacy_client_dbs(db_path: &str, air_db: &DbAccess) -> sqlx::Result<()> {
+    for record in ClientRecord::load_all(air_db.read().await?).await? {
+        let legacy_name = format!("{}@{}.db", record.user_id.uuid(), record.user_id.domain());
+        let name = client_db_name(record.client_record_id);
+        if !Path::new(db_path).join(&legacy_name).exists()
+            || Path::new(db_path).join(&name).exists()
+        {
+            continue;
+        }
+        info!(from = legacy_name, to = name, "renaming legacy client DB");
+        // Also move over the SQLite journal siblings, which exist when the DB
+        // was not cleanly closed.
+        for suffix in ["", "-wal", "-shm"] {
+            let from = Path::new(db_path).join(format!("{legacy_name}{suffix}"));
+            if !from.exists() {
+                continue;
+            }
+            let to = Path::new(db_path).join(format!("{name}{suffix}"));
+            if let Err(error) = fs::rename(&from, &to) {
+                error!(%error, ?from, "Failed to rename legacy client DB file");
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(feature = "test_utils")]
@@ -155,7 +191,7 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
     let air_db_connection = open_air_db(client_db_path).await?;
     if let Ok(client_records) = ClientRecord::load_all(air_db_connection.read().await?).await {
         for client_record in client_records {
-            let client_db_name = client_db_name(&client_record.user_id);
+            let client_db_name = client_db_name(client_record.client_record_id);
             let client_db_path = format!("{client_db_path}/{client_db_name}");
             info!(path =% client_db_path, "removing client DB");
             if let Err(error) = fs::remove_file(&client_db_path) {
@@ -166,43 +202,75 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::Result<()> {
-    // Delete the client DB
-    let client_db_name = client_db_name(user_id);
-    let client_db_path = format!("{db_path}/{client_db_name}");
-    if let Err(error) = fs::remove_file(&client_db_path) {
-        error!(%error, %client_db_path, "Failed to delete client DB")
-    }
-
-    // Delete the client record from the air DB
-    let full_air_db_path = format!("{db_path}/{AIR_DB_NAME}");
+pub async fn delete_client_database(db_path: &str, client_record_id: Uuid) -> anyhow::Result<()> {
+    let full_air_db_path: String = format!("{db_path}/{AIR_DB_NAME}");
     if !Path::new(&full_air_db_path).exists() {
         bail!("air.db does not exist")
     }
+
+    // Delete the client DB
+    let client_db_name = client_db_name(client_record_id);
+    let client_db_path = Path::new(db_path).join(client_db_name);
+    let mut client_db_removal_error = None;
+    for path in [
+        client_db_path.clone(),
+        client_db_path.with_extension("db-shm"),
+        client_db_path.with_extension("db-wal"),
+    ] {
+        info!(path = %path.display(), "removing client DB file");
+        if let Err(error) = remove_file_if_exists(&path) {
+            error!(%error, path = %path.display(), "failed to delete client DB file");
+            client_db_removal_error.get_or_insert_with(|| anyhow::Error::new(error));
+        }
+    }
+
+    // Delete the client record from the air DB
     let air_db = open_air_db(db_path).await?;
-    ClientRecord::delete(air_db.write().await?, user_id).await?;
+    ClientRecord::delete(air_db.write().await?, client_record_id).await?;
 
-    Ok(())
+    client_db_removal_error.map_or(Ok(()), Err)
 }
 
-fn client_db_name(user_id: &UserId) -> String {
-    format!("{}@{}.db", user_id.uuid(), user_id.domain())
+fn remove_file_if_exists(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
-pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Result<DbAccess> {
-    let client_db_name = client_db_name(user_id);
+/// The name of a client DB file
+fn client_db_name(client_record_id: Uuid) -> String {
+    format!("{client_record_id}.db")
+}
+
+pub async fn open_client_db(
+    client_db_path: &str,
+    client_record_id: Uuid,
+) -> sqlx::Result<DbAccess> {
+    let client_db_name = client_db_name(client_record_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
+    info!(db_url, "opening client DB");
     let opts: SqliteConnectOptions = db_url.parse()?;
 
     let write_pool = write_pool(opts.clone()).await?;
     migrate!().run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
-    Ok(DbAccess::with_split_pools(
-        write_pool,
-        read_pool,
-        DbNotificationsSender::new(),
-    ))
+    let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
+
+    // The client-id migration defaults the column to the nil UUID for clients that existed
+    // before it.
+    OwnClientInfo::backfill_client_id(db.write().await?).await?;
+
+    // Deletions processed by older client versions left state behind. The
+    // purge reruns on every open, so a failure only defers it and must not
+    // block opening the DB.
+    if let Err(error) = purge_stale_deleted_messages(&db).await {
+        error!(%error, "Failed to purge stale deleted messages");
+    }
+
+    Ok(db)
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {
@@ -244,5 +312,216 @@ pub(crate) struct GroupIdWrapper(pub(crate) GroupId);
 impl From<GroupIdWrapper> for GroupId {
     fn from(group_id: GroupIdWrapper) -> Self {
         group_id.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::UserId;
+    use chrono::Utc;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::clients::store::{ClientRecord, ClientRecordState};
+
+    async fn store_record(
+        air_db: &DbAccess,
+        user_id: &UserId,
+        client_record_id: Uuid,
+    ) -> anyhow::Result<()> {
+        ClientRecord {
+            client_record_id,
+            user_id: user_id.clone(),
+            client_record_state: ClientRecordState::Finished,
+            created_at: Utc::now(),
+            is_default: false,
+        }
+        .store(air_db.write().await?)
+        .await?;
+        Ok(())
+    }
+
+    fn legacy_db_name(user_id: &UserId) -> String {
+        format!("{}@{}.db", user_id.uuid(), user_id.domain())
+    }
+
+    /// A legacy client DB file and its SQLite journal siblings are renamed to
+    /// the DB UUID name from the client record. A second run is a no-op.
+    #[tokio::test]
+    async fn renames_legacy_client_db() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        let legacy_name = legacy_db_name(&user_id);
+        for suffix in ["", "-wal", "-shm"] {
+            fs::write(
+                dir.path().join(format!("{legacy_name}{suffix}")),
+                format!("legacy{suffix}"),
+            )?;
+        }
+
+        for _ in 0..2 {
+            rename_legacy_client_dbs(db_path, &air_db).await?;
+
+            for suffix in ["", "-wal", "-shm"] {
+                assert!(!dir.path().join(format!("{legacy_name}{suffix}")).exists());
+                let renamed = dir.path().join(format!("{client_record_id}.db{suffix}"));
+                assert_eq!(fs::read_to_string(renamed)?, format!("legacy{suffix}"));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// A missing journal sibling of a legacy client DB is not an error.
+    #[tokio::test]
+    async fn renames_legacy_client_db_without_journal_siblings() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        let legacy_name = legacy_db_name(&user_id);
+        fs::write(dir.path().join(&legacy_name), "legacy")?;
+
+        rename_legacy_client_dbs(db_path, &air_db).await?;
+
+        assert!(!dir.path().join(&legacy_name).exists());
+        assert_eq!(
+            fs::read_to_string(dir.path().join(format!("{client_record_id}.db")))?,
+            "legacy"
+        );
+        for suffix in ["-wal", "-shm"] {
+            assert!(
+                !dir.path()
+                    .join(format!("{client_record_id}.db{suffix}"))
+                    .exists()
+            );
+        }
+
+        Ok(())
+    }
+
+    /// A leftover legacy file must not clobber an existing client DB.
+    #[tokio::test]
+    async fn keeps_existing_client_db() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        let legacy_name = legacy_db_name(&user_id);
+        fs::write(dir.path().join(&legacy_name), "legacy")?;
+        fs::write(dir.path().join(format!("{client_record_id}.db")), "current")?;
+
+        rename_legacy_client_dbs(db_path, &air_db).await?;
+
+        assert_eq!(fs::read_to_string(dir.path().join(&legacy_name))?, "legacy");
+        assert_eq!(
+            fs::read_to_string(dir.path().join(format!("{client_record_id}.db")))?,
+            "current"
+        );
+
+        Ok(())
+    }
+
+    /// A record whose client DB was never created (nothing to rename) is
+    /// skipped.
+    #[tokio::test]
+    async fn skips_record_without_legacy_db() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        rename_legacy_client_dbs(db_path, &air_db).await?;
+
+        assert!(!dir.path().join(format!("{client_record_id}.db")).exists());
+
+        Ok(())
+    }
+
+    /// The rename pass runs when the air DB is opened.
+    #[tokio::test]
+    async fn renames_legacy_client_db_on_open() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        let legacy_name = legacy_db_name(&user_id);
+        fs::write(dir.path().join(&legacy_name), "legacy")?;
+        drop(air_db);
+
+        open_air_db(db_path).await?;
+
+        assert!(!dir.path().join(&legacy_name).exists());
+        assert_eq!(
+            fs::read_to_string(dir.path().join(format!("{client_record_id}.db")))?,
+            "legacy"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn closed_client_database_is_deleted_with_its_sidecars() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let db_path = directory.path().to_str().unwrap();
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse()?);
+        let client_record_id = Uuid::new_v4();
+
+        let air_db = open_air_db(db_path).await?;
+        ClientRecord {
+            user_id: user_id.clone(),
+            client_record_state: ClientRecordState::Finished,
+            created_at: Utc::now(),
+            is_default: true,
+            client_record_id,
+        }
+        .store(air_db.write().await?)
+        .await?;
+
+        let client_db = open_client_db(db_path, client_record_id).await?;
+        let other_handle = client_db.clone();
+        client_db.close().await;
+        assert!(other_handle.read().await.is_err());
+
+        let client_db_path = directory.path().join(client_db_name(client_record_id));
+        let shm_path = client_db_path.with_extension("db-shm");
+        let wal_path = client_db_path.with_extension("db-wal");
+        fs::write(&shm_path, b"stale shm")?;
+        fs::write(&wal_path, b"stale wal")?;
+
+        delete_client_database(db_path, client_record_id).await?;
+
+        assert!(!client_db_path.exists());
+        assert!(!shm_path.exists());
+        assert!(!wal_path.exists());
+        assert!(
+            ClientRecord::load(air_db.read().await?, client_record_id)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
     }
 }

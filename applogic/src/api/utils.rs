@@ -4,14 +4,23 @@
 
 //! Misc. functions
 
-use super::types::UiUserId;
+use uuid::Uuid;
 
+use crate::api::user::User;
+
+/// Delete all databases of this client.
 pub async fn delete_databases(db_path: String) -> anyhow::Result<()> {
     aircoreclient::delete_databases(&db_path).await
 }
 
-pub async fn delete_client_database(db_path: String, user_id: UiUserId) -> anyhow::Result<()> {
-    aircoreclient::delete_client_database(&db_path, &user_id.into()).await
+/// Delete the database of the specified client.
+pub async fn delete_client_database(
+    user: &User,
+    db_path: String,
+    client_record_id: Uuid,
+) -> anyhow::Result<()> {
+    user.user.close_local_database().await;
+    aircoreclient::delete_client_database(&db_path, client_record_id).await
 }
 
 /// Returns whether the file at the given path is a recognized image format.

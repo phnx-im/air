@@ -32,9 +32,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Interface scale';
-
-  @override
   String get userSettingsScreen_help => 'Help';
 
   @override
@@ -61,9 +58,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Usernames';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Settings';
-
-  @override
   String get userSettingsScreen_helpSection => 'Help';
 
   @override
@@ -74,6 +68,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Devices';
+
+  @override
+  String get youSection_profile => 'Profile';
+
+  @override
+  String get youSection_preferences => 'Preferences';
+
+  @override
+  String get youSection_developer => 'Developer';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
@@ -98,14 +101,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Add members';
 
   @override
-  String get addMembersScreen_error_noActiveChat =>
-      'an active chat is obligatory';
+  String get contactDetailsScreen_title => 'Profile';
 
   @override
   String get contactDetailsScreen_chat => 'Chat';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+  String get contactDetailsScreen_viewSafetyCode => 'Safety code';
 
   @override
   String get contactDetailsScreen_mute => 'Mute';
@@ -259,14 +261,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Save';
 
   @override
+  String get unsavedInputDialog_title => 'Are you sure you want to close?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Cancel';
+
+  @override
+  String get unsavedInputDialog_close => 'Close';
+
+  @override
   String get introScreen_serverLabel =>
       'Choose a server to connect to for linking.';
 
   @override
   String get introScreen_serverHint => 'DOMAIN NAME';
-
-  @override
-  String get introScreen_error_invalidDomain => 'Domain is invalid';
 
   @override
   String get introScreen_linkExisting => 'Link to an existing account';
@@ -436,9 +444,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkingDeviceScreen_linking => 'Linking...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Device successfully linked!';
-
-  @override
   String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
 
   @override
@@ -495,9 +500,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkingDevicesScreen_error_dismiss => 'Try again';
 
   @override
-  String get linkedDevicesScreen_title => 'Devices';
-
-  @override
   String get linkedDevicesScreen_thisDevice => 'This device';
 
   @override
@@ -516,14 +518,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Link a device';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unknown device';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Renaming failed.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Couldn\'t rename the device $deviceName. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title => 'Unlinking failed.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Unlinking the device $deviceName failed. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count devices linked.',
       one: '$count device linked.',
+      zero: 'No devices linked.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0';
   }
 
   @override
@@ -589,7 +614,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';
@@ -767,6 +792,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get systemMessage_userCreatedGroup_suffix => ' created the group';
 
   @override
+  String get systemMessage_onboarded =>
+      'This client has been onboarded into the chat after linking.';
+
+  @override
   String get timestamp_now => 'Now';
 
   @override
@@ -785,6 +814,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageBubble_failedToSend => 'Failed to send';
+
+  @override
+  String get messageBubble_sent => 'Sent';
+
+  @override
+  String get messageBubble_delivered => 'Delivered';
+
+  @override
+  String get messageBubble_read => 'Read';
 
   @override
   String get chatList_newContact => 'New Air contact';
@@ -812,7 +850,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatList_blocked => 'Blocked';
 
   @override
-  String get chatList_muted => 'Muted';
+  String chatList_reaction(String user, String emoji, String message) {
+    return '$user reacted $emoji to \"$message\"';
+  }
+
+  @override
+  String chatList_reactionByYou(String emoji, String message) {
+    return 'You reacted $emoji to \"$message\"';
+  }
 
   @override
   String get chatList_contextMenu_mute => 'Mute';
@@ -887,6 +932,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composer_editMessage => 'Edit message';
 
   @override
+  String get composer_error_sendMessage => 'Failed to send message. Try again.';
+
+  @override
   String get composer_error_attachment =>
       'Failed to upload attachment. Try again.';
 
@@ -922,22 +970,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get attachment_tryAgain => 'Try again';
-
-  @override
-  String get attachment_gallery => 'Gallery';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Camera';
 
   @override
-  String get attachment_file => 'File';
+  String get attachment_otherFiles => 'Other files';
 
   @override
   String get attachment_notFound => 'Attachment is no longer available.';
 
   @override
-  String get textMessage_edited => 'edited';
+  String get textMessage_edited => 'Edited';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1037,7 +1082,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportSpamDialog_error => 'Failed to report spam. Try again.';
 
   @override
-  String get helpScreen_contactUs => 'Contact us';
+  String get helpScreen_contactUs => 'Contact Air';
 
   @override
   String get helpScreen_versionInfo => 'Version info';
@@ -1049,7 +1094,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get licensesScreen_title => 'Licenses';
 
   @override
-  String get contactUsScreen_title => 'Contact';
+  String get contactUsScreen_title => 'Contact Air';
 
   @override
   String get contactUsScreen_subject => 'Message subject';
@@ -1058,7 +1103,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_body => 'Body';
 
   @override
-  String get contactUsScreen_includeLogs => 'Share your logs';
+  String get contactUsScreen_includeLogs =>
+      'Share your logs (this helps Air fix bugs)';
 
   @override
   String get contactUsScreen_composeEmail => 'Compose email';
@@ -1098,6 +1144,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_errorUploadingLogs => 'Couldn\'t upload logs';
 
   @override
+  String get groupDetails_title => 'Group details';
+
+  @override
   String get groupDetails_leaveChat => 'Leave';
 
   @override
@@ -1105,9 +1154,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Add people';
-
-  @override
-  String get groupDetails_seeAll => 'See all';
 
   @override
   String groupDetails_memberCount(int count) {
@@ -1121,7 +1167,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get groupDetails_groupDescription => 'Group';
+  String get groupDetails_seeAll => 'See all';
 
   @override
   String get groupMembersScreen_title => 'Group members';
@@ -1280,13 +1326,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeTab_profile => 'You';
 
   @override
-  String messageList_newMessages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count new messages',
-      one: '$count new message',
-    );
-    return '$_temp0';
+  String get messageList_newMessages => 'New messages';
+
+  @override
+  String get messageList_reactions_react => 'React';
+
+  @override
+  String get messageList_reactions_remove => 'Remove';
+
+  @override
+  String get messageList_reactions_you => 'You';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'All · $total';
   }
+
+  @override
+  String get emojiPicker_searchHint => 'Search emoji';
+
+  @override
+  String get emojiPicker_empty => 'No emoji found';
+
+  @override
+  String get emojiPicker_skinToneHelp => 'Sets your default skin tone';
 }

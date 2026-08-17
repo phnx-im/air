@@ -6,8 +6,8 @@ use std::{collections::HashMap, ops::Deref};
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
-        VerifiableClientCredential,
+        AsIntermediateCredential, AsIntermediateCredentialBody, UserCredential,
+        VerifiableUserCredential,
     },
     crypto::{hash::Hash, signatures::signable::Verifiable},
 };
@@ -17,85 +17,84 @@ use openmls::prelude::SignaturePublicKey;
 pub(crate) mod persistence;
 
 #[derive(Debug, Clone)]
-pub(crate) struct StorableClientCredential {
-    client_credential: ClientCredential,
+pub(crate) struct StorableUserCredential {
+    user_credential: UserCredential,
 }
 
-impl From<ClientCredential> for StorableClientCredential {
-    fn from(client_credential: ClientCredential) -> Self {
-        Self { client_credential }
+impl From<UserCredential> for StorableUserCredential {
+    fn from(user_credential: UserCredential) -> Self {
+        Self { user_credential }
     }
 }
 
-impl From<StorableClientCredential> for ClientCredential {
-    fn from(storable_client_credential: StorableClientCredential) -> Self {
-        storable_client_credential.client_credential
+impl From<StorableUserCredential> for UserCredential {
+    fn from(storable_user_credential: StorableUserCredential) -> Self {
+        storable_user_credential.user_credential
     }
 }
 
-impl Deref for StorableClientCredential {
-    type Target = ClientCredential;
+impl Deref for StorableUserCredential {
+    type Target = UserCredential;
 
     fn deref(&self) -> &Self::Target {
-        &self.client_credential
+        &self.user_credential
     }
 }
 
-impl StorableClientCredential {
-    pub(crate) fn new(client_credential: ClientCredential) -> Self {
-        Self { client_credential }
+impl StorableUserCredential {
+    pub(crate) fn new(user_credential: UserCredential) -> Self {
+        Self { user_credential }
     }
 
     pub(crate) fn verify(
-        verifiable_client_credential: VerifiableClientCredential,
+        verifiable_user_credential: VerifiableUserCredential,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Self> {
         let as_credential = as_credentials
-            .get(verifiable_client_credential.signer_fingerprint())
+            .get(verifiable_user_credential.signer_fingerprint())
             .context("Missing AS credential")?;
-        let client_credential =
-            verifiable_client_credential.verify(as_credential.verifying_key())?;
-        Ok(Self { client_credential })
+        let user_credential = verifiable_user_credential.verify(as_credential.verifying_key())?;
+        Ok(Self { user_credential })
     }
 }
 
-pub(crate) trait VerifiableClientCredentialExt: Sized {
+pub(crate) trait VerifiableUserCredentialExt: Sized {
     fn verify_and_validate(
         self,
         leaf_signature_key: &SignaturePublicKey,
         old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<StorableClientCredential>;
+    ) -> Result<StorableUserCredential>;
 }
 
-impl VerifiableClientCredentialExt for VerifiableClientCredential {
+impl VerifiableUserCredentialExt for VerifiableUserCredential {
     fn verify_and_validate(
         self,
         leaf_signature_key: &SignaturePublicKey,
         old_credential: Option<&Self>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<StorableClientCredential> {
+    ) -> Result<StorableUserCredential> {
         // Verify the leaf credential
         let as_credential = as_credentials
             .get(self.signer_fingerprint())
             .context("Missing AS credential")?;
-        let client_credential: ClientCredential = self.verify(as_credential.verifying_key())?;
+        let user_credential: UserCredential = self.verify(as_credential.verifying_key())?;
 
-        // Check if the client credential matches the given public key
+        // Check if the user credential matches the given public key
         ensure!(
-            client_credential.verifying_key().as_slice() == leaf_signature_key.as_slice(),
-            "Client credential does not match leaf public key"
+            user_credential.verifying_key().as_slice() == leaf_signature_key.as_slice(),
+            "User credential does not match leaf public key"
         );
 
         // If it's an update, ensure that the UserId in the new credential
         // matches the UserId in the old credential
         if let Some(old_credential) = old_credential {
             ensure!(
-                client_credential.user_id() == old_credential.user_id(),
+                user_credential.user_id() == old_credential.user_id(),
                 "UserId in new credential does not match UserId in old credential"
             );
         }
 
-        Ok(StorableClientCredential::from(client_credential))
+        Ok(StorableUserCredential::from(user_credential))
     }
 }

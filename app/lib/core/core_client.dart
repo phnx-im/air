@@ -8,8 +8,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:air/core/core.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/platform/method_channel.dart';
 
 final _log = Logger('CoreClient');
 
@@ -26,8 +27,6 @@ Future<String> dbPath() async {
     final directory = await getApplicationDocumentsDirectory();
     path = directory.path;
   }
-
-  _log.info("Database path: $path");
   return path;
 }
 
@@ -51,7 +50,6 @@ class CoreClient {
   User get user => _user!;
 
   set user(User? user) {
-    _log.info("setting user: ${user?.userId}");
     _userController.add(user);
     _user = user;
   }
@@ -61,15 +59,19 @@ class CoreClient {
   }
 
   // used in dev settings
-  Future<void> deleteDatabase() async {
+  Future<void> deleteAllDatabases() async {
     await deleteDatabases(dbPath: await dbPath());
     _userController.add(null);
     _user = null;
   }
 
-  // used in dev settings
-  Future<void> deleteUserDatabase() async {
-    await deleteClientDatabase(dbPath: await dbPath(), userId: user.userId);
+  /// Tears this device down, stopping the outbound service first.
+  Future<void> deleteCurrentDatabase() async {
+    await deleteClientDatabase(
+      user: user,
+      dbPath: await dbPath(),
+      clientRecordId: user.clientRecordId,
+    );
     _userController.add(null);
     _user = null;
   }
@@ -92,21 +94,7 @@ class CoreClient {
     Uint8List? profilePicture,
     String invitationCode,
   ) async {
-    PlatformPushToken? pushToken;
-
-    if (Platform.isAndroid) {
-      final String? deviceToken = await getDeviceToken();
-
-      if (deviceToken != null) {
-        pushToken = PlatformPushToken.google(deviceToken);
-      }
-    } else if (Platform.isIOS) {
-      final String? deviceToken = await getDeviceToken();
-
-      if (deviceToken != null) {
-        pushToken = PlatformPushToken.apple(deviceToken);
-      }
-    }
+    final pushToken = await getPushToken();
 
     user = await User.newInstance(
       domain: domain,
@@ -120,8 +108,11 @@ class CoreClient {
     _log.info("User registered: ${user.userId}");
   }
 
-  Future<void> loadUser({required UiUserId userId}) async {
-    user = await User.load(dbPath: await dbPath(), userId: userId);
+  Future<void> loadUser({required UuidValue clientRecordId}) async {
+    user = await User.load(
+      dbPath: await dbPath(),
+      clientRecordId: clientRecordId,
+    );
   }
 
   Future<void> refreshPushToken() async {
@@ -130,18 +121,11 @@ class CoreClient {
       return;
     }
 
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    final pushToken = await getPushToken();
+    if (pushToken == null) {
       return;
     }
 
-    final deviceToken = await getDeviceToken();
-    if (deviceToken == null) {
-      return;
-    }
-
-    final pushToken = Platform.isAndroid
-        ? PlatformPushToken.google(deviceToken)
-        : PlatformPushToken.apple(deviceToken);
     try {
       await currentUser.updatePushToken(pushToken);
     } catch (error, stackTrace) {

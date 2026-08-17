@@ -10,9 +10,9 @@ concurrency:
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "release/**"]
   push:
-    branches: ["main"]
+    branches: ["main", "release/**"]
   merge_group:
 
 env:
@@ -113,6 +113,9 @@ jobs:
         uses: ./.github/actions/setup-buildenv
 
       - name: Flutter tests
+        # TZ is pinned because goldens depict clock labels in the host's zone.
+        env:
+          TZ: UTC
         run: cd app && flutter test --file-reporter=json:test-results.json
 
       - name: Test report
@@ -197,7 +200,6 @@ jobs:
         with:
           git-lfs: false
           cargo-binstall-tools: cargo-nextest
-          pypi-packages: podman-compose~=1.5
           flutter: false
 
       - name: Run tests

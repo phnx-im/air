@@ -20,7 +20,7 @@ use anyhow::{Context, bail};
 use clap::Parser;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -55,7 +55,8 @@ async fn main() -> anyhow::Result<()> {
     info!(%domain, "Starting server");
 
     // Port binding
-    let listener = TcpListener::bind(configuration.application.listen)
+    let listen_addr = configuration.application.listen;
+    let listener = TcpListener::bind(&listen_addr)
         .await
         .expect("Failed to bind");
     let metrics_listener = TcpListener::bind(configuration.application.listen_metrics)
@@ -65,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
     let version_req = configuration.application.versionreq.as_ref();
     info!(
         %domain,
+        %listen_addr,
         version_req =? version_req.map(|v| v.to_string()),
         "Starting server"
     );
@@ -134,6 +136,10 @@ async fn main() -> anyhow::Result<()> {
     .expect("Failed to connect to database.");
     if let Some(code) = configuration.application.unredeemablecode {
         auth_service.set_unredeemable_code(code);
+    }
+    if !configuration.application.invitationonly {
+        warn!("invitation codes disabled: registration is open to anyone");
+        auth_service.disable_invitation_only();
     }
 
     let as_connector = SimpleAsConnector::new(&auth_service);

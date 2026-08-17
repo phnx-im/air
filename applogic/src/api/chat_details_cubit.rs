@@ -28,7 +28,7 @@ use tracing::{error, info, warn};
 use crate::{
     StreamSink,
     api::{
-        message_content::UnresolvedMimiContent,
+        message_content::{UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage},
     },
     mark_as_read::MarkAsReadState,
@@ -236,29 +236,19 @@ impl ChatDetailsCubitBase {
     /// The not yet sent message is immediately stored in the local store and then the message is
     /// send to the DS.
     pub async fn send_message(&self, message_text: String) -> anyhow::Result<()> {
-        let mut draft = None;
-        self.core.state_tx().send_if_modified(|state| {
-            let Some(chat) = state.chat.as_mut() else {
-                return false;
-            };
-            draft = chat.draft.take();
-            draft.is_some()
-        });
-
-        // Remove stored draft
-        if draft.is_some() {
-            self.context
-                .core_user
-                .store_message_draft(self.context.chat_id, None)
-                .await?;
-        }
+        // The draft is only cleared once the message is stored, so that its
+        // text and reply/edit context survive a failed send.
+        let draft = {
+            let state = self.core.state_tx().borrow();
+            state.chat.as_ref().and_then(|chat| chat.draft.clone())
+        };
 
         let in_reply_to_mimi_id = draft
             .as_ref()
             .and_then(|d| d.in_reply_to.as_ref())
             .map(|(mimi_id, _)| *mimi_id);
 
-        let replaces = if let Some(replaces_id) = draft.and_then(|d| d.editing_id) {
+        let replaces = if let Some(replaces_id) = draft.as_ref().and_then(|d| d.editing_id) {
             // Load the original message and the Mimi ID of the original message
             let original: ChatMessage = self
                 .context
@@ -275,7 +265,8 @@ impl ChatDetailsCubitBase {
             };
 
             if plain_body == message_text {
-                // Nothing changed. Do nothing.
+                // Nothing changed, but clearing the draft leaves edit mode.
+                self.clear_draft(draft.as_ref()).await?;
                 return Ok(());
             }
             Some(original)
@@ -295,6 +286,66 @@ impl ChatDetailsCubitBase {
         )
         .await
         .inspect_err(|error| error!(%error, "Failed to send message"))?;
+
+        // We don't want to propagate the error to the UI, otherwise the user
+        // might think the message was not sent and retry, which would result in
+        // a duplicate message.
+        if let Err(error) = self.clear_draft(draft.as_ref()).await {
+            error!(%error, "Failed to clear the draft after sending");
+        }
+
+        Ok(())
+    }
+
+    /// Clears the draft in the state and in the store.
+    ///
+    /// A draft that changed since `sent_draft` was captured belongs to the
+    /// next message and is left untouched. The stored draft is removed before
+    /// the in-memory one: when the store delete fails, the draft survives in
+    /// both places instead of resurfacing from the store after a restart.
+    async fn clear_draft(&self, sent_draft: Option<&UiMessageDraft>) -> anyhow::Result<()> {
+        fn draft_version(
+            draft: Option<&UiMessageDraft>,
+        ) -> Option<(DateTime<Utc>, Option<MessageId>, Option<UiMimiId>)> {
+            draft.map(|draft| {
+                (
+                    draft.updated_at,
+                    draft.editing_id,
+                    draft.in_reply_to.as_ref().map(|(mimi_id, _)| *mimi_id),
+                )
+            })
+        }
+
+        // Without a captured draft there is nothing to clear.
+        let Some(sent_updated_at) = sent_draft.map(|draft| draft.updated_at) else {
+            return Ok(());
+        };
+        let sent_version = draft_version(sent_draft);
+        {
+            let state = self.core.state_tx().borrow();
+            let current = state.chat.as_ref().and_then(|chat| chat.draft.as_ref());
+            if draft_version(current) != sent_version {
+                return Ok(());
+            }
+        }
+
+        // The delete is keyed by the draft version, so a newer draft stored
+        // concurrently survives in the store as well.
+        self.context
+            .core_user
+            .delete_message_draft_version(self.context.chat_id, sent_updated_at)
+            .await?;
+
+        self.core.state_tx().send_if_modified(|state| {
+            let Some(chat) = state.chat.as_mut() else {
+                return false;
+            };
+            // The draft may have changed while the store delete was in flight.
+            if draft_version(chat.draft.as_ref()) != sent_version {
+                return false;
+            }
+            chat.draft.take().is_some()
+        });
 
         Ok(())
     }
@@ -415,8 +466,8 @@ impl ChatDetailsCubitBase {
                     draft.is_committed = is_committed;
                     true
                 }
-                Some(draft) if draft.is_committed != is_committed => {
-                    draft.is_committed = is_committed;
+                Some(draft) if is_committed && !draft.is_committed => {
+                    draft.is_committed = true;
                     true
                 }
                 Some(_) => false,
@@ -780,10 +831,6 @@ impl ChatDetailsContext {
 
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
 pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
-    let messages_count = core_user
-        .messages_count(chat.id())
-        .await
-        .unwrap_or_default();
     let unread_messages = core_user.unread_messages_count(chat.id()).await;
     let last_message = core_user.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
@@ -792,6 +839,15 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .or(chat.last_message_at())
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
+    let last_reaction = match last_message.as_ref() {
+        Some(message) => core_user
+            .last_reaction(message)
+            .await
+            .inspect_err(|error| error!(%error, "Failed to load the last reaction"))
+            .ok()
+            .flatten(),
+        None => None,
+    };
 
     let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
@@ -811,9 +867,11 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         status: chat.status.into(),
         chat_type,
         last_used,
-        messages_count,
         unread_messages,
+        // The row reports on the last message but never opens its attachment,
+        // so it does without the local attachment ids.
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),
+        last_reaction: last_reaction.map(Into::into),
         draft,
         is_apq,
         muted_until: chat.muted_until.map(Into::into),

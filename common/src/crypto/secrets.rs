@@ -8,7 +8,7 @@
 //! and the type checker happy.
 use std::{fmt::Display, ops::Deref};
 
-use rand_chacha::rand_core::{RngCore as _, SeedableRng as _};
+use rand::TryRng;
 use secrecy::{
     CloneableSecret, SerializableSecret,
     zeroize::{Zeroize, ZeroizeOnDrop},
@@ -47,10 +47,7 @@ impl<const LENGTH: usize> Secret<LENGTH> {
     /// Generate a fresh, random secret.
     pub fn random() -> Result<Self, RandomnessError> {
         let mut secret = [0; LENGTH];
-        // TODO: Use a proper rng provider.
-        rand_chacha::ChaCha20Rng::from_entropy()
-            .try_fill_bytes(secret.as_mut_slice())
-            .map_err(|_| RandomnessError::InsufficientRandomness)?;
+        rand::rng().try_fill_bytes(&mut secret);
         Ok(Self { secret })
     }
 }

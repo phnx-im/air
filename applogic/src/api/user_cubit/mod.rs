@@ -24,13 +24,12 @@ use crate::api::logging::tar_logs;
 use crate::api::types::UiContact;
 use crate::{
     StreamSink,
-    api::navigation_cubit::{HomeNavigationState, HomeTab},
     notifications::NotificationService,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
 use super::{
-    navigation_cubit::{NavigationCubitBase, NavigationState},
+    notification_context::{NotificationContextBase, NotificationPolicy},
     notifications::NotificationContent,
     types::{UiUserId, UiUsername},
     user::User,
@@ -65,6 +64,8 @@ struct UiUserInner {
     user_id: UserId,
     usernames: Vec<Username>,
     unsupported_version: bool,
+    /// Another device of this user removed this one from the self group.
+    account_unlinked: bool,
 }
 
 impl UiUser {
@@ -86,7 +87,32 @@ impl UiUser {
                     error!(%error, "failed to load usernames");
                 }
             }
+
+            // The flag is durable, so a device that was unlinked while it was
+            // not running still reports it on the next launch.
+            Self::reload_account_unlinked(&state_tx, &core_user).await;
         });
+    }
+
+    /// Re-reads the unlinked flag and emits it if it flipped.
+    #[frb(ignore)]
+    pub(crate) async fn reload_account_unlinked(
+        state_tx: &watch::Sender<UiUser>,
+        core_user: &CoreUser,
+    ) {
+        match core_user.is_account_unlinked().await {
+            Ok(unlinked) => {
+                state_tx.send_if_modified(|state| {
+                    if state.inner.account_unlinked == unlinked {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.account_unlinked = unlinked;
+                    true
+                });
+            }
+            Err(error) => error!(%error, "failed to read the account-unlinked flag"),
+        }
     }
 
     #[frb(getter, sync)]
@@ -107,6 +133,11 @@ impl UiUser {
     #[frb(getter, sync)]
     pub fn unsupported_version(&self) -> bool {
         self.inner.unsupported_version
+    }
+
+    #[frb(getter, sync)]
+    pub fn account_unlinked(&self) -> bool {
+        self.inner.account_unlinked
     }
 }
 
@@ -138,19 +169,20 @@ pub struct UserCubitBase {
 
 impl UserCubitBase {
     #[frb(sync)]
-    pub fn new(user: &User, navigation: &NavigationCubitBase) -> Self {
+    pub fn new(user: &User, notification_context: &NotificationContextBase) -> Self {
         let core_user = user.user.clone();
 
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
             unsupported_version: false,
+            account_unlinked: false,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());
 
-        let navigation_state = navigation.subscribe();
-        let notification_service = navigation.notification_service.clone();
+        let notification_service = notification_context.notification_service.clone();
+        let notification_policy = notification_context.subscribe();
 
         let (app_state_tx, app_state) = watch::channel(AppState::Foreground);
 
@@ -160,7 +192,7 @@ impl UserCubitBase {
             state_tx: core.state_tx().clone(),
             core_user,
             app_state,
-            navigation_state,
+            notification_policy,
             notification_service,
         };
 
@@ -509,7 +541,7 @@ struct CubitContext {
     state_tx: watch::Sender<UiUser>,
     core_user: CoreUser,
     app_state: watch::Receiver<AppState>,
-    navigation_state: watch::Receiver<NavigationState>,
+    notification_policy: watch::Receiver<NotificationPolicy>,
     notification_service: NotificationService,
 }
 
@@ -567,70 +599,24 @@ impl CubitContext {
     }
 }
 
-/// Places in the app where notifications in foreground are handled differently.
-///
-/// Derived from the [`NavigationState`].
-#[derive(Debug)]
-enum NotificationContext {
-    Intro,
-    Chat(ChatId),
-    ChatList,
-    Other,
-}
-
 impl CubitContext {
-    /// Show OS notifications depending on the current navigation state and OS.
+    /// Show OS notifications, as far as the UI's policy and the app state allow.
     async fn show_notifications(&self, mut notifications: Vec<NotificationContent>) {
-        const IS_DESKTOP: bool = cfg!(any(
-            target_os = "macos",
-            target_os = "windows",
-            target_os = "linux"
-        ));
-        let notification_context = match &*self.navigation_state.borrow() {
-            NavigationState::Intro { .. } => NotificationContext::Intro,
-            NavigationState::Home {
-                home:
-                    HomeNavigationState {
-                        chat_id: Some(chat_id),
-                        ..
-                    },
-            } => NotificationContext::Chat(*chat_id),
-            NavigationState::Home {
-                home:
-                    HomeNavigationState {
-                        chat_id: None,
-                        developer_settings_screen,
-                        active_tab,
-                        ..
-                    },
-            } => {
-                if !IS_DESKTOP
-                    && developer_settings_screen.is_none()
-                    && *active_tab == HomeTab::Chats
-                {
-                    NotificationContext::ChatList
-                } else {
-                    NotificationContext::Other
-                }
-            }
-        };
+        let policy = *self.notification_policy.borrow();
 
-        debug!(?notifications, ?notification_context, "send_notification");
+        debug!(?notifications, ?policy, "send_notification");
 
-        match notification_context {
-            NotificationContext::Intro | NotificationContext::ChatList => {
-                return; // suppress all notifications
-            }
-            NotificationContext::Chat(chat_id) => {
+        match policy {
+            NotificationPolicy::SuppressAll => return,
+            NotificationPolicy::SuppressChat { chat_id } => {
                 // We don't want to show notifications when
                 // - we are on mobile and the notification belongs to the currently open chat
                 // - we are on desktop, the app is in the foreground, and the notification belongs to the currently open chat
-                let app_state = *self.app_state.borrow();
-                if !IS_DESKTOP || app_state == AppState::Foreground {
+                if *self.app_state.borrow() != AppState::DesktopBackground {
                     notifications.retain(|notification| notification.chat_id != chat_id);
                 }
             }
-            NotificationContext::Other => (),
+            NotificationPolicy::AllowAll => (),
         }
 
         for notification in notifications {

@@ -2,17 +2,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashMap;
+
 use aircommon::{
     identifiers::{MimiId, UserId},
     time::TimeStamp,
 };
 use anyhow::{Context, Result, anyhow, bail};
+use chrono::{DateTime, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    ChatAttributes, ChatType, MessageDraft, MessageId,
-    chats::{Chat, PendingConnectionInfo, messages::ChatMessage},
+    ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
+    chats::{
+        Chat, PendingConnectionInfo, messages::ChatMessage,
+        notification_rebuild::ChatNotificationRebuildSet,
+    },
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
     utils::image::resize_profile_image,
@@ -177,26 +183,6 @@ impl CoreUser {
             .map_err(Into::into)
     }
 
-    pub async fn prev_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> Result<Option<ChatMessage>> {
-        ChatMessage::prev_message(self.db().read().await?, chat_id, message_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    pub async fn next_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> Result<Option<ChatMessage>> {
-        ChatMessage::next_message(self.db().read().await?, chat_id, message_id)
-            .await
-            .map_err(Into::into)
-    }
-
     pub async fn first_unread_message(
         &self,
         chat_id: ChatId,
@@ -247,14 +233,25 @@ impl CoreUser {
             .await
     }
 
+    /// Deletes the chat's message draft, but only the version with
+    /// `updated_at`. Newer drafts stored concurrently are ignored.
+    pub async fn delete_message_draft_version(
+        &self,
+        chat_id: ChatId,
+        updated_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                MessageDraft::delete_version(txn, chat_id, updated_at).await?;
+                Ok(())
+            })
+            .await
+    }
+
     pub async fn commit_all_message_drafts(&self) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
             .await
-    }
-
-    pub async fn messages_count(&self, chat_id: ChatId) -> anyhow::Result<usize> {
-        Ok(self.try_messages_count(chat_id).await?)
     }
 
     pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {
@@ -355,4 +352,34 @@ impl CoreUser {
         }
         bail!("Room does not exist")
     }
+
+    pub async fn chat_notification_rebuild_set(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<ChatNotificationRebuild> {
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(self.db().read().await?, chat_id, self.user_id())
+                .await?;
+
+        let mut participants = HashMap::new();
+        for user_id in rebuild_set.participant_ids() {
+            let profile = self.user_profile(&user_id).await;
+            participants.insert(user_id, profile);
+        }
+
+        let own_profile = self.own_user_profile().await?;
+
+        Ok(ChatNotificationRebuild {
+            rebuild_set,
+            participants,
+            own_profile,
+        })
+    }
+}
+
+pub struct ChatNotificationRebuild {
+    pub rebuild_set: ChatNotificationRebuildSet,
+    /// Distinct sender/reactor profiles referenced in `rebuild_set`
+    pub participants: HashMap<UserId, UserProfile>,
+    pub own_profile: UserProfile,
 }

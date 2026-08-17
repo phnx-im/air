@@ -8,7 +8,7 @@ use jni::{
     sys::jstring,
 };
 
-use crate::background_execution::processing::init_environment;
+use crate::background_execution::processing::{init_dismissal_environment, init_environment};
 use tracing::error;
 
 /// This method gets called from the Android Messaging Service
@@ -55,6 +55,48 @@ pub extern "C" fn process_new_messages(
 
     // Convert Rust string back to Java string
     match env.new_string(response) {
+        Ok(output) => output.into_raw(),
+        Err(error) => {
+            error!(%error, "Failed to create Java string from Rust");
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                "Failed to create Java string from Rust",
+            );
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// This method gets called from the notification dismissal `BroadcastReceiver` to persist the
+/// chat's `notified_until` watermark.
+#[unsafe(export_name = "Java_ms_air_NativeLib_notification_1dismissed")]
+pub extern "C" fn notification_dismissed(
+    mut env: JNIEnv,
+    _class: JClass,
+    content: JString,
+) -> jstring {
+    // Convert Java string to Rust string
+    let input: String = match env.get_string(&content) {
+        Ok(value) => value.into(),
+        Err(_error) => {
+            let _ = env.throw_new(
+                "java/lang/IllegalArgumentException",
+                "Failed to read content string from Java",
+            );
+            return std::ptr::null_mut();
+        }
+    };
+
+    if init_dismissal_environment(&input).is_none() {
+        let _ = env.throw_new(
+            "java/lang/RuntimeException",
+            "Failed to process notification dismissal",
+        );
+        return std::ptr::null_mut();
+    }
+
+    // Convert Rust string back to Java string
+    match env.new_string("") {
         Ok(output) => output.into_raw(),
         Err(error) => {
             error!(%error, "Failed to create Java string from Rust");

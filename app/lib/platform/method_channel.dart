@@ -1,0 +1,326 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
+import 'package:air/core/core.dart';
+import 'package:air/core/api/utils.dart' as rust_utils;
+import 'package:air/platform/notifications.dart';
+import 'package:path_provider/path_provider.dart';
+
+const platform = MethodChannel('ms.air/channel');
+
+final _log = Logger('Platform');
+
+void initMethodChannel(StreamSink<ChatId> openedNotificationSink) {
+  platform.setMethodCallHandler(
+    (call) => _handleMethod(call, openedNotificationSink),
+  );
+}
+
+Future<void> _handleMethod(
+  MethodCall call,
+  StreamSink<ChatId> openedNotificationSink,
+) async {
+  _log.info('Handling method call: ${call.method}');
+  switch (call.method) {
+    case 'receivedNotification':
+      // Handle notification data
+      final String? identifier = call.arguments["identifier"];
+      final String? chatIdStr = call.arguments["chatId"];
+      _log.info(
+        'Received notification: identifier = $identifier, chatId = $chatIdStr',
+      );
+      // Do something with the data
+      break;
+    case 'openedNotification':
+      dispatchOpenedNotification(
+        call.arguments as Map<Object?, Object?>,
+        openedNotificationSink,
+      );
+      break;
+    case 'backgroundTaskExpired':
+      final taskId = call.arguments['taskId'];
+      _log.warning('Background task expired (taskId=$taskId)');
+      break;
+    case 'processStoreNotifications':
+      CoreClient().maybeUser?.signalPendingStoreNotifications();
+      break;
+    default:
+      _log.severe('Unknown method called: ${call.method}');
+  }
+}
+
+Future<String?> getDeviceToken() async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      return await platform.invokeMethod('getDeviceToken');
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe("Failed to get device token: '${e.message}'.", e, stacktrace);
+    }
+  }
+  return null;
+}
+
+/// The push token for this device, or null if this platform has no push
+/// service or the device token could not be obtained.
+Future<PlatformPushToken?> getPushToken() async {
+  final deviceToken = await getDeviceToken();
+  if (deviceToken == null) {
+    return null;
+  }
+  if (Platform.isAndroid) {
+    return PlatformPushToken.google(deviceToken);
+  }
+  if (Platform.isIOS) {
+    return PlatformPushToken.apple(deviceToken);
+  }
+  return null;
+}
+
+Future<String> getDatabaseDirectoryMobile() async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      return await platform.invokeMethod('getDatabasesDirectory');
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe(
+        "Failed to get database directory: '${e.message}'",
+        e,
+        stacktrace,
+      );
+      throw PlatformException(code: 'failed_to_get_database_directory');
+    }
+  }
+  return '';
+}
+
+/// Saves file data to the appropriate public directory on Android.
+Future<void> saveFileAndroid({
+  required String fileName,
+  required String mimeType,
+  required Uint8List data,
+}) async {
+  if (!Platform.isAndroid) {
+    throw PlatformException(code: 'unsupported_platform');
+  }
+  try {
+    await platform.invokeMethod('saveFile', {
+      'fileName': fileName,
+      'mimeType': mimeType,
+      'data': data,
+    });
+  } on PlatformException catch (e) {
+    _log.severe("Failed to save file: '${e.message}'.");
+  }
+}
+
+/// Returns the directory returned by `getApplicationDocumentsDirectory` on all platforms, except for
+/// iOS. On iOS, the directory returned is the `Caches` directory in a shared container of the
+/// application group. The container is shared between the application and background extension.
+Future<String> getCacheDirectory() async {
+  return Platform.isIOS
+      ? (await _getSharedCacheDirectoryIOS())!
+      : (await getApplicationCacheDirectory()).path;
+}
+
+Future<String?> _getSharedCacheDirectoryIOS() async {
+  if (Platform.isIOS) {
+    try {
+      return await platform.invokeMethod('getSharedCacheDirectory');
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe(
+        "Failed to get shared cache directory: '${e.message}'",
+        e,
+        stacktrace,
+      );
+      throw PlatformException(code: 'failed_to_get_shared_cache_directory');
+    }
+  }
+  return null;
+}
+
+Future<bool> isImageFile(String path) async {
+  try {
+    return await rust_utils.isImageFile(path: path);
+  } catch (e, stacktrace) {
+    _log.severe("Failed to check if file is image: '$e'.", e, stacktrace);
+  }
+  return false;
+}
+
+Future<List<String>?> getClipboardFilePaths() async {
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      return await rust_utils.readClipboardFilePaths();
+    } catch (e, stacktrace) {
+      _log.severe("Failed to get clipboard file paths: '$e'.", e, stacktrace);
+    }
+  }
+  return null;
+}
+
+typedef ClipboardImage = ({Uint8List bytes, String mimeType});
+
+Future<ClipboardImage?> getClipboardImage() async {
+  if (Platform.isIOS || Platform.isAndroid) {
+    try {
+      final map = await platform.invokeMapMethod<String, dynamic>(
+        'getClipboardImage',
+      );
+      if (map == null) return null;
+      final bytes = map['bytes'] as Uint8List?;
+      final mimeType = map['mimeType'] as String?;
+      if (bytes == null || mimeType == null) return null;
+      return (bytes: bytes, mimeType: mimeType);
+    } on PlatformException catch (e, stacktrace) {
+      _log.severe(
+        "Failed to get clipboard image: '${e.message}'.",
+        e,
+        stacktrace,
+      );
+    }
+  } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    try {
+      final bytes = await rust_utils.readClipboardImage();
+      if (bytes == null) return null;
+      // Desktop path re-encodes to PNG (lossless, alpha-preserving).
+      return (bytes: bytes, mimeType: 'image/png');
+    } catch (e, stacktrace) {
+      _log.severe("Failed to get clipboard image: '$e'.", e, stacktrace);
+    }
+  }
+  return null;
+}
+
+Future<void> setBadgeCount(int count) async {
+  // Make sure we are on iOS or macOS
+  if (!Platform.isIOS && !Platform.isMacOS) {
+    return;
+  }
+  try {
+    await platform.invokeMethod('setBadgeCount', {'count': count});
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to set badge count: '${e.message}'.", e, stacktrace);
+  }
+}
+
+Future<int?> beginBackgroundTask() async {
+  if (!Platform.isIOS) return null;
+  try {
+    final result = await platform.invokeMethod('beginBackgroundTask');
+    if (result is int) return result;
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to begin background task: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+  }
+  return null;
+}
+
+Future<void> endBackgroundTask(int? taskId) async {
+  if (!Platform.isIOS || taskId == null) return;
+  try {
+    await platform.invokeMethod('endBackgroundTask', {'taskId': taskId});
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to end background task: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+  }
+}
+
+FutureOr<void> sendNotification(NotificationContent content) async {
+  try {
+    final conversation = content.conversation;
+    final arguments = <String, dynamic>{
+      'identifier': content.identifier.field0.toString(),
+      'title': content.title,
+      'body': content.body,
+      'chatId': content.chatId.uuid.toString(),
+      if (conversation != null) 'conversation': _conversationMap(conversation),
+    };
+    await platform.invokeMethod('sendNotification', arguments);
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to send notifications: '${e.message}'", e, stacktrace);
+  }
+}
+
+Map<String, dynamic> _conversationMap(ConversationNotification conversation) {
+  return <String, dynamic>{
+    'chatTitle': conversation.chatTitle,
+    'isGroup': conversation.isGroup,
+    'ownDisplayName': conversation.ownDisplayName,
+    'participants': conversation.participants.map(_participantMap).toList(),
+    'messages': conversation.messages.map(_messageMap).toList(),
+    'alert': conversation.alert,
+    'newestTimestamp': conversation.newestTimestamp,
+    if (conversation.chatAvatar != null) 'chatAvatar': conversation.chatAvatar,
+  };
+}
+
+Map<String, dynamic> _participantMap(ConversationParticipant participant) {
+  return <String, dynamic>{
+    'uuid': participant.uuid.toString(),
+    'displayName': participant.displayName,
+    if (participant.avatar != null) 'avatar': participant.avatar,
+  };
+}
+
+Map<String, dynamic> _messageMap(ConversationMessage message) {
+  return <String, dynamic>{
+    if (message.senderUuid != null) 'senderUuid': message.senderUuid.toString(),
+    'text': message.text,
+    'isReaction': message.isReaction,
+    'timestamp': message.timestamp.toInt(),
+  };
+}
+
+FutureOr<List<NotificationHandle>> getActiveNotifications() async {
+  try {
+    List<Map<Object?, Object?>> res =
+        await platform.invokeListMethod('getActiveNotifications') ?? [];
+    return res.map(NotificationHandleExtension.fromMap).nonNulls.toList();
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to get active notifications: '${e.message}'",
+      e,
+      stacktrace,
+    );
+  }
+  return [];
+}
+
+FutureOr<void> cancelNotifications(List<NotificationId> identifiers) async {
+  if (identifiers.isEmpty) {
+    return;
+  }
+  try {
+    final arguments = <String, dynamic>{
+      'identifiers': identifiers.map((id) => id.field0.toString()).toList(),
+    };
+    await platform.invokeMethod('cancelNotifications', arguments);
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to cancel notifications: '${e.message}'",
+      e,
+      stacktrace,
+    );
+  }
+}
+
+extension TargetPlatformExtension on TargetPlatform {
+  String get name => switch (this) {
+    TargetPlatform.android => "Android",
+    TargetPlatform.iOS => "iOS",
+    TargetPlatform.linux => "Linux",
+    TargetPlatform.macOS => "macOS",
+    TargetPlatform.windows => "Windows",
+    TargetPlatform.fuchsia => "Fuchsia",
+  };
+}

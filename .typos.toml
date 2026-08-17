@@ -26,8 +26,8 @@ extend-exclude = [
     "app/macos/Runner/Base.lproj/MainMenu.xib",
     "app/ios/Runner/Base.lproj/Main.storyboard",
 
-    # Exclude imported emoji list
-    "app/assets/emoji/emoji.json",
+    # Exclude generated emoji list
+    "app/lib/features/emoji/emoji_data.dart",
 
     # Exclude license files
     "LICENSES/",

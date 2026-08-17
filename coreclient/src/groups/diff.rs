@@ -10,7 +10,7 @@ use super::*;
 /// The diff of a group should be merged when the pending commit of the
 /// underlying MLS group is merged.
 pub(crate) struct GroupDiff {
-    pub(crate) leaf_signer: Option<ClientSigningKey>,
+    pub(crate) leaf_signer: Option<UserSigningKey>,
     pub(crate) identity_link_wrapper_key: Option<IdentityLinkWrapperKey>,
     pub(crate) group_state_ear_key: Option<GroupStateEarKey>,
 }
@@ -35,7 +35,7 @@ impl GroupDiff {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct StagedGroupDiff {
-    pub(crate) leaf_signer: Option<ClientSigningKey>,
+    pub(crate) leaf_signer: Option<UserSigningKey>,
     pub(crate) identity_link_wrapper_key: Option<IdentityLinkWrapperKey>,
     pub(crate) group_state_ear_key: Option<GroupStateEarKey>,
 }

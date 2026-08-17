@@ -4,10 +4,7 @@
 
 //! A list of messages feature
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use aircoreclient::{
     AttachmentId, ChatId, ChatMessage, ChatType, MessageId,
@@ -25,10 +22,7 @@ use crate::{
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
-use super::{
-    types::{UiChatMessage, UiFlightPosition},
-    user_cubit::UserCubitBase,
-};
+use super::{types::UiChatMessage, user_cubit::UserCubitBase};
 
 const PAGE_SIZE: usize = 64;
 /// Maximum number of messages kept in the loaded window.
@@ -51,8 +45,6 @@ pub struct MessageListState {
     pub is_at_bottom: bool,
     /// Index of the first unread message (set on initial load only)
     pub first_unread_index: Option<usize>,
-    /// Number of unread messages shown in the unread divider.
-    pub unread_count: usize,
     /// Monotonic revision incremented for every emitted transition.
     pub revision: usize,
 }
@@ -117,53 +109,12 @@ enum LoadDirection {
         has_newer: bool,
         is_at_bottom: bool,
         first_unread_index: Option<usize>,
-        unread_count: usize,
         command: Option<MessageListCommand>,
     },
     /// Prepend older messages before the current window
     PrependOlder { has_older: bool },
     /// Append newer messages after the current window
     AppendNewer { has_newer: bool },
-}
-
-/// Compute flight positions for a slice of `UiChatMessage` in order.
-///
-/// `flight_break_at` inserts an unconditional flight break before that index
-/// (used for the unread divider).
-fn compute_flight_positions(messages: &mut [UiChatMessage], flight_break_at: Option<usize>) {
-    recompute_flight_positions_range(messages, 0, messages.len(), flight_break_at);
-}
-
-/// Recompute flight positions for messages in range `[start, end)`, using neighbors
-/// outside the range for context. Messages outside the range are NOT modified.
-///
-/// `flight_break_at` inserts an unconditional flight break before that index
-/// (used for the unread divider).
-fn recompute_flight_positions_range(
-    messages: &mut [UiChatMessage],
-    start: usize,
-    end: usize,
-    flight_break_at: Option<usize>,
-) {
-    let end = end.min(messages.len());
-    for i in start..end {
-        let pos = {
-            // Treat the unread divider boundary as a flight break by hiding
-            // the previous/next message from the position calculation.
-            let prev = if i > 0 && flight_break_at != Some(i) {
-                Some(&messages[i - 1])
-            } else {
-                None
-            };
-            let next = if flight_break_at == Some(i + 1) {
-                None
-            } else {
-                messages.get(i + 1)
-            };
-            UiFlightPosition::calculate(&messages[i], prev, next)
-        };
-        messages[i].position = pos;
-    }
 }
 
 fn newest_first(messages: &[UiChatMessage]) -> Vec<UiChatMessage> {
@@ -178,27 +129,6 @@ fn rebuild_message_ids_index(data: &mut MessageListData) {
     data.message_ids_index.clear();
     for (i, msg) in data.messages.iter().enumerate() {
         data.message_ids_index.insert(msg.id, i);
-    }
-}
-
-fn push_patch_changes(
-    changes: &mut Vec<MessageListChange>,
-    messages: &[UiChatMessage],
-    indices: impl IntoIterator<Item = usize>,
-) {
-    let mut deduped = BTreeSet::new();
-    for index in indices {
-        if index < messages.len() {
-            deduped.insert(index);
-        }
-    }
-
-    let len = messages.len();
-    for index in deduped {
-        changes.push(MessageListChange::Patch {
-            index: newest_index(len, index),
-            message: messages[index].clone(),
-        });
     }
 }
 
@@ -242,10 +172,9 @@ impl MessageListData {
                 has_newer,
                 is_at_bottom,
                 first_unread_index,
-                unread_count,
                 command: next_command,
             } => {
-                let mut messages: Vec<UiChatMessage> = new_messages
+                let messages: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
                         let ids = local_attachment_ids
@@ -255,7 +184,6 @@ impl MessageListData {
                         UiChatMessage::from_message(m, ids)
                     })
                     .collect();
-                compute_flight_positions(&mut messages, first_unread_index);
 
                 self.messages = messages;
                 rebuild_message_ids_index(self);
@@ -265,7 +193,6 @@ impl MessageListData {
                 state.has_newer = has_newer;
                 state.is_at_bottom = is_at_bottom;
                 state.first_unread_index = first_unread_index;
-                state.unread_count = unread_count;
 
                 changes.push(MessageListChange::Reload {
                     messages: newest_first(&self.messages),
@@ -274,7 +201,7 @@ impl MessageListData {
                 kind = MessageListTransitionKind::WindowReplaced;
             }
             LoadDirection::PrependOlder { has_older } => {
-                let mut prepended: Vec<UiChatMessage> = new_messages
+                let prepended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
                         let ids = local_attachment_ids
@@ -288,38 +215,13 @@ impl MessageListData {
                 let old_len = self.messages.len();
                 let inserted_messages = newest_first(&prepended);
                 let shifted_unread = state.first_unread_index.map(|i| i + prepend_count);
-                let mut patch_indices = Vec::new();
 
-                compute_flight_positions(&mut prepended, None);
                 self.messages.splice(0..0, prepended);
-
-                if prepend_count > 0 && self.messages.len() > prepend_count {
-                    let boundary_start = prepend_count.saturating_sub(1);
-                    let boundary_end = (prepend_count + 1).min(self.messages.len());
-                    recompute_flight_positions_range(
-                        &mut self.messages,
-                        boundary_start,
-                        boundary_end,
-                        shifted_unread,
-                    );
-                    patch_indices.extend(boundary_start..boundary_end);
-                }
 
                 let evict_count = self.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
                     self.messages.truncate(MAX_WINDOW);
                     state.has_newer = true;
-                    if let Some(last_index) = self.messages.len().checked_sub(1) {
-                        let len = self.messages.len();
-                        let unread_index = shifted_unread.filter(|&i| i < len);
-                        recompute_flight_positions_range(
-                            &mut self.messages,
-                            last_index,
-                            len,
-                            unread_index,
-                        );
-                        patch_indices.push(last_index);
-                    }
                 }
 
                 state.first_unread_index = shifted_unread.filter(|&i| i < self.messages.len());
@@ -340,11 +242,10 @@ impl MessageListData {
                         messages: Vec::new(),
                     });
                 }
-                push_patch_changes(&mut changes, &self.messages, patch_indices);
                 kind = MessageListTransitionKind::OlderPageLoaded;
             }
             LoadDirection::AppendNewer { has_newer } => {
-                let mut appended: Vec<UiChatMessage> = new_messages
+                let appended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
                         let ids = local_attachment_ids
@@ -357,43 +258,13 @@ impl MessageListData {
                 let old_count = self.messages.len();
                 let appended_count = appended.len();
                 let inserted_messages = newest_first(&appended);
-                let mut patch_indices = Vec::new();
 
-                compute_flight_positions(&mut appended, None);
                 self.messages.extend(appended);
-
-                if old_count > 0 && self.messages.len() > old_count {
-                    let boundary_start = old_count.saturating_sub(1);
-                    let boundary_end = (old_count + 1).min(self.messages.len());
-                    let unread_index = state.first_unread_index;
-                    recompute_flight_positions_range(
-                        &mut self.messages,
-                        boundary_start,
-                        boundary_end,
-                        unread_index,
-                    );
-                    patch_indices.extend(boundary_start..boundary_end);
-                }
 
                 let evict_count = self.messages.len().saturating_sub(MAX_WINDOW);
                 if evict_count > 0 {
                     self.messages.drain(0..evict_count);
                     state.has_older = true;
-                    patch_indices = patch_indices
-                        .into_iter()
-                        .filter_map(|index| index.checked_sub(evict_count))
-                        .collect();
-                    if !self.messages.is_empty() {
-                        recompute_flight_positions_range(
-                            &mut self.messages,
-                            0,
-                            1,
-                            state
-                                .first_unread_index
-                                .and_then(|index| index.checked_sub(evict_count)),
-                        );
-                        patch_indices.push(0);
-                    }
                 }
 
                 state.first_unread_index = state
@@ -416,7 +287,6 @@ impl MessageListData {
                         messages: Vec::new(),
                     });
                 }
-                push_patch_changes(&mut changes, &self.messages, patch_indices);
                 kind = MessageListTransitionKind::NewerPageLoaded;
             }
         }
@@ -435,22 +305,17 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
     ) -> Option<MessageListTransition> {
-        let unread_idx = state.first_unread_index?;
-
-        let start = unread_idx.saturating_sub(1);
-        let end = (unread_idx + 1).min(self.messages.len());
-        recompute_flight_positions_range(&mut self.messages, start, end, None);
+        state.first_unread_index?;
         state.first_unread_index = None;
-        state.unread_count = 0;
 
-        let mut changes = Vec::new();
-        push_patch_changes(&mut changes, &self.messages, start..end);
-
+        // The divider lives in the state, not in the messages, so dropping it
+        // changes no message. Dart still has to hear about it, hence the
+        // revision bump and the empty transition.
         state.revision += 1;
         Some(MessageListTransition {
             revision: state.revision,
             kind: MessageListTransitionKind::UnreadBoundaryChanged,
-            changes,
+            changes: Vec::new(),
             command: None,
         })
     }
@@ -467,15 +332,13 @@ impl MessageListData {
             return None;
         }
 
-        let start = idx.saturating_sub(1);
-        let end = (idx + 2).min(self.messages.len());
-        let unread_index = state.first_unread_index;
+        let len = self.messages.len();
+        self.messages[idx] = updated.clone();
 
-        self.messages[idx] = updated;
-        recompute_flight_positions_range(&mut self.messages, start, end, unread_index);
-
-        let mut changes = Vec::new();
-        push_patch_changes(&mut changes, &self.messages, start..end);
+        let changes = vec![MessageListChange::Patch {
+            index: newest_index(len, idx),
+            message: updated,
+        }];
 
         state.revision += 1;
         Some(MessageListTransition {
@@ -495,6 +358,7 @@ impl MessageListData {
         let len_before = self.messages.len();
 
         self.messages.remove(idx);
+
         state.first_unread_index = match state.first_unread_index {
             Some(first_unread) if first_unread > idx => first_unread.checked_sub(1),
             Some(first_unread) if first_unread == idx => {
@@ -507,17 +371,13 @@ impl MessageListData {
             other => other,
         };
 
-        let start = idx.saturating_sub(1);
-        let end = (idx + 1).min(self.messages.len());
-        recompute_flight_positions_range(&mut self.messages, start, end, state.first_unread_index);
         rebuild_message_ids_index(self);
 
-        let mut changes = vec![MessageListChange::Splice {
+        let changes = vec![MessageListChange::Splice {
             index: newest_index(len_before, idx),
             delete_count: 1,
             messages: Vec::new(),
         }];
-        push_patch_changes(&mut changes, &self.messages, start..end);
 
         state.revision += 1;
         Some(MessageListTransition {
@@ -758,7 +618,6 @@ impl MessageListContext {
                 };
 
             let first_unread_index = messages.iter().position(|m| m.id() == unread_id);
-            let unread_count = self.core_user.unread_messages_count(self.chat_id).await;
 
             let mut state = self.state_tx.borrow().clone();
             let transition = self.data.apply_messages(
@@ -771,7 +630,6 @@ impl MessageListContext {
                     has_newer,
                     is_at_bottom: !has_newer,
                     first_unread_index,
-                    unread_count,
                     command: None,
                 },
             );
@@ -822,7 +680,6 @@ impl MessageListContext {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
-                unread_count: 0,
                 command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1047,7 +904,6 @@ impl MessageListContext {
                 has_newer,
                 is_at_bottom: !has_newer,
                 first_unread_index: None,
-                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToId { message_id }),
             },
         );
@@ -1075,12 +931,11 @@ impl MessageListContext {
             };
 
             if op.contains(DbOperation::Remove) {
-                if self.data.message_ids_index.contains_key(message_id)
-                    && let Some(message) = self.core_user.message(*message_id).await?
-                    && message.chat_id() == self.chat_id
-                {
-                    self.remove_message_in_place(*message_id);
-                }
+                // The row is already gone, so it cannot be loaded to check
+                // which chat it belonged to. It does not have to be: every
+                // loader is chat-scoped, so an id in the index is in this chat,
+                // and `remove_message` ignores an id that is not in the index.
+                self.remove_message_in_place(*message_id);
             } else if op.contains(DbOperation::Add) {
                 if let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
@@ -1116,7 +971,7 @@ impl MessageListContext {
         Ok(())
     }
 
-    /// Clear the unread divider and recompute affected flight positions.
+    /// Clear the unread divider.
     fn clear_first_unread_index(&mut self) {
         let mut state = self.state_tx.borrow().clone();
         if let Some(transition) = self.data.clear_first_unread_index(&mut state) {
@@ -1124,7 +979,7 @@ impl MessageListContext {
         }
     }
 
-    /// Update a single message in place and recompute its flight position + neighbors.
+    /// Update a single message in place.
     fn update_message_in_place(
         &mut self,
         message: ChatMessage,
@@ -1157,14 +1012,19 @@ mod tests {
 
     use super::*;
 
-    fn new_test_message(sender: &UserId, timestamp_secs: i64) -> ChatMessage {
-        new_test_message_with_id(sender, timestamp_secs as u128 + 1, timestamp_secs)
-    }
-
     fn new_test_message_with_id(
         sender: &UserId,
         message_id: u128,
         timestamp_secs: i64,
+    ) -> ChatMessage {
+        new_test_message_with_body(sender, message_id, timestamp_secs, "some content")
+    }
+
+    fn new_test_message_with_body(
+        sender: &UserId,
+        message_id: u128,
+        timestamp_secs: i64,
+        body: &str,
     ) -> ChatMessage {
         ChatMessage::new_for_test(
             ChatId::new(Uuid::from_u128(1)),
@@ -1173,7 +1033,7 @@ mod tests {
             ContentMessage::new(
                 sender.clone(),
                 true,
-                MimiContent::simple_markdown_message("some content".into(), [0; 16]),
+                MimiContent::simple_markdown_message(body.into(), [0; 16]),
                 &GroupId::from_slice(&[0]),
             ),
         )
@@ -1183,75 +1043,33 @@ mod tests {
         messages.iter().map(|message| message.id).collect()
     }
 
-    #[test]
-    fn test_flight_positions_replace() {
-        use UiFlightPosition::*;
-
-        let alice = UserId::random("localhost".parse().unwrap());
-        let bob = UserId::random("localhost".parse().unwrap());
-
-        let messages = vec![
-            new_test_message(&alice, 0),
-            new_test_message(&alice, 1),
-            new_test_message(&alice, 2),
-            // -- break due to sender
-            new_test_message(&bob, 3),
-            new_test_message(&bob, 4),
-            new_test_message(&bob, 5),
-            // -- break due to time
-            new_test_message(&bob, 65),
-            // -- break due to sender and time
-            new_test_message(&alice, 125),
-            new_test_message(&alice, 126),
-        ];
-
-        let mut state = MessageListState::default();
-        let mut data = MessageListData::default();
-
-        data.apply_messages(
-            &mut state,
-            messages.clone(),
-            Default::default(),
-            None,
-            LoadDirection::Replace {
-                has_older: false,
-                has_newer: false,
-                is_at_bottom: true,
-                first_unread_index: None,
-                unread_count: 0,
-                command: None,
-            },
-        );
-
-        let positions: Vec<_> = data.messages.iter().map(|m| m.position).collect();
-        assert_eq!(
-            positions,
-            [Start, Middle, End, Start, Middle, End, Single, Start, End]
-        );
+    fn patch_indices(transition: &MessageListTransition) -> Vec<usize> {
+        transition
+            .changes
+            .iter()
+            .filter_map(|change| match change {
+                MessageListChange::Patch { index, .. } => Some(*index),
+                _ => None,
+            })
+            .collect()
     }
 
-    #[test]
-    fn test_flight_positions_unread_break() {
-        use UiFlightPosition::*;
+    fn replace_with(
+        data: &mut MessageListData,
+        state: &mut MessageListState,
+        messages: Vec<ChatMessage>,
+    ) -> MessageListTransition {
+        replace_with_unread(data, state, messages, None)
+    }
 
-        let alice = UserId::random("localhost".parse().unwrap());
-
-        // All messages from the same sender within the time threshold —
-        // normally a single flight, but the unread divider at index 2
-        // should split it.
-        let messages = vec![
-            new_test_message(&alice, 0),
-            new_test_message(&alice, 1),
-            // -- unread divider here --
-            new_test_message(&alice, 2),
-            new_test_message(&alice, 3),
-        ];
-
-        let mut state = MessageListState::default();
-        let mut data = MessageListData::default();
-
+    fn replace_with_unread(
+        data: &mut MessageListData,
+        state: &mut MessageListState,
+        messages: Vec<ChatMessage>,
+        first_unread_index: Option<usize>,
+    ) -> MessageListTransition {
         data.apply_messages(
-            &mut state,
+            state,
             messages,
             Default::default(),
             None,
@@ -1259,14 +1077,10 @@ mod tests {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
-                first_unread_index: Some(2),
-                unread_count: 2,
+                first_unread_index,
                 command: None,
             },
-        );
-
-        let positions: Vec<_> = data.messages.iter().map(|m| m.position).collect();
-        assert_eq!(positions, [Start, End, Start, End]);
+        )
     }
 
     #[test]
@@ -1288,7 +1102,6 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
-                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1307,9 +1120,7 @@ mod tests {
     }
 
     #[test]
-    fn test_append_newer_emits_splice_and_boundary_patches() {
-        use UiFlightPosition::*;
-
+    fn test_append_newer_emits_splice_without_neighbor_patches() {
         let alice = UserId::random("localhost".parse().unwrap());
         let first = new_test_message_with_id(&alice, 1, 0);
         let second = new_test_message_with_id(&alice, 2, 1);
@@ -1318,20 +1129,7 @@ mod tests {
         let mut state = MessageListState::default();
         let mut data = MessageListData::default();
 
-        data.apply_messages(
-            &mut state,
-            vec![first, second.clone()],
-            Default::default(),
-            None,
-            LoadDirection::Replace {
-                has_older: false,
-                has_newer: false,
-                is_at_bottom: true,
-                first_unread_index: None,
-                unread_count: 0,
-                command: None,
-            },
-        );
+        replace_with(&mut data, &mut state, vec![first, second]);
 
         let transition = data.apply_messages(
             &mut state,
@@ -1344,39 +1142,25 @@ mod tests {
         assert_eq!(transition.revision, 2);
         assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::NewerPageLoaded);
-        assert_eq!(
-            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
-            vec![Start, Middle, End],
-        );
 
-        match &transition.changes[0] {
-            MessageListChange::Splice {
-                index,
-                delete_count,
-                messages,
-            } => {
+        match transition.changes.as_slice() {
+            [
+                MessageListChange::Splice {
+                    index,
+                    delete_count,
+                    messages,
+                },
+            ] => {
                 assert_eq!(*index, 0);
                 assert_eq!(*delete_count, 0);
                 assert_eq!(ui_ids(messages), vec![third.id()]);
             }
-            other => panic!("unexpected first change: {other:?}"),
+            other => panic!("unexpected changes: {other:?}"),
         }
-
-        let patch_indices = transition
-            .changes
-            .iter()
-            .filter_map(|change| match change {
-                MessageListChange::Patch { index, .. } => Some(*index),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(patch_indices, vec![1, 0]);
     }
 
     #[test]
-    fn test_prepend_older_emits_splice_at_end_and_boundary_patches() {
-        use UiFlightPosition::*;
-
+    fn test_prepend_older_emits_splice_at_end_without_neighbor_patches() {
         let alice = UserId::random("localhost".parse().unwrap());
         let first = new_test_message_with_id(&alice, 1, 0);
         let second = new_test_message_with_id(&alice, 2, 1);
@@ -1385,20 +1169,7 @@ mod tests {
         let mut state = MessageListState::default();
         let mut data = MessageListData::default();
 
-        data.apply_messages(
-            &mut state,
-            vec![second.clone(), third],
-            Default::default(),
-            None,
-            LoadDirection::Replace {
-                has_older: true,
-                has_newer: false,
-                is_at_bottom: true,
-                first_unread_index: None,
-                unread_count: 0,
-                command: None,
-            },
-        );
+        replace_with(&mut data, &mut state, vec![second, third]);
 
         let transition = data.apply_messages(
             &mut state,
@@ -1411,39 +1182,25 @@ mod tests {
         assert_eq!(transition.revision, 2);
         assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::OlderPageLoaded);
-        assert_eq!(
-            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
-            vec![Start, Middle, End],
-        );
 
-        match &transition.changes[0] {
-            MessageListChange::Splice {
-                index,
-                delete_count,
-                messages,
-            } => {
+        match transition.changes.as_slice() {
+            [
+                MessageListChange::Splice {
+                    index,
+                    delete_count,
+                    messages,
+                },
+            ] => {
                 assert_eq!(*index, 2);
                 assert_eq!(*delete_count, 0);
                 assert_eq!(ui_ids(messages), vec![first.id()]);
             }
-            other => panic!("unexpected first change: {other:?}"),
+            other => panic!("unexpected changes: {other:?}"),
         }
-
-        let patch_indices = transition
-            .changes
-            .iter()
-            .filter_map(|change| match change {
-                MessageListChange::Patch { index, .. } => Some(*index),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(patch_indices, vec![2, 1]);
     }
 
     #[test]
-    fn test_remove_message_emits_delete_splice_and_neighbor_patches() {
-        use UiFlightPosition::*;
-
+    fn test_remove_message_emits_delete_splice_without_neighbor_patches() {
         let alice = UserId::random("localhost".parse().unwrap());
         let first = new_test_message_with_id(&alice, 1, 0);
         let second = new_test_message_with_id(&alice, 2, 1);
@@ -1452,19 +1209,10 @@ mod tests {
         let mut state = MessageListState::default();
         let mut data = MessageListData::default();
 
-        data.apply_messages(
+        replace_with(
+            &mut data,
             &mut state,
             vec![first.clone(), second.clone(), third.clone()],
-            Default::default(),
-            None,
-            LoadDirection::Replace {
-                has_older: false,
-                has_newer: false,
-                is_at_bottom: true,
-                first_unread_index: None,
-                unread_count: 0,
-                command: None,
-            },
         );
 
         let transition = data
@@ -1474,32 +1222,136 @@ mod tests {
         assert_eq!(transition.revision, 2);
         assert_eq!(state.revision, 2);
         assert_eq!(transition.kind, MessageListTransitionKind::MessageDeleted);
-        assert_eq!(
-            data.messages.iter().map(|m| m.position).collect::<Vec<_>>(),
-            vec![Start, End],
-        );
+        assert_eq!(ui_ids(&data.messages), vec![first.id(), third.id()]);
 
-        match &transition.changes[0] {
-            MessageListChange::Splice {
-                index,
-                delete_count,
-                messages,
-            } => {
+        match transition.changes.as_slice() {
+            [
+                MessageListChange::Splice {
+                    index,
+                    delete_count,
+                    messages,
+                },
+            ] => {
                 assert_eq!(*index, 1);
                 assert_eq!(*delete_count, 1);
                 assert!(messages.is_empty());
             }
-            other => panic!("unexpected first change: {other:?}"),
+            other => panic!("unexpected changes: {other:?}"),
         }
+    }
 
-        let patched_ids = transition
-            .changes
-            .iter()
-            .filter_map(|change| match change {
-                MessageListChange::Patch { message, .. } => Some(message.id),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(patched_ids, vec![first.id(), third.id()]);
+    #[test]
+    fn test_remove_first_unread_message_moves_the_divider_to_its_successor() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with_unread(
+            &mut data,
+            &mut state,
+            vec![first, second.clone(), third.clone()],
+            Some(1),
+        );
+
+        data.remove_message(&mut state, second.id())
+            .expect("message should exist");
+
+        assert_eq!(state.first_unread_index, Some(1));
+        assert_eq!(data.messages[1].id, third.id());
+    }
+
+    #[test]
+    fn test_remove_read_message_shifts_the_divider_index() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with_unread(
+            &mut data,
+            &mut state,
+            vec![first.clone(), second.clone(), third],
+            Some(1),
+        );
+
+        data.remove_message(&mut state, first.id())
+            .expect("message should exist");
+
+        assert_eq!(state.first_unread_index, Some(0));
+        assert_eq!(data.messages[0].id, second.id());
+    }
+
+    #[test]
+    fn test_update_message_patches_only_that_message() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+        let edited = new_test_message_with_body(&alice, 2, 1, "edited content");
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with(&mut data, &mut state, vec![first, second, third]);
+
+        let transition = data
+            .update_message_in_place(&mut state, edited.clone(), &[])
+            .expect("message should exist");
+
+        assert_eq!(transition.kind, MessageListTransitionKind::MessageUpdated);
+        assert_eq!(patch_indices(&transition), vec![1]);
+        match transition.changes.as_slice() {
+            [MessageListChange::Patch { message, .. }] => {
+                assert_eq!(message.id, edited.id());
+            }
+            other => panic!("unexpected changes: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_clear_first_unread_index_notifies_without_changes() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        data.apply_messages(
+            &mut state,
+            vec![first, second],
+            Default::default(),
+            None,
+            LoadDirection::Replace {
+                has_older: false,
+                has_newer: false,
+                is_at_bottom: true,
+                first_unread_index: Some(1),
+                command: None,
+            },
+        );
+
+        let transition = data
+            .clear_first_unread_index(&mut state)
+            .expect("the divider should be set");
+
+        assert_eq!(
+            transition.kind,
+            MessageListTransitionKind::UnreadBoundaryChanged
+        );
+        assert!(transition.changes.is_empty());
+        assert_eq!(transition.revision, 2);
+        assert_eq!(state.revision, 2);
+        assert_eq!(state.first_unread_index, None);
+
+        assert!(data.clear_first_unread_index(&mut state).is_none());
+        assert_eq!(state.revision, 2);
     }
 }

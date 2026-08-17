@@ -8,10 +8,10 @@ use aircoreclient::{
     ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
         listen_response,
-        process::process_qs::{QsProcessEventResult, QsStreamProcessor},
+        process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::setup::{TestBackend, expected_display_name};
 use chrono::{DateTime, Duration, Utc};
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
@@ -459,6 +459,90 @@ async fn update_group_data() {
     }
 }
 
+/// Regression test for the `OwnPendingCommit` merge path.
+///
+/// When we commit (here: a title change), the DS both sends a `DsCommitResponse`
+/// and echoes the commit back to us via fanout. If the echo is processed before
+/// the inline merge (a real race, guarded by `is_pending_for_chat`), it hits the
+/// `OwnPendingCommit` arm instead of `DsCommitResponse`. That arm must apply the
+/// same side effects: update the chat title carried by the commit and delete the
+/// pending chat operation. This test drives that arm directly by staging the
+/// commit without merging and feeding the echo back through the QS path.
+///
+/// This is what would happen in the scenario of virtual-clients.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Own pending commit merge test", skip_all)]
+async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    // Stage Alice's title-change commit WITHOUT merging it. This leaves a
+    // pending commit and a stored pending chat operation, and hands back the
+    // commit bytes the DS would echo back to Alice.
+    let title = "Raced Title".to_string();
+    let echo = alice_user
+        .stage_group_title_commit(chat_id, title.clone())
+        .await
+        .unwrap();
+
+    // Preconditions: pending op exists, title not yet applied.
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "a pending chat operation should be stored before the merge",
+    );
+    assert_ne!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title,
+        title,
+        "title must not be applied before the commit is merged",
+    );
+
+    // Feed Alice her own commit back through the QS path while the commit is
+    // still pending -> hits the `OwnPendingCommit` arm.
+    alice_user
+        .process_incoming_mls_message(&echo)
+        .await
+        .unwrap();
+
+    // The arm must apply the group data (title) ...
+    assert_eq!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title,
+        title,
+        "OwnPendingCommit must apply the group data carried by the commit",
+    );
+    // ... and delete the pending chat operation.
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "OwnPendingCommit must delete the pending chat operation",
+    );
+}
+
 /// Tests that after being invited to a group, the invitee fetches the encrypted group profile from
 /// object storage via the outbound service and sees the correct group attributes (title and
 /// picture).
@@ -853,6 +937,51 @@ async fn self_update() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_update_continues_after_a_broken_chat() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let broken_chat = setup.create_group(&alice).await;
+    let healthy_chat = setup.create_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Chats are updated ordered by their self-update time, so the broken chat comes first.
+    alice_core
+        .set_self_updated_at(broken_chat, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    let healthy_updated_at = DateTime::UNIX_EPOCH + Duration::seconds(1);
+    alice_core
+        .set_self_updated_at(healthy_chat, healthy_updated_at)
+        .await
+        .unwrap();
+
+    alice_core
+        .corrupt_mls_group_state(broken_chat)
+        .await
+        .unwrap();
+
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    let at = alice_core
+        .self_updated_at(healthy_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        healthy_updated_at < at,
+        "Chat after the broken one was not self-updated"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 
@@ -1238,4 +1367,228 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
         matches!(alice_chat.status(), ChatStatus::Inactive(_)),
         "Alice's chat must be inactive after being removed from the APQ group"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn apq_delete_removes_member_from_both_t_and_pq() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
+
+    // Snapshot the PQ epoch before the delete so we can assert it advanced.
+    let pq_epoch_before = alice_user
+        .chat_debug_info(chat_id)
+        .await
+        .unwrap()
+        .pq
+        .expect("APQ group must have a PQ group")
+        .epoch;
+
+    // Alice deletes the APQ group. This commits a removal of every other member
+    // on both the T and the PQ group.
+    alice_user.delete_chat(chat_id).await.unwrap();
+
+    // Alice must have committed the removal on both groups: only her own leaf is
+    // left, nothing stays pending, and the PQ epoch advanced.
+    let debug_info = alice_user.chat_debug_info(chat_id).await.unwrap();
+    let pq = debug_info.pq.expect("APQ group must have a PQ group");
+
+    assert_eq!(
+        debug_info.members.len(),
+        1,
+        "deleter's T group must have every other member removed"
+    );
+    assert_eq!(
+        debug_info.pending_proposals, 0,
+        "deleter's T group must have no pending proposals after the delete commit"
+    );
+    assert!(
+        !debug_info.has_pending_commit,
+        "deleter's T group must have merged the delete commit"
+    );
+    assert_eq!(
+        pq.pending_proposals, 0,
+        "deleter's PQ group must have no pending proposals after the delete commit"
+    );
+    assert!(
+        !pq.has_pending_commit,
+        "deleter's PQ group must have merged the delete commit"
+    );
+    assert!(
+        pq.epoch > pq_epoch_before,
+        "deleter's PQ group must advance its epoch by committing the delete"
+    );
+
+    // Alice's chat is now inactive.
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    assert!(
+        matches!(alice_chat.status(), ChatStatus::Inactive(_)),
+        "deleter's chat must be inactive after deleting the APQ group"
+    );
+
+    // Bob and Charlie pick up the delete commit and their chats go inactive.
+    for (label, user) in [("Bob", bob_user), ("Charlie", charlie_user)] {
+        let qs_messages = user.qs_fetch_messages().await.unwrap();
+        let result = user.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            result.errors.is_empty(),
+            "{label} should process the APQ delete commit without errors"
+        );
+        let chat = user.chat(&chat_id).await.unwrap();
+        assert!(
+            matches!(chat.status(), ChatStatus::Inactive(_)),
+            "{label}'s chat must be inactive after the APQ group was deleted"
+        );
+    }
+}
+
+/// A member joining from a Welcome that is several epochs stale.
+///
+/// `ds_welcome_info` answers for the epoch asked for, so the ratchet tree it
+/// returns is historical. The profile keys shipped with it have to describe
+/// that same epoch. Serving the group's current keys instead means any leaf
+/// that changed hands in between resolves to the wrong occupant, and the
+/// ciphertext is bound to a user id, so it does not decrypt.
+///
+/// The joiner is deliberately stopped after its Welcome and before it catches
+/// up: later commits carry added members' profile keys in their AAD, which
+/// would re-deliver the keys and hide the problem.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Stale welcome epoch keeps profile keys", skip_all)]
+async fn stale_welcome_epoch_preserves_profile_keys() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // committer
+    let bob = setup.add_user().await; // joins from a stale Welcome
+    let charlie = setup.add_user().await; // leaves the group, freeing his leaf
+    let dave = setup.add_user().await; // stays throughout
+    let eve = setup.add_user().await; // takes over Charlie's leaf
+
+    for member in [&bob, &charlie, &dave, &eve] {
+        setup.connect_users(&alice, member).await;
+    }
+    for member in [&alice, &bob, &charlie, &dave, &eve] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_and_settle(&alice, chat_id, &[&charlie, &dave])
+        .await;
+    let charlie_index = setup.own_leaf_index(&charlie, chat_id).await;
+
+    // Alice invites Bob. Bob's Welcome describes this epoch, with Charlie
+    // still in the group. Bob does not touch his queue yet.
+    setup
+        .get_user(&alice)
+        .user
+        .invite_users(chat_id, slice::from_ref(&bob))
+        .await
+        .unwrap()
+        .unwrap();
+    setup.settle(&[&alice, &charlie, &dave]).await;
+
+    // The group moves on: Charlie's leaf is vacated and handed to Eve.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await
+        .unwrap();
+    setup.settle(&[&alice, &dave]).await;
+    setup.invite_and_settle(&alice, chat_id, &[&eve]).await;
+    let eve_index = setup.own_leaf_index(&eve, chat_id).await;
+    assert_eq!(
+        eve_index, charlie_index,
+        "the test needs Eve to take over Charlie's leaf, otherwise nothing \
+         changed hands between Bob's Welcome and now"
+    );
+
+    // Bob processes his Welcome and nothing else, so his view is the epoch the
+    // Welcome describes rather than the group's current one.
+    let queued = setup.get_user(&bob).user.qs_fetch_messages().await.unwrap();
+    let mut joined = false;
+    let mut consumed = 0usize;
+    for message in queued {
+        let bob_user = &setup.get_user(&bob).user;
+        bob_user.fully_process_qs_messages(vec![message]).await;
+        consumed += 1;
+        if bob_user.chat_participants(chat_id).await.is_some() {
+            joined = true;
+            break;
+        }
+    }
+    assert!(
+        joined,
+        "Bob should have joined after processing his Welcome"
+    );
+    tracing::info!(consumed, "messages Bob processed before joining");
+    // Everything still queued is deliberately left unprocessed.
+    for _ in 0..3 {
+        setup
+            .get_user(&bob)
+            .user
+            .outbound_service()
+            .run_once()
+            .await;
+    }
+
+    // Bob is at the Welcome's epoch, where Charlie is still a member.
+    let bob_view = setup
+        .get_user(&bob)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    // Bob's two views of the same group must agree. The ratchet tree is the
+    // epoch his Welcome describes; the participant list is derived from the
+    // room state that came with it. If the DS answers with a current room
+    // state, the list names whoever holds a leaf now rather than who held it
+    // at that epoch.
+    let mls_view = setup
+        .get_user(&bob)
+        .user
+        .group_members(chat_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        bob_view, mls_view,
+        "Bob's participant list disagrees with his own ratchet tree: the two \
+         halves of his welcome info describe different epochs"
+    );
+    assert!(
+        bob_view.contains(&charlie),
+        "Bob should still see Charlie, who was a member at his Welcome's epoch"
+    );
+    assert!(
+        !bob_view.contains(&eve),
+        "Bob should not see Eve, who joined after his Welcome's epoch"
+    );
+
+    setup
+        .assert_profiles_resolve(&bob, &[&alice, &charlie, &dave], "stale welcome")
+        .await;
 }

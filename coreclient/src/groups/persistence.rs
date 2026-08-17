@@ -6,7 +6,7 @@ use std::ops::Deref;
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
+    credentials::{GroupStorageWitness, LeafCredential, UserCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     time::TimeStamp,
@@ -23,6 +23,7 @@ use tracing::error;
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
+    clients::own_client_info::OwnClientInfo,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
@@ -43,7 +44,11 @@ struct SqlGroup {
 }
 
 impl SqlGroup {
-    fn augment(self, connection: &mut SqliteConnection) -> sqlx::Result<Option<Group>> {
+    fn augment(
+        self,
+        connection: &mut SqliteConnection,
+        own_user_id: UserId,
+    ) -> sqlx::Result<Option<Group>> {
         // TODO: Most likely we want to amortize this loading
         let Some(mls_group) = MlsGroup::load(
             AirOpenMlsProvider::new(connection).storage(),
@@ -64,10 +69,15 @@ impl SqlGroup {
         } else {
             None
         };
-        Ok(Some(self.into_group(mls_group, pq_mls_group)))
+        Ok(Some(self.into_group(mls_group, pq_mls_group, own_user_id)))
     }
 
-    fn into_group(self, mls_group: MlsGroup, pq_mls_group: Option<MlsGroup>) -> Group {
+    fn into_group(
+        self,
+        mls_group: MlsGroup,
+        pq_mls_group: Option<MlsGroup>,
+        own_user_id: UserId,
+    ) -> Group {
         let Self {
             group_id: _,
             pq_group_id: _,
@@ -90,9 +100,8 @@ impl SqlGroup {
             let members: Vec<_> = mls_group
                 .members()
                 .map(|m| -> anyhow::Result<_> {
-                    let credential =
-                        VerifiableClientCredential::from_basic_credential(&m.credential)?;
-                    Ok(credential.user_id().tls_serialize_detached()?)
+                    let credential = LeafCredential::from_credential(&m.credential)?;
+                    Ok(credential.user_id(&own_user_id).tls_serialize_detached()?)
                 })
                 .filter_map(|res| {
                     res.inspect_err(|error| {
@@ -120,6 +129,7 @@ impl SqlGroup {
             pq,
             pending_commit_failed,
             send_message_collision_key: None,
+            own_user_id,
         }
     }
 }
@@ -137,9 +147,13 @@ impl GroupStorageWitness for LocalGroupStorage {
 
 /// A [`Group`] loaded from local storage, with the guarantee that all
 /// leaf credentials have been previously verified against AS credentials.
-pub(crate) struct VerifiedGroup(Group);
+pub(crate) struct VerifiedGroup(pub(super) Group);
 
 impl VerifiedGroup {
+    pub(crate) fn group(&self) -> &Group {
+        &self.0
+    }
+
     pub(crate) fn group_mut(&mut self) -> &mut Group {
         &mut self.0
     }
@@ -148,7 +162,7 @@ impl VerifiedGroup {
     pub(crate) fn credential_at(
         &self,
         index: LeafNodeIndex,
-    ) -> anyhow::Result<Option<ClientCredential>> {
+    ) -> anyhow::Result<Option<UserCredential>> {
         self.0.credential_at(index, self)
     }
 
@@ -295,12 +309,24 @@ impl Group {
             .map(VerifiedGroup))
     }
 
+    /// Resolve the own user id and finish loading `sql_group`.
+    async fn finish_load(
+        sql_group: Option<SqlGroup>,
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Option<Self>> {
+        let Some(sql_group) = sql_group else {
+            return Ok(None);
+        };
+        let own_user_id = OwnClientInfo::load_user_id(&mut connection).await?;
+        sql_group.augment(connection.as_mut(), own_user_id)
+    }
+
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Self>> {
         let group_id = GroupIdRefWrapper::from(group_id);
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -319,11 +345,8 @@ impl Group {
             group_id
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Same as [`Self::load()`], but load the group via the corresponding chat.
@@ -331,7 +354,7 @@ impl Group {
         mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -351,11 +374,8 @@ impl Group {
             chat_id
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Same as [`Self::load()`], but load the group via the connection chat of the given user.
@@ -365,7 +385,7 @@ impl Group {
     ) -> sqlx::Result<Option<Self>> {
         let user_uuid = user_id.uuid();
         let user_domain = user_id.domain();
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -386,11 +406,8 @@ impl Group {
             user_domain,
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Stores a group update.
@@ -514,6 +531,72 @@ impl Group {
             .collect())
     }
 
+    /// Loads the key material of every group (except the self-group) in a single query
+    /// without reconstructing the MLS state that [`Self::load`] deserializes.
+    pub(crate) async fn load_all_key_material(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<GroupKeyMaterial>> {
+        struct SqlKeyMaterial {
+            group_id: GroupIdWrapper,
+            pq_group_id: Option<GroupIdWrapper>,
+            group_state_ear_key: GroupStateEarKey,
+            identity_link_wrapper_key: IdentityLinkWrapperKey,
+        }
+
+        let self_group_id = OwnClientInfo::load_self_group_id(&mut connection).await?;
+        let self_group_id = self_group_id.as_ref().map(GroupIdRefWrapper::from);
+
+        let rows = query_as!(
+            SqlKeyMaterial,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                pq.group_id AS "pq_group_id: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                identity_link_wrapper_key AS "identity_link_wrapper_key: _"
+            FROM "group" g
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id IS NOT ?
+            "#,
+            self_group_id,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| GroupKeyMaterial {
+                group_id: row.group_id.0,
+                pq_group_id: row.pq_group_id.map(|id| id.0),
+                group_state_ear_key: row.group_state_ear_key,
+                identity_link_wrapper_key: row.identity_link_wrapper_key,
+            })
+            .collect())
+    }
+
+    /// Our own leaf index in the given group, read straight from MLS storage
+    /// instead of by loading the whole group.
+    pub(crate) fn load_own_leaf_index(
+        connection: &mut SqliteConnection,
+        group_id: &GroupId,
+    ) -> Option<LeafNodeIndex> {
+        AirOpenMlsProvider::new(connection)
+            .storage()
+            .own_leaf_index(group_id)
+            .inspect_err(|error| error!(%error, ?group_id, "Failed to load own leaf index"))
+            .ok()
+            .flatten()
+    }
+}
+
+/// A group's key material, loaded without its MLS state.
+pub(crate) struct GroupKeyMaterial {
+    pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
+    pub(crate) group_state_ear_key: GroupStateEarKey,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+}
+
+impl Group {
     /// Returns the t-group ID for the given PQ group ID, if it exists.
     pub(super) async fn load_group_id_for_pq(
         mut connection: impl ReadConnection,
@@ -530,7 +613,7 @@ impl Group {
     }
 
     /// Returns true if the group with the given ID is active.
-    pub(super) fn is_active(
+    pub(crate) fn is_active(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<bool> {

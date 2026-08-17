@@ -7,7 +7,7 @@ use std::time::Duration;
 use aircommon::pow::{PoWConfig, find_nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use rand::{RngCore, rngs::OsRng};
+use rand::Rng;
 
 const DATA: &[u8] = b"benchmark data";
 const MEM_COST: u32 = 47104;
@@ -62,7 +62,7 @@ fn bench_pow_difficulty(c: &mut Criterion) {
             |b, &_d| {
                 b.iter(|| {
                     let mut salt = [0u8; 16];
-                    OsRng.try_fill_bytes(&mut salt).unwrap();
+                    rand::rng().fill_bytes(&mut salt);
                     find_nonce(DATA, &salt, &cfg);
                 })
             },

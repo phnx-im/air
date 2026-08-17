@@ -4,7 +4,7 @@
 
 [package]
 name = "airapiclient"
-version = "0.18.0"
+version = "0.20.0"
 edition = "2024"
 publish = false
 description = "HTTP and GRPC client for the server API"
@@ -21,7 +21,7 @@ semver.workspace = true
 shadow-rs.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true

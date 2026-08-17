@@ -110,14 +110,13 @@ impl ApqKeyPackageBuilder {
         self
     }
 
-    /// Finalize and build the key package.
-    pub fn build(
-        mut self,
-        provider: &impl OpenMlsProvider,
+    /// Split APQ key package builder into individual key package builders.
+    ///
+    /// Returns a tuple (T, PQ) of key package builders.
+    pub fn split(
+        self,
         ciphersuite: ApqCiphersuite,
-        signer: &impl ApqSigner,
-        credential_with_key: ApqCredentialWithKey,
-    ) -> Result<ApqKeyPackageBundle, KeyPackageNewError> {
+    ) -> Result<(KeyPackageBuilder, KeyPackageBuilder), KeyPackageNewError> {
         let capabilities = self
             .capabilities
             .pipe(ensure_extension_support)?
@@ -128,23 +127,35 @@ impl ApqKeyPackageBuilder {
             .pipe(ensure_leaf_node_component_support)?;
         let pk_extensions = self.key_package_extensions;
 
-        self.t_kp_builder = self
+        let t_kp_builder = self
             .t_kp_builder
             .leaf_node_capabilities(capabilities.clone())
             .leaf_node_extensions(ln_extensions.clone())
             .key_package_extensions(pk_extensions.clone());
-        self.pq_kp_builder = self
+        let pq_kp_builder = self
             .pq_kp_builder
             .leaf_node_capabilities(capabilities)
             .leaf_node_extensions(ln_extensions)
             .key_package_extensions(pk_extensions);
-        let t_kp_bundle = self.t_kp_builder.build(
+        Ok((t_kp_builder, pq_kp_builder))
+    }
+
+    /// Finalize and build the key package.
+    pub fn build(
+        self,
+        provider: &impl OpenMlsProvider,
+        ciphersuite: ApqCiphersuite,
+        signer: &impl ApqSigner,
+        credential_with_key: ApqCredentialWithKey,
+    ) -> Result<ApqKeyPackageBundle, KeyPackageNewError> {
+        let (t_kp_builder, pq_kp_builder) = self.split(ciphersuite)?;
+        let t_kp_bundle = t_kp_builder.build(
             ciphersuite.t_ciphersuite,
             provider,
             signer.t_signer(),
             credential_with_key.t_credential,
         )?;
-        let pq_kp_bundle = self.pq_kp_builder.build(
+        let pq_kp_bundle = pq_kp_builder.build(
             ciphersuite.pq_ciphersuite,
             provider,
             signer.pq_signer(),

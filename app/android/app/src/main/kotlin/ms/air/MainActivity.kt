@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import android.util.Base64
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
 import io.flutter.Log
@@ -80,6 +81,67 @@ class MainActivity : FlutterFragmentActivity() {
         return mapOf("identifier" to notificationId, "chatId" to chatId)
     }
 
+
+    // Decodes the optional `conversation` argument of the `sendNotification`
+    // method channel call.
+    //
+    // Decoding is defensive: any missing or wrongly-typed field falls back to
+    // no conversation (plain notification) rather then falling the whole call.
+    private fun decodeConversationArgument(raw: Any?): ConversationNotification? {
+        val map = raw as? Map<*, *> ?: return null
+        return try {
+            val chatTitle = map["chatTitle"] as? String ?: return null
+            val isGroup = map["isGroup"] as? Boolean ?: return null
+            val ownDisplayName = map["ownDisplayName"] as? String ?: return null
+            val alert = map["alert"] as? Boolean ?: return null
+            val newestTimestamp = map["newestTimestamp"] as? String ?: return null
+            val participants = (map["participants"] as? List<*>)
+                ?.mapNotNull { decodeParticipantsArgument(it) } ?: return null
+            val messages = (map["messages"] as? List<*>)
+                ?.mapNotNull { decodeMessageArgument(it) } ?: return null
+            val chatAvatar =
+                (map["chatAvatar"] as? ByteArray)?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+
+            ConversationNotification(
+                chatTitle = chatTitle,
+                isGroup = isGroup,
+                ownDisplayName = ownDisplayName,
+                participants = participants,
+                messages = messages,
+                alert = alert,
+                newestTimestamp = newestTimestamp,
+                chatAvatar = chatAvatar
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to decode conversation notification argument", e)
+            null
+        }
+    }
+
+    private fun decodeParticipantsArgument(raw: Any?): ConversationParticipant? {
+        val map = raw as? Map<*, *> ?: return null
+        val uuid = map["uuid"] as? String ?: return null
+        val displayName = map["displayName"] as? String ?: return null
+        val avatar =
+            (map["avatar"] as? ByteArray)?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
+        return ConversationParticipant(uuid = uuid, displayName = displayName, avatar = avatar)
+    }
+
+    private fun decodeMessageArgument(raw: Any?): ConversationMessage? {
+        val map = raw as? Map<*, *> ?: return null
+        // Absent for system messages
+        val senderUuid = map["senderUuid"] as? String
+        val text = map["text"] as? String ?: return null
+        val isReaction = map["isReaction"] as? Boolean ?: return null
+        val timestamp = (map["timestamp"] as? Number)?.toLong() ?: return null
+        return ConversationMessage(
+            senderUuid = senderUuid,
+            text = text,
+            isReaction = isReaction,
+            timestamp = timestamp
+        )
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         super.cleanUpFlutterEngine(flutterEngine)
 
@@ -105,7 +167,7 @@ class MainActivity : FlutterFragmentActivity() {
                             result.success(token)
                         } else {
                             Log.w(TAG, "Fetching FCM registration token failed" + task.exception)
-                            result.error("NoDeviceToken", "Device token not available", "")
+                            result.success(null)
                         }
                     }
                 }
@@ -128,10 +190,12 @@ class MainActivity : FlutterFragmentActivity() {
                     val body: String? = call.argument("body")
                     val chatId: ChatId? =
                         call.argument<String>("chatId")?.let { ChatId(it) }
+                    val conversation: ConversationNotification? =
+                        decodeConversationArgument(call.argument("conversation"))
 
                     if (identifier != null && title != null && body != null) {
                         val notification =
-                            NotificationContent(identifier, title, body, chatId)
+                            NotificationContent(identifier, title, body, chatId, conversation)
                         Notifications.showNotification(this, notification)
                         result.success(null)
                     } else {

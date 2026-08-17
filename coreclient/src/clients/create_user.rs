@@ -4,18 +4,17 @@
 
 use crate::{
     DisplayName,
-    groups::client_auth_info::StorableClientCredential,
+    groups::client_auth_info::StorableUserCredential,
     key_stores::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
-    outbound_service,
     user_profiles::generate::NewUserProfile,
     utils::global_lock::GlobalLock,
 };
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, VerifiableClientCredential, keys::PreliminaryClientSigningKey,
+        AsIntermediateCredential, VerifiableUserCredential, keys::PreliminaryUserSigningKey,
     },
     crypto::{
         aead::{AeadEncryptable, keys::PushTokenEarKey},
@@ -74,11 +73,11 @@ impl BasicUserData {
             .encryption_key;
 
         // Create CSR for AS to sign
-        let (client_credential_csr, prelim_signing_key) =
-            ClientCredentialCsr::new(self.user_id.clone(), DEFAULT_SIGNATURE_SCHEME)?;
+        let (user_credential_csr, prelim_signing_key) =
+            UserCredentialCsr::new(self.user_id.clone(), DEFAULT_SIGNATURE_SCHEME)?;
 
-        let client_credential_payload = ClientCredentialPayload::new(
-            client_credential_csr,
+        let user_credential_payload = UserCredentialPayload::new(
+            user_credential_csr,
             None,
             *as_intermediate_credential.fingerprint(),
         );
@@ -129,7 +128,7 @@ impl BasicUserData {
         .encrypt_with_index(&user_profile_key)?;
 
         let initial_user_state = InitialUserState {
-            client_credential_payload: client_credential_payload.clone(),
+            user_credential_payload: user_credential_payload.clone(),
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile,
@@ -147,11 +146,13 @@ impl BasicUserData {
 // a new version in `StorableUserCreationState` must be created.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct InitialUserState {
-    client_credential_payload: ClientCredentialPayload,
+    // Persisted CBOR field name; predates the rename to user credential.
+    #[serde(rename = "client_credential_payload")]
+    user_credential_payload: UserCredentialPayload,
     as_intermediate_credential: AsIntermediateCredential,
     encrypted_push_token: Option<EncryptedPushToken>,
     encrypted_user_profile: EncryptedUserProfile,
-    key_store: MemoryUserKeyStoreBase<PreliminaryClientSigningKey>,
+    key_store: MemoryUserKeyStoreBase<PreliminaryUserSigningKey>,
     qs_initial_ratchet_secret: RatchetSecret,
     invitation_code: String,
 }
@@ -166,7 +167,7 @@ impl InitialUserState {
         let response = api_clients
             .default_client()?
             .as_register_user(
-                self.client_credential_payload.clone(),
+                self.user_credential_payload.clone(),
                 self.encrypted_user_profile.clone(),
                 self.invitation_code.clone(),
             )
@@ -174,14 +175,14 @@ impl InitialUserState {
 
         let post_registration_init_state = PostAsRegistrationState {
             initial_user_state: self,
-            client_credential: response.client_credential,
+            user_credential: response.user_credential,
         };
 
         Ok(post_registration_init_state)
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.client_credential_payload.identity()
+        self.user_credential_payload.identity()
     }
 }
 
@@ -192,7 +193,9 @@ impl InitialUserState {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct PostAsRegistrationState {
     initial_user_state: InitialUserState,
-    client_credential: VerifiableClientCredential,
+    // Persisted CBOR field name; predates the rename to user credential.
+    #[serde(rename = "client_credential")]
+    user_credential: VerifiableUserCredential,
 }
 
 impl PostAsRegistrationState {
@@ -201,7 +204,7 @@ impl PostAsRegistrationState {
         db: &DbAccess,
     ) -> Result<UnfinalizedRegistrationState> {
         let InitialUserState {
-            client_credential_payload: _,
+            user_credential_payload: _,
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile: _,
@@ -210,18 +213,18 @@ impl PostAsRegistrationState {
             invitation_code: _,
         } = self.initial_user_state;
 
-        let client_credential: ClientCredential = self
-            .client_credential
+        let user_credential: UserCredential = self
+            .user_credential
             .verify(as_intermediate_credential.verifying_key())?;
-        StorableClientCredential::new(client_credential.clone())
+        StorableUserCredential::new(user_credential.clone())
             .store(db.write().await?)
             .await?;
 
         let signing_key =
-            ClientSigningKey::from_prelim_key(key_store.signing_key, client_credential.clone())?;
+            UserSigningKey::from_prelim_key(key_store.signing_key, user_credential.clone())?;
 
-        // Store the own client credential in the DB
-        StorableClientCredential::new(client_credential.clone())
+        // Store the own user credential in the DB
+        StorableUserCredential::new(user_credential.clone())
             .store(db.write().await?)
             .await?;
 
@@ -248,7 +251,7 @@ impl PostAsRegistrationState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.client_credential.user_id()
+        self.user_credential.user_id()
     }
 }
 
@@ -349,6 +352,20 @@ pub(crate) struct QsRegisteredUserState {
 }
 
 impl QsRegisteredUserState {
+    /// Builds this state directly from already-registered QS key material.
+    /// Used when a device is bootstrapped via multi-device linking.
+    pub(super) fn new(
+        key_store: MemoryUserKeyStore,
+        qs_user_id: QsUserId,
+        qs_client_id: QsClientId,
+    ) -> Self {
+        Self {
+            key_store,
+            qs_user_id,
+            qs_client_id,
+        }
+    }
+
     pub(super) async fn persist(self) -> Result<PersistedUserState> {
         Ok(PersistedUserState { state: self })
     }
@@ -371,6 +388,7 @@ impl PersistedUserState {
     pub(super) fn into_self_user(
         self,
         db: DbAccess,
+        client_record_id: Uuid,
         api_clients: ApiClients,
         global_lock: GlobalLock,
     ) -> CoreUser {
@@ -379,8 +397,9 @@ impl PersistedUserState {
             qs_user_id,
             qs_client_id,
         } = self.state;
+
         let http_client = reqwest::Client::new();
-        let outbound_service = outbound_service::OutboundService::new(
+        let outbound_service = OutboundService::new(
             db.clone(),
             api_clients.clone(),
             http_client.clone(),
@@ -394,6 +413,7 @@ impl PersistedUserState {
 
         let inner = Arc::new(CoreUserInner {
             db,
+            client_record_id,
             key_store,
             qs_user_id,
             qs_client_id,
@@ -402,7 +422,7 @@ impl PersistedUserState {
             db_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,
-            _event_loop_cancel: event_loop_cancel.drop_guard(),
+            event_loop_cancel: event_loop_cancel.drop_guard(),
         });
 
         event_loop.spawn(Arc::downgrade(&inner));

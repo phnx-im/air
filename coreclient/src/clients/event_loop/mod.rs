@@ -20,7 +20,7 @@ use crate::clients::{
         event::{ClientOperation, RemoteQueueEvent},
         response::{ResponderError, responder},
     },
-    process::process_qs::QsStreamProcessor,
+    process::qs_stream::QsStreamProcessor,
 };
 
 mod api;

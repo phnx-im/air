@@ -6,11 +6,9 @@ import 'dart:async';
 
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_options.dart';
-import 'package:air/ds/foundations/themes.dart';
-import 'package:air/ds/components/context_menu/context_menu.dart';
-import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ds/foundations/icons/app_icons.dart';
-import 'package:air/user/user.dart';
+import 'package:air/ds/components/menu/menu.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -24,12 +22,10 @@ typedef LanguagePickerChildBuilder =
 class LanguagePickerMenu extends StatefulWidget {
   const LanguagePickerMenu({
     super.key,
-    this.direction = ContextMenuDirection.right,
     required this.onLocaleSelected,
     required this.childBuilder,
   });
 
-  final ContextMenuDirection direction;
   final Future<void> Function(Locale locale) onLocaleSelected;
   final LanguagePickerChildBuilder childBuilder;
 
@@ -38,12 +34,11 @@ class LanguagePickerMenu extends StatefulWidget {
 }
 
 class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
-  final OverlayPortalController _contextMenuController =
-      OverlayPortalController();
+  /// The trigger the menu hangs off, whatever the host builds for it.
+  final GlobalKey _anchorKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
     final storedLocale = context.select(
       (UserSettingsCubit cubit) => cubit.state.locale,
     );
@@ -63,29 +58,38 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
       orElse: () => languageOptions.first,
     );
 
-    final menuItems = <ContextMenuEntry>[];
-    for (final option in languageOptions) {
-      menuItems.add(
-        ContextMenuItem(
-          label: option.label,
-          leading: option.locale.languageCode == resolvedLocale.languageCode
-              ? AppIcon.check(size: 16, color: colors.text.secondary)
-              : null,
-          onPressed: () {
-            unawaited(widget.onLocaleSelected(option.locale));
-          },
-        ),
-      );
-    }
-
-    return ContextMenu(
-      direction: widget.direction,
-      controller: _contextMenuController,
-      menuItems: menuItems,
+    return KeyedSubtree(
+      key: _anchorKey,
       child: widget.childBuilder(
         context,
         currentOption,
-        () => _contextMenuController.show(),
+        () => _open(context, languageOptions, resolvedLocale),
+      ),
+    );
+  }
+
+  void _open(
+    BuildContext context,
+    List<LanguageOption> options,
+    Locale resolvedLocale,
+  ) {
+    final render = _anchorKey.currentContext?.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return;
+
+    unawaited(
+      showOverlayMenu(
+        context: context,
+        anchor: render.localToGlobal(Offset.zero) & render.size,
+        items: [
+          for (final option in options)
+            MenuItem(
+              label: option.label,
+              selected:
+                  option.locale.languageCode == resolvedLocale.languageCode,
+              onPressed: () =>
+                  unawaited(widget.onLocaleSelected(option.locale)),
+            ),
+        ],
       ),
     );
   }

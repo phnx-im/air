@@ -32,9 +32,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Partagez des noms d\'utilisateur avec d\'autres pour qu\'ils puissent se connecter avec vous. Après la connexion, les noms d\'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu\'à 5 noms d\'utilisateur.';
 
   @override
-  String get userSettingsScreen_interfaceScale => 'Échelle de l\'interface';
-
-  @override
   String get userSettingsScreen_help => 'Aide';
 
   @override
@@ -61,9 +58,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Noms d\'utilisateur';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Paramètres';
-
-  @override
   String get userSettingsScreen_helpSection => 'Aide';
 
   @override
@@ -74,6 +68,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Appareils';
+
+  @override
+  String get youSection_profile => 'Profil';
+
+  @override
+  String get youSection_preferences => 'Paramètres';
+
+  @override
+  String get youSection_developer => 'Développeur';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
@@ -98,14 +101,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_addMembers => 'Ajouter des membres';
 
   @override
-  String get addMembersScreen_error_noActiveChat =>
-      'une discussion active est obligatoire';
+  String get contactDetailsScreen_title => 'Profil';
 
   @override
   String get contactDetailsScreen_chat => 'Discussion';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
+  String get contactDetailsScreen_viewSafetyCode => 'Code de sécurité';
 
   @override
   String get contactDetailsScreen_mute => 'Mettre en sourdine';
@@ -264,14 +266,20 @@ class AppLocalizationsFr extends AppLocalizations {
   String get changeGroupTitleDialog_confirm => 'Enregistrer';
 
   @override
+  String get unsavedInputDialog_title => 'Voulez-vous vraiment fermer ?';
+
+  @override
+  String get unsavedInputDialog_cancel => 'Annuler';
+
+  @override
+  String get unsavedInputDialog_close => 'Fermer';
+
+  @override
   String get introScreen_serverLabel =>
       'Choisissez un serveur auquel vous connecter pour l\'association.';
 
   @override
   String get introScreen_serverHint => 'NOM DE DOMAINE';
-
-  @override
-  String get introScreen_error_invalidDomain => 'Le domaine est invalide';
 
   @override
   String get introScreen_linkExisting => 'Associer à un compte existant';
@@ -451,9 +459,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkingDeviceScreen_linking => 'Association...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Appareil associé avec succès !';
-
-  @override
   String get linkingDeviceScreen_linking_confirm_title =>
       'Confirmer l\'association';
 
@@ -506,13 +511,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Le code que vous avez fourni est incorrect.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Réessayer';
-
-  @override
-  String get linkedDevicesScreen_title => 'Appareils';
 
   @override
   String get linkedDevicesScreen_thisDevice => 'Cet appareil';
@@ -533,14 +535,38 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Associer un appareil';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Appareil inconnu';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Échec du renommage.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Impossible de renommer l\'appareil $deviceName. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Échec de la dissociation.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'La dissociation de l\'appareil $deviceName a échoué. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count appareils associés.',
       one: '$count appareil associé.',
+      zero: 'Aucun appareil associé.',
     );
-    return '$_temp0 Vous pouvez en associer jusqu\'à $remaining de plus.';
+    return '$_temp0';
   }
 
   @override
@@ -607,7 +633,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil.';
+      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil lors de sa prochaine connexion.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Annuler';
@@ -787,6 +813,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get systemMessage_userCreatedGroup_suffix => ' a créé le groupe';
 
   @override
+  String get systemMessage_onboarded =>
+      'Ce client a été ajouté au chat après l\'association.';
+
+  @override
   String get timestamp_now => 'Maintenant';
 
   @override
@@ -805,6 +835,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageBubble_failedToSend => 'Échec de l\'envoi';
+
+  @override
+  String get messageBubble_sent => 'Envoyé';
+
+  @override
+  String get messageBubble_delivered => 'Distribué';
+
+  @override
+  String get messageBubble_read => 'Lu';
 
   @override
   String get chatList_newContact => 'Nouveau contact';
@@ -832,7 +871,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatList_blocked => 'Bloqué';
 
   @override
-  String get chatList_muted => 'En sourdine';
+  String chatList_reaction(String user, String emoji, String message) {
+    return '$user a réagi $emoji à \"$message\"';
+  }
+
+  @override
+  String chatList_reactionByYou(String emoji, String message) {
+    return 'Vous avez réagi $emoji à \"$message\"';
+  }
 
   @override
   String get chatList_contextMenu_mute => 'Mettre en sourdine';
@@ -910,6 +956,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get composer_editMessage => 'Modifier le message';
 
   @override
+  String get composer_error_sendMessage =>
+      'Échec de l\'envoi du message. Veuillez réessayer.';
+
+  @override
   String get composer_error_attachment =>
       'Échec du téléchargement de la pièce jointe. Veuillez réessayer.';
 
@@ -944,22 +994,19 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get attachment_tryAgain => 'Réessayer';
-
-  @override
-  String get attachment_gallery => 'Galerie';
+  String get attachment_images => 'Images';
 
   @override
   String get attachment_camera => 'Appareil photo';
 
   @override
-  String get attachment_file => 'Fichier';
+  String get attachment_otherFiles => 'Autres fichiers';
 
   @override
   String get attachment_notFound => 'La pièce jointe n\'est plus disponible.';
 
   @override
-  String get textMessage_edited => 'modifié';
+  String get textMessage_edited => 'Modifié';
 
   @override
   String get textMessage_hiddenPlaceholder =>
@@ -1061,7 +1108,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de signaler le spam. Veuillez réessayer.';
 
   @override
-  String get helpScreen_contactUs => 'Nous contacter';
+  String get helpScreen_contactUs => 'Contacter Air';
 
   @override
   String get helpScreen_versionInfo => 'Informations sur la version';
@@ -1073,7 +1120,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get licensesScreen_title => 'Licences';
 
   @override
-  String get contactUsScreen_title => 'Contact';
+  String get contactUsScreen_title => 'Contacter Air';
 
   @override
   String get contactUsScreen_subject => 'Objet du message';
@@ -1082,7 +1129,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUsScreen_body => 'Corps du message';
 
   @override
-  String get contactUsScreen_includeLogs => 'Partager vos journaux';
+  String get contactUsScreen_includeLogs =>
+      'Partager vos journaux (cela aide Air à corriger les bugs)';
 
   @override
   String get contactUsScreen_composeEmail => 'Composer un e-mail';
@@ -1125,6 +1173,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de téléverser les journaux';
 
   @override
+  String get groupDetails_title => 'Détails du groupe';
+
+  @override
   String get groupDetails_leaveChat => 'Quitter';
 
   @override
@@ -1132,9 +1183,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get groupDetails_addPeople => 'Ajouter';
-
-  @override
-  String get groupDetails_seeAll => 'Voir tout';
 
   @override
   String groupDetails_memberCount(int count) {
@@ -1148,7 +1196,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get groupDetails_groupDescription => 'Groupe';
+  String get groupDetails_seeAll => 'Tout voir';
 
   @override
   String get groupMembersScreen_title => 'Membres du groupe';
@@ -1310,13 +1358,29 @@ class AppLocalizationsFr extends AppLocalizations {
   String get homeTab_profile => 'Profil';
 
   @override
-  String messageList_newMessages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count nouveaux messages',
-      one: '$count nouveau message',
-    );
-    return '$_temp0';
+  String get messageList_newMessages => 'Nouveaux messages';
+
+  @override
+  String get messageList_reactions_react => 'Réagir';
+
+  @override
+  String get messageList_reactions_remove => 'Supprimer';
+
+  @override
+  String get messageList_reactions_you => 'Vous';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Toutes · $total';
   }
+
+  @override
+  String get emojiPicker_searchHint => 'Rechercher un emoji';
+
+  @override
+  String get emojiPicker_empty => 'Aucun emoji trouvé';
+
+  @override
+  String get emojiPicker_skinToneHelp =>
+      'Définit votre teinte de peau par défaut';
 }

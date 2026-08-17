@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO user_credential\n                (fingerprint, user_uuid, user_domain, user_credential) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "a4fe4df4ea59d4a78cefe640afacff6952561074c7e26655c996ee2657205a83"
+}

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod bump_version;
+mod cut_release;
+mod generate_emoji;
 mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
@@ -22,22 +24,31 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Bump the workspace crate versions, update Flutter metadata, add a changelog entry, and tag the commit.
+    /// Bump the workspace crate versions and update Flutter and nFPM metadata.
     #[command(name = "bump-version")]
-    BumpVersion,
+    BumpVersion(bump_version::BumpArgs),
+    /// Cut a release/0.X branch from main and prepare its merge-back PR.
+    #[command(name = "cut-release")]
+    CutRelease(cut_release::CutArgs),
     /// Scan Flutter / mobile sources for unused localization keys and prune them from ARB files.
     #[command(name = "prune-unused-l10n")]
     PruneUnusedL10n(prune_unused_l10n::PruneArgs),
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
+    /// Parse an emoji-data `emoji_pretty.json` and generate a Dart file of
+    /// emojis grouped by category.
+    #[command(name = "generate-emoji")]
+    GenerateEmoji(generate_emoji::GenerateEmojiArgs),
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::BumpVersion => bump_version::run(),
+        Commands::BumpVersion(args) => bump_version::run(args),
+        Commands::CutRelease(args) => cut_release::run(args),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
+        Commands::GenerateEmoji(args) => generate_emoji::run(args),
     }
 }

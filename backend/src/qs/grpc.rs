@@ -20,8 +20,10 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::CancellableStream,
+    virtual_client::KeyPackageBatchId,
 };
 use displaydoc::Display;
+use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
 use semver::Version;
 use tokio::sync::mpsc;
@@ -34,6 +36,9 @@ use crate::{
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
     util::{find_cause, select_until_first_ends},
 };
+
+/// Maximum number of key packages per batch to upload in one request.
+const MAX_KEY_PACKAGES_PER_BATCH: usize = 512;
 
 use super::Qs;
 
@@ -390,6 +395,49 @@ impl QueueService for GrpcQs {
         };
         self.qs.qs_publish_key_packages(params).await?;
         Ok(Response::new(PublishKeyPackagesResponse {}))
+    }
+
+    async fn stage_key_packages(
+        &self,
+        request: Request<SignedRequest<StageKeyPackagesRequest, 1>>,
+    ) -> Result<Response<StageKeyPackagesResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(
+            request
+                .inner()
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref()),
+        )?;
+        let StageKeyPackagesPayload {
+            client_metadata: _,
+            client_id,
+            epoch_id,
+            leaf_index,
+            generation,
+            key_packages,
+            apq_key_packages,
+        } = self.verify_client_auth(request).await?;
+
+        if key_packages.len() + apq_key_packages.len() > MAX_KEY_PACKAGES_PER_BATCH {
+            return Err(Status::invalid_argument("Too many key packages"));
+        }
+
+        let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        self.qs
+            .qs_stage_key_packages(
+                client_id,
+                KeyPackageBatchId {
+                    epoch_id: EpochId::new(epoch_id),
+                    leaf_index: LeafNodeIndex::new(leaf_index),
+                    generation,
+                },
+                key_packages,
+                apq_key_packages,
+            )
+            .await?;
+
+        Ok(Response::new(StageKeyPackagesResponse {}))
     }
 
     async fn key_package(

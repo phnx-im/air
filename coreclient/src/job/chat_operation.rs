@@ -7,12 +7,17 @@ use std::{borrow::Cow, collections::HashSet};
 use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{crypto::errors::EncryptionError, identifiers::UserId};
 use airprotos::{
-    client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
+    client::{
+        group::{EncryptedGroupTitle, GroupData, GroupProfile},
+        self_group::LinkedDevice,
+    },
     delivery_service::v1::StorageObjectType,
 };
 use anyhow::{Context, anyhow, bail};
+use apqmls::messages::ApqKeyPackage;
 use openmls::treesync::errors::LeafNodeValidationError;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
@@ -25,6 +30,13 @@ use crate::{
 enum ChatOperationType {
     AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
+    /// Removes individual self-group leaves, identified by client id.
+    RemoveClients(Vec<Uuid>),
+    /// Adds a newly linked device's leaf to the self group.
+    AddClient {
+        key_package: Box<ApqKeyPackage>,
+        device: LinkedDevice,
+    },
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
@@ -94,6 +106,27 @@ impl ChatOperation {
         }
     }
 
+    pub(crate) fn remove_clients(chat_id: ChatId, client_ids: Vec<Uuid>) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::RemoveClients(client_ids),
+        }
+    }
+
+    pub(crate) fn add_client(
+        chat_id: ChatId,
+        key_package: ApqKeyPackage,
+        device: LinkedDevice,
+    ) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::AddClient {
+                key_package: Box::new(key_package),
+                device,
+            },
+        }
+    }
+
     pub(crate) fn leave_chat(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
@@ -157,9 +190,15 @@ impl ChatOperation {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
             }
+            ChatOperationType::RemoveClients(client_ids) => {
+                let self_group_members: HashSet<_> =
+                    group.self_group_client_ids().into_iter().collect();
+                client_ids.retain(|client_id| self_group_members.contains(client_id));
+            }
             // The following operations are always valid as long as the
             // group is active.
-            ChatOperationType::Leave
+            ChatOperationType::AddClient { .. }
+            | ChatOperationType::Leave
             | ChatOperationType::Delete
             | ChatOperationType::Update(_)
             | ChatOperationType::ApqUpdate => {}
@@ -190,6 +229,16 @@ impl ChatOperation {
                 }
                 self.execute_remove_members(context, user_ids).await
             }
+            ChatOperationType::RemoveClients(client_ids) => {
+                if client_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+                self.execute_remove_clients(context, client_ids).await
+            }
+            ChatOperationType::AddClient {
+                key_package,
+                device,
+            } => self.execute_add_client(context, *key_package, device).await,
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
             ChatOperationType::Delete => self.execute_delete(context).await,
             ChatOperationType::Update(chat_attributes) => {
@@ -238,6 +287,50 @@ impl ChatOperation {
                     &key_store.signing_key,
                     self.chat_id,
                     users,
+                )
+                .await
+            })
+            .await?;
+
+        job.execute(context).await
+    }
+
+    /// Remove individual self-group leaves, identified by client id.
+    async fn execute_remove_clients(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+        client_ids: Vec<Uuid>,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let JobContext { db, .. } = context;
+        let job = db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_remove_clients(txn, client_ids).await
+            })
+            .await?;
+
+        job.execute(context).await
+    }
+
+    /// Add a newly linked device's leaf to the self group.
+    async fn execute_add_client(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+        key_package: ApqKeyPackage,
+        device: LinkedDevice,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_add_client(
+                    txn,
+                    &key_store.signing_key,
+                    &key_store.wai_ear_key,
+                    key_package,
+                    device,
                 )
                 .await
             })

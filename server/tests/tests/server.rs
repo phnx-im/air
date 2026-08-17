@@ -28,7 +28,6 @@ use airprotos::{
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::Utc;
 use mimi_content::MimiContent;
-use rand::thread_rng;
 use semver::VersionReq;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
@@ -639,12 +638,6 @@ async fn resync_group_not_found_cleans_up_local_state() {
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
-    // Skip resyncs for APQ groups.
-    if setup.apq_groups {
-        warn!("Skipping test: resync is not supported for APQ groups");
-        return;
-    }
-
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
@@ -679,29 +672,23 @@ async fn resync_valid_group_succeeds() {
 
     // Bob should be able to send messages normally.
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
-}
 
-// Make sure that resync is refused for APQ groups for now.
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync is refused for APQ groups", skip_all)]
-async fn resync_refused_for_apq_group() {
-    let mut setup = TestBackend::single().await;
-
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_apq_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    // Alice performs a further commit-based operation (for APQ groups, one that touches both legs).
+    // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
+    // and PQ legs at compatible epochs (PSK continuity).
+    let alice_user = &setup.get_user(&alice).user;
+    if setup.apq_groups {
+        alice_user.update_apq_key(chat_id).await.unwrap();
+    } else {
+        alice_user.update_key(chat_id).await.unwrap();
+    }
 
     let bob_user = &setup.get_user(&bob).user;
-    bob_user
-        .enqueue_group_resync(chat_id)
-        .await
-        .expect_err("resync must be refused for APQ groups");
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
-        "no resync should be queued for an APQ group"
+        result.errors.is_empty(),
+        "Bob should process Alice's follow-up commit without errors"
     );
 }
 
@@ -715,12 +702,6 @@ async fn resync_refused_for_apq_group() {
 #[tracing::instrument(name = "Resync with blank leaf", skip_all)]
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
-
-    // Skip resyncs for APQ groups.
-    if setup.apq_groups {
-        warn!("Skipping test: resync is not supported for APQ groups");
-        return;
-    }
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1055,7 +1036,7 @@ async fn unsupported_client_version() {
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 
-    let client_id = QsClientId::random(&mut thread_rng());
+    let client_id = QsClientId::random(&mut rand::rng());
     let signing_key = QsClientSigningKey::generate().unwrap();
     // Signing key does not have to be valid, because the client version is checked first.
     let res = client.qs_listen_queue(client_id, 0, &signing_key).await;

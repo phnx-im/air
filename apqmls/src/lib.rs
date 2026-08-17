@@ -33,6 +33,7 @@ pub mod authentication;
 pub mod commit_builder;
 mod export;
 pub mod extension;
+pub mod external_commit_builder;
 pub mod group_builder;
 pub mod key_package;
 mod merging;
@@ -60,16 +61,24 @@ impl ApqCiphersuite {
 
     pub const fn default_pq_conf_and_auth() -> Self {
         Self {
-            t_ciphersuite: Ciphersuite::MLS_256_DHKEMP384_AES256GCM_SHA384_P384,
+            t_ciphersuite: Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             pq_ciphersuite: Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA512_MLDSA87,
         }
     }
 
     pub const fn default_pq_conf() -> Self {
         Self {
-            t_ciphersuite: Ciphersuite::MLS_256_DHKEMP384_AES256GCM_SHA384_P384,
+            t_ciphersuite: Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             pq_ciphersuite: Ciphersuite::MLS_192_MLKEM1024_AES256GCM_SHA384_P384,
         }
+    }
+
+    pub fn t_ciphersuite(&self) -> Ciphersuite {
+        self.t_ciphersuite
+    }
+
+    pub fn pq_ciphersuite(&self) -> Ciphersuite {
+        self.pq_ciphersuite
     }
 }
 

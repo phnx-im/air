@@ -5,9 +5,9 @@
 use openmls::{
     group::GroupEpoch,
     prelude::{
-        Ciphersuite, Credential, KeyPackage, KeyPackageIn, KeyPackageVerifyError, MlsMessageBodyIn,
-        MlsMessageIn, MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage,
-        ProtocolVersion, RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
+        Ciphersuite, Credential, KeyPackage, KeyPackageIn, MlsMessageBodyIn, MlsMessageIn,
+        MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage, ProtocolVersion,
+        PublicMessageIn, RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
         group_info::{GroupInfo, VerifiableGroupInfo},
     },
     treesync::RatchetTree,
@@ -58,6 +58,19 @@ impl ApqMlsMessageIn {
         Some(ApqKeyPackageIn {
             t_key_package,
             pq_key_package,
+        })
+    }
+
+    pub fn into_verifiable_group_info(self) -> Option<VerifiableApqGroupInfo> {
+        let MlsMessageBodyIn::GroupInfo(t_group_info) = self.t_message.extract() else {
+            return None;
+        };
+        let MlsMessageBodyIn::GroupInfo(pq_group_info) = self.pq_message.extract() else {
+            return None;
+        };
+        Some(VerifiableApqGroupInfo {
+            t_group_info,
+            pq_group_info,
         })
     }
 
@@ -262,11 +275,11 @@ impl ApqKeyPackageIn {
         }
     }
 
-    pub fn unwrap_verified(self) -> Result<ApqKeyPackage, KeyPackageVerifyError> {
-        Ok(ApqKeyPackage {
-            t_key_package: self.t_key_package.into_unchecked()?,
-            pq_key_package: self.pq_key_package.into_unchecked()?,
-        })
+    pub fn unwrap_verified(self) -> ApqKeyPackage {
+        ApqKeyPackage {
+            t_key_package: self.t_key_package.into_unchecked(),
+            pq_key_package: self.pq_key_package.into_unchecked(),
+        }
     }
 }
 
@@ -306,6 +319,13 @@ pub struct VerifiableApqGroupInfo {
 }
 
 impl VerifiableApqGroupInfo {
+    pub fn new(t_group_info: VerifiableGroupInfo, pq_group_info: VerifiableGroupInfo) -> Self {
+        Self {
+            t_group_info,
+            pq_group_info,
+        }
+    }
+
     /// Verifies the group info and returns the contained [`ApqGroupInfo`].
     pub fn verify(
         self,
@@ -324,5 +344,19 @@ impl VerifiableApqGroupInfo {
             t_group_info: self.t_group_info.verify(provider, &t_verifying_key)?,
             pq_group_info: self.pq_group_info.verify(provider, &pq_verifying_key)?,
         })
+    }
+}
+
+pub struct ApqProposalIn {
+    pub(crate) t_proposal: PublicMessageIn,
+    pub(crate) pq_proposal: PublicMessageIn,
+}
+
+impl ApqProposalIn {
+    pub fn new(t_proposal: PublicMessageIn, pq_proposal: PublicMessageIn) -> Self {
+        Self {
+            t_proposal,
+            pq_proposal,
+        }
     }
 }

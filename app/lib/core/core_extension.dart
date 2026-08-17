@@ -6,7 +6,7 @@ import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:uuid/uuid.dart';
 
 extension UiChatDetailsExtension on UiChatDetails {
@@ -107,18 +107,6 @@ extension UiChatTypeExtension on UiChatType {
   };
 }
 
-extension UiFlightPositionExtension on UiFlightPosition {
-  bool get isFirst => switch (this) {
-    UiFlightPosition.single || UiFlightPosition.start => true,
-    UiFlightPosition.middle || UiFlightPosition.end => false,
-  };
-
-  bool get isLast => switch (this) {
-    UiFlightPosition.start || UiFlightPosition.middle => false,
-    UiFlightPosition.single || UiFlightPosition.end => true,
-  };
-}
-
 extension DeviceTokenExtension on PlatformPushToken {
   String get token => switch (this) {
     PlatformPushToken_Apple(field0: final token) => token,
@@ -129,18 +117,6 @@ extension DeviceTokenExtension on PlatformPushToken {
 extension ImageDataExtension on Uint8List {
   ImageData toImageData() =>
       ImageData(data: this, hash: ImageData.computeHash(this));
-}
-
-extension NavigationStateExtension on NavigationState {
-  ChatId? get chatId => switch (this) {
-    NavigationState_Home(:final home) => home.chatId,
-    NavigationState_Intro() => null,
-  };
-
-  ChatId? get openChatId => switch (this) {
-    NavigationState_Home(:final home) when home.chatOpen => home.chatId,
-    NavigationState_Intro() || NavigationState_Home() => null,
-  };
 }
 
 extension DartNotificationServiceExtension on DartNotificationService {
@@ -207,13 +183,15 @@ extension UiMimiContentExtension on UiMimiContent {
       return null;
     }
 
-    return plainBody?.isNotEmpty == true
-        ? plainBody!.replaceAll(RegExp(r'\n+'), ' ')
-        : attachments.isNotEmpty
-        ? attachments.first.imageMetadata != null
-              ? loc.chatList_imageEmoji
-              : loc.chatList_fileEmoji
-        : null;
+    if (plainBody?.isNotEmpty == true) {
+      return plainBody!.replaceAll(RegExp(r'\n+'), ' ');
+    }
+
+    return switch (firstAttachmentType) {
+      UiAttachmentType.image => loc.chatList_imageEmoji,
+      UiAttachmentType.file => loc.chatList_fileEmoji,
+      null => null,
+    };
   }
 
   bool get isDeleted => replaces != null && content == null;

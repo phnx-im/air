@@ -335,6 +335,7 @@ impl Message {
         &self,
         core_user: &CoreUser,
         chat_type: &ChatType,
+        with_sender_name: bool,
     ) -> Option<String> {
         match self {
             Message::Content(content_message) => {
@@ -357,11 +358,15 @@ impl Message {
                 };
                 let repr = match chat_type {
                     ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
-                        let display_name = core_user
-                            .user_profile(&content_message.sender)
-                            .await
-                            .display_name;
-                        format!("{display_name}: {content}")
+                        if with_sender_name {
+                            let display_name = core_user
+                                .user_profile(&content_message.sender)
+                                .await
+                                .display_name;
+                            format!("{display_name}: {content}")
+                        } else {
+                            content
+                        }
                     }
                     ChatType::HandleConnection(username) => {
                         format!("{username}: {content}", username = username.plaintext())
@@ -388,6 +393,15 @@ impl Message {
         match self {
             Message::Content(content_message) => Some(content_message.sender()),
             Message::Event(_) => None,
+        }
+    }
+
+    /// The user whose action produced this message.
+    /// Unlike [`Self::sender`], this also resolves event messages.
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            Message::Content(content_message) => Some(content_message.sender()),
+            Message::Event(event_message) => event_message.actor(),
         }
     }
 
@@ -454,6 +468,13 @@ impl Message {
                 }
             )
         })
+    }
+
+    /// Whether this message took the place of an earlier one, that is, whether
+    /// it is an edit or a deletion.
+    pub fn is_replacement(&self) -> bool {
+        self.mimi_content()
+            .is_some_and(|content| content.replaces.is_some())
     }
 }
 
@@ -570,9 +591,39 @@ pub enum SystemMessage {
     /// We requested a connection with another user through a group.
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
+    /// We got onboarded into a group after linking.
+    Onboarded,
+}
+
+impl EventMessage {
+    /// See [`SystemMessage::actor`].
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            EventMessage::System(system_message) => system_message.actor(),
+            EventMessage::Error(_) => None,
+        }
+    }
 }
 
 impl SystemMessage {
+    /// The user who performed the group operation this message reports.
+    pub fn actor(&self) -> Option<&UserId> {
+        match self {
+            SystemMessage::Add(user_id, _)
+            | SystemMessage::Remove(user_id, _)
+            | SystemMessage::ChangeTitle { user_id, .. }
+            | SystemMessage::ChangePicture(user_id)
+            | SystemMessage::CreateGroup(user_id) => Some(user_id),
+            SystemMessage::ReceivedDirectConnectionRequest { .. }
+            | SystemMessage::ReceivedHandleConnectionRequest { .. }
+            | SystemMessage::AcceptedConnectionRequest { .. }
+            | SystemMessage::ReceivedConnectionConfirmation { .. }
+            | SystemMessage::NewHandleConnectionChat(_)
+            | SystemMessage::NewDirectConnectionChat(_)
+            | SystemMessage::Onboarded => None,
+        }
+    }
+
     async fn string_representation(&self, core_user: &CoreUser) -> String {
         match self {
             SystemMessage::Add(adder, added) => {
@@ -646,6 +697,9 @@ impl SystemMessage {
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
+            }
+            SystemMessage::Onboarded => {
+                "This client has been onboarded into the group after linking".into()
             }
         }
     }

@@ -5,7 +5,6 @@
   "userSettingsScreen_title": "Profile and Settings",
   "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
   "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
-  "userSettingsScreen_interfaceScale": "Interface scale",
   "userSettingsScreen_help": "Help",
   "userSettingsScreen_deleteAccount": "Delete Air account",
   "userSettingsScreen_sendWithEnter": "Send with Enter",
@@ -16,13 +15,16 @@
   "userSettingsScreen_displayNameLabel": "Display name",
 
   "userSettingsScreen_usernamesSection": "Usernames",
-  "userSettingsScreen_settingsSection": "Settings",
   "userSettingsScreen_helpSection": "Help",
   "userSettingsScreen_accountSection": "Account",
 
   "userSettingsScreen_inviteCodes": "Invite codes",
 
   "userSettingsScreen_devices": "Devices",
+
+  "youSection_profile": "Profile",
+  "youSection_preferences": "Preferences",
+  "youSection_developer": "Developer",
 
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
@@ -33,10 +35,10 @@
   "userSettingsScreen_usernamePlaceholder": "Username",
 
   "addMembersScreen_addMembers": "Add member(s)",
-  "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
+  "contactDetailsScreen_title": "Profile",
   "contactDetailsScreen_chat": "Chat",
-  "contactDetailsScreen_viewSafetyCode": "View Safety Code",
+  "contactDetailsScreen_viewSafetyCode": "Safety code",
   "contactDetailsScreen_mute": "Mute",
   "contactDetailsScreen_unmute": "Unmute",
 
@@ -93,9 +95,12 @@
   "changeGroupTitleDialog_cancel": "Cancel",
   "changeGroupTitleDialog_confirm": "Save",
 
+  "unsavedInputDialog_title": "Are you sure you want to close?",
+  "unsavedInputDialog_cancel": "Cancel",
+  "unsavedInputDialog_close": "Close",
+
   "introScreen_serverLabel": "Choose a server to connect to for linking.",
   "introScreen_serverHint": "DOMAIN NAME",
-  "introScreen_error_invalidDomain": "Domain is invalid",
 
   "introScreen_linkExisting": "Link to an existing account",
   "introScreen_signUp": "Create account",
@@ -155,7 +160,6 @@
   "linkingDeviceScreen_separator": "or",
   "linkingDeviceScreen_numericCode": "Numeric code",
   "linkingDeviceScreen_linking": "Linking...",
-  "linkingDeviceScreen_linked": "Device successfully linked!",
   "linkingDeviceScreen_linking_confirm_title": "Confirm linking",
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tap to edit device name",
   "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
@@ -173,7 +177,6 @@
   "linkingDevicesScreen_error_sessionNotFound": "The code you provided is incorrect.",
   "linkingDevicesScreen_error_dismiss": "Try again",
 
-  "linkedDevicesScreen_title": "Devices",
   "linkedDevicesScreen_thisDevice": "This device",
   "linkedDevicesScreen_linkedDevices": "Linked devices",
   "linkedDevicesScreen_linkedOn": "Linked on {date}",
@@ -186,13 +189,30 @@
   },
   "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
   "linkedDevicesScreen_linkDevice": "Link a device",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.",
+  "linkedDevicesScreen_unknownDevice": "Unknown device",
+  "linkedDevicesScreen_renameError_title": "Renaming failed.",
+  "linkedDevicesScreen_renameError": "Couldn't rename the device {deviceName}. Check your network connection and try again.",
+  "@linkedDevicesScreen_renameError": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_unlinkError_title": "Unlinking failed.",
+  "linkedDevicesScreen_unlinkError": "Unlinking the device {deviceName} failed. Check your network connection and try again.",
+  "@linkedDevicesScreen_unlinkError": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }
@@ -214,7 +234,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Cancel",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Change",
   "linkedDevicesScreen_unlinkDialog_title": "Unlink device",
-  "linkedDevicesScreen_unlinkDialog_content": "The device will no longer be able to send or receive messages. All of your account's data will be deleted from the device.",
+  "linkedDevicesScreen_unlinkDialog_content": "The device will no longer be able to send or receive messages. All of your account's data will be deleted from the device the next time it comes online.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Cancel",
   "linkedDevicesScreen_unlinkDialog_confirm": "Unlink",
 
@@ -266,6 +286,8 @@
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " created the group",
 
+  "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
+
   "timestamp_now": "Now",
   "timestamp_minutesAgo": "{count}m",
   "@timestamp_minutesAgo": {
@@ -280,6 +302,9 @@
 
   "messageBubble_sending": "Sending",
   "messageBubble_failedToSend": "Failed to send",
+  "messageBubble_sent": "Sent",
+  "messageBubble_delivered": "Delivered",
+  "messageBubble_read": "Read",
 
   "chatList_newContact": "New Air contact",
   "chatList_newGroup": "New group chat",
@@ -290,7 +315,31 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
-  "chatList_muted": "Muted",
+  "chatList_reaction": "{user} reacted {emoji} to \"{message}\"",
+  "@chatList_reaction": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      },
+      "emoji": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "chatList_reactionByYou": "You reacted {emoji} to \"{message}\"",
+  "@chatList_reactionByYou": {
+    "placeholders": {
+      "emoji": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "chatList_contextMenu_mute": "Mute",
   "chatList_contextMenu_unmute": "Unmute",
 
@@ -313,6 +362,7 @@
 
   "composer_inputHint": "Message {chatTitle}",
   "composer_editMessage": "Edit message",
+  "composer_error_sendMessage": "Failed to send message. Try again.",
   "composer_error_attachment": "Failed to upload attachment. Try again.",
   "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
 
@@ -333,13 +383,12 @@
     }
   },
 
-  "attachment_tryAgain": "Try again",
-  "attachment_gallery": "Gallery",
+  "attachment_images": "Images",
   "attachment_camera": "Camera",
-  "attachment_file": "File",
+  "attachment_otherFiles": "Other files",
   "attachment_notFound": "Attachment is no longer available.",
 
-  "textMessage_edited": "edited",
+  "textMessage_edited": "Edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "textMessage_deleted": "Deleted message",
   "textMessage_deletedBySelf": "You deleted this message.",
@@ -384,16 +433,16 @@
   "reportSpamDialog_success": "Spam reported",
   "reportSpamDialog_error": "Failed to report spam. Try again.",
 
-  "helpScreen_contactUs": "Contact us",
+  "helpScreen_contactUs": "Contact Air",
   "helpScreen_versionInfo": "Version info",
   "helpScreen_licenses": "Licenses",
 
   "licensesScreen_title": "Licenses",
 
-  "contactUsScreen_title": "Contact",
+  "contactUsScreen_title": "Contact Air",
   "contactUsScreen_subject": "Message subject",
   "contactUsScreen_body": "Body",
-  "contactUsScreen_includeLogs": "Share your logs",
+  "contactUsScreen_includeLogs": "Share your logs (this helps Air fix bugs)",
   "contactUsScreen_composeEmail": "Compose email",
   "contactUsScreen_subject_somethingNotWorking": "Something's not working",
   "contactUsScreen_subject_iHaveAQuestion": "I have a question",
@@ -406,10 +455,10 @@
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
   "contactUsScreen_errorUploadingLogs": "Couldn't upload logs",
 
+  "groupDetails_title": "Group details",
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",
   "groupDetails_addPeople": "Add people",
-  "groupDetails_seeAll": "See all",
   "groupDetails_memberCount": "{count, plural, one {{count} person} other {{count} people}}",
   "@groupDetails_memberCount": {
     "placeholders": {
@@ -418,7 +467,7 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Group",
+  "groupDetails_seeAll": "See all",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
@@ -479,12 +528,14 @@
   "homeTab_chats": "Chats",
   "homeTab_profile": "You",
 
-  "messageList_newMessages": "{count, plural, one {{count} new message} other {{count} new messages}}",
-  "@messageList_newMessages": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  }
+  "messageList_newMessages": "New messages",
+
+  "messageList_reactions_react": "React",
+  "messageList_reactions_remove": "Remove",
+  "messageList_reactions_you": "You",
+  "messageList_reactions_all": "All · {total}",
+
+  "emojiPicker_searchHint": "Search emoji",
+  "emojiPicker_empty": "No emoji found",
+  "emojiPicker_skinToneHelp": "Sets your default skin tone"
 }

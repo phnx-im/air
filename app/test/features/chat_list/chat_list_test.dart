@@ -1,0 +1,178 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat_list/chat_list_view.dart';
+import 'package:air/features/chat_list/chat_list_cubit.dart';
+import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:system_date_time_format/system_date_time_format.dart';
+
+import '../../helpers.dart';
+import '../../mocks.dart';
+import 'chat_list_content_test.dart';
+
+void main() {
+  group('ChatList', () {
+    late MockNavigationCubit navigationCubit;
+    late MockChatListCubit chatListCubit;
+    late MockUserCubit userCubit;
+    late MockUsersCubit contactsCubit;
+    late MockChatDetailsCubit chatDetailsCubit;
+    late MockUserSettingsCubit userSettingsCubit;
+
+    setUp(() async {
+      navigationCubit = MockNavigationCubit();
+      userCubit = MockUserCubit();
+      chatListCubit = MockChatListCubit();
+      contactsCubit = MockUsersCubit();
+      chatDetailsCubit = MockChatDetailsCubit();
+      userSettingsCubit = MockUserSettingsCubit();
+
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(const NavigationState.home());
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
+      when(
+        () => contactsCubit.state,
+      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => chatDetailsCubit.state,
+      ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(experimentalFeatures: false));
+    });
+
+    Widget buildSubject({
+      required List<UiChatDetails> chats,
+    }) => MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: MockAttachmentsRepository(),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: contactsCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: Scaffold(
+                  body: ChatListView(
+                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                      chats,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('renders correctly when there are no chats', (tester) async {
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(const ChatListState(chatIds: []));
+
+      await tester.pumpWidget(buildSubject(chats: []));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_empty.png'),
+      );
+    });
+
+    testWidgets('renders correctly', (tester) async {
+      final testChats = List.generate(
+        20,
+        (index) => chats[index % chats.length],
+      );
+      final testChatIds = testChats.map((chat) => chat.id).toList();
+
+      when(() => navigationCubit.state).thenReturn(
+        NavigationState.home(
+          home: HomeNavigationState(chatOpen: true, chatId: chats[1].id),
+        ),
+      );
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: testChatIds));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list.png'),
+      );
+    });
+
+    testWidgets('renders correctly with mute menu open (mobile)', (
+      tester,
+    ) async {
+      final testChats = [chats[0]];
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await tester.longPress(find.text('Hello Alice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_mute_menu_mobile.png'),
+      );
+    });
+
+    testWidgets('renders correctly with mute menu open (desktop)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final testChats = [chats[0]];
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await tester.longPress(find.text('Hello Alice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_mute_menu_desktop.png'),
+      );
+    }, variant: desktopPlatform);
+  });
+}

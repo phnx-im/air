@@ -3,25 +3,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    identifiers::UserId,
     mls_group_config::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
-        default_group_required_extensions, default_leaf_node_capabilities,
-        default_sender_ratchet_configuration,
+        default_group_context_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_sender_ratchet_configuration,
+        self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
 };
+use airprotos::client::component::AirComponent;
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
+    component::ComponentId,
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
     },
 };
 use openmls_traits::OpenMlsProvider;
-use tls_codec::Serialize;
 
 use crate::{
     db::access::WriteConnection,
@@ -47,13 +50,17 @@ impl PqGroup {
 }
 
 impl Group {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_apq_group(
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: UserId,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
+        safe_aad_components: Option<Vec<ComponentId>>,
+        air_component: AirComponent,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -66,27 +73,38 @@ impl Group {
             GROUP_DATA_EXTENSION_TYPE,
             UnknownExtension(group_data_bytes.bytes),
         );
-        let gc_extensions =
-            Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
+        let gc_extensions = Extensions::from_vec(vec![
+            group_data_extension,
+            required_capabilities,
+            // APQ groups automatically add an app data dictionary extension (to required
+            // capabilities), so we can safely add it here for all APQ groups.
+            default_group_context_app_data_dictionary_extension(air_component, safe_aad_components),
+        ])?;
 
+        // The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {
-            credential: signer.credential().try_into()?,
-            signature_key: signer.credential().verifying_key().clone().into(),
+            credential: signer.mls_credential()?,
+            signature_key: signer.verifying_key().clone().into(),
         };
         // Skip storing the same credential twice
         let pq_credential = CredentialWithKey {
             credential: Credential::new(CredentialType::Basic, Vec::new()),
-            signature_key: signer.credential().verifying_key().clone().into(),
+            signature_key: signer.verifying_key().clone().into(),
         };
         let apq_credential_with_key = ApqCredentialWithKey {
             t_credential,
             pq_credential,
         };
 
+        let capabilities = match signer {
+            LeafSigningKey::User(_) => default_leaf_node_capabilities(),
+            LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
+        };
+
         let (t_group, pq_group) = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
-            .with_capabilities(default_leaf_node_capabilities())
+            .with_capabilities(capabilities)
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -94,9 +112,8 @@ impl Group {
             .build(&provider, signer, apq_credential_with_key)?
             .into_groups();
 
-        let user_id = signer.credential().user_id();
         let room_state = VerifiedRoomState::new(
-            user_id.tls_serialize_detached()?,
+            signer.room_policy_identity().to_bytes()?,
             RoomPolicy::default_trusted_private(),
         )?;
 
@@ -126,6 +143,7 @@ impl Group {
             }),
             pending_commit_failed: false,
             send_message_collision_key: None,
+            own_user_id,
         };
 
         Ok((group, params))

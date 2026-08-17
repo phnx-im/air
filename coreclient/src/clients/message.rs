@@ -8,12 +8,15 @@ use mimi_content::{MessageStatus, MimiContent};
 
 use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, MessageId,
-    chats::{StatusRecord, messages::edit::MessageEdit},
-    clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
+    chats::{
+        StatusRecord,
+        messages::edit::{MessageEdit, purge_deleted_message},
+    },
+    clients::block_contact::BlockedContactError,
     db::access::{WriteConnection, WriteDbTransaction},
 };
 
-use super::{CoreUser, Group};
+use super::CoreUser;
 
 impl CoreUser {
     /// Delete a message and send the deletion to other group members.
@@ -34,37 +37,9 @@ impl CoreUser {
         // Create NullPart content
         let null_content = message.null_part_content()?;
 
-        let replaces_message_id = message.id();
-        let replaces_mimi_id = message.message().mimi_id().cloned();
-
-        // Send the deletion message
-        let sent_message =
-            Box::pin(self.send_message(chat_id, null_content, Some(message))).await?;
-
-        // Redact reply references to this message
-        if let Some(replaces_mimi_id) = replaces_mimi_id
-            && let Some(redacted_mimi_id) = sent_message.message().mimi_id()
-        {
-            self.db()
-                .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                    let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-                        &mut *txn,
-                        &replaces_message_id,
-                        &replaces_mimi_id,
-                        redacted_mimi_id,
-                    )
-                    .await?;
-
-                    for message_id in updated_message_ids {
-                        txn.notifier().add(message_id);
-                    }
-
-                    Ok(())
-                })
-                .await?;
-        }
-
-        Ok(sent_message)
+        // The placeholder store and the purge of what the deleted message
+        // leaves behind run atomically inside the send transaction.
+        Box::pin(self.send_message(chat_id, null_content, Some(message))).await
     }
 
     /// Delete a message locally without sending a network message.
@@ -100,58 +75,46 @@ impl CoreUser {
             .await
     }
 
-    /// Send a message and return it.
+    /// Store a message and return it.
     ///
-    /// The message is stored, then sent to the DS and finally returned. The
-    /// chat is marked as read until this message.
+    /// The message is stored as unsent and enqueued for the outbound service,
+    /// which sends it to the DS. The chat is marked as read until this message.
     pub async fn send_message(
         &self,
         chat_id: ChatId,
         content: MimiContent,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
-        let needs_update: bool = {
-            let mut connection = self.db().read().await?;
-            if Chat::is_blocked(&mut connection, chat_id).await? {
-                bail!(BlockedContactError);
-            }
-            let group = Group::load_with_chat_id_clean(&mut connection, chat_id)
-                .await?
-                .with_context(|| format!("Can't find group with chat_id: {chat_id:?}"))?;
-            group.mls_group().has_pending_proposals()
-        };
+        Box::pin(
+            self.db()
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    if Chat::is_blocked(&mut *txn, chat_id).await? {
+                        bail!(BlockedContactError);
+                    }
 
-        if needs_update {
-            // TODO race condition: Before or after this update, new proposals could arrive
-            self.update_key(chat_id).await?;
-        }
-
-        let unsent_group_message = Box::pin(self.db().with_write_transaction(
-            async |txn| -> anyhow::Result<_> {
-                let unsent_message = UnsentContent {
-                    chat_id,
-                    message_id: MessageId::random(),
-                    content,
-                }
-                .store_unsent_message(&mut *txn, self.user_id(), replaces)
-                .await?
-                .store_group_update(&mut *txn, self.user_id())
-                .await?;
-
-                self.outbound_service()
-                    .enqueue_chat_message_in_transaction(txn, unsent_message.message.id())
+                    let message = UnsentContent {
+                        chat_id,
+                        message_id: MessageId::random(),
+                        content,
+                    }
+                    .store_unsent_message(&mut *txn, self.user_id(), replaces)
                     .await?;
+                    mark_as_read_until_message(&mut *txn, chat_id, &message, self.user_id())
+                        .await?;
 
-                Ok(unsent_message)
-            },
-        ))
-        .await?;
+                    self.outbound_service()
+                        .enqueue_chat_message_in_transaction(txn, message.id())
+                        .await?;
 
-        Ok(unsent_group_message.message)
+                    Ok(message)
+                }),
+        )
+        .await
     }
 
-    // TODO: This should be merged with send_message as soon as we don't
-    // automatically send updates before attempting to enqueue a message.
+    // TODO: This should be merged with send_message. The remaining difference
+    // is that this variant runs inside an existing transaction and does not
+    // enqueue the message.
     pub(crate) async fn send_message_transactional(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -159,18 +122,31 @@ impl CoreUser {
         message_id: MessageId,
         content: MimiContent,
     ) -> anyhow::Result<ChatMessage> {
-        let unsent_group_message = UnsentContent {
+        let message = UnsentContent {
             chat_id,
             message_id,
             content,
         }
         .store_unsent_message(&mut *txn, self.user_id(), None)
-        .await?
-        .store_group_update(txn, self.user_id())
         .await?;
+        mark_as_read_until_message(txn, chat_id, &message, self.user_id()).await?;
 
-        Ok(unsent_group_message.message)
+        Ok(message)
     }
+}
+
+/// Marks the chat as read until `message`, unless it is a deletion.
+async fn mark_as_read_until_message(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+    message: &ChatMessage,
+    own_user: &UserId,
+) -> anyhow::Result<()> {
+    if message.status() == MessageStatus::Deleted {
+        return Ok(());
+    }
+    Chat::mark_as_read_until_message_id(txn, chat_id, message.id(), own_user).await?;
+    Ok(())
 }
 
 struct UnsentContent {
@@ -185,7 +161,7 @@ impl UnsentContent {
         txn: &mut WriteDbTransaction<'_>,
         sender: &UserId,
         replaces: Option<ChatMessage>,
-    ) -> anyhow::Result<UnsentMessage<GroupUpdateNeeded>> {
+    ) -> anyhow::Result<ChatMessage> {
         let UnsentContent {
             chat_id,
             message_id,
@@ -234,15 +210,22 @@ impl UnsentContent {
                 updated.set_status(MessageStatus::Deleted);
             } else {
                 updated.set_status(MessageStatus::Unread);
+                updated.set_edited_at(edit_created_at);
             }
-            updated.set_edited_at(edit_created_at);
             updated.update(&mut *txn).await?;
             StatusRecord::clear(&mut *txn, updated.id()).await?;
 
-            // Delete attachments for this message on network deletion
-            // (FK cascade handles local deletion where the message row is deleted)
             if is_deletion {
-                AttachmentRecord::delete_by_message_id(&mut *txn, updated.id()).await?;
+                // The message is now a placeholder, purge what it left behind
+                // and repoint replies at the placeholder's Mimi ID.
+                purge_deleted_message(
+                    txn,
+                    updated.id(),
+                    Some(original_mimi_id),
+                    updated.message().mimi_id(),
+                )
+                .await?;
+                updated.take_in_reply_to();
             }
 
             updated
@@ -260,56 +243,6 @@ impl UnsentContent {
             message
         };
 
-        let group_id = chat.group_id();
-        let group = Group::load_clean(txn, group_id)
-            .await?
-            .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-
-        Ok(UnsentMessage {
-            chat,
-            group,
-            message,
-            group_update: GroupUpdateNeeded,
-        })
-    }
-}
-
-/// Message type state: Group update needed before sending the message
-struct GroupUpdateNeeded;
-/// Message type state: Group already updated, message can be sent
-struct GroupUpdated;
-
-struct UnsentMessage<GroupUpdate> {
-    chat: Chat,
-    group: Group,
-    message: ChatMessage,
-    group_update: GroupUpdate,
-}
-
-impl UnsentMessage<GroupUpdateNeeded> {
-    async fn store_group_update(
-        self,
-        txn: &mut WriteDbTransaction<'_>,
-        own_user: &UserId,
-    ) -> anyhow::Result<UnsentMessage<GroupUpdated>> {
-        let Self {
-            chat,
-            group,
-            message,
-            group_update: GroupUpdateNeeded,
-        } = self;
-
-        // Also, mark the message (and all messages preceding it) as read, but
-        // skip for deletions.
-        if message.status() != MessageStatus::Deleted {
-            Chat::mark_as_read_until_message_id(txn, chat.id(), message.id(), own_user).await?;
-        }
-
-        Ok(UnsentMessage {
-            chat,
-            group,
-            message,
-            group_update: GroupUpdated,
-        })
+        Ok(message)
     }
 }

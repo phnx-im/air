@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 
 use aircommon::{
-    credentials::VerifiableClientCredential,
+    credentials::LeafCredential,
     identifiers::{QualifiedGroupId, UserId},
     mls_group_config::{
         FRIENDSHIP_PACKAGE_PROPOSAL_TYPE, GROUP_DATA_EXTENSION_TYPE,
@@ -161,13 +161,13 @@ impl GroupDebugInfo {
 
         let mut members = HashMap::new();
         for member in group.mls_group().members() {
-            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
+            let credential = LeafCredential::from_credential(&member.credential)?;
             let leaf_node = group
                 .mls_group()
                 .public_group()
                 .leaf(member.index)
                 .context("No leaf node for member")?;
-            let user_id = credential.user_id();
+            let user_id = credential.user_id(group.own_user_id());
             let user_profile = UserProfile::load(&mut connection, user_id).await;
             members.insert(
                 member.index.u32(),
