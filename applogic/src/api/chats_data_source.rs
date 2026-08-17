@@ -16,6 +16,7 @@ use aircoreclient::{
 use flutter_rust_bridge::{Rust2DartSendError, frb};
 use tokio_stream::StreamExt;
 use tokio_util::sync::{CancellationToken, DropGuard};
+use tracing::error;
 
 use crate::{
     StreamSink,
@@ -149,7 +150,12 @@ impl ChatsDataSourceInner {
         &self,
         sink: &StreamSink<ChatsDelta>,
     ) -> Result<LocalState, Rust2DartSendError> {
-        let all = self.core_user.ordered_chat_ids().await.unwrap_or_default();
+        let all = self
+            .core_user
+            .ordered_chat_ids()
+            .await
+            .inspect_err(|error| error!(%error, "Failed to load chats"))
+            .unwrap_or_default();
 
         if all.is_empty() {
             // Empty account => emit "no chats" delta
@@ -209,7 +215,13 @@ impl ChatsDataSourceInner {
 
         // Build the order to publish
         let mut order = Vec::new();
-        for chat_id in self.core_user.ordered_chat_ids().await.unwrap_or_default() {
+        for chat_id in self
+            .core_user
+            .ordered_chat_ids()
+            .await
+            .inspect_err(|error| error!(%error, "Failed to load chats"))
+            .unwrap_or_default()
+        {
             if state.contains(&chat_id) {
                 order.push(chat_id);
             } else if let Some(chat) = self.core_user.chat(&chat_id).await {
