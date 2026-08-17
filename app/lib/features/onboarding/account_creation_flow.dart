@@ -108,8 +108,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     final loc = AppLocalizations.of(context);
 
     return PopScope(
-      // Only guards the busy state, pinning the route while the server works.
-      canPop: !_isBusy,
+      canPop: !_isBusy && _step != _Step.username,
       child: ModalPageStack(
         onBack: _back,
         onDismiss: _dismiss,
