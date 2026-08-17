@@ -22,7 +22,7 @@ void main() {
         body: ListHeader(
           tokens: tokens,
           title: 'Chats',
-          scrollOffset: scrollOffset,
+          scrollOffset: ValueNotifier<double>(scrollOffset),
           leading: ListHeaderAction(
             tokens: tokens,
             onAction: onAction == null ? null : (_) => onAction(),
@@ -33,12 +33,15 @@ void main() {
 
     /// The pill is the only decorated box inside the header carrying a fill.
     BoxDecoration pillDecoration(WidgetTester tester) {
-      final container = tester.widget<Container>(
+      final box = tester.widget<DecoratedBox>(
         find
-            .ancestor(of: find.text('Chats'), matching: find.byType(Container))
+            .ancestor(
+              of: find.text('Chats'),
+              matching: find.byType(DecoratedBox),
+            )
             .first,
       );
-      return container.decoration! as BoxDecoration;
+      return box.decoration as BoxDecoration;
     }
 
     testWidgets('hides the title pill while the list rests at the top', (
