@@ -129,7 +129,7 @@ class _OverlayMenuPage extends StatelessWidget {
     final local = _toOverlaySpace(context, anchor);
 
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: LayoutBuilder(
         builder: (context, constraints) => CustomSingleChildLayout(
           delegate: _PopupMenuLayout(

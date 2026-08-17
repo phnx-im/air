@@ -62,7 +62,7 @@ class YouScreen extends StatelessWidget {
               right: S.s16,
             ),
             child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: [
                 SizedBox(height: S.s16),
                 _Identity(),
@@ -132,7 +132,7 @@ class _Identity extends StatelessWidget {
         Text(
           profile.displayName,
           maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          overflow: .ellipsis,
           style: typeScale.body.m.style(
             weight: Weight.emphasized,
             color: palette.text.primary,

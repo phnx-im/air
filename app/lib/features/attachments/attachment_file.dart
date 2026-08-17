@@ -30,7 +30,7 @@ class AttachmentFile extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       spacing: S.s16,
       children: [
         _AttachmentFileStatus(
@@ -41,9 +41,9 @@ class AttachmentFile extends HookWidget {
         ),
         // Flexible is needed to make the text wrap if the filename is too long
         Flexible(
-          fit: FlexFit.loose,
+          fit: .loose,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: .start,
             children: [
               Text(
                 attachment.filename,

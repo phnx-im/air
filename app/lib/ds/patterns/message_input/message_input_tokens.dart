@@ -61,7 +61,7 @@ class MessageInputTokens {
   double get fieldInsetY {
     final line = (TextPainter(
       text: TextSpan(text: 'Ag', style: typeScale.body.regular.style()),
-      textDirection: TextDirection.ltr,
+      textDirection: .ltr,
     )..layout()).height;
     return ((buttonSize - line) / 2).clamp(0.0, double.infinity);
   }

@@ -75,21 +75,18 @@ class IntroScreen extends HookWidget {
         child: GestureDetector(
           // The mark is the only way into the developer surface before login,
           // and the glyph leaves gaps a tap would fall through.
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: onLogoTap,
           child: SvgPicture.asset(
             'assets/images/logo.svg',
-            colorFilter: ColorFilter.mode(
-              palette.text.primary,
-              BlendMode.srcIn,
-            ),
+            colorFilter: ColorFilter.mode(palette.text.primary, .srcIn),
           ),
         ),
       ),
       footer: showOnboarding
           ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: .min,
+              crossAxisAlignment: .stretch,
               children: [
                 _TermsOfUseText(loc: loc),
                 const SizedBox(height: S.s16),
@@ -156,7 +153,7 @@ class _LanguagePicker extends StatelessWidget {
           surface: NuxScaffoldTokens.surface(context),
           onTap: onTap,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               Container(
                 width: 36,
@@ -164,7 +161,7 @@ class _LanguagePicker extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: palette.backgroundBase.tertiary,
-                  shape: BoxShape.circle,
+                  shape: .circle,
                 ),
                 child: AppIcon.globe(color: palette.text.secondary, size: 18),
               ),
@@ -199,7 +196,7 @@ class _TermsOfUseText extends StatelessWidget {
     final linkStart = agreement.indexOf(linkText);
 
     if (linkStart == -1) {
-      return Text(agreement, style: baseTextStyle, textAlign: TextAlign.center);
+      return Text(agreement, style: baseTextStyle, textAlign: .center);
     }
 
     final beforeLink = agreement.substring(0, linkStart);
@@ -228,7 +225,7 @@ class _TermsOfUseText extends StatelessWidget {
           TextSpan(text: afterLink),
         ],
       ),
-      textAlign: TextAlign.center,
+      textAlign: .center,
     );
   }
 }

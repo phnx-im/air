@@ -31,16 +31,16 @@ class _MuteDurationContent extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         Text(
           loc.muteDurationSheet_title,
           style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
+            fontWeight: .bold,
             color: palette.text.primary,
           ),
-          textAlign: TextAlign.center,
+          textAlign: .center,
         ),
         const SizedBox(height: S.s16),
         Text(
@@ -49,7 +49,7 @@ class _MuteDurationContent extends StatelessWidget {
             color: palette.text.secondary,
             height: 1.4,
           ),
-          textAlign: TextAlign.center,
+          textAlign: .center,
         ),
         const SizedBox(height: S.s24),
         _DurationOption(

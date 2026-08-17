@@ -155,7 +155,7 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
   Widget build(BuildContext context) {
     final tokens = widget.tokens;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         SizedBox(height: tokens.headerHeight, child: _header(context)),
         SizedBox(height: tokens.headerGap),
@@ -173,7 +173,7 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
             tokens: SearchFieldTokens.current,
             hintText: widget.searchHint,
             autofocus: widget.autofocus,
-            textInputAction: TextInputAction.search,
+            textInputAction: .search,
             onChanged: widget.onQueryChanged,
           ),
         ),
@@ -283,7 +283,7 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: () => widget.onSelected?.call(entry.glyph),
         onLongPressStart: entry.tones.isEmpty
             ? null
@@ -366,10 +366,7 @@ class _ToneButton extends StatelessWidget {
       borderRadius: ReactionEmojiMenuTokens.toneButtonRadius,
       surface: palette.fill.tertiary,
       background: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.fill.tertiary,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: palette.fill.tertiary, shape: .circle),
       ),
       onTap: () {
         final box = context.findRenderObject();
@@ -472,7 +469,7 @@ class _TonePickerPage extends StatelessWidget {
     // Center keeps the card on the viewport's axis at any size, without having
     // to guess how wide it came out.
     return Material(
-      type: MaterialType.transparency,
+      type: .transparency,
       child: Stack(
         children: [
           Positioned(
@@ -536,10 +533,10 @@ class _ToneCard extends StatelessWidget {
       child: DefaultTextStyle.merge(
         style: typeScale.body.s.style(color: palette.text.primary),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: [
                 for (var i = 0; i < options.length; i++) ...[
                   if (i > 0)
@@ -600,7 +597,7 @@ class _ToneSwatch extends StatelessWidget {
           ? DecoratedBox(
               decoration: BoxDecoration(
                 color: palette.fill.tertiary,
-                shape: BoxShape.circle,
+                shape: .circle,
               ),
             )
           : null,

@@ -123,7 +123,7 @@ class _ModalPageStackState extends State<ModalPageStack>
   }
 
   void _onTravelled(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
+    if (status != .completed) return;
     setState(() => _transition = null);
   }
 
@@ -209,7 +209,7 @@ class _ModalPageStackState extends State<ModalPageStack>
     return KeyedSubtree(
       key: _identityOf(page.key),
       child: Material(
-        type: MaterialType.canvas,
+        type: .canvas,
         color: ModalShellTokens.surface(context),
         child: ModalPageActions(
           onBack: canGoBack && page.canGoBack ? widget.onBack : null,

@@ -28,7 +28,7 @@ class NuxPill extends StatelessWidget {
     final content = Padding(
       padding: const EdgeInsets.only(right: S.s16),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           SizedBox.square(
             dimension: _glyphBox,

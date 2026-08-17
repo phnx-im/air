@@ -130,14 +130,14 @@ class HomeScreenDesktopLayout extends StatelessWidget {
           onResizeEnd: (width) => onResizeEnd(context, width),
           panelBuilder: (context, width) => Container(
             margin: const EdgeInsets.symmetric(vertical: _windowInset),
-            clipBehavior: Clip.antiAlias,
+            clipBehavior: .antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_groupRadius),
             ),
             // Stretched so a pane that shrink-wraps its content (a short menu,
             // say) still paints its surface over the whole group height.
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: [
                 const AppSidebar(),
                 // A hairline of window color separates the rail from the

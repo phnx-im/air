@@ -99,7 +99,7 @@ void main() {
     });
 
     testWidgets('buttons render correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
@@ -128,9 +128,7 @@ void main() {
         await tester.pumpWidget(hoverSubject(button));
         final resting = tester.getRect(find.text(label)).width;
 
-        final pointer = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final pointer = await tester.createGesture(kind: .mouse);
         await pointer.addPointer(location: Offset.zero);
         addTearDown(pointer.removePointer);
 

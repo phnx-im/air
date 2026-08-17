@@ -70,7 +70,7 @@ class NuxScaffold extends StatelessWidget {
     }
 
     return Material(
-      type: MaterialType.canvas,
+      type: .canvas,
       color: NuxScaffoldTokens.surface(context),
       child: SafeArea(
         // No scaffold resizes for the keyboard here. Insetting the whole

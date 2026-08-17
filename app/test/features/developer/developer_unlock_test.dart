@@ -101,7 +101,7 @@ class _UnlockHost extends HookWidget {
     final unlock = useDeveloperUnlock();
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => onTapped(unlock()),
       child: const SizedBox(width: 100, height: 100),
     );
