@@ -137,10 +137,6 @@ def apple_build(platform, with_signing:, api_key:)
   sh "just flutter build #{target[:flutter_target]} --flavor production " \
      "--config-only #{flutter_options.join(' ')} --build-number=#{build_number}"
 
-  cocoapods(
-    podfile: "#{target[:xcode_dir]}/Podfile"
-  )
-
   xcode_options = {
     workspace: "#{target[:xcode_dir]}/Runner.xcworkspace",
     scheme: "Runner",
