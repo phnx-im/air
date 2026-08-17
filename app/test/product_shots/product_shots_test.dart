@@ -157,7 +157,7 @@ void main() {
                   child: MediaQuery(
                     data: MediaQuery.of(
                       context,
-                    ).copyWith(platformBrightness: Brightness.light),
+                    ).copyWith(platformBrightness: .light),
                     child: shot,
                   ),
                 ),
@@ -316,7 +316,7 @@ void main() {
                     child: MediaQuery(
                       data: MediaQuery.of(
                         context,
-                      ).copyWith(platformBrightness: Brightness.light),
+                      ).copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -455,7 +455,7 @@ void main() {
                     child: MediaQuery(
                       data: MediaQuery.of(
                         context,
-                      ).copyWith(platformBrightness: Brightness.light),
+                      ).copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -624,7 +624,7 @@ void main() {
                   child: MediaQuery(
                     data: MediaQuery.of(
                       context,
-                    ).copyWith(platformBrightness: Brightness.light),
+                    ).copyWith(platformBrightness: .light),
                     child: shot,
                   ),
                 ),

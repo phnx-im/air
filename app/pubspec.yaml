@@ -58,6 +58,7 @@ dependencies:
 
 dev_dependencies:
   args: ^2.5.0
+  dot_shorthand_converter: ^0.0.4
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

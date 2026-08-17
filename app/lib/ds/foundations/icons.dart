@@ -246,288 +246,288 @@ class AppIcon extends StatelessWidget {
     required this.type,
     this.size,
     this.color,
-    this.fit = BoxFit.contain,
+    this.fit = .contain,
     this.alignment = Alignment.center,
   });
 
   const AppIcon.arrowLeft({super.key, this.size, this.color})
     : type = AppIconType.arrowLeft,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.arrowRight({super.key, this.size, this.color})
     : type = AppIconType.arrowRight,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.arrowUp({super.key, this.size, this.color})
     : type = AppIconType.arrowUp,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.ban({super.key, this.size, this.color})
     : type = AppIconType.ban,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.bellOff({super.key, this.size, this.color})
     : type = AppIconType.bellOff,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.bell({super.key, this.size, this.color})
     : type = AppIconType.bell,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.camera({super.key, this.size, this.color})
     : type = AppIconType.camera,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.checkCheckFill({super.key, this.size, this.color})
     : type = AppIconType.checkCheckFill,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.checkCheck({super.key, this.size, this.color})
     : type = AppIconType.checkCheck,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.check({super.key, this.size, this.color})
     : type = AppIconType.check,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.chevronDown({super.key, this.size, this.color})
     : type = AppIconType.chevronDown,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.chevronLeft({super.key, this.size, this.color})
     : type = AppIconType.chevronLeft,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.chevronRight({super.key, this.size, this.color})
     : type = AppIconType.chevronRight,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.circleAlert({super.key, this.size, this.color})
     : type = AppIconType.circleAlert,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.circleDashed({super.key, this.size, this.color})
     : type = AppIconType.circleDashed,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.circleHelp({super.key, this.size, this.color})
     : type = AppIconType.circleHelp,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.copy({super.key, this.size, this.color})
     : type = AppIconType.copy,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.cornerLeft({super.key, this.size, this.color})
     : type = AppIconType.cornerLeft,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.download({super.key, this.size, this.color})
     : type = AppIconType.download,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.ellipsis({super.key, this.size, this.color})
     : type = AppIconType.ellipsis,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.fileDown({super.key, this.size, this.color})
     : type = AppIconType.fileDown,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.fileText({super.key, this.size, this.color})
     : type = AppIconType.fileText,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.fileUp({super.key, this.size, this.color})
     : type = AppIconType.fileUp,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.globe({super.key, this.size, this.color})
     : type = AppIconType.globe,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.imageOff({super.key, this.size, this.color})
     : type = AppIconType.imageOff,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.imagePlus({super.key, this.size, this.color})
     : type = AppIconType.imagePlus,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.image({super.key, this.size, this.color})
     : type = AppIconType.image,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.key({super.key, this.size, this.color})
     : type = AppIconType.key,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.laptop({super.key, this.size, this.color})
     : type = AppIconType.laptop,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.logOut({super.key, this.size, this.color})
     : type = AppIconType.logOut,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.messageCircle({super.key, this.size, this.color})
     : type = AppIconType.messageCircle,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.paperclip({super.key, this.size, this.color})
     : type = AppIconType.paperclip,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.pencil({super.key, this.size, this.color})
     : type = AppIconType.pencil,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.plus({super.key, this.size, this.color})
     : type = AppIconType.plus,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.qrCode({super.key, this.size, this.color})
     : type = AppIconType.qrCode,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.refreshCcw({super.key, this.size, this.color})
     : type = AppIconType.refreshCcw,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.refreshCw({super.key, this.size, this.color})
     : type = AppIconType.refreshCw,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.repeat({super.key, this.size, this.color})
     : type = AppIconType.repeat,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.rotateCw({super.key, this.size, this.color})
     : type = AppIconType.rotateCw,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.search({super.key, this.size, this.color})
     : type = AppIconType.search,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.send({super.key, this.size, this.color})
     : type = AppIconType.send,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.settings({super.key, this.size, this.color})
     : type = AppIconType.settings,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.share({super.key, this.size, this.color})
     : type = AppIconType.share,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.shield({super.key, this.size, this.color})
     : type = AppIconType.shield,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.smartphone({super.key, this.size, this.color})
     : type = AppIconType.smartphone,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.smilePlus({super.key, this.size, this.color})
     : type = AppIconType.smilePlus,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.squareCheck({super.key, this.size, this.color})
     : type = AppIconType.squareCheck,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.squarePen({super.key, this.size, this.color})
     : type = AppIconType.squarePen,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.squareTerminal({super.key, this.size, this.color})
     : type = AppIconType.squareTerminal,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.square({super.key, this.size, this.color})
     : type = AppIconType.square,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.tag({super.key, this.size, this.color})
     : type = AppIconType.tag,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.trash({super.key, this.size, this.color})
     : type = AppIconType.trash,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.upload({super.key, this.size, this.color})
     : type = AppIconType.upload,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.user({super.key, this.size, this.color})
     : type = AppIconType.user,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.users({super.key, this.size, this.color})
     : type = AppIconType.users,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   const AppIcon.x({super.key, this.size, this.color})
     : type = AppIconType.x,
-      fit = BoxFit.contain,
+      fit = .contain,
       alignment = Alignment.center;
 
   final AppIconType type;
@@ -545,7 +545,7 @@ class AppIcon extends StatelessWidget {
       height: size,
       fit: fit,
       alignment: alignment,
-      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      colorFilter: ColorFilter.mode(color, .srcIn),
     );
   }
 }

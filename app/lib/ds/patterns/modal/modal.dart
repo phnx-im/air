@@ -13,7 +13,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 /// The surface a modal's content sits on: a card anchored to the top of the
@@ -67,7 +67,7 @@ class ModalShell extends StatelessWidget {
             color: surface,
             borderRadius: BorderRadius.circular(tokens.cardRadius),
           ),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: .antiAlias,
           child: child,
         ),
       ),
@@ -168,7 +168,7 @@ class DialogHeader extends StatelessWidget {
             middle: Text(
               title,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.regular.style(
                 color: palette.text.primary,
                 weight: Weight.emphasized,
@@ -250,7 +250,7 @@ class _ModalSurfaceState extends State<ModalSurface> {
       unsaved: _unsaved,
       child: ModalShell(
         tokens: ModalShellTokens.of(context),
-        child: Material(type: MaterialType.transparency, child: widget.child),
+        child: Material(type: .transparency, child: widget.child),
       ),
     );
   }
@@ -363,7 +363,7 @@ class _ModalPaneState extends State<ModalPane> {
   bool _track(int depth, ScrollMetrics metrics) {
     // A scrollable nested inside a row reports through here too, at a depth
     // below the one this fade stands for.
-    if (depth == 0 && metrics.axis == Axis.vertical) {
+    if (depth == 0 && metrics.axis == .vertical) {
       _edges.value = ScrollEdges.of(metrics);
     }
     return false;
@@ -375,7 +375,7 @@ class _ModalPaneState extends State<ModalPane> {
     final fullBleed = ModalShellTokens.isFullBleed(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         _header(context),
         // Flexible keeps a scrolling body hugging its content, so the card

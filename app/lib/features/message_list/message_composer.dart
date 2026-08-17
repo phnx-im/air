@@ -612,8 +612,8 @@ class _EditBanner extends StatelessWidget {
         TextSpan(
           children: [
             WidgetSpan(
-              alignment: PlaceholderAlignment.baseline,
-              baseline: TextBaseline.alphabetic,
+              alignment: .baseline,
+              baseline: .alphabetic,
               child: AppIcon.pencil(size: S.s12, color: palette.text.tertiary),
             ),
             const WidgetSpan(child: SizedBox(width: S.s8)),
@@ -693,7 +693,7 @@ class _ComposerField extends StatelessWidget {
         controller: controller,
         style: typeScale.body.regular
             .style(color: palette.text.primary)
-            .copyWith(leadingDistribution: TextLeadingDistribution.even),
+            .copyWith(leadingDistribution: .even),
         minLines: 1,
         maxLines: 10,
         enabled: isConfirmedChat,
@@ -701,18 +701,16 @@ class _ComposerField extends StatelessWidget {
           hintText: loc.composer_inputHint(chatTitle ?? ""),
           hintStyle: TextStyle(
             color: palette.text.tertiary,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
           ),
         ).copyWith(isCollapsed: true, hintMaxLines: 1),
         contextMenuBuilder: _contextMenuBuilder,
-        textInputAction: sendOnEnter
-            ? TextInputAction.send
-            : TextInputAction.newline,
+        textInputAction: sendOnEnter ? .send : .newline,
         onEditingComplete: sendOnEnter
             ? onSubmitMessage
             : () => focusNode.requestFocus(),
         keyboardType: TextInputType.multiline,
-        textCapitalization: TextCapitalization.sentences,
+        textCapitalization: .sentences,
         contentInsertionConfiguration: ContentInsertionConfiguration(
           allowedMimeTypes: const [
             'image/gif',

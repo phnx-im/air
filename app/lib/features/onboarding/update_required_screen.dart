@@ -56,12 +56,12 @@ class UpdateRequiredView extends StatelessWidget {
         width: 104,
         child: SvgPicture.asset(
           'assets/images/logo.svg',
-          colorFilter: ColorFilter.mode(palette.text.primary, BlendMode.srcIn),
+          colorFilter: ColorFilter.mode(palette.text.primary, .srcIn),
         ),
       ),
       footer: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: .min,
+        crossAxisAlignment: .stretch,
         children: [
           Text(
             loc.appOutdatedScreen_message,

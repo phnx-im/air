@@ -84,7 +84,7 @@ class MessageBubble extends StatelessWidget {
       decoration: decoration,
       // Clipped to the bubble's own corners, so full-bleed content needs no
       // radius of its own.
-      clipBehavior: decoration == null ? Clip.none : Clip.antiAlias,
+      clipBehavior: decoration == null ? .none : .antiAlias,
       child: child,
     );
 
