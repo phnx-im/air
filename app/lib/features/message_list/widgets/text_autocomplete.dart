@@ -3,11 +3,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:math';
 
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+
+/// Gap between the caret and the overlay's left edge.
+const _caretGap = S.s24;
+
+/// Gap between the caret and the overlay's bottom edge.
+const _caretRise = S.s12;
+
+/// Smallest gap kept between the overlay and the safe area edges.
+const _viewportMargin = S.s8;
 
 /// Represents a token in the text field that should be autocompleted.
 class AutocompleteTrigger {
@@ -262,8 +273,43 @@ class TextAutocompleteController<T> {
       caretRect.topRight,
       ancestor: fieldBox,
     );
-    final overlaySize = _overlayController.overlaySize;
-    return caretInField + Offset(24.0, -overlaySize.height - 12.0);
+    final desired = caretInField + const Offset(_caretGap, -_caretRise);
+    return _clampIntoView(desired, fieldBox, _overlayController.overlaySize);
+  }
+
+  /// Pull [desired] back so the overlay box stays inside the safe area.
+  ///
+  /// Takes and returns offsets in the input field's coordinate space, which is
+  /// what the overlay's [CompositedTransformFollower] anchors against. Both
+  /// position the overlay's bottom left corner, matching its follower anchor.
+  Offset _clampIntoView(Offset desired, RenderBox fieldBox, Size overlaySize) {
+    final context = _contextProvider();
+    if (!context.mounted) {
+      return desired;
+    }
+    final screen = MediaQuery.sizeOf(context);
+    // viewPadding rather than padding, since an enclosing SafeArea may already
+    // have consumed the latter while we reason in global coordinates.
+    final inset = MediaQuery.viewPaddingOf(context);
+
+    // Range the overlay's bottom left corner may occupy, in global
+    // coordinates. Only the two clamped edges need the measured size, so a
+    // stale one can no longer shift an overlay that already fits.
+    final minX = inset.left + _viewportMargin;
+    final minY = inset.top + _viewportMargin + overlaySize.height;
+    final maxX =
+        screen.width - inset.right - _viewportMargin - overlaySize.width;
+    final maxY = screen.height - inset.bottom - _viewportMargin;
+
+    // An overlay bigger than the safe area leaves no valid position, so favour
+    // the top left corner instead of letting clamp assert on an empty range.
+    final origin = fieldBox.localToGlobal(Offset.zero);
+    final global = origin + desired;
+    return Offset(
+          global.dx.clamp(minX, max(minX, maxX)),
+          global.dy.clamp(minY, max(minY, maxY)),
+        ) -
+        origin;
   }
 
   /// Find the RenderEditable that backs the focused text field.
