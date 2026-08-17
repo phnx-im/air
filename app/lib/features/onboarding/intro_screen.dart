@@ -36,9 +36,12 @@ class IntroScreen extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUserLoading = context.select((LoadableUserCubit cubit) {
-      return cubit.state is LoadingUser;
-    });
+    final showOnboarding = context.select(
+      (LoadableUserCubit cubit) => switch (cubit.state) {
+        UnloadedUser() || UnloadingUser() => true,
+        LoadingUser() || LoadedUser() => false,
+      },
+    );
 
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
@@ -83,9 +86,8 @@ class IntroScreen extends HookWidget {
           ),
         ),
       ),
-      footer: isUserLoading
-          ? null
-          : Column(
+      footer: showOnboarding
+          ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -119,7 +121,8 @@ class IntroScreen extends HookWidget {
                   },
                 ),
               ],
-            ),
+            )
+          : null,
     );
   }
 }
