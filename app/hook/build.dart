@@ -5,9 +5,19 @@
 // ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
+// The native-assets hook protocol does not carry the Flutter build mode
+// (debug/profile/release). However, the flutter tool enables link hooks only
+// for AOT builds, so `linkingEnabled` is false exactly for debug builds and
+// true for profile and release.
+FlutterRustBridgeBuildMode _rustBuildMode({required bool linkingEnabled}) =>
+    linkingEnabled
+    ? FlutterRustBridgeBuildMode.release
+    : FlutterRustBridgeBuildMode.debug;
+
 void main(List<String> args) async {
   await build(args, (input, output) async {
-    await const FlutterRustBridgeNativeAssetsBuilder(
+    await FlutterRustBridgeNativeAssetsBuilder(
+      buildMode: _rustBuildMode(linkingEnabled: input.config.linkingEnabled),
       cratePath: '../applogic',
       // Must match `dart_output: lib/core` in flutter_rust_bridge.yaml (the
       // default assumes the scaffold's lib/src/rust). This is the code asset
@@ -27,9 +37,9 @@ void main(List<String> args) async {
         // to build the lib before the NotificationService extension links it)
         // rather than Runner, the floor is wrong and the C objects and the Rust
         // cdylib disagree, failing to link with undefined `___chkstk_darwin`.
-        // Pin it to Flutter's hardcoded native-assets targetIOSVersion (13).
+        // Pin it to Flutter's hardcoded native-assets targetIOSVersion (15).
         // Non-iOS/macOS toolchains ignore it, so this is safe unconditionally.
-        'IPHONEOS_DEPLOYMENT_TARGET': '13.0',
+        'IPHONEOS_DEPLOYMENT_TARGET': '15.0',
       },
     ).run(input: input, output: output);
   });
