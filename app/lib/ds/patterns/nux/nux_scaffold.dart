@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 /// The frame every signed-out screen sits in.

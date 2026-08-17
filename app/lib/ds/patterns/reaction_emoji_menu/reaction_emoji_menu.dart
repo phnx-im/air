@@ -13,9 +13,7 @@ import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu_tokens.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart'
-    show Material, MaterialLocalizations, MaterialType;
-import 'package:flutter/services.dart' show TextInputAction;
+import 'package:flutter/material.dart' show Material, MaterialLocalizations;
 import 'package:flutter/widgets.dart';
 
 /// One emoji in the grid, in the tone it should read in.

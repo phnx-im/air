@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:ui' show BlurStyle, ImageFilter, MaskFilter;
+import 'dart:ui' show ImageFilter, MaskFilter;
 
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
