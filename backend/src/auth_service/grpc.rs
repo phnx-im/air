@@ -10,6 +10,7 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::MissingFieldExt,
 };
+use chrono::Utc;
 use displaydoc::Display;
 use futures_util::stream::BoxStream;
 use metrics::counter;
@@ -532,7 +533,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let token_response = self
             .inner
-            .as_issue_tokens(&user_id, operation_type, token_request)
+            .as_issue_tokens(&user_id, operation_type, token_request, Utc::now())
             .await?
             .tls_serialize_detached()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
@@ -562,6 +563,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 operation_type,
                 payload.allowance_epoch,
                 &payload.token_request,
+                Utc::now(),
             )
             .await?
         {
@@ -879,6 +881,7 @@ mod tests {
         },
         common::v1::{StatusDetails, StatusDetailsCode},
     };
+    use chrono::Utc;
     use privacypass::{
         amortized_tokens::AmortizedBatchTokenRequest,
         auth::authenticate::TokenChallenge,
@@ -951,6 +954,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await?;
 

@@ -64,6 +64,7 @@ impl AuthService {
         user_id: &UserId,
         operation_type: OperationType,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
+        now: DateTime<Utc>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         if OperationType::Unspecified == operation_type {
             return Err(IssueTokensError::BadRequest("unknown operation type"));
@@ -73,8 +74,6 @@ impl AuthService {
         if tokens_requested == 0 {
             return Err(IssueTokensError::BadRequest("zero tokens requested"));
         }
-
-        let now = Utc::now();
 
         // Make sure the record immediately exists for any further request (preventing a first-issuance race)
         TokenAllowance::ensure_exists(self.db_pool(), user_id, operation_type, now).await?;
@@ -140,6 +139,7 @@ impl AuthService {
         operation_type: OperationType,
         allowance_epoch: u32,
         token_request_bytes: &[u8],
+        now: DateTime<Utc>,
     ) -> Result<TokenBatchIssuance, IssueTokenBatchError> {
         if OperationType::Unspecified == operation_type {
             return Err(IssueTokenBatchError::BadRequest("unknown operation type"));
@@ -157,7 +157,6 @@ impl AuthService {
             ));
         }
 
-        let now = Utc::now();
         if !epoch_is_acceptable(operation_type, now, allowance_epoch) {
             return Ok(TokenBatchIssuance::InvalidEpoch {
                 current_epoch: operation_type.allowance_epoch_at(now),
@@ -282,7 +281,7 @@ mod tests {
     use std::collections::HashMap;
 
     use airprotos::auth_service::v1::OperationType;
-    use chrono::Utc;
+    use chrono::{TimeDelta, TimeZone, Utc};
     use privacypass::{
         amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken, TokenState},
         auth::authenticate::TokenChallenge,
@@ -372,7 +371,12 @@ mod tests {
         let (token_request, token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
         let token_response = service
-            .as_issue_tokens(user_record.user_id(), operation_type, token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                operation_type,
+                token_request,
+                Utc::now(),
+            )
             .await?;
         let token = token_response
             .issue_tokens(&token_state)?
@@ -462,6 +466,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::AddUsername,
                 token_request,
+                Utc::now(),
             )
             .await?;
 
@@ -510,6 +515,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await?;
 
@@ -561,6 +567,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await;
         assert!(err.is_err());
@@ -590,6 +597,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await?;
 
@@ -601,6 +609,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await
             .unwrap_err();
@@ -643,6 +652,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await
             .unwrap_err();
@@ -661,6 +671,75 @@ mod tests {
         assert_eq!(
             tokens_available, 1,
             "one token remains in the current epoch"
+        );
+
+        Ok(())
+    }
+
+    /// Once the allowance window ends the counter starts over, and until then
+    /// the error tells the client how long is left of it.
+    #[sqlx::test]
+    async fn issue_tokens_resets_allowance_after_rollover(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let operation_type = OperationType::GetInviteCode;
+        let public_key = *public_keys.get(&operation_type).unwrap();
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let challenge = build_challenge();
+        let request = || {
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)
+                .map(|(request, _)| request)
+        };
+
+        // Draws the single token of the window starting here.
+        let opened_at = Utc.with_ymd_and_hms(2026, 8, 4, 12, 0, 0).unwrap();
+        service
+            .as_issue_tokens(user_record.user_id(), operation_type, request()?, opened_at)
+            .await?;
+
+        // An hour before the window ends there is nothing left to draw.
+        let err = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                operation_type,
+                request()?,
+                opened_at + TimeDelta::hours(23),
+            )
+            .await
+            .unwrap_err();
+        let IssueTokensError::TooManyTokensRequested {
+            retry_after_secs, ..
+        } = err
+        else {
+            panic!("expected TooManyTokensRequested, got {err:?}");
+        };
+        assert_eq!(retry_after_secs, TimeDelta::hours(1).num_seconds() as u64);
+
+        // Past the end of the window the allowance is back.
+        let rolled_over_at = opened_at + TimeDelta::days(1) + TimeDelta::seconds(1);
+        service
+            .as_issue_tokens(
+                user_record.user_id(),
+                operation_type,
+                request()?,
+                rolled_over_at,
+            )
+            .await?;
+
+        let allowance = TokenAllowance::load(&pool, user_record.user_id(), operation_type)
+            .await?
+            .expect("allowance record missing");
+        assert_eq!(
+            allowance.remaining, 0,
+            "the token of the new window was drawn"
+        );
+        assert_eq!(
+            allowance.valid_until,
+            rolled_over_at + TimeDelta::days(1),
+            "the window now runs from the request that reset it"
         );
 
         Ok(())
@@ -687,6 +766,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::AddUsername,
                 token_request,
+                Utc::now(),
             )
             .await?;
 
@@ -773,6 +853,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::AddUsername,
                 deserialized_request,
+                Utc::now(),
             )
             .await?;
 
@@ -931,8 +1012,6 @@ mod tests {
     /// it, but nothing further out.
     #[test]
     fn epoch_tolerance_spans_the_boundary() {
-        use chrono::TimeZone;
-
         let operation_type = OperationType::GetInviteCode;
         let accepts = |now, claimed| epoch_is_acceptable(operation_type, now, claimed);
 
@@ -986,13 +1065,26 @@ mod tests {
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
 
         let (request_bytes, token_state) = batch_request(public_key, operation_type)?;
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
 
         let first = service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &request_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &request_bytes,
+                now,
+            )
             .await?;
         let second = service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &request_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &request_bytes,
+                now,
+            )
             .await?;
 
         let TokenBatchIssuance::Issued(first) = first else {
@@ -1037,13 +1129,26 @@ mod tests {
         let (second_bytes, _) = batch_request(public_key, operation_type)?;
         assert_ne!(first_bytes, second_bytes);
 
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
         service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &first_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &first_bytes,
+                now,
+            )
             .await?;
 
         let outcome = service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &second_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &second_bytes,
+                now,
+            )
             .await?;
         let TokenBatchIssuance::Conflict = outcome else {
             panic!("expected Conflict, got {outcome:?}");
@@ -1066,7 +1171,8 @@ mod tests {
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
 
         let (request_bytes, _) = batch_request(public_key, operation_type)?;
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
 
         let outcome = service
             .as_issue_token_batch(
@@ -1074,6 +1180,7 @@ mod tests {
                 operation_type,
                 epoch + 5,
                 &request_bytes,
+                now,
             )
             .await?;
 
@@ -1082,6 +1189,134 @@ mod tests {
         };
         assert_eq!(current_epoch, epoch);
         assert_eq!(count_issuance_rows(&pool).await?, 0);
+
+        Ok(())
+    }
+
+    /// The next allowance epoch is a fresh batch under the same key, and the
+    /// epoch it replaced stops being claimable.
+    #[sqlx::test]
+    async fn issue_token_batch_grants_a_batch_per_epoch(pool: PgPool) -> anyhow::Result<()> {
+        let (service, _) = setup_with_keypair(&pool).await?;
+        let operation_type = OperationType::GetInviteCode;
+        let public_key = current_public_key(&pool, operation_type).await?;
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let now = Utc.with_ymd_and_hms(2026, 8, 4, 12, 0, 0).unwrap();
+        let next_day = now + TimeDelta::days(1);
+        let epoch = operation_type.allowance_epoch_at(now);
+        let next_epoch = operation_type.allowance_epoch_at(next_day);
+        assert_eq!(next_epoch, epoch + 1);
+
+        let (first_bytes, _) = batch_request(public_key, operation_type)?;
+        service
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &first_bytes,
+                now,
+            )
+            .await?;
+
+        let (second_bytes, token_state) = batch_request(public_key, operation_type)?;
+        let outcome = service
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                next_epoch,
+                &second_bytes,
+                next_day,
+            )
+            .await?;
+        let TokenBatchIssuance::Issued(response) = outcome else {
+            panic!("expected Issued, got {outcome:?}");
+        };
+        assert_eq!(
+            response.issue_tokens(&token_state)?.len(),
+            operation_type.max_tokens_allowance() as usize
+        );
+        assert_eq!(
+            count_issuance_rows(&pool).await?,
+            2,
+            "one row per epoch, both under the same key"
+        );
+
+        // A device that never learned of the rollover is told which epoch is
+        // current rather than served the old one again.
+        let (stale_bytes, _) = batch_request(public_key, operation_type)?;
+        let outcome = service
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &stale_bytes,
+                next_day,
+            )
+            .await?;
+        let TokenBatchIssuance::InvalidEpoch { current_epoch } = outcome else {
+            panic!("expected InvalidEpoch, got {outcome:?}");
+        };
+        assert_eq!(current_epoch, next_epoch);
+        assert_eq!(count_issuance_rows(&pool).await?, 2);
+
+        Ok(())
+    }
+
+    /// A retry that crosses an epoch boundary replays the batch it was already
+    /// given instead of drawing a second one under the new epoch.
+    #[sqlx::test]
+    async fn issue_token_batch_replays_across_the_epoch_boundary(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let (service, _) = setup_with_keypair(&pool).await?;
+        let operation_type = OperationType::GetInviteCode;
+        let public_key = current_public_key(&pool, operation_type).await?;
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let before_boundary = Utc.with_ymd_and_hms(2026, 8, 4, 23, 55, 0).unwrap();
+        let after_boundary = Utc.with_ymd_and_hms(2026, 8, 5, 0, 2, 0).unwrap();
+        let claimed_epoch = operation_type.allowance_epoch_at(before_boundary);
+        assert_eq!(
+            operation_type.allowance_epoch_at(after_boundary),
+            claimed_epoch + 1
+        );
+
+        let (request_bytes, token_state) = batch_request(public_key, operation_type)?;
+        let issue = |now| {
+            service.as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                claimed_epoch,
+                &request_bytes,
+                now,
+            )
+        };
+
+        let outcome = issue(before_boundary).await?;
+        let TokenBatchIssuance::Issued(response) = outcome else {
+            panic!("expected Issued, got {outcome:?}");
+        };
+        let tokens = serialize_tokens(&response.issue_tokens(&token_state)?)?;
+
+        // The client keeps claiming the epoch it built the request in. The
+        // tolerance accepts it, and it resolves to the row that already exists
+        // rather than opening one for the epoch the server has moved to.
+        let outcome = issue(after_boundary).await?;
+        let TokenBatchIssuance::Issued(response) = outcome else {
+            panic!("expected Issued, got {outcome:?}");
+        };
+        assert_eq!(
+            serialize_tokens(&response.issue_tokens(&token_state)?)?,
+            tokens
+        );
+        assert_eq!(count_issuance_rows(&pool).await?, 1);
 
         Ok(())
     }
@@ -1105,10 +1340,17 @@ mod tests {
             operation_type.max_tokens_allowance() - 1,
         )?;
         let request_bytes = request.tls_serialize_detached()?;
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
 
         let err = service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &request_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &request_bytes,
+                now,
+            )
             .await
             .unwrap_err();
         assert!(
@@ -1134,11 +1376,18 @@ mod tests {
         let _client_record =
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
 
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
         let old_key = current_public_key(&pool, operation_type).await?;
         let (old_bytes, _) = batch_request(old_key, operation_type)?;
         service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &old_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &old_bytes,
+                now,
+            )
             .await?;
 
         age_keys(&pool, operation_type, 91).await?;
@@ -1148,7 +1397,13 @@ mod tests {
         let new_key = current_public_key(&pool, operation_type).await?;
         let (new_bytes, token_state) = batch_request(new_key, operation_type)?;
         let outcome = service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &new_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &new_bytes,
+                now,
+            )
             .await?;
 
         let TokenBatchIssuance::Issued(response) = outcome else {
@@ -1221,10 +1476,17 @@ mod tests {
         let _client_record =
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
 
-        let epoch = operation_type.allowance_epoch_at(Utc::now());
+        let now = Utc::now();
+        let epoch = operation_type.allowance_epoch_at(now);
         let (batch_bytes, _) = batch_request(public_key, operation_type)?;
         service
-            .as_issue_token_batch(user_record.user_id(), operation_type, epoch, &batch_bytes)
+            .as_issue_token_batch(
+                user_record.user_id(),
+                operation_type,
+                epoch,
+                &batch_bytes,
+                now,
+            )
             .await?;
         assert_eq!(count_issuance_rows(&pool).await?, 1);
 
@@ -1232,7 +1494,12 @@ mod tests {
         let (token_request, _) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
         service
-            .as_issue_tokens(user_record.user_id(), operation_type, token_request)
+            .as_issue_tokens(
+                user_record.user_id(),
+                operation_type,
+                token_request,
+                Utc::now(),
+            )
             .await?;
 
         let allowance = TokenAllowance::load(&pool, user_record.user_id(), operation_type)
@@ -1265,6 +1532,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await;
 
