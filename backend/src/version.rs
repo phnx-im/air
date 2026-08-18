@@ -16,7 +16,7 @@ use tracing::error;
 
 use crate::settings::VersionExpiration;
 
-/// Cheaply-clonable version policy
+/// Cheaply-cloneable version policy
 ///
 /// [`Default]` implemenentation constructs an empty policy.
 #[derive(Debug, Clone, Default)]
@@ -118,7 +118,7 @@ impl VersionPolicy {
                 .ok()
         });
         let Some(version) = version else {
-            // A client wihtout a valid version cannot prove it is recent enough. Reject it once
+            // A client without a valid version cannot prove it is recent enough. Reject it once
             // some version has expired.
             if let Some(min_supported) = min_supported {
                 return Err(failed_version_precondition(
