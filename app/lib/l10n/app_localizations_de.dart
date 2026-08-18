@@ -191,7 +191,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String blockContactDialog_content(String displayName) {
-    return 'Du erhältst keine Nachrichten von $displayName, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder freigeben.';
+    return 'Du erhältst keine Nachrichten von $displayName, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder entsperren.';
   }
 
   @override
@@ -414,7 +414,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get usernameOnboarding_body =>
-      'Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.';
+      'Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder entfernen.';
 
   @override
   String get usernameOnboarding_syntax =>
@@ -1199,7 +1199,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Mitglied(er) konnten nicht hinzugefügt werden, da einer der Kontakte einen inkompatiblen Client hat';
 
   @override
-  String get leaveChatDialog_title => 'Chat verlassen';
+  String get leaveChatDialog_title => 'Gruppe verlassen';
 
   @override
   String leaveChatDialog_content(String chatName) {

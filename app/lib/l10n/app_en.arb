@@ -8,7 +8,7 @@
     "description": "Name of this language written in the language itself, listed in the language picker."
   },
 
-  "userSettingsScreen_title": "Profile and Settings",
+  "userSettingsScreen_title": "Profile and settings",
   "@userSettingsScreen_title": {
     "description": "Title of the profile and settings screen, opened from the You tab."
   },
@@ -138,7 +138,7 @@
     "description": "Button that unmutes notifications for a currently muted chat."
   },
 
-  "safetyCodeScreen_title": "Safety Code",
+  "safetyCodeScreen_title": "Safety code",
   "@safetyCodeScreen_title": {
     "description": "Title of the pane showing the safety code shared with one contact."
   },
@@ -301,11 +301,11 @@
   "@deleteContactButton_text": {
     "description": "Button on a contact's profile that starts deleting the contact."
   },
-  "deleteContactDialog_title": "Delete Air Contact",
+  "deleteContactDialog_title": "Delete Air contact",
   "@deleteContactDialog_title": {
     "description": "Title of the dialog confirming deletion of an Air contact."
   },
-  "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
+  "deleteContactDialog_content": "Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.",
   "@deleteContactDialog_content": {
     "description": "Body of the delete contact dialog. Warns that the chat and its history go too.",
     "placeholders": {
@@ -409,46 +409,46 @@
     }
   },
 
-  "invitationCodeScreen_header": "Enter invitation code",
+  "invitationCodeScreen_header": "Enter invite code",
   "@invitationCodeScreen_header": {
-    "description": "Header of the step asking for an invitation code during sign up."
+    "description": "Header of the step asking for an invite code during sign up."
   },
   "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
   "@invitationCodeScreen_subheader": {
     "description": "Explains that Air is invitation-only and where to get a code."
   },
-  "invitationCodeScreen_inputLabel": "Invitation code (required)",
+  "invitationCodeScreen_inputLabel": "Invite code (required)",
   "@invitationCodeScreen_inputLabel": {
-    "description": "Label of the invitation code field. The parenthesis marks the field as mandatory."
+    "description": "Label of the invite code field. The parenthesis marks the field as mandatory."
   },
-  "invitationCodeScreen_inputHint": "Enter your invitation code...",
+  "invitationCodeScreen_inputHint": "Enter your invite code...",
   "@invitationCodeScreen_inputHint": {
-    "description": "Placeholder of the invitation code field."
+    "description": "Placeholder of the invite code field."
   },
   "invitationCodeScreen_error_invalidLength": "Code must be 8 characters",
   "@invitationCodeScreen_error_invalidLength": {
-    "description": "Validation error when the invitation code is not exactly eight characters."
+    "description": "Validation error when the invite code is not exactly eight characters."
   },
   "invitationCodeScreen_actionButton": "Join Air",
   "@invitationCodeScreen_actionButton": {
-    "description": "Button that submits the invitation code and continues sign up."
+    "description": "Button that submits the invite code and continues sign up."
   },
-  "invitationCodeScreen_error_internal": "Failed to check invitation code: {error}",
+  "invitationCodeScreen_error_internal": "Failed to check invite code: {error}",
   "@invitationCodeScreen_error_internal": {
-    "description": "Error shown when checking the invitation code fails unexpectedly. The placeholder carries an untranslated technical message.",
+    "description": "Error shown when checking the invite code fails unexpectedly. The placeholder carries an untranslated technical message.",
     "placeholders": {
       "error": {
         "type": "String"
       }
     }
   },
-  "invitationCodeScreen_error_missing": "Invitation code is missing",
+  "invitationCodeScreen_error_missing": "Invite code is missing",
   "@invitationCodeScreen_error_missing": {
-    "description": "Validation error when the invitation code field is left empty."
+    "description": "Validation error when the invite code field is left empty."
   },
-  "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
+  "invitationCodeScreen_error_invalid": "Invalid invite code. Check your code, then try again.",
   "@invitationCodeScreen_error_invalid": {
-    "description": "Error shown when the server rejects the invitation code."
+    "description": "Error shown when the server rejects the invite code."
   },
 
   "invitationCodesScreen_title": "Invite codes",
@@ -467,7 +467,7 @@
   "@invitationCodesScreen_removeUsedCodes": {
     "description": "Button that clears already redeemed codes from the list."
   },
-  "invitationCodesScreen_empty": "No invitation codes available",
+  "invitationCodesScreen_empty": "No invite codes available",
   "@invitationCodesScreen_empty": {
     "description": "Empty state of the invite codes modal."
   },
@@ -560,7 +560,7 @@
   "@usernameOnboarding_header": {
     "description": "Header of the optional username step during sign up."
   },
-  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
+  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or remove usernames at any time in your profile.",
   "@usernameOnboarding_body": {
     "description": "Explains what usernames do and that they can be changed later. The blank line separates the two paragraphs."
   },

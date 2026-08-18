@@ -123,7 +123,7 @@ abstract class AppLocalizations {
   /// Title of the profile and settings screen, opened from the You tab.
   ///
   /// In en, this message translates to:
-  /// **'Profile and Settings'**
+  /// **'Profile and settings'**
   String get userSettingsScreen_title;
 
   /// Explains who can see the display name and profile picture. Sits under the profile section in profile and settings.
@@ -303,7 +303,7 @@ abstract class AppLocalizations {
   /// Title of the pane showing the safety code shared with one contact.
   ///
   /// In en, this message translates to:
-  /// **'Safety Code'**
+  /// **'Safety code'**
   String get safetyCodeScreen_title;
 
   /// Hint under the safety code telling the user they can tap it to copy.
@@ -483,13 +483,13 @@ abstract class AppLocalizations {
   /// Title of the dialog confirming deletion of an Air contact.
   ///
   /// In en, this message translates to:
-  /// **'Delete Air Contact'**
+  /// **'Delete Air contact'**
   String get deleteContactDialog_title;
 
   /// Body of the delete contact dialog. Warns that the chat and its history go too.
   ///
   /// In en, this message translates to:
-  /// **'Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.'**
+  /// **'Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.'**
   String deleteContactDialog_content(String displayName);
 
   /// Button that dismisses the delete contact dialog.
@@ -606,10 +606,10 @@ abstract class AppLocalizations {
   /// **'By creating an account, you agree to our {termsOfUseLink}.'**
   String introScreen_termsText(String termsOfUseLink);
 
-  /// Header of the step asking for an invitation code during sign up.
+  /// Header of the step asking for an invite code during sign up.
   ///
   /// In en, this message translates to:
-  /// **'Enter invitation code'**
+  /// **'Enter invite code'**
   String get invitationCodeScreen_header;
 
   /// Explains that Air is invitation-only and where to get a code.
@@ -618,46 +618,46 @@ abstract class AppLocalizations {
   /// **'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.'**
   String get invitationCodeScreen_subheader;
 
-  /// Label of the invitation code field. The parenthesis marks the field as mandatory.
+  /// Label of the invite code field. The parenthesis marks the field as mandatory.
   ///
   /// In en, this message translates to:
-  /// **'Invitation code (required)'**
+  /// **'Invite code (required)'**
   String get invitationCodeScreen_inputLabel;
 
-  /// Placeholder of the invitation code field.
+  /// Placeholder of the invite code field.
   ///
   /// In en, this message translates to:
-  /// **'Enter your invitation code...'**
+  /// **'Enter your invite code...'**
   String get invitationCodeScreen_inputHint;
 
-  /// Validation error when the invitation code is not exactly eight characters.
+  /// Validation error when the invite code is not exactly eight characters.
   ///
   /// In en, this message translates to:
   /// **'Code must be 8 characters'**
   String get invitationCodeScreen_error_invalidLength;
 
-  /// Button that submits the invitation code and continues sign up.
+  /// Button that submits the invite code and continues sign up.
   ///
   /// In en, this message translates to:
   /// **'Join Air'**
   String get invitationCodeScreen_actionButton;
 
-  /// Error shown when checking the invitation code fails unexpectedly. The placeholder carries an untranslated technical message.
+  /// Error shown when checking the invite code fails unexpectedly. The placeholder carries an untranslated technical message.
   ///
   /// In en, this message translates to:
-  /// **'Failed to check invitation code: {error}'**
+  /// **'Failed to check invite code: {error}'**
   String invitationCodeScreen_error_internal(String error);
 
-  /// Validation error when the invitation code field is left empty.
+  /// Validation error when the invite code field is left empty.
   ///
   /// In en, this message translates to:
-  /// **'Invitation code is missing'**
+  /// **'Invite code is missing'**
   String get invitationCodeScreen_error_missing;
 
-  /// Error shown when the server rejects the invitation code.
+  /// Error shown when the server rejects the invite code.
   ///
   /// In en, this message translates to:
-  /// **'Invalid invitation code. Check your code, then try again.'**
+  /// **'Invalid invite code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
 
   /// Title of the modal listing the invite codes the user can share.
@@ -687,7 +687,7 @@ abstract class AppLocalizations {
   /// Empty state of the invite codes modal.
   ///
   /// In en, this message translates to:
-  /// **'No invitation codes available'**
+  /// **'No invite codes available'**
   String get invitationCodesScreen_empty;
 
   /// First paragraph explaining why invite codes exist.
@@ -801,7 +801,7 @@ abstract class AppLocalizations {
   /// Explains what usernames do and that they can be changed later. The blank line separates the two paragraphs.
   ///
   /// In en, this message translates to:
-  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
+  /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or remove usernames at any time in your profile.'**
   String get usernameOnboarding_body;
 
   /// States which characters a username may contain and its minimum length.

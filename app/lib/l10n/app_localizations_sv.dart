@@ -107,7 +107,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactDetailsScreen_chat => 'Chatt';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
+  String get contactDetailsScreen_viewSafetyCode => 'Säkerhetskod';
 
   @override
   String get contactDetailsScreen_mute => 'Tysta';
@@ -219,21 +219,21 @@ class AppLocalizationsSv extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Avblockera';
 
   @override
-  String get deleteContactButton_text => 'Ta bort';
+  String get deleteContactButton_text => 'Radera';
 
   @override
-  String get deleteContactDialog_title => 'Ta bort Air-kontakt';
+  String get deleteContactDialog_title => 'Radera Air-kontakt';
 
   @override
   String deleteContactDialog_content(String displayName) {
-    return 'Är du säker på att du vill ta bort din Air-kontakt $displayName? Om du gör det raderas chatten och dess meddelandehistorik.';
+    return 'Är du säker på att du vill radera din Air-kontakt $displayName? Om du gör det raderas chatten och dess meddelandehistorik.';
   }
 
   @override
   String get deleteContactDialog_cancel => 'Avbryt';
 
   @override
-  String get deleteContactDialog_delete => 'Ta bort';
+  String get deleteContactDialog_delete => 'Radera';
 
   @override
   String get addContactDialog_title => 'Lägg till Air-kontakt';

@@ -82,7 +82,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
 
   @override
-  String get removeUsernameDialog_title => 'Supprimer le nom d\'utilisateur ?';
+  String get removeUsernameDialog_title => 'Retirer le nom d\'utilisateur ?';
 
   @override
   String get removeUsernameDialog_content =>
@@ -92,7 +92,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUsernameDialog_cancel => 'Annuler';
 
   @override
-  String get removeUsernameDialog_remove => 'Supprimer';
+  String get removeUsernameDialog_remove => 'Retirer';
 
   @override
   String get userSettingsScreen_usernamePlaceholder => 'Nom d\'utilisateur';
@@ -342,7 +342,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invitationCodesScreen_removeUsedCodes =>
-      'Supprimer les codes utilisés';
+      'Retirer les codes utilisés';
 
   @override
   String get invitationCodesScreen_empty =>
@@ -419,7 +419,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get usernameOnboarding_body =>
-      'Les noms d\'utilisateur sont là pour se connecter sur Air. Ils ne sont plus visibles pour les autres une fois connecté.\n\nVous pouvez ajouter, modifier ou supprimer des noms d\'utilisateur à tout moment dans votre profil.';
+      'Les noms d\'utilisateur sont là pour se connecter sur Air. Ils ne sont plus visibles pour les autres une fois connecté.\n\nVous pouvez ajouter, modifier ou retirer des noms d\'utilisateur à tout moment dans votre profil.';
 
   @override
   String get usernameOnboarding_syntax =>
@@ -609,7 +609,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_warning =>
-      'Les appareils que vous associez auront un accès complet à votre compte Air (y compris la possibilité d\'ajouter ou de supprimer des appareils - même celui-ci). N\'associez que des appareils de confiance.';
+      'Les appareils que vous associez auront un accès complet à votre compte Air (y compris la possibilité d\'ajouter ou de retirer des appareils - même celui-ci). N\'associez que des appareils de confiance.';
 
   @override
   String get linkedDevicesScreen_linkDialog_numericCodeInstructions =>
@@ -782,7 +782,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'Ce client a été ajouté au chat après l\'association.';
+      'Ce client a été ajouté à la discussion après l\'association.';
 
   @override
   String get timestamp_now => 'Maintenant';
@@ -929,7 +929,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get composer_error_attachment =>
-      'Échec du téléchargement de la pièce jointe. Veuillez réessayer.';
+      'Échec de l\'importation de la pièce jointe. Veuillez réessayer.';
 
   @override
   String composer_error_attachment_too_large(
@@ -1138,7 +1138,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get contactUsScreen_errorUploadingLogs =>
-      'Impossible de téléverser les journaux';
+      'Impossible d\'importer les journaux';
 
   @override
   String get groupDetails_title => 'Détails du groupe';
@@ -1206,7 +1206,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible d\'ajouter le(s) membre(s) car l\'un des contacts a un client incompatible';
 
   @override
-  String get leaveChatDialog_title => 'Quitter la discussion';
+  String get leaveChatDialog_title => 'Quitter le groupe';
 
   @override
   String leaveChatDialog_content(String chatName) {
@@ -1332,7 +1332,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get messageList_reactions_react => 'Réagir';
 
   @override
-  String get messageList_reactions_remove => 'Supprimer';
+  String get messageList_reactions_remove => 'Retirer';
 
   @override
   String get messageList_reactions_you => 'Vous';

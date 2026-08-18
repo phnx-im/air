@@ -21,7 +21,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageName => 'English';
 
   @override
-  String get userSettingsScreen_title => 'Profile and Settings';
+  String get userSettingsScreen_title => 'Profile and settings';
 
   @override
   String get userSettingsScreen_profileDescription =>
@@ -116,7 +116,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactDetailsScreen_unmute => 'Unmute';
 
   @override
-  String get safetyCodeScreen_title => 'Safety Code';
+  String get safetyCodeScreen_title => 'Safety code';
 
   @override
   String get safetyCodeScreen_tapToCopy => 'Tap to copy';
@@ -221,11 +221,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteContactButton_text => 'Delete';
 
   @override
-  String get deleteContactDialog_title => 'Delete Air Contact';
+  String get deleteContactDialog_title => 'Delete Air contact';
 
   @override
   String deleteContactDialog_content(String displayName) {
-    return 'Are you sure you want to delete your Air Contact $displayName? If you do, the chat and its message history will be deleted.';
+    return 'Are you sure you want to delete your Air contact $displayName? If you do, the chat and its message history will be deleted.';
   }
 
   @override
@@ -291,17 +291,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get invitationCodeScreen_header => 'Enter invitation code';
+  String get invitationCodeScreen_header => 'Enter invite code';
 
   @override
   String get invitationCodeScreen_subheader =>
       'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.';
 
   @override
-  String get invitationCodeScreen_inputLabel => 'Invitation code (required)';
+  String get invitationCodeScreen_inputLabel => 'Invite code (required)';
 
   @override
-  String get invitationCodeScreen_inputHint => 'Enter your invitation code...';
+  String get invitationCodeScreen_inputHint => 'Enter your invite code...';
 
   @override
   String get invitationCodeScreen_error_invalidLength =>
@@ -312,15 +312,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String invitationCodeScreen_error_internal(String error) {
-    return 'Failed to check invitation code: $error';
+    return 'Failed to check invite code: $error';
   }
 
   @override
-  String get invitationCodeScreen_error_missing => 'Invitation code is missing';
+  String get invitationCodeScreen_error_missing => 'Invite code is missing';
 
   @override
   String get invitationCodeScreen_error_invalid =>
-      'Invalid invitation code. Check your code, then try again.';
+      'Invalid invite code. Check your code, then try again.';
 
   @override
   String get invitationCodesScreen_title => 'Invite codes';
@@ -335,7 +335,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invitationCodesScreen_removeUsedCodes => 'Remove used codes';
 
   @override
-  String get invitationCodesScreen_empty => 'No invitation codes available';
+  String get invitationCodesScreen_empty => 'No invite codes available';
 
   @override
   String get invitationCodesScreen_infoText1 =>
@@ -406,7 +406,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get usernameOnboarding_body =>
-      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.';
+      'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or remove usernames at any time in your profile.';
 
   @override
   String get usernameOnboarding_syntax =>
