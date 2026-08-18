@@ -24,6 +24,7 @@ service AuthService {
   rpc AsCredentials(AsCredentialsRequest) returns (AsCredentialsResponse);
 
   rpc IssueTokens(IssueTokensRequest) returns (IssueTokensResponse);
+  rpc IssueTokenBatch(IssueTokenBatchRequest) returns (IssueTokenBatchResponse);
 
   rpc ReportSpam(ReportSpamRequest) returns (ReportSpamResponse);
 
@@ -280,6 +281,11 @@ message BatchedTokenKey {
   bytes public_key = 1;
   uint32 token_key_id = 2;
   OperationType operation_type = 3;
+  // Set on the newest key of each operation type. During the rotation overlap
+  // window the AS advertises both the outgoing and the incoming key, and only
+  // the current one is guaranteed to outlive the tokens minted under it, so
+  // clients must build new token requests with it.
+  bool is_current = 4;
 }
 
 message AsCredential {
@@ -342,6 +348,40 @@ message IssueTokensPayload {
 
 message IssueTokensResponse {
   bytes token_response = 1;
+}
+
+// issue token batch
+
+message IssueTokenBatchRequest {
+  IssueTokenBatchPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message IssueTokenBatchPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  OperationType operation_type = 2;
+  common.v1.UserId user_id = 3;
+  bytes token_request = 4;
+  // Allowance epoch the batch belongs to (months or days since the Unix
+  // epoch, depending on the operation type).
+  uint32 allowance_epoch = 5;
+}
+
+message IssueTokenBatchResponse {
+  oneof outcome {
+    bytes token_response = 1;
+    // A different token batch was already issued for this allowance epoch,
+    // meaning the requesting devices derived diverging token seeds.
+    IssuanceConflict issuance_conflict = 2;
+    // The claimed allowance epoch is not current on the server.
+    InvalidAllowanceEpoch invalid_allowance_epoch = 3;
+  }
+}
+
+message IssuanceConflict {}
+
+message InvalidAllowanceEpoch {
+  uint32 current_epoch = 1;
 }
 
 // report spam

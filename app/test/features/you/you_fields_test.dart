@@ -17,7 +17,7 @@ void main() {
       TestWidgetsFlutterBinding.ensureInitialized()
               .platformDispatcher
               .platformBrightnessTestValue =
-          Brightness.dark;
+          .dark;
       addTearDown(
         TestWidgetsFlutterBinding.ensureInitialized()
             .platformDispatcher
@@ -27,7 +27,7 @@ void main() {
 
     Widget buildSubject() => MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: testThemeData(Brightness.dark),
+      theme: testThemeData(.dark),
       home: const Scaffold(body: FieldContainer(child: Text('handle'))),
     );
 

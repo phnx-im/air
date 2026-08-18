@@ -70,6 +70,40 @@ class ChatAvatar extends StatelessWidget {
   }
 }
 
+/// Avatar for a chat the host already has.
+class ChatAvatarView extends StatelessWidget {
+  const ChatAvatarView({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final showImage = switch (chat.chatType) {
+      UiChatType_Connection() || UiChatType_Group() => true,
+      _ => false,
+    };
+
+    final displayName = chat.title;
+    final image = chat.picture;
+    final gradientKey = chat.userId?.uuid ?? chat.id.uuid;
+
+    return _Avatar(
+      displayName: displayName,
+      image: showImage ? image : null,
+      size: size,
+      onPressed: onPressed,
+      gradientKey: gradientKey,
+    );
+  }
+}
+
 /// Adapts the protocol's picture blobs and uuids to what [Avatar] paints.
 class _Avatar extends StatelessWidget {
   const _Avatar({

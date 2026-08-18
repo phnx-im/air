@@ -172,7 +172,7 @@ Future<String?> showEmojiPickerPopover({
         opacity: animation,
         child: Center(
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: EmojiPickerPanel(
               onSelected: (emoji) => Navigator.of(dialogContext).pop(emoji),
               initialSkinTone: initialSkinTone,

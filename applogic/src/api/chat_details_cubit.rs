@@ -37,7 +37,6 @@ use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
         attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
-        chats_repository::ChatsRepository,
         types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
@@ -87,14 +86,14 @@ impl ChatDetailsCubitBase {
         user_cubit: &UserCubitBase,
         user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
-        chats_repository: &ChatsRepository,
+        chat: Option<UiChatDetails>,
         attachments_repository: &AttachmentsRepository,
         with_members: bool,
     ) -> Self {
         let store = user_cubit.core_user().clone();
 
         let initial_state = ChatDetailsState {
-            chat: chats_repository.get(chat_id),
+            chat,
             members: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
@@ -103,7 +102,6 @@ impl ChatDetailsCubitBase {
 
         let context = ChatDetailsContext::new(
             store.clone(),
-            chats_repository.clone(),
             user_cubit.notification_service().clone(),
             core.state_tx().clone(),
             chat_id,
@@ -703,7 +701,6 @@ impl ChatDetailsCubitBase {
 #[derive(Clone)]
 struct ChatDetailsContext {
     core_user: CoreUser,
-    chats_repository: ChatsRepository,
     notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
     chat_id: ChatId,
@@ -714,7 +711,6 @@ struct ChatDetailsContext {
 impl ChatDetailsContext {
     fn new(
         store: CoreUser,
-        chats_repository: ChatsRepository,
         notification_service: NotificationService,
         state_tx: watch::Sender<ChatDetailsState>,
         chat_id: ChatId,
@@ -723,7 +719,6 @@ impl ChatDetailsContext {
         let (mark_as_read_tx, _) = watch::channel(Default::default());
         Self {
             core_user: store,
-            chats_repository,
             notification_service,
             state_tx,
             chat_id,
@@ -734,7 +729,7 @@ impl ChatDetailsContext {
 
     async fn load_and_emit_state(&self) {
         let (chat, last_read) = self.load_chat_details().await.unzip();
-        let is_modified = self.state_tx.send_if_modified(|state| {
+        self.state_tx.send_if_modified(|state| {
             if state.chat != chat {
                 state.chat = chat.clone();
                 true
@@ -742,10 +737,6 @@ impl ChatDetailsContext {
                 false
             }
         });
-
-        if is_modified && let Some(chat) = chat {
-            self.chats_repository.put(chat);
-        }
 
         if let Some(last_read) = last_read {
             // truncate nanoseconds because they are not supported by Dart's DateTime

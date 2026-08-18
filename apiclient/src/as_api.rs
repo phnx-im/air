@@ -33,13 +33,13 @@ use airprotos::{
         CheckUsernameExistsRequest, ConnectUsernameRequest, ConnectUsernameResponse,
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
         EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetInvitationCodesRequest,
-        GetUserProfileRequest, InitListenUsernamePayload, InvitationCode, IssueTokensPayload,
-        ListenUsernameRequest, MergeUserProfilePayload, OperationType,
+        GetUserProfileRequest, InitListenUsernamePayload, InvitationCode, IssueTokenBatchPayload,
+        IssueTokenBatchResponse, ListenUsernameRequest, MergeUserProfilePayload, OperationType,
         PublishConnectionPackagesPayload, RefreshUsernamePayload, RegisterUserRequest,
         ReportSpamPayload, StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
-        connect_username_response, listen_username_request,
+        connect_username_response, issue_token_batch_response, listen_username_request,
     },
-    common::v1::{StatusDetails, StatusDetailsCode, TokenQuotaExceededDetail, status_details},
+    common::v1::{StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -115,22 +115,6 @@ impl AsRequestError {
             matches!(status.code(), Code::ResourceExhausted)
         } else {
             false
-        }
-    }
-
-    /// Returns the token quota details when the server rejected the request due to quota
-    /// exhaustion, or `None` for any other error.
-    pub fn token_quota_exceeded_detail(&self) -> Option<TokenQuotaExceededDetail> {
-        let Self::Tonic(status) = self else {
-            return None;
-        };
-        if status.code() != Code::ResourceExhausted {
-            return None;
-        }
-        let details = StatusDetails::from_status(status)?;
-        match details.detail? {
-            status_details::Detail::TokenQuotaExceeded(detail) => Some(detail),
-            _ => None,
         }
     }
 }
@@ -502,6 +486,7 @@ impl ApiClient {
                         operation_type: k.operation_type,
                         token_key_id,
                         public_key: k.public_key,
+                        is_current: k.is_current,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
@@ -590,26 +575,67 @@ impl ApiClient {
         }
     }
 
-    pub async fn as_issue_tokens(
+    /// Requests the full token batch of an allowance epoch.
+    ///
+    /// The request is derived deterministically from the user's token seed, so
+    /// the server answers a repeat of it for free. A conflict or a stale epoch
+    /// is an expected outcome of the multi device seed agreement and arrives as
+    /// a [`TokenBatchResponse`] variant rather than an error.
+    pub async fn as_issue_token_batch(
         &self,
         operation_type: OperationType,
         user_id: UserId,
         signing_key: &UserSigningKey,
+        allowance_epoch: u32,
         token_request: SerializedTokenRequest,
-    ) -> Result<SerializedTokenResponse, AsRequestError> {
-        let payload = IssueTokensPayload {
+    ) -> Result<TokenBatchResponse, AsRequestError> {
+        let payload = IssueTokenBatchPayload {
             client_metadata: Some(self.metadata().clone()),
             operation_type: operation_type.into(),
             user_id: Some(user_id.into()),
             token_request: token_request.into_bytes(),
+            allowance_epoch,
         };
         let request = payload.sign(signing_key)?;
         let response = self
             .as_grpc_client()
-            .issue_tokens(request)
+            .issue_token_batch(request)
             .await?
             .into_inner();
-        Ok(SerializedTokenResponse::new(response.token_response))
+        response.try_into()
+    }
+}
+
+/// Outcome of a token batch issuance request.
+#[derive(Debug)]
+pub enum TokenBatchResponse {
+    /// The serialized token response of the requested batch.
+    Issued(SerializedTokenResponse),
+    /// A different batch was already issued for this allowance epoch.
+    ///
+    /// The user's devices derived diverging token seeds.
+    IssuanceConflict,
+    /// The claimed allowance epoch is not current on the server.
+    InvalidAllowanceEpoch { current_epoch: u32 },
+}
+
+impl TryFrom<IssueTokenBatchResponse> for TokenBatchResponse {
+    type Error = AsRequestError;
+
+    fn try_from(response: IssueTokenBatchResponse) -> Result<Self, Self::Error> {
+        use issue_token_batch_response::Outcome;
+        match response.outcome {
+            Some(Outcome::TokenResponse(bytes)) => Ok(TokenBatchResponse::Issued(
+                SerializedTokenResponse::new(bytes),
+            )),
+            Some(Outcome::IssuanceConflict(_)) => Ok(TokenBatchResponse::IssuanceConflict),
+            Some(Outcome::InvalidAllowanceEpoch(detail)) => {
+                Ok(TokenBatchResponse::InvalidAllowanceEpoch {
+                    current_epoch: detail.current_epoch,
+                })
+            }
+            None => Err(AsRequestError::UnexpectedResponse),
+        }
     }
 }
 
@@ -653,5 +679,75 @@ impl AsConnectionOfferResponder {
         })?;
         self.response.await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use airprotos::{
+        auth_service::v1::{
+            InvalidAllowanceEpoch, IssuanceConflict, IssueTokenBatchResponse,
+            issue_token_batch_response::Outcome,
+        },
+        common::v1::{StatusDetails, StatusDetailsCode},
+    };
+    use tonic::Code;
+
+    use super::{AsRequestError, TokenBatchResponse};
+
+    fn convert(outcome: Option<Outcome>) -> Result<TokenBatchResponse, AsRequestError> {
+        IssueTokenBatchResponse { outcome }.try_into()
+    }
+
+    /// Each issuance outcome maps to its own variant. Confusing them would make
+    /// the client retry a diverged seed forever, or give up on a recoverable
+    /// clock skew.
+    #[test]
+    fn issuance_outcomes_map_to_their_variants() {
+        let issued = convert(Some(Outcome::TokenResponse(vec![1, 2, 3]))).unwrap();
+        let TokenBatchResponse::Issued(response) = issued else {
+            panic!("expected Issued, got {issued:?}");
+        };
+        assert_eq!(response.as_bytes(), [1, 2, 3]);
+
+        let conflict = convert(Some(Outcome::IssuanceConflict(IssuanceConflict {}))).unwrap();
+        let TokenBatchResponse::IssuanceConflict = conflict else {
+            panic!("expected IssuanceConflict, got {conflict:?}");
+        };
+
+        let stale = convert(Some(Outcome::InvalidAllowanceEpoch(
+            InvalidAllowanceEpoch { current_epoch: 679 },
+        )))
+        .unwrap();
+        let TokenBatchResponse::InvalidAllowanceEpoch { current_epoch } = stale else {
+            panic!("expected InvalidAllowanceEpoch, got {stale:?}");
+        };
+        assert_eq!(current_epoch, 679);
+    }
+
+    /// An empty oneof means the server sent something we cannot act on.
+    #[test]
+    fn missing_outcome_is_an_unexpected_response() {
+        let error = convert(None).unwrap_err();
+        let AsRequestError::UnexpectedResponse = error else {
+            panic!("expected UnexpectedResponse, got {error:?}");
+        };
+    }
+
+    /// Only a `FailedPrecondition` carrying the version detail counts as an
+    /// unsupported version, so unrelated failures are not mistaken for one.
+    #[test]
+    fn unsupported_version_is_classified_by_its_detail() {
+        let version_unsupported = AsRequestError::Tonic(
+            StatusDetails {
+                code: StatusDetailsCode::VersionUnsupported.into(),
+                detail: None,
+            }
+            .to_status(Code::FailedPrecondition, "rejected"),
+        );
+        assert!(version_unsupported.is_unsupported_version());
+
+        let unavailable = AsRequestError::Tonic(tonic::Status::unavailable("down"));
+        assert!(!unavailable.is_unsupported_version());
     }
 }

@@ -131,7 +131,7 @@ class _TitlePill extends StatelessWidget {
     return MouseRegion(
       cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: onTap,
         child: Container(
           constraints: BoxConstraints(minHeight: tokens.pillMinHeight),
@@ -144,7 +144,7 @@ class _TitlePill extends StatelessWidget {
           // mainAxisSize.min so the pill hugs its content instead of expanding
           // to the bar's full width.
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               if (avatarWidget != null) ...[
                 avatarWidget,
@@ -152,15 +152,13 @@ class _TitlePill extends StatelessWidget {
               ],
               Flexible(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: avatarWidget != null
-                      ? CrossAxisAlignment.start
-                      : CrossAxisAlignment.center,
+                  mainAxisSize: .min,
+                  crossAxisAlignment: avatarWidget != null ? .start : .center,
                   children: [
                     Text(
                       name,
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      overflow: .ellipsis,
                       // The pill's height comes from the avatar, so the label
                       // drops the body line height and sits tight.
                       style: typeScale.body.regular.style(

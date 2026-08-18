@@ -31,6 +31,7 @@ import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/features/chat/chats_repository.dart';
 
 final _appRouter = AppRouter();
 
@@ -380,10 +381,11 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                   RepositoryProvider<ChatsRepository>(
-                    create: (context) => ChatsRepository(
+                    create: (context) => RustChatsRepository(
                       userCubit: context.read<UserCubit>().impl,
                     ),
-                    // immediately cache chats
+                    dispose: (repository) => unawaited(repository.dispose()),
+                    // immediately hydrate chats
                     lazy: false,
                   ),
                 ],

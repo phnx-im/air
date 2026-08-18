@@ -66,10 +66,8 @@ class MessageRow extends StatelessWidget {
     return Padding(
       padding: tokens.padding,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: outgoing
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: outgoing ? .end : .start,
         children: [
           if (name != null)
             Padding(
@@ -84,8 +82,8 @@ class MessageRow extends StatelessWidget {
             // see [MessageBand]. Aligning on it rather than on the row's end
             // keeps the avatar level with the bubble however much the message
             // hangs below it (reaction chips, the stamp under the bubble).
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+            crossAxisAlignment: .baseline,
+            textBaseline: .alphabetic,
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
@@ -151,7 +149,7 @@ class _SenderName extends StatelessWidget {
       child: Text(
         name,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        overflow: .ellipsis,
         style: typeScale.body.s.style(
           color: SemanticPalette.of(context).text.primary,
           weight: Weight.emphasized,
@@ -163,11 +161,7 @@ class _SenderName extends StatelessWidget {
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: label,
-      ),
+      child: GestureDetector(behavior: .opaque, onTap: onTap, child: label),
     );
   }
 }

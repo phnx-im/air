@@ -5,8 +5,9 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates today) under a symmetric key that is scoped to a single self-group
-//! epoch. The key is derived from the MLS safe exporter of the T group for
+//! updates and Privacy Pass token seeds) under a symmetric key that is scoped to
+//! a single self-group epoch. The key is derived from the MLS safe exporter of
+//! the T group for
 //! [`AIR_COMPONENT_ID`] and then run through one further KDF step.
 //!
 //! The MLS application export tree is a puncturable PRF: exporting the same
@@ -36,7 +37,9 @@ use aircommon::{
 };
 use airprotos::client::{
     component::{AIR_COMPONENT_ID, AirComponent},
-    self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+    self_group::{
+        AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
+    },
 };
 use anyhow::{Result, anyhow, ensure};
 use openmls::prelude::{
@@ -146,24 +149,20 @@ impl Group {
         Ok(key)
     }
 
-    /// Builds the `AppEphemeral` proposal carrying `update`.
+    /// Builds the `AppEphemeral` proposal carrying `messages`.
     ///
-    /// The update is encrypted under the current-epoch self-group message key,
-    /// which also enforces the self-group guard. Receivers extract it from the
-    /// staged commit before merging, i.e. still at this epoch, so they derive
-    /// the same key.
-    ///
-    /// Shared by the settings-only commit and by the self-group add, which folds
-    /// the newly linked device's entry into the same commit that adds its leaf.
-    pub(crate) async fn self_group_settings_proposal(
+    /// The messages are encrypted under the current-epoch self-group message
+    /// key, which also enforces the self-group guard. Receivers extract them
+    /// from the staged commit before merging, i.e. still at this epoch, so they
+    /// derive the same key.
+    async fn self_group_messages_proposal(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        update: &SettingsUpdate,
+        messages: Vec<SelfGroupMessage>,
     ) -> Result<Proposal> {
         let key = self.self_group_message_key(txn).await?;
 
-        let messages = SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(update.clone())]);
-        let encrypted = messages.encrypt_padded(&key)?;
+        let encrypted = SelfGroupMessages(messages).encrypt_padded(&key)?;
         let payload = AppEphemeralPayload::EncryptedSelfGroupMessages(encrypted);
         let payload_bytes = PersistenceCodec::to_vec(&payload)?;
         Ok(Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
@@ -172,11 +171,23 @@ impl Group {
         ))))
     }
 
-    /// Stages a self-group commit that carries the given settings update.
+    /// Builds the `AppEphemeral` proposal carrying `update`.
     ///
-    /// The update travels as an `AppEphemeral` proposal on a forced self-update.
-    /// The commit shape mirrors `stage_apq_invite` minus the invitees, so it
-    /// carries no welcome or attribution infos.
+    /// Used by the settings-only commit and by the self-group add, which folds
+    /// the newly linked device's entry into the same commit that adds its leaf.
+    pub(crate) async fn self_group_settings_proposal(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        update: &SettingsUpdate,
+    ) -> Result<Proposal> {
+        self.self_group_messages_proposal(
+            txn,
+            vec![SelfGroupMessage::SettingsUpdate(update.clone())],
+        )
+        .await
+    }
+
+    /// Stages a self-group commit that carries the given settings update.
     pub(crate) async fn stage_settings_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
@@ -184,7 +195,43 @@ impl Group {
         update: &SettingsUpdate,
     ) -> Result<ApqGroupOperationParamsOut> {
         let proposal = self.self_group_settings_proposal(txn, update).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
 
+    /// Stages a self-group commit that publishes token seeds to the siblings.
+    ///
+    /// A commit of its own rather than a field on the settings snapshot: seeds
+    /// are set-once with first-writer-wins, while a settings snapshot carries
+    /// last-writer-wins values and would cover an in-flight seed proposal.
+    pub(crate) async fn stage_token_seeds(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        seeds: &[TokenSeed],
+    ) -> Result<ApqGroupOperationParamsOut> {
+        let messages = seeds
+            .iter()
+            .cloned()
+            .map(SelfGroupMessage::TokenSeed)
+            .collect();
+        let proposal = self.self_group_messages_proposal(txn, messages).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
+
+    /// Stages a self-group commit whose only payload is an `AppEphemeral`
+    /// proposal.
+    ///
+    /// The proposal travels on a forced self-update. The commit shape mirrors
+    /// `stage_apq_invite` minus the invitees, so it carries no welcome or
+    /// attribution infos.
+    async fn stage_self_group_message_commit(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        proposal: Proposal,
+    ) -> Result<ApqGroupOperationParamsOut> {
         // Set the AAD for a group operation without any added users.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -212,10 +259,10 @@ impl Group {
         })
     }
 
-    /// Extracts the settings updates carried by a self-group commit.
+    /// Extracts the messages carried by a self-group commit.
     ///
     /// This runs on every self-group commit before merge. Content and crypto
-    /// problems must never fail commit processing, so it returns a plain Vec:
+    /// problems must never fail commit processing, so it returns plain Vecs:
     /// a malformed or undecryptable payload is logged and skipped rather than
     /// propagated. Older and newer clients must interoperate, and a malformed
     /// payload from a buggy sibling must never wedge the group.
@@ -223,12 +270,12 @@ impl Group {
     /// The self-group message key is derived lazily, at most once per call and
     /// only when there is an encrypted payload to decrypt. If key derivation
     /// fails, the remaining encrypted payloads are skipped.
-    pub(crate) async fn extract_settings_updates(
+    pub(crate) async fn extract_self_group_messages(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         staged_commit: &StagedCommit,
-    ) -> Vec<SettingsUpdate> {
-        let mut updates = Vec::new();
+    ) -> SelfGroupPayload {
+        let mut extracted = SelfGroupPayload::default();
         let mut key: Option<SelfGroupMessageKey> = None;
 
         for proposal in staged_commit.queued_app_ephemeral_proposals() {
@@ -287,14 +334,30 @@ impl Group {
 
             for message in messages.0 {
                 match message {
-                    SelfGroupMessage::SettingsUpdate(update) => updates.push(update),
+                    SelfGroupMessage::SettingsUpdate(update) => extracted.updates.push(update),
+                    SelfGroupMessage::TokenSeed(seed) => extracted.token_seeds.push(seed),
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
             }
         }
 
-        updates
+        extracted
+    }
+}
+
+/// The messages a self-group commit carried, by kind.
+#[derive(Debug, Default)]
+pub(crate) struct SelfGroupPayload {
+    /// Settings snapshots, in the order the commit carried them.
+    pub(crate) updates: Vec<SettingsUpdate>,
+    /// Token seeds published by the sender.
+    pub(crate) token_seeds: Vec<TokenSeed>,
+}
+
+impl SelfGroupPayload {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.updates.is_empty() && self.token_seeds.is_empty()
     }
 }
 
@@ -768,9 +831,10 @@ mod derivation_tests {
             .mls_group()
             .pending_commit()
             .expect("commit should be staged");
-        let extracted = receiver.extract_settings_updates(&mut txn, staged).await;
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
 
-        assert_eq!(extracted, vec![update]);
+        assert_eq!(extracted.updates, vec![update]);
+        assert!(extracted.token_seeds.is_empty());
 
         txn.commit().await?;
         Ok(())
@@ -780,7 +844,7 @@ mod derivation_tests {
     /// valid CBOR and a well-formed but undecryptable payload are both logged
     /// and skipped, and extraction returns an empty Vec without panicking.
     #[tokio::test(flavor = "multi_thread")]
-    async fn extract_settings_updates_tolerates_bad_payloads() -> anyhow::Result<()> {
+    async fn extract_self_group_messages_tolerates_bad_payloads() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let (_sg_signer, signer) = self_group_signer()?;
         let user_id = UserId::random("example.com".parse()?);
@@ -834,7 +898,7 @@ mod derivation_tests {
             .mls_group()
             .pending_commit()
             .expect("commit should be staged");
-        let extracted = receiver.extract_settings_updates(&mut txn, staged).await;
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
 
         assert!(extracted.is_empty());
 

@@ -58,19 +58,19 @@ class ProductShotFrame extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(cornerRadius),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: .antiAlias,
         child: ColoredBox(
           color: frameColor,
           child: Padding(
             padding: EdgeInsets.all(borderWidth),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(innerRadius),
-              clipBehavior: Clip.antiAlias,
+              clipBehavior: .antiAlias,
               child: SizedBox(
                 width: screenSize.width,
                 height: screenSize.height,
                 child: Stack(
-                  fit: StackFit.expand,
+                  fit: .expand,
                   children: [
                     MediaQuery(data: mediaQuery, child: child),
                     if (statusBarHeight > 0)

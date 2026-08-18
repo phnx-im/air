@@ -228,7 +228,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     final palette = SemanticPalette.of(context);
 
     return Stack(
-      fit: StackFit.expand,
+      fit: .expand,
       children: [
         // Transparent to taps so the route's barrier below keeps handling
         // dismissal rather than this layer swallowing it.
@@ -278,15 +278,15 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     }
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onVerticalDragUpdate: _handleVerticalDragUpdate,
       onVerticalDragEnd: _handleVerticalDragEnd,
       onVerticalDragCancel: _handleVerticalDragCancel,
       child: SizedBox(
         width: double.infinity,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: .min,
+          crossAxisAlignment: .stretch,
           children: [
             if (widget.enableDrag)
               SizedBox(
@@ -304,7 +304,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                 ),
               ),
             Flexible(
-              fit: FlexFit.loose,
+              fit: .loose,
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: cardMaxHeight),
                 child: ClipRRect(
@@ -361,8 +361,8 @@ class AdaptiveDialogContent extends StatelessWidget {
     this.onPrimaryAction,
     this.secondaryActionText,
     this.onSecondaryAction,
-    this.titleAlignment = TextAlign.center,
-    this.descriptionAlignment = TextAlign.center,
+    this.titleAlignment = .center,
+    this.descriptionAlignment = .center,
     this.primaryType = ButtonType.primary,
     this.primaryTone = ButtonTone.normal,
     this.secondaryType = ButtonType.secondary,
@@ -387,8 +387,8 @@ class AdaptiveDialogContent extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         if (title != null)
           Text(
@@ -461,8 +461,8 @@ Future<bool> showAdaptiveConfirm({
   bool isDismissible = true,
   bool enableDrag = true,
   Color? barrierColor,
-  TextAlign titleAlignment = TextAlign.center,
-  TextAlign descriptionAlignment = TextAlign.center,
+  TextAlign titleAlignment = .center,
+  TextAlign descriptionAlignment = .center,
 }) async {
   final result = await showAdaptiveModal<bool>(
     context: context,
