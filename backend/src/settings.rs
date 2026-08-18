@@ -72,6 +72,9 @@ pub struct VersionExpiration {
     /// The version that is no longer allowed.
     pub older_than: Version,
     /// When any version < `older_than` is not allowed anymore.
+    ///
+    /// Accepts a date `YYYY-MM-DD` (midnight UTC) or an RFC 3339 timestamp.
+    #[serde(with = "date_or_datetime")]
     pub expires_on: DateTime<Utc>,
 }
 
@@ -283,6 +286,25 @@ fn default_debug_logs_bucket() -> String {
     "debug-logs".to_string()
 }
 
+mod date_or_datetime {
+    use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+    use serde::de;
+
+    /// Accepts a date `YYYY-MM-DD` (midnight UTC) or an RFC 3339 timestamp.
+    pub fn deserialize<'de, D>(d: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let s: String = serde::Deserialize::deserialize(d)?;
+        if let Ok(date) = s.parse::<NaiveDate>() {
+            return Ok(date.and_time(NaiveTime::MIN).and_utc());
+        }
+        DateTime::parse_from_rfc3339(&s)
+            .map(|dt| dt.to_utc())
+            .map_err(de::Error::custom)
+    }
+}
+
 mod duration_seconds {
     use serde::de;
 
@@ -320,4 +342,40 @@ fn default_require_content_length() -> bool {
 
 fn default_true() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn version_expiration_accepts_date_and_timestamp() {
+        let expiration: VersionExpiration = serde_json::from_value(json!({
+            "older_than": "0.20.0",
+            "expires_on": "2026-09-02",
+        }))
+        .unwrap();
+        assert_eq!(
+            expiration.expires_on,
+            "2026-09-02T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+
+        let expiration: VersionExpiration = serde_json::from_value(json!({
+            "older_than": "0.20.0",
+            "expires_on": "2026-09-02T15:30:00Z",
+        }))
+        .unwrap();
+        assert_eq!(
+            expiration.expires_on,
+            "2026-09-02T15:30:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+
+        let result = serde_json::from_value::<VersionExpiration>(json!({
+            "older_than": "0.20.0",
+            "expires_on": "not a date",
+        }));
+        assert!(result.is_err());
+    }
 }

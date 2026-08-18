@@ -8,6 +8,7 @@ mod generate_emoji;
 mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
+mod version_expirations;
 
 use clap::{Parser, Subcommand};
 

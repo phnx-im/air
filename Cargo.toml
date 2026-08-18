@@ -36,6 +36,7 @@ aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
 arboard = "3"
 argon2 = "0.5.3"
+askama = "0.16.0"
 async-trait = "0.1.53"
 aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.119.0", default-features = false, features = ["behavior-version-latest", "http-1x"] }
