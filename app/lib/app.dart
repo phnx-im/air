@@ -19,6 +19,7 @@ import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -357,6 +358,10 @@ class LoadableUserCubitProvider extends StatelessWidget {
         }
 
         return switch (loadableUser) {
+          // Neither the login state nor the destination is settled yet.
+          // Stay on the splash instead of the intro screen: a returning
+          // user would otherwise see its sign-up chrome flash before
+          // landing on Home.
           LoadingUser() => const _LoadingSplash(),
           LoadedUser() when !settingsAttached => const _LoadingSplash(),
           UnloadedUser() => resolved(child),
@@ -374,13 +379,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
                       appStateStream: appStateController.stream,
                     ),
                   ),
-                  RepositoryProvider<ChatsRepository>(
-                    create: (context) => RustChatsRepository(
-                      userCubit: context.read<UserCubit>().impl,
-                    ),
-                    dispose: (repository) => unawaited(repository.dispose()),
-                    // immediately hydrate chats
-                    lazy: false,
+                  BlocProvider<UsersCubit>(
+                    create: (context) =>
+                        UsersCubit(userCubit: context.read<UserCubit>()),
                   ),
                 ],
                 child: MultiRepositoryProvider(
@@ -413,14 +414,16 @@ class LoadableUserCubitProvider extends StatelessWidget {
     );
   }
 
+  /// Checks if [LoadableUser] was loaded or unloaded
   bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) {
-    return previous != current &&
-        (previous is LoadedUser ||
+    return (previous is LoadedUser ||
             current is LoadedUser ||
-            previous is LoadingUser);
+            current is UnloadedUser) &&
+        previous != current;
   }
 }
 
+/// Shown while the initial user load is in flight, in place of [IntroScreen].
 class _LoadingSplash extends StatelessWidget {
   const _LoadingSplash();
 
