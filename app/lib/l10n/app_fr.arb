@@ -3,7 +3,7 @@
   "languageName": "Français",
   "userSettingsScreen_title": "Profil et paramètres",
   "userSettingsScreen_profileDescription": "Votre nom d'affichage et votre photo de profil sont visibles pour vos contacts Air et les membres de vos groupes.",
-  "userSettingsScreen_userNamesDescription": "Partagez des noms d'utilisateur avec d'autres pour qu'ils puissent se connecter avec vous. Après la connexion, les noms d'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
+  "userSettingsScreen_userNamesDescription": "Partagez vos noms d'utilisateur avec les personnes avec qui vous voulez entrer en contact. Les noms d'utilisateur ne sont pas visibles par les autres, pas même par vos contacts Air. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
   "userSettingsScreen_help": "Aide",
   "userSettingsScreen_deleteAccount": "Supprimer le compte Air",
   "userSettingsScreen_sendWithEnter": "Envoyer avec Entrée",
@@ -23,8 +23,8 @@
   "youSection_preferences": "Paramètres",
   "youSection_developer": "Développeur",
   "settingsScreen_copiedToClipboard": "Copié dans le presse-papiers",
-  "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
-  "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
+  "removeUsernameDialog_title": "Supprimer le nom d'utilisateur ?",
+  "removeUsernameDialog_content": "Les autres ne pourront plus vous envoyer de demande de contact avec ce nom d'utilisateur, et il pourra être pris par quelqu'un d'autre.",
   "removeUsernameDialog_cancel": "Annuler",
   "removeUsernameDialog_remove": "Supprimer",
   "addMembersScreen_addMembers": "Ajouter des membres",
@@ -39,7 +39,7 @@
   "safetyCodeScreen_safetyCodeExplanation": "Comparez le code de sécurité affiché avec celui de {displayName}. S'ils correspondent, vous savez que vous échangez des messages chiffrés de bout en bout avec la bonne personne.",
   "chatDetailsScreen_unknownChat": "Discussion inconnue",
 
-  "muteDurationSheet_title": "Mettre en sourdine",
+  "muteDurationSheet_title": "Mettre la discussion en sourdine ?",
   "muteDurationSheet_body": "Choisissez la durée de la mise en sourdine.",
   "muteDurationSheet_1hour": "1 heure",
   "muteDurationSheet_8hours": "8 heures",
@@ -87,11 +87,6 @@
   "introScreen_signUp": "Créer un compte",
   "introScreen_termsLinkText": "Conditions d'utilisation",
   "introScreen_termsText": "En vous inscrivant, vous acceptez nos {termsOfUseLink}.",
-  "@introScreen_termsText": {
-    "placeholders": {
-      "termsOfUseLink": {}
-    }
-  },
   "invitationCodeScreen_header": "Saisissez le code d'invitation",
   "invitationCodeScreen_subheader": "Air est actuellement accessible sur invitation. Entrez votre code pour nous rejoindre. Si vous n'en avez pas, demandez à quelqu'un déjà sur Air.",
   "invitationCodeScreen_inputLabel": "Code d'invitation (obligatoire)",
@@ -113,7 +108,7 @@
   "invitationCodesScreen_errorRequestingCode": "Un problème est survenu. Veuillez réessayer.",
   "invitationCodesScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "invitationCodesScreen_codeClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises le code d'invitation {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises l'un de ces codes d'invitation pour rejoindre:\n\n{codes}",
+  "invitationCodesScreen_codesClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilisez l'un de ces codes d'invitation pour rejoindre :\n\n{codes}",
 
   "signUpScreen_header": "Créez votre profil",
   "signUpScreen_subheader": "Votre profil est visible pour les personnes avec lesquelles vous vous connectez et les membres de vos groupes. Air exige un nom d'affichage, mais la photo est facultative.",
@@ -158,13 +153,6 @@
   "linkedDevicesScreen_thisDevice": "Cet appareil",
   "linkedDevicesScreen_linkedDevices": "Appareils associés",
   "linkedDevicesScreen_linkedOn": "Associé le {date}",
-  "@linkedDevicesScreen_linkedOn": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
   "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
   "linkedDevicesScreen_linkDevice": "Associer un appareil",
   "linkedDevicesScreen_unknownDevice": "Appareil inconnu",
@@ -174,19 +162,7 @@
   "linkedDevicesScreen_unlinkError": "La dissociation de l'appareil {deviceName} a échoué. Vérifiez votre connexion réseau et réessayez.",
   "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Aucun appareil associé.} one {{count} appareil associé.} other {{count} appareils associés.}}",
-  "@linkedDevicesScreen_deviceCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "linkedDevicesScreen_encryptionNotice": "Les messages sont chiffrés de bout en bout sur tous les appareils. {learnMore}",
-  "@linkedDevicesScreen_encryptionNotice": {
-    "placeholders": {
-      "learnMore": {}
-    }
-  },
+  "linkedDevicesScreen_encryptionNotice": "Les messages sont chiffrés de bout en bout sur tous les appareils.",
   "linkedDevicesScreen_encryptionNotice_learnMore": "En savoir plus.",
   "linkedDevicesScreen_encryptionDialog_title": "Chiffrement et association d'appareils",
   "linkedDevicesScreen_encryptionDialog_content": "Sur Air, vos messages (y compris les pièces jointes) sont toujours chiffrés de bout en bout. Cela signifie que personne d'autre, pas même Air, ne peut les lire.\n\nLorsque vous associez un appareil, vos messages restent chiffrés et vous êtes le seul à pouvoir les lire.",
@@ -211,7 +187,8 @@
   "usernameScreen_inputHint": "Saisissez un nom d'utilisateur...",
   "usernameScreen_error_emptyUsername": "Le nom d'utilisateur ne peut pas être vide",
   "usernameScreen_error_alreadyExists": "Ce nom d'utilisateur est déjà utilisé",
-  "usernameScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
+  "usernameScreen_description": "Choisissez un nom d'utilisateur que d'autres peuvent utiliser pour se connecter avec vous.",
+  "usernameScreen_syntax": "Utilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.",
   "usernameScreen_cancel": "Annuler",
   "usernameScreen_confirm": "Ajouter",
   "usernameScreen_error_tooShort": "Le nom d'utilisateur doit contenir au moins 5 caractères",
@@ -257,7 +234,7 @@
   "messageBubble_sent": "Envoyé",
   "messageBubble_delivered": "Distribué",
   "messageBubble_read": "Lu",
-  "chatList_newContact": "Nouveau contact",
+  "chatList_newContact": "Nouveau contact Air",
   "chatList_newGroup": "Nouveau groupe",
   "chatList_emptyMessage": "Ajoutez votre premier contact Air pour commencer",
   "chatList_draft": "Brouillon",
@@ -281,7 +258,7 @@
   "newConnectionDialog_confirm2": "Envoyer",
   "newConnectionDialog_error": "Impossible d'envoyer une demande de contact à {username}. Veuillez réessayer.",
   "newConnectionDialog_error_emptyUsername": "Le nom d'utilisateur ne peut pas être vide",
-  "newConnectionDialog_error_usernameNotFound": "Le nom d'utilisateur {username} n'existe pas",
+  "newConnectionDialog_error_usernameNotFound": "{username} n'a pas été trouvé. Vérifiez-le et réessayez.",
   "newConnectionDialog_error_duplicateRequest": "Vous avez déjà une demande de contact en attente pour ce nom d'utilisateur.",
   "newConnectionDialog_error_ownUsername": "Vous ne pouvez pas vous envoyer une demande de contact.",
   "composer_inputHint": "Message à {chatTitle}",
@@ -293,17 +270,6 @@
   "composer_reply_noaccess_message_user": "Utilisateur inconnu",
   "composer_reply_noaccess_message_placeholder": "Vous n'avez pas accès à ce message.",
   "attachmentSize": "{size} {byteUnit}",
-  "@attachmentSize": {
-    "placeholders": {
-      "size": {
-        "type": "double",
-        "format": "decimalPatternDigits",
-        "optionalParameters": {
-          "decimalDigits": 2
-        }
-      }
-    }
-  },
   "attachment_images": "Images",
   "attachment_camera": "Appareil photo",
   "attachment_otherFiles": "Autres fichiers",
@@ -313,13 +279,6 @@
   "textMessage_deleted": "Message supprimé",
   "textMessage_deletedBySelf": "Vous avez supprimé ce message.",
   "textMessage_deletedByOther": "{senderName} a supprimé ce message.",
-  "@textMessage_deletedByOther": {
-    "placeholders": {
-      "senderName": {
-        "type": "String"
-      }
-    }
-  },
 
   "linkConfirmation_title": "Ouvrir le lien ?",
   "linkConfirmation_description": "Vérifiez l’URL pour vous assurer de vouloir l’ouvrir :",
@@ -375,13 +334,6 @@
   "groupDetails_deleteChat": "Supprimer",
   "groupDetails_addPeople": "Ajouter",
   "groupDetails_memberCount": "{count, plural, one {{count} membre} other {{count} membres}}",
-  "@groupDetails_memberCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "groupDetails_seeAll": "Tout voir",
   "groupMembersScreen_title": "Membres du groupe",
   "groupMembersScreen_searchHint": "Chercher",
@@ -414,7 +366,7 @@
   "deleteAccountScreen_title": "Supprimer mon compte",
   "deleteAccountScreen_explanatoryText": "Cela supprimera votre compte Air et réinitialisera l'application. Vous ne pourrez pas récupérer votre compte.",
   "deleteAccountScreen_confirmationInputHint": "Confirmation",
-  "deleteAccountScreen_confirmationInputLabel": "Tapez 'delete' pour confirmer",
+  "deleteAccountScreen_confirmationInputLabel": "Tapez 'delete' pour confirmer.",
   "deleteAccountScreen_confirmButtonText": "Supprimer le compte Air",
   "deleteAccountScreen_deleteAccountError": "Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.",
   "appOutdatedScreen_title": "Mise à jour logicielle requise",

@@ -108,2266 +108,2272 @@ abstract class AppLocalizations {
     Locale('sv'),
   ];
 
-  /// No description provided for @appTitle.
+  /// Product name used as the window and task switcher title. Keep as "Air" in every locale.
   ///
   /// In en, this message translates to:
   /// **'Air'**
   String get appTitle;
 
-  /// No description provided for @languageName.
+  /// Name of this language written in the language itself, listed in the language picker.
   ///
   /// In en, this message translates to:
   /// **'English'**
   String get languageName;
 
-  /// No description provided for @userSettingsScreen_title.
+  /// Title of the profile and settings screen, opened from the You tab.
   ///
   /// In en, this message translates to:
   /// **'Profile and Settings'**
   String get userSettingsScreen_title;
 
-  /// No description provided for @userSettingsScreen_profileDescription.
+  /// Explains who can see the display name and profile picture. Sits under the profile section in profile and settings.
   ///
   /// In en, this message translates to:
   /// **'Your display name and profile picture are visible to your Air contacts and members of groups you’re in.'**
   String get userSettingsScreen_profileDescription;
 
-  /// No description provided for @userSettingsScreen_userNamesDescription.
+  /// Explains what usernames are for and that they stay private even from contacts. Sits under the Usernames section.
   ///
   /// In en, this message translates to:
   /// **'Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.'**
   String get userSettingsScreen_userNamesDescription;
 
-  /// No description provided for @userSettingsScreen_help.
+  /// Row label in profile and settings that opens the help section.
   ///
   /// In en, this message translates to:
   /// **'Help'**
   String get userSettingsScreen_help;
 
-  /// No description provided for @userSettingsScreen_deleteAccount.
+  /// Destructive row label in profile and settings that starts account deletion.
   ///
   /// In en, this message translates to:
   /// **'Delete Air account'**
   String get userSettingsScreen_deleteAccount;
 
-  /// No description provided for @userSettingsScreen_sendWithEnter.
+  /// Label of the preference toggle that makes the Enter key send a message.
   ///
   /// In en, this message translates to:
   /// **'Send with Enter'**
   String get userSettingsScreen_sendWithEnter;
 
-  /// No description provided for @userSettingsScreen_sendWithEnterDescription.
+  /// Explains the Send with Enter toggle. The quoted word is the name of the keyboard key.
   ///
   /// In en, this message translates to:
   /// **'If turned on, the keyboard\'s \"Enter\" key sends the message.'**
   String get userSettingsScreen_sendWithEnterDescription;
 
-  /// No description provided for @userSettingsScreen_readReceipts.
+  /// Label of the preference toggle that enables read receipts.
   ///
   /// In en, this message translates to:
   /// **'Read receipts'**
   String get userSettingsScreen_readReceipts;
 
-  /// No description provided for @userSettingsScreen_readReceiptsDescription.
+  /// Explains that the read receipts toggle applies in both directions.
   ///
   /// In en, this message translates to:
   /// **'If turned on, others will see if you’ve read their messages and you\'ll see if they’ve read yours.'**
   String get userSettingsScreen_readReceiptsDescription;
 
-  /// No description provided for @userSettingsScreen_displayNameLabel.
+  /// Field label above the user's own display name in profile and settings.
   ///
   /// In en, this message translates to:
   /// **'Display name'**
   String get userSettingsScreen_displayNameLabel;
 
-  /// No description provided for @userSettingsScreen_usernamesSection.
+  /// Section header above the list of the user's own usernames.
   ///
   /// In en, this message translates to:
   /// **'Usernames'**
   String get userSettingsScreen_usernamesSection;
 
-  /// No description provided for @userSettingsScreen_helpSection.
+  /// Section header grouping the help rows in profile and settings.
   ///
   /// In en, this message translates to:
   /// **'Help'**
   String get userSettingsScreen_helpSection;
 
-  /// No description provided for @userSettingsScreen_accountSection.
+  /// Section header grouping the account rows in profile and settings.
   ///
   /// In en, this message translates to:
   /// **'Account'**
   String get userSettingsScreen_accountSection;
 
-  /// No description provided for @userSettingsScreen_inviteCodes.
+  /// Row label in profile and settings that opens the user's invite codes.
   ///
   /// In en, this message translates to:
   /// **'Invite codes'**
   String get userSettingsScreen_inviteCodes;
 
-  /// No description provided for @userSettingsScreen_devices.
+  /// Row label in profile and settings that opens the list of linked devices.
   ///
   /// In en, this message translates to:
   /// **'Devices'**
   String get userSettingsScreen_devices;
 
-  /// No description provided for @youSection_profile.
+  /// Section header grouping the user's own profile rows in the You tab.
   ///
   /// In en, this message translates to:
   /// **'Profile'**
   String get youSection_profile;
 
-  /// No description provided for @youSection_preferences.
+  /// Section header grouping app preference rows in the You tab.
   ///
   /// In en, this message translates to:
   /// **'Preferences'**
   String get youSection_preferences;
 
-  /// No description provided for @youSection_developer.
+  /// Section header grouping developer-only rows in the You tab.
   ///
   /// In en, this message translates to:
   /// **'Developer'**
   String get youSection_developer;
 
-  /// No description provided for @settingsScreen_copiedToClipboard.
+  /// Confirmation shown after copying a value from profile and settings.
   ///
   /// In en, this message translates to:
   /// **'Copied to clipboard'**
   String get settingsScreen_copiedToClipboard;
 
-  /// No description provided for @removeUsernameDialog_title.
+  /// Title of the dialog confirming removal of one of the user's own usernames. Phrased as a question.
   ///
   /// In en, this message translates to:
   /// **'Remove username?'**
   String get removeUsernameDialog_title;
 
-  /// No description provided for @removeUsernameDialog_content.
+  /// Body of the remove username dialog. Says contact requests to that username stop working and someone else may claim it.
   ///
   /// In en, this message translates to:
   /// **'People won’t be able to send you a contact request using this username, and it may be taken by someone else.'**
   String get removeUsernameDialog_content;
 
-  /// No description provided for @removeUsernameDialog_cancel.
+  /// Button that dismisses the remove username dialog without removing anything.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get removeUsernameDialog_cancel;
 
-  /// No description provided for @removeUsernameDialog_remove.
+  /// Confirming button of the remove username dialog. Use the glossary term for removing, not for deleting.
   ///
   /// In en, this message translates to:
   /// **'Remove'**
   String get removeUsernameDialog_remove;
 
-  /// No description provided for @userSettingsScreen_usernamePlaceholder.
+  /// Placeholder in the username row shown before the user has added a username.
   ///
   /// In en, this message translates to:
   /// **'Username'**
   String get userSettingsScreen_usernamePlaceholder;
 
-  /// No description provided for @addMembersScreen_addMembers.
+  /// Title of the pane for adding members to an existing group.
   ///
   /// In en, this message translates to:
   /// **'Add members'**
   String get addMembersScreen_addMembers;
 
-  /// No description provided for @contactDetailsScreen_title.
+  /// Title of the pane showing another person's profile.
   ///
   /// In en, this message translates to:
   /// **'Profile'**
   String get contactDetailsScreen_title;
 
-  /// No description provided for @contactDetailsScreen_chat.
+  /// Button on a contact's profile that opens the chat with them.
   ///
   /// In en, this message translates to:
   /// **'Chat'**
   String get contactDetailsScreen_chat;
 
-  /// No description provided for @contactDetailsScreen_viewSafetyCode.
+  /// Row label on a contact's profile that opens their safety code.
   ///
   /// In en, this message translates to:
   /// **'Safety code'**
   String get contactDetailsScreen_viewSafetyCode;
 
-  /// No description provided for @contactDetailsScreen_mute.
+  /// Button that mutes notifications for this contact's chat.
   ///
   /// In en, this message translates to:
   /// **'Mute'**
   String get contactDetailsScreen_mute;
 
-  /// No description provided for @contactDetailsScreen_unmute.
+  /// Button that unmutes notifications for a currently muted chat.
   ///
   /// In en, this message translates to:
   /// **'Unmute'**
   String get contactDetailsScreen_unmute;
 
-  /// No description provided for @safetyCodeScreen_title.
+  /// Title of the pane showing the safety code shared with one contact.
   ///
   /// In en, this message translates to:
   /// **'Safety Code'**
   String get safetyCodeScreen_title;
 
-  /// No description provided for @safetyCodeScreen_tapToCopy.
+  /// Hint under the safety code telling the user they can tap it to copy.
   ///
   /// In en, this message translates to:
   /// **'Tap to copy'**
   String get safetyCodeScreen_tapToCopy;
 
-  /// No description provided for @safetyCodeScreen_copiedToClipboard.
+  /// Confirmation shown after the safety code is copied.
   ///
   /// In en, this message translates to:
   /// **'Copied to clipboard'**
   String get safetyCodeScreen_copiedToClipboard;
 
-  /// No description provided for @safetyCodeScreen_safetyCodeExplanation.
+  /// Explains how to verify a contact by comparing safety codes out of band.
   ///
   /// In en, this message translates to:
   /// **'Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you\'re sending and receiving end-to-end encrypted messages with the correct person.'**
-  String safetyCodeScreen_safetyCodeExplanation(Object displayName);
+  String safetyCodeScreen_safetyCodeExplanation(String displayName);
 
-  /// No description provided for @chatDetailsScreen_unknownChat.
+  /// Fallback title when a chat has no name and no members to name it after.
   ///
   /// In en, this message translates to:
   /// **'Unknown chat'**
   String get chatDetailsScreen_unknownChat;
 
-  /// No description provided for @muteDurationSheet_title.
+  /// Title of the sheet asking how long to mute a chat. Phrased as a question about the chat, not about notifications.
   ///
   /// In en, this message translates to:
   /// **'Mute chat?'**
   String get muteDurationSheet_title;
 
-  /// No description provided for @muteDurationSheet_body.
+  /// Body of the mute duration sheet, above the list of durations.
   ///
   /// In en, this message translates to:
   /// **'Choose how long to mute the chat for.'**
   String get muteDurationSheet_body;
 
-  /// No description provided for @muteDurationSheet_1hour.
+  /// Mute duration option of one hour.
   ///
   /// In en, this message translates to:
   /// **'1 hour'**
   String get muteDurationSheet_1hour;
 
-  /// No description provided for @muteDurationSheet_8hours.
+  /// Mute duration option of eight hours.
   ///
   /// In en, this message translates to:
   /// **'8 hours'**
   String get muteDurationSheet_8hours;
 
-  /// No description provided for @muteDurationSheet_untilTomorrow.
+  /// Mute duration option lasting until midnight tonight.
   ///
   /// In en, this message translates to:
   /// **'Until midnight'**
   String get muteDurationSheet_untilTomorrow;
 
-  /// No description provided for @muteDurationSheet_untilNextMonday.
+  /// Mute duration option lasting until the coming Monday.
   ///
   /// In en, this message translates to:
   /// **'Until next Monday'**
   String get muteDurationSheet_untilNextMonday;
 
-  /// No description provided for @muteDurationSheet_always.
+  /// Mute duration option with no end, until the user changes it.
   ///
   /// In en, this message translates to:
   /// **'Always'**
   String get muteDurationSheet_always;
 
-  /// No description provided for @blockedChatFooter_message.
+  /// Replaces the message composer when the other person is blocked.
   ///
   /// In en, this message translates to:
   /// **'You won’t receive messages from {displayName} unless you unblock them.'**
-  String blockedChatFooter_message(Object displayName);
+  String blockedChatFooter_message(String displayName);
 
-  /// No description provided for @inactiveChatFooter_message.
+  /// Replaces the message composer after the user has left or been removed from a chat.
   ///
   /// In en, this message translates to:
   /// **'You\'re no longer a member of this chat.'**
   String get inactiveChatFooter_message;
 
-  /// No description provided for @chatScreen_emptyChat.
+  /// Placeholder in the chat pane on large screens when no chat is selected.
   ///
   /// In en, this message translates to:
   /// **'Select a chat to start messaging'**
   String get chatScreen_emptyChat;
 
-  /// No description provided for @removeUserDialog_title.
+  /// Title of the dialog confirming removal of a member from a group.
   ///
   /// In en, this message translates to:
   /// **'Remove user'**
   String get removeUserDialog_title;
 
-  /// No description provided for @removeUserDialog_content.
+  /// Body of the remove member dialog, naming the person to be removed.
   ///
   /// In en, this message translates to:
   /// **'Are you sure you want to remove {displayName} from the group?'**
-  String removeUserDialog_content(Object displayName);
+  String removeUserDialog_content(String displayName);
 
-  /// No description provided for @removeUserDialog_removeUser.
+  /// Confirming button of the remove member dialog.
   ///
   /// In en, this message translates to:
   /// **'Remove user'**
   String get removeUserDialog_removeUser;
 
-  /// No description provided for @removeUserButton_text.
+  /// Button on a member's profile that starts removing them from the group.
   ///
   /// In en, this message translates to:
   /// **'Remove'**
   String get removeUserButton_text;
 
-  /// No description provided for @blockContactButton_text.
+  /// Button on a contact's profile that starts blocking them.
   ///
   /// In en, this message translates to:
   /// **'Block'**
   String get blockContactButton_text;
 
-  /// No description provided for @blockContactDialog_title.
+  /// Title of the block confirmation dialog, naming the person.
   ///
   /// In en, this message translates to:
   /// **'Block {displayName}?'**
-  String blockContactDialog_title(Object displayName);
+  String blockContactDialog_title(String displayName);
 
-  /// No description provided for @blockContactDialog_content.
+  /// Body of the block dialog. Lists what blocking does and says it can be undone.
   ///
   /// In en, this message translates to:
   /// **'You won’t receive messages from {displayName} and they won’t be able to view any updates to your profile. They won’t be able to see that you blocked them. You can unblock them anytime.'**
-  String blockContactDialog_content(Object displayName);
+  String blockContactDialog_content(String displayName);
 
-  /// No description provided for @blockContactDialog_cancel.
+  /// Button that dismisses the block dialog without blocking.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get blockContactDialog_cancel;
 
-  /// No description provided for @blockContactDialog_block.
+  /// Confirming button of the block dialog.
   ///
   /// In en, this message translates to:
   /// **'Block'**
   String get blockContactDialog_block;
 
-  /// No description provided for @unblockContactButton_text.
+  /// Button on a blocked contact's profile that starts unblocking them.
   ///
   /// In en, this message translates to:
   /// **'Unblock'**
   String get unblockContactButton_text;
 
-  /// No description provided for @unblockContactDialog_title.
+  /// Title of the unblock confirmation dialog, naming the person.
   ///
   /// In en, this message translates to:
   /// **'Unblock {displayName}?'**
-  String unblockContactDialog_title(Object displayName);
+  String unblockContactDialog_title(String displayName);
 
-  /// No description provided for @unblockContactDialog_content.
+  /// Body of the unblock dialog, describing what becomes possible again.
   ///
   /// In en, this message translates to:
   /// **'You’ll be able to send and receive messages from {displayName} and they’ll be able to view your current profile.'**
-  String unblockContactDialog_content(Object displayName);
+  String unblockContactDialog_content(String displayName);
 
-  /// No description provided for @unblockContactDialog_cancel.
+  /// Button that dismisses the unblock dialog without unblocking.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get unblockContactDialog_cancel;
 
-  /// No description provided for @unblockContactDialog_unblock.
+  /// Confirming button of the unblock dialog.
   ///
   /// In en, this message translates to:
   /// **'Unblock'**
   String get unblockContactDialog_unblock;
 
-  /// No description provided for @deleteContactButton_text.
+  /// Button on a contact's profile that starts deleting the contact.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteContactButton_text;
 
-  /// No description provided for @deleteContactDialog_title.
+  /// Title of the dialog confirming deletion of an Air contact.
   ///
   /// In en, this message translates to:
   /// **'Delete Air Contact'**
   String get deleteContactDialog_title;
 
-  /// No description provided for @deleteContactDialog_content.
+  /// Body of the delete contact dialog. Warns that the chat and its history go too.
   ///
   /// In en, this message translates to:
   /// **'Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.'**
-  String deleteContactDialog_content(Object displayName);
+  String deleteContactDialog_content(String displayName);
 
-  /// No description provided for @deleteContactDialog_cancel.
+  /// Button that dismisses the delete contact dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get deleteContactDialog_cancel;
 
-  /// No description provided for @deleteContactDialog_delete.
+  /// Confirming button of the delete contact dialog. Deletes content, so use the glossary term for deleting.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteContactDialog_delete;
 
-  /// No description provided for @addContactDialog_title.
+  /// Title of the dialog for adding a group member as an Air contact.
   ///
   /// In en, this message translates to:
   /// **'Add Air contact'**
   String get addContactDialog_title;
 
-  /// No description provided for @addContactDialog_content.
+  /// Body of the add contact dialog. Says the person shares a group but is not yet a contact.
   ///
   /// In en, this message translates to:
   /// **'{displayName} from the group chat \"{groupTitle}\" isn\'t an Air contact. To chat with them, send a contact request.'**
-  String addContactDialog_content(Object displayName, Object groupTitle);
+  String addContactDialog_content(String displayName, String groupTitle);
 
-  /// No description provided for @addContactDialog_cancel.
+  /// Button that dismisses the add contact dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get addContactDialog_cancel;
 
-  /// No description provided for @addContactDialog_confirm.
+  /// Confirming button of the add contact dialog, which sends a contact request.
   ///
   /// In en, this message translates to:
   /// **'Send'**
   String get addContactDialog_confirm;
 
-  /// No description provided for @changeGroupTitleDialog_title.
+  /// Title of the dialog for renaming a group.
   ///
   /// In en, this message translates to:
   /// **'Change group title'**
   String get changeGroupTitleDialog_title;
 
-  /// No description provided for @changeGroupTitleDialog_content.
+  /// Body of the rename group dialog, above the name field.
   ///
   /// In en, this message translates to:
   /// **'Choose a title for the group.'**
   String get changeGroupTitleDialog_content;
 
-  /// No description provided for @changeGroupTitleDialog_cancel.
+  /// Button that dismisses the rename group dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get changeGroupTitleDialog_cancel;
 
-  /// No description provided for @changeGroupTitleDialog_confirm.
+  /// Confirming button of the rename group dialog.
   ///
   /// In en, this message translates to:
   /// **'Save'**
   String get changeGroupTitleDialog_confirm;
 
-  /// No description provided for @unsavedInputDialog_title.
+  /// Title of the dialog warning that closing now discards unsaved input.
   ///
   /// In en, this message translates to:
   /// **'Are you sure you want to close?'**
   String get unsavedInputDialog_title;
 
-  /// No description provided for @unsavedInputDialog_cancel.
+  /// Button that keeps the form open so the user can carry on editing.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get unsavedInputDialog_cancel;
 
-  /// No description provided for @unsavedInputDialog_close.
+  /// Button that closes the form and discards the unsaved input.
   ///
   /// In en, this message translates to:
   /// **'Close'**
   String get unsavedInputDialog_close;
 
-  /// No description provided for @introScreen_serverLabel.
+  /// Label above the server field on the start screen, shown when linking a device.
   ///
   /// In en, this message translates to:
   /// **'Choose a server to connect to for linking.'**
   String get introScreen_serverLabel;
 
-  /// No description provided for @introScreen_serverHint.
+  /// Placeholder of the server field, shown in capitals in the source.
   ///
   /// In en, this message translates to:
   /// **'DOMAIN NAME'**
   String get introScreen_serverHint;
 
-  /// No description provided for @introScreen_linkExisting.
+  /// Start screen button for linking this device to an account that already exists.
   ///
   /// In en, this message translates to:
   /// **'Link to an existing account'**
   String get introScreen_linkExisting;
 
-  /// No description provided for @introScreen_signUp.
+  /// Start screen button for creating a new account.
   ///
   /// In en, this message translates to:
   /// **'Create account'**
   String get introScreen_signUp;
 
-  /// No description provided for @introScreen_termsLinkText.
+  /// Link text inside the terms sentence on the start screen. Must match the wording used inside that sentence so the link can be located in the rendered string.
   ///
   /// In en, this message translates to:
   /// **'Terms of Use'**
   String get introScreen_termsLinkText;
 
-  /// No description provided for @introScreen_termsText.
+  /// Terms notice on the start screen. The placeholder is replaced by the terms link text and must appear verbatim.
   ///
   /// In en, this message translates to:
   /// **'By creating an account, you agree to our {termsOfUseLink}.'**
-  String introScreen_termsText(Object termsOfUseLink);
+  String introScreen_termsText(String termsOfUseLink);
 
-  /// No description provided for @invitationCodeScreen_header.
+  /// Header of the step asking for an invitation code during sign up.
   ///
   /// In en, this message translates to:
   /// **'Enter invitation code'**
   String get invitationCodeScreen_header;
 
-  /// No description provided for @invitationCodeScreen_subheader.
+  /// Explains that Air is invitation-only and where to get a code.
   ///
   /// In en, this message translates to:
   /// **'Air is currently invitation-only. Enter your code to join. If you don\'t have one, ask someone who’s already on Air.'**
   String get invitationCodeScreen_subheader;
 
-  /// No description provided for @invitationCodeScreen_inputLabel.
+  /// Label of the invitation code field. The parenthesis marks the field as mandatory.
   ///
   /// In en, this message translates to:
   /// **'Invitation code (required)'**
   String get invitationCodeScreen_inputLabel;
 
-  /// No description provided for @invitationCodeScreen_inputHint.
+  /// Placeholder of the invitation code field.
   ///
   /// In en, this message translates to:
   /// **'Enter your invitation code...'**
   String get invitationCodeScreen_inputHint;
 
-  /// No description provided for @invitationCodeScreen_error_invalidLength.
+  /// Validation error when the invitation code is not exactly eight characters.
   ///
   /// In en, this message translates to:
   /// **'Code must be 8 characters'**
   String get invitationCodeScreen_error_invalidLength;
 
-  /// No description provided for @invitationCodeScreen_actionButton.
+  /// Button that submits the invitation code and continues sign up.
   ///
   /// In en, this message translates to:
   /// **'Join Air'**
   String get invitationCodeScreen_actionButton;
 
-  /// No description provided for @invitationCodeScreen_error_internal.
+  /// Error shown when checking the invitation code fails unexpectedly. The placeholder carries an untranslated technical message.
   ///
   /// In en, this message translates to:
   /// **'Failed to check invitation code: {error}'**
-  String invitationCodeScreen_error_internal(Object error);
+  String invitationCodeScreen_error_internal(String error);
 
-  /// No description provided for @invitationCodeScreen_error_missing.
+  /// Validation error when the invitation code field is left empty.
   ///
   /// In en, this message translates to:
   /// **'Invitation code is missing'**
   String get invitationCodeScreen_error_missing;
 
-  /// No description provided for @invitationCodeScreen_error_invalid.
+  /// Error shown when the server rejects the invitation code.
   ///
   /// In en, this message translates to:
   /// **'Invalid invitation code. Check your code, then try again.'**
   String get invitationCodeScreen_error_invalid;
 
-  /// No description provided for @invitationCodesScreen_title.
+  /// Title of the modal listing the invite codes the user can share.
   ///
   /// In en, this message translates to:
   /// **'Invite codes'**
   String get invitationCodesScreen_title;
 
-  /// No description provided for @invitationCodesScreen_copyAll.
+  /// Button that copies every unused invite code at once.
   ///
   /// In en, this message translates to:
   /// **'Copy all'**
   String get invitationCodesScreen_copyAll;
 
-  /// No description provided for @invitationCodesScreen_tapToGetCode.
+  /// Hint on an empty code slot telling the user to tap it to request a code.
   ///
   /// In en, this message translates to:
   /// **'Tap to get code'**
   String get invitationCodesScreen_tapToGetCode;
 
-  /// No description provided for @invitationCodesScreen_removeUsedCodes.
+  /// Button that clears already redeemed codes from the list.
   ///
   /// In en, this message translates to:
   /// **'Remove used codes'**
   String get invitationCodesScreen_removeUsedCodes;
 
-  /// No description provided for @invitationCodesScreen_empty.
+  /// Empty state of the invite codes modal.
   ///
   /// In en, this message translates to:
   /// **'No invitation codes available'**
   String get invitationCodesScreen_empty;
 
-  /// No description provided for @invitationCodesScreen_infoText1.
+  /// First paragraph explaining why invite codes exist.
   ///
   /// In en, this message translates to:
   /// **'Air is in a limited access phase. Everyone who wants to join needs an invite code.'**
   String get invitationCodesScreen_infoText1;
 
-  /// No description provided for @invitationCodesScreen_infoText2.
+  /// Second paragraph, encouraging the user to share codes.
   ///
   /// In en, this message translates to:
   /// **'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.'**
   String get invitationCodesScreen_infoText2;
 
-  /// No description provided for @invitationCodesScreen_global_quota_exceeded.
+  /// Error shown when the server has no invite codes left to hand out.
   ///
   /// In en, this message translates to:
   /// **'We\'re out of invites for now, please try again later.'**
   String get invitationCodesScreen_global_quota_exceeded;
 
-  /// No description provided for @invitationCodesScreen_errorRequestingCode.
+  /// Error shown when requesting a new invite code fails.
   ///
   /// In en, this message translates to:
   /// **'Something went wrong. Try again.'**
   String get invitationCodesScreen_errorRequestingCode;
 
-  /// No description provided for @invitationCodesScreen_copiedToClipboard.
+  /// Confirmation shown after copying an invite code.
   ///
   /// In en, this message translates to:
   /// **'Copied to clipboard'**
   String get invitationCodesScreen_copiedToClipboard;
 
-  /// No description provided for @invitationCodesScreen_codeClipboardMessage.
+  /// Text copied to the clipboard for sharing a single invite code. Sent to people outside the app, so keep the install link intact.
   ///
   /// In en, this message translates to:
   /// **'Let\'s chat on Air: https://air.ms/install. Use invite code {code}.'**
-  String invitationCodesScreen_codeClipboardMessage(Object code);
+  String invitationCodesScreen_codeClipboardMessage(String code);
 
-  /// No description provided for @invitationCodesScreen_codesClipboardMessage.
+  /// Text copied to the clipboard for sharing several invite codes. The blank line before the placeholder separates the codes from the message.
   ///
   /// In en, this message translates to:
   /// **'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}'**
-  String invitationCodesScreen_codesClipboardMessage(Object codes);
+  String invitationCodesScreen_codesClipboardMessage(String codes);
 
-  /// No description provided for @signUpScreen_header.
+  /// Header of the profile step during sign up.
   ///
   /// In en, this message translates to:
   /// **'Create your profile'**
   String get signUpScreen_header;
 
-  /// No description provided for @signUpScreen_subheader.
+  /// Explains who sees the profile and that only a display name is required.
   ///
   /// In en, this message translates to:
   /// **'Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.'**
   String get signUpScreen_subheader;
 
-  /// No description provided for @signUpScreen_actionButton.
+  /// Button that creates the account and finishes the profile step.
   ///
   /// In en, this message translates to:
   /// **'Create'**
   String get signUpScreen_actionButton;
 
-  /// No description provided for @signUpScreen_displayNameInputName.
+  /// Label of the display name field during sign up. The parenthesis marks it as mandatory.
   ///
   /// In en, this message translates to:
   /// **'Display name (required)'**
   String get signUpScreen_displayNameInputName;
 
-  /// No description provided for @signUpScreen_displayNameInputHint.
+  /// Placeholder of the display name field during sign up.
   ///
   /// In en, this message translates to:
   /// **'Add a name...'**
   String get signUpScreen_displayNameInputHint;
 
-  /// No description provided for @signUpScreen_serverLabel.
+  /// Label above the server field during sign up.
   ///
   /// In en, this message translates to:
   /// **'Choose a server where you want to create your account.'**
   String get signUpScreen_serverLabel;
 
-  /// No description provided for @signUpScreen_serverHint.
+  /// Placeholder of the server field during sign up, shown in capitals in the source.
   ///
   /// In en, this message translates to:
   /// **'DOMAIN NAME'**
   String get signUpScreen_serverHint;
 
-  /// No description provided for @signUpScreen_error_invalidDomain.
+  /// Validation error when the entered server domain is malformed.
   ///
   /// In en, this message translates to:
   /// **'Domain is invalid'**
   String get signUpScreen_error_invalidDomain;
 
-  /// No description provided for @signUpScreen_error_emptyDisplayName.
+  /// Validation error when the display name field is left empty.
   ///
   /// In en, this message translates to:
   /// **'Add a display name of at least one character'**
   String get signUpScreen_error_emptyDisplayName;
 
-  /// No description provided for @signUpScreen_error_register.
+  /// Error shown when account registration fails. The placeholder carries an untranslated technical message.
   ///
   /// In en, this message translates to:
   /// **'Error when registering user: {error}'**
-  String signUpScreen_error_register(Object error);
+  String signUpScreen_error_register(String error);
 
-  /// No description provided for @usernameOnboarding_header.
+  /// Header of the optional username step during sign up.
   ///
   /// In en, this message translates to:
   /// **'Add a username'**
   String get usernameOnboarding_header;
 
-  /// No description provided for @usernameOnboarding_body.
+  /// Explains what usernames do and that they can be changed later. The blank line separates the two paragraphs.
   ///
   /// In en, this message translates to:
   /// **'Usernames are how people connect on Air. They aren\'t visible to others once you\'re connected.\n\nAdd, change, or delete usernames at any time in your profile.'**
   String get usernameOnboarding_body;
 
-  /// No description provided for @usernameOnboarding_syntax.
+  /// States which characters a username may contain and its minimum length.
   ///
   /// In en, this message translates to:
   /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
   String get usernameOnboarding_syntax;
 
-  /// No description provided for @usernameOnboarding_addButton.
+  /// Button that adds the typed username during sign up.
   ///
   /// In en, this message translates to:
   /// **'Add'**
   String get usernameOnboarding_addButton;
 
-  /// No description provided for @usernameOnboarding_error.
+  /// Error shown when adding a username during sign up fails on the server.
   ///
   /// In en, this message translates to:
   /// **'Something went wrong on our end. Wait a moment, then try again.'**
   String get usernameOnboarding_error;
 
-  /// No description provided for @usernameOnboarding_next.
+  /// Button that continues past the username step without adding one.
   ///
   /// In en, this message translates to:
   /// **'Next'**
   String get usernameOnboarding_next;
 
-  /// No description provided for @usernameOnboarding_usernameInputName.
+  /// Label of the username field during sign up. The parenthesis marks it as optional.
   ///
   /// In en, this message translates to:
   /// **'Username (optional)'**
   String get usernameOnboarding_usernameInputName;
 
-  /// No description provided for @usernameOnboarding_usernameInputHint.
+  /// Placeholder of the username field during sign up.
   ///
   /// In en, this message translates to:
   /// **'Add a username...'**
   String get usernameOnboarding_usernameInputHint;
 
-  /// No description provided for @linkingDeviceScreen_header.
+  /// Header of the screen that links this device to an existing account.
   ///
   /// In en, this message translates to:
   /// **'Link to an existing account'**
   String get linkingDeviceScreen_header;
 
-  /// No description provided for @linkingDeviceScreen_connecting.
+  /// Progress label while this device connects to the server.
   ///
   /// In en, this message translates to:
   /// **'Connecting...'**
   String get linkingDeviceScreen_connecting;
 
-  /// No description provided for @linkingDeviceScreen_separator.
+  /// Separator between the QR code and the numeric code options. A single word.
   ///
   /// In en, this message translates to:
   /// **'or'**
   String get linkingDeviceScreen_separator;
 
-  /// No description provided for @linkingDeviceScreen_numericCode.
+  /// Label above the numeric code that the other device has to enter.
   ///
   /// In en, this message translates to:
   /// **'Numeric code'**
   String get linkingDeviceScreen_numericCode;
 
-  /// No description provided for @linkingDeviceScreen_linking.
+  /// Progress label while the two devices complete linking.
   ///
   /// In en, this message translates to:
   /// **'Linking...'**
   String get linkingDeviceScreen_linking;
 
-  /// No description provided for @linkingDeviceScreen_linking_confirm_title.
+  /// Title of the dialog asking the user to confirm linking a new device.
   ///
   /// In en, this message translates to:
   /// **'Confirm linking'**
   String get linkingDeviceScreen_linking_confirm_title;
 
-  /// No description provided for @linkingDeviceScreen_linking_confirm_edit_subtitle.
+  /// Hint under the device name telling the user they can tap it to rename the device.
   ///
   /// In en, this message translates to:
   /// **'Tap to edit device name'**
   String get linkingDeviceScreen_linking_confirm_edit_subtitle;
 
-  /// No description provided for @linkingDeviceScreen_linking_confirm_body.
+  /// Warns that a linked device gets full account access.
   ///
   /// In en, this message translates to:
   /// **'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.'**
   String get linkingDeviceScreen_linking_confirm_body;
 
-  /// No description provided for @linkingDeviceScreen_linking_confirm_checkbox.
+  /// Label of the checkbox the user must tick to allow linking.
   ///
   /// In en, this message translates to:
   /// **'I want to link this device.'**
   String get linkingDeviceScreen_linking_confirm_checkbox;
 
-  /// No description provided for @linkingDeviceScreen_linking_confirm_button.
+  /// Button that confirms linking the new device.
   ///
   /// In en, this message translates to:
   /// **'Confirm'**
   String get linkingDeviceScreen_linking_confirm_button;
 
-  /// No description provided for @linkingDeviceScreen_instructions_1.
+  /// First linking step. Names the You tab and the manage devices row as they appear in this locale.
   ///
   /// In en, this message translates to:
   /// **'Open Air on your existing device and go to You → Manage devices.'**
   String get linkingDeviceScreen_instructions_1;
 
-  /// No description provided for @linkingDeviceScreen_instructions_2.
+  /// Second linking step. The quoted text is the Link a device button on the other device.
   ///
   /// In en, this message translates to:
   /// **'Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.'**
   String get linkingDeviceScreen_instructions_2;
 
-  /// No description provided for @linkingDeviceScreen_instructions_3.
+  /// Third linking step, telling the user to keep both apps open.
   ///
   /// In en, this message translates to:
   /// **'Keep both apps open during the linking process.'**
   String get linkingDeviceScreen_instructions_3;
 
-  /// No description provided for @linkingDeviceScreen_error_codesExpired_title.
+  /// Title of the dialog shown when the linking codes have timed out.
   ///
   /// In en, this message translates to:
   /// **'Codes expired'**
   String get linkingDeviceScreen_error_codesExpired_title;
 
-  /// No description provided for @linkingDeviceScreen_error_codesExpired_message.
+  /// Body of the expired codes dialog, telling the user to reload.
   ///
   /// In en, this message translates to:
   /// **'To link this device, reload the codes and try again.'**
   String get linkingDeviceScreen_error_codesExpired_message;
 
-  /// No description provided for @linkingDeviceScreen_error_codesExpired_cancel.
+  /// Button that dismisses the expired codes dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get linkingDeviceScreen_error_codesExpired_cancel;
 
-  /// No description provided for @linkingDeviceScreen_error_codesExpired_reload.
+  /// Button that requests fresh linking codes.
   ///
   /// In en, this message translates to:
   /// **'Reload'**
   String get linkingDeviceScreen_error_codesExpired_reload;
 
-  /// No description provided for @linkingDevicesScreen_error_title.
+  /// Title of the dialog shown when linking a device fails.
   ///
   /// In en, this message translates to:
   /// **'Linking failed'**
   String get linkingDevicesScreen_error_title;
 
-  /// No description provided for @linkingDevicesScreen_error_generic.
+  /// Fallback body of the linking failed dialog when the cause is unknown.
   ///
   /// In en, this message translates to:
   /// **'An unknown error occurred.'**
   String get linkingDevicesScreen_error_generic;
 
-  /// No description provided for @linkingDevicesScreen_error_sessionNotFound.
+  /// Body of the linking failed dialog when the entered numeric code does not match.
   ///
   /// In en, this message translates to:
   /// **'The code you provided is incorrect.'**
   String get linkingDevicesScreen_error_sessionNotFound;
 
-  /// No description provided for @linkingDevicesScreen_error_dismiss.
+  /// Button that closes the linking failed dialog so the user can retry.
   ///
   /// In en, this message translates to:
   /// **'Try again'**
   String get linkingDevicesScreen_error_dismiss;
 
-  /// No description provided for @linkedDevicesScreen_thisDevice.
+  /// Section header above the entry for the device the app is running on.
   ///
   /// In en, this message translates to:
   /// **'This device'**
   String get linkedDevicesScreen_thisDevice;
 
-  /// No description provided for @linkedDevicesScreen_linkedDevices.
+  /// Section header above the user's other linked devices.
   ///
   /// In en, this message translates to:
   /// **'Linked devices'**
   String get linkedDevicesScreen_linkedDevices;
 
-  /// No description provided for @linkedDevicesScreen_linkedOn.
+  /// Subtitle of a device entry giving the date it was linked. The placeholder is an already formatted date.
   ///
   /// In en, this message translates to:
   /// **'Linked on {date}'**
   String linkedDevicesScreen_linkedOn(String date);
 
-  /// No description provided for @linkedDevicesScreen_editNameHint.
+  /// Hint under the device list telling the user they can tap a device to rename it.
   ///
   /// In en, this message translates to:
   /// **'Tap a device to edit its name.'**
   String get linkedDevicesScreen_editNameHint;
 
-  /// No description provided for @linkedDevicesScreen_linkDevice.
+  /// Button that starts linking another device.
   ///
   /// In en, this message translates to:
   /// **'Link a device'**
   String get linkedDevicesScreen_linkDevice;
 
-  /// No description provided for @linkedDevicesScreen_unknownDevice.
+  /// Fallback name for a linked device that reported no name.
   ///
   /// In en, this message translates to:
   /// **'Unknown device'**
   String get linkedDevicesScreen_unknownDevice;
 
-  /// No description provided for @linkedDevicesScreen_renameError_title.
+  /// Title of the dialog shown when renaming a device fails.
   ///
   /// In en, this message translates to:
   /// **'Renaming failed.'**
   String get linkedDevicesScreen_renameError_title;
 
-  /// No description provided for @linkedDevicesScreen_renameError.
+  /// Body of the rename failed dialog, naming the device.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t rename the device {deviceName}. Check your network connection and try again.'**
   String linkedDevicesScreen_renameError(String deviceName);
 
-  /// No description provided for @linkedDevicesScreen_unlinkError_title.
+  /// Title of the dialog shown when unlinking a device fails.
   ///
   /// In en, this message translates to:
   /// **'Unlinking failed.'**
   String get linkedDevicesScreen_unlinkError_title;
 
-  /// No description provided for @linkedDevicesScreen_unlinkError.
+  /// Body of the unlink failed dialog, naming the device.
   ///
   /// In en, this message translates to:
   /// **'Unlinking the device {deviceName} failed. Check your network connection and try again.'**
   String linkedDevicesScreen_unlinkError(String deviceName);
 
-  /// No description provided for @linkedDevicesScreen_errorDialog_confirm.
+  /// Button that acknowledges and closes a device error dialog.
   ///
   /// In en, this message translates to:
   /// **'Okay'**
   String get linkedDevicesScreen_errorDialog_confirm;
 
-  /// No description provided for @linkedDevicesScreen_deviceCount.
+  /// Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}'**
   String linkedDevicesScreen_deviceCount(int count);
 
-  /// No description provided for @linkedDevicesScreen_encryptionNotice.
+  /// Notice under the device list stating that messages stay encrypted across devices. Followed by a separate learn more link.
   ///
   /// In en, this message translates to:
   /// **'Messages are end-to-end encrypted on all devices.'**
   String get linkedDevicesScreen_encryptionNotice;
 
-  /// No description provided for @linkedDevicesScreen_encryptionNotice_learnMore.
+  /// Link following the encryption notice that opens the explanation dialog.
   ///
   /// In en, this message translates to:
   /// **'Learn more.'**
   String get linkedDevicesScreen_encryptionNotice_learnMore;
 
-  /// No description provided for @linkedDevicesScreen_encryptionDialog_title.
+  /// Title of the dialog explaining encryption and device linking.
   ///
   /// In en, this message translates to:
   /// **'Encryption and device linking'**
   String get linkedDevicesScreen_encryptionDialog_title;
 
-  /// No description provided for @linkedDevicesScreen_encryptionDialog_content.
+  /// Explains that messages stay end-to-end encrypted after linking. The blank line separates the two paragraphs.
   ///
   /// In en, this message translates to:
   /// **'On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you\'re the only one who can read them.'**
   String get linkedDevicesScreen_encryptionDialog_content;
 
-  /// No description provided for @linkedDevicesScreen_encryptionDialog_confirm.
+  /// Button that closes the encryption explanation dialog.
   ///
   /// In en, this message translates to:
   /// **'Okay'**
   String get linkedDevicesScreen_encryptionDialog_confirm;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_chooseMethod.
+  /// Helps the user pick between the two linking methods. The quoted texts are the two buttons below and should match them.
   ///
   /// In en, this message translates to:
   /// **'If you\'re using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you\'re using a computer or a device with a broken camera, choose \"Enter numeric code\".'**
   String get linkedDevicesScreen_linkDialog_chooseMethod;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_openApp.
+  /// First instruction of the link dialog. The quoted text is the start screen button on the other device.
   ///
   /// In en, this message translates to:
   /// **'On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.'**
   String get linkedDevicesScreen_linkDialog_openApp;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_scanQrCode.
+  /// Button that starts linking by scanning a QR code.
   ///
   /// In en, this message translates to:
   /// **'Scan QR code'**
   String get linkedDevicesScreen_linkDialog_scanQrCode;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_scanQrCode_unavailable.
+  /// The scan QR code button when this platform has no usable camera. The parenthesis explains why it is disabled.
   ///
   /// In en, this message translates to:
   /// **'Scan QR code (unavailable)'**
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_enterNumericCode.
+  /// Button that starts linking by typing a numeric code instead of scanning.
   ///
   /// In en, this message translates to:
   /// **'Enter numeric code'**
   String get linkedDevicesScreen_linkDialog_enterNumericCode;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_warning.
+  /// Warns that linked devices get full account access, including managing other devices.
   ///
   /// In en, this message translates to:
   /// **'Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.'**
   String get linkedDevicesScreen_linkDialog_warning;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_numericCodeInstructions.
+  /// Tells the user to type the numeric code shown on the other device.
   ///
   /// In en, this message translates to:
   /// **'Enter the numeric code shown on the device you want to link.'**
   String get linkedDevicesScreen_linkDialog_numericCodeInstructions;
 
-  /// No description provided for @linkedDevicesScreen_linkDialog_link.
+  /// Button that confirms linking with the entered numeric code.
   ///
   /// In en, this message translates to:
   /// **'Link device'**
   String get linkedDevicesScreen_linkDialog_link;
 
-  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_title.
+  /// Title of the dialog for renaming a linked device.
   ///
   /// In en, this message translates to:
   /// **'Change device name'**
   String get linkedDevicesScreen_deviceName_editDialog_title;
 
-  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_cancel.
+  /// Button that dismisses the rename device dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get linkedDevicesScreen_deviceName_editDialog_cancel;
 
-  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_confirm.
+  /// Confirming button of the rename device dialog.
   ///
   /// In en, this message translates to:
   /// **'Change'**
   String get linkedDevicesScreen_deviceName_editDialog_confirm;
 
-  /// No description provided for @linkedDevicesScreen_unlinkDialog_title.
+  /// Title of the dialog confirming that a device will be unlinked.
   ///
   /// In en, this message translates to:
   /// **'Unlink device'**
   String get linkedDevicesScreen_unlinkDialog_title;
 
-  /// No description provided for @linkedDevicesScreen_unlinkDialog_content.
+  /// Body of the unlink dialog. Says the device stops working and its data is wiped when it next comes online.
   ///
   /// In en, this message translates to:
   /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.'**
   String get linkedDevicesScreen_unlinkDialog_content;
 
-  /// No description provided for @linkedDevicesScreen_unlinkDialog_cancel.
+  /// Button that dismisses the unlink dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get linkedDevicesScreen_unlinkDialog_cancel;
 
-  /// No description provided for @linkedDevicesScreen_unlinkDialog_confirm.
+  /// Confirming button of the unlink dialog.
   ///
   /// In en, this message translates to:
   /// **'Unlink'**
   String get linkedDevicesScreen_unlinkDialog_confirm;
 
-  /// No description provided for @usernameScreen_title.
+  /// Title of the dialog for adding one of the user's own usernames.
   ///
   /// In en, this message translates to:
   /// **'Add username'**
   String get usernameScreen_title;
 
-  /// No description provided for @usernameScreen_inputHint.
+  /// Placeholder of the username field in the add username dialog.
   ///
   /// In en, this message translates to:
   /// **'Type a username...'**
   String get usernameScreen_inputHint;
 
-  /// No description provided for @usernameScreen_error_emptyUsername.
+  /// Validation error when the username field is empty.
   ///
   /// In en, this message translates to:
   /// **'Username cannot be empty'**
   String get usernameScreen_error_emptyUsername;
 
-  /// No description provided for @usernameScreen_error_alreadyExists.
+  /// Validation error when the username is taken by someone else.
   ///
   /// In en, this message translates to:
   /// **'Username is already in use'**
   String get usernameScreen_error_alreadyExists;
 
-  /// No description provided for @usernameScreen_description.
+  /// Explains what a username is for. First of two paragraphs below the username field in the add username dialog.
   ///
   /// In en, this message translates to:
-  /// **'Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.'**
+  /// **'Choose a username that others can use to connect with you.'**
   String get usernameScreen_description;
 
-  /// No description provided for @usernameScreen_cancel.
+  /// Which characters a username may use and its minimum length. Second of two paragraphs below the username field in the add username dialog. Same wording as the helper text in the sign up flow.
+  ///
+  /// In en, this message translates to:
+  /// **'Use letters, numbers, or dashes. Minimum 5 characters.'**
+  String get usernameScreen_syntax;
+
+  /// Button that dismisses the add username dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get usernameScreen_cancel;
 
-  /// No description provided for @usernameScreen_confirm.
+  /// Confirming button of the add username dialog.
   ///
   /// In en, this message translates to:
   /// **'Add'**
   String get usernameScreen_confirm;
 
-  /// No description provided for @usernameScreen_error_tooShort.
+  /// Validation error when the username is shorter than five characters.
   ///
   /// In en, this message translates to:
   /// **'Username must be at least 5 characters'**
   String get usernameScreen_error_tooShort;
 
-  /// No description provided for @usernameScreen_error_tooLong.
+  /// Validation error when the username is longer than 63 characters.
   ///
   /// In en, this message translates to:
   /// **'Username must be at most 63 characters'**
   String get usernameScreen_error_tooLong;
 
-  /// No description provided for @usernameScreen_error_invalidCharacter.
+  /// Validation error when the username contains a character that is not a letter, number or dash.
   ///
   /// In en, this message translates to:
   /// **'Username must only contain letters, numbers, or dashes'**
   String get usernameScreen_error_invalidCharacter;
 
-  /// No description provided for @usernameScreen_error_consecutiveDashes.
+  /// Validation error when the username has two or more dashes in a row.
   ///
   /// In en, this message translates to:
   /// **'Username must not contain consecutive dashes'**
   String get usernameScreen_error_consecutiveDashes;
 
-  /// No description provided for @usernameScreen_error_leadingDigit.
+  /// Validation error when the username starts with a digit.
   ///
   /// In en, this message translates to:
   /// **'Username must not start with a digit'**
   String get usernameScreen_error_leadingDigit;
 
-  /// No description provided for @editDialog_characters_remaining.
+  /// Character counter under a text field in an edit dialog. Shows characters typed over the maximum allowed.
   ///
   /// In en, this message translates to:
   /// **'{characters}/{remaining} characters'**
-  String editDialog_characters_remaining(Object characters, Object remaining);
+  String editDialog_characters_remaining(int characters, int remaining);
 
-  /// No description provided for @editDisplayNameScreen_title.
+  /// Title of the dialog for changing the user's own display name.
   ///
   /// In en, this message translates to:
   /// **'Change display name'**
   String get editDisplayNameScreen_title;
 
-  /// No description provided for @editDisplayNameScreen_description.
+  /// Explains that the display name is what other people see.
   ///
   /// In en, this message translates to:
   /// **'Choose a name that others will see.'**
   String get editDisplayNameScreen_description;
 
-  /// No description provided for @editDisplayNameScreen_cancel.
+  /// Button that dismisses the change display name dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get editDisplayNameScreen_cancel;
 
-  /// No description provided for @editDisplayNameScreen_save.
+  /// Confirming button of the change display name dialog.
   ///
   /// In en, this message translates to:
   /// **'Save'**
   String get editDisplayNameScreen_save;
 
-  /// No description provided for @systemMessage_userAddedUser_prefix.
+  /// Name of the person who added someone, rendered in bold before the added text. This fragment is joined with the infix and suffix keys to build one sentence, so word order across the three fragments is fixed and cannot be changed per language.
   ///
   /// In en, this message translates to:
   /// **'{user1}'**
-  String systemMessage_userAddedUser_prefix(Object user1);
+  String systemMessage_userAddedUser_prefix(String user1);
 
-  /// No description provided for @systemMessage_userAddedUser_infix.
+  /// Middle of the system message about a member being added, between the two names. Leading and trailing spaces are part of the string.
   ///
   /// In en, this message translates to:
   /// **' added '**
   String get systemMessage_userAddedUser_infix;
 
-  /// No description provided for @systemMessage_userAddedUser_suffix.
+  /// Name of the person who was added, rendered in bold at the end of the added system message.
   ///
   /// In en, this message translates to:
   /// **'{user2}'**
-  String systemMessage_userAddedUser_suffix(Object user2);
+  String systemMessage_userAddedUser_suffix(String user2);
 
-  /// No description provided for @systemMessage_userRemovedUser_prefix.
+  /// Name of the person who removed someone, rendered in bold before the removed text. Joined with the infix and suffix keys, so word order is fixed across the fragments.
   ///
   /// In en, this message translates to:
   /// **'{user1}'**
-  String systemMessage_userRemovedUser_prefix(Object user1);
+  String systemMessage_userRemovedUser_prefix(String user1);
 
-  /// No description provided for @systemMessage_userRemovedUser_infix.
+  /// Middle of the system message about a member being removed, between the two names. Leading and trailing spaces are part of the string.
   ///
   /// In en, this message translates to:
   /// **' removed '**
   String get systemMessage_userRemovedUser_infix;
 
-  /// No description provided for @systemMessage_userRemovedUser_suffix.
+  /// Name of the person who was removed, rendered in bold at the end of the removed system message.
   ///
   /// In en, this message translates to:
   /// **'{user2}'**
-  String systemMessage_userRemovedUser_suffix(Object user2);
+  String systemMessage_userRemovedUser_suffix(String user2);
 
-  /// No description provided for @systemMessage_userChangedTitle_prefix.
+  /// Name of the person who renamed the group, rendered in bold. Joined with the infix and suffix keys, so word order is fixed across the fragments.
   ///
   /// In en, this message translates to:
   /// **'{user}'**
-  String systemMessage_userChangedTitle_prefix(Object user);
+  String systemMessage_userChangedTitle_prefix(String user);
 
-  /// No description provided for @systemMessage_userChangedTitle_infix_1.
+  /// Text between the person's name and the old group name. Leading and trailing spaces are part of the string.
   ///
   /// In en, this message translates to:
   /// **' changed the group name from '**
   String get systemMessage_userChangedTitle_infix_1;
 
-  /// No description provided for @systemMessage_userChangedTitle_infix_2.
+  /// The previous group name, rendered in bold inside the renamed system message.
   ///
   /// In en, this message translates to:
   /// **'{old_name}'**
-  String systemMessage_userChangedTitle_infix_2(Object old_name);
+  String systemMessage_userChangedTitle_infix_2(String old_name);
 
-  /// No description provided for @systemMessage_userChangedTitle_infix_3.
+  /// Text between the old and the new group name. Leading and trailing spaces are part of the string.
   ///
   /// In en, this message translates to:
   /// **' to '**
   String get systemMessage_userChangedTitle_infix_3;
 
-  /// No description provided for @systemMessage_userChangedTitle_suffix.
+  /// The new group name, rendered in bold at the end of the renamed system message.
   ///
   /// In en, this message translates to:
   /// **'{new_name}'**
-  String systemMessage_userChangedTitle_suffix(Object new_name);
+  String systemMessage_userChangedTitle_suffix(String new_name);
 
-  /// No description provided for @systemMessage_acceptedHandleConnectionRequest.
+  /// System message shown after the user accepts a contact request that arrived through one of their usernames.
   ///
   /// In en, this message translates to:
   /// **'You accepted {displayName}\'s contact request made through your username {username}.'**
   String systemMessage_acceptedHandleConnectionRequest(
-    Object displayName,
-    Object username,
+    String displayName,
+    String username,
   );
 
-  /// No description provided for @systemMessage_acceptedDirectConnectionRequest.
+  /// System message shown after the user accepts a contact request that arrived through a shared group.
   ///
   /// In en, this message translates to:
   /// **'You accepted {displayName}\'s contact request made through a mutual group chat.'**
-  String systemMessage_acceptedDirectConnectionRequest(Object displayName);
+  String systemMessage_acceptedDirectConnectionRequest(String displayName);
 
-  /// No description provided for @systemMessage_receivedConnectionConfirmation.
+  /// System message shown when someone accepts the contact request the user sent.
   ///
   /// In en, this message translates to:
   /// **'{displayName} accepted your contact request.'**
-  String systemMessage_receivedConnectionConfirmation(Object displayName);
+  String systemMessage_receivedConnectionConfirmation(String displayName);
 
-  /// No description provided for @systemMessage_newHandleConnectionChat.
+  /// System message opening a chat where the user sent a contact request to a username.
   ///
   /// In en, this message translates to:
   /// **'You sent a contact request to username {username}. They might not be immediately notified about your request.'**
-  String systemMessage_newHandleConnectionChat(Object username);
+  String systemMessage_newHandleConnectionChat(String username);
 
-  /// No description provided for @systemMessage_newDirectConnectionChat.
+  /// System message opening a chat where the user sent a contact request to a person from a shared group.
   ///
   /// In en, this message translates to:
   /// **'You sent a contact request to {displayName}. They might not be immediately notified about your request.'**
-  String systemMessage_newDirectConnectionChat(Object displayName);
+  String systemMessage_newDirectConnectionChat(String displayName);
 
-  /// No description provided for @systemMessage_receivedHandleConnectionRequest.
+  /// System message shown when a contact request arrives through one of the user's usernames.
   ///
   /// In en, this message translates to:
   /// **'{displayName} sent you a contact request through your username {username}.'**
   String systemMessage_receivedHandleConnectionRequest(
-    Object displayName,
-    Object username,
+    String displayName,
+    String username,
   );
 
-  /// No description provided for @systemMessage_receivedDirectConnectionRequest.
+  /// System message shown when a contact request arrives through a shared group.
   ///
   /// In en, this message translates to:
   /// **'{displayName} sent you a contact request through the group chat {groupName}.'**
   String systemMessage_receivedDirectConnectionRequest(
-    Object displayName,
-    Object groupName,
+    String displayName,
+    String groupName,
   );
 
-  /// No description provided for @systemMessage_userChangedPicture_prefix.
+  /// Name of the person who changed the group picture, rendered in bold. Joined with the infix key, so word order is fixed across the fragments.
   ///
   /// In en, this message translates to:
   /// **'{user}'**
-  String systemMessage_userChangedPicture_prefix(Object user);
+  String systemMessage_userChangedPicture_prefix(String user);
 
-  /// No description provided for @systemMessage_userChangedPicture_infix.
+  /// Text following the name in the group picture system message. The leading space is part of the string.
   ///
   /// In en, this message translates to:
   /// **' changed the group picture'**
   String get systemMessage_userChangedPicture_infix;
 
-  /// No description provided for @systemMessage_userCreatedGroup_prefix.
+  /// Name of the person who created the group, rendered in bold. Joined with the suffix key, so word order is fixed across the fragments.
   ///
   /// In en, this message translates to:
   /// **'{user}'**
-  String systemMessage_userCreatedGroup_prefix(Object user);
+  String systemMessage_userCreatedGroup_prefix(String user);
 
-  /// No description provided for @systemMessage_userCreatedGroup_suffix.
+  /// Text following the name in the group created system message. The leading space is part of the string.
   ///
   /// In en, this message translates to:
   /// **' created the group'**
   String get systemMessage_userCreatedGroup_suffix;
 
-  /// No description provided for @systemMessage_onboarded.
+  /// System message marking where a newly linked device joined the chat.
   ///
   /// In en, this message translates to:
   /// **'This client has been onboarded into the chat after linking.'**
   String get systemMessage_onboarded;
 
-  /// No description provided for @timestamp_now.
+  /// Timestamp for a message sent moments ago. Kept short to fit next to the message.
   ///
   /// In en, this message translates to:
   /// **'Now'**
   String get timestamp_now;
 
-  /// No description provided for @timestamp_minutesAgo.
+  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.
   ///
   /// In en, this message translates to:
   /// **'{count}m'**
   String timestamp_minutesAgo(int count);
 
-  /// No description provided for @date_today.
+  /// Date separator above today's messages.
   ///
   /// In en, this message translates to:
   /// **'Today'**
   String get date_today;
 
-  /// No description provided for @date_yesterday.
+  /// Date separator above yesterday's messages.
   ///
   /// In en, this message translates to:
   /// **'Yesterday'**
   String get date_yesterday;
 
-  /// No description provided for @messageBubble_sending.
+  /// Delivery status while a message is still being sent.
   ///
   /// In en, this message translates to:
   /// **'Sending'**
   String get messageBubble_sending;
 
-  /// No description provided for @messageBubble_failedToSend.
+  /// Delivery status when a message could not be sent.
   ///
   /// In en, this message translates to:
   /// **'Failed to send'**
   String get messageBubble_failedToSend;
 
-  /// No description provided for @messageBubble_sent.
+  /// Delivery status once the server has the message. Use the glossary term for sent.
   ///
   /// In en, this message translates to:
   /// **'Sent'**
   String get messageBubble_sent;
 
-  /// No description provided for @messageBubble_delivered.
+  /// Delivery status once the message reached the recipient's device. Use the glossary term for delivered.
   ///
   /// In en, this message translates to:
   /// **'Delivered'**
   String get messageBubble_delivered;
 
-  /// No description provided for @messageBubble_read.
+  /// Delivery status once the recipient has read the message. Use the glossary term for read.
   ///
   /// In en, this message translates to:
   /// **'Read'**
   String get messageBubble_read;
 
-  /// No description provided for @chatList_newContact.
+  /// Menu item in the chat list header that starts adding an Air contact.
   ///
   /// In en, this message translates to:
   /// **'New Air contact'**
   String get chatList_newContact;
 
-  /// No description provided for @chatList_newGroup.
+  /// Menu item in the chat list header that starts creating a group chat.
   ///
   /// In en, this message translates to:
   /// **'New group chat'**
   String get chatList_newGroup;
 
-  /// No description provided for @chatList_emptyMessage.
+  /// Empty state of the chat list, shown before the user has any contacts.
   ///
   /// In en, this message translates to:
   /// **'Add your first Air contact to get started'**
   String get chatList_emptyMessage;
 
-  /// No description provided for @chatList_draft.
+  /// Prefix on a chat list row whose composer holds an unsent draft.
   ///
   /// In en, this message translates to:
   /// **'Draft'**
   String get chatList_draft;
 
-  /// No description provided for @chatList_you.
+  /// Refers to the user themselves in member lists and chat list previews.
   ///
   /// In en, this message translates to:
   /// **'You'**
   String get chatList_you;
 
-  /// No description provided for @chatList_imageEmoji.
+  /// Emoji standing in for an image in a chat list preview. Not translated text.
   ///
   /// In en, this message translates to:
   /// **'🖼️'**
   String get chatList_imageEmoji;
 
-  /// No description provided for @chatList_fileEmoji.
+  /// Emoji standing in for a file attachment in a chat list preview. Not translated text.
   ///
   /// In en, this message translates to:
   /// **'📎'**
   String get chatList_fileEmoji;
 
-  /// No description provided for @chatList_blocked.
+  /// Marker on a chat list row whose contact is blocked.
   ///
   /// In en, this message translates to:
   /// **'Blocked'**
   String get chatList_blocked;
 
-  /// No description provided for @chatList_reaction.
+  /// Chat list preview of a reaction someone else sent. The message placeholder holds the reacted-to text and is already quoted in the source.
   ///
   /// In en, this message translates to:
   /// **'{user} reacted {emoji} to \"{message}\"'**
   String chatList_reaction(String user, String emoji, String message);
 
-  /// No description provided for @chatList_reactionByYou.
+  /// Chat list preview of a reaction the user sent. The message placeholder holds the reacted-to text and is already quoted in the source.
   ///
   /// In en, this message translates to:
   /// **'You reacted {emoji} to \"{message}\"'**
   String chatList_reactionByYou(String emoji, String message);
 
-  /// No description provided for @chatList_contextMenu_mute.
+  /// Chat list context menu item that mutes the chat.
   ///
   /// In en, this message translates to:
   /// **'Mute'**
   String get chatList_contextMenu_mute;
 
-  /// No description provided for @chatList_contextMenu_unmute.
+  /// Chat list context menu item that unmutes the chat.
   ///
   /// In en, this message translates to:
   /// **'Unmute'**
   String get chatList_contextMenu_unmute;
 
-  /// No description provided for @newChatDialog_error.
+  /// Error shown when creating a group chat fails, naming the group.
   ///
   /// In en, this message translates to:
   /// **'Failed to create new group chat with name {chatName}'**
-  String newChatDialog_error(Object chatName);
+  String newChatDialog_error(String chatName);
 
-  /// No description provided for @newChatDialog_error_incompatibleClient.
+  /// Error shown when a group cannot be created because a member runs an app version that is too old.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
-  String newChatDialog_error_incompatibleClient(Object chatName);
+  String newChatDialog_error_incompatibleClient(String chatName);
 
-  /// No description provided for @newConnectionDialog_newConnectionTitle.
+  /// Title of the dialog for adding an Air contact by username.
   ///
   /// In en, this message translates to:
   /// **'Add Air contact'**
   String get newConnectionDialog_newConnectionTitle;
 
-  /// No description provided for @newConnectionDialog_newConnectionDescription.
+  /// Explains that a username is needed to add a contact.
   ///
   /// In en, this message translates to:
   /// **'Enter the username of the person you want to message.'**
   String get newConnectionDialog_newConnectionDescription;
 
-  /// No description provided for @newConnectionDialog_inputLabel.
+  /// Label of the username field in the add contact dialog. The parenthesis marks it as mandatory.
   ///
   /// In en, this message translates to:
   /// **'Username (required)'**
   String get newConnectionDialog_inputLabel;
 
-  /// No description provided for @newConnectionDialog_usernamePlaceholder.
+  /// Placeholder of the username field in the add contact dialog.
   ///
   /// In en, this message translates to:
   /// **'Type a username...'**
   String get newConnectionDialog_usernamePlaceholder;
 
-  /// No description provided for @newConnectionDialog_handleExists.
+  /// Confirmation that the username exists, telling the user how to proceed. The quoted text is the confirming button and should match it.
   ///
   /// In en, this message translates to:
   /// **'{username} exists. Tap “Send” to send a contact request.'**
-  String newConnectionDialog_handleExists(Object username);
+  String newConnectionDialog_handleExists(String username);
 
-  /// No description provided for @newConnectionDialog_cancel.
+  /// Button that dismisses the add contact dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get newConnectionDialog_cancel;
 
-  /// No description provided for @newConnectionDialog_confirm1.
+  /// Button in the add contact dialog that looks up the typed username.
   ///
   /// In en, this message translates to:
   /// **'Check'**
   String get newConnectionDialog_confirm1;
 
-  /// No description provided for @newConnectionDialog_confirm2.
+  /// Button in the add contact dialog that sends the contact request once the username is confirmed.
   ///
   /// In en, this message translates to:
   /// **'Send'**
   String get newConnectionDialog_confirm2;
 
-  /// No description provided for @newConnectionDialog_error.
+  /// Error shown when sending a contact request fails, naming the username.
   ///
   /// In en, this message translates to:
   /// **'Failed to send {username} a contact request. Try again.'**
-  String newConnectionDialog_error(Object username);
+  String newConnectionDialog_error(String username);
 
-  /// No description provided for @newConnectionDialog_error_emptyUsername.
+  /// Validation error when the username field in the add contact dialog is empty.
   ///
   /// In en, this message translates to:
   /// **'Type the username'**
   String get newConnectionDialog_error_emptyUsername;
 
-  /// No description provided for @newConnectionDialog_error_usernameNotFound.
+  /// Error shown when the entered username does not exist.
   ///
   /// In en, this message translates to:
   /// **'{username} wasn\'t found. Check it and try again.'**
-  String newConnectionDialog_error_usernameNotFound(Object username);
+  String newConnectionDialog_error_usernameNotFound(String username);
 
-  /// No description provided for @newConnectionDialog_error_duplicateRequest.
+  /// Error shown when a contact request to this username is already pending.
   ///
   /// In en, this message translates to:
   /// **'You already have a pending contact request to this username.'**
   String get newConnectionDialog_error_duplicateRequest;
 
-  /// No description provided for @newConnectionDialog_error_ownUsername.
+  /// Error shown when the user enters one of their own usernames.
   ///
   /// In en, this message translates to:
   /// **'You can\'t send a contact request to yourself.'**
   String get newConnectionDialog_error_ownUsername;
 
-  /// No description provided for @composer_inputHint.
+  /// Placeholder of the message composer, naming the chat being written to.
   ///
   /// In en, this message translates to:
   /// **'Message {chatTitle}'**
-  String composer_inputHint(Object chatTitle);
+  String composer_inputHint(String chatTitle);
 
-  /// No description provided for @composer_editMessage.
+  /// Header above the composer while an already sent message is being edited.
   ///
   /// In en, this message translates to:
   /// **'Edit message'**
   String get composer_editMessage;
 
-  /// No description provided for @composer_error_sendMessage.
+  /// Error shown when sending a message fails.
   ///
   /// In en, this message translates to:
   /// **'Failed to send message. Try again.'**
   String get composer_error_sendMessage;
 
-  /// No description provided for @composer_error_attachment.
+  /// Error shown when uploading an attachment fails.
   ///
   /// In en, this message translates to:
   /// **'Failed to upload attachment. Try again.'**
   String get composer_error_attachment;
 
-  /// No description provided for @composer_error_attachment_too_large.
+  /// Error shown when an attachment exceeds the size limit. Both placeholders are already formatted sizes with their unit.
   ///
   /// In en, this message translates to:
   /// **'Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.'**
-  String composer_error_attachment_too_large(Object actualSize, Object maxSize);
+  String composer_error_attachment_too_large(String actualSize, String maxSize);
 
-  /// No description provided for @composer_reply_deleted_message_placeholder.
+  /// Stands in for the quoted message in a reply whose original was deleted.
   ///
   /// In en, this message translates to:
   /// **'Original message deleted'**
   String get composer_reply_deleted_message_placeholder;
 
-  /// No description provided for @composer_reply_noaccess_message_user.
+  /// Stands in for the author of a quoted message the user cannot see.
   ///
   /// In en, this message translates to:
   /// **'Unknown user'**
   String get composer_reply_noaccess_message_user;
 
-  /// No description provided for @composer_reply_noaccess_message_placeholder.
+  /// Stands in for the quoted message in a reply the user has no access to.
   ///
   /// In en, this message translates to:
   /// **'You don\'t have access to this message.'**
   String get composer_reply_noaccess_message_placeholder;
 
-  /// No description provided for @attachmentSize.
+  /// Joins a formatted file size with its unit. Reorder the placeholders if your language puts the unit first, and keep the space between them.
   ///
   /// In en, this message translates to:
   /// **'{size} {byteUnit}'**
-  String attachmentSize(double size, Object byteUnit);
+  String attachmentSize(double size, String byteUnit);
 
-  /// No description provided for @attachment_images.
+  /// Attachment menu item for picking images from the photo library.
   ///
   /// In en, this message translates to:
   /// **'Images'**
   String get attachment_images;
 
-  /// No description provided for @attachment_camera.
+  /// Attachment menu item for taking a new photo.
   ///
   /// In en, this message translates to:
   /// **'Camera'**
   String get attachment_camera;
 
-  /// No description provided for @attachment_otherFiles.
+  /// Attachment menu item for picking any other kind of file.
   ///
   /// In en, this message translates to:
   /// **'Other files'**
   String get attachment_otherFiles;
 
-  /// No description provided for @attachment_notFound.
+  /// Shown in place of an attachment that the server no longer holds.
   ///
   /// In en, this message translates to:
   /// **'Attachment is no longer available.'**
   String get attachment_notFound;
 
-  /// No description provided for @textMessage_edited.
+  /// Marker next to a message that was changed after sending. Use the glossary term for edited.
   ///
   /// In en, this message translates to:
   /// **'Edited'**
   String get textMessage_edited;
 
-  /// No description provided for @textMessage_hiddenPlaceholder.
+  /// Stands in for a message from a blocked user, telling the user they can tap to reveal it.
   ///
   /// In en, this message translates to:
   /// **'Blocked user, tap to reveal message'**
   String get textMessage_hiddenPlaceholder;
 
-  /// No description provided for @textMessage_deleted.
+  /// Chat list preview of a message that has been deleted.
   ///
   /// In en, this message translates to:
   /// **'Deleted message'**
   String get textMessage_deleted;
 
-  /// No description provided for @textMessage_deletedBySelf.
+  /// Stands in for a message the user deleted themselves.
   ///
   /// In en, this message translates to:
   /// **'You deleted this message.'**
   String get textMessage_deletedBySelf;
 
-  /// No description provided for @textMessage_deletedByOther.
+  /// Stands in for a message the sender deleted, naming them.
   ///
   /// In en, this message translates to:
   /// **'{senderName} deleted this message.'**
   String textMessage_deletedByOther(String senderName);
 
-  /// No description provided for @linkConfirmation_title.
+  /// Title of the dialog confirming that an external link should open.
   ///
   /// In en, this message translates to:
   /// **'Open link?'**
   String get linkConfirmation_title;
 
-  /// No description provided for @linkConfirmation_description.
+  /// Tells the user to check the link before opening it. The link itself follows below.
   ///
   /// In en, this message translates to:
   /// **'Check the URL to make sure you want to open it:'**
   String get linkConfirmation_description;
 
-  /// No description provided for @linkConfirmation_openLink.
+  /// Button that opens the external link.
   ///
   /// In en, this message translates to:
   /// **'Open'**
   String get linkConfirmation_openLink;
 
-  /// No description provided for @linkConfirmation_cancel.
+  /// Button that dismisses the link confirmation dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get linkConfirmation_cancel;
 
-  /// No description provided for @messageContextMenu_reply.
+  /// Message context menu item that starts a reply. Use the glossary term for reply.
   ///
   /// In en, this message translates to:
   /// **'Reply'**
   String get messageContextMenu_reply;
 
-  /// No description provided for @messageContextMenu_copy.
+  /// Message context menu item that copies the message text.
   ///
   /// In en, this message translates to:
   /// **'Copy'**
   String get messageContextMenu_copy;
 
-  /// No description provided for @messageContextMenu_edit.
+  /// Message context menu item that edits an already sent message.
   ///
   /// In en, this message translates to:
   /// **'Edit'**
   String get messageContextMenu_edit;
 
-  /// No description provided for @messageContextMenu_delete.
+  /// Message context menu item that deletes the message.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get messageContextMenu_delete;
 
-  /// No description provided for @messageContextMenu_save.
+  /// Message context menu item that saves an attachment to the device.
   ///
   /// In en, this message translates to:
   /// **'Save'**
   String get messageContextMenu_save;
 
-  /// No description provided for @messageContextMenu_share.
+  /// Message context menu item that shares an attachment through the system share sheet.
   ///
   /// In en, this message translates to:
   /// **'Share'**
   String get messageContextMenu_share;
 
-  /// No description provided for @messageContextMenu_saveError.
+  /// Error shown when saving an attachment to the device fails.
   ///
   /// In en, this message translates to:
   /// **'Failed to save attachment'**
   String get messageContextMenu_saveError;
 
-  /// No description provided for @messageContextMenu_saveConfirmation.
+  /// Confirmation shown after an attachment is saved to the device.
   ///
   /// In en, this message translates to:
   /// **'Attachment saved'**
   String get messageContextMenu_saveConfirmation;
 
-  /// No description provided for @deleteMessageDialog_title.
+  /// Title of the dialog asking who a message should be deleted for.
   ///
   /// In en, this message translates to:
   /// **'Delete message?'**
   String get deleteMessageDialog_title;
 
-  /// No description provided for @deleteMessageDialog_description.
+  /// Explains the choice between deleting for everyone and deleting only locally.
   ///
   /// In en, this message translates to:
   /// **'Choose who to delete this message for. It will be deleted from all your devices.'**
   String get deleteMessageDialog_description;
 
-  /// No description provided for @deleteMessageDialog_forEveryone.
+  /// Option that deletes the message for every member of the chat.
   ///
   /// In en, this message translates to:
   /// **'Delete for everyone'**
   String get deleteMessageDialog_forEveryone;
 
-  /// No description provided for @deleteMessageDialog_forMe.
+  /// Option that deletes the message only from the user's own devices.
   ///
   /// In en, this message translates to:
   /// **'Delete for me'**
   String get deleteMessageDialog_forMe;
 
-  /// No description provided for @deleteMessageForMeDialog_title.
+  /// Title of the dialog confirming deletion of a message the user cannot unsend.
   ///
   /// In en, this message translates to:
   /// **'Delete message?'**
   String get deleteMessageForMeDialog_title;
 
-  /// No description provided for @deleteMessageForMeDialog_description.
+  /// Explains that the message disappears from all of the user's own devices.
   ///
   /// In en, this message translates to:
   /// **'This message will be deleted from all your devices.'**
   String get deleteMessageForMeDialog_description;
 
-  /// No description provided for @deleteMessageForMeDialog_delete.
+  /// Confirming button of the delete for me dialog.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteMessageForMeDialog_delete;
 
-  /// No description provided for @reportSpamButton_text.
+  /// Button on a contact's profile that starts a spam report. Use the glossary term for reporting spam.
   ///
   /// In en, this message translates to:
   /// **'Report spam'**
   String get reportSpamButton_text;
 
-  /// No description provided for @reportSpamDialog_title.
+  /// Title of the dialog confirming a spam report.
   ///
   /// In en, this message translates to:
   /// **'Report spam?'**
   String get reportSpamDialog_title;
 
-  /// No description provided for @reportSpamDialog_content.
+  /// Body of the spam report dialog. Says what is reported and that chat contents stay private.
   ///
   /// In en, this message translates to:
   /// **'Air will be notified that this person may be sending spam. Air is never able to see the contents of any chats.'**
   String get reportSpamDialog_content;
 
-  /// No description provided for @reportSpamDialog_cancel.
+  /// Button that dismisses the spam report dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get reportSpamDialog_cancel;
 
-  /// No description provided for @reportSpamDialog_reportSpam.
+  /// Confirming button of the spam report dialog.
   ///
   /// In en, this message translates to:
   /// **'Report spam'**
   String get reportSpamDialog_reportSpam;
 
-  /// No description provided for @reportSpamDialog_success.
+  /// Confirmation shown after a spam report is sent.
   ///
   /// In en, this message translates to:
   /// **'Spam reported'**
   String get reportSpamDialog_success;
 
-  /// No description provided for @reportSpamDialog_error.
+  /// Error shown when sending a spam report fails.
   ///
   /// In en, this message translates to:
   /// **'Failed to report spam. Try again.'**
   String get reportSpamDialog_error;
 
-  /// No description provided for @helpScreen_contactUs.
+  /// Row label in the help section that opens the contact form.
   ///
   /// In en, this message translates to:
   /// **'Contact Air'**
   String get helpScreen_contactUs;
 
-  /// No description provided for @helpScreen_versionInfo.
+  /// Row label in the help section that shows the app version.
   ///
   /// In en, this message translates to:
   /// **'Version info'**
   String get helpScreen_versionInfo;
 
-  /// No description provided for @helpScreen_licenses.
+  /// Row label in the help section that opens the open source licenses.
   ///
   /// In en, this message translates to:
   /// **'Licenses'**
   String get helpScreen_licenses;
 
-  /// No description provided for @licensesScreen_title.
+  /// Title of the screen listing open source licenses.
   ///
   /// In en, this message translates to:
   /// **'Licenses'**
   String get licensesScreen_title;
 
-  /// No description provided for @contactUsScreen_title.
+  /// Title of the modal for contacting the Air team.
   ///
   /// In en, this message translates to:
   /// **'Contact Air'**
   String get contactUsScreen_title;
 
-  /// No description provided for @contactUsScreen_subject.
+  /// Label of the subject picker in the contact form.
   ///
   /// In en, this message translates to:
   /// **'Message subject'**
   String get contactUsScreen_subject;
 
-  /// No description provided for @contactUsScreen_body.
+  /// Label of the message field in the contact form.
   ///
   /// In en, this message translates to:
   /// **'Body'**
   String get contactUsScreen_body;
 
-  /// No description provided for @contactUsScreen_includeLogs.
+  /// Label of the checkbox that attaches diagnostic logs. The parenthesis explains why it helps.
   ///
   /// In en, this message translates to:
   /// **'Share your logs (this helps Air fix bugs)'**
   String get contactUsScreen_includeLogs;
 
-  /// No description provided for @contactUsScreen_composeEmail.
+  /// Button that opens the mail client with the composed message.
   ///
   /// In en, this message translates to:
   /// **'Compose email'**
   String get contactUsScreen_composeEmail;
 
-  /// No description provided for @contactUsScreen_subject_somethingNotWorking.
+  /// Subject option for reporting a problem.
   ///
   /// In en, this message translates to:
   /// **'Something\'s not working'**
   String get contactUsScreen_subject_somethingNotWorking;
 
-  /// No description provided for @contactUsScreen_subject_iHaveAQuestion.
+  /// Subject option for asking a question.
   ///
   /// In en, this message translates to:
   /// **'I have a question'**
   String get contactUsScreen_subject_iHaveAQuestion;
 
-  /// No description provided for @contactUsScreen_subject_requestFeature.
+  /// Subject option for requesting a feature.
   ///
   /// In en, this message translates to:
   /// **'Request a feature'**
   String get contactUsScreen_subject_requestFeature;
 
-  /// No description provided for @contactUsScreen_subject_other.
+  /// Subject option for anything not covered by the others.
   ///
   /// In en, this message translates to:
   /// **'Other'**
   String get contactUsScreen_subject_other;
 
-  /// No description provided for @contactUsScreen_subject_empty.
+  /// Validation error when no subject has been picked.
   ///
   /// In en, this message translates to:
   /// **'Select a subject'**
   String get contactUsScreen_subject_empty;
 
-  /// No description provided for @contactUsScreen_body_empty.
+  /// Validation error when the message field is empty.
   ///
   /// In en, this message translates to:
   /// **'Enter your message'**
   String get contactUsScreen_body_empty;
 
-  /// No description provided for @contactUsScreen_body_tooShort.
+  /// Validation error when the message is too short to act on.
   ///
   /// In en, this message translates to:
   /// **'Provide more information'**
   String get contactUsScreen_body_tooShort;
 
-  /// No description provided for @contactUsScreen_body_logsUrl.
+  /// Line appended to the email body linking to the uploaded logs. Written from the user to the Air team.
   ///
   /// In en, this message translates to:
   /// **'Here are some logs to help you debug my issue: {url}'**
-  String contactUsScreen_body_logsUrl(Object url);
+  String contactUsScreen_body_logsUrl(String url);
 
-  /// No description provided for @contactUsScreen_errorLaunchingEmail.
+  /// Error shown when no mail client could be opened.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t launch email client'**
   String get contactUsScreen_errorLaunchingEmail;
 
-  /// No description provided for @contactUsScreen_errorUploadingLogs.
+  /// Error shown when uploading the diagnostic logs fails.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t upload logs'**
   String get contactUsScreen_errorUploadingLogs;
 
-  /// No description provided for @groupDetails_title.
+  /// Title of the pane showing a group's details.
   ///
   /// In en, this message translates to:
   /// **'Group details'**
   String get groupDetails_title;
 
-  /// No description provided for @groupDetails_leaveChat.
+  /// Button on the group details pane that starts leaving the group.
   ///
   /// In en, this message translates to:
   /// **'Leave'**
   String get groupDetails_leaveChat;
 
-  /// No description provided for @groupDetails_deleteChat.
+  /// Button on the group details pane that starts deleting the chat.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get groupDetails_deleteChat;
 
-  /// No description provided for @groupDetails_addPeople.
+  /// Button on the group details pane that starts adding members.
   ///
   /// In en, this message translates to:
   /// **'Add people'**
   String get groupDetails_addPeople;
 
-  /// No description provided for @groupDetails_memberCount.
+  /// Count of members on the group details pane. Provide the plural forms your language needs.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
 
-  /// No description provided for @groupDetails_seeAll.
+  /// Button that expands the shortened member list into the full one.
   ///
   /// In en, this message translates to:
   /// **'See all'**
   String get groupDetails_seeAll;
 
-  /// No description provided for @groupMembersScreen_title.
+  /// Title of the pane listing every member of a group.
   ///
   /// In en, this message translates to:
   /// **'Group members'**
   String get groupMembersScreen_title;
 
-  /// No description provided for @groupMembersScreen_searchHint.
+  /// Placeholder of the search field above a member list.
   ///
   /// In en, this message translates to:
   /// **'Search'**
   String get groupMembersScreen_searchHint;
 
-  /// No description provided for @groupCreationScreen_title.
+  /// Title of the first group creation step, where members are picked.
   ///
   /// In en, this message translates to:
   /// **'Add members'**
   String get groupCreationScreen_title;
 
-  /// No description provided for @groupCreationScreen_next.
+  /// Button that moves from picking members to naming the group.
   ///
   /// In en, this message translates to:
   /// **'Next'**
   String get groupCreationScreen_next;
 
-  /// No description provided for @groupCreationDetails_title.
+  /// Title of the second group creation step, where the group is named.
   ///
   /// In en, this message translates to:
   /// **'Group details'**
   String get groupCreationDetails_title;
 
-  /// No description provided for @groupCreationDetails_groupNameHint.
+  /// Placeholder of the group name field before it has focus. The parenthesis marks it as mandatory.
   ///
   /// In en, this message translates to:
   /// **'Group name (required)'**
   String get groupCreationDetails_groupNameHint;
 
-  /// No description provided for @groupCreationDetails_groupNameHintFocused.
+  /// Placeholder of the group name field once it has focus.
   ///
   /// In en, this message translates to:
   /// **'Group name'**
   String get groupCreationDetails_groupNameHintFocused;
 
-  /// No description provided for @groupCreationDetails_groupNameHelper.
+  /// Helper text under the group name field stating the minimum length.
   ///
   /// In en, this message translates to:
   /// **'Use at least one character'**
   String get groupCreationDetails_groupNameHelper;
 
-  /// No description provided for @groupCreationDetails_create.
+  /// Button that creates the group.
   ///
   /// In en, this message translates to:
   /// **'Create'**
   String get groupCreationDetails_create;
 
-  /// No description provided for @groupCreationDetails_emptySelection.
+  /// Shown in place of the member list when no members have been picked.
   ///
   /// In en, this message translates to:
   /// **'No members'**
   String get groupCreationDetails_emptySelection;
 
-  /// No description provided for @addMembersScreen_done.
+  /// Button that confirms the picked members and adds them to the group.
   ///
   /// In en, this message translates to:
   /// **'Done'**
   String get addMembersScreen_done;
 
-  /// No description provided for @addMembersScreen_error_incompatibleClient.
+  /// Error shown when members cannot be added because one of them runs an app version that is too old.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t add member(s) because one of the contacts has an incompatible client'**
   String get addMembersScreen_error_incompatibleClient;
 
-  /// No description provided for @leaveChatDialog_title.
+  /// Title of the dialog confirming that the user leaves the group.
   ///
   /// In en, this message translates to:
   /// **'Leave group'**
   String get leaveChatDialog_title;
 
-  /// No description provided for @leaveChatDialog_content.
+  /// Body of the leave group dialog, naming the group.
   ///
   /// In en, this message translates to:
   /// **'Are you sure you want to leave {chatName}?'**
-  String leaveChatDialog_content(Object chatName);
+  String leaveChatDialog_content(String chatName);
 
-  /// No description provided for @leaveChatDialog_cancel.
+  /// Button that dismisses the leave group dialog.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
   String get leaveChatDialog_cancel;
 
-  /// No description provided for @leaveChatDialog_leave.
+  /// Confirming button of the leave group dialog.
   ///
   /// In en, this message translates to:
   /// **'Leave'**
   String get leaveChatDialog_leave;
 
-  /// No description provided for @deleteChatDialog_title.
+  /// Title of the dialog confirming that the chat is deleted.
   ///
   /// In en, this message translates to:
   /// **'Delete chat?'**
   String get deleteChatDialog_title;
 
-  /// No description provided for @deleteChatDialog_content.
+  /// Body of the delete chat dialog, warning that it cannot be undone.
   ///
   /// In en, this message translates to:
   /// **'This chat will be deleted. There is no way to undo this.'**
   String get deleteChatDialog_content;
 
-  /// No description provided for @deleteChatDialog_delete.
+  /// Confirming button of the delete chat dialog.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteChatDialog_delete;
 
-  /// No description provided for @byteUnit_B.
+  /// Unit for a file size in bytes, joined with the number by attachmentSize. Use the abbreviation your locale uses.
   ///
   /// In en, this message translates to:
   /// **'B'**
   String get byteUnit_B;
 
-  /// No description provided for @byteUnit_KB.
+  /// Unit for a file size in kilobytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'KB'**
   String get byteUnit_KB;
 
-  /// No description provided for @byteUnit_MB.
+  /// Unit for a file size in megabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'MB'**
   String get byteUnit_MB;
 
-  /// No description provided for @byteUnit_GB.
+  /// Unit for a file size in gigabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'GB'**
   String get byteUnit_GB;
 
-  /// No description provided for @byteUnit_TB.
+  /// Unit for a file size in terabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'TB'**
   String get byteUnit_TB;
 
-  /// No description provided for @byteUnit_PB.
+  /// Unit for a file size in petabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'PB'**
   String get byteUnit_PB;
 
-  /// No description provided for @byteUnit_EB.
+  /// Unit for a file size in exabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'EB'**
   String get byteUnit_EB;
 
-  /// No description provided for @byteUnit_ZB.
+  /// Unit for a file size in zettabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'ZB'**
   String get byteUnit_ZB;
 
-  /// No description provided for @byteUnit_YB.
+  /// Unit for a file size in yottabytes, joined with the number by attachmentSize.
   ///
   /// In en, this message translates to:
   /// **'YB'**
   String get byteUnit_YB;
 
-  /// No description provided for @deleteAccountScreen_title.
+  /// Title of the dialog for deleting the user's own account.
   ///
   /// In en, this message translates to:
   /// **'Delete my account'**
   String get deleteAccountScreen_title;
 
-  /// No description provided for @deleteAccountScreen_explanatoryText.
+  /// Warns that deleting the account resets the app and cannot be undone.
   ///
   /// In en, this message translates to:
   /// **'This will delete your Air account and reset the application. You will not be able to recover your account.'**
   String get deleteAccountScreen_explanatoryText;
 
-  /// No description provided for @deleteAccountScreen_confirmationInputHint.
+  /// Placeholder of the field where the confirmation word is typed.
   ///
   /// In en, this message translates to:
   /// **'Confirmation'**
   String get deleteAccountScreen_confirmationInputHint;
 
-  /// No description provided for @deleteAccountScreen_confirmationInputLabel.
+  /// Tells the user which word to type to confirm. The quoted word is matched literally by the app, so leave it untranslated.
   ///
   /// In en, this message translates to:
   /// **'Type \'delete\' to confirm.'**
   String get deleteAccountScreen_confirmationInputLabel;
 
-  /// No description provided for @deleteAccountScreen_confirmButtonText.
+  /// Confirming button of the delete account dialog.
   ///
   /// In en, this message translates to:
   /// **'Delete'**
   String get deleteAccountScreen_confirmButtonText;
 
-  /// No description provided for @deleteAccountScreen_deleteAccountError.
+  /// Error shown when deleting the account fails on the server.
   ///
   /// In en, this message translates to:
   /// **'Something went wrong on our end. Wait a moment, then try again.'**
   String get deleteAccountScreen_deleteAccountError;
 
-  /// No description provided for @appOutdatedScreen_title.
+  /// Title of the screen blocking the app until it is updated.
   ///
   /// In en, this message translates to:
   /// **'Software update required'**
   String get appOutdatedScreen_title;
 
-  /// No description provided for @appOutdatedScreen_message.
+  /// Headline telling the user an update is needed to carry on.
   ///
   /// In en, this message translates to:
   /// **'Update to keep using Air'**
   String get appOutdatedScreen_message;
 
-  /// No description provided for @appOutdatedScreen_description.
+  /// Names the store to update from on each mobile platform. TestFlight and Google Play are product names.
   ///
   /// In en, this message translates to:
   /// **'Open TestFlight on iOS or Google Play on Android, then update Air.'**
   String get appOutdatedScreen_description;
 
-  /// No description provided for @appOutdatedScreen_action.
+  /// Button that opens the store so the user can update.
   ///
   /// In en, this message translates to:
   /// **'Update'**
   String get appOutdatedScreen_action;
 
-  /// No description provided for @contactRequestDialog_title.
+  /// Title of the dialog showing an incoming contact request.
   ///
   /// In en, this message translates to:
   /// **'Contact request'**
   String get contactRequestDialog_title;
 
-  /// No description provided for @contactRequestDialog_avatarHint.
+  /// Hint over the blurred picture of someone who is not yet a contact, telling the user they can tap to reveal it.
   ///
   /// In en, this message translates to:
   /// **'Tap to reveal their picture'**
   String get contactRequestDialog_avatarHint;
 
-  /// No description provided for @contactRequestDialog_cancel.
+  /// Button that postpones the contact request without accepting it.
   ///
   /// In en, this message translates to:
   /// **'Later'**
   String get contactRequestDialog_cancel;
 
-  /// No description provided for @contactRequestDialog_confirm.
+  /// Button that accepts the contact request.
   ///
   /// In en, this message translates to:
   /// **'Accept'**
   String get contactRequestDialog_confirm;
 
-  /// No description provided for @contactRequestDialog_error_fatal.
+  /// Error shown when accepting a contact request fails.
   ///
   /// In en, this message translates to:
   /// **'Failed to accept contact request'**
   String get contactRequestDialog_error_fatal;
 
-  /// No description provided for @contactRequestDialog_error_incompatibleClient.
+  /// Error shown when a contact request cannot be accepted because this app version is too old.
   ///
   /// In en, this message translates to:
   /// **'Failed to accept contact request. Update Air to the newest version, then try again.'**
   String get contactRequestDialog_error_incompatibleClient;
 
-  /// No description provided for @errorBanner_ok.
+  /// Button that dismisses the error banner at the top of the screen.
   ///
   /// In en, this message translates to:
   /// **'OK'**
   String get errorBanner_ok;
 
-  /// No description provided for @memberSelectionList_client_not_supported.
+  /// Shown next to a contact who cannot be picked because their app version is too old.
   ///
   /// In en, this message translates to:
   /// **'This contact has an outdated app which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
 
-  /// No description provided for @homeTab_chats.
+  /// Label of the chats tab in the bottom bar and sidebar. Use the glossary term for chat.
   ///
   /// In en, this message translates to:
   /// **'Chats'**
   String get homeTab_chats;
 
-  /// No description provided for @homeTab_profile.
+  /// Label of the profile tab in the bottom bar and sidebar. Refers to the user themselves.
   ///
   /// In en, this message translates to:
   /// **'You'**
   String get homeTab_profile;
 
-  /// No description provided for @messageList_newMessages.
+  /// Divider marking where the user's unread messages begin.
   ///
   /// In en, this message translates to:
   /// **'New messages'**
   String get messageList_newMessages;
 
-  /// No description provided for @messageList_reactions_react.
+  /// Button that opens the emoji picker to react to a message.
   ///
   /// In en, this message translates to:
   /// **'React'**
   String get messageList_reactions_react;
 
-  /// No description provided for @messageList_reactions_remove.
+  /// Button that removes the user's own reaction from a message.
   ///
   /// In en, this message translates to:
   /// **'Remove'**
   String get messageList_reactions_remove;
 
-  /// No description provided for @messageList_reactions_you.
+  /// Marks the user's own reaction in the list of who reacted.
   ///
   /// In en, this message translates to:
   /// **'You'**
   String get messageList_reactions_you;
 
-  /// No description provided for @messageList_reactions_all.
+  /// Tab showing every reaction on a message together with the total count.
   ///
   /// In en, this message translates to:
   /// **'All · {total}'**
-  String messageList_reactions_all(Object total);
+  String messageList_reactions_all(int total);
 
-  /// No description provided for @emojiPicker_searchHint.
+  /// Placeholder of the search field in the emoji picker.
   ///
   /// In en, this message translates to:
   /// **'Search emoji'**
   String get emojiPicker_searchHint;
 
-  /// No description provided for @emojiPicker_empty.
+  /// Empty state of the emoji picker when the search matches nothing.
   ///
   /// In en, this message translates to:
   /// **'No emoji found'**
   String get emojiPicker_empty;
 
-  /// No description provided for @emojiPicker_skinToneHelp.
+  /// Explains that picking a skin tone here sets the default for future reactions.
   ///
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
