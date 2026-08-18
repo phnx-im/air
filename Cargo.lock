@@ -5811,8 +5811,9 @@ dependencies = [
 
 [[package]]
 name = "privacypass"
-version = "0.2.0-pre.2"
-source = "git+https://github.com/raphaelrobert/privacypass?rev=b7b7d86480845a88b924ac35b102c767129f246c#b7b7d86480845a88b924ac35b102c767129f246c"
+version = "0.2.0-pre.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5da5a5d50ec311674442d7388689094d044d47c783a2f3dd5cf4ef572be92a2"
 dependencies = [
  "async-trait",
  "base64",
