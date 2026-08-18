@@ -704,51 +704,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get editDisplayNameScreen_save => 'Speichern';
 
   @override
-  String systemMessage_userAddedUser_prefix(String user1) {
-    return '$user1';
+  String systemMessage_userAddedUser(String user1, String user2) {
+    return '$user1 hat $user2 hinzugefügt';
   }
 
   @override
-  String get systemMessage_userAddedUser_infix => ' hat ';
-
-  @override
-  String systemMessage_userAddedUser_suffix(String user2) {
-    return '$user2 hinzugefügt';
+  String systemMessage_userRemovedUser(String user1, String user2) {
+    return '$user1 hat $user2 entfernt';
   }
 
   @override
-  String systemMessage_userRemovedUser_prefix(String user1) {
-    return '$user1';
-  }
-
-  @override
-  String get systemMessage_userRemovedUser_infix => ' hat ';
-
-  @override
-  String systemMessage_userRemovedUser_suffix(String user2) {
-    return '$user2 entfernt';
-  }
-
-  @override
-  String systemMessage_userChangedTitle_prefix(String user) {
-    return '$user';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_1 =>
-      ' hat den Gruppennamen geändert von ';
-
-  @override
-  String systemMessage_userChangedTitle_infix_2(String old_name) {
-    return '$old_name';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_3 => ' zu ';
-
-  @override
-  String systemMessage_userChangedTitle_suffix(String new_name) {
-    return '$new_name';
+  String systemMessage_userChangedTitle(
+    String user,
+    String old_name,
+    String new_name,
+  ) {
+    return '$user hat den Gruppennamen von $old_name zu $new_name geändert';
   }
 
   @override
@@ -796,22 +767,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String systemMessage_userChangedPicture_prefix(String user) {
-    return '$user';
+  String systemMessage_userChangedPicture(String user) {
+    return '$user hat das Gruppenbild geändert';
   }
 
   @override
-  String get systemMessage_userChangedPicture_infix =>
-      ' hat das Gruppenbild geändert';
-
-  @override
-  String systemMessage_userCreatedGroup_prefix(String user) {
-    return '$user';
+  String systemMessage_userCreatedGroup(String user) {
+    return '$user hat die Gruppe erstellt';
   }
-
-  @override
-  String get systemMessage_userCreatedGroup_suffix =>
-      ' hat die Gruppe erstellt';
 
   @override
   String get systemMessage_onboarded =>

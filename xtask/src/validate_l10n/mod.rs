@@ -9,7 +9,8 @@
 //! translation can break a screen without failing any build step. These checks
 //! close that gap, and they require every template key to carry a description
 //! so whoever translates it next has the context the key name alone does not
-//! give.
+//! give. They also require a key to hold a whole sentence, because a sentence
+//! split across keys pins its word order in the Dart that joins them.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -241,7 +242,44 @@ fn check_template(template: &ArbFile, report: &mut Report) {
         check_description(template, key, report);
         check_declarations(template, key, &parsed.placeholders, report);
         check_choices(&template.name, key, &parsed, report);
+        check_sentence(template, key, text, report);
     }
+}
+
+/// A key that holds only a placeholder, or that pads its text with spacing, is
+/// a piece of a sentence the Dart side joins back together. Word order then
+/// lives at the call site, where no language can change it, and the translator
+/// sees a fragment with no context.
+fn check_sentence(template: &ArbFile, key: &str, text: &str, report: &mut Report) {
+    if let Some(name) = sole_placeholder(text) {
+        report.push(
+            &template.name,
+            key,
+            format!(
+                "is only the placeholder '{name}', so it carries nothing to translate. \
+                 Put the whole sentence in one key and style the placeholder where it \
+                 is rendered"
+            ),
+        );
+    } else if text.trim() != text {
+        report.push(
+            &template.name,
+            key,
+            "starts or ends with spacing, which joins it to another key. Put the \
+             whole sentence in one key so each language can order it",
+        );
+    }
+}
+
+/// The placeholder a message consists of, where it consists of nothing else.
+/// A `plural` or `select` spanning the whole message is a sentence rather than
+/// a fragment of one, so the arms it opens rule it out.
+fn sole_placeholder(text: &str) -> Option<&str> {
+    let inner = text.trim().strip_prefix('{')?.strip_suffix('}')?;
+    if inner.contains(['{', '}', ',']) {
+        return None;
+    }
+    Some(inner)
 }
 
 fn check_description(template: &ArbFile, key: &str, report: &mut Report) {
@@ -509,5 +547,21 @@ mod tests {
     #[test]
     fn word_matching_finds_later_occurrences() {
         assert!(contains_word("Airport near Air HQ", "Air"));
+    }
+
+    #[test]
+    fn bare_placeholders_are_fragments() {
+        assert_eq!(sole_placeholder("{user1}"), Some("user1"));
+        assert_eq!(sole_placeholder(" {user1} "), Some("user1"));
+    }
+
+    #[test]
+    fn whole_messages_are_not_fragments() {
+        assert_eq!(sole_placeholder("{user1} added {user2}"), None);
+        assert_eq!(sole_placeholder("Copied to clipboard"), None);
+        assert_eq!(
+            sole_placeholder("{count, plural, one {{count} device} other {{count} devices}}"),
+            None
+        );
     }
 }

@@ -687,51 +687,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editDisplayNameScreen_save => 'Save';
 
   @override
-  String systemMessage_userAddedUser_prefix(String user1) {
-    return '$user1';
+  String systemMessage_userAddedUser(String user1, String user2) {
+    return '$user1 added $user2';
   }
 
   @override
-  String get systemMessage_userAddedUser_infix => ' added ';
-
-  @override
-  String systemMessage_userAddedUser_suffix(String user2) {
-    return '$user2';
+  String systemMessage_userRemovedUser(String user1, String user2) {
+    return '$user1 removed $user2';
   }
 
   @override
-  String systemMessage_userRemovedUser_prefix(String user1) {
-    return '$user1';
-  }
-
-  @override
-  String get systemMessage_userRemovedUser_infix => ' removed ';
-
-  @override
-  String systemMessage_userRemovedUser_suffix(String user2) {
-    return '$user2';
-  }
-
-  @override
-  String systemMessage_userChangedTitle_prefix(String user) {
-    return '$user';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_1 =>
-      ' changed the group name from ';
-
-  @override
-  String systemMessage_userChangedTitle_infix_2(String old_name) {
-    return '$old_name';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_3 => ' to ';
-
-  @override
-  String systemMessage_userChangedTitle_suffix(String new_name) {
-    return '$new_name';
+  String systemMessage_userChangedTitle(
+    String user,
+    String old_name,
+    String new_name,
+  ) {
+    return '$user changed the group name from $old_name to $new_name';
   }
 
   @override
@@ -779,21 +750,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String systemMessage_userChangedPicture_prefix(String user) {
-    return '$user';
+  String systemMessage_userChangedPicture(String user) {
+    return '$user changed the group picture';
   }
 
   @override
-  String get systemMessage_userChangedPicture_infix =>
-      ' changed the group picture';
-
-  @override
-  String systemMessage_userCreatedGroup_prefix(String user) {
-    return '$user';
+  String systemMessage_userCreatedGroup(String user) {
+    return '$user created the group';
   }
-
-  @override
-  String get systemMessage_userCreatedGroup_suffix => ' created the group';
 
   @override
   String get systemMessage_onboarded =>

@@ -1266,71 +1266,27 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get editDisplayNameScreen_save;
 
-  /// Name of the person who added someone, rendered in bold before the added text. This fragment is joined with the infix and suffix keys to build one sentence, so word order across the three fragments is fixed and cannot be changed per language.
+  /// Notice in the message list when someone adds someone else to a group. Both names are rendered in bold wherever they land, so put them where your language needs them.
   ///
   /// In en, this message translates to:
-  /// **'{user1}'**
-  String systemMessage_userAddedUser_prefix(String user1);
+  /// **'{user1} added {user2}'**
+  String systemMessage_userAddedUser(String user1, String user2);
 
-  /// Middle of the system message about a member being added, between the two names. Leading and trailing spaces are part of the string.
+  /// Notice in the message list when someone removes someone else from a group. Both names are rendered in bold wherever they land, so put them where your language needs them.
   ///
   /// In en, this message translates to:
-  /// **' added '**
-  String get systemMessage_userAddedUser_infix;
+  /// **'{user1} removed {user2}'**
+  String systemMessage_userRemovedUser(String user1, String user2);
 
-  /// Name of the person who was added, rendered in bold at the end of the added system message.
+  /// Notice in the message list when someone renames a group. The person's name and both group names are rendered in bold wherever they land, so put them where your language needs them.
   ///
   /// In en, this message translates to:
-  /// **'{user2}'**
-  String systemMessage_userAddedUser_suffix(String user2);
-
-  /// Name of the person who removed someone, rendered in bold before the removed text. Joined with the infix and suffix keys, so word order is fixed across the fragments.
-  ///
-  /// In en, this message translates to:
-  /// **'{user1}'**
-  String systemMessage_userRemovedUser_prefix(String user1);
-
-  /// Middle of the system message about a member being removed, between the two names. Leading and trailing spaces are part of the string.
-  ///
-  /// In en, this message translates to:
-  /// **' removed '**
-  String get systemMessage_userRemovedUser_infix;
-
-  /// Name of the person who was removed, rendered in bold at the end of the removed system message.
-  ///
-  /// In en, this message translates to:
-  /// **'{user2}'**
-  String systemMessage_userRemovedUser_suffix(String user2);
-
-  /// Name of the person who renamed the group, rendered in bold. Joined with the infix and suffix keys, so word order is fixed across the fragments.
-  ///
-  /// In en, this message translates to:
-  /// **'{user}'**
-  String systemMessage_userChangedTitle_prefix(String user);
-
-  /// Text between the person's name and the old group name. Leading and trailing spaces are part of the string.
-  ///
-  /// In en, this message translates to:
-  /// **' changed the group name from '**
-  String get systemMessage_userChangedTitle_infix_1;
-
-  /// The previous group name, rendered in bold inside the renamed system message.
-  ///
-  /// In en, this message translates to:
-  /// **'{old_name}'**
-  String systemMessage_userChangedTitle_infix_2(String old_name);
-
-  /// Text between the old and the new group name. Leading and trailing spaces are part of the string.
-  ///
-  /// In en, this message translates to:
-  /// **' to '**
-  String get systemMessage_userChangedTitle_infix_3;
-
-  /// The new group name, rendered in bold at the end of the renamed system message.
-  ///
-  /// In en, this message translates to:
-  /// **'{new_name}'**
-  String systemMessage_userChangedTitle_suffix(String new_name);
+  /// **'{user} changed the group name from {old_name} to {new_name}'**
+  String systemMessage_userChangedTitle(
+    String user,
+    String old_name,
+    String new_name,
+  );
 
   /// System message shown after the user accepts a contact request that arrived through one of their usernames.
   ///
@@ -1383,29 +1339,17 @@ abstract class AppLocalizations {
     String groupName,
   );
 
-  /// Name of the person who changed the group picture, rendered in bold. Joined with the infix key, so word order is fixed across the fragments.
+  /// Notice in the message list when someone changes the group picture. The name is rendered in bold wherever it lands, so put it where your language needs it.
   ///
   /// In en, this message translates to:
-  /// **'{user}'**
-  String systemMessage_userChangedPicture_prefix(String user);
+  /// **'{user} changed the group picture'**
+  String systemMessage_userChangedPicture(String user);
 
-  /// Text following the name in the group picture system message. The leading space is part of the string.
+  /// Notice in the message list when someone creates a group. The name is rendered in bold wherever it lands, so put it where your language needs it.
   ///
   /// In en, this message translates to:
-  /// **' changed the group picture'**
-  String get systemMessage_userChangedPicture_infix;
-
-  /// Name of the person who created the group, rendered in bold. Joined with the suffix key, so word order is fixed across the fragments.
-  ///
-  /// In en, this message translates to:
-  /// **'{user}'**
-  String systemMessage_userCreatedGroup_prefix(String user);
-
-  /// Text following the name in the group created system message. The leading space is part of the string.
-  ///
-  /// In en, this message translates to:
-  /// **' created the group'**
-  String get systemMessage_userCreatedGroup_suffix;
+  /// **'{user} created the group'**
+  String systemMessage_userCreatedGroup(String user);
 
   /// System message marking where a newly linked device joined the chat.
   ///
