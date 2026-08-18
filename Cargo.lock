@@ -399,7 +399,6 @@ dependencies = [
  "mimi_content",
  "png",
  "rand 0.10.2",
- "semver",
  "sqlx",
  "tempfile",
  "tokio",
