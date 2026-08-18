@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_details/add_members_pane.dart';
 import 'package:air/features/chat_details/chat_details_pane.dart';
 import 'package:air/features/chat_details/group_members_pane.dart';
@@ -102,9 +103,9 @@ class ChatDetailsScope extends StatelessWidget {
           create: (context) => ChatDetailsCubit(
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatsRepository: context.read<ChatsRepository>(),
             attachmentsRepository: context.read<AttachmentsRepository>(),
             chatId: chatId,
+            chat: context.read<ChatsRepository>().getChat(chatId),
           ),
         ),
         BlocProvider(

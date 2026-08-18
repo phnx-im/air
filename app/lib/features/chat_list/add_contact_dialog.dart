@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
@@ -16,8 +17,6 @@ import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 
 final _log = Logger("AddContactDialog");
 
@@ -234,9 +233,9 @@ class _SubmitHandler {
     isSubmitting.value = true;
 
     final loc = AppLocalizations.of(context);
-    final chatListCubit = context.read<ChatListCubit>();
+    final chatsRepository = context.read<ChatsRepository>();
     try {
-      final error = await chatListCubit.createContactChat(
+      final error = await chatsRepository.createContactChat(
         username: username,
         hash: hash,
       );

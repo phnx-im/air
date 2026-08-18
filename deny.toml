@@ -75,6 +75,8 @@ allow-git = [
     "https://github.com/RustCrypto/RSA",
     # includes an unreleased patch of ml-dsa
     "https://github.com/RustCrypto/signatures",
+    # deterministic issuance API that has not been released yet
+    "https://github.com/raphaelrobert/privacypass",
 ]
 
 [sources.allow-org]

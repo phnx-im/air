@@ -26,7 +26,7 @@ class HomeScreen extends StatelessWidget {
       builder: (context, constraints) => constraints.breakpoint.isSmall
           ? const _HomeScreenMobileLayout()
           : const HomeScreenDesktopLayout(
-              chatList: ChatListContainer(isStandalone: false),
+              chatList: ChatListView(scaffold: false),
               chat: ChatScreen(),
             ),
     );
@@ -54,9 +54,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             switchOutCurve: Effect.easeOutQuart,
             transitionBuilder: tabSwitchTransition,
             child: switch (activeTab) {
-              HomeTab.chats => const ChatListContainer(
+              HomeTab.chats => const ChatListView(
                 key: ValueKey(HomeTab.chats),
-                isStandalone: true,
+                scaffold: true,
               ),
               HomeTab.profile => const YouScreen(
                 key: ValueKey(HomeTab.profile),
