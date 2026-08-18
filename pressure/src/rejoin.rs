@@ -86,7 +86,10 @@ impl RejoinTracker {
             if !self.evicted.contains(member) {
                 continue;
             }
-            info!(?member, step, hub_epoch, "member rejoined, awaiting convergence");
+            info!(
+                ?member,
+                step, hub_epoch, "member rejoined, awaiting convergence"
+            );
             self.pending.insert(
                 member.clone(),
                 Pending {
@@ -109,9 +112,7 @@ impl RejoinTracker {
 /// that verdict immediately, for the final check at the end of a run.
 pub async fn check_pending(
     tracker: &mut RejoinTracker,
-    hub: &CoreUser,
-    chat_id: ChatId,
-    clients_by_id: &HashMap<UserId, &CoreUser>,
+    ctx: &verify::CheckContext<'_>,
     grace_checks: usize,
     last_pass: bool,
     report: &mut Report,
@@ -120,22 +121,26 @@ pub async fn check_pending(
         return;
     }
 
-    let Some(hub_participants) = hub.chat_participants(chat_id).await else {
+    let chat_id = ctx.chat_id;
+    let Some(hub_participants) = ctx.hub.chat_participants(chat_id).await else {
         report.record_divergence("hub has no view of its own chat during rejoin check".to_owned());
         return;
     };
 
+    // Members the hub no longer lists never reached the group, so they are
+    // resolved without a check. A later eviction cancels the pending check, so
+    // a member still pending here means the rejoin commit did not take effect.
+    let mut to_check = Vec::new();
     for member_id in tracker.pending.keys().cloned().collect::<Vec<_>>() {
-        let Some(member) = clients_by_id.get(&member_id).copied() else {
+        let Some(member) = ctx.clients_by_id.get(&member_id).copied() else {
             tracker.pending.remove(&member_id);
             continue;
         };
-
-        // A later eviction cancels the pending check, so a member still
-        // pending that the hub does not list means the rejoin commit itself
-        // did not take effect.
         if !hub_participants.contains(&member_id) {
-            let pending = tracker.pending.remove(&member_id).expect("key came from pending");
+            let pending = tracker
+                .pending
+                .remove(&member_id)
+                .expect("key came from pending");
             report.record_divergence(format!(
                 "{member_id:?} rejoined at step {} (hub epoch {}) but the hub does not list it \
                  as a participant",
@@ -144,10 +149,28 @@ pub async fn check_pending(
             report.record_rejoin_outcome(false);
             continue;
         }
+        to_check.push((member_id, member.clone()));
+    }
 
-        let detail = match verify::check_member(hub, chat_id, member, &member_id).await {
+    // Each check drains its own member and only reads the hub, so the pending
+    // set is checked concurrently.
+    let hub_for_checks = ctx.hub.clone();
+    let outcomes = crate::parallel::map(to_check, ctx.concurrency, move |(member_id, member)| {
+        let hub = hub_for_checks.clone();
+        async move {
+            let outcome = verify::check_member(&hub, chat_id, &member, &member_id).await;
+            (member_id, outcome)
+        }
+    })
+    .await;
+
+    for (member_id, outcome) in outcomes {
+        let detail = match outcome {
             Ok(None) => {
-                let pending = tracker.pending.remove(&member_id).expect("key came from pending");
+                let pending = tracker
+                    .pending
+                    .remove(&member_id)
+                    .expect("key came from pending");
                 info!(
                     ?member_id,
                     invited_at_step = pending.invited_at_step,
@@ -161,14 +184,20 @@ pub async fn check_pending(
             Err(error) => format!("convergence check failed: {error}"),
         };
 
-        let pending = tracker.pending.get_mut(&member_id).expect("key came from pending");
+        let pending = tracker
+            .pending
+            .get_mut(&member_id)
+            .expect("key came from pending");
         pending.checks += 1;
         if !last_pass && pending.checks <= grace_checks {
             debug!(?member_id, checks = pending.checks, %detail, "rejoined member not converged yet");
             continue;
         }
 
-        let pending = tracker.pending.remove(&member_id).expect("key came from pending");
+        let pending = tracker
+            .pending
+            .remove(&member_id)
+            .expect("key came from pending");
         report.record_divergence(format!(
             "{member_id:?} rejoined at step {} (hub epoch {}) never converged after {} check(s): \
              {detail}",

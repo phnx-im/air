@@ -29,6 +29,8 @@ pub struct WalkContext<'a> {
     pub clients_by_id: &'a HashMap<UserId, &'a CoreUser>,
     /// Upper bound on how many targets a single operation may take.
     pub max_targets: usize,
+    /// How many per-member operations may run at once.
+    pub concurrency: usize,
 }
 
 /// Mutable state threaded through a step: the tallies, plus the tracker that
@@ -191,6 +193,24 @@ async fn settle_targets(
     still_members: bool,
     state: &mut WalkState,
 ) {
+    // Catch every target up concurrently first. Targets are distinct members,
+    // so no queue ratchet is touched twice, and this is where the bulk of the
+    // work is: applying the operation's commit. The sequential pass below is
+    // then left with one commit each to apply.
+    let users: Vec<_> = targets
+        .iter()
+        .filter_map(|id| ctx.clients_by_id.get(id).copied().cloned())
+        .collect();
+    if users.len() > 1 {
+        let results = crate::parallel::map(users, ctx.concurrency, |user| async move {
+            ops::drain(&user).await
+        })
+        .await;
+        for result in &results {
+            record_drain(&mut state.report, "drain_target", result);
+        }
+    }
+
     for target_id in targets {
         let Some(target) = ctx.clients_by_id.get(target_id).copied() else {
             continue;

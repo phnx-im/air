@@ -22,7 +22,7 @@ indicatif.workspace = true
 mimi_content.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "signal", "time"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true

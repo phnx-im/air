@@ -77,9 +77,9 @@ impl Report {
 
     /// Total ok/err counts across every op kind.
     pub fn totals(&self) -> (u64, u64) {
-        self.outcomes
-            .values()
-            .fold((0, 0), |(ok, err), outcome| (ok + outcome.ok, err + outcome.err))
+        self.outcomes.values().fold((0, 0), |(ok, err), outcome| {
+            (ok + outcome.ok, err + outcome.err)
+        })
     }
 
     /// One-line tally, meant for a progress bar's message rather than the log.

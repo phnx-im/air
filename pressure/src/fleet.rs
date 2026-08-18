@@ -8,7 +8,7 @@
 //! record is loaded instead of recreated, so a killed run can continue
 //! against the same accounts and groups.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use aircommon::identifiers::{Fqdn, UserId};
 use aircoreclient::clients::{CoreUser, store::ClientRecord};
@@ -24,6 +24,15 @@ pub struct FleetMember {
     pub user: CoreUser,
 }
 
+/// What one member needs before the fan-out starts, decided up front so the
+/// work inside a task depends on nothing outside itself.
+struct MemberPlan {
+    index: usize,
+    dir: PathBuf,
+    resuming: bool,
+    code: Option<String>,
+}
+
 pub struct Fleet {
     pub members: Vec<FleetMember>,
 }
@@ -37,6 +46,7 @@ impl Fleet {
         server_url: Url,
         count: usize,
         mut invitation_codes: Option<Vec<String>>,
+        concurrency: usize,
         multi: &MultiProgress,
     ) -> anyhow::Result<Self> {
         let domain: Fqdn = server_url
@@ -48,21 +58,17 @@ impl Fleet {
         std::fs::create_dir_all(root)
             .with_context(|| format!("failed to create fleet root {}", root.display()))?;
 
-        let bar = multi.add(ProgressBar::new(count as u64));
-        bar.set_style(bar_style("preparing fleet"));
-
-        let mut created = 0usize;
-        let mut resumed = 0usize;
-        let mut members = Vec::with_capacity(count);
+        // Invitation codes are handed out here rather than inside the tasks,
+        // so which member gets which code stays deterministic regardless of
+        // the order the fan-out happens to run in.
+        let mut plans = Vec::with_capacity(count);
         for index in 0..count {
             let dir = root.join(format!("user-{index:05}"));
             let resuming = dir.exists();
-            let user = if resuming {
-                Self::resume_member(&dir, server_url.clone())
-                    .await
-                    .with_context(|| format!("failed to resume member {index} from {dir:?}"))?
+            let code = if resuming {
+                None
             } else {
-                let code = invitation_codes
+                invitation_codes
                     .as_mut()
                     .map(|codes| {
                         codes.pop().with_context(|| {
@@ -73,36 +79,85 @@ impl Fleet {
                             )
                         })
                     })
-                    .transpose()?;
-                std::fs::create_dir_all(&dir)
-                    .with_context(|| format!("failed to create member dir {dir:?}"))?;
-                let user = Self::create_member(&dir, domain.clone(), server_url.clone(), code)
-                    .await
-                    .with_context(|| format!("failed to create member {index} in {dir:?}"))?;
-                // Only on creation, while the member is still in no groups.
-                // Setting a profile rotates the user profile key and pushes
-                // it to the DS once per group the member belongs to, so doing
-                // this on resume would fire a fleet-wide burst of profile key
-                // updates just to restate a cosmetic label.
-                ops::ensure_profile(&user, index)
-                    .await
-                    .with_context(|| format!("failed to set profile for member {index}"))?;
-                user
+                    .transpose()?
             };
-            info!(index, ?dir, user_id = ?user.user_id(), "member ready");
-            members.push(FleetMember { index, user });
+            plans.push(MemberPlan {
+                index,
+                dir,
+                resuming,
+                code,
+            });
+        }
 
-            if resuming {
-                resumed += 1;
-            } else {
-                created += 1;
+        let created = plans.iter().filter(|plan| !plan.resuming).count();
+        let resumed = count - created;
+
+        let bar = multi.add(ProgressBar::new(count as u64));
+        bar.set_style(bar_style("preparing fleet"));
+        bar.set_message(format!("{created} to create, {resumed} to resume"));
+
+        // Members share nothing: their own directory, their own lock file,
+        // their own queues. The crypto each one does on creation is what
+        // makes this the most expensive phase, so it is spread over the
+        // runtime's workers.
+        let results = crate::parallel::map(plans, concurrency, {
+            let server_url = server_url.clone();
+            let domain = domain.clone();
+            let bar = bar.clone();
+            move |plan| {
+                let server_url = server_url.clone();
+                let domain = domain.clone();
+                let bar = bar.clone();
+                async move {
+                    let outcome = Self::prepare_member(&plan, domain, server_url).await;
+                    bar.inc(1);
+                    (plan, outcome)
+                }
             }
-            bar.set_message(format!("{created} created, {resumed} resumed"));
-            bar.inc(1);
+        })
+        .await;
+
+        let mut members = Vec::with_capacity(count);
+        for (plan, outcome) in results {
+            let user = outcome?;
+            info!(index = plan.index, dir = ?plan.dir, user_id = ?user.user_id(), "member ready");
+            members.push(FleetMember {
+                index: plan.index,
+                user,
+            });
         }
         bar.finish_with_message(format!("{created} created, {resumed} resumed"));
 
         Ok(Self { members })
+    }
+
+    async fn prepare_member(
+        plan: &MemberPlan,
+        domain: Fqdn,
+        server_url: Url,
+    ) -> anyhow::Result<CoreUser> {
+        if plan.resuming {
+            return Self::resume_member(&plan.dir, server_url)
+                .await
+                .with_context(|| {
+                    format!("failed to resume member {} from {:?}", plan.index, plan.dir)
+                });
+        }
+
+        std::fs::create_dir_all(&plan.dir)
+            .with_context(|| format!("failed to create member dir {:?}", plan.dir))?;
+        let user = Self::create_member(&plan.dir, domain, server_url, plan.code.clone())
+            .await
+            .with_context(|| format!("failed to create member {} in {:?}", plan.index, plan.dir))?;
+        // Only on creation, while the member is still in no groups. Setting a
+        // profile rotates the user profile key and pushes it to the DS once
+        // per group the member belongs to, so doing this on resume would fire
+        // a fleet-wide burst of profile key updates just to restate a
+        // cosmetic label.
+        ops::ensure_profile(&user, plan.index)
+            .await
+            .with_context(|| format!("failed to set profile for member {}", plan.index))?;
+        Ok(user)
     }
 
     async fn create_member(

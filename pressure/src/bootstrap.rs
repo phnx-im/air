@@ -20,7 +20,7 @@ use aircoreclient::{ChatId, UsernameRecord, clients::CoreUser};
 use indicatif::{MultiProgress, ProgressBar};
 use tracing::info;
 
-use crate::{fleet::Fleet, ops, progress::bar_style, report::Report};
+use crate::{fleet::Fleet, ops, parallel, progress::bar_style, report::Report};
 
 pub struct BootstrapParams<'a> {
     pub chat_title: &'a str,
@@ -32,6 +32,8 @@ pub struct BootstrapParams<'a> {
     /// update, so the walk starts from a fully converged, freshly rekeyed
     /// group. Costs one commit per member plus the fan-out to process them.
     pub full_update: bool,
+    /// How many per-member operations may run at once.
+    pub concurrency: usize,
 }
 
 pub async fn run(
@@ -44,20 +46,35 @@ pub async fn run(
 
     // Usernames first, for the whole fleet: the mesh phase needs a record for
     // any member it might connect to, not just the ones the hub still has to
-    // reach. Already-registered members just load their existing record.
-    let mut records: Vec<Option<UsernameRecord>> = Vec::with_capacity(fleet.members.len());
+    // reach. Already-registered members just load their existing record. One
+    // member per task, since each only touches its own store.
     let username_bar = multi.add(ProgressBar::new(fleet.members.len() as u64));
     username_bar.set_style(bar_style("registering usernames"));
-    for member in &fleet.members {
-        let result = ops::ensure_username(&member.user).await;
+    let username_results = parallel::map(
+        fleet.members.iter().map(|m| m.user.clone()).collect(),
+        params.concurrency,
+        {
+            let bar = username_bar.clone();
+            move |user| {
+                let bar = bar.clone();
+                async move {
+                    let result = ops::ensure_username(&user).await;
+                    bar.inc(1);
+                    result
+                }
+            }
+        },
+    )
+    .await;
+    let mut records: Vec<Option<UsernameRecord>> = Vec::with_capacity(fleet.members.len());
+    for result in username_results {
         report.record("ensure_username", &result);
         records.push(result.ok());
-        username_bar.inc(1);
     }
     username_bar.finish_with_message("usernames registered");
 
     connect_to_hub(fleet, &records, report, multi).await?;
-    build_contact_mesh(fleet, &records, params.contact_mesh_degree, report, multi).await?;
+    build_contact_mesh(fleet, &records, params, report, multi).await?;
 
     let chat_id = match find_group_chat(hub, params.chat_title).await? {
         Some(chat_id) => chat_id,
@@ -71,7 +88,7 @@ pub async fn run(
     invite_everyone(fleet, chat_id, params.invite_batch_size, report, multi).await?;
 
     if params.full_update {
-        full_update_sweep(fleet, chat_id, report, multi).await;
+        full_update_sweep(fleet, chat_id, params.concurrency, report, multi).await;
     }
 
     Ok(chat_id)
@@ -79,6 +96,10 @@ pub async fn run(
 
 /// Connects the hub to every other member, so it holds the full contact list
 /// and can always invite.
+///
+/// Sequential, and unavoidably so: the hub is one endpoint of every edge, and
+/// `connect` drains the initiator. Overlapping these would mean concurrent
+/// drains on the hub, which would corrupt its queue ratchet.
 async fn connect_to_hub(
     fleet: &Fleet,
     records: &[Option<UsernameRecord>],
@@ -119,44 +140,71 @@ async fn connect_to_hub(
 /// index order, wrapping around. A deterministic ring keeps the mesh stable
 /// across resumed runs, and gives every member roughly `2 * degree` contacts
 /// once incoming edges are counted.
+///
+/// Built one offset at a time. Within a single offset the edges `i -> i+offset`
+/// form a permutation of the clients, so every member is the initiator of
+/// exactly one edge and the responder of exactly one other. That is what makes
+/// the round safe to fan out: no member is ever drained by two tasks at once.
 async fn build_contact_mesh(
     fleet: &Fleet,
     records: &[Option<UsernameRecord>],
-    degree: usize,
+    params: &BootstrapParams<'_>,
     report: &mut Report,
     multi: &MultiProgress,
 ) -> anyhow::Result<()> {
     let client_count = fleet.members.len().saturating_sub(1);
     // Each client can reach at most every other client.
-    let degree = degree.min(client_count.saturating_sub(1));
+    let degree = params
+        .contact_mesh_degree
+        .min(client_count.saturating_sub(1));
     if degree == 0 {
         return Ok(());
     }
 
-    let bar = multi.add(ProgressBar::new(client_count as u64));
+    let bar = multi.add(ProgressBar::new((degree * client_count) as u64));
     bar.set_style(bar_style("building contact mesh"));
 
-    for index in 1..fleet.members.len() {
-        let initiator = &fleet.members[index].user;
-        let existing = contact_ids(initiator).await?;
-
-        for offset in 1..=degree {
+    for offset in 1..=degree {
+        let mut edges = Vec::with_capacity(client_count);
+        for index in 1..fleet.members.len() {
             // Walk the ring over indices 1..len, skipping the hub at 0.
             let peer = 1 + ((index - 1 + offset) % client_count);
             if peer == index {
                 continue;
             }
-            let responder = &fleet.members[peer].user;
-            if existing.contains(responder.user_id()) {
-                continue;
-            }
-            let Some(record) = &records[peer] else {
+            let Some(record) = records[peer].clone() else {
                 continue;
             };
-            let result = ops::connect(initiator, responder, record).await;
+            edges.push((
+                fleet.members[index].user.clone(),
+                fleet.members[peer].user.clone(),
+                record,
+            ));
+        }
+
+        let results = parallel::map(edges, params.concurrency, {
+            let bar = bar.clone();
+            move |(initiator, responder, record)| {
+                let bar = bar.clone();
+                async move {
+                    // Checked per edge rather than once per member: an
+                    // earlier round, or an earlier run, may already have
+                    // connected this pair.
+                    let result = match contact_ids(&initiator).await {
+                        Ok(existing) if existing.contains(responder.user_id()) => None,
+                        Ok(_) => Some(ops::connect(&initiator, &responder, &record).await),
+                        Err(error) => Some(Err(error)),
+                    };
+                    bar.inc(1);
+                    result
+                }
+            }
+        })
+        .await;
+
+        for result in results.into_iter().flatten() {
             report.record("mesh_connect", &result);
         }
-        bar.inc(1);
     }
     bar.finish_with_message("contact mesh built");
     Ok(())
@@ -212,14 +260,21 @@ async fn invite_everyone(
 async fn full_update_sweep(
     fleet: &Fleet,
     chat_id: ChatId,
+    concurrency: usize,
     report: &mut Report,
     multi: &MultiProgress,
 ) {
-    let bar = multi.add(ProgressBar::new((fleet.members.len() * 2) as u64));
+    let bar = multi.add(ProgressBar::new((fleet.members.len() * 3) as u64));
     bar.set_style(bar_style("full update sweep"));
 
-    // Sequential: each member drains to the epoch its predecessor's commit
-    // created, so every update is staged from the current epoch.
+    // Catch everyone up on the invite batches first. This part is per-member
+    // work with nothing shared, so it fans out; it also leaves the drains in
+    // the sequential pass below with only one commit each to apply.
+    drain_everyone(fleet, concurrency, &bar, report).await;
+
+    // The commits themselves stay sequential: each member drains to the epoch
+    // its predecessor's commit created, so every update is staged from the
+    // current epoch and a rejection here is a real failure.
     for member in &fleet.members {
         let drain_result = ops::drain(&member.user).await;
         report.record("bootstrap_drain", &drain_result);
@@ -231,12 +286,36 @@ async fn full_update_sweep(
     }
 
     // Everyone picks up the commits made after their own turn.
-    for member in &fleet.members {
-        let drain_result = ops::drain(&member.user).await;
-        report.record("bootstrap_drain", &drain_result);
-        bar.inc(1);
-    }
+    drain_everyone(fleet, concurrency, &bar, report).await;
+
     bar.finish_with_message("full update sweep done");
+}
+
+/// Drains every member concurrently. Safe to fan out because each task owns a
+/// distinct member, so no queue ratchet is touched twice.
+async fn drain_everyone(fleet: &Fleet, concurrency: usize, bar: &ProgressBar, report: &mut Report) {
+    let results = parallel::map(
+        fleet.members.iter().map(|m| m.user.clone()).collect(),
+        concurrency,
+        {
+            let bar = bar.clone();
+            move |user| {
+                let bar = bar.clone();
+                async move {
+                    let result = ops::drain(&user).await;
+                    bar.inc(1);
+                    result
+                }
+            }
+        },
+    )
+    .await;
+    for result in &results {
+        report.record("bootstrap_drain", result);
+        if let Ok(outcome) = result {
+            report.record_drain_outcome(outcome.fetched, outcome.message_errors);
+        }
+    }
 }
 
 async fn contact_ids(user: &CoreUser) -> anyhow::Result<HashSet<UserId>> {

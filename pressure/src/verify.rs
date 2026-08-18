@@ -8,10 +8,21 @@
 //! the hub's view, which is authoritative for chat membership since the hub
 //! is always the committer of structural changes in the star topology.
 
+use std::collections::HashMap;
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, clients::CoreUser};
 
 use crate::ops;
+
+/// What every convergence check needs: the hub to compare against, the group,
+/// the clients to resolve members in, and how wide to fan the checks out.
+pub struct CheckContext<'a> {
+    pub hub: &'a CoreUser,
+    pub chat_id: ChatId,
+    pub clients_by_id: &'a HashMap<UserId, &'a CoreUser>,
+    pub concurrency: usize,
+}
 
 /// Compares `member`'s local view of `chat_id` against the hub's view after
 /// draining `member`'s queue. Returns a human-readable description of any

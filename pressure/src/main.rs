@@ -10,6 +10,7 @@
 mod bootstrap;
 mod fleet;
 mod ops;
+mod parallel;
 mod progress;
 mod rejoin;
 mod report;
@@ -76,6 +77,13 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     max_targets: usize,
 
+    /// How many per-member operations to run at once. Only work that touches
+    /// distinct members is fanned out; commits to the group stay sequential.
+    /// Defaults to the number of cores. Lower it if the server rate-limits,
+    /// since the whole fleet shares one source IP.
+    #[arg(long)]
+    concurrency: Option<usize>,
+
     /// How long to run the random walk, in seconds. 0 runs until Ctrl-C.
     #[arg(long, default_value_t = 0)]
     duration_secs: u64,
@@ -136,12 +144,17 @@ async fn main() -> anyhow::Result<()> {
         .transpose()?;
 
     let multi = MultiProgress::new();
+    let concurrency = args
+        .concurrency
+        .unwrap_or_else(parallel::default_concurrency);
+    info!(concurrency, "fan-out width for per-member work");
 
     let fleet = Fleet::load_or_create(
         &args.root,
         args.server_url.clone(),
         args.count,
         invitation_codes,
+        concurrency,
         &multi,
     )
     .await?;
@@ -153,6 +166,7 @@ async fn main() -> anyhow::Result<()> {
         invite_batch_size: args.invite_batch_size,
         contact_mesh_degree: args.contact_mesh_degree,
         full_update: !args.no_bootstrap_full_update,
+        concurrency,
     };
     let chat_id = bootstrap::run(&fleet, &bootstrap_params, &mut report, &multi).await?;
 
@@ -168,6 +182,13 @@ async fn main() -> anyhow::Result<()> {
         chat_id,
         clients_by_id: &clients_by_id,
         max_targets: args.max_targets.max(1),
+        concurrency,
+    };
+    let check_ctx = verify::CheckContext {
+        hub,
+        chat_id,
+        clients_by_id: &clients_by_id,
+        concurrency,
     };
 
     let mut rejoins = rejoin::RejoinTracker::default();
@@ -208,14 +229,15 @@ async fn main() -> anyhow::Result<()> {
                 .as_secs();
             walk_bar.set_position(elapsed_secs.min(args.duration_secs));
         }
-        walk_bar.set_message(format!("step {step_count} | {}", state.report.summary_line()));
+        walk_bar.set_message(format!(
+            "step {step_count} | {}",
+            state.report.summary_line()
+        ));
 
         if step_count.is_multiple_of(args.verify_every) {
             run_verification(
-                hub,
-                chat_id,
+                &check_ctx,
                 &client_ids,
-                &clients_by_id,
                 args.verify_sample,
                 &mut rng,
                 &mut state.report,
@@ -223,9 +245,7 @@ async fn main() -> anyhow::Result<()> {
             .await;
             rejoin::check_pending(
                 &mut state.rejoins,
-                hub,
-                chat_id,
-                &clients_by_id,
+                &check_ctx,
                 args.rejoin_grace_checks,
                 false,
                 &mut state.report,
@@ -244,9 +264,7 @@ async fn main() -> anyhow::Result<()> {
         ));
         rejoin::check_pending(
             &mut state.rejoins,
-            hub,
-            chat_id,
-            &clients_by_id,
+            &check_ctx,
             args.rejoin_grace_checks,
             true,
             &mut state.report,
@@ -292,11 +310,11 @@ fn walk_progress_bar(args: &Args) -> ProgressBar {
     }
 }
 
+/// Checks a sample of members against the hub. Each check drains its own
+/// member and only reads the hub, so the sample is checked concurrently.
 async fn run_verification(
-    hub: &aircoreclient::clients::CoreUser,
-    chat_id: aircoreclient::ChatId,
+    ctx: &verify::CheckContext<'_>,
     client_ids: &[UserId],
-    clients_by_id: &HashMap<UserId, &aircoreclient::clients::CoreUser>,
     sample_size: usize,
     rng: &mut ChaCha8Rng,
     report: &mut Report,
@@ -304,11 +322,30 @@ async fn run_verification(
     use rand::seq::IteratorRandom;
 
     let sample_size = sample_size.min(client_ids.len());
-    for member_id in client_ids.iter().sample(rng, sample_size) {
-        let Some(member) = clients_by_id.get(member_id) else {
-            continue;
-        };
-        match verify::check_member(hub, chat_id, member, member_id).await {
+    let sample: Vec<(UserId, aircoreclient::clients::CoreUser)> = client_ids
+        .iter()
+        .sample(rng, sample_size)
+        .into_iter()
+        .filter_map(|id| {
+            ctx.clients_by_id
+                .get(id)
+                .map(|member| (id.clone(), (*member).clone()))
+        })
+        .collect();
+
+    let hub = ctx.hub.clone();
+    let chat_id = ctx.chat_id;
+    let outcomes = parallel::map(sample, ctx.concurrency, move |(member_id, member)| {
+        let hub = hub.clone();
+        async move {
+            let outcome = verify::check_member(&hub, chat_id, &member, &member_id).await;
+            (member_id, outcome)
+        }
+    })
+    .await;
+
+    for (member_id, outcome) in outcomes {
+        match outcome {
             Ok(Some(divergence)) => report.record_divergence(divergence),
             Ok(None) => {}
             Err(error) => {
