@@ -3,5 +3,4 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
 -- No schema change. This version marks completion of the one-time
--- `purge_stale_deleted_messages` code migration: it is applied only after
--- that code has run successfully.
+-- `purge_stale_deleted_messages` code migration

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs,
     future::ready,
@@ -16,8 +17,7 @@ use sqlx::{
     Connection, Database, Encode, Sqlite, SqlitePool, Type,
     encode::IsNull,
     error::BoxDynError,
-    migrate,
-    migrate::Migrator,
+    migrate::{Migrate, MigrateError},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use strum::VariantArray;
@@ -58,7 +58,7 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
             .await?;
     }
 
-    migrate!("migrations/air").run(&write_pool).await?;
+    sqlx::migrate!("migrations/air").run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
     let air_db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
@@ -277,44 +277,20 @@ enum RustMigration {
 }
 
 impl RustMigration {
-    /// Runs `code` immediately before applying the SQL migration `version`, but
-    /// only if that migration has not already been applied.
-    async fn run(&self, migrator: &Migrator, db: &DbAccess) -> anyhow::Result<()> {
-        let version = *self as i64;
-        anyhow::ensure!(
-            migrator.version_exists(version),
-            "no migration file for paired code migration version {version}",
-        );
-
-        let mut connection = db.write().await?;
-        let mut txn = connection.begin().await?;
-
-        // Bring the DB up to date with everything before `version`, without applying `version` itself.
-        migrator.run_to(version - 1, txn.as_mut()).await?;
-
-        let already_applied = sqlx::query_scalar::<_, i64>(
-            "SELECT 1 FROM _sqlx_migrations WHERE version = ? AND success = 1",
-        )
-        .bind(version)
-        .fetch_optional(txn.as_mut())
-        .await?
-        .is_some();
-
-        if !already_applied {
-            match self {
-                RustMigration::OwnClientIdBackfill => {
-                    OwnClientInfo::backfill_client_id(&mut txn).await?
-                }
-                RustMigration::StaleDeletedMessagesPurge => {
-                    purge_stale_deleted_messages(&mut txn).await?
-                }
-            }
+    fn from_version(version: i64) -> Option<Self> {
+        match version {
+            20260817150000 => Some(Self::OwnClientIdBackfill),
+            20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            _ => None,
         }
+    }
 
-        migrator.run_to(version, txn.as_mut()).await?;
-
-        txn.commit().await?;
-
+    /// Applies the code migration to the database.
+    async fn apply(&self, write: impl WriteConnection) -> anyhow::Result<()> {
+        match self {
+            RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
+            RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+        }
         Ok(())
     }
 }
@@ -322,19 +298,60 @@ impl RustMigration {
 /// Runs the client DB's SQL migrations, interleaved with one-time code
 /// migrations that must not rerun on every open.
 ///
-/// Each code migration is paired with the version of the SQL migration that
-/// follows it: that migration's row in `_sqlx_migrations` doubles as the
-/// "done" marker for the code.
+/// Each SQL migration can have a corresponding optional code migration. After it is applied, the
+/// code migration is applied in the *same* transaction.
+///
+/// Note: This function is implemented along the lines of `sqlx::migrate::Migrator::run`, but
+/// adjusted to sqlite.
 async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
-    let migrator = migrate!();
+    let migrator = sqlx::migrate!();
+    let table = "_sqlx_migrations";
 
-    // Run all code migrations (and any migration without code before it).
-    for extra_code_migrations in RustMigration::VARIANTS {
-        extra_code_migrations.run(&migrator, db).await?;
+    // Check that every rust migration has a matching migration file.
+    for m in RustMigration::VARIANTS {
+        anyhow::ensure!(
+            migrator.version_exists(*m as i64),
+            "no migration file for paired code migration version {m:?}",
+        );
     }
 
-    // Apply the remaining SQL migrations.
-    migrator.run(db.write().await?.as_mut()).await?;
+    let mut write = db.write().await?;
+    write.as_mut().ensure_migrations_table(table).await?;
+    if let Some(version) = write.as_mut().dirty_version(table).await? {
+        return Err(MigrateError::Dirty(version).into());
+    }
+    let applied = write.as_mut().list_applied_migrations(table).await?;
+    for m in &applied {
+        anyhow::ensure!(
+            migrator.version_exists(m.version),
+            "unknown applied version {}",
+            m.version,
+        );
+    }
+    let applied: HashMap<i64, _> = applied.into_iter().map(|m| (m.version, m)).collect();
+
+    for migration in migrator.iter() {
+        if migration.migration_type.is_down_migration() {
+            continue;
+        }
+        match applied.get(&migration.version) {
+            Some(applied) if migration.checksum != applied.checksum => {
+                return Err(MigrateError::VersionMismatch(migration.version).into());
+            }
+            Some(_) => {} // already applied
+            None => match RustMigration::from_version(migration.version) {
+                Some(code) => {
+                    let mut txn = write.begin().await?;
+                    txn.as_mut().apply(table, migration).await?;
+                    code.apply(&mut txn).await?;
+                    txn.commit().await?;
+                }
+                None => {
+                    write.as_mut().apply(table, migration).await?;
+                }
+            },
+        }
+    }
 
     Ok(())
 }
@@ -392,14 +409,15 @@ mod tests {
     use crate::clients::store::{ClientRecord, ClientRecordState};
 
     #[test]
-    fn extra_code_migrations_are_sorted_by_version() {
-        let versions: Vec<i64> = RustMigration::VARIANTS
-            .iter()
-            .map(|migration| *migration as i64)
-            .collect();
-        let mut sorted_versions = versions.clone();
-        sorted_versions.sort_unstable();
-        assert_eq!(versions, sorted_versions);
+    fn from_version_covers_all_variants() {
+        for migration in RustMigration::VARIANTS {
+            let version = *migration as i64;
+            assert_eq!(
+                RustMigration::from_version(version).map(|migration| migration as i64),
+                Some(version),
+                "from_version disagrees with the discriminant of {migration:?}",
+            );
+        }
     }
 
     async fn store_record(
@@ -656,6 +674,72 @@ mod tests {
             .fetch_one(db.read().await?.as_mut())
             .await?;
         assert_eq!(client_id, Uuid::nil());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn modified_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET checksum = x'00'
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(
+            error.downcast_ref(),
+            Some(MigrateError::VersionMismatch(_))
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dirty_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET success = 0
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(error.downcast_ref(), Some(MigrateError::Dirty(_))));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time)
+            VALUES (99999999999999, 'from the future', 1, x'00', 0)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(error.to_string().contains("unknown applied version"));
 
         Ok(())
     }
