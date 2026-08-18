@@ -17,7 +17,7 @@ ScrollMetrics _metrics({required double pixels, double max = 500}) =>
       maxScrollExtent: max,
       pixels: pixels,
       viewportDimension: 600,
-      axisDirection: AxisDirection.down,
+      axisDirection: .down,
       devicePixelRatio: 1,
     );
 

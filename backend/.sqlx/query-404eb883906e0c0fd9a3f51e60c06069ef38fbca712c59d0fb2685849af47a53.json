@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_token_issuance (\n                    user_uuid,\n                    user_domain,\n                    operation_type,\n                    allowance_epoch,\n                    key_fingerprint,\n                    request_hash\n                ) VALUES ($1, $2, $3, $4, $5, $6)\n                ON CONFLICT DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Int4",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "404eb883906e0c0fd9a3f51e60c06069ef38fbca712c59d0fb2685849af47a53"
+}

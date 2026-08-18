@@ -19,7 +19,6 @@ import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -32,6 +31,7 @@ import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
+import 'package:air/features/chat/chats_repository.dart';
 
 final _appRouter = AppRouter();
 
@@ -374,9 +374,13 @@ class LoadableUserCubitProvider extends StatelessWidget {
                       appStateStream: appStateController.stream,
                     ),
                   ),
-                  BlocProvider<UsersCubit>(
-                    create: (context) =>
-                        UsersCubit(userCubit: context.read<UserCubit>()),
+                  RepositoryProvider<ChatsRepository>(
+                    create: (context) => RustChatsRepository(
+                      userCubit: context.read<UserCubit>().impl,
+                    ),
+                    dispose: (repository) => unawaited(repository.dispose()),
+                    // immediately hydrate chats
+                    lazy: false,
                   ),
                 ],
                 child: MultiRepositoryProvider(
@@ -389,10 +393,11 @@ class LoadableUserCubitProvider extends StatelessWidget {
                       lazy: false,
                     ),
                     RepositoryProvider<ChatsRepository>(
-                      create: (context) => ChatsRepository(
+                      create: (context) => RustChatsRepository(
                         userCubit: context.read<UserCubit>().impl,
                       ),
-                      // immediately cache chats
+                      dispose: (repository) => unawaited(repository.dispose()),
+                      // immediately hydrate chats
                       lazy: false,
                     ),
                   ],

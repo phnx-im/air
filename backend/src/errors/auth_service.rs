@@ -152,6 +152,42 @@ impl From<IssueTokensError> for Status {
 }
 
 #[derive(Error, Debug)]
+pub(crate) enum IssueTokenBatchError {
+    /// Something was wrong in the request
+    #[error("Bad request: {0}")]
+    BadRequest(&'static str),
+    /// Storage provider error
+    #[error("Storage provider error")]
+    StorageError(#[from] StorageError),
+    /// PrivacyPass protocol error
+    #[error("PrivacyPass protocol error")]
+    PrivacyPassError(#[from] IssueTokenResponseError),
+}
+
+impl From<sqlx::Error> for IssueTokenBatchError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(StorageError::Database(error.into()))
+    }
+}
+
+impl From<IssueTokenBatchError> for Status {
+    fn from(e: IssueTokenBatchError) -> Self {
+        let msg = e.to_string();
+        match e {
+            IssueTokenBatchError::BadRequest(msg) => Status::invalid_argument(msg),
+            IssueTokenBatchError::StorageError(error) => {
+                error!(%error, "storage error while issuing a token batch");
+                Status::internal(msg)
+            }
+            IssueTokenBatchError::PrivacyPassError(error) => {
+                error!(%error, "failed to issue a token batch");
+                Status::internal(msg)
+            }
+        }
+    }
+}
+
+#[derive(Error, Debug)]
 pub(crate) enum RedeemTokenError {
     /// Token key ID not recognized
     #[error("Unknown token key ID")]

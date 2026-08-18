@@ -51,7 +51,7 @@ class ButtonCTA extends StatelessWidget {
     final fade = onPressed != null ? 1.0 : StateTokens.disabledContent;
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         ButtonIcon(
           variant: ButtonIconVariant.solid,

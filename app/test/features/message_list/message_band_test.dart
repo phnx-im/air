@@ -268,7 +268,7 @@ void main() {
 
     Widget host(List<UiReaction> reactions) => MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: testThemeData(Brightness.light),
+      theme: testThemeData(.light),
       home: Scaffold(
         body: Align(
           alignment: Alignment.topRight,

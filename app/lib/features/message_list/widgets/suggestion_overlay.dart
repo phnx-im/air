@@ -390,7 +390,7 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
         elevation: style.elevation,
         color: style.backgroundColor,
         borderRadius: style.borderRadius,
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: .antiAlias,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: style.maxWidth,
@@ -398,7 +398,7 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
           ),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: List.generate(suggestions.length, (index) {
                 final item = suggestions[index];
                 final isHighlighted = index == controller.highlightIndex;

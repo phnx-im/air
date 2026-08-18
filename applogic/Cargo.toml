@@ -4,7 +4,7 @@
 
 [package]
 name = "airapplogic"
-version = "0.20.0"
+version = "0.21.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -40,7 +40,6 @@ hex.workspace = true
 image.workspace = true
 indexmap.workspace = true
 jni.workspace = true
-lru.workspace = true
 memmap2.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true

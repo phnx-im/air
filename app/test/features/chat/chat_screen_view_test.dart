@@ -376,7 +376,7 @@ void main() {
         if (w is! Container) return false;
         final decoration = w.decoration;
         return decoration is BoxDecoration &&
-            decoration.shape == BoxShape.circle &&
+            decoration.shape == .circle &&
             decoration.color ==
                 lightSemanticPalette.function.neutral.toggleBlack;
       });
@@ -477,7 +477,7 @@ void main() {
     });
 
     testWidgets('renders correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
@@ -99,7 +98,7 @@ void main() {
     });
 
     testWidgets('buttons render correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
@@ -128,9 +127,7 @@ void main() {
         await tester.pumpWidget(hoverSubject(button));
         final resting = tester.getRect(find.text(label)).width;
 
-        final pointer = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final pointer = await tester.createGesture(kind: .mouse);
         await pointer.addPointer(location: Offset.zero);
         addTearDown(pointer.removePointer);
 
