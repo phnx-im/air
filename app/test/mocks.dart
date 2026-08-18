@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_details/member_details_cubit.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -91,9 +93,6 @@ class MockUsersState implements UsersState {
 
 class MockChatDetailsCubit extends MockCubit<ChatDetailsState>
     implements ChatDetailsCubit {}
-
-class MockChatListCubit extends MockCubit<ChatListState>
-    implements ChatListCubit {}
 
 class MockMessageListCubit implements MessageListCubit {
   MockMessageListCubit({
@@ -278,7 +277,52 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
 
-class MockChatsRepository extends Mock implements ChatsRepository {}
+/// A [chats_repository.ChatsRepository] serving a fixed set of chats.
+class FakeChatsRepository implements chats_repository.ChatsRepository {
+  FakeChatsRepository(List<UiChatDetails> chats)
+    : _order = [for (final chat in chats) chat.id],
+      _chats = {for (final chat in chats) chat.id: chat};
+
+  final List<ChatId> _order;
+  final Map<ChatId, UiChatDetails> _chats;
+
+  @override
+  bool get isLoaded => true;
+
+  @override
+  List<ChatId> get order => _order;
+
+  @override
+  Stream<List<ChatId>> watchOrder() => Stream.value(_order);
+
+  @override
+  UiChatDetails getChat(ChatId id) => _chats[id]!;
+
+  @override
+  Stream<UiChatDetails?> watchChat(ChatId id) => Stream.value(_chats[id]);
+
+  @override
+  Future<void> mute(ChatId id, {required UiChatMuted until}) => Future.value();
+
+  @override
+  Future<void> unmute(ChatId id) => Future.value();
+
+  @override
+  Future<AddUsernameContactError?> createContactChat({
+    required UiUsername username,
+    required UsernameHash hash,
+  }) => Future.value(null);
+
+  @override
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+    required bool isApq,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> dispose() => Future.value();
+}
 
 class MockMemberDetailsCubit extends MockCubit<MemberDetailsState>
     implements MemberDetailsCubit {}

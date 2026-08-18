@@ -7,9 +7,9 @@ import 'dart:typed_data';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -40,20 +40,12 @@ class CreateGroupModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (context) =>
-              ChatListCubit(userCubit: context.read<UserCubit>()),
-        ),
-        BlocProvider(
-          create: (context) {
-            final userCubit = context.read<UserCubit>();
-            final contactsFuture = userCubit.contacts;
-            return AddMembersCubit()..loadContacts(contactsFuture);
-          },
-        ),
-      ],
+    return BlocProvider(
+      create: (context) {
+        final userCubit = context.read<UserCubit>();
+        final contactsFuture = userCubit.contacts;
+        return AddMembersCubit()..loadContacts(contactsFuture);
+      },
       child: const _CreateGroupFlow(),
     );
   }
@@ -367,10 +359,10 @@ class _CreateGroupDetailsPane extends HookWidget {
 
     isCreating.value = true;
 
-    final chatListCubit = context.read<ChatListCubit>();
+    final chatsRepository = context.read<ChatsRepository>();
 
     try {
-      final chatId = await chatListCubit.createGroupChat(
+      final chatId = await chatsRepository.createGroupChat(
         groupName: groupName,
         picture: picture,
         isApq: isApq,
