@@ -32,6 +32,7 @@ class AddUsernameDialog extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
+    final hintStyle = typeScale.body.xs.style(color: palette.text.tertiary);
 
     // The field carries no validator of its own, so the message is host state,
     // recomputed whenever the value or the taken-name state moves.
@@ -87,9 +88,13 @@ class AddUsernameDialog extends HookWidget {
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: S.s8),
-            child: Text(
-              loc.usernameScreen_description,
-              style: typeScale.body.xs.style(color: palette.text.tertiary),
+            child: Column(
+              crossAxisAlignment: .start,
+              children: [
+                Text(loc.usernameScreen_description, style: hintStyle),
+                const SizedBox(height: S.s8),
+                Text(loc.usernameScreen_syntax, style: hintStyle),
+              ],
             ),
           ),
 

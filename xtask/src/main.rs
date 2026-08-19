@@ -8,6 +8,7 @@ mod generate_emoji;
 mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
+mod validate_l10n;
 
 use clap::{Parser, Subcommand};
 
@@ -33,6 +34,10 @@ enum Commands {
     /// Scan Flutter / mobile sources for unused localization keys and prune them from ARB files.
     #[command(name = "prune-unused-l10n")]
     PruneUnusedL10n(prune_unused_l10n::PruneArgs),
+    /// Check the ARB files for placeholder, ICU and metadata problems that
+    /// `gen-l10n` accepts silently.
+    #[command(name = "validate-l10n")]
+    ValidateL10n(validate_l10n::ValidateArgs),
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
@@ -48,6 +53,7 @@ fn main() -> anyhow::Result<()> {
         Commands::BumpVersion(args) => bump_version::run(args),
         Commands::CutRelease(args) => cut_release::run(args),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
+        Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),
     }

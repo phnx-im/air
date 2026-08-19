@@ -3,7 +3,7 @@
   "languageName": "Deutsch",
   "userSettingsScreen_title": "Profil und Einstellungen",
   "userSettingsScreen_profileDescription": "Dein Anzeigename und dein Profilbild sind für deine Air-Kontakte und Mitglieder deiner Gruppen sichtbar.",
-  "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
+  "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit allen, mit denen du dich verbinden möchtest. Benutzernamen sind für andere nicht sichtbar, auch nicht für deine Air-Kontakte. Du kannst bis zu 5 Benutzernamen haben.",
   "userSettingsScreen_help": "Hilfe",
   "userSettingsScreen_deleteAccount": "Air-Konto löschen",
   "userSettingsScreen_sendWithEnter": "Mit Eingabetaste senden",
@@ -23,8 +23,8 @@
   "youSection_preferences": "Einstellungen",
   "youSection_developer": "Entwickler",
   "settingsScreen_copiedToClipboard": "In Zwischenablage kopiert",
-  "removeUsernameDialog_title": "Benutzername entfernen",
-  "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
+  "removeUsernameDialog_title": "Benutzername entfernen?",
+  "removeUsernameDialog_content": "Andere können dir mit diesem Benutzernamen keine Kontaktanfrage mehr senden, und er kann von jemand anderem übernommen werden.",
   "removeUsernameDialog_cancel": "Abbrechen",
   "removeUsernameDialog_remove": "Entfernen",
   "addMembersScreen_addMembers": "Mitglieder hinzufügen",
@@ -39,7 +39,7 @@
   "safetyCodeScreen_safetyCodeExplanation": "Vergleiche den Sicherheitscode mit dem, den {displayName} sieht. Wenn die Codes übereinstimmen, weißt du, dass ihr Ende-zu-Ende-verschlüsselte Nachrichten miteinander austauscht.",
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
 
-  "muteDurationSheet_title": "Benachrichtigungen stummschalten",
+  "muteDurationSheet_title": "Chat stummschalten?",
   "muteDurationSheet_body": "Wähle aus, wie lange du den Chat stummschalten möchtest.",
   "muteDurationSheet_1hour": "1 Stunde",
   "muteDurationSheet_8hours": "8 Stunden",
@@ -55,7 +55,7 @@
   "removeUserButton_text": "Entfernen",
   "blockContactButton_text": "Blockieren",
   "blockContactDialog_title": "{displayName} blockieren?",
-  "blockContactDialog_content": "Du erhältst keine Nachrichten von {displayName}, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder freigeben.",
+  "blockContactDialog_content": "Du erhältst keine Nachrichten von {displayName}, und die Person sieht keine Aktualisierungen deines Profils. Sie sieht nicht, dass du sie blockiert hast. Du kannst sie jederzeit wieder entsperren.",
   "blockContactDialog_cancel": "Abbrechen",
   "blockContactDialog_block": "Blockieren",
   "unblockContactButton_text": "Entsperren",
@@ -87,11 +87,6 @@
   "introScreen_signUp": "Konto erstellen",
   "introScreen_termsLinkText": "Nutzungsbedingungen",
   "introScreen_termsText": "Mit deiner Registrierung stimmst du unseren {termsOfUseLink} zu.",
-  "@introScreen_termsText": {
-    "placeholders": {
-      "termsOfUseLink": {}
-    }
-  },
   "invitationCodeScreen_header": "Einladungscode eingeben",
   "invitationCodeScreen_subheader": "Air ist derzeit nur mit Einladung verfügbar. Gib deinen Code ein, um teilzunehmen. Wenn du keinen hast, bitte jemanden, der schon auf Air ist.",
   "invitationCodeScreen_inputLabel": "Einladungscode (erforderlich)",
@@ -126,7 +121,7 @@
   "signUpScreen_error_emptyDisplayName": "Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu",
   "signUpScreen_error_register": "Fehler beim Registrieren des Benutzers: {error}",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
-  "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder löschen.",
+  "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder entfernen.",
   "usernameOnboarding_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameOnboarding_addButton": "Hinzufügen",
   "usernameOnboarding_error": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.",
@@ -139,7 +134,7 @@
   "linkingDeviceScreen_numericCode": "Numerischer Code",
   "linkingDeviceScreen_linking": "Verknüpfe...",
   "linkingDeviceScreen_linking_confirm_title": "Verknüpfung bestätigen",
-  "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tippe, um den Namen zu ändern.",
+  "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tippe, um den Gerätenamen zu ändern",
   "linkingDeviceScreen_linking_confirm_body": "Du bist dabei, ein neues Gerät zu verknüpfen, das vollen Zugriff auf dein Air-Konto haben wird. Tu dies nur, wenn das Gerät dir gehört.",
   "linkingDeviceScreen_linking_confirm_checkbox": "Ich möchte dieses Gerät verknüpfen.",
   "linkingDeviceScreen_linking_confirm_button": "Bestätigen",
@@ -158,13 +153,6 @@
   "linkedDevicesScreen_thisDevice": "Dieses Gerät",
   "linkedDevicesScreen_linkedDevices": "Verknüpfte Geräte",
   "linkedDevicesScreen_linkedOn": "Verknüpft am {date}",
-  "@linkedDevicesScreen_linkedOn": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
   "linkedDevicesScreen_editNameHint": "Tippe auf ein Gerät, um den Namen zu ändern.",
   "linkedDevicesScreen_linkDevice": "Gerät verknüpfen",
   "linkedDevicesScreen_unknownDevice": "Unbekanntes Gerät",
@@ -174,19 +162,7 @@
   "linkedDevicesScreen_unlinkError": "Die Verknüpfung des Geräts {deviceName} konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
   "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Keine Geräte verknüpft.} one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}}",
-  "@linkedDevicesScreen_deviceCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "linkedDevicesScreen_encryptionNotice": "Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt. {learnMore}",
-  "@linkedDevicesScreen_encryptionNotice": {
-    "placeholders": {
-      "learnMore": {}
-    }
-  },
+  "linkedDevicesScreen_encryptionNotice": "Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt.",
   "linkedDevicesScreen_encryptionNotice_learnMore": "Mehr erfahren.",
   "linkedDevicesScreen_encryptionDialog_title": "Verschlüsselung und Geräteverknüpfung",
   "linkedDevicesScreen_encryptionDialog_content": "Auf Air sind deine Nachrichten (einschließlich Anhänge) immer Ende-zu-Ende-verschlüsselt. Das bedeutet, dass niemand sonst, nicht einmal Air, sie lesen kann.\n\nWenn du ein Gerät verknüpfst, bleiben deine Nachrichten verschlüsselt und nur du kannst sie lesen.",
@@ -211,7 +187,8 @@
   "usernameScreen_inputHint": "Gib einen Benutzernamen ein...",
   "usernameScreen_error_emptyUsername": "Benutzername darf nicht leer sein",
   "usernameScreen_error_alreadyExists": "Benutzername wird bereits verwendet",
-  "usernameScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.\n\nVerwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
+  "usernameScreen_description": "Wähle einen Benutzernamen, den andere verwenden können, um sich mit dir zu verbinden.",
+  "usernameScreen_syntax": "Verwende Buchstaben, Zahlen oder Bindestriche. Mindestens 5 Zeichen.",
   "usernameScreen_cancel": "Abbrechen",
   "usernameScreen_confirm": "Hinzufügen",
   "usernameScreen_error_tooShort": "Benutzername muss mindestens 5 Zeichen lang sein",
@@ -225,17 +202,9 @@
   "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
   "editDisplayNameScreen_cancel": "Abbrechen",
   "editDisplayNameScreen_save": "Speichern",
-  "systemMessage_userAddedUser_prefix": "{user1}",
-  "systemMessage_userAddedUser_infix": " hat ",
-  "systemMessage_userAddedUser_suffix": "{user2} hinzugefügt",
-  "systemMessage_userRemovedUser_prefix": "{user1}",
-  "systemMessage_userRemovedUser_infix": " hat ",
-  "systemMessage_userRemovedUser_suffix": "{user2} entfernt",
-  "systemMessage_userChangedTitle_prefix": "{user}",
-  "systemMessage_userChangedTitle_infix_1": " hat den Gruppennamen geändert von ",
-  "systemMessage_userChangedTitle_infix_2": "{old_name}",
-  "systemMessage_userChangedTitle_infix_3": " zu ",
-  "systemMessage_userChangedTitle_suffix": "{new_name}",
+  "systemMessage_userAddedUser": "{user1} hat {user2} hinzugefügt",
+  "systemMessage_userRemovedUser": "{user1} hat {user2} entfernt",
+  "systemMessage_userChangedTitle": "{user} hat den Gruppennamen von {old_name} zu {new_name} geändert",
   "systemMessage_acceptedHandleConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über deinen Benutzernamen {username} gestellt wurde.",
   "systemMessage_acceptedDirectConnectionRequest": "Du hast die Kontaktanfrage von {displayName} akzeptiert, die über einen gemeinsamen Gruppenchat gestellt wurde.",
   "systemMessage_receivedConnectionConfirmation": "{displayName} hat deine Kontaktanfrage akzeptiert.",
@@ -243,10 +212,8 @@
   "systemMessage_newDirectConnectionChat": "Du hast eine Kontaktanfrage an {displayName} gesendet. Die Person wird vielleicht nicht sofort über deine Anfrage benachrichtigt.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über deinen Benutzernamen {username} gesendet.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} hat dir eine Kontaktanfrage über den Gruppenchat {groupName} gesendet.",
-  "systemMessage_userChangedPicture_prefix": "{user}",
-  "systemMessage_userChangedPicture_infix": " hat das Gruppenbild geändert",
-  "systemMessage_userCreatedGroup_prefix": "{user}",
-  "systemMessage_userCreatedGroup_suffix": " hat die Gruppe erstellt",
+  "systemMessage_userChangedPicture": "{user} hat das Gruppenbild geändert",
+  "systemMessage_userCreatedGroup": "{user} hat die Gruppe erstellt",
   "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.",
   "timestamp_now": "Jetzt",
   "timestamp_minutesAgo": "{count}m",
@@ -257,9 +224,9 @@
   "messageBubble_sent": "Gesendet",
   "messageBubble_delivered": "Zugestellt",
   "messageBubble_read": "Gelesen",
-  "chatList_newContact": "Neuer Kontakt",
+  "chatList_newContact": "Neuer Air-Kontakt",
   "chatList_newGroup": "Neue Gruppe",
-  "chatList_emptyMessage": "Füge deinen ersten Air-Kontakt hinzu, um loszulegen.",
+  "chatList_emptyMessage": "Füge deinen ersten Air-Kontakt hinzu, um loszulegen",
   "chatList_draft": "Entwurf",
   "chatList_you": "Du",
   "chatList_imageEmoji": "🖼️",
@@ -281,7 +248,7 @@
   "newConnectionDialog_confirm2": "Senden",
   "newConnectionDialog_error": "Kontaktanfrage an {username} konnte nicht gesendet werden. Bitte versuche es erneut.",
   "newConnectionDialog_error_emptyUsername": "Benutzername darf nicht leer sein",
-  "newConnectionDialog_error_usernameNotFound": "Benutzername {username} existiert nicht",
+  "newConnectionDialog_error_usernameNotFound": "{username} wurde nicht gefunden. Überprüfe ihn und versuche es erneut.",
   "newConnectionDialog_error_duplicateRequest": "Du hast bereits eine ausstehende Kontaktanfrage an diesen Benutzernamen.",
   "newConnectionDialog_error_ownUsername": "Du kannst dir selbst keine Kontaktanfrage senden.",
 
@@ -296,17 +263,6 @@
   "composer_reply_noaccess_message_placeholder": "Du hast keinen Zugriff auf diese Nachricht.",
 
   "attachmentSize": "{size} {byteUnit}",
-  "@attachmentSize": {
-    "placeholders": {
-      "size": {
-        "type": "double",
-        "format": "decimalPatternDigits",
-        "optionalParameters": {
-          "decimalDigits": 2
-        }
-      }
-    }
-  },
   "attachment_images": "Bilder",
   "attachment_camera": "Kamera",
   "attachment_otherFiles": "Andere Dateien",
@@ -316,13 +272,6 @@
   "textMessage_deleted": "Nachricht gelöscht",
   "textMessage_deletedBySelf": "Du hast diese Nachricht gelöscht.",
   "textMessage_deletedByOther": "{senderName} hat diese Nachricht gelöscht.",
-  "@textMessage_deletedByOther": {
-    "placeholders": {
-      "senderName": {
-        "type": "String"
-      }
-    }
-  },
   "linkConfirmation_title": "Link öffnen?",
   "linkConfirmation_description": "Prüfe die URL, um sicherzugehen, dass du sie öffnen möchtest:",
   "linkConfirmation_openLink": "Öffnen",
@@ -376,13 +325,6 @@
   "groupDetails_deleteChat": "Löschen",
   "groupDetails_addPeople": "Hinzufügen",
   "groupDetails_memberCount": "{count, plural, one {{count} Mitglied} other {{count} Mitglieder}}",
-  "@groupDetails_memberCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "groupDetails_seeAll": "Alle anzeigen",
   "groupMembersScreen_title": "Gruppenmitglieder",
   "groupMembersScreen_searchHint": "Suchen",
@@ -396,7 +338,7 @@
   "groupCreationDetails_emptySelection": "Keine Mitglieder",
   "addMembersScreen_done": "Fertig",
   "addMembersScreen_error_incompatibleClient": "Mitglied(er) konnten nicht hinzugefügt werden, da einer der Kontakte einen inkompatiblen Client hat",
-  "leaveChatDialog_title": "Chat verlassen",
+  "leaveChatDialog_title": "Gruppe verlassen",
   "leaveChatDialog_content": "Möchtest du {chatName} wirklich verlassen?",
   "leaveChatDialog_cancel": "Abbrechen",
   "leaveChatDialog_leave": "Verlassen",
@@ -415,7 +357,7 @@
   "deleteAccountScreen_title": "Mein Konto löschen",
   "deleteAccountScreen_explanatoryText": "Dadurch wird dein Air-Konto gelöscht und die App zurückgesetzt. Du kannst dein Konto nicht wiederherstellen.",
   "deleteAccountScreen_confirmationInputHint": "Bestätigung",
-  "deleteAccountScreen_confirmationInputLabel": "Gib 'delete' ein, um zu bestätigen",
+  "deleteAccountScreen_confirmationInputLabel": "Gib 'delete' ein, um zu bestätigen.",
   "deleteAccountScreen_confirmButtonText": "Air-Konto löschen",
   "deleteAccountScreen_deleteAccountError": "Bei uns ist ein Fehler aufgetreten. Warte einen Moment und versuche es dann erneut.",
   "appOutdatedScreen_title": "Software-Update erforderlich",
