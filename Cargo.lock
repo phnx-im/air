@@ -172,7 +172,6 @@ dependencies = [
  "mimi-room-policy",
  "mls-assist",
  "mockall",
- "pin-project",
  "privacypass",
  "prost",
  "rand 0.10.2",

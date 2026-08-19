@@ -14,8 +14,13 @@ use airprotos::{
     relay_service::v1::relay_service_client::RelayServiceClient,
 };
 use thiserror::Error;
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Uri};
-use tracing::info;
+use tokio::time::timeout;
+use tokio_stream::{Stream, StreamExt};
+use tonic::{
+    Status,
+    transport::{Channel, ClientTlsConfig, Endpoint, Uri},
+};
+use tracing::{info, warn};
 use url::{Host, Url};
 
 pub mod as_api;
@@ -23,6 +28,33 @@ pub mod ds_api;
 mod metadata;
 pub mod qs_api;
 pub mod rs_api;
+
+/// Waits for the server to close the response stream after the request stream was half-closed.
+///
+/// The server closes the response stream with OK only after it has processed all requests sent
+/// before the half-close. A non-OK status or a timeout means that the last requests may not have
+/// been processed.
+pub(crate) async fn await_close_confirmation<T>(
+    stream: &mut (impl Stream<Item = Result<T, Status>> + Unpin),
+) {
+    const CLOSE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
+    loop {
+        match timeout(CLOSE_CONFIRMATION_TIMEOUT, stream.next()).await {
+            // Late response => ignored, the server owes us nothing here
+            Ok(Some(Ok(_))) => continue,
+            Ok(Some(Err(error))) => {
+                warn!(%error, "listen stream did not close with OK");
+                break;
+            }
+            // OK trailers => all sent requests were processed
+            Ok(None) => break,
+            Err(_elapsed) => {
+                warn!("timeout waiting for listen stream to close");
+                break;
+            }
+        }
+    }
+}
 
 /// The port used for localhost connections.
 ///

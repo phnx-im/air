@@ -743,18 +743,27 @@ impl CoreUser {
         let (mut stream, responder) = self.listen_queue().await?;
         let mut messages: Vec<QueueMessage> = Vec::new();
 
-        while let Some(message) = stream.next().await {
-            match message.event {
-                // Empty event is the sentinel: the queue is drained.
-                Some(listen_response::Event::Empty(_)) => break,
-                Some(listen_response::Event::Message(queue_message)) => {
-                    if let Ok(queue_message) = queue_message.try_into() {
-                        messages.push(queue_message);
+        let drained = loop {
+            match stream.next().await {
+                Some(Ok(message)) => match message.event {
+                    // Empty event is the sentinel: the queue is drained.
+                    Some(listen_response::Event::Empty(_)) => break true,
+                    Some(listen_response::Event::Message(queue_message)) => {
+                        if let Ok(queue_message) = queue_message.try_into() {
+                            messages.push(queue_message);
+                        }
                     }
+                    Some(listen_response::Event::Payload(_)) | None => {}
+                },
+                // Terminal status => stream is over, acks cannot be confirmed
+                Some(Err(error)) => {
+                    warn!(%error, "qs listen stream failed during drain");
+                    break false;
                 }
-                Some(listen_response::Event::Payload(_)) | None => {}
+                // EOF without our half-close (old server) => stream is over
+                None => break false,
             }
-        }
+        };
 
         let num_messages = messages.len();
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
@@ -764,6 +773,10 @@ impl CoreUser {
             if let Some(max_sequence_number) = max_sequence_number {
                 // Acks all messages before max_sequence_number + 1 (exclusive).
                 responder.ack(max_sequence_number + 1).await;
+                if drained {
+                    // half-close the request stream, then wait for the server to apply the ack
+                    responder.close(&mut stream).await;
+                }
             }
         } else {
             error!(

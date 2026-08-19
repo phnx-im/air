@@ -6,7 +6,6 @@ use std::{
     collections::HashSet,
     mem,
     sync::{Arc, Weak},
-    time::Duration,
 };
 
 pub use airapiclient::as_api::AsListenUsernameResponder;
@@ -39,9 +38,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
 use tokio::task::spawn_blocking;
-use tokio::{sync::Notify, time::timeout};
+use tokio::sync::Notify;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
+use tonic::Status;
 use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
@@ -511,8 +511,6 @@ impl CoreUser {
             UsernameQueueMessage,
         ),
     ) -> Result<()> {
-        const ACK_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
-
         let records = self.username_records().await?;
         let api_client = self.api_client()?;
 
@@ -531,6 +529,7 @@ impl CoreUser {
                         warn!(%error, "username listen stream failed during drain");
                         break false;
                     }
+                    // EOF without our half-close (old server) => stream is over
                     None => break false,
                 }
             };
@@ -538,23 +537,7 @@ impl CoreUser {
                 continue;
             }
             // half-close the request stream, then wait for the server to apply all acks
-            drop(responder);
-            loop {
-                match timeout(ACK_CONFIRMATION_TIMEOUT, stream.next()).await {
-                    // Late message => stays unacked and will be redelivered
-                    Ok(Some(Ok(_))) => continue,
-                    Ok(Some(Err(error))) => {
-                        warn!(%error, "username ack not confirmed");
-                        break;
-                    }
-                    // OK trailers => all acks are durable
-                    Ok(None) => break,
-                    Err(_elapsed) => {
-                        warn!("timeout waiting for username queue ack confirmation");
-                        break;
-                    }
-                }
-            }
+            responder.close(&mut stream).await;
         }
         Ok(())
     }
@@ -566,7 +549,7 @@ impl CoreUser {
         let (mut stream, _responder) = self.listen_queue().await?;
         let mut messages: Vec<QueueMessage> = Vec::new();
 
-        while let Some(message) = stream.next().await {
+        while let Some(Ok(message)) = stream.next().await {
             match message.event {
                 Some(listen_response::Event::Empty(_)) => break,
                 Some(listen_response::Event::Message(queue_message)) => {
@@ -705,7 +688,7 @@ impl CoreUser {
         &self,
     ) -> Result<
         (
-            impl Stream<Item = ListenResponse> + use<>,
+            impl Stream<Item = Result<ListenResponse, Status>> + use<>,
             QsListenResponder,
         ),
         ListenQueueError,

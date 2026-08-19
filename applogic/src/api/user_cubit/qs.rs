@@ -9,7 +9,7 @@ use aircoreclient::clients::{
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
-use tokio_stream::Stream;
+use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
@@ -96,7 +96,13 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             .core_user
             .replace_qs_listen_responder(responder)
             .await;
-        Ok(stream)
+        // The live listen treats any terminal status as stream end.
+        // Reconnecting is up to the background stream task.
+        Ok(stream.map_while(|result| {
+            result
+                .inspect_err(|error| error!(%error, "qs listen stream closed"))
+                .ok()
+        }))
     }
 
     async fn handle_event(&mut self, event: ListenResponse) -> bool {

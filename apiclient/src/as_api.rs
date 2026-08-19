@@ -645,6 +645,19 @@ impl AsListenUsernameResponder {
     pub async fn ack(&self, message_id: Uuid) {
         let _ = self.tx.send(message_id).await;
     }
+
+    /// Half-closes the request stream and waits for the server to confirm that all previously sent
+    /// requests were processed by closing the response stream with OK. For this stream, that means
+    /// all sent acks are durable.
+    ///
+    /// `stream` must be the response stream corresponding to this responder.
+    pub async fn close(
+        self,
+        stream: &mut (impl Stream<Item = Result<Option<UsernameQueueMessage>, Status>> + Unpin),
+    ) {
+        drop(self);
+        crate::await_close_confirmation(stream).await;
+    }
 }
 
 /// Sends a connection offer to the AS in the connect username protocol.

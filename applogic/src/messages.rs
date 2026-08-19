@@ -9,7 +9,7 @@ use aircoreclient::{
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
     api::user::User,
@@ -33,19 +33,30 @@ impl User {
 
     /// Fetch and process QS messages
     async fn fetch_and_process_qs_messages(&self) -> Result<ProcessedQsMessages, ListenQueueError> {
-        let (stream, responder) = self.user.listen_queue().await?;
-        let mut stream = stream
-            .take_while(|message| !matches!(message.event, Some(listen_response::Event::Empty(_))))
-            .filter_map(|message| match message.event? {
-                listen_response::Event::Empty(_) => unreachable!(),
-                listen_response::Event::Message(queue_message) => queue_message.try_into().ok(),
-                listen_response::Event::Payload(_) => None,
-            });
+        let (mut stream, responder) = self.user.listen_queue().await?;
 
         let mut messages: Vec<QueueMessage> = Vec::new();
-        while let Some(message) = stream.next().await {
-            messages.push(message);
-        }
+        let drained = loop {
+            match stream.next().await {
+                Some(Ok(response)) => match response.event {
+                    // Empty event is the sentinel: the queue is drained.
+                    Some(listen_response::Event::Empty(_)) => break true,
+                    Some(listen_response::Event::Message(queue_message)) => {
+                        if let Ok(queue_message) = queue_message.try_into() {
+                            messages.push(queue_message);
+                        }
+                    }
+                    Some(listen_response::Event::Payload(_)) | None => {}
+                },
+                // Terminal status => stream is over, acks cannot be confirmed
+                Some(Err(error)) => {
+                    warn!(%error, "qs listen stream failed during drain");
+                    break false;
+                }
+                // EOF without our half-close (old server) => stream is over
+                None => break false,
+            }
+        };
 
         // Invariant: messages are sorted by sequence number
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
@@ -63,7 +74,10 @@ impl User {
             // into the database.
             responder.ack(max_sequence_number + 1).await;
         }
-        drop(stream); // must be alive until the ack is sent
+        if drained {
+            // half-close the request stream, then wait for the server to apply the ack
+            responder.close(&mut stream).await;
+        }
 
         self.user.outbound_service().run_once().await;
 

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, io, pin::pin};
+use std::{fmt, pin::pin};
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -42,7 +42,7 @@ use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request, Response, Status, Streaming, async_trait};
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, warn};
 
 use crate::{
@@ -52,7 +52,7 @@ use crate::{
         usernames::ConnectUsernameProtocol,
     },
     errors::auth_service::RedeemTokenError,
-    util::find_cause,
+    util::StatusExt,
 };
 
 use super::{
@@ -153,14 +153,6 @@ impl GrpcAs {
         };
         queues.ack(message_id.into()).await?;
         Ok(())
-    }
-
-    /// Returns true if the error is caused by the client closing the connection.
-    fn is_client_disconnect(error: &Status) -> bool {
-        matches!(error.code(), Code::Unknown)
-            && find_cause::<h2::Error>(error)
-                .and_then(|h2_error| h2_error.get_io())
-                .is_some_and(|io_error| io_error.kind() == io::ErrorKind::BrokenPipe)
     }
 
     fn verify_client_version(
@@ -761,9 +753,9 @@ impl auth_service_server::AuthService for GrpcAs {
                         // The transport failed or the client reset the stream. Ending abruptly,
                         // in-flight acks are lost and the corresponding messages will be
                         // redelivered.
-                        Some(Err(error)) => {
-                            if !Self::is_client_disconnect(&error) {
-                                error!(%error, "listen username request stream failed");
+                        Some(Err(status)) => {
+                            if !status.is_client_disconnect() {
+                                error!(%status, "listen username request stream failed");
                             }
                             return;
                         }

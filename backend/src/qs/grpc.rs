@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{io, pin::Pin};
+use std::pin::{Pin, pin};
 
 use airprotos::{
     common::v1::ClientMetadata,
@@ -19,7 +19,6 @@ use aircommon::{
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
     time::TimeStamp,
-    utils::CancellableStream,
     virtual_client::KeyPackageBatchId,
 };
 use displaydoc::Display;
@@ -28,13 +27,13 @@ use prost::Message;
 use semver::Version;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request, Response, Status, Streaming, async_trait};
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::{find_cause, select_until_first_ends},
+    util::StatusExt,
 };
 
 /// Maximum number of key packages per batch to upload in one request.
@@ -51,38 +50,12 @@ impl GrpcQs {
         Self { qs }
     }
 
-    async fn process_listen_queue_requests_task(
-        queues: Queues,
-        queue_id: identifiers::QsClientId,
-        mut requests: Streaming<ListenRequest>,
-        requests_responses_tx: mpsc::Sender<Status>,
-    ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
-            {
-                if let ProcessListenQueueRequestError::Status(error) = &error
-                    && let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error to the client, but don't stop processing requests.
-                    error!(%error, "error processing listen queue request");
-                    let _ = requests_responses_tx.send(Status::from(error)).await;
-                }
-            }
-        }
-    }
-
     async fn process_listen_queue_request(
         queues: &Queues,
         queue_id: identifiers::QsClientId,
-        request: Result<ListenRequest, Status>,
+        request: ListenRequest,
     ) -> Result<(), ProcessListenQueueRequestError> {
-        match request?.request {
+        match request.request {
             Some(listen_request::Request::Ack(AckListenRequest {
                 up_to_sequence_number,
             })) => {
@@ -571,25 +544,86 @@ impl QueueService for GrpcQs {
             })
             .ok();
 
-        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (requests_responses_tx, requests_responses_rx) =
-            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+        const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (out_tx, out_rx) = mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(self.qs.stop.clone().run_until_cancelled_owned(
-            Self::process_listen_queue_requests_task(
-                self.qs.queues.clone(),
-                client_id,
-                requests,
-                requests_responses_tx,
-            ),
-        ));
+        let queues = self.qs.queues.clone();
+        let stop = self.qs.stop.clone();
 
-        let responses = select_until_first_ends(
-            CancellableStream::new(events, self.qs.stop.clone()).map(Ok),
-            ReceiverStream::new(requests_responses_rx).map(Err),
-        );
+        enum Event {
+            Request(ListenRequest),
+            Deliver(ListenResponse),
+            Evicted,
+            Aborted,
+        }
 
-        Ok(Response::new(Box::pin(responses)))
+        // Session protocol
+        tokio::spawn(async move {
+            let mut events = pin!(events);
+            // Process incoming requests and events to deliver sequentially
+            loop {
+                let event = tokio::select! {
+                    biased;
+                    req = requests.next() => {
+                        match req {
+                            // The client sent a request
+                            Some(Ok(req)) => Event::Request(req),
+                            // The transport failed or the client reset the stream. Ending abruptly,
+                            // in-flight acks are lost and the corresponding messages will be
+                            // redelivered.
+                            Some(Err(status)) => {
+                                if !status.is_client_disconnect() {
+                                    error!(%status, "listen queue request stream failed");
+                                }
+                                return;
+                            }
+                            // The client half-closed the request stream. All acks sent before are
+                            // processed at this point. Returning drops out_tx which closes the
+                            // response with OK trailers. This is the client's confirmation that its
+                            // acks are durable.
+                            None => return,
+                        }
+                    }
+                    // The server is shutting down
+                    _ = stop.cancelled() => Event::Aborted,
+                    event = events.next() => match event {
+                        // A queue response to deliver
+                        Some(event) => Event::Deliver(event),
+                        // The queue stream ended (evicted by a newer listener for the same
+                        // client_id).
+                        None => Event::Evicted,
+                    },
+                };
+
+                match event {
+                    Event::Request(request) => {
+                        if let Err(error) =
+                            Self::process_listen_queue_request(&queues, client_id, request).await
+                        {
+                            // We report the error to the client and stop.
+                            error!(%error, "error processing listen queue request");
+                            let _ = out_tx.send(Err(error.into())).await;
+                            return;
+                        }
+                    }
+                    Event::Deliver(response) => {
+                        if out_tx.send(Ok(response)).await.is_err() {
+                            return;
+                        }
+                    }
+                    Event::Evicted => {
+                        let _ = out_tx.try_send(Err(Status::aborted("queue evicted")));
+                        return;
+                    }
+                    Event::Aborted => {
+                        let _ = out_tx.try_send(Err(Status::unavailable("server stopped")));
+                        return;
+                    }
+                }
+            }
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(out_rx))))
     }
 }
 

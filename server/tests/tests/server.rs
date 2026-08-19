@@ -1095,30 +1095,40 @@ async fn listen_stream_eviction() {
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_a.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_b.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
+    let status = timeout(Duration::from_millis(100), stream_a.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        status.code(),
+        tonic::Code::Aborted,
+        "first stream is evicted"
+    );
     assert!(
         timeout(Duration::from_millis(100), stream_a.next())
             .await
             .unwrap()
             .is_none(),
-        "first stream is not closed"
+        "first stream is closed"
     );
     assert!(
         timeout(Duration::from_millis(100), stream_b.next())
             .await
             .is_err(),
-        "second stream is closed"
+        "second stream is still open"
     );
 }
