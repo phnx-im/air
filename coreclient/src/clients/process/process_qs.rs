@@ -261,6 +261,13 @@ impl CoreUser {
                 .handle_commit_response(txn, ds_commit_response)
                 .await
                 .map(|_| QsMessageOutcome::empty()),
+            ExtractedQsQueueMessagePayload::GroupCreationEcho(echo) => {
+                warn!(
+                    group_id = ?echo.group_id,
+                    "group creation echo processing not yet implemented"
+                );
+                Ok(QsMessageOutcome::empty())
+            }
         };
 
         debug!(elapsed = ?started.elapsed(), "Processed QS message");

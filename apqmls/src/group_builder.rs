@@ -4,6 +4,7 @@
 
 use openmls::{
     component::ComponentData,
+    components::vc_derivation_info::EpochId,
     group::{
         GroupContext, GroupEpoch, GroupId, MlsGroupBuilder, NewGroupError as OpenMlsNewGroupError,
         WireFormatPolicy,
@@ -58,6 +59,7 @@ pub struct GroupBuilder {
     pq_extensions: Extensions<GroupContext>,
     t_leaf_extensions: Extensions<LeafNode>,
     pq_leaf_extensions: Extensions<LeafNode>,
+    vc_epoch_id: Option<EpochId>,
 }
 
 impl GroupBuilder {
@@ -89,6 +91,24 @@ impl GroupBuilder {
         self
     }
 
+    /// Creates the group as a virtual client on the emulation epoch `epoch_id`.
+    ///
+    /// Both halves derive their creator leaf and epoch-0 secret from the shared
+    /// operation secret tree of that emulation epoch, so a build consumes two
+    /// `key_package` generations: the T half first, then the PQ half. Sibling
+    /// emulator clients reconstruct the same state with
+    /// [`ApqMlsGroup::vc_join_at_creation`].
+    ///
+    /// The provider's storage should span the whole build in one transaction.
+    /// The T half consumes its generation as it persists, and neither a failing
+    /// PQ half nor a crash between the halves can restore it. For the creator
+    /// that only wastes generations, because a retry derives the group from
+    /// fresh ones.
+    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
+        self.vc_epoch_id = Some(epoch_id);
+        self
+    }
+
     /// Build a new group as configured by this builder.
     pub fn build<Provider: OpenMlsProvider>(
         mut self,
@@ -96,6 +116,11 @@ impl GroupBuilder {
         signer: &impl ApqSigner,
         credential_with_key: ApqCredentialWithKey,
     ) -> Result<ApqMlsGroup, NewGroupError<Provider::StorageError>> {
+        if let Some(epoch_id) = self.vc_epoch_id.take() {
+            self.t_group_builder = self.t_group_builder.vc_emulation(epoch_id.clone());
+            self.pq_group_builder = self.pq_group_builder.vc_emulation(epoch_id);
+        }
+
         let ciphersuite = self.ciphersuite.unwrap_or_else(|| match self.mode {
             PqtMode::ConfOnly => ApqCiphersuite::default_pq_conf(),
             PqtMode::ConfAndAuth => ApqCiphersuite::default_pq_conf_and_auth(),
@@ -135,30 +160,40 @@ impl GroupBuilder {
         ensure_group_context_component_support(&mut self.t_extensions, info_component.clone())?;
         ensure_group_context_component_support(&mut self.pq_extensions, info_component)?;
 
-        let t_group = self
+        let t_builder = self
             .t_group_builder
             .ciphersuite(ciphersuite.t_ciphersuite)
             .with_group_context_extensions(self.t_extensions)
             .with_group_id(apq_group_id.t_group_id.clone())
             .with_capabilities(capabilities.clone())
-            .with_leaf_node_extensions(self.t_leaf_extensions)?
-            .build(
-                provider,
-                signer.t_signer(),
-                credential_with_key.t_credential,
-            )?;
-        let pq_group = self
+            .with_leaf_node_extensions(self.t_leaf_extensions)?;
+        let pq_builder = self
             .pq_group_builder
             .ciphersuite(ciphersuite.pq_ciphersuite)
             .with_group_context_extensions(self.pq_extensions)
             .with_group_id(apq_group_id.pq_group_id.clone())
             .with_capabilities(capabilities)
-            .with_leaf_node_extensions(self.pq_leaf_extensions)?
-            .build(
-                provider,
-                signer.pq_signer(),
-                credential_with_key.pq_credential,
-            )?;
+            .with_leaf_node_extensions(self.pq_leaf_extensions)?;
+
+        let mut t_group = t_builder.build(
+            provider,
+            signer.t_signer(),
+            credential_with_key.t_credential,
+        )?;
+        // The T half is already persisted, so a failing PQ half must roll it back: otherwise we
+        // leave a group with no matching counterpart in storage. Any virtual-client generation
+        // consumed by the T half stays consumed.
+        let pq_group = match pq_builder.build(
+            provider,
+            signer.pq_signer(),
+            credential_with_key.pq_credential,
+        ) {
+            Ok(pq_group) => pq_group,
+            Err(err) => {
+                let _ = t_group.delete(provider.storage());
+                return Err(err.into());
+            }
+        };
 
         Ok(ApqMlsGroup { pq_group, t_group })
     }

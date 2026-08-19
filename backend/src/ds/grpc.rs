@@ -710,6 +710,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
+
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
 
@@ -827,6 +834,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
 
         // Extract chat related data
         let encrypted_user_profile_key = payload
@@ -1093,6 +1106,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .map(|info| info.proposals.into_iter().map(From::from).collect())
                 .unwrap_or_default(),
         }))
+    }
+
+    // Storing snapshots and serving them lands with the DS-side part of
+    // multi-client group creation.
+    async fn epoch_snapshot(
+        &self,
+        _request: Request<EpochSnapshotRequest>,
+    ) -> Result<Response<EpochSnapshotResponse>, Status> {
+        Err(Status::unimplemented("epoch snapshot"))
     }
 
     async fn connection_group_info(
