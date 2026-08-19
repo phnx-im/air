@@ -12,7 +12,12 @@ use tracing::error;
 
 use crate::util::StatusExt;
 
+/// Handles a single request of a listen session.
 pub(crate) trait ListenRequestHandler<Req>: Send + 'static {
+    /// Processes a single request.
+    ///
+    /// Returning an error ends the session. The error is sent to the client as the terminal status
+    /// of the response stream.
     fn handle(&mut self, request: Req) -> impl Future<Output = Result<(), Status>> + Send;
 }
 
@@ -23,15 +28,25 @@ enum Event<Req, Resp> {
     Aborted,
 }
 
-/// A session protocol handling a bidirectional stream of requests and responses.
+/// Spawns a task driving a listen session over a bidirectional gRPC stream and returns its response
+/// stream.
 ///
-/// Requests from the client and responses from the server are processed sequentially. The
-/// processing is biased to the requests.
+/// Requests are handled by `handler`, `responses` are delivered to the client as is. Both are
+/// processed sequentially in a single task, biased towards requests, so that already received
+/// requests are handled before shutdown or eviction ends the session.
 ///
-/// It is assumed that there is only a single session per client. Shutdown of the server or eviction
-/// of the client is communicated to the client via unavailable or aborted status codes.
+/// The session ends when:
 ///
-/// Errors are logged with the session name and communicated back to the client (if possible).
+/// - The client half-closes the stream: all requests received before are handled, then the response
+///   stream is closed with OK. Observing OK on the client means that everything sent was processed.
+/// - The transport fails or the client resets the stream: the session ends abruptly, in-flight
+///   requests are unconfirmed.
+/// - `responses` ends: the client is told via an ABORTED status. The caller must ensure that
+///   `responses` only ends when this session is supersed (evicted).
+/// - `stop` is cancelled: the client is told an UNAVAILABLE status.
+/// - `handler` fails: its error is terminal status.
+///
+/// `name` identifies the session in logs.
 pub(crate) fn spawn_listen_session<Req, Resp>(
     mut requests: Streaming<Req>,
     responses: impl Stream<Item = Resp> + Send + 'static,
