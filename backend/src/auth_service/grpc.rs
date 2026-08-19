@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, io};
+use std::{fmt, io, pin::pin};
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -32,7 +32,6 @@ use aircommon::{
             StageUserProfileParamsTbs,
         },
     },
-    utils::CancellableStream,
 };
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
@@ -53,7 +52,7 @@ use crate::{
         usernames::ConnectUsernameProtocol,
     },
     errors::auth_service::RedeemTokenError,
-    util::{find_cause, select_until_first_ends},
+    util::find_cause,
 };
 
 use super::{
@@ -142,34 +141,10 @@ impl GrpcAs {
         })
     }
 
-    async fn process_listen_username_requests_task(
-        queues: UsernameQueues,
-        mut requests: Streaming<ListenUsernameRequest>,
-        responses_tx: mpsc::Sender<Status>,
-    ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_username_request(&queues, request).await {
-                if let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error to the client, but don't stop processing requests.
-                    error!(%error, "error processing listen handle request");
-                    let _ = responses_tx.send(error).await;
-                }
-            }
-        }
-    }
-
     async fn process_listen_username_request(
         queues: &UsernameQueues,
-        request: Result<ListenUsernameRequest, Status>,
+        request: ListenUsernameRequest,
     ) -> Result<(), Status> {
-        let request = request?;
         let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
         };
@@ -178,6 +153,14 @@ impl GrpcAs {
         };
         queues.ack(message_id.into()).await?;
         Ok(())
+    }
+
+    /// Returns true if the error is caused by the client closing the connection.
+    fn is_client_disconnect(error: &Status) -> bool {
+        matches!(error.code(), Code::Unknown)
+            && find_cause::<h2::Error>(error)
+                .and_then(|h2_error| h2_error.get_io())
+                .is_some_and(|io_error| io_error.kind() == io::ErrorKind::BrokenPipe)
     }
 
     fn verify_client_version(
@@ -752,25 +735,84 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let messages = self.inner.username_queues.listen(hash).await?;
 
-        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (requests_responses_tx, requests_responses_rx) =
-            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+        const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+        let (out_tx, out_rx) = mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(self.inner.stop.clone().run_until_cancelled_owned(
-            Self::process_listen_username_requests_task(
-                self.inner.username_queues.clone(),
-                requests,
-                requests_responses_tx,
-            ),
-        ));
+        let queues = self.inner.username_queues.clone();
+        let stop = self.inner.stop.clone();
 
-        let responses = select_until_first_ends(
-            CancellableStream::new(messages, self.inner.stop.clone())
-                .map(|message| Ok(ListenUsernameResponse { message })),
-            ReceiverStream::new(requests_responses_rx).map(Err),
-        );
+        enum Event {
+            Ack(ListenUsernameRequest),
+            Deliver(Option<UsernameQueueMessage>),
+            Aborted,
+            Evicted,
+        }
 
-        Ok(Response::new(Box::pin(responses)))
+        // Session protocol
+        tokio::spawn(async move {
+            let mut messages = pin!(messages);
+            // Process incoming acks and messages to deliver sequentially
+            loop {
+                let event = tokio::select! {
+                    req = requests.next() => match req {
+                        // The client sent an ack
+                        Some(Ok(ack)) => Event::Ack(ack),
+                        // The transport failed or the client reset the stream. Ending abruptly,
+                        // in-flight acks are lost and the corresponding messages will be
+                        // redelivered.
+                        Some(Err(error)) => {
+                            if !Self::is_client_disconnect(&error) {
+                                error!(%error, "listen username request stream failed");
+                            }
+                            return;
+                        }
+                        // The client half-closed the request stream. All acks sent before are
+                        // processed at this point. Returning drops out_tx which closes the response
+                        // with OK trailers. This is the client's confirmation that its acks are
+                        // durable.
+                        None => return,
+                    },
+                    msg = messages.next() => match msg {
+                        // A queue message to deliver. The inner None is the queue empty marker.
+                        Some(msg) => Event::Deliver(msg),
+                        // The queue stream ended. This only happens when a newer listener for the
+                        // same hash evicts this one.
+                        None => Event::Evicted,
+                    },
+                    // The server is shutting down
+                    _ = stop.cancelled() => Event::Aborted,
+                };
+
+                match event {
+                    Event::Ack(req) => {
+                        if let Err(error) =
+                            Self::process_listen_username_request(&queues, req).await
+                        {
+                            // We report the error to the client and stop.
+                            error!(%error, "error processing listen username request");
+                            let _ = out_tx.send(Err(error)).await;
+                            return;
+                        }
+                    }
+                    Event::Deliver(msg) => {
+                        let response = Ok(ListenUsernameResponse { message: msg });
+                        if out_tx.send(response).await.is_err() {
+                            return;
+                        }
+                    }
+                    Event::Aborted => {
+                        let _ = out_tx.try_send(Err(Status::unavailable("server stopped")));
+                        return;
+                    }
+                    Event::Evicted => {
+                        let _ = out_tx.try_send(Err(Status::aborted("queue evicted")));
+                        return;
+                    }
+                }
+            }
+        });
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(out_rx))))
     }
 }
 
