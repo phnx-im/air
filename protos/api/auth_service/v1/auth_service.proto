@@ -60,8 +60,12 @@ service AuthService {
   // A connection establishment protocol between a user and a user
   // identified by a username.
   //
-  // 1. User sends a `fetch` request for a specific username hash.
-  // 2. Server responds with a connection package for the username hash.
+  // 1. User sends a `fetch` (legacy) or `fetch_signed` request for a specific
+  //    username hash.
+  // 2. Server responds with a connection package for the username hash. A
+  //    `fetch_signed` request is answered with `fetch_signed_response`, or
+  //    with legacy `fetch_response` if when the user has not published signed
+  //    connection packages.
   // 3. User sends an `enqueue` request with an encrypted connection offer.
   // 4. Server responds with an empty acknowledgement.
   rpc ConnectUsername(stream ConnectUsernameRequest) returns (stream ConnectUsernameResponse);
@@ -106,6 +110,15 @@ message ConnectionPackagePayload {
   UsernameVerifyingKey verifying_key = 5;
   UsernameHash username_hash = 6;
   optional bool is_last_resort = 7;
+}
+
+message SignedConnectionPackagePayload {
+  ConnectionEncryptionKey encryption_key = 1;
+  common.v1.ExpirationData lifetime = 2;
+  UsernameVerifyingKey verifying_key = 3;
+  UsernameHash username_hash = 4;
+  bool is_last_resort = 5;
+  common.v1.AirFeatures air_features = 6;
 }
 
 message ConnectionEncryptionKey {
@@ -213,6 +226,8 @@ message PublishConnectionPackagesPayload {
   common.v1.ClientMetadata client_metadata = 4;
   UsernameHash hash = 3;
   repeated ConnectionPackage connection_packages = 2;
+  // payload: SignedConnectionPackagePayload, label: "SignedConnectionPackage"
+  repeated common.v1.SignedPayload signed_connection_packages = 5;
 }
 
 message PublishConnectionPackagesResponse {}
@@ -467,8 +482,9 @@ message RefreshUsernameResponse {}
 
 message ConnectUsernameRequest {
   oneof step {
-    FetchConnectionPackageStep fetch = 1;
+    FetchConnectionPackageStep fetch = 1; // legacy clients
     EnqueueConnectionOfferStep enqueue = 2;
+    FetchSignedConnectionPackageStep fetch_signed = 3; // new clients, unconditionally
   }
 }
 
@@ -479,6 +495,16 @@ message FetchConnectionPackageStep {
 
 message FetchConnectionPackageResponse {
   ConnectionPackage connection_package = 1;
+}
+
+message FetchSignedConnectionPackageStep {
+  common.v1.ClientMetadata client_metadata = 1;
+  UsernameHash hash = 2;
+}
+
+message FetchSignedConnectionPackageResponse {
+  // payload: SignedConnectionPackagePayload, label: "SignedConnectionPackage"
+  common.v1.SignedPayload connection_package = 1;
 }
 
 message EnqueueConnectionOfferStep {
@@ -494,6 +520,7 @@ message ConnectUsernameResponse {
   oneof step {
     FetchConnectionPackageResponse fetch_response = 1;
     EnqueueConnectionOfferResponse enqueue_response = 2;
+    FetchSignedConnectionPackageResponse fetch_signed_response = 3;
   }
 }
 
