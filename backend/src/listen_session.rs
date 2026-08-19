@@ -42,7 +42,7 @@ enum Event<Req, Resp> {
 /// - The transport fails or the client resets the stream: the session ends abruptly, in-flight
 ///   requests are unconfirmed.
 /// - `responses` ends: the client is told via an ABORTED status. The caller must ensure that
-///   `responses` only ends when this session is supersed (evicted).
+///   `responses` only ends when this session is superseded (evicted).
 /// - `stop` is cancelled: the client is told an UNAVAILABLE status.
 /// - `handler` fails: its error is terminal status.
 ///
