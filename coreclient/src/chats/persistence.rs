@@ -589,6 +589,9 @@ impl Chat {
 
         let unread_status: u8 = MessageStatus::Unread.into();
         let delivered_status: u8 = MessageStatus::Delivered.into();
+        let deleted_status: u8 = MessageStatus::Deleted.into();
+        // A deleted message has nothing left to report on, and the report would
+        // overwrite the sender's own deleted row.
         let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
             Record,
             r#"SELECT
@@ -603,6 +606,7 @@ impl Chat {
                 AND m.timestamp > ?2 AND m.timestamp <= ?7
                 AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)
                 AND mimi_id IS NOT NULL
+                AND m.status != ?8
                 AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)"#,
             chat_id,
             old_timestamp,
@@ -611,6 +615,7 @@ impl Chat {
             unread_status,
             delivered_status,
             timestamp,
+            deleted_status,
         )
         .fetch(txn.as_mut())
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
@@ -750,26 +755,6 @@ impl Chat {
             connection.notifier().update(chat_id);
         }
         Ok(())
-    }
-
-    pub(crate) async fn messages_count(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-    ) -> sqlx::Result<usize> {
-        query_scalar!(
-            r#"SELECT
-                COUNT(*) AS "count: _"
-            FROM
-                message m
-            WHERE
-                m.chat_id = ?
-                AND m.sender_user_uuid IS NOT NULL
-                AND m.sender_user_domain IS NOT NULL"#,
-            chat_id
-        )
-        .fetch_one(connection.as_mut())
-        .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
     }
 
     pub(crate) async fn unread_messages_count(
@@ -1419,12 +1404,6 @@ pub mod tests {
 
         message_a.store(&mut connection).await?;
         message_b.store(&mut connection).await?;
-
-        let n = Chat::messages_count(&mut connection, chat_a.id()).await?;
-        assert_eq!(n, 1);
-
-        let n = Chat::messages_count(&mut connection, chat_b.id()).await?;
-        assert_eq!(n, 1);
 
         let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 2);

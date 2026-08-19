@@ -47,11 +47,11 @@ class ListGroup extends StatelessWidget {
         color: color ?? SemanticPalette.of(context).backgroundBase.secondary,
         borderRadius: BorderRadius.circular(radius ?? tokens.radius),
       ),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: .antiAlias,
       padding: padding,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: .min,
+        crossAxisAlignment: .stretch,
         children: children,
       ),
     );

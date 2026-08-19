@@ -449,7 +449,7 @@ class _MessageListViewState extends State<MessageListView>
       // list, except when tapping interactive elements like e.g. links.
       if (DeviceType.isPhone) {
         list = GestureDetector(
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           onTap: () => FocusScope.of(context).unfocus(),
           child: list,
         );
@@ -514,7 +514,7 @@ class _MessageListViewState extends State<MessageListView>
 
     if (composerHeightListenable == null) {
       return Stack(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         children: [buildAnchoredList(), bottomFade, headerFade, floatingHeader],
       );
     }
@@ -536,7 +536,7 @@ class _MessageListViewState extends State<MessageListView>
           trackTop: mediaPadding.top,
           trackBottom: listBottomPadding,
           child: Stack(
-            clipBehavior: Clip.none,
+            clipBehavior: .none,
             children: [
               // Disable the auto-scrollbar, we have our own above.
               ScrollConfiguration(
@@ -611,7 +611,6 @@ class _MessageListViewState extends State<MessageListView>
 
     if (!showDateDivider && !isFirstUnread) return tile;
 
-    final unreadCount = isFirstUnread ? state.unreadCount : 0;
     // The inline [DateDivider] is hidden (but keeps its layout space) only
     // once its pill has actually risen to the floating pill's slot — i.e.
     // when this message is the oldest visible *and* the controller reports
@@ -641,7 +640,7 @@ class _MessageListViewState extends State<MessageListView>
     return Column(
       children: [
         ?inlineDivider,
-        if (isFirstUnread) UnreadDivider(count: unreadCount),
+        if (isFirstUnread) const UnreadDivider(),
         tile,
       ],
     );

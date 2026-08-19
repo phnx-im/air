@@ -146,7 +146,7 @@ void main() {
 
     testWidgets('renders correctly (dark mode)', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
         tester.platformDispatcher.clearPlatformBrightnessTestValue();

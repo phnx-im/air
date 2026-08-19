@@ -213,22 +213,20 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// Fans out a message to the given clients (concurrently).
     ///
-    /// Each destination carries its own notification-suppression flag, so that
-    /// a message can reach the sender's other clients without waking them.
-    ///
     /// The parallelism is limited by a constant. Logs failures but does not
     /// fail the whole operation.
     async fn fan_out_message(
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
-        destination_clients: impl IntoIterator<Item = (identifiers::QsReference, bool)>,
+        destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
+        suppress_notifications: bool,
         broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
         let fan_out_payload = fan_out_payload.into();
         let timestamp = fan_out_payload.timestamp();
 
         let mut join_set: JoinSet<Result<(), <Qep as QsConnector>::EnqueueError>> = JoinSet::new();
-        for (client_reference, suppress_notifications) in destination_clients {
+        for client_reference in destination_clients {
             while MAX_CONCURRENT_FANOUTS <= join_set.len() {
                 join_set
                     .join_next()
@@ -272,9 +270,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> TimeStamp {
         self.fan_out_message(
             fan_out_payload,
-            destination_clients
-                .into_iter()
-                .map(|client_reference| (client_reference, true)),
+            destination_clients,
+            true,
             broadcast_to_all_client_queues,
         )
         .await
@@ -997,36 +994,39 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await
             .map_err(to_status)?;
 
+        let welcome_epoch = payload.epoch.ok_or_missing_field("epoch")?.into();
         let welcome_info_params = WelcomeInfoParams {
             sender: sender.clone(),
-            epoch: payload.epoch.ok_or_missing_field("epoch")?.into(),
+            epoch: welcome_epoch,
             group_id: qgid.into(),
         };
+        let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
+        let room_state_at_epoch = group_state.room_state_at(welcome_epoch);
         let ratchet_tree = group_state
             .welcome_info(welcome_info_params)
             .ok_or(NoWelcomeInfoFound)?;
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles_at_epoch
+            .into_iter()
+            .fold((Vec::new(), Vec::new()), |(mut a, mut b), (index, key)| {
+                a.push(key.clone().into());
+                b.push(IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(key.into()),
+                });
+                (a, b)
+            });
+
         Ok(Response::new(WelcomeInfoResponse {
             ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
-            encrypted_user_profile_keys: group_state
-                .encrypted_user_profile_keys()
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            encrypted_user_profile_keys,
             room_state: Some(
-                group_state
-                    .room_state
+                room_state_at_epoch
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
-            indexed_encrypted_user_profile_keys: group_state
-                .member_profiles
-                .into_iter()
-                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
-                    leaf_index: index.u32(),
-                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
-                })
-                .collect(),
+            indexed_encrypted_user_profile_keys,
         }))
     }
 
@@ -1526,26 +1526,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await?;
         }
 
+        let destination_clients = group_state.other_destination_clients(sender_index);
         let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
 
-        // The sender's own clients need the message, but a push notification for
-        // it would wake them for something their user just did themselves.
-        let destination_clients = group_state.other_destinations(sender_index).map(
-            |(client_reference, is_sender_sibling)| {
-                (
-                    client_reference,
-                    suppress_notifications || is_sender_sibling,
-                )
-            },
-        );
-
         let timestamp = self
             .fan_out_message(
                 message.into_serialized_mls_message(),
                 destination_clients,
+                suppress_notifications,
                 broadcast_to_all_client_queues,
             )
             .await;

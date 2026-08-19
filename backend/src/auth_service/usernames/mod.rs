@@ -264,6 +264,7 @@ mod tests {
         time::{Duration, ExpirationData},
     };
     use airprotos::auth_service::v1::OperationType;
+    use chrono::Utc;
     use privacypass::{
         amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
         auth::authenticate::TokenChallenge,
@@ -340,6 +341,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::AddUsername,
                 token_request,
+                Utc::now(),
             )
             .await?;
 

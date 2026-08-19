@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM privacy_pass_batch\n         WHERE operation_type = ? AND key_fingerprint = ? AND allowance_epoch = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f2848358cc90f23b33b78894fd086d145245c99abc99adf4ed99b297badb8f37"
+}

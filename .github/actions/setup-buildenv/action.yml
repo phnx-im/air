@@ -50,8 +50,11 @@ inputs:
     default: ""
 outputs:
   build-number:
-    description: "Build number derived from the count of git commit in the repository"
-    value: ${{ steps.git-commits-count.outputs.value }}
+    description: "Build number derived from the workflow run number"
+    value: ${{ steps.build-number.outputs.value }}
+  build-name:
+    description: "App version, as committed in app/pubspec.yaml"
+    value: ${{ steps.build-name.outputs.value }}
 runs:
   using: composite
   steps:
@@ -64,10 +67,21 @@ runs:
         git lfs install
         git lfs pull
 
-    - name: Count git commits
-      id: git-commits-count
+    - name: Compute build number
+      id: build-number
       shell: bash
-      run: echo "value=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+      run: echo "value=$(bash scripts/build-number.sh)" >> $GITHUB_OUTPUT
+
+    - name: Compute build name
+      id: build-name
+      shell: bash
+      run: echo "value=$(bash scripts/build-name.sh)" >> $GITHUB_OUTPUT
+
+    # Forces apiclient's build script to collect fresh git metadata for this
+    # commit (see apiclient/build.rs)
+    - name: Refresh client build metadata
+      shell: bash
+      run: echo "AIR_REFRESH_BUILD_METADATA=${{ github.sha }}" >> $GITHUB_ENV
 
     ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
 

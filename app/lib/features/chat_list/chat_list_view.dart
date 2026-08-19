@@ -1,49 +1,21 @@
 // SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
-
 import 'package:air/features/chat_list/chat_list_content.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/chat_list_header.dart';
+import 'package:flutter/material.dart';
 
 /// Where the scrollbar track stops above the bottom edge, short of the fade so
 /// the thumb stays legible against it.
 const _scrollbarBottomInset = S.s64;
 
-class ChatListContainer extends StatelessWidget {
-  const ChatListContainer({required this.isStandalone, super.key});
-
-  final bool isStandalone;
-
-  @override
-  Widget build(BuildContext context) {
-    final userId = context.select((UserCubit cubit) => cubit.state.userId);
-    return BlocProvider(
-      // Rebuild the cubit when user changes
-      key: ValueKey(userId),
-      create: (context) => ChatListCubit(userCubit: context.read<UserCubit>()),
-      child: ChatListView(scaffold: isStandalone),
-    );
-  }
-}
-
 class ChatListView extends StatefulWidget {
-  const ChatListView({
-    super.key,
-    this.scaffold = false,
-    this.createChatDetailsCubit = ChatDetailsCubit.new,
-  });
+  const ChatListView({super.key, this.scaffold = false});
 
   final bool scaffold;
-  final ChatDetailsCubitCreate createChatDetailsCubit;
 
   @override
   State<ChatListView> createState() => _ChatListViewState();
@@ -77,7 +49,6 @@ class _ChatListViewState extends State<ChatListView> {
       trackTop: headerHeight,
       trackBottom: _scrollbarBottomInset,
       child: ChatListContent(
-        createChatDetailsCubit: widget.createChatDetailsCubit,
         header: _Header(scrollOffset: _scrollOffset, topInset: safeTop),
         headerHeight: headerHeight,
         onScrollOffset: (offset) => _scrollOffset.value = offset,
@@ -106,7 +77,7 @@ class _ChatListViewState extends State<ChatListView> {
 class _Header extends StatelessWidget {
   const _Header({required this.scrollOffset, required this.topInset});
 
-  final ValueListenable<double> scrollOffset;
+  final ValueNotifier<double>? scrollOffset;
 
   /// Status-bar inset. The header floats over a full-bleed list, so it cannot
   /// rely on a SafeArea to clear the notch.
@@ -116,10 +87,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: topInset),
-      child: ValueListenableBuilder<double>(
-        valueListenable: scrollOffset,
-        builder: (context, offset, _) => ChatListHeader(scrollOffset: offset),
-      ),
+      child: ChatListHeader(scrollOffset: scrollOffset),
     );
   }
 }

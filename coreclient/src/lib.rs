@@ -28,6 +28,7 @@ pub use crate::{
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,
+        reactions::LastReaction,
     },
     clients::{
         add_contact::AddUsernameContactError,
@@ -52,7 +53,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
-    privacy_pass::{RequestTokensError, TokenId},
+    privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
     utils::{

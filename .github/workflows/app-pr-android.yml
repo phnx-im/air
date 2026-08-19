@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build Android app (PR)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Heavy platform builds only run on PRs that touch the platform, and always in
+# the merge queue.
+on:
+  pull_request:
+    branches: ["main", "release/**"]
+    paths:
+      - "app/android/**"
+      - "app/fastlane/android.rb"
+      - "app/rust_builder/android/**"
+      - "app/.fvmrc"
+      - "app/pubspec.yaml"
+      - "app/pubspec.lock"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "scripts/build-name.sh"
+      - "scripts/build-number.sh"
+      - ".github/workflows/android.yml"
+      - ".github/workflows/app-pr-android.yml"
+      - ".github/actions/setup-buildenv/**"
+  merge_group:
+
+jobs:
+  android:
+    uses: ./.github/workflows/android.yml
+    secrets: inherit

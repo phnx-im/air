@@ -10,6 +10,7 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::MissingFieldExt,
 };
+use chrono::Utc;
 use displaydoc::Display;
 use futures_util::stream::BoxStream;
 use metrics::counter;
@@ -47,6 +48,7 @@ use tracing::{error, warn};
 
 use crate::{
     auth_service::{
+        client_api::privacy_pass::TokenBatchIssuance,
         invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
         usernames::ConnectUsernameProtocol,
     },
@@ -451,6 +453,7 @@ impl auth_service_server::AuthService for GrpcAs {
                     token_key_id: k.token_key_id.into(),
                     public_key: k.public_key,
                     operation_type: k.operation_type,
+                    is_current: k.is_current,
                 })
                 .collect(),
         }))
@@ -530,12 +533,59 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let token_response = self
             .inner
-            .as_issue_tokens(&user_id, operation_type, token_request)
+            .as_issue_tokens(&user_id, operation_type, token_request, Utc::now())
             .await?
             .tls_serialize_detached()
             .map_err(|_| Status::internal("failed to serialize token response"))?;
 
         Ok(Response::new(IssueTokensResponse { token_response }))
+    }
+
+    async fn issue_token_batch(
+        &self,
+        request: Request<SignedRequest<IssueTokenBatchRequest>>,
+    ) -> Result<Response<IssueTokenBatchResponse>, Status> {
+        let request = request.into_inner();
+        let (user_id, payload) = self
+            .verify_user_auth::<_, IssueTokenBatchPayload, _>(request)
+            .await?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let operation_type = payload
+            .operation_type
+            .try_into()
+            .map_err(|_| Status::invalid_argument("invalid operation type"))?;
+
+        let outcome = match self
+            .inner
+            .as_issue_token_batch(
+                &user_id,
+                operation_type,
+                payload.allowance_epoch,
+                &payload.token_request,
+                Utc::now(),
+            )
+            .await?
+        {
+            TokenBatchIssuance::Issued(token_response) => {
+                let token_response = token_response
+                    .tls_serialize_detached()
+                    .map_err(|_| Status::internal("failed to serialize token response"))?;
+                issue_token_batch_response::Outcome::TokenResponse(token_response)
+            }
+            TokenBatchIssuance::Conflict => {
+                issue_token_batch_response::Outcome::IssuanceConflict(IssuanceConflict {})
+            }
+            TokenBatchIssuance::InvalidEpoch { current_epoch } => {
+                issue_token_batch_response::Outcome::InvalidAllowanceEpoch(InvalidAllowanceEpoch {
+                    current_epoch,
+                })
+            }
+        };
+
+        Ok(Response::new(IssueTokenBatchResponse {
+            outcome: Some(outcome),
+        }))
     }
 
     async fn report_spam(
@@ -775,6 +825,12 @@ impl WithUserId for IssueTokensRequest {
     }
 }
 
+impl WithUserId for IssueTokenBatchRequest {
+    fn user_id_proto(&self) -> Option<UserId> {
+        self.payload.as_ref()?.user_id.clone()
+    }
+}
+
 impl WithUserId for ReportSpamRequest {
     fn user_id_proto(&self) -> Option<UserId> {
         self.payload.as_ref()?.reporter_id.clone()
@@ -825,6 +881,7 @@ mod tests {
         },
         common::v1::{StatusDetails, StatusDetailsCode},
     };
+    use chrono::Utc;
     use privacypass::{
         amortized_tokens::AmortizedBatchTokenRequest,
         auth::authenticate::TokenChallenge,
@@ -897,6 +954,7 @@ mod tests {
                 user_record.user_id(),
                 OperationType::GetInviteCode,
                 token_request,
+                Utc::now(),
             )
             .await?;
 

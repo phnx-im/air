@@ -1509,6 +1509,18 @@ abstract class AppLocalizations {
   /// **'Blocked'**
   String get chatList_blocked;
 
+  /// No description provided for @chatList_reaction.
+  ///
+  /// In en, this message translates to:
+  /// **'{user} reacted {emoji} to \"{message}\"'**
+  String chatList_reaction(String user, String emoji, String message);
+
+  /// No description provided for @chatList_reactionByYou.
+  ///
+  /// In en, this message translates to:
+  /// **'You reacted {emoji} to \"{message}\"'**
+  String chatList_reactionByYou(String emoji, String message);
+
   /// No description provided for @chatList_contextMenu_mute.
   ///
   /// In en, this message translates to:
@@ -2316,8 +2328,8 @@ abstract class AppLocalizations {
   /// No description provided for @messageList_newMessages.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} new message} other {{count} new messages}}'**
-  String messageList_newMessages(int count);
+  /// **'New messages'**
+  String get messageList_newMessages;
 
   /// No description provided for @messageList_reactions_react.
   ///

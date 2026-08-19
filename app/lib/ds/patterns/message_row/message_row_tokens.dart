@@ -33,11 +33,6 @@ class MessageRowTokens {
   /// Gap between the avatar column and the bubble.
   static const double avatarGap = Chrome.controlGap;
 
-  /// Lift of the avatar off the foot of its column. It reads as sitting on the
-  /// bubble's last line rather than hanging off its corner, so the nudge
-  /// follows the bubble's own bottom inset and not the avatar's diameter.
-  static const double avatarBottomNudge = S.s4;
-
   /// The bubble's own horizontal text inset. The row doesn't apply it directly.
   /// It only enters [contentInset], which is what lines the sender name up with
   /// the text of the bubble under it rather than with the bubble's edge.

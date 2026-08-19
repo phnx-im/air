@@ -254,10 +254,6 @@ impl CoreUser {
             .await
     }
 
-    pub async fn messages_count(&self, chat_id: ChatId) -> anyhow::Result<usize> {
-        Ok(self.try_messages_count(chat_id).await?)
-    }
-
     pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {
         self.db()
             .with_read_transaction(async |txn| Chat::load(txn, chat_id).await)

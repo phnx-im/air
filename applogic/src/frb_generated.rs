@@ -28,8 +28,7 @@
 
 use crate::api::attachments_repository::*;
 use crate::api::chat_details_cubit::*;
-use crate::api::chat_list_cubit::*;
-use crate::api::chats_repository::*;
+use crate::api::chats_data_source::*;
 use crate::api::invitation_codes_cubit::*;
 use crate::api::linked_devices_cubit::*;
 use crate::api::logging::*;
@@ -55,7 +54,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1480999420;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2103603846;
 
 // Section: executor
 
@@ -887,9 +886,8 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_new_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>,
             >>::sse_decode(&mut deserializer);
             let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
-            let api_chats_repository = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>,
-            >>::sse_decode(&mut deserializer);
+            let api_chat =
+                <Option<crate::api::types::UiChatDetails>>::sse_decode(&mut deserializer);
             let api_attachments_repository = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>,
             >>::sse_decode(&mut deserializer);
@@ -898,7 +896,6 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_new_impl(
             transform_result_sse::<_, ()>((move || {
                 let mut api_user_cubit_guard = None;
                 let mut api_user_settings_cubit_guard = None;
-                let mut api_chats_repository_guard = None;
                 let mut api_attachments_repository_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -913,13 +910,8 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_new_impl(
                             false,
                         ),
                         flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_chats_repository,
-                            2,
-                            false,
-                        ),
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
                             &api_attachments_repository,
-                            3,
+                            2,
                             false,
                         ),
                     ]);
@@ -931,10 +923,6 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_new_impl(
                                 Some(api_user_settings_cubit.lockable_decode_sync_ref())
                         }
                         2 => {
-                            api_chats_repository_guard =
-                                Some(api_chats_repository.lockable_decode_sync_ref())
-                        }
-                        3 => {
                             api_attachments_repository_guard =
                                 Some(api_attachments_repository.lockable_decode_sync_ref())
                         }
@@ -943,14 +931,13 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_new_impl(
                 }
                 let api_user_cubit_guard = api_user_cubit_guard.unwrap();
                 let api_user_settings_cubit_guard = api_user_settings_cubit_guard.unwrap();
-                let api_chats_repository_guard = api_chats_repository_guard.unwrap();
                 let api_attachments_repository_guard = api_attachments_repository_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok(
                     crate::api::chat_details_cubit::ChatDetailsCubitBase::new(
                         &*api_user_cubit_guard,
                         &*api_user_settings_cubit_guard,
                         api_chat_id,
-                        &*api_chats_repository_guard,
+                        api_chat,
                         &*api_attachments_repository_guard,
                         api_with_members,
                     ),
@@ -1636,7 +1623,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
                     })().await)
                 } })
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_close_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1644,7 +1631,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_close",
+            debug_name: "ChatsDataSource_close",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1659,7 +1646,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -1679,7 +1666,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
                     }
                     let api_that_guard = api_that_guard.unwrap();
                     let output_ok = Result::<_, ()>::Ok({
-                        crate::api::chat_list_cubit::ChatListCubitBase::close(&*api_that_guard);
+                        crate::api::chats_data_source::ChatsDataSource::close(&*api_that_guard);
                     })?;
                     Ok(output_ok)
                 })())
@@ -1687,7 +1674,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1695,7 +1682,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_create_contact_chat",
+            debug_name: "ChatsDataSource_create_contact_chat",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1710,7 +1697,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             let api_hash = <UsernameHash>::sse_decode(&mut deserializer);
@@ -1736,7 +1723,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::chat_list_cubit::ChatListCubitBase::create_contact_chat(
+                            crate::api::chats_data_source::ChatsDataSource::create_contact_chat(
                                 &*api_that_guard,
                                 api_username,
                                 api_hash,
@@ -1750,7 +1737,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_create_group_chat_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1758,7 +1745,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_create_group_chat",
+            debug_name: "ChatsDataSource_create_group_chat",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1773,7 +1760,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_group_name = <String>::sse_decode(&mut deserializer);
             let api_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
@@ -1800,7 +1787,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::chat_list_cubit::ChatListCubitBase::create_group_chat(
+                            crate::api::chats_data_source::ChatsDataSource::create_group_chat(
                                 &*api_that_guard,
                                 api_group_name,
                                 api_picture,
@@ -1815,16 +1802,17 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_is_closed_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_mute_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_is_closed",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            debug_name: "ChatsDataSource_mute",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -1837,40 +1825,54 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_is_closed_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
+            let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
+            let api_muted_until =
+                <Option<crate::api::types::UiChatMuted>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::chat_list_cubit::ChatListCubitBase::is_closed(&*api_that_guard),
-                )?;
-                Ok(output_ok)
-            })())
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::chats_data_source::ChatsDataSource::mute(
+                            &*api_that_guard,
+                            api_chat_id,
+                            api_muted_until,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_new_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_new_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_new",
+            debug_name: "ChatsDataSource_new",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -1906,62 +1908,14 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_new_impl(
                 }
                 let api_user_cubit_guard = api_user_cubit_guard.unwrap();
                 let output_ok = Result::<_, ()>::Ok(
-                    crate::api::chat_list_cubit::ChatListCubitBase::new(&*api_user_cubit_guard),
+                    crate::api::chats_data_source::ChatsDataSource::new(&*api_user_cubit_guard),
                 )?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_state_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_state",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::chat_list_cubit::ChatListCubitBase::state(&*api_that_guard),
-                )?;
-                Ok(output_ok)
-            })())
-        },
-    )
-}
-fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
+fn wire__crate__api__chats_data_source__ChatsDataSource_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1969,7 +1923,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatListCubitBase_stream",
+            debug_name: "ChatsDataSource_stream",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -1984,10 +1938,10 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                crate::api::chat_list_cubit::ChatListState,
+                crate::api::chats_data_source::ChatsDelta,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2012,7 +1966,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok = Result::<_, ()>::Ok({
-                            crate::api::chat_list_cubit::ChatListCubitBase::stream(
+                            crate::api::chats_data_source::ChatsDataSource::stream(
                                 &*api_that_guard,
                                 api_sink,
                             )
@@ -2023,56 +1977,6 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(
                     .await,
                 )
             }
-        },
-    )
-}
-fn wire__crate__api__chats_repository__ChatsRepository_new_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "ChatsRepository_new",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_user_cubit = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_user_cubit_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_user_cubit,
-                            0,
-                            false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_user_cubit_guard = Some(api_user_cubit.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_user_cubit_guard = api_user_cubit_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::chats_repository::ChatsRepository::new(&*api_user_cubit_guard),
-                )?;
-                Ok(output_ok)
-            })())
         },
     )
 }
@@ -7583,39 +7487,6 @@ fn wire__crate__api__chat_details_cubit__chat_details_state_default_impl(
         },
     )
 }
-fn wire__crate__api__chat_list_cubit__chat_list_state_default_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "chat_list_state_default",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok =
-                        Result::<_, ()>::Ok(crate::api::chat_list_cubit::ChatListState::default())?;
-                    Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
 fn wire__crate__api__invitation_code__check_invitation_code_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -8967,10 +8838,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DartNotificationService>
@@ -9057,21 +8925,11 @@ impl SseDecode for ChatDetailsCubitBase {
     }
 }
 
-impl SseDecode for ChatListCubitBase {
+impl SseDecode for ChatsDataSource {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for ChatsRepository {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>,
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -9336,17 +9194,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9547,6 +9395,14 @@ impl SseDecode
     }
 }
 
+impl SseDecode for std::collections::HashSet<crate::api::types::ChatId> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<crate::api::types::ChatId>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
 impl SseDecode for StreamSink<UiUser, flutter_rust_bridge::for_generated::SseCodec> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9578,7 +9434,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        crate::api::chat_list_cubit::ChatListState,
+        crate::api::chats_data_source::ChatsDelta,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -9932,12 +9788,17 @@ impl SseDecode for crate::api::types::ChatId {
     }
 }
 
-impl SseDecode for crate::api::chat_list_cubit::ChatListState {
+impl SseDecode for crate::api::chats_data_source::ChatsDelta {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_chatIds = <Vec<crate::api::types::ChatId>>::sse_decode(deserializer);
-        return crate::api::chat_list_cubit::ChatListState {
-            chat_ids: var_chatIds,
+        let mut var_upserted = <Vec<crate::api::types::UiChatDetails>>::sse_decode(deserializer);
+        let mut var_removed =
+            <std::collections::HashSet<crate::api::types::ChatId>>::sse_decode(deserializer);
+        let mut var_order = <Option<Vec<crate::api::types::ChatId>>>::sse_decode(deserializer);
+        return crate::api::chats_data_source::ChatsDelta {
+            upserted: var_upserted,
+            removed: var_removed,
+            order: var_order,
         };
     }
 }
@@ -10527,6 +10388,18 @@ impl SseDecode for Vec<crate::api::message_content::UiAttachment> {
     }
 }
 
+impl SseDecode for Vec<crate::api::types::UiChatDetails> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::types::UiChatDetails>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::types::UiChatMessage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10766,7 +10639,6 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
         let mut var_hasNewer = <bool>::sse_decode(deserializer);
         let mut var_isAtBottom = <bool>::sse_decode(deserializer);
         let mut var_firstUnreadIndex = <Option<usize>>::sse_decode(deserializer);
-        let mut var_unreadCount = <usize>::sse_decode(deserializer);
         let mut var_revision = <usize>::sse_decode(deserializer);
         return crate::api::message_list_cubit::MessageListState {
             is_connection_chat: var_isConnectionChat,
@@ -10774,7 +10646,6 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
             has_newer: var_hasNewer,
             is_at_bottom: var_isAtBottom,
             first_unread_index: var_firstUnreadIndex,
-            unread_count: var_unreadCount,
             revision: var_revision,
         };
     }
@@ -11310,6 +11181,19 @@ impl SseDecode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
     }
 }
 
+impl SseDecode for Option<crate::api::message_content::UiAttachmentType> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::message_content::UiAttachmentType>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::types::UiChatDetails> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11372,6 +11256,19 @@ impl SseDecode for Option<crate::api::types::UiInReplyToMessage> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::UiInReplyToMessage>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::UiLastReaction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::UiLastReaction>::sse_decode(
                 deserializer,
             ));
         } else {
@@ -11446,6 +11343,17 @@ impl SseDecode for Option<Vec<String>> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<Vec<String>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<crate::api::types::ChatId>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::types::ChatId>>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -11705,6 +11613,18 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
     }
 }
 
+impl SseDecode for crate::api::message_content::UiAttachmentType {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::message_content::UiAttachmentType::Image,
+            1 => crate::api::message_content::UiAttachmentType::File,
+            _ => unreachable!("Invalid variant for UiAttachmentType: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11724,10 +11644,11 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
         let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
-        let mut var_messagesCount = <usize>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
+        let mut var_lastReaction =
+            <Option<crate::api::types::UiLastReaction>>::sse_decode(deserializer);
         let mut var_draft = <Option<crate::api::types::UiMessageDraft>>::sse_decode(deserializer);
         let mut var_isApq = <bool>::sse_decode(deserializer);
         let mut var_mutedUntil = <Option<crate::api::types::UiChatMuted>>::sse_decode(deserializer);
@@ -11737,9 +11658,9 @@ impl SseDecode for crate::api::types::UiChatDetails {
             status: var_status,
             chat_type: var_chatType,
             last_used: var_lastUsed,
-            messages_count: var_messagesCount,
             unread_messages: var_unreadMessages,
             last_message: var_lastMessage,
+            last_reaction: var_lastReaction,
             draft: var_draft,
             is_apq: var_isApq,
             muted_until: var_mutedUntil,
@@ -12000,6 +11921,18 @@ impl SseDecode for crate::api::invitation_codes_cubit::UiInvitationCode {
     }
 }
 
+impl SseDecode for crate::api::types::UiLastReaction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_reactor = <crate::api::types::UiUserId>::sse_decode(deserializer);
+        let mut var_emoji = <String>::sse_decode(deserializer);
+        return crate::api::types::UiLastReaction {
+            reactor: var_reactor,
+            emoji: var_emoji,
+        };
+    }
+}
+
 impl SseDecode for crate::api::linked_devices_cubit::UiLinkedDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12072,6 +12005,7 @@ impl SseDecode for crate::api::types::UiMessageStatus {
             3 => crate::api::types::UiMessageStatus::Read,
             4 => crate::api::types::UiMessageStatus::Hidden,
             5 => crate::api::types::UiMessageStatus::Error,
+            6 => crate::api::types::UiMessageStatus::Deleted,
             _ => unreachable!("Invalid variant for UiMessageStatus: {}", inner),
         };
     }
@@ -12088,6 +12022,8 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
             <Option<crate::api::markdown::MessageContent>>::sse_decode(deserializer);
         let mut var_attachments =
             <Vec<crate::api::message_content::UiAttachment>>::sse_decode(deserializer);
+        let mut var_firstAttachmentType =
+            <Option<crate::api::message_content::UiAttachmentType>>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiContent {
             plain_body: var_plainBody,
             replaces: var_replaces,
@@ -12095,6 +12031,7 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
             in_reply_to: var_inReplyTo,
             content: var_content,
             attachments: var_attachments,
+            first_attachment_type: var_firstAttachmentType,
         };
     }
 }
@@ -12363,99 +12300,99 @@ fn pde_ffi_dispatcher_primary_impl(
 29 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_store_draft_impl(port, ptr, rust_vec_len, data_len),
 30 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
 31 => wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_upload_attachment_impl(port, ptr, rust_vec_len, data_len),
-32 => wire__crate__api__chat_list_cubit__ChatListCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-33 => wire__crate__api__chat_list_cubit__ChatListCubitBase_create_contact_chat_impl(port, ptr, rust_vec_len, data_len),
-34 => wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(port, ptr, rust_vec_len, data_len),
-38 => wire__crate__api__chat_list_cubit__ChatListCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-41 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_clear_copied_codes_impl(port, ptr, rust_vec_len, data_len),
-42 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-44 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_mark_invitation_code_as_copied_impl(port, ptr, rust_vec_len, data_len),
-46 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_request_invitation_code_impl(port, ptr, rust_vec_len, data_len),
-48 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-49 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-52 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_rename_device_impl(port, ptr, rust_vec_len, data_len),
-54 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-55 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_unlink_device_impl(port, ptr, rust_vec_len, data_len),
-56 => wire__crate__api__logging__LogWriter_write_line_impl(port, ptr, rust_vec_len, data_len),
-57 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-61 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-62 => wire__crate__api__message_cubit__MessageCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-66 => wire__crate__api__message_cubit__MessageCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-67 => wire__crate__api__message_list_cubit__MessageListCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-69 => wire__crate__api__message_list_cubit__MessageListCubitBase_jump_to_bottom_impl(port, ptr, rust_vec_len, data_len),
-70 => wire__crate__api__message_list_cubit__MessageListCubitBase_jump_to_message_impl(port, ptr, rust_vec_len, data_len),
-71 => wire__crate__api__message_list_cubit__MessageListCubitBase_load_newer_impl(port, ptr, rust_vec_len, data_len),
-72 => wire__crate__api__message_list_cubit__MessageListCubitBase_load_older_impl(port, ptr, rust_vec_len, data_len),
-75 => wire__crate__api__message_list_cubit__MessageListCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-76 => wire__crate__api__message_list_cubit__MessageListCubitBase_transitions_impl(port, ptr, rust_vec_len, data_len),
-81 => wire__crate__api__notification_context__NotificationContextBase_chat_opened_impl(port, ptr, rust_vec_len, data_len),
-89 => wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(port, ptr, rust_vec_len, data_len),
-90 => wire__crate__api__user_cubit__UserCubitBase_add_username_impl(port, ptr, rust_vec_len, data_len),
-91 => wire__crate__api__user_cubit__UserCubitBase_add_users_to_chat_impl(port, ptr, rust_vec_len, data_len),
-92 => wire__crate__api__user_cubit__UserCubitBase_addable_contacts_impl(port, ptr, rust_vec_len, data_len),
-93 => wire__crate__api__user_cubit__UserCubitBase_block_contact_impl(port, ptr, rust_vec_len, data_len),
-94 => wire__crate__api__user_cubit__UserCubitBase_check_username_exists_impl(port, ptr, rust_vec_len, data_len),
-95 => wire__crate__api__user_cubit__UserCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-96 => wire__crate__api__user_cubit__UserCubitBase_contact_impl(port, ptr, rust_vec_len, data_len),
-97 => wire__crate__api__user_cubit__UserCubitBase_contacts_impl(port, ptr, rust_vec_len, data_len),
-98 => wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(port, ptr, rust_vec_len, data_len),
-99 => wire__crate__api__user_cubit__UserCubitBase_delete_chat_impl(port, ptr, rust_vec_len, data_len),
-100 => wire__crate__api__user_cubit__UserCubitBase_dev_erase_chat_impl(port, ptr, rust_vec_len, data_len),
-102 => wire__crate__api__user_cubit__UserCubitBase_leave_chat_impl(port, ptr, rust_vec_len, data_len),
-105 => wire__crate__api__user_cubit__UserCubitBase_remove_user_from_chat_impl(port, ptr, rust_vec_len, data_len),
-106 => wire__crate__api__user_cubit__UserCubitBase_remove_username_impl(port, ptr, rust_vec_len, data_len),
-107 => wire__crate__api__user_cubit__UserCubitBase_report_spam_impl(port, ptr, rust_vec_len, data_len),
-108 => wire__crate__api__user_cubit__UserCubitBase_safety_codes_impl(port, ptr, rust_vec_len, data_len),
-109 => wire__crate__api__user_cubit__UserCubitBase_set_app_state_impl(port, ptr, rust_vec_len, data_len),
-110 => wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(port, ptr, rust_vec_len, data_len),
-112 => wire__crate__api__user_cubit__UserCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-113 => wire__crate__api__user_cubit__UserCubitBase_unblock_contact_impl(port, ptr, rust_vec_len, data_len),
-114 => wire__crate__api__user_cubit__UserCubitBase_upload_logs_impl(port, ptr, rust_vec_len, data_len),
-115 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-118 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_default_emoji_skin_tone_impl(port, ptr, rust_vec_len, data_len),
-119 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_developer_mode_impl(port, ptr, rust_vec_len, data_len),
-120 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_experimental_features_impl(port, ptr, rust_vec_len, data_len),
-121 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_interface_scale_impl(port, ptr, rust_vec_len, data_len),
-122 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_locale_impl(port, ptr, rust_vec_len, data_len),
-123 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_read_receipts_impl(port, ptr, rust_vec_len, data_len),
-124 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
-125 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
-127 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-129 => wire__crate__api__user__User_global_unread_messages_count_impl(port, ptr, rust_vec_len, data_len),
-130 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
-131 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
-132 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
-133 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
-134 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
-136 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
-137 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
-138 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-144 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-148 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-149 => wire__crate__api__chat_list_cubit__chat_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-150 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
-151 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
-152 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-153 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-154 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-155 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-158 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-159 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-160 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-161 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-162 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-163 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-164 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-166 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-167 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-168 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-169 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-170 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-171 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-172 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-173 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+32 => wire__crate__api__chats_data_source__ChatsDataSource_close_impl(port, ptr, rust_vec_len, data_len),
+33 => wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl(port, ptr, rust_vec_len, data_len),
+34 => wire__crate__api__chats_data_source__ChatsDataSource_create_group_chat_impl(port, ptr, rust_vec_len, data_len),
+35 => wire__crate__api__chats_data_source__ChatsDataSource_mute_impl(port, ptr, rust_vec_len, data_len),
+37 => wire__crate__api__chats_data_source__ChatsDataSource_stream_impl(port, ptr, rust_vec_len, data_len),
+39 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_clear_copied_codes_impl(port, ptr, rust_vec_len, data_len),
+40 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+42 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_mark_invitation_code_as_copied_impl(port, ptr, rust_vec_len, data_len),
+44 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_request_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+46 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+47 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+50 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_rename_device_impl(port, ptr, rust_vec_len, data_len),
+52 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+53 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_unlink_device_impl(port, ptr, rust_vec_len, data_len),
+54 => wire__crate__api__logging__LogWriter_write_line_impl(port, ptr, rust_vec_len, data_len),
+55 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+59 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+60 => wire__crate__api__message_cubit__MessageCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+64 => wire__crate__api__message_cubit__MessageCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+65 => wire__crate__api__message_list_cubit__MessageListCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+67 => wire__crate__api__message_list_cubit__MessageListCubitBase_jump_to_bottom_impl(port, ptr, rust_vec_len, data_len),
+68 => wire__crate__api__message_list_cubit__MessageListCubitBase_jump_to_message_impl(port, ptr, rust_vec_len, data_len),
+69 => wire__crate__api__message_list_cubit__MessageListCubitBase_load_newer_impl(port, ptr, rust_vec_len, data_len),
+70 => wire__crate__api__message_list_cubit__MessageListCubitBase_load_older_impl(port, ptr, rust_vec_len, data_len),
+73 => wire__crate__api__message_list_cubit__MessageListCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+74 => wire__crate__api__message_list_cubit__MessageListCubitBase_transitions_impl(port, ptr, rust_vec_len, data_len),
+79 => wire__crate__api__notification_context__NotificationContextBase_chat_opened_impl(port, ptr, rust_vec_len, data_len),
+87 => wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(port, ptr, rust_vec_len, data_len),
+88 => wire__crate__api__user_cubit__UserCubitBase_add_username_impl(port, ptr, rust_vec_len, data_len),
+89 => wire__crate__api__user_cubit__UserCubitBase_add_users_to_chat_impl(port, ptr, rust_vec_len, data_len),
+90 => wire__crate__api__user_cubit__UserCubitBase_addable_contacts_impl(port, ptr, rust_vec_len, data_len),
+91 => wire__crate__api__user_cubit__UserCubitBase_block_contact_impl(port, ptr, rust_vec_len, data_len),
+92 => wire__crate__api__user_cubit__UserCubitBase_check_username_exists_impl(port, ptr, rust_vec_len, data_len),
+93 => wire__crate__api__user_cubit__UserCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+94 => wire__crate__api__user_cubit__UserCubitBase_contact_impl(port, ptr, rust_vec_len, data_len),
+95 => wire__crate__api__user_cubit__UserCubitBase_contacts_impl(port, ptr, rust_vec_len, data_len),
+96 => wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(port, ptr, rust_vec_len, data_len),
+97 => wire__crate__api__user_cubit__UserCubitBase_delete_chat_impl(port, ptr, rust_vec_len, data_len),
+98 => wire__crate__api__user_cubit__UserCubitBase_dev_erase_chat_impl(port, ptr, rust_vec_len, data_len),
+100 => wire__crate__api__user_cubit__UserCubitBase_leave_chat_impl(port, ptr, rust_vec_len, data_len),
+103 => wire__crate__api__user_cubit__UserCubitBase_remove_user_from_chat_impl(port, ptr, rust_vec_len, data_len),
+104 => wire__crate__api__user_cubit__UserCubitBase_remove_username_impl(port, ptr, rust_vec_len, data_len),
+105 => wire__crate__api__user_cubit__UserCubitBase_report_spam_impl(port, ptr, rust_vec_len, data_len),
+106 => wire__crate__api__user_cubit__UserCubitBase_safety_codes_impl(port, ptr, rust_vec_len, data_len),
+107 => wire__crate__api__user_cubit__UserCubitBase_set_app_state_impl(port, ptr, rust_vec_len, data_len),
+108 => wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(port, ptr, rust_vec_len, data_len),
+110 => wire__crate__api__user_cubit__UserCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+111 => wire__crate__api__user_cubit__UserCubitBase_unblock_contact_impl(port, ptr, rust_vec_len, data_len),
+112 => wire__crate__api__user_cubit__UserCubitBase_upload_logs_impl(port, ptr, rust_vec_len, data_len),
+113 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+116 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_default_emoji_skin_tone_impl(port, ptr, rust_vec_len, data_len),
+117 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_developer_mode_impl(port, ptr, rust_vec_len, data_len),
+118 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_experimental_features_impl(port, ptr, rust_vec_len, data_len),
+119 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_interface_scale_impl(port, ptr, rust_vec_len, data_len),
+120 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_locale_impl(port, ptr, rust_vec_len, data_len),
+121 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_read_receipts_impl(port, ptr, rust_vec_len, data_len),
+122 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
+123 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
+125 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+127 => wire__crate__api__user__User_global_unread_messages_count_impl(port, ptr, rust_vec_len, data_len),
+128 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
+129 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
+130 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
+131 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
+132 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
+134 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
+135 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
+136 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
+138 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+142 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+146 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+147 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+148 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
+149 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
+150 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+151 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+152 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+155 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+156 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+157 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+158 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+159 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+160 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+161 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+163 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+164 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+165 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+167 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+169 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+170 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+171 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -12488,210 +12425,195 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__chat_list_cubit__ChatListCubitBase_is_closed_impl(
+        36 => wire__crate__api__chats_data_source__ChatsDataSource_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__chat_list_cubit__ChatListCubitBase_new_impl(
+        38 => wire__crate__api__notifications__DartNotificationService_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__chat_list_cubit__ChatListCubitBase_state_impl(
+        41 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__chats_repository__ChatsRepository_new_impl(
+        43 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__notifications__DartNotificationService_new_impl(
+        45 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_is_closed_impl(
+        48 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_new_impl(
+        49 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__invitation_codes_cubit__InvitationCodesCubitBase_state_impl(
+        51 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_is_closed_impl(
+        56 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_new_impl(
+        57 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__linked_devices_cubit__LinkedDevicesCubitBase_state_impl(
+        58 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_is_closed_impl(
+        61 => wire__crate__api__message_cubit__MessageCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_new_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        60 => wire__crate__api__member_details_cubit__MemberDetailsCubitBase_state_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        63 => wire__crate__api__message_cubit__MessageCubitBase_is_closed_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        64 => {
+        62 => {
             wire__crate__api__message_cubit__MessageCubitBase_new_impl(ptr, rust_vec_len, data_len)
         }
-        65 => wire__crate__api__message_cubit__MessageCubitBase_state_impl(
+        63 => wire__crate__api__message_cubit__MessageCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__message_list_cubit__MessageListCubitBase_is_closed_impl(
+        66 => wire__crate__api__message_list_cubit__MessageListCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__message_list_cubit__MessageListCubitBase_new_impl(
+        71 => wire__crate__api__message_list_cubit__MessageListCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => wire__crate__api__message_list_cubit__MessageListCubitBase_state_impl(
+        72 => wire__crate__api__message_list_cubit__MessageListCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__crate__api__multi_device__MultiDeviceLinkConfirmation_confirm_impl(
+        75 => wire__crate__api__multi_device__MultiDeviceLinkConfirmation_confirm_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__crate__api__multi_device__MultiDeviceLinkConfirmation_new_impl(
+        76 => wire__crate__api__multi_device__MultiDeviceLinkConfirmation_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        79 => wire__crate__api__multi_device__MultiDeviceProvisionedUser_new_impl(
+        77 => wire__crate__api__multi_device__MultiDeviceProvisionedUser_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        80 => wire__crate__api__multi_device__MultiDeviceProvisionedUser_take_impl(
+        78 => wire__crate__api__multi_device__MultiDeviceProvisionedUser_take_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        82 => wire__crate__api__notification_context__NotificationContextBase_new_impl(
+        80 => wire__crate__api__notification_context__NotificationContextBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => wire__crate__api__notification_context__NotificationContextBase_set_policy_impl(
+        81 => wire__crate__api__notification_context__NotificationContextBase_set_policy_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        84 => wire__crate__api__member_details_cubit__UiRoomState_can_kick_impl(
+        82 => wire__crate__api__member_details_cubit__UiRoomState_can_kick_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => {
+        83 => {
             wire__crate__api__user_cubit__UiUser_account_unlinked_impl(ptr, rust_vec_len, data_len)
         }
-        86 => wire__crate__api__user_cubit__UiUser_unsupported_version_impl(
+        84 => wire__crate__api__user_cubit__UiUser_unsupported_version_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        87 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
-        88 => wire__crate__api__user_cubit__UiUser_usernames_impl(ptr, rust_vec_len, data_len),
-        101 => {
+        85 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
+        86 => wire__crate__api__user_cubit__UiUser_usernames_impl(ptr, rust_vec_len, data_len),
+        99 => {
             wire__crate__api__user_cubit__UserCubitBase_is_closed_impl(ptr, rust_vec_len, data_len)
         }
-        103 => wire__crate__api__user_cubit__UserCubitBase_new_impl(ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__user_cubit__UserCubitBase_parse_multi_device_linking_url_impl(
+        101 => wire__crate__api__user_cubit__UserCubitBase_new_impl(ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__user_cubit__UserCubitBase_parse_multi_device_linking_url_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__crate__api__user_cubit__UserCubitBase_state_impl(ptr, rust_vec_len, data_len),
-        116 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_is_closed_impl(
+        109 => wire__crate__api__user_cubit__UserCubitBase_state_impl(ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        117 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_new_impl(
+        115 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        126 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_state_impl(
+        124 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        128 => wire__crate__api__user__User_client_record_id_impl(ptr, rust_vec_len, data_len),
-        135 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
+        126 => wire__crate__api__user__User_client_record_id_impl(ptr, rust_vec_len, data_len),
+        133 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
-        141 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
+        137 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
+        139 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
-        143 => {
+        140 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
+        141 => {
             wire__crate__api__users_cubit__UsersCubitBase_state_impl(ptr, rust_vec_len, data_len)
         }
-        145 => {
+        143 => {
             wire__crate__api__users_cubit__UsersState_display_name_impl(ptr, rust_vec_len, data_len)
         }
-        146 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
-        147 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
+        144 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
+        145 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        157 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        153 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        154 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        162 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        175 => {
+        172 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        176 => wire__crate__api__username_suggestions__username_from_display_impl(
+        173 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -12741,31 +12663,16 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatDetailsCubitBase>> for Cha
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<ChatListCubitBase> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<ChatsDataSource> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
             .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ChatListCubitBase> {}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ChatsDataSource> {}
 
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatListCubitBase>> for ChatListCubitBase {
-    fn into_into_dart(self) -> FrbWrapper<ChatListCubitBase> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<ChatsRepository> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ChatsRepository> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatsRepository>> for ChatsRepository {
-    fn into_into_dart(self) -> FrbWrapper<ChatsRepository> {
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ChatsDataSource>> for ChatsDataSource {
+    fn into_into_dart(self) -> FrbWrapper<ChatsDataSource> {
         self.into()
     }
 }
@@ -13334,19 +13241,24 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::ChatId>>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::chat_list_cubit::ChatListState {
+impl flutter_rust_bridge::IntoDart for crate::api::chats_data_source::ChatsDelta {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.chat_ids.into_into_dart().into_dart()].into_dart()
+        [
+            self.upserted.into_into_dart().into_dart(),
+            self.removed.into_into_dart().into_dart(),
+            self.order.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::chat_list_cubit::ChatListState
+    for crate::api::chats_data_source::ChatsDelta
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_list_cubit::ChatListState>
-    for crate::api::chat_list_cubit::ChatListState
+impl flutter_rust_bridge::IntoIntoDart<crate::api::chats_data_source::ChatsDelta>
+    for crate::api::chats_data_source::ChatsDelta
 {
-    fn into_into_dart(self) -> crate::api::chat_list_cubit::ChatListState {
+    fn into_into_dart(self) -> crate::api::chats_data_source::ChatsDelta {
         self
     }
 }
@@ -13963,7 +13875,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_list_cubit::MessageLi
             self.has_newer.into_into_dart().into_dart(),
             self.is_at_bottom.into_into_dart().into_dart(),
             self.first_unread_index.into_into_dart().into_dart(),
-            self.unread_count.into_into_dart().into_dart(),
             self.revision.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -14488,6 +14399,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::attachments_repository::UiAtt
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiAttachmentType {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Image => 0.into_dart(),
+            Self::File => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::message_content::UiAttachmentType
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::message_content::UiAttachmentType>
+    for crate::api::message_content::UiAttachmentType
+{
+    fn into_into_dart(self) -> crate::api::message_content::UiAttachmentType {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatAttributes {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14516,9 +14448,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.status.into_into_dart().into_dart(),
             self.chat_type.into_into_dart().into_dart(),
             self.last_used.into_into_dart().into_dart(),
-            self.messages_count.into_into_dart().into_dart(),
             self.unread_messages.into_into_dart().into_dart(),
             self.last_message.into_into_dart().into_dart(),
+            self.last_reaction.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
             self.is_apq.into_into_dart().into_dart(),
             self.muted_until.into_into_dart().into_dart(),
@@ -14859,6 +14791,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::invitation_codes_cubit::UiInv
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiLastReaction {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.reactor.into_into_dart().into_dart(),
+            self.emoji.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::UiLastReaction
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiLastReaction>
+    for crate::api::types::UiLastReaction
+{
+    fn into_into_dart(self) -> crate::api::types::UiLastReaction {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::linked_devices_cubit::UiLinkedDevice {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14940,6 +14893,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageStatus {
             Self::Read => 3.into_dart(),
             Self::Hidden => 4.into_dart(),
             Self::Error => 5.into_dart(),
+            Self::Deleted => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -14965,6 +14919,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiMimiConten
             self.in_reply_to.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.attachments.into_into_dart().into_dart(),
+            self.first_attachment_type.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -15294,17 +15249,10 @@ impl SseEncode for ChatDetailsCubitBase {
     }
 }
 
-impl SseEncode for ChatListCubitBase {
+impl SseEncode for ChatsDataSource {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for ChatsRepository {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -15553,18 +15501,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15784,6 +15721,13 @@ impl SseEncode
     }
 }
 
+impl SseEncode for std::collections::HashSet<crate::api::types::ChatId> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::types::ChatId>>::sse_encode(self.into_iter().collect(), serializer);
+    }
+}
+
 impl SseEncode for StreamSink<UiUser, flutter_rust_bridge::for_generated::SseCodec> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15812,7 +15756,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        crate::api::chat_list_cubit::ChatListState,
+        crate::api::chats_data_source::ChatsDelta,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -16131,10 +16075,15 @@ impl SseEncode for crate::api::types::ChatId {
     }
 }
 
-impl SseEncode for crate::api::chat_list_cubit::ChatListState {
+impl SseEncode for crate::api::chats_data_source::ChatsDelta {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<crate::api::types::ChatId>>::sse_encode(self.chat_ids, serializer);
+        <Vec<crate::api::types::UiChatDetails>>::sse_encode(self.upserted, serializer);
+        <std::collections::HashSet<crate::api::types::ChatId>>::sse_encode(
+            self.removed,
+            serializer,
+        );
+        <Option<Vec<crate::api::types::ChatId>>>::sse_encode(self.order, serializer);
     }
 }
 
@@ -16591,6 +16540,16 @@ impl SseEncode for Vec<crate::api::message_content::UiAttachment> {
     }
 }
 
+impl SseEncode for Vec<crate::api::types::UiChatDetails> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::types::UiChatDetails>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::types::UiChatMessage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16785,7 +16744,6 @@ impl SseEncode for crate::api::message_list_cubit::MessageListState {
         <bool>::sse_encode(self.has_newer, serializer);
         <bool>::sse_encode(self.is_at_bottom, serializer);
         <Option<usize>>::sse_encode(self.first_unread_index, serializer);
-        <usize>::sse_encode(self.unread_count, serializer);
         <usize>::sse_encode(self.revision, serializer);
     }
 }
@@ -17238,6 +17196,16 @@ impl SseEncode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
     }
 }
 
+impl SseEncode for Option<crate::api::message_content::UiAttachmentType> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::message_content::UiAttachmentType>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::types::UiChatDetails> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17298,6 +17266,16 @@ impl SseEncode for Option<crate::api::types::UiInReplyToMessage> {
     }
 }
 
+impl SseEncode for Option<crate::api::types::UiLastReaction> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::UiLastReaction>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::types::UiMessageDraft> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17354,6 +17332,16 @@ impl SseEncode for Option<Vec<String>> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <Vec<String>>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<crate::api::types::ChatId>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::types::ChatId>>::sse_encode(value, serializer);
         }
     }
 }
@@ -17558,6 +17546,22 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
     }
 }
 
+impl SseEncode for crate::api::message_content::UiAttachmentType {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::message_content::UiAttachmentType::Image => 0,
+                crate::api::message_content::UiAttachmentType::File => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17573,9 +17577,9 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
         <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
-        <usize>::sse_encode(self.messages_count, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
+        <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
         <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
         <bool>::sse_encode(self.is_apq, serializer);
         <Option<crate::api::types::UiChatMuted>>::sse_encode(self.muted_until, serializer);
@@ -17789,6 +17793,14 @@ impl SseEncode for crate::api::invitation_codes_cubit::UiInvitationCode {
     }
 }
 
+impl SseEncode for crate::api::types::UiLastReaction {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::UiUserId>::sse_encode(self.reactor, serializer);
+        <String>::sse_encode(self.emoji, serializer);
+    }
+}
+
 impl SseEncode for crate::api::linked_devices_cubit::UiLinkedDevice {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17847,6 +17859,7 @@ impl SseEncode for crate::api::types::UiMessageStatus {
                 crate::api::types::UiMessageStatus::Read => 3,
                 crate::api::types::UiMessageStatus::Hidden => 4,
                 crate::api::types::UiMessageStatus::Error => 5,
+                crate::api::types::UiMessageStatus::Deleted => 6,
                 _ => {
                     unimplemented!("");
                 }
@@ -17865,6 +17878,10 @@ impl SseEncode for crate::api::message_content::UiMimiContent {
         <Option<Vec<u8>>>::sse_encode(self.in_reply_to, serializer);
         <Option<crate::api::markdown::MessageContent>>::sse_encode(self.content, serializer);
         <Vec<crate::api::message_content::UiAttachment>>::sse_encode(self.attachments, serializer);
+        <Option<crate::api::message_content::UiAttachmentType>>::sse_encode(
+            self.first_attachment_type,
+            serializer,
+        );
     }
 }
 
@@ -18069,8 +18086,7 @@ mod io {
     use super::*;
     use crate::api::attachments_repository::*;
     use crate::api::chat_details_cubit::*;
-    use crate::api::chat_list_cubit::*;
-    use crate::api::chats_repository::*;
+    use crate::api::chats_data_source::*;
     use crate::api::invitation_codes_cubit::*;
     use crate::api::linked_devices_cubit::*;
     use crate::api::logging::*;
@@ -18123,31 +18139,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -18420,8 +18422,7 @@ mod web {
     use super::*;
     use crate::api::attachments_repository::*;
     use crate::api::chat_details_cubit::*;
-    use crate::api::chat_list_cubit::*;
-    use crate::api::chats_repository::*;
+    use crate::api::chats_data_source::*;
     use crate::api::invitation_codes_cubit::*;
     use crate::api::linked_devices_cubit::*;
     use crate::api::logging::*;
@@ -18476,31 +18477,17 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsDataSource(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsRepository>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

@@ -207,6 +207,21 @@ Future<void> setBadgeCount(int count) async {
   }
 }
 
+/// Lets the native Android splash screen close, once we know whether the app
+/// is landing on Home or the intro screen.
+Future<void> dismissSplashScreen() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await platform.invokeMethod('dismissSplashScreen');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to dismiss splash screen: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+  }
+}
+
 Future<int?> beginBackgroundTask() async {
   if (!Platform.isIOS) return null;
   try {

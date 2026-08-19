@@ -7,16 +7,11 @@ import 'package:air/ds/patterns/message_separator/message_separator.dart';
 import 'package:flutter/widgets.dart';
 
 class UnreadDivider extends StatelessWidget {
-  const UnreadDivider({super.key, required this.count});
-
-  final int count;
+  const UnreadDivider({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final label = AppLocalizations.of(context).messageList_newMessages(count);
-    return MessageSeparator(
-      label: label,
-      variant: MessageSeparatorVariant.unread,
-    );
-  }
+  Widget build(BuildContext context) => MessageSeparator(
+    label: AppLocalizations.of(context).messageList_newMessages,
+    variant: MessageSeparatorVariant.unread,
+  );
 }

@@ -12,7 +12,7 @@ use aircoreclient::{
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
     },
 };
-use airprotos::relay_service::v1::LinkingSessionId;
+use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
@@ -882,6 +882,129 @@ async fn multi_device_settings_race_converges() {
 
     // The self group is still usable after the race.
     send_and_receive(old_device, &[&new_device], chat_id, "still in sync").await;
+}
+
+// Idempotent issuance derives every token from a seed the devices agree on, so
+// two devices that replenish independently end up holding byte-identical tokens
+// with no token synchronization protocol. The seed reaches the second device in
+// its provisioning package, which is what keeps it from proposing a seed of its
+// own and losing the race for an allowance epoch the first device has already
+// locked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linked devices hold identical tokens", skip_all)]
+async fn multi_device_token_issuance_is_idempotent() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    // A lone device agrees with itself, so it can issue right away.
+    first_device.outbound_service().run_once().await;
+    let seeds = first_device.committed_token_seeds().await.unwrap();
+    assert!(
+        !seeds.is_empty(),
+        "a lone device must agree on its own token seeds"
+    );
+    let first_tokens = first_device
+        .cached_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap();
+    assert!(
+        !first_tokens.is_empty(),
+        "the first device must hold tokens"
+    );
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+
+    // The linking payload carried the agreed seeds, so the new device starts out
+    // agreeing rather than proposing.
+    assert_eq!(
+        second_device.committed_token_seeds().await.unwrap(),
+        seeds,
+        "the new device must adopt its sibling's agreed seeds"
+    );
+
+    // The second device replenishes on its own. The AS answers the repeated
+    // request for free, and the tokens finalize to the same bytes.
+    second_device.outbound_service().run_once().await;
+    assert_eq!(
+        second_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        first_tokens,
+        "both devices must hold byte-identical tokens"
+    );
+
+    // Both devices still see each other, so neither switched to a private seed.
+    for (label, device) in [("first", first_device), ("second", &second_device)] {
+        assert_eq!(
+            device.self_group_client_ids().await.unwrap().len(),
+            2,
+            "the {label} device should see both leaves"
+        );
+        assert_eq!(
+            device.committed_token_seeds().await.unwrap(),
+            seeds,
+            "the {label} device must keep the agreed seeds"
+        );
+    }
+}
+
+// A seed that has to be invented while two devices are already linked is agreed
+// over the self group: a device proposes, a commit carries the proposal, and DS
+// commit order decides which proposal becomes the seed. This is the path a key
+// rotation takes, where neither device has a seed for the new key and the
+// provisioning snapshot cannot help, so the test puts both devices into exactly
+// the state a rotation leaves behind.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linked devices agree on a fresh token seed", skip_all)]
+async fn multi_device_token_seed_agreement() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+
+    for device in [first_device, &second_device] {
+        device.reset_privacy_pass_for_key_rotation().await.unwrap();
+        assert!(
+            device.committed_token_seeds().await.unwrap().is_empty(),
+            "the rotation left no agreed seed behind"
+        );
+    }
+
+    // Replenishment proposes, the next outbound run stages and sends the
+    // proposal commit, and the sibling has to process it. Once a seed is agreed,
+    // a further run fetches the batch under it.
+    for _ in 0..4 {
+        for device in [first_device, &second_device] {
+            device.outbound_service().run_once().await;
+            drain_queue(device).await;
+        }
+    }
+
+    let first_seeds = first_device.committed_token_seeds().await.unwrap();
+    assert!(
+        !first_seeds.is_empty(),
+        "the devices must have agreed on a seed"
+    );
+    assert_eq!(
+        second_device.committed_token_seeds().await.unwrap(),
+        first_seeds,
+        "both devices must agree on the same seed"
+    );
+
+    // Agreeing on the seed is what makes the tokens identical.
+    assert_eq!(
+        second_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        first_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        "both devices must hold byte-identical tokens"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

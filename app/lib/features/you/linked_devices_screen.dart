@@ -62,7 +62,7 @@ class LinkedDevicesView extends StatelessWidget {
     );
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         if (thisDevice != null) ...[
           Text(loc.linkedDevicesScreen_thisDevice, style: sectionStyle),
@@ -178,7 +178,7 @@ class _SingleDevice extends StatelessWidget {
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
+                behavior: .opaque,
                 onTap: () => _editDeviceName(context, name),
                 child: Column(
                   spacing: S.s4,

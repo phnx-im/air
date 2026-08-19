@@ -140,7 +140,7 @@ class _MessageInputState extends State<MessageInput>
     return Padding(
       padding: t.containerPadding,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: .end,
         children: [
           // Builder so the handler receives the button's context and not this
           // one, which the row above has already laid out and padded.
@@ -166,8 +166,8 @@ class _MessageInputState extends State<MessageInput>
                 boxShadow: Effect.elevation(Elevation.flat),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: .stretch,
+                mainAxisSize: .min,
                 children: [
                   ...widget.aboveField,
                   Padding(

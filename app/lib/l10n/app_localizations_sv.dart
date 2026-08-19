@@ -858,6 +858,16 @@ class AppLocalizationsSv extends AppLocalizations {
   String get chatList_blocked => 'Blockerad';
 
   @override
+  String chatList_reaction(String user, String emoji, String message) {
+    return '$user reagerade $emoji på \"$message\"';
+  }
+
+  @override
+  String chatList_reactionByYou(String emoji, String message) {
+    return 'Du reagerade $emoji på \"$message\"';
+  }
+
+  @override
   String get chatList_contextMenu_mute => 'Tysta';
 
   @override
@@ -1329,15 +1339,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_newMessages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count nya meddelanden',
-      one: '$count nytt meddelande',
-    );
-    return '$_temp0';
-  }
+  String get messageList_newMessages => 'Nya meddelanden';
 
   @override
   String get messageList_reactions_react => 'Reagera';

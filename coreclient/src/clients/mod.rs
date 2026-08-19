@@ -41,7 +41,7 @@ use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
@@ -667,7 +667,7 @@ impl CoreUser {
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
-        info!(
+        debug!(
             sequence_number_start,
             "listening to QS queue from sequence number"
         );
@@ -747,10 +747,6 @@ impl CoreUser {
             .await
             .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
             .unwrap_or(0)
-    }
-
-    pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
     pub async fn set_chat_muted_until(

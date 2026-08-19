@@ -124,7 +124,7 @@ impl From<EncryptedUserProfileKeyError> for Status {
 }
 
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "ciphertext")]
+#[display("ciphertext")]
 pub struct CiphertextField;
 
 impl TryFromRef<'_, credentials::UserCredential> for UserCredential {
@@ -432,7 +432,7 @@ impl From<AddUsersInfoError> for Status {
 }
 
 #[derive(Debug, derive_more::Display)]
-#[display(fmt = "welcome")]
+#[display("welcome")]
 pub struct WelcomeField;
 
 impl TryFrom<group_info::GroupInfo> for GroupInfo {

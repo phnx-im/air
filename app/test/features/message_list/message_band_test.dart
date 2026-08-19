@@ -200,9 +200,9 @@ void main() {
       expect(stamp.top, greaterThan(bubble.bottom));
     });
 
-    // An incoming row anchors its chips and its stamp to the same edge, so
-    // there is no line for the two of them to share.
-    testWidgets('drops the stamp below the chips on an incoming message', (
+    // The chips take an incoming row's leading edge, so the stamp moves to
+    // the trailing one and the two share the line like on an own message.
+    testWidgets('shares the line on an incoming message with reactions', (
       tester,
     ) async {
       messageListCubit.setState([
@@ -219,7 +219,45 @@ void main() {
       await tester.pumpWidget(buildSubject());
 
       final (bubble, stamp) = boxesOf(tester, 1);
+      expect(stamp.top, bubble.bottom);
+      expect(stamp.right, bubble.right);
+      expect(
+        tester.getRect(inRow(1, ReactionChip)).right,
+        lessThan(stamp.left),
+      );
+    });
+
+    testWidgets('drops an incoming stamp below a run that fills the bubble', (
+      tester,
+    ) async {
+      messageListCubit.setState([
+        _message(
+          1,
+          sender: 2,
+          text: 'Hi',
+          reactions: [
+            UiReaction(emoji: '👍', users: [2.userId(), 3.userId()]),
+            UiReaction(emoji: '🎉', users: [2.userId()]),
+            UiReaction(emoji: '💖', users: [3.userId()]),
+          ],
+        ),
+      ]);
+
+      await tester.pumpWidget(buildSubject());
+
+      final (bubble, stamp) = boxesOf(tester, 1);
       expect(stamp.top, greaterThan(bubble.bottom));
+    });
+
+    testWidgets('keeps an unreacted incoming stamp on the leading edge', (
+      tester,
+    ) async {
+      messageListCubit.setState([_message(1, sender: 2, text: _long)]);
+
+      await tester.pumpWidget(buildSubject());
+
+      final (bubble, stamp) = boxesOf(tester, 1);
+      expect(stamp.top, bubble.bottom);
       expect(stamp.left, bubble.left);
     });
   });
@@ -230,7 +268,7 @@ void main() {
 
     Widget host(List<UiReaction> reactions) => MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: testThemeData(Brightness.light),
+      theme: testThemeData(.light),
       home: Scaffold(
         body: Align(
           alignment: Alignment.topRight,

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/resizable_panel/resizable_panel.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../../helpers.dart';
@@ -74,7 +73,7 @@ void main() {
 
       expect(handleOpacity(tester), 0);
 
-      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final pointer = await tester.createGesture(kind: .mouse);
       await pointer.addPointer(location: Offset.zero);
       addTearDown(pointer.removePointer);
 
@@ -111,7 +110,7 @@ void main() {
     ) async {
       await pumpSubject(tester);
 
-      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final pointer = await tester.createGesture(kind: .mouse);
       await pointer.addPointer(location: Offset.zero);
       addTearDown(pointer.removePointer);
 

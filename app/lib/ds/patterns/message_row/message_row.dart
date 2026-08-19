@@ -4,6 +4,7 @@
 
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 /// The grid one message sits in: an avatar column, the sender's name above the
@@ -57,6 +58,7 @@ class MessageRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatar = this.avatar;
     final withAvatar = !outgoing && (reserveAvatar || avatar != null);
     final inset = tokens.contentInset(withAvatar: withAvatar);
     final name = senderName;
@@ -64,10 +66,8 @@ class MessageRow extends StatelessWidget {
     return Padding(
       padding: tokens.padding,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: outgoing
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: outgoing ? .end : .start,
         children: [
           if (name != null)
             Padding(
@@ -78,11 +78,19 @@ class MessageRow extends StatelessWidget {
               child: _SenderName(name: name, onTap: onTapSender),
             ),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            // The message reports the bubble's bottom edge as its baseline,
+            // see [MessageBand]. Aligning on it rather than on the row's end
+            // keeps the avatar level with the bubble however much the message
+            // hangs below it (reaction chips, the stamp under the bubble).
+            crossAxisAlignment: .baseline,
+            textBaseline: .alphabetic,
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
-                SizedBox(width: tokens.avatarSize, child: _avatar()),
+                SizedBox(
+                  width: tokens.avatarSize,
+                  child: avatar != null ? _BottomBaseline(child: avatar) : null,
+                ),
                 const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
@@ -104,17 +112,27 @@ class MessageRow extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// The avatar lifted off the foot of its column. We use a transform rather
-  /// than a margin, so the lift never adds to the row's height.
-  Widget? _avatar() {
-    final avatar = this.avatar;
-    if (avatar == null) return null;
-    return Transform.translate(
-      offset: const Offset(0, -MessageRowTokens.avatarBottomNudge),
-      child: avatar,
-    );
-  }
+/// Gives the avatar a baseline at its bottom edge, which is what the row
+/// aligns with the baseline the message reports at the bubble's bottom edge.
+class _BottomBaseline extends SingleChildRenderObjectWidget {
+  const _BottomBaseline({required Widget child}) : super(child: child);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderBottomBaseline();
+}
+
+class _RenderBottomBaseline extends RenderProxyBox {
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => size.height;
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => child?.getDryLayout(constraints).height ?? constraints.smallest.height;
 }
 
 /// The sender's name, kept out of the selection so drag-selecting a
@@ -131,7 +149,7 @@ class _SenderName extends StatelessWidget {
       child: Text(
         name,
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        overflow: .ellipsis,
         style: typeScale.body.s.style(
           color: SemanticPalette.of(context).text.primary,
           weight: Weight.emphasized,
@@ -143,11 +161,7 @@ class _SenderName extends StatelessWidget {
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: label,
-      ),
+      child: GestureDetector(behavior: .opaque, onTap: onTap, child: label),
     );
   }
 }

@@ -18,8 +18,8 @@ enum MessageSeparatorVariant {
 
 /// A break between two sections of a conversation.
 ///
-/// The label is the host's: the day names and the unread count are localized
-/// and change with the clock, so the separator only paints what it's handed.
+/// The label is the host's. The day names are localized and change with the
+/// clock, so the separator only paints what it's handed.
 class MessageSeparator extends StatelessWidget {
   const MessageSeparator({
     super.key,

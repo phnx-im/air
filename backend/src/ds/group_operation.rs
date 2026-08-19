@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
@@ -375,6 +375,18 @@ impl DsGroupState {
             self.update_membership_profiles(&add_users_state.added_users)?;
         }
 
+        #[cfg(debug_assertions)]
+        self.check_member_profiles("t_commit");
+
+        // Record this epoch only when the commit added someone. Welcome info
+        // is served from the ratchet tree mls-assist retains, and it retains
+        // one only for epochs with potential joiners, so a snapshot for any
+        // other epoch could never be served.
+        if added_users_state.is_some() {
+            let epoch = self.group().epoch();
+            self.snapshot_member_profiles(epoch);
+        }
+
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
         {
@@ -497,6 +509,14 @@ impl DsGroupState {
         // Update membership profiles for added users
         if let Some(ref add_users_state) = t_add_users_state {
             t_group_state.update_membership_profiles(&add_users_state.added_users)?;
+        }
+
+        #[cfg(debug_assertions)]
+        t_group_state.check_member_profiles("apq_commit");
+
+        if t_add_users_state.is_some() {
+            let epoch = t_group_state.group().epoch();
+            t_group_state.snapshot_member_profiles(epoch);
         }
 
         // Process resync operations
@@ -719,6 +739,26 @@ impl DsGroupState {
             let removed_client_profile_option = self.member_profiles.remove(&client_index);
             debug_assert!(removed_client_profile_option.is_some());
         }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn check_member_profiles(&self, context: &str) {
+        let occupied: BTreeSet<LeafNodeIndex> = self.group().members().map(|m| m.index).collect();
+        let profiled: BTreeSet<LeafNodeIndex> = self.member_profiles.keys().copied().collect();
+        if occupied == profiled {
+            return;
+        }
+        let missing: Vec<u32> = occupied.difference(&profiled).map(|i| i.u32()).collect();
+        let stale: Vec<u32> = profiled.difference(&occupied).map(|i| i.u32()).collect();
+        error!(
+            context,
+            ?missing,
+            ?stale,
+            occupied = occupied.len(),
+            profiled = profiled.len(),
+            epoch = self.group().epoch().as_u64(),
+            "member_profiles diverged from group membership"
+        );
     }
 
     pub(super) fn create_commit_response(

@@ -8,8 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/l10n/l10n.dart';
@@ -38,7 +38,6 @@ void main() {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
-    late MockChatListCubit chatListCubit;
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -47,7 +46,6 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
-      chatListCubit = MockChatListCubit();
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
@@ -71,11 +69,15 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => MultiRepositoryProvider(
+    Widget buildSubject({
+      required List<UiChatDetails> chats,
+    }) => MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
         RepositoryProvider<AttachmentsRepository>.value(
           value: MockAttachmentsRepository(),
+        ),
+        RepositoryProvider<chats_repository.ChatsRepository>.value(
+          value: FakeChatsRepository(chats),
         ),
       ],
       child: MultiBlocProvider(
@@ -83,7 +85,6 @@ void main() {
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
@@ -95,13 +96,9 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: HomeScreenDesktopLayout(
-                  chatList: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                  chat: const ChatScreenView(
+                home: const HomeScreenDesktopLayout(
+                  chatList: ChatListView(),
+                  chat: ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
                   ),
                 ),
@@ -126,14 +123,11 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(
-        () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chatIds: []));
-      when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(const []);
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: []));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -155,14 +149,11 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.home());
       when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
-      when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(messages);
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: chats));
 
       await expectLater(
         find.byType(MaterialApp),
@@ -186,14 +177,11 @@ void main() {
         ),
       );
       when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
-      when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(messages);
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: chats));
       await tester.pump();
 
       await expectLater(
@@ -218,14 +206,11 @@ void main() {
         ),
       );
       when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
-      when(
         () => chatDetailsCubit.state,
       ).thenReturn(ChatDetailsState(chat: chats[4], members: members));
       messageListCubit.setState(messages);
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: chats));
       await tester.pump();
 
       await expectLater(
@@ -249,11 +234,8 @@ void main() {
           home: HomeNavigationState(activeTab: HomeTab.profile),
         ),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(chats: chats));
       await tester.pump();
 
       // The tab takes over both panes: the sections in the list panel and the

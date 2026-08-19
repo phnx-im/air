@@ -20,11 +20,10 @@ use crate::{
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
-    privacy_pass::RequestTokensError,
     usernames::UsernameRecord,
 };
 
-use super::OutboundServiceContext;
+use super::{OutboundServiceContext, error::OutboundServiceError};
 
 /// Number of key packages to upload (excluding the last resort key package)
 #[cfg(not(feature = "test_utils"))]
@@ -324,26 +323,22 @@ impl OutboundServiceContext {
     }
 
     /// Ensures the client has Privacy Pass tokens available for all
-    /// operations. Fetches VOPRF public keys from the server and requests
-    /// tokens if the local store is running low.
+    /// operations. Fetches VOPRF public keys from the server on every run.
     ///
-    /// Returns a short interval (5 min) when tokens are still below the
-    /// threshold, and a long interval (6 h) when fully stocked.
+    /// Returns a short interval (5 min) while something still has to converge,
+    /// and a long interval (6 h) once there is nothing left to fetch.
     async fn replenish_tokens(
         &self,
         operation_type: OperationType,
         loaded_credentials: &mut bool,
     ) -> anyhow::Result<Duration> {
-        use crate::privacy_pass;
+        use crate::privacy_pass::{self, ReplenishOutcome};
 
         let api_client = self.api_clients.default_client()?;
 
-        let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.db.read().await?, operation_type).await?
-        else {
-            return Ok(Duration::hours(6));
-        };
-
+        // Refresh the key set before looking at the cache depth: a client whose
+        // cache never runs low would otherwise sleep through the AS rotation
+        // overlap window and end up holding tokens no key can redeem.
         if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
             self.db
@@ -358,56 +353,19 @@ impl OutboundServiceContext {
             *loaded_credentials = true;
         }
 
-        match privacy_pass::request_and_store_tokens(
+        let outcome = privacy_pass::replenish(
             &self.db,
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
             operation_type,
-            replenish_count,
         )
-        .await?
-        {
-            Ok(count) => {
-                if count < usize::from(operation_type.low_tokens_threshold()) {
-                    Ok(Duration::minutes(5))
-                } else {
-                    Ok(Duration::hours(6))
-                }
-            }
-            Err(RequestTokensError::QuotaExceeded {
-                retry_after,
-                tokens_available,
-            }) => {
-                warn!(
-                    %operation_type,
-                    retry_after_secs = retry_after.num_seconds(),
-                    tokens_available,
-                    "quota exceeded"
-                );
-                if tokens_available > 0 && retry_after.is_zero() {
-                    // Partial quota: some tokens are available right now. Retry immediately with
-                    // the reduced count.
-                    match privacy_pass::request_and_store_tokens(
-                        &self.db,
-                        &api_client,
-                        self.user_id().clone(),
-                        self.signing_key(),
-                        operation_type,
-                        tokens_available,
-                    )
-                    .await?
-                    {
-                        Ok(_) => Ok(Duration::hours(6)),
-                        Err(RequestTokensError::QuotaExceeded { retry_after, .. }) => {
-                            Ok(retry_after.max(Duration::minutes(5)))
-                        }
-                    }
-                } else {
-                    Ok(retry_after.max(Duration::minutes(5)))
-                }
-            }
-        }
+        .await?;
+
+        Ok(match outcome {
+            ReplenishOutcome::Settled => Duration::hours(6),
+            ReplenishOutcome::RetrySoon => Duration::minutes(5),
+        })
     }
 
     async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
@@ -423,6 +381,7 @@ impl OutboundServiceContext {
         info!(num_chats, "Running self-updates");
 
         let mut num_updated = 0;
+        let mut num_failed = 0;
 
         for chat_id in chat_ids {
             if run_token.is_cancelled() {
@@ -436,29 +395,61 @@ impl OutboundServiceContext {
                 );
                 return Ok(PARTIAL_UPDATE_INTERVAL); // Continue after a partial batch
             }
-            if self.self_update_in_chat(chat_id).await? {
-                num_updated += 1;
+            match self.self_update_in_chat(chat_id).await {
+                Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
+                Ok(SelfUpdateOutcome::Skipped) => (),
+                Err(OutboundServiceError::Fatal(error)) => {
+                    num_failed += 1;
+                    warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
+                }
+                Err(OutboundServiceError::Recoverable(error)) => return Err(error),
             }
         }
 
-        let skipped = num_chats.wrapping_sub(num_updated);
-        info!(num_chats, skipped, "Full self-update successful");
+        let skipped = num_chats.wrapping_sub(num_updated).wrapping_sub(num_failed);
+        info!(
+            num_chats,
+            num_updated, skipped, num_failed, "Full self-update finished"
+        );
         Ok(SELF_UPDATE_INTERVAL)
     }
 
-    async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+    /// Performs the self-update in a single chat.
+    ///
+    /// Failures that only concern this chat are reported as
+    /// [`OutboundServiceError::Fatal`], so that the batch can continue with the
+    /// next chat. [`OutboundServiceError::Recoverable`] is reserved for failures
+    /// that affect every chat, e.g. an unreachable database or network, where
+    /// retrying the whole task is the only useful thing to do.
+    async fn self_update_in_chat(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
         let (group, is_connection, erase_attributes, pq_due) = {
-            let mut read = self.db.read().await?;
-            let mut read_txn = read.begin().await?;
+            let mut read = self
+                .db
+                .read()
+                .await
+                .map_err(OutboundServiceError::recoverable)?;
+            let mut read_txn = read
+                .begin()
+                .await
+                .map_err(OutboundServiceError::recoverable)?;
 
-            let Some(group) = Group::load_with_chat_id(&mut read_txn, chat_id).await? else {
-                debug!(
-                    ?chat_id,
-                    "Skipping self-update in chat because group is not found"
-                );
-                return Ok(false);
+            // Loading can fail for a single chat, e.g. when its persisted group state can no
+            // longer be decoded. Such a chat must not hold up the rest of the batch.
+            let group = match Group::load_with_chat_id(&mut read_txn, chat_id).await {
+                Ok(Some(group)) => group,
+                Ok(None) => {
+                    debug!(
+                        ?chat_id,
+                        "Skipping self-update in chat because group is not found"
+                    );
+                    return Ok(SelfUpdateOutcome::Skipped);
+                }
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
 
             if group.mls_group().pending_commit().is_some()
@@ -470,7 +461,7 @@ impl OutboundServiceContext {
                     ?chat_id,
                     "Skipping self-update in chat because there is a pending commit"
                 );
-                return Ok(false);
+                return Ok(SelfUpdateOutcome::Skipped);
             }
 
             let now = Utc::now();
@@ -485,20 +476,26 @@ impl OutboundServiceContext {
             });
 
             if !t_due && !pq_due {
-                return Ok(false);
+                return Ok(SelfUpdateOutcome::Skipped);
             }
 
             // If a chat operation is pending, we skip updating this chat
-            if PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await? {
-                return Ok(false);
+            match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
+                Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
+                Ok(false) => (),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 
-            let Some(chat) = Chat::load(&mut read_txn, &chat_id).await? else {
-                debug!(
-                    ?chat_id,
-                    "Skipping self-update in chat because chat is not found"
-                );
-                return Ok(false);
+            let chat = match Chat::load(&mut read_txn, &chat_id).await {
+                Ok(Some(chat)) => chat,
+                Ok(None) => {
+                    debug!(
+                        ?chat_id,
+                        "Skipping self-update in chat because chat is not found"
+                    );
+                    return Ok(SelfUpdateOutcome::Skipped);
+                }
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
 
             // For connection chats, that support empty connection group titles, we can erase the data.
@@ -517,9 +514,6 @@ impl OutboundServiceContext {
         };
 
         let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
-        if migration_attrs.is_some() {
-            info!(%chat_id, "Migrating legacy group data");
-        }
 
         let job = if migration_attrs.is_some() {
             // Migration takes precedence over PQ self-update (PQ interval is long, so this is
@@ -535,24 +529,26 @@ impl OutboundServiceContext {
             // Pure T-only update
             ChatOperation::update(chat_id, None)
         };
-        let res = self.execute_job(job).await;
-
-        match res {
-            Ok(_messages) => Ok(true),
+        match self.execute_job(job).await {
+            Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
             // A network error is likely something transient that would affect
-            // all chats, so we return the error to retry the task with backoff.
-            Err(error @ JobError::NetworkError) => Err(error.into()),
+            // all chats, so we retry the whole task with backoff.
+            Err(error @ JobError::NetworkError) => Err(OutboundServiceError::recoverable(error)),
             // The operation is no longer applicable to this chat, so we skip
             // it.
-            Err(JobError::NotFound | JobError::Blocked) => Ok(false),
-            // Any other failure is specific to this chat, so we log and skip
-            // it, but continue with the rest of the batch.
-            Err(error) => {
-                warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
-                Ok(false)
+            Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
+            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
+                Err(OutboundServiceError::fatal(error))
             }
         }
     }
+}
+
+/// Result of a self-update attempt in a single chat.
+enum SelfUpdateOutcome {
+    Updated,
+    /// The update does not apply to this chat right now.
+    Skipped,
 }
 
 /// Migrates the group data from the legacy format to the new format.

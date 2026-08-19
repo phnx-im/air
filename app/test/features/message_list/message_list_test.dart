@@ -43,6 +43,7 @@ final firstMessageContent = UiMimiContent(
 final firstDeletedMessageContent = UiMimiContent(
   topicId: Uint8List(0),
   attachments: [],
+
   replaces: Uint8List(0),
 );
 
@@ -708,6 +709,7 @@ final attachmentMessages = [
               description: "Failing golden tests",
             ),
           ],
+          firstAttachmentType: UiAttachmentType.file,
         ),
       ),
     ),
@@ -728,6 +730,7 @@ final attachmentMessages = [
           plainBody: "Look what I've got to eat",
           content: simpleMessage("Look what I've got to eat"),
           attachments: [imageAttachment],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),
@@ -746,6 +749,7 @@ final attachmentMessages = [
         content: UiMimiContent(
           topicId: Uint8List(0),
           attachments: [imageAttachment],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),
@@ -773,6 +777,7 @@ final attachmentMessages = [
               ),
             ),
           ],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),
@@ -1191,9 +1196,7 @@ void main() {
         final label = stampLabel(2);
         final body = find.text('Message 2', findRichText: true);
 
-        final pointer = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final pointer = await tester.createGesture(kind: .mouse);
         await pointer.addPointer(location: Offset.zero);
         addTearDown(pointer.removePointer);
         await pointer.moveTo(tester.getCenter(body));
@@ -1234,9 +1237,7 @@ void main() {
         final label = stampLabel(1);
         expect(find.text(label), findsNothing);
 
-        final pointer = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final pointer = await tester.createGesture(kind: .mouse);
         await pointer.addPointer(location: Offset.zero);
         addTearDown(pointer.removePointer);
         await pointer.moveTo(
@@ -1299,7 +1300,7 @@ void main() {
 
       messageListCubit.setState(messages);
 
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
@@ -1451,11 +1452,7 @@ void main() {
 
       // Use a small subset so the golden stays compact. The divider lands at
       // index 2, mid-group for Eve, and has to break the group in two.
-      messageListCubit.setState(
-        messages.take(6).toList(),
-        firstUnreadIndex: 2,
-        unreadCount: 4,
-      );
+      messageListCubit.setState(messages.take(6).toList(), firstUnreadIndex: 2);
 
       await tester.pumpWidget(buildSubject());
 
@@ -1819,10 +1816,7 @@ void main() {
         await tester.pumpAndSettle();
         final center = tester.getCenter(target);
 
-        final gesture = await tester.startGesture(
-          center,
-          kind: PointerDeviceKind.mouse,
-        );
+        final gesture = await tester.startGesture(center, kind: .mouse);
         addTearDown(gesture.removePointer);
         await tester.pump();
         await gesture.up();
