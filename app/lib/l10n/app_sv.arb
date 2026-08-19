@@ -23,14 +23,14 @@
   "youSection_preferences": "Inställningar",
   "youSection_developer": "Utvecklare",
   "settingsScreen_copiedToClipboard": "Kopierat till urklipp",
-  "removeUsernameDialog_title": "Ta bort användarnamn",
+  "removeUsernameDialog_title": "Ta bort användarnamn?",
   "removeUsernameDialog_content": "Personer kan inte skicka dig en kontaktförfrågan med det här användarnamnet, och det kan tas av någon annan.",
   "removeUsernameDialog_cancel": "Avbryt",
   "removeUsernameDialog_remove": "Ta bort",
   "addMembersScreen_addMembers": "Lägg till medlemmar",
   "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Chatt",
-  "contactDetailsScreen_viewSafetyCode": "Visa säkerhetskod",
+  "contactDetailsScreen_viewSafetyCode": "Säkerhetskod",
   "contactDetailsScreen_mute": "Tysta",
   "contactDetailsScreen_unmute": "Sluta tysta",
   "safetyCodeScreen_title": "Säkerhetskod",
@@ -39,7 +39,7 @@
   "safetyCodeScreen_safetyCodeExplanation": "Jämför säkerhetskoden du ser med den {displayName} ser. Om koderna matchar vet du att du skickar och tar emot ände-till-ände-krypterade meddelanden med rätt person.",
   "chatDetailsScreen_unknownChat": "Okänd chatt",
 
-  "muteDurationSheet_title": "Tysta notifikationer",
+  "muteDurationSheet_title": "Tysta chatten?",
   "muteDurationSheet_body": "Välj hur länge du vill tysta chatten.",
   "muteDurationSheet_1hour": "1 timme",
   "muteDurationSheet_8hours": "8 timmar",
@@ -63,11 +63,11 @@
   "unblockContactDialog_content": "Du kan skicka och ta emot meddelanden med {displayName} och personen kan se din aktuella profil.",
   "unblockContactDialog_cancel": "Avbryt",
   "unblockContactDialog_unblock": "Avblockera",
-  "deleteContactButton_text": "Ta bort",
-  "deleteContactDialog_title": "Ta bort Air-kontakt",
-  "deleteContactDialog_content": "Är du säker på att du vill ta bort din Air-kontakt {displayName}? Om du gör det raderas chatten och dess meddelandehistorik.",
+  "deleteContactButton_text": "Radera",
+  "deleteContactDialog_title": "Radera Air-kontakt",
+  "deleteContactDialog_content": "Är du säker på att du vill radera din Air-kontakt {displayName}? Om du gör det raderas chatten och dess meddelandehistorik.",
   "deleteContactDialog_cancel": "Avbryt",
-  "deleteContactDialog_delete": "Ta bort",
+  "deleteContactDialog_delete": "Radera",
   "addContactDialog_title": "Lägg till Air-kontakt",
   "addContactDialog_content": "{displayName} från gruppchatten \"{groupTitle}\" är inte en Air-kontakt. För att chatta, skicka en kontaktförfrågan.",
   "addContactDialog_cancel": "Avbryt",
@@ -87,11 +87,6 @@
   "introScreen_signUp": "Skapa konto",
   "introScreen_termsLinkText": "Användarvillkor",
   "introScreen_termsText": "Genom att registrera dig godkänner du våra {termsOfUseLink}.",
-  "@introScreen_termsText": {
-    "placeholders": {
-      "termsOfUseLink": {}
-    }
-  },
   "invitationCodeScreen_header": "Ange inbjudningskod",
   "invitationCodeScreen_subheader": "Air är för närvarande bara tillgängligt via inbjudan. Ange din kod för att gå med. Om du inte har en, fråga någon som redan är på Air.",
   "invitationCodeScreen_inputLabel": "Inbjudningskod (obligatoriskt)",
@@ -113,7 +108,7 @@
   "invitationCodesScreen_errorRequestingCode": "Något gick fel. Försök igen.",
   "invitationCodesScreen_copiedToClipboard": "Kopierat till urklipp",
   "invitationCodesScreen_codeClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n{codes}",
+  "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n\n{codes}",
 
   "signUpScreen_header": "Skapa din profil",
   "signUpScreen_subheader": "Din profil är synlig för personer du ansluter till och medlemmar i grupper du är med i. Air kräver ett visningsnamn, men en bild är valfri.",
@@ -158,13 +153,6 @@
   "linkedDevicesScreen_thisDevice": "Den här enheten",
   "linkedDevicesScreen_linkedDevices": "Länkade enheter",
   "linkedDevicesScreen_linkedOn": "Länkad den {date}",
-  "@linkedDevicesScreen_linkedOn": {
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
-  },
   "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
   "linkedDevicesScreen_linkDevice": "Länka en enhet",
   "linkedDevicesScreen_unknownDevice": "Okänd enhet",
@@ -174,19 +162,7 @@
   "linkedDevicesScreen_unlinkError": "Avlänkningen av enheten {deviceName} misslyckades. Kontrollera din nätverksanslutning och försök igen.",
   "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Inga enheter länkade.} one {{count} enhet länkad.} other {{count} enheter länkade.}}",
-  "@linkedDevicesScreen_deviceCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "linkedDevicesScreen_encryptionNotice": "Meddelanden är end-to-end-krypterade på alla enheter. {learnMore}",
-  "@linkedDevicesScreen_encryptionNotice": {
-    "placeholders": {
-      "learnMore": {}
-    }
-  },
+  "linkedDevicesScreen_encryptionNotice": "Meddelanden är end-to-end-krypterade på alla enheter.",
   "linkedDevicesScreen_encryptionNotice_learnMore": "Läs mer.",
   "linkedDevicesScreen_encryptionDialog_title": "Kryptering och enhetslänkning",
   "linkedDevicesScreen_encryptionDialog_content": "På Air är dina meddelanden (inklusive bilagor) alltid end-to-end-krypterade. Det innebär att ingen annan, inte ens Air, kan läsa dem.\n\nNär du länkar en enhet förblir dina meddelanden krypterade och bara du kan läsa dem.",
@@ -211,7 +187,8 @@
   "usernameScreen_inputHint": "Skriv ett användarnamn...",
   "usernameScreen_error_emptyUsername": "Användarnamn får inte vara tomt",
   "usernameScreen_error_alreadyExists": "Användarnamnet används redan",
-  "usernameScreen_description": "Välj ett användarnamn som andra kan använda för att ansluta till dig.\n\nAnvänd bokstäver, siffror eller bindestreck. Minst 5 tecken.",
+  "usernameScreen_description": "Välj ett användarnamn som andra kan använda för att ansluta till dig.",
+  "usernameScreen_syntax": "Använd bokstäver, siffror eller bindestreck. Minst 5 tecken.",
   "usernameScreen_cancel": "Avbryt",
   "usernameScreen_confirm": "Lägg till",
   "usernameScreen_error_tooShort": "Användarnamn måste vara minst 5 tecken",
@@ -225,17 +202,9 @@
   "editDisplayNameScreen_description": "Välj ett namn som andra ser.",
   "editDisplayNameScreen_cancel": "Avbryt",
   "editDisplayNameScreen_save": "Spara",
-  "systemMessage_userAddedUser_prefix": "{user1}",
-  "systemMessage_userAddedUser_infix": " lade till ",
-  "systemMessage_userAddedUser_suffix": "{user2}",
-  "systemMessage_userRemovedUser_prefix": "{user1}",
-  "systemMessage_userRemovedUser_infix": " tog bort ",
-  "systemMessage_userRemovedUser_suffix": "{user2}",
-  "systemMessage_userChangedTitle_prefix": "{user}",
-  "systemMessage_userChangedTitle_infix_1": " ändrade gruppnamnet från ",
-  "systemMessage_userChangedTitle_infix_2": "{old_name}",
-  "systemMessage_userChangedTitle_infix_3": " till ",
-  "systemMessage_userChangedTitle_suffix": "{new_name}",
+  "systemMessage_userAddedUser": "{user1} lade till {user2}",
+  "systemMessage_userRemovedUser": "{user1} tog bort {user2}",
+  "systemMessage_userChangedTitle": "{user} ändrade gruppnamnet från {old_name} till {new_name}",
   "systemMessage_acceptedHandleConnectionRequest": "Du accepterade kontaktförfrågan från {displayName} via ditt användarnamn {username}.",
   "systemMessage_acceptedDirectConnectionRequest": "Du accepterade kontaktförfrågan från {displayName} via en gemensam gruppchatt.",
   "systemMessage_receivedConnectionConfirmation": "{displayName} accepterade din kontaktförfrågan.",
@@ -243,10 +212,8 @@
   "systemMessage_newDirectConnectionChat": "Du skickade en kontaktförfrågan till {displayName}. Personen kanske inte får någon avisering direkt.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} skickade en kontaktförfrågan till dig via ditt användarnamn {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} skickade en kontaktförfrågan till dig via gruppchatten {groupName}.",
-  "systemMessage_userChangedPicture_prefix": "{user}",
-  "systemMessage_userChangedPicture_infix": " ändrade gruppbilden",
-  "systemMessage_userCreatedGroup_prefix": "{user}",
-  "systemMessage_userCreatedGroup_suffix": " skapade gruppen",
+  "systemMessage_userChangedPicture": "{user} ändrade gruppbilden",
+  "systemMessage_userCreatedGroup": "{user} skapade gruppen",
   "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
@@ -257,7 +224,7 @@
   "messageBubble_sent": "Skickat",
   "messageBubble_delivered": "Levererat",
   "messageBubble_read": "Läst",
-  "chatList_newContact": "Ny kontakt",
+  "chatList_newContact": "Ny Air-kontakt",
   "chatList_newGroup": "Ny gruppchatt",
   "chatList_emptyMessage": "Lägg till din första Air-kontakt för att komma igång",
   "chatList_draft": "Utkast",
@@ -293,17 +260,6 @@
   "composer_reply_noaccess_message_user": "Okänd användare",
   "composer_reply_noaccess_message_placeholder": "Du har inte tillgång till det här meddelandet.",
   "attachmentSize": "{size} {byteUnit}",
-  "@attachmentSize": {
-    "placeholders": {
-      "size": {
-        "type": "double",
-        "format": "decimalPatternDigits",
-        "optionalParameters": {
-          "decimalDigits": 2
-        }
-      }
-    }
-  },
   "attachment_images": "Bilder",
   "attachment_camera": "Kamera",
   "attachment_otherFiles": "Andra filer",
@@ -313,13 +269,6 @@
   "textMessage_deleted": "Meddelande raderat",
   "textMessage_deletedBySelf": "Du raderade det här meddelandet.",
   "textMessage_deletedByOther": "{senderName} raderade det här meddelandet.",
-  "@textMessage_deletedByOther": {
-    "placeholders": {
-      "senderName": {
-        "type": "String"
-      }
-    }
-  },
 
   "linkConfirmation_title": "Öppna länk?",
   "linkConfirmation_description": "Kontrollera webbadressen så att du är säker på att du vill öppna den:",
@@ -374,13 +323,6 @@
   "groupDetails_deleteChat": "Radera",
   "groupDetails_addPeople": "Lägg till",
   "groupDetails_memberCount": "{count, plural, one {{count} medlem} other {{count} medlemmar}}",
-  "@groupDetails_memberCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "groupDetails_seeAll": "Visa alla",
   "groupMembersScreen_title": "Gruppmedlemmar",
   "groupMembersScreen_searchHint": "Sök",
