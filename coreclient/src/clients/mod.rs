@@ -6,6 +6,7 @@ use std::{
     collections::HashSet,
     mem,
     sync::{Arc, Weak},
+    time::Duration,
 };
 
 pub use airapiclient::as_api::AsListenUsernameResponder;
@@ -37,8 +38,8 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
-use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
+use tokio::{sync::Notify, time::timeout};
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
 use tracing::{debug, error, info, warn};
@@ -460,33 +461,27 @@ impl CoreUser {
     ///
     /// Returns the list of [`ChatId`]s of any newly created chats.
     pub async fn fetch_and_process_username_messages(&self) -> Result<Vec<ChatId>> {
-        let records = self.username_records().await?;
-        let api_client = self.api_client()?;
         let mut chat_ids = Vec::new();
-        for record in records {
-            let (mut stream, responder) = api_client
-                .as_listen_username(record.hash, &record.signing_key)
-                .await?;
-            while let Some(Some(message)) = stream.next().await {
-                let Some(message_id) = message.message_id else {
-                    error!("no message id in username queue message");
-                    continue;
-                };
-                match self
-                    .process_username_queue_message(record.username.clone(), message)
-                    .await
-                {
-                    Ok(chat_id) => {
-                        chat_ids.push(chat_id);
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to process username queue message");
-                    }
+        Self::drain_username_messages(self, async |record, responder, message| {
+            let Some(message_id) = message.message_id else {
+                error!("no message id in username queue message");
+                return;
+            };
+            match self
+                .process_username_queue_message(record.username.clone(), message)
+                .await
+            {
+                Ok(chat_id) => {
+                    chat_ids.push(chat_id);
                 }
-                // ack the message independently of the result of processing the message
-                responder.ack(message_id.into()).await;
+                Err(error) => {
+                    error!(%error, "failed to process username queue message");
+                }
             }
-        }
+            // ack the message independently of the result of processing the message
+            responder.ack(message_id.into()).await;
+        })
+        .await?;
         Ok(chat_ids)
     }
 
@@ -494,24 +489,74 @@ impl CoreUser {
     ///
     /// Used in integration tests
     pub async fn fetch_username_messages(&self) -> Result<Vec<UsernameQueueMessage>> {
+        let mut messages = Vec::new();
+        Self::drain_username_messages(self, async |_record, responder, message| {
+            let Some(message_id) = message.message_id else {
+                error!("no message id in username queue message");
+                return;
+            };
+            // ack the message independently of the result of processing the message
+            responder.ack(message_id.into()).await;
+            messages.push(message);
+        })
+        .await?;
+        Ok(messages)
+    }
+
+    async fn drain_username_messages(
+        &self,
+        mut on_message: impl AsyncFnMut(
+            &UsernameRecord,
+            &AsListenUsernameResponder,
+            UsernameQueueMessage,
+        ),
+    ) -> Result<()> {
+        const ACK_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
+
         let records = self.username_records().await?;
         let api_client = self.api_client()?;
-        let mut messages = Vec::new();
+
         for record in records {
             let (mut stream, responder) = api_client
                 .as_listen_username(record.hash, &record.signing_key)
                 .await?;
-            while let Some(Some(message)) = stream.next().await {
-                let Some(message_id) = message.message_id else {
-                    error!("no message id in username queue message");
-                    continue;
-                };
-                // ack the message independently of the result of processing the message
-                responder.ack(message_id.into()).await;
-                messages.push(message);
+            let drained = loop {
+                match stream.next().await {
+                    // Incoming message
+                    Some(Ok(Some(message))) => on_message(&record, &responder, message).await,
+                    // Queue empty marker => drain done, confirm acks below
+                    Some(Ok(None)) => break true,
+                    // Terminal status => stream is over, ack not confirmed
+                    Some(Err(error)) => {
+                        warn!(%error, "username listen stream failed during drain");
+                        break false;
+                    }
+                    None => break false,
+                }
+            };
+            if !drained {
+                continue;
+            }
+            // half-close the request stream, then wait for the server to apply all acks
+            drop(responder);
+            loop {
+                match timeout(ACK_CONFIRMATION_TIMEOUT, stream.next()).await {
+                    // Late message => stays unacked and will be redelivered
+                    Ok(Some(Ok(_))) => continue,
+                    Ok(Some(Err(error))) => {
+                        warn!(%error, "username ack not confirmed");
+                        break;
+                    }
+                    // OK trailers => all acks are durable
+                    Ok(None) => break,
+                    Err(_elapsed) => {
+                        warn!("timeout waiting for username queue ack confirmation");
+                        break;
+                    }
+                }
             }
         }
-        Ok(messages)
+        Ok(())
     }
 
     /// Fetches all messages from the QS queue.
@@ -658,7 +703,7 @@ impl CoreUser {
 
     pub async fn listen_queue(
         &self,
-    ) -> std::result::Result<
+    ) -> Result<
         (
             impl Stream<Item = ListenResponse> + use<>,
             QsListenResponder,
@@ -686,7 +731,7 @@ impl CoreUser {
     pub async fn listen_username(
         &self,
         username_record: &UsernameRecord,
-    ) -> std::result::Result<
+    ) -> Result<
         (
             impl Stream<Item = Option<UsernameQueueMessage>> + Send + 'static,
             AsListenUsernameResponder,
@@ -698,7 +743,14 @@ impl CoreUser {
             .as_listen_username(username_record.hash, &username_record.signing_key)
             .await
         {
-            Ok(ok) => Ok(ok),
+            Ok((stream, responder)) => Ok((
+                stream.map_while(|result| {
+                    result
+                        .inspect_err(|error| error!(%error, "username listen stream failed"))
+                        .ok()
+                }),
+                responder,
+            )),
             Err(error) => {
                 // We remove the username locally if it is not found
                 if error.is_not_found() {

@@ -754,6 +754,7 @@ impl auth_service_server::AuthService for GrpcAs {
             // Process incoming acks and messages to deliver sequentially
             loop {
                 let event = tokio::select! {
+                    biased;
                     req = requests.next() => match req {
                         // The client sent an ack
                         Some(Ok(ack)) => Event::Ack(ack),
@@ -772,6 +773,8 @@ impl auth_service_server::AuthService for GrpcAs {
                         // durable.
                         None => return,
                     },
+                    // The server is shutting down
+                    _ = stop.cancelled() => Event::Aborted,
                     msg = messages.next() => match msg {
                         // A queue message to deliver. The inner None is the queue empty marker.
                         Some(msg) => Event::Deliver(msg),
@@ -779,8 +782,6 @@ impl auth_service_server::AuthService for GrpcAs {
                         // same hash evicts this one.
                         None => Event::Evicted,
                     },
-                    // The server is shutting down
-                    _ = stop.cancelled() => Event::Aborted,
                 };
 
                 match event {
