@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::pin::{Pin, pin};
+use std::pin::Pin;
 
 use airprotos::{
     common::v1::ClientMetadata,
@@ -25,15 +25,14 @@ use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
 use semver::Version;
-use tokio::sync::mpsc;
-use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
     errors::QueueError,
+    listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::StatusExt,
 };
 
 /// Maximum number of key packages per batch to upload in one request.
@@ -48,30 +47,6 @@ pub struct GrpcQs {
 impl GrpcQs {
     pub fn new(qs: Qs) -> Self {
         Self { qs }
-    }
-
-    async fn process_listen_queue_request(
-        queues: &Queues,
-        queue_id: identifiers::QsClientId,
-        request: ListenRequest,
-    ) -> Result<(), ProcessListenQueueRequestError> {
-        match request.request {
-            Some(listen_request::Request::Ack(AckListenRequest {
-                up_to_sequence_number,
-            })) => {
-                queues.ack(queue_id, up_to_sequence_number).await?;
-            }
-            Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
-                queues.trigger_fetch(queue_id).await?;
-            }
-            Some(listen_request::Request::Init(_)) => {
-                return Err(ProcessListenQueueRequestError::UnexpectedInitRequest);
-            }
-            None => {
-                return Err(ProcessListenQueueRequestError::EmptyRequest);
-            }
-        }
-        Ok(())
     }
 
     async fn update_client_activity_and_report_metrics(
@@ -544,86 +519,41 @@ impl QueueService for GrpcQs {
             })
             .ok();
 
-        const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (out_tx, out_rx) = mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
+        let handler = QueueSessionHandler {
+            queues: self.qs.queues.clone(),
+            client_id,
+        };
+        let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
+        Ok(Response::new(responses))
+    }
+}
 
-        let queues = self.qs.queues.clone();
-        let stop = self.qs.stop.clone();
+struct QueueSessionHandler {
+    queues: Queues,
+    client_id: identifiers::QsClientId,
+}
 
-        enum Event {
-            Request(ListenRequest),
-            Deliver(ListenResponse),
-            Evicted,
-            Aborted,
-        }
-
-        // Session protocol
-        tokio::spawn(async move {
-            let mut events = pin!(events);
-            // Process incoming requests and events to deliver sequentially
-            loop {
-                let event = tokio::select! {
-                    biased;
-                    req = requests.next() => {
-                        match req {
-                            // The client sent a request
-                            Some(Ok(req)) => Event::Request(req),
-                            // The transport failed or the client reset the stream. Ending abruptly,
-                            // in-flight acks are lost and the corresponding messages will be
-                            // redelivered.
-                            Some(Err(status)) => {
-                                if !status.is_client_disconnect() {
-                                    error!(%status, "listen queue request stream failed");
-                                }
-                                return;
-                            }
-                            // The client half-closed the request stream. All acks sent before are
-                            // processed at this point. Returning drops out_tx which closes the
-                            // response with OK trailers. This is the client's confirmation that its
-                            // acks are durable.
-                            None => return,
-                        }
-                    }
-                    // The server is shutting down
-                    _ = stop.cancelled() => Event::Aborted,
-                    event = events.next() => match event {
-                        // A queue response to deliver
-                        Some(event) => Event::Deliver(event),
-                        // The queue stream ended (evicted by a newer listener for the same
-                        // client_id).
-                        None => Event::Evicted,
-                    },
-                };
-
-                match event {
-                    Event::Request(request) => {
-                        if let Err(error) =
-                            Self::process_listen_queue_request(&queues, client_id, request).await
-                        {
-                            // We report the error to the client and stop.
-                            error!(%error, "error processing listen queue request");
-                            let _ = out_tx.send(Err(error.into())).await;
-                            return;
-                        }
-                    }
-                    Event::Deliver(response) => {
-                        if out_tx.send(Ok(response)).await.is_err() {
-                            return;
-                        }
-                    }
-                    Event::Evicted => {
-                        let _ = out_tx.try_send(Err(Status::aborted("queue evicted")));
-                        return;
-                    }
-                    Event::Aborted => {
-                        let _ = out_tx.try_send(Err(Status::unavailable("server stopped")));
-                        return;
-                    }
-                }
+impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
+    async fn handle(&mut self, request: ListenRequest) -> Result<(), Status> {
+        match request.request {
+            Some(listen_request::Request::Ack(AckListenRequest {
+                up_to_sequence_number,
+            })) => {
+                self.queues
+                    .ack(self.client_id, up_to_sequence_number)
+                    .await?;
             }
-        });
-
-        Ok(Response::new(Box::pin(ReceiverStream::new(out_rx))))
+            Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
+                self.queues.trigger_fetch(self.client_id).await?;
+            }
+            Some(listen_request::Request::Init(_)) => {
+                return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());
+            }
+            None => {
+                return Err(ProcessListenQueueRequestError::EmptyRequest.into());
+            }
+        }
+        Ok(())
     }
 }
 

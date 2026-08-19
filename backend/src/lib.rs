@@ -10,6 +10,7 @@ pub mod air_service;
 pub mod auth_service;
 pub mod ds;
 pub(crate) mod errors;
+pub(crate) mod listen_session;
 pub mod messages;
 pub(crate) mod pg_listen;
 pub mod qs;

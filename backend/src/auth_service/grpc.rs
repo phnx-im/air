@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, pin::pin};
+use std::fmt;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -41,7 +41,7 @@ use prost::Message;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_stream::{StreamExt, wrappers::ReceiverStream};
+use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, warn};
 
@@ -52,7 +52,7 @@ use crate::{
         usernames::ConnectUsernameProtocol,
     },
     errors::auth_service::RedeemTokenError,
-    util::StatusExt,
+    listen_session::{ListenRequestHandler, spawn_listen_session},
 };
 
 use super::{
@@ -139,20 +139,6 @@ impl GrpcAs {
             }
             SignatureVerificationError::LibraryError(_) => Status::internal("unrecoverable error"),
         })
-    }
-
-    async fn process_listen_username_request(
-        queues: &UsernameQueues,
-        request: ListenUsernameRequest,
-    ) -> Result<(), Status> {
-        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
-            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
-        };
-        let Some(message_id) = ack_request.message_id else {
-            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
-        };
-        queues.ack(message_id.into()).await?;
-        Ok(())
     }
 
     fn verify_client_version(
@@ -726,86 +712,36 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
 
         let messages = self.inner.username_queues.listen(hash).await?;
+        let messages = messages.map(|message| ListenUsernameResponse { message });
 
-        const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (out_tx, out_rx) = mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
+        let handler = UsernameSessionHandler {
+            queues: self.inner.username_queues.clone(),
+        };
+        let responses = spawn_listen_session(
+            requests,
+            messages,
+            self.inner.stop.clone(),
+            handler,
+            "username",
+        );
+        Ok(Response::new(responses))
+    }
+}
 
-        let queues = self.inner.username_queues.clone();
-        let stop = self.inner.stop.clone();
+struct UsernameSessionHandler {
+    queues: UsernameQueues,
+}
 
-        enum Event {
-            Ack(ListenUsernameRequest),
-            Deliver(Option<UsernameQueueMessage>),
-            Aborted,
-            Evicted,
-        }
-
-        // Session protocol
-        tokio::spawn(async move {
-            let mut messages = pin!(messages);
-            // Process incoming acks and messages to deliver sequentially
-            loop {
-                let event = tokio::select! {
-                    biased;
-                    req = requests.next() => match req {
-                        // The client sent an ack
-                        Some(Ok(ack)) => Event::Ack(ack),
-                        // The transport failed or the client reset the stream. Ending abruptly,
-                        // in-flight acks are lost and the corresponding messages will be
-                        // redelivered.
-                        Some(Err(status)) => {
-                            if !status.is_client_disconnect() {
-                                error!(%status, "listen username request stream failed");
-                            }
-                            return;
-                        }
-                        // The client half-closed the request stream. All acks sent before are
-                        // processed at this point. Returning drops out_tx which closes the response
-                        // with OK trailers. This is the client's confirmation that its acks are
-                        // durable.
-                        None => return,
-                    },
-                    // The server is shutting down
-                    _ = stop.cancelled() => Event::Aborted,
-                    msg = messages.next() => match msg {
-                        // A queue message to deliver. The inner None is the queue empty marker.
-                        Some(msg) => Event::Deliver(msg),
-                        // The queue stream ended. This only happens when a newer listener for the
-                        // same hash evicts this one.
-                        None => Event::Evicted,
-                    },
-                };
-
-                match event {
-                    Event::Ack(req) => {
-                        if let Err(error) =
-                            Self::process_listen_username_request(&queues, req).await
-                        {
-                            // We report the error to the client and stop.
-                            error!(%error, "error processing listen username request");
-                            let _ = out_tx.send(Err(error)).await;
-                            return;
-                        }
-                    }
-                    Event::Deliver(msg) => {
-                        let response = Ok(ListenUsernameResponse { message: msg });
-                        if out_tx.send(response).await.is_err() {
-                            return;
-                        }
-                    }
-                    Event::Aborted => {
-                        let _ = out_tx.try_send(Err(Status::unavailable("server stopped")));
-                        return;
-                    }
-                    Event::Evicted => {
-                        let _ = out_tx.try_send(Err(Status::aborted("queue evicted")));
-                        return;
-                    }
-                }
-            }
-        });
-
-        Ok(Response::new(Box::pin(ReceiverStream::new(out_rx))))
+impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
+    async fn handle(&mut self, request: ListenUsernameRequest) -> Result<(), Status> {
+        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
+            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
+        };
+        let Some(message_id) = ack_request.message_id else {
+            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
+        };
+        self.queues.ack(message_id.into()).await?;
+        Ok(())
     }
 }
 
