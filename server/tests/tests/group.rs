@@ -11,7 +11,7 @@ use aircoreclient::{
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::setup::{TestBackend, expected_display_name};
 use chrono::{DateTime, Duration, Utc};
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
@@ -937,6 +937,51 @@ async fn self_update() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_update_continues_after_a_broken_chat() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let broken_chat = setup.create_group(&alice).await;
+    let healthy_chat = setup.create_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    // Chats are updated ordered by their self-update time, so the broken chat comes first.
+    alice_core
+        .set_self_updated_at(broken_chat, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    let healthy_updated_at = DateTime::UNIX_EPOCH + Duration::seconds(1);
+    alice_core
+        .set_self_updated_at(healthy_chat, healthy_updated_at)
+        .await
+        .unwrap();
+
+    alice_core
+        .corrupt_mls_group_state(broken_chat)
+        .await
+        .unwrap();
+
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    let at = alice_core
+        .self_updated_at(healthy_chat)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        healthy_updated_at < at,
+        "Chat after the broken one was not self-updated"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 
@@ -1408,4 +1453,142 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
             "{label}'s chat must be inactive after the APQ group was deleted"
         );
     }
+}
+
+/// A member joining from a Welcome that is several epochs stale.
+///
+/// `ds_welcome_info` answers for the epoch asked for, so the ratchet tree it
+/// returns is historical. The profile keys shipped with it have to describe
+/// that same epoch. Serving the group's current keys instead means any leaf
+/// that changed hands in between resolves to the wrong occupant, and the
+/// ciphertext is bound to a user id, so it does not decrypt.
+///
+/// The joiner is deliberately stopped after its Welcome and before it catches
+/// up: later commits carry added members' profile keys in their AAD, which
+/// would re-deliver the keys and hide the problem.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Stale welcome epoch keeps profile keys", skip_all)]
+async fn stale_welcome_epoch_preserves_profile_keys() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await; // committer
+    let bob = setup.add_user().await; // joins from a stale Welcome
+    let charlie = setup.add_user().await; // leaves the group, freeing his leaf
+    let dave = setup.add_user().await; // stays throughout
+    let eve = setup.add_user().await; // takes over Charlie's leaf
+
+    for member in [&bob, &charlie, &dave, &eve] {
+        setup.connect_users(&alice, member).await;
+    }
+    for member in [&alice, &bob, &charlie, &dave, &eve] {
+        let profile = UserProfile {
+            user_id: member.clone(),
+            display_name: expected_display_name(member),
+            profile_picture: None,
+        };
+        setup
+            .get_user(member)
+            .user
+            .set_own_user_profile(profile)
+            .await
+            .unwrap();
+    }
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_and_settle(&alice, chat_id, &[&charlie, &dave])
+        .await;
+    let charlie_index = setup.own_leaf_index(&charlie, chat_id).await;
+
+    // Alice invites Bob. Bob's Welcome describes this epoch, with Charlie
+    // still in the group. Bob does not touch his queue yet.
+    setup
+        .get_user(&alice)
+        .user
+        .invite_users(chat_id, slice::from_ref(&bob))
+        .await
+        .unwrap()
+        .unwrap();
+    setup.settle(&[&alice, &charlie, &dave]).await;
+
+    // The group moves on: Charlie's leaf is vacated and handed to Eve.
+    setup
+        .get_user(&alice)
+        .user
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await
+        .unwrap();
+    setup.settle(&[&alice, &dave]).await;
+    setup.invite_and_settle(&alice, chat_id, &[&eve]).await;
+    let eve_index = setup.own_leaf_index(&eve, chat_id).await;
+    assert_eq!(
+        eve_index, charlie_index,
+        "the test needs Eve to take over Charlie's leaf, otherwise nothing \
+         changed hands between Bob's Welcome and now"
+    );
+
+    // Bob processes his Welcome and nothing else, so his view is the epoch the
+    // Welcome describes rather than the group's current one.
+    let queued = setup.get_user(&bob).user.qs_fetch_messages().await.unwrap();
+    let mut joined = false;
+    let mut consumed = 0usize;
+    for message in queued {
+        let bob_user = &setup.get_user(&bob).user;
+        bob_user.fully_process_qs_messages(vec![message]).await;
+        consumed += 1;
+        if bob_user.chat_participants(chat_id).await.is_some() {
+            joined = true;
+            break;
+        }
+    }
+    assert!(
+        joined,
+        "Bob should have joined after processing his Welcome"
+    );
+    tracing::info!(consumed, "messages Bob processed before joining");
+    // Everything still queued is deliberately left unprocessed.
+    for _ in 0..3 {
+        setup
+            .get_user(&bob)
+            .user
+            .outbound_service()
+            .run_once()
+            .await;
+    }
+
+    // Bob is at the Welcome's epoch, where Charlie is still a member.
+    let bob_view = setup
+        .get_user(&bob)
+        .user
+        .chat_participants(chat_id)
+        .await
+        .unwrap();
+    // Bob's two views of the same group must agree. The ratchet tree is the
+    // epoch his Welcome describes; the participant list is derived from the
+    // room state that came with it. If the DS answers with a current room
+    // state, the list names whoever holds a leaf now rather than who held it
+    // at that epoch.
+    let mls_view = setup
+        .get_user(&bob)
+        .user
+        .group_members(chat_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        bob_view, mls_view,
+        "Bob's participant list disagrees with his own ratchet tree: the two \
+         halves of his welcome info describe different epochs"
+    );
+    assert!(
+        bob_view.contains(&charlie),
+        "Bob should still see Charlie, who was a member at his Welcome's epoch"
+    );
+    assert!(
+        !bob_view.contains(&eve),
+        "Bob should not see Eve, who joined after his Welcome's epoch"
+    );
+
+    setup
+        .assert_profiles_resolve(&bob, &[&alice, &charlie, &dave], "stale welcome")
+        .await;
 }

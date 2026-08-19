@@ -121,7 +121,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(fredProfile),
     unreadMessages: 1,
-    messagesCount: 1,
     lastUsed: now,
     lastMessage: _lastChatMessage(
       fredChatId,
@@ -138,7 +137,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(jessicaProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(minutes: 1)),
     lastMessage: _lastChatMessage(
       jessicaChatId,
@@ -160,7 +158,6 @@ final chats = [
       ),
     ),
     unreadMessages: 0,
-    messagesCount: 0,
     lastUsed: now.subtract(const Duration(minutes: 10)),
     lastMessage: _lastChatMessage(
       scienceClubId,
@@ -177,7 +174,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(daveProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(minutes: 15)),
     lastMessage: _lastChatMessage(
       daveChatId,
@@ -199,7 +195,6 @@ final chats = [
       ),
     ),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(minutes: 20)),
     lastMessage: _lastChatMessage(
       gardeningPartyId,
@@ -216,7 +211,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(frankProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(minutes: 30)),
     lastMessage: _lastChatMessage(
       frankChatId,
@@ -233,7 +227,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(alexProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
     mutedUntil: null,
@@ -246,7 +239,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(ireneProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       ireneChatId,
@@ -268,7 +260,6 @@ final chats = [
       ),
     ),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       dinnerPartyId,
@@ -286,7 +277,6 @@ final chats = [
     isApq: false,
     chatType: UiChatType_Connection(kamalProfile),
     unreadMessages: 0,
-    messagesCount: 1,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       kamalChatId,
@@ -410,6 +400,7 @@ final fredMessages = [
               ),
             ),
           ],
+          firstAttachmentType: UiAttachmentType.image,
         ),
       ),
     ),

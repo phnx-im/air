@@ -39,12 +39,12 @@ class IosStatusBar extends StatelessWidget {
       child: Padding(
         padding: padding,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: .spaceBetween,
+          crossAxisAlignment: .end,
           children: [
             _IosTime(color: color, fontSize: height * 18.0 / baseHeight),
             Column(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: .end,
               children: [
                 Row(
                   spacing: rowSpacing,
@@ -78,11 +78,7 @@ class _IosTime extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       "9:41",
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.bold,
-        color: color,
-      ),
+      style: TextStyle(fontSize: fontSize, fontWeight: .bold, color: color),
     );
   }
 }
@@ -97,7 +93,7 @@ class _IosSignalStrength extends StatelessWidget {
   Widget build(BuildContext context) {
     final spacing = barHeight / 6;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: .end,
       spacing: spacing,
       children: [
         _IosSignalBar(color: color, height: barHeight, fraction: 0.4),
@@ -170,9 +166,9 @@ class _WifiPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.stroke
+      ..style = .stroke
       ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.square;
+      ..strokeCap = .square;
     final maxR = size.height;
 
     for (double i = 0.01; i <= .4; i += .2) {
@@ -207,7 +203,7 @@ class _IosBattery extends StatelessWidget {
     final borderWidth = width / 20;
     final innerPadding = width / 22;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: .center,
       spacing: width / 20,
       children: [
         Container(
@@ -254,7 +250,7 @@ class _BatteryCapPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.fill;
+      ..style = .fill;
 
     final rect = Offset.zero & size;
     final radius = Radius.circular(size.width / 1.2);

@@ -127,7 +127,7 @@ class _Notice extends StatelessWidget {
       padding: tokens.padding,
       child: Center(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             Container(
               width: SystemMessageTokens.ruleWidth,
@@ -137,7 +137,7 @@ class _Notice extends StatelessWidget {
             const SizedBox(height: SystemMessageTokens.ruleGap),
             Text.rich(
               span,
-              textAlign: TextAlign.center,
+              textAlign: .center,
               style: _textStyle(context, SystemMessageVariant.notice, tone),
             ),
             if (timestamp != null) ...[
@@ -181,7 +181,7 @@ class _Card extends StatelessWidget {
             maxWidth: SystemMessageTokens.cardMaxWidth,
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               Container(
                 width: double.infinity,
@@ -193,12 +193,12 @@ class _Card extends StatelessWidget {
                   ),
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: .min,
                   children: [
                     if (title != null)
                       Text(
                         title,
-                        textAlign: TextAlign.center,
+                        textAlign: .center,
                         style: typeScale.header.regular.style(
                           color: _tint(palette, tone) ?? palette.text.primary,
                           weight: Weight.emphasized,
@@ -209,7 +209,7 @@ class _Card extends StatelessWidget {
                     if (span != null)
                       Text.rich(
                         span,
-                        textAlign: TextAlign.center,
+                        textAlign: .center,
                         style: _textStyle(
                           context,
                           SystemMessageVariant.card,

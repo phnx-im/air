@@ -188,7 +188,7 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
       controller: _controller,
       state: this,
       child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        behavior: .translucent,
         onHorizontalDragStart: _onDragStart,
         onHorizontalDragUpdate: _onDragUpdate,
         onHorizontalDragEnd: _onDragEnd,
@@ -238,7 +238,7 @@ class SwipeToReplyBubble extends StatelessWidget {
             : iconProgress;
 
         return Stack(
-          clipBehavior: Clip.none,
+          clipBehavior: .none,
           children: [
             Positioned(
               left: 0,

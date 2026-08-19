@@ -163,7 +163,7 @@ class ReactionStrip extends StatelessWidget {
 
   Widget _row(List<Widget> chips, {required bool bounded}) {
     final row = Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         for (var i = 0; i < chips.length; i++) ...[
           if (i > 0) SizedBox(width: tokens.spacing),

@@ -109,7 +109,7 @@ class ModalCardRoute<T> extends PageRoute<T> {
       child: child,
       builder: (context, child) {
         final t = Effect.easeOutQuart.transform(animation.value);
-        final from = animation.status == AnimationStatus.reverse
+        final from = animation.status == .reverse
             ? ModalShellTokens.exitScaleEnd
             : ModalShellTokens.entryScaleBegin;
         return Opacity(

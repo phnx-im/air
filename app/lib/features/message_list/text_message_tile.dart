@@ -16,7 +16,6 @@ import 'package:air/ds/patterns/media_message/media_message.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
-import 'package:air/ds/patterns/message_meta/message_meta_tokens.dart';
 import 'package:air/ds/patterns/message_row/message_row.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/ds/patterns/message_text/message_text.dart';
@@ -137,23 +136,10 @@ class TextMessageTile extends HookWidget {
         outgoing: isSender,
         reserveAvatar: withParticipant,
         avatar: withAvatar && profile != null
-            ? AnimatedPadding(
-                duration: Effect.duration(MotionPreset.short),
-                curve: Effect.easeOutQuart,
-                // Tracks what [MessageBand] hangs below the bubble -- the
-                // reserve the chips animate open, and the stamp under it -- so
-                // the avatar stays level with the bubble's last line. This is
-                // an incoming row, so the two never share a line.
-                padding: EdgeInsets.only(
-                  bottom:
-                      reactionsReservedBelow(context, reactions.isNotEmpty) +
-                      (stamp != null ? MessageMetaTokens.heightOf(context) : 0),
-                ),
-                child: UserAvatar(
-                  profile: profile,
-                  size: tokens.avatarSize,
-                  onPressed: openMemberDetails,
-                ),
+            ? UserAvatar(
+                profile: profile,
+                size: tokens.avatarSize,
+                onPressed: openMemberDetails,
               )
             : null,
         senderName: withName ? profile?.displayName : null,
@@ -193,7 +179,10 @@ class TextMessageTile extends HookWidget {
   /// that never landed, so an edited row keeps its marker and leaves the
   /// delivery state to the rows that report one anyway.
   Widget? _stamp(BuildContext context, {required bool showsTime}) {
-    final isEdited = contentMessage.edited;
+    // A deleted message reports neither: what it once said and how far it got
+    // are both gone with it. Rows deleted before deletions stopped stamping an
+    // edit time still carry one, so the marker goes by the status.
+    final isEdited = contentMessage.edited && status != UiMessageStatus.deleted;
     final wantsAttention =
         isSender &&
         switch (status) {
@@ -201,7 +190,8 @@ class TextMessageTile extends HookWidget {
           UiMessageStatus.sent => !isEdited,
           UiMessageStatus.delivered ||
           UiMessageStatus.read ||
-          UiMessageStatus.hidden => false,
+          UiMessageStatus.hidden ||
+          UiMessageStatus.deleted => false,
         };
     // The end of the chat and the reader's own last word in it. The latter
     // keeps reporting even once someone has replied since.
@@ -220,7 +210,9 @@ class TextMessageTile extends HookWidget {
 
     return _MessageStamp(
       timestamp: showsTime ? timestamp : null,
-      isSelf: isSender,
+      // The stamp hugs the bubble's trailing edge wherever [MessageBand]
+      // anchors it there, which is on own messages and beside reaction chips.
+      alignEnd: isSender || reactions.isNotEmpty,
       status: delivery,
       statusLabel: switch (delivery) {
         MessageDeliveryStatus.sending => loc.messageBubble_sending,
@@ -236,7 +228,8 @@ class TextMessageTile extends HookWidget {
 }
 
 /// How far an own message got, as the stamp reports it. A hidden message
-/// reports nothing: its delivery is not the reader's business.
+/// reports nothing: its delivery is not the reader's business. Neither does a
+/// deleted one: there is no longer a message to have arrived.
 MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus status, {
   required bool readReceipts,
@@ -247,7 +240,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.read =>
     readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
   UiMessageStatus.error => MessageDeliveryStatus.failed,
-  UiMessageStatus.hidden => null,
+  UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
 /// The stamp under a message bubble: the time it was sent, and how far it got.
@@ -257,14 +250,14 @@ MessageDeliveryStatus? _deliveryStatus(
 class _MessageStamp extends StatelessWidget {
   const _MessageStamp({
     required this.timestamp,
-    required this.isSelf,
+    required this.alignEnd,
     required this.status,
     required this.statusLabel,
     required this.editedLabel,
   });
 
   final DateTime? timestamp;
-  final bool isSelf;
+  final bool alignEnd;
   final MessageDeliveryStatus? status;
   final String? statusLabel;
   final String? editedLabel;
@@ -273,7 +266,7 @@ class _MessageStamp extends StatelessWidget {
   Widget build(BuildContext context) {
     MessageMeta meta(String? label) => MessageMeta(
       timestamp: label,
-      isSelf: isSelf,
+      alignEnd: alignEnd,
       status: status,
       statusLabel: statusLabel,
       editedLabel: editedLabel,
@@ -623,7 +616,7 @@ class _MessageShell extends StatelessWidget {
                   },
             // Tap and long-press: handled via the gesture arena as usual.
             child: GestureDetector(
-              behavior: HitTestBehavior.deferToChild,
+              behavior: .deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
               // Mobile: double-tap a message to react. On desktop, the
               // recognizer must not be registered at all, otherwise it wins the
@@ -701,12 +694,12 @@ class _MessageShell extends StatelessWidget {
             onPressed: commands.reply,
           );
           final buttons = Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             spacing: tokens.gap,
             children: isSender ? [reply, react] : [react, reply],
           );
           return Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: isSender ? [time, buttons] : [buttons, time],
           );
         },
@@ -1055,10 +1048,8 @@ class _MessageContent extends StatelessWidget {
         child: _capped(
           padding,
           Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: stretched
-                ? CrossAxisAlignment.stretch
-                : CrossAxisAlignment.start,
+            mainAxisSize: .min,
+            crossAxisAlignment: stretched ? .stretch : .start,
             spacing: hasMedia ? S.s0 : S.s8,
             children: [
               if (inReplyTo != null) inset(_reply(context, inReplyTo)),

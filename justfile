@@ -7,7 +7,6 @@ set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
-build_number := `git rev-list --count HEAD`
 ci := env_var_or_default("CI", "false")
 
 _default:
@@ -138,25 +137,15 @@ regenerate-icons:
 test-flutter:
     TZ=UTC just flutter test
 
-docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
 # Run docker compose services in the background.
-@start-docker-compose: _generate-db-certs
-    if [ "{{skip_docker}}" = "true" ]; then \
-        echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"; \
-    elif {{docker-is-podman}} == "true"; then \
-        podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
-        podman-compose --podman-run-args=--replace up -d; \
-        podman-compose ps; \
-        podman logs air_postgres_1; \
-    else \
-        docker compose up --wait --wait-timeout=300; \
-        docker compose ps; \
+@start-docker-compose:
+    #!/usr/bin/env -S bash -eu
+    if [ "{{skip_docker}}" = "true" ]; then
+        echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"
+    else
+        docker compose up --quiet-pull --remove-orphans --detach --wait --wait-timeout=60
     fi
-
-# Generate postgres TLS certificates.
-_generate-db-certs:
-    cd backend && TEST_CERT_DIR_NAME=test_certs scripts/generate_test_certs.sh
 
 # Use the current test results as new reference images.
 [working-directory: 'app']
@@ -183,9 +172,17 @@ run-app *args='':
 run-server:
     cargo run --bin airserver | bunyan
 
-# Increment minor version numbers and update changelog.
-bump-version:
-    cargo xtask bump-version
+# Print the store build number (workflow run number plus a fixed offset).
+@build-number:
+    bash scripts/build-number.sh
+
+# Increment version numbers (minor by default, --patch on release branches).
+bump-version *args='':
+    cargo xtask bump-version {{args}}
+
+# Cut a release/0.X branch from main (at the given commit, default HEAD).
+cut-release *args='':
+    cargo xtask cut-release {{args}}
 
 # Install fvm.
 install-fvm:

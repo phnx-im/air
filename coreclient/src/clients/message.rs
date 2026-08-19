@@ -8,8 +8,11 @@ use mimi_content::{MessageStatus, MimiContent};
 
 use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, MessageId,
-    chats::{StatusRecord, messages::edit::MessageEdit},
-    clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
+    chats::{
+        StatusRecord,
+        messages::edit::{MessageEdit, purge_deleted_message},
+    },
+    clients::block_contact::BlockedContactError,
     db::access::{WriteConnection, WriteDbTransaction},
 };
 
@@ -34,37 +37,9 @@ impl CoreUser {
         // Create NullPart content
         let null_content = message.null_part_content()?;
 
-        let replaces_message_id = message.id();
-        let replaces_mimi_id = message.message().mimi_id().cloned();
-
-        // Send the deletion message
-        let sent_message =
-            Box::pin(self.send_message(chat_id, null_content, Some(message))).await?;
-
-        // Redact reply references to this message
-        if let Some(replaces_mimi_id) = replaces_mimi_id
-            && let Some(redacted_mimi_id) = sent_message.message().mimi_id()
-        {
-            self.db()
-                .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                    let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-                        &mut *txn,
-                        &replaces_message_id,
-                        &replaces_mimi_id,
-                        redacted_mimi_id,
-                    )
-                    .await?;
-
-                    for message_id in updated_message_ids {
-                        txn.notifier().add(message_id);
-                    }
-
-                    Ok(())
-                })
-                .await?;
-        }
-
-        Ok(sent_message)
+        // The placeholder store and the purge of what the deleted message
+        // leaves behind run atomically inside the send transaction.
+        Box::pin(self.send_message(chat_id, null_content, Some(message))).await
     }
 
     /// Delete a message locally without sending a network message.
@@ -235,15 +210,22 @@ impl UnsentContent {
                 updated.set_status(MessageStatus::Deleted);
             } else {
                 updated.set_status(MessageStatus::Unread);
+                updated.set_edited_at(edit_created_at);
             }
-            updated.set_edited_at(edit_created_at);
             updated.update(&mut *txn).await?;
             StatusRecord::clear(&mut *txn, updated.id()).await?;
 
-            // Delete attachments for this message on network deletion
-            // (FK cascade handles local deletion where the message row is deleted)
             if is_deletion {
-                AttachmentRecord::delete_by_message_id(&mut *txn, updated.id()).await?;
+                // The message is now a placeholder, purge what it left behind
+                // and repoint replies at the placeholder's Mimi ID.
+                purge_deleted_message(
+                    txn,
+                    updated.id(),
+                    Some(original_mimi_id),
+                    updated.message().mimi_id(),
+                )
+                .await?;
+                updated.take_in_reply_to();
             }
 
             updated

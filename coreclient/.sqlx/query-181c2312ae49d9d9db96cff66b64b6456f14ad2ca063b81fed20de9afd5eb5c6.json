@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO privacy_pass_seed (\n            operation_type, key_fingerprint, seed, state, needs_broadcast, created_at\n        )\n        VALUES (?, ?, ?, ?, FALSE, ?)\n        ON CONFLICT (operation_type, key_fingerprint)\n        DO UPDATE SET\n            seed = excluded.seed,\n            state = excluded.state,\n            needs_broadcast = FALSE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "181c2312ae49d9d9db96cff66b64b6456f14ad2ca063b81fed20de9afd5eb5c6"
+}

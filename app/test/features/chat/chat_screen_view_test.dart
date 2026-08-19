@@ -67,7 +67,6 @@ UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
   status: _chat.status,
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
-  messagesCount: _chat.messagesCount,
   unreadMessages: unreadMessages,
   lastMessage: _chat.lastMessage,
   draft: _chat.draft,
@@ -81,7 +80,6 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   status: _chat.status,
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
-  messagesCount: _chat.messagesCount,
   unreadMessages: _chat.unreadMessages,
   lastMessage: _chat.lastMessage,
   draft: draft,
@@ -378,7 +376,7 @@ void main() {
         if (w is! Container) return false;
         final decoration = w.decoration;
         return decoration is BoxDecoration &&
-            decoration.shape == BoxShape.circle &&
+            decoration.shape == .circle &&
             decoration.color ==
                 lightSemanticPalette.function.neutral.toggleBlack;
       });
@@ -398,7 +396,6 @@ void main() {
         messageListCubit.setState(
           messages,
           firstUnreadIndex: messages.length - unread,
-          unreadCount: unread,
         );
 
         await tester.pumpWidget(buildSubject());
@@ -480,7 +477,7 @@ void main() {
     });
 
     testWidgets('renders correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });

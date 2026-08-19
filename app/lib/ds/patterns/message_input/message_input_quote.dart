@@ -50,14 +50,14 @@ class MessageInputQuote extends StatelessWidget {
       ),
       padding: const EdgeInsets.only(left: MessageInputQuoteTokens.accentGap),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           if (sender != null) ...[
             Text(
               sender,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.xs.style(
                 color: palette.text.secondary,
                 weight: Weight.emphasized,
@@ -68,7 +68,7 @@ class MessageInputQuote extends StatelessWidget {
           Text(
             preview,
             maxLines: MessageInputQuoteTokens.previewMaxLines,
-            overflow: TextOverflow.ellipsis,
+            overflow: .ellipsis,
             style: typeScale.body.xs.style(color: palette.text.secondary),
           ),
         ],
@@ -78,7 +78,7 @@ class MessageInputQuote extends StatelessWidget {
     Widget block = quoted;
     if (thumbnail != null) {
       block = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Expanded(child: quoted),
           const SizedBox(width: MessageInputQuoteTokens.thumbGap),
@@ -97,7 +97,7 @@ class MessageInputQuote extends StatelessWidget {
       child: Stack(
         // The dismiss button's hit target is wider than its circle, so the ring
         // around it reaches past the block and must not be cropped to it.
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         children: [
           Container(
             // The stack hands its children loose constraints, so the block has

@@ -51,7 +51,7 @@ class ReactionBar extends StatelessWidget {
       child: Padding(
         padding: ReactionBarTokens.containerPadding,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             for (final emoji in emojis)
               _PickButton(
@@ -133,7 +133,7 @@ class _PickButtonState extends State<_PickButton>
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: _handleTap,
         child: SizedBox.square(
           dimension: widget.tokens.itemSize,

@@ -186,6 +186,9 @@ impl DsGroupState {
 
         self.rekey_sender_profile(sender_index, new_sender_index);
 
+        #[cfg(debug_assertions)]
+        self.check_member_profiles("resync");
+
         Ok(ResyncOutcome {
             message: processed_assisted_message_plus.serialized_mls_message,
             sibling_queue,
@@ -350,6 +353,9 @@ impl DsGroupState {
 
         t_group_state.rekey_sender_profile(t_sender_index, t_new_sender_index);
         // Profiles are never maintained in PQ group state
+
+        #[cfg(debug_assertions)]
+        t_group_state.check_member_profiles("resync_apq");
 
         Ok(ResyncOutcome {
             message: processed_assisted_message_plus.serialized_apq_message,

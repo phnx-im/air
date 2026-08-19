@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM reaction WHERE target_mimi_id IN (\n                SELECT mimi_id FROM message_edit WHERE message_id = ?\n                UNION ALL\n                SELECT ?\n            )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f347aec7a02410d6c9eac1d1ab1d7bbd8f59efb998df8b1b87417bc7376ad345"
+}

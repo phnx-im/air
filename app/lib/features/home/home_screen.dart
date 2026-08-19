@@ -26,7 +26,7 @@ class HomeScreen extends StatelessWidget {
       builder: (context, constraints) => constraints.breakpoint.isSmall
           ? const _HomeScreenMobileLayout()
           : const HomeScreenDesktopLayout(
-              chatList: ChatListContainer(isStandalone: false),
+              chatList: ChatListView(scaffold: false),
               chat: ChatScreen(),
             ),
     );
@@ -54,9 +54,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             switchOutCurve: Effect.easeOutQuart,
             transitionBuilder: tabSwitchTransition,
             child: switch (activeTab) {
-              HomeTab.chats => const ChatListContainer(
+              HomeTab.chats => const ChatListView(
                 key: ValueKey(HomeTab.chats),
-                isStandalone: true,
+                scaffold: true,
               ),
               HomeTab.profile => const YouScreen(
                 key: ValueKey(HomeTab.profile),
@@ -64,7 +64,15 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             },
           ),
         ),
-        const Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          // The boundary keeps the bar out of the route's layer, which is
+          // re-recorded during scrolling; without it the whole pill repaints
+          // on every scroll frame.
+          child: RepaintBoundary(child: AppTabBar()),
+        ),
       ],
     );
   }
@@ -122,14 +130,14 @@ class HomeScreenDesktopLayout extends StatelessWidget {
           onResizeEnd: (width) => onResizeEnd(context, width),
           panelBuilder: (context, width) => Container(
             margin: const EdgeInsets.symmetric(vertical: _windowInset),
-            clipBehavior: Clip.antiAlias,
+            clipBehavior: .antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_groupRadius),
             ),
             // Stretched so a pane that shrink-wraps its content (a short menu,
             // say) still paints its surface over the whole group height.
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: .stretch,
               children: [
                 const AppSidebar(),
                 // A hairline of window color separates the rail from the

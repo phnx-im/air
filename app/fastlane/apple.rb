@@ -126,7 +126,7 @@ def apple_build(platform, with_signing:, api_key:)
     UI.user_error!("App Store Connect credentials are required when with_signing is true") unless api_key
   end
 
-  build_number = sh("git rev-list --count HEAD").strip.to_i
+  build_number = sh("just build-number").strip.to_i
 
   setup_ci()
 

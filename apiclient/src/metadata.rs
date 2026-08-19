@@ -6,14 +6,16 @@ use std::sync::LazyLock;
 
 use airprotos::common::{self, v1::ClientMetadata};
 
-shadow_rs::shadow!(build);
-
+// Collected by `build.rs`. Note that these are only refreshed when the build
+// script reruns, see the comment there.
 pub(super) static METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| {
     new_metadata(
-        build::PKG_VERSION,
-        !build::GIT_CLEAN,
-        build::COMMIT_HASH,
-        build::COMMITS_SINCE_TAG,
+        env!("CARGO_PKG_VERSION"),
+        env!("AIR_GIT_DIRTY") == "true",
+        env!("AIR_COMMIT_HASH"),
+        env!("AIR_COMMITS_SINCE_TAG")
+            .parse()
+            .expect("invalid commit count"),
     )
 });
 

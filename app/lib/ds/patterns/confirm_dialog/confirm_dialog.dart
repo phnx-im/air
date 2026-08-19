@@ -42,11 +42,11 @@ class ConfirmDialog extends StatelessWidget {
 
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           Text(
             title,
-            textAlign: TextAlign.center,
+            textAlign: .center,
             style: typeScale.header.regular.style(
               color: palette.text.primary,
               weight: Weight.emphasized,
@@ -58,7 +58,7 @@ class ConfirmDialog extends StatelessWidget {
 
             Text(
               message,
-              textAlign: TextAlign.center,
+              textAlign: .center,
               style: typeScale.body.regular.style(
                 color: palette.text.secondary,
               ),

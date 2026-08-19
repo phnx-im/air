@@ -20,14 +20,10 @@ multiple-versions = "allow"
 [advisories]
 unsound = "all"
 ignore = [
-    { id = "RUSTSEC-2023-0071", reason = "no fix yet available; the crate is not used by us" },
-    { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
-    { id = "RUSTSEC-2026-0002", reason = "no fix yet available" },
-    { id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 pinned by third-party deps; no 0.8.x patch available" },
-    # <https://github.com/Smithay/wayland-rs/pull/938>
-    { id = "RUSTSEC-2026-0194", reason = "waiting for wayland-scanner to be updated and used upstream" },
-    { id = "RUSTSEC-2026-0195", reason = "waiting for wayland-scanner to be updated and used upstream" },
-    { id = "RUSTSEC-2026-0253", reason = "lru 0.16 pinned by aws-sdk-s3; no 0.16.x patch available" },
+    # rsa is used via jsonwebtoken for signing FCM auth JWTs, where no
+    # attacker-observable timing oracle is available
+    { id = "RUSTSEC-2023-0071", reason = "fix unreleased, rsa 0.10 is still in rc and jsonwebtoken pins 0.9" },
+    { id = "RUSTSEC-2026-0253", reason = "lru 0.16 pinned by aws-sdk-s3, no 0.16.x patch available" },
 ]
 
 [licenses]
@@ -72,10 +68,6 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    # unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
-    "https://github.com/openmls/openmls",
-    # temporary fork of openmls
-    "https://github.com/gferon/openmls",
     "https://github.com/RustCrypto/RSA",
     # includes an unreleased patch of ml-dsa
     "https://github.com/RustCrypto/signatures",

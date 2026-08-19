@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE as_batched_key\n            SET created_at = now() - make_interval(days => 91)\n            WHERE operation_type = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d064bacaac30e8d72dfe8e40889b68831d6f78199651180a0f2fc7155d5113d9"
+}

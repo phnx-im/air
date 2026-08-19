@@ -27,10 +27,7 @@ class MessageRowContainer extends StatelessWidget {
 
   final bool isConnectionChat;
 
-  /// Wraps the tile in [_AnimatedMessage] to play the entrance animation on
-  /// mount. Rebuilds within the same mount preserve the controller's progress;
-  /// flipping back to `false` (or never entering `true`) renders the tile
-  /// directly.
+  /// Whether the tile plays the entrance animation. Read once, on mount.
   final bool animated;
 
   /// The newest message in the chat.
@@ -124,22 +121,25 @@ class MessageRowContainer extends StatelessWidget {
       selected: false,
     );
 
-    return animated
-        ? _AnimatedMessage(
-            endsMessageGroup: endsMessageGroup,
-            isSender: isSender,
-            child: tile,
-          )
-        : tile;
+    return _AnimatedMessage(
+      animate: animated,
+      endsMessageGroup: endsMessageGroup,
+      isSender: isSender,
+      child: tile,
+    );
   }
 }
 
 class _AnimatedMessage extends StatefulWidget {
   const _AnimatedMessage({
+    required this.animate,
     required this.endsMessageGroup,
     required this.isSender,
     required this.child,
   });
+
+  /// Honored on mount only. See [MessageRowContainer.animated].
+  final bool animate;
 
   final bool endsMessageGroup;
   final bool isSender;
@@ -151,39 +151,42 @@ class _AnimatedMessage extends StatefulWidget {
 
 class _AnimatedMessageState extends State<_AnimatedMessage>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  AnimationController? _controller;
 
   @override
   void initState() {
     super.initState();
+    if (!widget.animate) return;
     _controller = AnimationController(
       vsync: this,
       duration: Effect.duration(MotionPreset.short),
-    );
-    _controller.forward();
+    )..forward();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) return widget.child;
+
     final reserve = widget.endsMessageGroup
         ? MessageMetaTokens.heightOf(context)
         : S.s0;
 
     final animation = CurvedAnimation(
-      parent: _controller,
+      parent: controller,
       curve: Effect.easeOutQuart,
     );
 
     return Container(
       constraints: BoxConstraints(minHeight: reserve),
       child: SizeTransition(
-        axis: Axis.vertical,
+        axis: .vertical,
         sizeFactor: animation,
         child: ScaleTransition(
           scale: animation,
