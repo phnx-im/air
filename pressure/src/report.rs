@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[derive(Default)]
 pub struct Report {
@@ -24,6 +24,21 @@ pub struct Report {
     /// recover a local group state matching the hub's.
     pub rejoins_converged: u64,
     pub rejoins_diverged: u64,
+    /// Commits the DS rejected because another commit reached the epoch
+    /// first. Expected whenever steps run concurrently: only one commit per
+    /// epoch can win, and coreclient parks the loser as a retryable job
+    /// rather than failing it. Counted apart from real op failures.
+    pub commit_races: u64,
+}
+
+/// Whether an operation failed only because it lost the race for an epoch.
+///
+/// Coreclient answers a `WrongEpoch` from the DS by marking the commit failed
+/// and returning `JobError::Blocked`, which reaches us as an opaque
+/// `anyhow::Error`. `JobError` is crate-private, so its message is the only
+/// thing left to match on.
+fn is_commit_race(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| cause.to_string() == "Blocked")
 }
 
 #[derive(Default, Clone, Copy)]
@@ -47,14 +62,32 @@ const WALK_OPS: &[(&str, &str)] = &[
 
 impl Report {
     pub fn record<T>(&mut self, op: &'static str, result: &anyhow::Result<T>) {
-        let outcome = self.outcomes.entry(op).or_default();
         match result {
-            Ok(_) => outcome.ok += 1,
+            Ok(_) => self.outcomes.entry(op).or_default().ok += 1,
+            Err(error) if is_commit_race(error) => {
+                self.commit_races += 1;
+                debug!(op, "commit lost the race for its epoch, will be retried");
+            }
             Err(error) => {
-                outcome.err += 1;
+                self.outcomes.entry(op).or_default().err += 1;
                 warn!(op, %error, "operation failed");
             }
         }
+    }
+
+    /// Folds a concurrent step's tallies into this one.
+    pub fn merge(&mut self, other: Report) {
+        for (op, outcome) in other.outcomes {
+            let entry = self.outcomes.entry(op).or_default();
+            entry.ok += outcome.ok;
+            entry.err += outcome.err;
+        }
+        self.divergences.extend(other.divergences);
+        self.qs_message_errors += other.qs_message_errors;
+        self.qs_messages_fetched += other.qs_messages_fetched;
+        self.rejoins_converged += other.rejoins_converged;
+        self.rejoins_diverged += other.rejoins_diverged;
+        self.commit_races += other.commit_races;
     }
 
     pub fn record_divergence(&mut self, message: String) {
@@ -102,8 +135,9 @@ impl Report {
         }
         let (_, err) = self.totals();
         format!(
-            "{} | err={err} qs_errs={} rejoin={}/{} div={}",
+            "{} | err={err} races={} qs_errs={} rejoin={}/{} div={}",
             parts.join(" "),
+            self.commit_races,
             self.qs_message_errors,
             self.rejoins_converged,
             self.rejoins_converged + self.rejoins_diverged,
@@ -124,6 +158,10 @@ impl Report {
             converged = self.rejoins_converged,
             diverged = self.rejoins_diverged,
             "rejoin tally"
+        );
+        info!(
+            commit_races = self.commit_races,
+            "commits that lost their epoch race"
         );
         info!(divergences = self.divergences.len(), "divergence tally");
     }

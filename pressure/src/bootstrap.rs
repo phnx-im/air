@@ -28,10 +28,6 @@ pub struct BootstrapParams<'a> {
     /// Peers each non-hub member connects to on top of the hub. Zero leaves
     /// the fleet a pure star, so only the hub can ever invite.
     pub contact_mesh_degree: usize,
-    /// Whether to finish by having every member drain and commit a key
-    /// update, so the walk starts from a fully converged, freshly rekeyed
-    /// group. Costs one commit per member plus the fan-out to process them.
-    pub full_update: bool,
     /// How many per-member operations may run at once.
     pub concurrency: usize,
 }
@@ -86,10 +82,7 @@ pub async fn run(
     };
 
     invite_everyone(fleet, chat_id, params.invite_batch_size, report, multi).await?;
-
-    if params.full_update {
-        full_update_sweep(fleet, chat_id, params.concurrency, report, multi).await;
-    }
+    catch_everyone_up(fleet, params.concurrency, report, multi).await;
 
     Ok(chat_id)
 }
@@ -253,47 +246,26 @@ async fn invite_everyone(
     Ok(())
 }
 
-/// Has every member consume what bootstrap produced and then commit a key
-/// update of its own, followed by a final consumption pass. The walk therefore
-/// starts from a group where everyone is at the same epoch and no leaf still
-/// holds the key material it joined with.
-async fn full_update_sweep(
+/// Has every member consume what bootstrap produced, so the walk starts from
+/// a group where everyone has processed their Welcome and reached the hub's
+/// epoch.
+///
+/// Only a drain. Rekeying every leaf up front is left to the walk, which does
+/// it continuously through its self-update step and the key update each target
+/// commits: paying for a commit per member here would buy nothing the first
+/// few rounds do not.
+///
+/// Safe to fan out because each task owns a distinct member, so no queue
+/// ratchet is touched twice.
+async fn catch_everyone_up(
     fleet: &Fleet,
-    chat_id: ChatId,
     concurrency: usize,
     report: &mut Report,
     multi: &MultiProgress,
 ) {
-    let bar = multi.add(ProgressBar::new((fleet.members.len() * 3) as u64));
-    bar.set_style(bar_style("full update sweep"));
+    let bar = multi.add(ProgressBar::new(fleet.members.len() as u64));
+    bar.set_style(bar_style("catching members up"));
 
-    // Catch everyone up on the invite batches first. This part is per-member
-    // work with nothing shared, so it fans out; it also leaves the drains in
-    // the sequential pass below with only one commit each to apply.
-    drain_everyone(fleet, concurrency, &bar, report).await;
-
-    // The commits themselves stay sequential: each member drains to the epoch
-    // its predecessor's commit created, so every update is staged from the
-    // current epoch and a rejection here is a real failure.
-    for member in &fleet.members {
-        let drain_result = ops::drain(&member.user).await;
-        report.record("bootstrap_drain", &drain_result);
-        if drain_result.is_ok() && ops::is_member(&member.user, chat_id).await {
-            let result = ops::update_key(&member.user, chat_id).await;
-            report.record("bootstrap_self_update", &result);
-        }
-        bar.inc(1);
-    }
-
-    // Everyone picks up the commits made after their own turn.
-    drain_everyone(fleet, concurrency, &bar, report).await;
-
-    bar.finish_with_message("full update sweep done");
-}
-
-/// Drains every member concurrently. Safe to fan out because each task owns a
-/// distinct member, so no queue ratchet is touched twice.
-async fn drain_everyone(fleet: &Fleet, concurrency: usize, bar: &ProgressBar, report: &mut Report) {
     let results = parallel::map(
         fleet.members.iter().map(|m| m.user.clone()).collect(),
         concurrency,
@@ -316,6 +288,7 @@ async fn drain_everyone(fleet: &Fleet, concurrency: usize, bar: &ProgressBar, re
             report.record_drain_outcome(outcome.fetched, outcome.message_errors);
         }
     }
+    bar.finish_with_message("members caught up");
 }
 
 async fn contact_ids(user: &CoreUser) -> anyhow::Result<HashSet<UserId>> {

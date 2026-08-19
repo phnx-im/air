@@ -17,7 +17,15 @@ mod report;
 mod verify;
 mod walk;
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use aircommon::identifiers::UserId;
 use clap::Parser;
@@ -67,22 +75,22 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     contact_mesh_degree: usize,
 
-    /// Skip the bootstrap pass where every member drains and commits a key
-    /// update. That pass costs one commit per member plus the fan-out to
-    /// process them, but starts the walk from a fully converged group.
-    #[arg(long)]
-    no_bootstrap_full_update: bool,
-
     /// Upper bound on how many targets a single walk operation takes.
     #[arg(long, default_value_t = 5)]
     max_targets: usize,
 
-    /// How many per-member operations to run at once. Only work that touches
-    /// distinct members is fanned out; commits to the group stay sequential.
-    /// Defaults to the number of cores. Lower it if the server rate-limits,
-    /// since the whole fleet shares one source IP.
+    /// How many per-member operations to run at once. Defaults to the number
+    /// of cores. Lower it if the server rate-limits, since the whole fleet
+    /// shares one source IP.
     #[arg(long)]
     concurrency: Option<usize>,
+
+    /// How many walk steps to run at once. Each step gets a disjoint slice of
+    /// the membership, so no member is ever driven by two steps, but their
+    /// commits do race for the epoch. Losing commits are counted as `races`
+    /// rather than failures. 1 runs the walk strictly sequentially.
+    #[arg(long, default_value_t = 4)]
+    concurrent_steps: usize,
 
     /// How long to run the random walk, in seconds. 0 runs until Ctrl-C.
     #[arg(long, default_value_t = 0)]
@@ -165,7 +173,6 @@ async fn main() -> anyhow::Result<()> {
         chat_title: &args.chat_title,
         invite_batch_size: args.invite_batch_size,
         contact_mesh_degree: args.contact_mesh_degree,
-        full_update: !args.no_bootstrap_full_update,
         concurrency,
     };
     let chat_id = bootstrap::run(&fleet, &bootstrap_params, &mut report, &multi).await?;
@@ -183,6 +190,10 @@ async fn main() -> anyhow::Result<()> {
         clients_by_id: &clients_by_id,
         max_targets: args.max_targets.max(1),
         concurrency,
+        concurrent_steps: args.concurrent_steps.max(1),
+        // Split between the steps in flight, so the two levels of fan-out
+        // together stay near the configured width rather than multiplying.
+        step_concurrency: (concurrency / args.concurrent_steps.max(1)).max(1),
     };
     let check_ctx = verify::CheckContext {
         hub,
@@ -204,8 +215,10 @@ async fn main() -> anyhow::Result<()> {
         (args.duration_secs > 0).then(|| start + Duration::from_secs(args.duration_secs));
 
     let walk_bar = multi.add(walk_progress_bar(&args));
+    let shutdown = watch_for_shutdown();
 
     let mut step_count: usize = 0;
+    let mut next_verify = args.verify_every.max(1);
     loop {
         if let Some(deadline) = deadline
             && tokio::time::Instant::now() >= deadline
@@ -213,14 +226,25 @@ async fn main() -> anyhow::Result<()> {
             break;
         }
 
-        tokio::select! {
-            _ = walk::step(&ctx, &mut rng, &mut state) => {}
-            _ = tokio::signal::ctrl_c() => {
-                info!("received Ctrl-C, stopping");
-                break;
-            }
+        if shutdown.load(Ordering::Relaxed) {
+            info!("stopping after the current round");
+            break;
         }
-        step_count += 1;
+
+        // Deliberately not raced against Ctrl-C. A drain is not
+        // cancellation-safe: dropping it partway leaves the group state
+        // advanced while the queue position is uncommitted, so the same
+        // messages are redelivered and replayed, and a replayed application
+        // message decrypts against a ratchet generation already consumed
+        // (`SecretTreeError(TooDistantInThePast)`). Letting the round finish
+        // is what keeps a killed run from leaving the fleet unusable.
+        let ran = walk::run_round(&ctx, &mut rng, &mut state).await;
+        if ran == 0 {
+            // Nothing to partition: the group is too small to drive. Give the
+            // hub a moment rather than spinning on it.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        step_count += ran;
         state.step = step_count;
 
         if deadline.is_some() {
@@ -234,7 +258,12 @@ async fn main() -> anyhow::Result<()> {
             state.report.summary_line()
         ));
 
-        if step_count.is_multiple_of(args.verify_every) {
+        // A threshold rather than an exact multiple: a round advances the
+        // count by however many steps it managed to run, so it can step over
+        // any given multiple. Verification runs between rounds, with nothing
+        // else in flight, so it sees a settled group.
+        if step_count >= next_verify {
+            next_verify = step_count + args.verify_every.max(1);
             run_verification(
                 &check_ctx,
                 &client_ids,
@@ -288,6 +317,33 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Watches for Ctrl-C, returning the flag the walk loop checks between rounds.
+///
+/// The first press asks for a clean stop, which takes effect once the round in
+/// flight has finished: aborting a round mid-drain is what leaves a member's
+/// group state ahead of its committed queue position, and the fleet is
+/// persisted, so the damage outlives the run. A second press gives up on that
+/// and exits immediately.
+fn watch_for_shutdown() -> Arc<AtomicBool> {
+    let shutdown = Arc::new(AtomicBool::new(false));
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            loop {
+                if tokio::signal::ctrl_c().await.is_err() {
+                    return;
+                }
+                if shutdown.swap(true, Ordering::Relaxed) {
+                    eprintln!("\nsecond Ctrl-C: exiting now, the fleet may be left mid-drain");
+                    std::process::exit(130);
+                }
+                eprintln!("\nCtrl-C: finishing the current round, press again to force");
+            }
+        }
+    });
+    shutdown
+}
+
 fn walk_progress_bar(args: &Args) -> ProgressBar {
     if args.duration_secs > 0 {
         let bar = ProgressBar::new(args.duration_secs);
@@ -333,12 +389,21 @@ async fn run_verification(
         })
         .collect();
 
-    let hub = ctx.hub.clone();
+    // Taken once, from here, so the concurrent checks below never drain the
+    // hub themselves.
     let chat_id = ctx.chat_id;
+    let view = match verify::hub_view(ctx.hub, chat_id).await {
+        Ok(view) => view,
+        Err(error) => {
+            report.record_divergence(format!("could not read the hub's view: {error}"));
+            return;
+        }
+    };
+
     let outcomes = parallel::map(sample, ctx.concurrency, move |(member_id, member)| {
-        let hub = hub.clone();
+        let view = view.clone();
         async move {
-            let outcome = verify::check_member(&hub, chat_id, &member, &member_id).await;
+            let outcome = verify::check_member(&view, chat_id, &member, &member_id).await;
             (member_id, outcome)
         }
     })

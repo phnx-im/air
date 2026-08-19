@@ -122,10 +122,14 @@ pub async fn check_pending(
     }
 
     let chat_id = ctx.chat_id;
-    let Some(hub_participants) = ctx.hub.chat_participants(chat_id).await else {
-        report.record_divergence("hub has no view of its own chat during rejoin check".to_owned());
-        return;
+    let view = match verify::hub_view(ctx.hub, chat_id).await {
+        Ok(view) => view,
+        Err(error) => {
+            report.record_divergence(format!("could not read the hub's view: {error}"));
+            return;
+        }
     };
+    let hub_participants = &view.participants;
 
     // Members the hub no longer lists never reached the group, so they are
     // resolved without a check. A later eviction cancels the pending check, so
@@ -154,11 +158,10 @@ pub async fn check_pending(
 
     // Each check drains its own member and only reads the hub, so the pending
     // set is checked concurrently.
-    let hub_for_checks = ctx.hub.clone();
     let outcomes = crate::parallel::map(to_check, ctx.concurrency, move |(member_id, member)| {
-        let hub = hub_for_checks.clone();
+        let view = view.clone();
         async move {
-            let outcome = verify::check_member(&hub, chat_id, &member, &member_id).await;
+            let outcome = verify::check_member(&view, chat_id, &member, &member_id).await;
             (member_id, outcome)
         }
     })
