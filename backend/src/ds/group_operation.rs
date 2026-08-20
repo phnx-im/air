@@ -7,7 +7,10 @@ use std::collections::{BTreeSet, HashSet};
 use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
+    group::{
+        ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
+        apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
+    },
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
@@ -37,7 +40,7 @@ use aircommon::{
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-    time::{Duration, TimeStamp},
+    time::TimeStamp,
     utils::removed_clients,
 };
 use tls_codec::DeserializeBytes;
@@ -48,10 +51,7 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
-use super::{
-    group_state::{MemberProfile, leaf_credential_matches_flag},
-    process::USER_EXPIRATION_DAYS,
-};
+use super::group_state::{MemberProfile, leaf_credential_matches_flag};
 
 use super::group_state::DsGroupState;
 
@@ -329,7 +329,7 @@ impl DsGroupState {
     }
 
     // TODO: Make into a sans-io-style state machine
-    pub(crate) async fn process_group_operation(
+    pub(super) async fn process_group_operation(
         &mut self,
         params: GroupOperationParams,
     ) -> Result<ProcessedGroupOperation, GroupOperationError> {
@@ -361,10 +361,9 @@ impl DsGroupState {
         // Now we have to update the group state and distribute.
 
         // We first accept the message into the group state ...
-        self.group.accept_processed_message(
+        let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         // Process removes
@@ -378,13 +377,8 @@ impl DsGroupState {
         #[cfg(debug_assertions)]
         self.check_member_profiles("t_commit");
 
-        // Record this epoch only when the commit added someone. Welcome info
-        // is served from the ratchet tree mls-assist retains, and it retains
-        // one only for epochs with potential joiners, so a snapshot for any
-        // other epoch could never be served.
-        if added_users_state.is_some() {
-            let epoch = self.group().epoch();
-            self.snapshot_member_profiles(epoch);
+        if let Some(retained) = retained_welcome_info {
+            self.stage_welcome_info(retained);
         }
 
         // Process resync operations
@@ -409,7 +403,7 @@ impl DsGroupState {
     }
 
     /// Returns (serialized message, T added users state, PQ welcome info)
-    pub(crate) fn process_apq_group_operation(
+    pub(super) fn process_apq_group_operation(
         t_group_state: &mut DsGroupState,
         pq_group_state: &mut DsGroupState,
         t_message: AssistedMessageIn,
@@ -495,12 +489,14 @@ impl DsGroupState {
         // Now we have to update the group state and distribute.
 
         // We first accept the message into the group state ...
-        ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+        let ApqRetainedWelcomeInfo {
+            t: t_retained,
+            pq: pq_retained,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .accept_apq_processed_message(
                 t_group_state.provider.storage(),
                 pq_group_state.provider.storage(),
                 processed_assisted_message,
-                Duration::days(USER_EXPIRATION_DAYS),
             )?;
 
         // Process removes
@@ -514,9 +510,13 @@ impl DsGroupState {
         #[cfg(debug_assertions)]
         t_group_state.check_member_profiles("apq_commit");
 
-        if t_add_users_state.is_some() {
-            let epoch = t_group_state.group().epoch();
-            t_group_state.snapshot_member_profiles(epoch);
+        // TODO: check if it's possible that t is Some and pq is None
+        // or other way around, if it's guaranteed, enforce this.
+        if let Some(retained) = t_retained {
+            t_group_state.stage_welcome_info(retained);
+        }
+        if let Some(retained) = pq_retained {
+            pq_group_state.stage_welcome_info(retained);
         }
 
         // Process resync operations
@@ -542,7 +542,7 @@ impl DsGroupState {
         })
     }
 
-    pub(crate) async fn group_operation(
+    pub(super) async fn group_operation(
         &mut self,
         params: GroupOperationParams,
         group_state_ear_key: &GroupStateEarKey,

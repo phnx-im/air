@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::LeafCredential,
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
-    time::{Duration, TimeStamp},
+    time::TimeStamp,
 };
 use mls_assist::{
     group::ProcessedAssistedMessage, messages::SerializedMlsMessage,
@@ -15,10 +15,7 @@ use tls_codec::DeserializeBytes;
 
 use crate::errors::JoinConnectionGroupError;
 
-use super::{
-    group_state::{DsGroupState, MemberProfile, leaf_credential_matches_flag},
-    process::USER_EXPIRATION_DAYS,
-};
+use super::group_state::{DsGroupState, MemberProfile, leaf_credential_matches_flag};
 
 impl DsGroupState {
     pub(super) fn join_connection_group(
@@ -109,7 +106,6 @@ impl DsGroupState {
         self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         // Let's figure out the leaf index of the new member.

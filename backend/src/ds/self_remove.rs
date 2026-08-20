@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::group_state::DsGroupState;
-use super::process::USER_EXPIRATION_DAYS;
 use crate::errors::ClientSelfRemovalError;
-use aircommon::{credentials::LeafCredential, time::Duration};
+use aircommon::credentials::LeafCredential;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
@@ -85,7 +84,6 @@ impl DsGroupState {
         self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         let serialized_mls_message = processed_assisted_message_plus.serialized_mls_message;

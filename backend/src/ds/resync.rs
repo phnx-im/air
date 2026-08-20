@@ -4,7 +4,7 @@
 
 use aircommon::{
     credentials::LeafCredential, identifiers::QsReference,
-    mls_group_config::leaf_node_is_virtual_client, time::Duration, utils::removed_clients,
+    mls_group_config::leaf_node_is_virtual_client, utils::removed_clients,
 };
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
@@ -22,7 +22,6 @@ use tracing::error;
 use crate::errors::ResyncClientError;
 
 use super::group_state::{DsGroupState, leaf_credential_matches_flag};
-use super::process::USER_EXPIRATION_DAYS;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
@@ -179,7 +178,6 @@ impl DsGroupState {
         self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         self.remove_profiles(removed_indices);
@@ -346,7 +344,6 @@ impl DsGroupState {
                 t_group_state.provider.storage(),
                 pq_group_state.provider.storage(),
                 processed_assisted_message_plus.processed_assisted_message,
-                Duration::days(USER_EXPIRATION_DAYS),
             )?;
 
         t_group_state.remove_profiles(t_removed_indices);
