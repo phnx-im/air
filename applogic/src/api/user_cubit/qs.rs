@@ -11,7 +11,8 @@ use aircoreclient::clients::{
 use flutter_rust_bridge::frb;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tonic::Code;
+use tracing::{error, warn};
 
 use crate::{
     api::user::User,
@@ -100,7 +101,15 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
         // Reconnecting is up to the background stream task.
         Ok(stream.map_while(|result| {
             result
-                .inspect_err(|error| error!(%error, "qs listen stream closed"))
+                .inspect_err(|error| {
+                    match error.code() {
+                        // Server shut down or stream was evicted
+                        Code::Unavailable | Code::Aborted => {
+                            warn!(%error, "qs listen stream closed");
+                        }
+                        _ => error!(%error, "qs listen stream closed"),
+                    }
+                })
                 .ok()
         }))
     }
