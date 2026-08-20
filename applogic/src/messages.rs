@@ -68,15 +68,17 @@ impl User {
             error!(%dropped, "failed to fully process messages");
         }
 
-        if let Some(max_sequence_number) = max_sequence_number {
+        match max_sequence_number {
             // We received some messages, so we can ack them *after* they were fully
             // processed. In particular, the queue ratchet sequence number was written back
             // into the database.
-            responder.ack(max_sequence_number + 1).await;
-        }
-        if drained {
-            // half-close the request stream, then wait for the server to apply the ack
-            responder.close(&mut stream).await;
+            Some(n) if drained => {
+                responder.ack(n + 1).await;
+                // half-close the request stream, then wait for the server to apply the ack
+                responder.close(&mut stream).await;
+            }
+            Some(n) => responder.ack(n + 1).await,
+            None => {}
         }
 
         self.user.outbound_service().run_once().await;

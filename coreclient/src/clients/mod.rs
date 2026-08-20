@@ -465,7 +465,7 @@ impl CoreUser {
         Self::drain_username_messages(self, async |record, responder, message| {
             let Some(message_id) = message.message_id else {
                 error!("no message id in username queue message");
-                return;
+                return false;
             };
             match self
                 .process_username_queue_message(record.username.clone(), message)
@@ -480,6 +480,7 @@ impl CoreUser {
             }
             // ack the message independently of the result of processing the message
             responder.ack(message_id.into()).await;
+            true
         })
         .await?;
         Ok(chat_ids)
@@ -493,11 +494,12 @@ impl CoreUser {
         Self::drain_username_messages(self, async |_record, responder, message| {
             let Some(message_id) = message.message_id else {
                 error!("no message id in username queue message");
-                return;
+                return false;
             };
             // ack the message independently of the result of processing the message
             responder.ack(message_id.into()).await;
             messages.push(message);
+            true
         })
         .await?;
         Ok(messages)
@@ -509,19 +511,24 @@ impl CoreUser {
             &UsernameRecord,
             &AsListenUsernameResponder,
             UsernameQueueMessage,
-        ),
+        ) -> bool,
     ) -> Result<()> {
         let records = self.username_records().await?;
         let api_client = self.api_client()?;
 
         for record in records {
+            let mut acked_anything = false;
             let (mut stream, responder) = api_client
                 .as_listen_username(record.hash, &record.signing_key)
                 .await?;
             let drained = loop {
                 match stream.next().await {
                     // Incoming message
-                    Some(Ok(Some(message))) => on_message(&record, &responder, message).await,
+                    Some(Ok(Some(message))) => {
+                        if on_message(&record, &responder, message).await {
+                            acked_anything = true;
+                        }
+                    }
                     // Queue empty marker => drain done, confirm acks below
                     Some(Ok(None)) => break true,
                     // Terminal status => stream is over, ack not confirmed
@@ -533,11 +540,10 @@ impl CoreUser {
                     None => break false,
                 }
             };
-            if !drained {
-                continue;
+            if drained && acked_anything {
+                // half-close the request stream, then wait for the server to apply all acks
+                responder.close(&mut stream).await;
             }
-            // half-close the request stream, then wait for the server to apply all acks
-            responder.close(&mut stream).await;
         }
         Ok(())
     }
