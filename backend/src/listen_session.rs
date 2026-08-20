@@ -79,7 +79,7 @@ where
                             if !status.is_client_disconnect() {
                                 error!(%status, %name, "listen request stream failed");
                             }
-                            let _ = out_tx.send(Err(status));
+                            let _ = out_tx.send(Err(status)).await;
                             return;
                         }
                         // The client half-closed the request stream. All requests sent before are

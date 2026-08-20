@@ -38,21 +38,20 @@ pub(crate) async fn await_close_confirmation<T>(
     stream: &mut (impl Stream<Item = Result<T, Status>> + Unpin),
 ) {
     const CLOSE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
-    loop {
-        match timeout(CLOSE_CONFIRMATION_TIMEOUT, stream.next()).await {
-            // Late response => ignored, the server owes us nothing here
-            Ok(Some(Ok(_))) => continue,
-            Ok(Some(Err(error))) => {
-                warn!(%error, "listen stream did not close with OK");
-                break;
-            }
-            // OK trailers => all sent requests were processed
-            Ok(None) => break,
-            Err(_elapsed) => {
-                warn!("timeout waiting for listen stream to close");
-                break;
+    let drain = async {
+        while let Some(item) = stream.next().await {
+            match item {
+                // Late response => ignored, the server owes us nothing here
+                Ok(_) => continue,
+                Err(error) => {
+                    warn!(%error, "listen stream did not close with OK");
+                    break;
+                }
             }
         }
+    };
+    if timeout(CLOSE_CONFIRMATION_TIMEOUT, drain).await.is_err() {
+        warn!("timeout waiting for listen stream to close");
     }
 }
 
