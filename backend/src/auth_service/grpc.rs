@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, io};
+use std::fmt;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -32,7 +32,6 @@ use aircommon::{
             StageUserProfileParamsTbs,
         },
     },
-    utils::CancellableStream,
 };
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
@@ -42,8 +41,8 @@ use prost::Message;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_stream::{StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request, Response, Status, Streaming, async_trait};
+use tokio_stream::StreamExt;
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, warn};
 
 use crate::{
@@ -53,7 +52,7 @@ use crate::{
         usernames::ConnectUsernameProtocol,
     },
     errors::auth_service::RedeemTokenError,
-    util::{find_cause, select_until_first_ends},
+    listen_session::{ListenRequestHandler, spawn_listen_session},
 };
 
 use super::{
@@ -140,44 +139,6 @@ impl GrpcAs {
             }
             SignatureVerificationError::LibraryError(_) => Status::internal("unrecoverable error"),
         })
-    }
-
-    async fn process_listen_username_requests_task(
-        queues: UsernameQueues,
-        mut requests: Streaming<ListenUsernameRequest>,
-        responses_tx: mpsc::Sender<Status>,
-    ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_username_request(&queues, request).await {
-                if let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error to the client, but don't stop processing requests.
-                    error!(%error, "error processing listen handle request");
-                    let _ = responses_tx.send(error).await;
-                }
-            }
-        }
-    }
-
-    async fn process_listen_username_request(
-        queues: &UsernameQueues,
-        request: Result<ListenUsernameRequest, Status>,
-    ) -> Result<(), Status> {
-        let request = request?;
-        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
-            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
-        };
-        let Some(message_id) = ack_request.message_id else {
-            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
-        };
-        queues.ack(message_id.into()).await?;
-        Ok(())
     }
 
     fn verify_client_version(
@@ -751,26 +712,36 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
 
         let messages = self.inner.username_queues.listen(hash).await?;
+        let messages = messages.map(|message| ListenUsernameResponse { message });
 
-        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (requests_responses_tx, requests_responses_rx) =
-            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
-
-        tokio::spawn(self.inner.stop.clone().run_until_cancelled_owned(
-            Self::process_listen_username_requests_task(
-                self.inner.username_queues.clone(),
-                requests,
-                requests_responses_tx,
-            ),
-        ));
-
-        let responses = select_until_first_ends(
-            CancellableStream::new(messages, self.inner.stop.clone())
-                .map(|message| Ok(ListenUsernameResponse { message })),
-            ReceiverStream::new(requests_responses_rx).map(Err),
+        let handler = UsernameSessionHandler {
+            queues: self.inner.username_queues.clone(),
+        };
+        let responses = spawn_listen_session(
+            requests,
+            messages,
+            self.inner.stop.clone(),
+            handler,
+            "username",
         );
+        Ok(Response::new(responses))
+    }
+}
 
-        Ok(Response::new(Box::pin(responses)))
+struct UsernameSessionHandler {
+    queues: UsernameQueues,
+}
+
+impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
+    async fn handle(&mut self, request: ListenUsernameRequest) -> Result<(), Status> {
+        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
+            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
+        };
+        let Some(message_id) = ack_request.message_id else {
+            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
+        };
+        self.queues.ack(message_id.into()).await?;
+        Ok(())
     }
 }
 

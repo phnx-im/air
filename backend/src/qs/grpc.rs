@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{io, pin::Pin};
+use std::pin::Pin;
 
 use airprotos::{
     common::v1::ClientMetadata,
@@ -19,22 +19,19 @@ use aircommon::{
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
     time::TimeStamp,
-    utils::CancellableStream,
     virtual_client::KeyPackageBatchId,
 };
 use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
 use semver::Version;
-use tokio::sync::mpsc;
-use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request, Response, Status, Streaming, async_trait};
+use tokio_stream::{Stream, StreamExt};
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
-    errors::QueueError,
+    listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
-    util::{find_cause, select_until_first_ends},
 };
 
 /// Maximum number of key packages per batch to upload in one request.
@@ -49,56 +46,6 @@ pub struct GrpcQs {
 impl GrpcQs {
     pub fn new(qs: Qs) -> Self {
         Self { qs }
-    }
-
-    async fn process_listen_queue_requests_task(
-        queues: Queues,
-        queue_id: identifiers::QsClientId,
-        mut requests: Streaming<ListenRequest>,
-        requests_responses_tx: mpsc::Sender<Status>,
-    ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_queue_request(&queues, queue_id, request).await
-            {
-                if let ProcessListenQueueRequestError::Status(error) = &error
-                    && let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error to the client, but don't stop processing requests.
-                    error!(%error, "error processing listen queue request");
-                    let _ = requests_responses_tx.send(Status::from(error)).await;
-                }
-            }
-        }
-    }
-
-    async fn process_listen_queue_request(
-        queues: &Queues,
-        queue_id: identifiers::QsClientId,
-        request: Result<ListenRequest, Status>,
-    ) -> Result<(), ProcessListenQueueRequestError> {
-        match request?.request {
-            Some(listen_request::Request::Ack(AckListenRequest {
-                up_to_sequence_number,
-            })) => {
-                queues.ack(queue_id, up_to_sequence_number).await?;
-            }
-            Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
-                queues.trigger_fetch(queue_id).await?;
-            }
-            Some(listen_request::Request::Init(_)) => {
-                return Err(ProcessListenQueueRequestError::UnexpectedInitRequest);
-            }
-            None => {
-                return Err(ProcessListenQueueRequestError::EmptyRequest);
-            }
-        }
-        Ok(())
     }
 
     async fn update_client_activity_and_report_metrics(
@@ -122,12 +69,8 @@ impl GrpcQs {
 
 #[derive(Debug, thiserror::Error, Display)]
 enum ProcessListenQueueRequestError {
-    /// {0}
-    Queue(#[from] QueueError),
     /// Unexpected init request
     UnexpectedInitRequest,
-    /// {0}
-    Status(#[from] Status),
     /// Received empty request
     EmptyRequest,
 }
@@ -135,10 +78,6 @@ enum ProcessListenQueueRequestError {
 impl From<ProcessListenQueueRequestError> for Status {
     fn from(error: ProcessListenQueueRequestError) -> Self {
         match error {
-            ProcessListenQueueRequestError::Queue(_)
-            | ProcessListenQueueRequestError::Status(_) => {
-                Status::internal("Failed to process listen queue request")
-            }
             ProcessListenQueueRequestError::UnexpectedInitRequest
             | ProcessListenQueueRequestError::EmptyRequest => {
                 Status::invalid_argument(error.to_string())
@@ -571,25 +510,41 @@ impl QueueService for GrpcQs {
             })
             .ok();
 
-        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (requests_responses_tx, requests_responses_rx) =
-            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
+        let handler = QueueSessionHandler {
+            queues: self.qs.queues.clone(),
+            client_id,
+        };
+        let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
+        Ok(Response::new(responses))
+    }
+}
 
-        tokio::spawn(self.qs.stop.clone().run_until_cancelled_owned(
-            Self::process_listen_queue_requests_task(
-                self.qs.queues.clone(),
-                client_id,
-                requests,
-                requests_responses_tx,
-            ),
-        ));
+struct QueueSessionHandler {
+    queues: Queues,
+    client_id: identifiers::QsClientId,
+}
 
-        let responses = select_until_first_ends(
-            CancellableStream::new(events, self.qs.stop.clone()).map(Ok),
-            ReceiverStream::new(requests_responses_rx).map(Err),
-        );
-
-        Ok(Response::new(Box::pin(responses)))
+impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
+    async fn handle(&mut self, request: ListenRequest) -> Result<(), Status> {
+        match request.request {
+            Some(listen_request::Request::Ack(AckListenRequest {
+                up_to_sequence_number,
+            })) => {
+                self.queues
+                    .ack(self.client_id, up_to_sequence_number)
+                    .await?;
+            }
+            Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
+                self.queues.trigger_fetch(self.client_id).await?;
+            }
+            Some(listen_request::Request::Init(_)) => {
+                return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());
+            }
+            None => {
+                return Err(ProcessListenQueueRequestError::EmptyRequest.into());
+            }
+        }
+        Ok(())
     }
 }
 
