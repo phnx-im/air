@@ -758,7 +758,7 @@ impl TestBackend {
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
         sender
-            .send_message(chat_id, orig_message.clone(), None)
+            .send_message(chat_id, orig_message.clone(), None, MarkChatAsRead::Yes)
             .await
             .unwrap();
         sender.outbound_service().run_once().await;
@@ -859,7 +859,12 @@ impl TestBackend {
 
         test_sender
             .user
-            .send_message(chat_id, orig_message.clone(), Some(last_message.clone()))
+            .send_message(
+                chat_id,
+                orig_message.clone(),
+                Some(last_message.clone()),
+                MarkChatAsRead::Yes,
+            )
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
@@ -1001,7 +1006,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let (_local_attachment_id, _progress, upload_task) = sender
-            .upload_chat_attachment(chat_id, &path)
+            .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
             .await
             .expect("fatal error")?;
 

@@ -42,7 +42,7 @@ use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl,
     Chat, ChatId, ChatMessage, MessageId,
     clients::{
-        CoreUser,
+        CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
@@ -105,6 +105,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
+        mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<
         Result<
             (
@@ -162,7 +163,13 @@ impl CoreUser {
             async |txn| -> anyhow::Result<ChatMessage> {
                 let message_id = MessageId::random();
                 let message = self
-                    .send_message_transactional(&mut *txn, chat_id, message_id, content)
+                    .send_message_transactional(
+                        &mut *txn,
+                        chat_id,
+                        message_id,
+                        content,
+                        mark_as_read,
+                    )
                     .await?;
 
                 // store attachment locally
