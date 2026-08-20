@@ -6,6 +6,7 @@ import 'package:air/app.dart';
 import 'package:air/core/frb_generated.dart' show RustLib;
 import 'package:air/platform/logging.dart';
 import 'package:air/platform/method_channel.dart';
+import 'package:air/share/share.dart' as share;
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:path/path.dart' as p;
@@ -45,3 +46,11 @@ UuidValue? _clientRecordIdArg(List<String> args) {
   }
   return null;
 }
+
+/// Entrypoint of the share UI, hosted by the iOS share extension.
+///
+/// Lives here because the compiler only includes libraries reachable from
+/// `main.dart`. Defining it only in the share module would leave it out of
+/// the compiled program.
+@pragma('vm:entry-point')
+void shareMain() => share.shareMain();
