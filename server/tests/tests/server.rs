@@ -256,9 +256,8 @@ async fn max_past_epochs() {
 
     let contact_chat_id = setup.connect_users(&alice, &bob).await;
 
-    // To test proper handling of application messages from past epochs, we have
-    // Alice locally create updates without sending them to the server. Bob can then
-    // send messages based on his (old) epoch for Alice to process.
+    // Alice create updates while Bob never drains his queue.
+    // Bob keeps sending messages based on his (old) epoch for Alice to process.
 
     // Create MAX_PAST_EPOCHS updates and send a message from Bob to Alice after
     // each update.
@@ -270,13 +269,17 @@ async fn max_past_epochs() {
         );
     }
 
-    // Repeat one more time, this time we expect an error
+    // The group is now more than MAX_PAST_EPOCHS ahead of
+    // Bob, so the DS rejects his ciphertext. Alice has nothing to process.
     let result = update_and_send_message(&mut setup, contact_chat_id, &alice, &bob).await;
-    let error = &result.errors[0].to_string();
-    assert_eq!(
-        error.to_string(),
-        "Could not process message: ValidationError(UnableToDecrypt(SecretTreeError(TooDistantInThePast)))".to_string(),
-        "Alice should fail to process Bob's message with a TooDistantInThePast error"
+    assert!(
+        result.errors.is_empty(),
+        "the DS should have rejected Bob's stale message, not delivered it: {:?}",
+        result.errors
+    );
+    assert!(
+        result.new_messages.is_empty(),
+        "Alice should not receive a message encrypted outside the decryptable window"
     );
 }
 
