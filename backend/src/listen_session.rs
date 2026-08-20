@@ -114,11 +114,13 @@ where
                     }
                 }
                 Event::Evicted => {
-                    let _ = out_tx.send(Err(Status::aborted("evicted")));
+                    let _ = out_tx.send(Err(Status::aborted("evicted"))).await;
                     return;
                 }
                 Event::Aborted => {
-                    let _ = out_tx.send(Err(Status::unavailable("server stopped")));
+                    let _ = out_tx
+                        .send(Err(Status::unavailable("server stopped")))
+                        .await;
                     return;
                 }
             }
