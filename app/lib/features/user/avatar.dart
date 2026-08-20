@@ -51,6 +51,28 @@ class ChatAvatar extends StatelessWidget {
       return details;
     });
 
+    return ChatDetailsAvatar(chat: chat, size: size, onPressed: onPressed);
+  }
+}
+
+/// Same as [ChatAvatar], but takes the chat details directly instead of
+/// reading them from a [ChatDetailsCubit].
+class ChatDetailsAvatar extends StatelessWidget {
+  const ChatDetailsAvatar({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails? chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = this.chat;
+
     final showImage = switch (chat?.chatType) {
       UiChatType_Connection() || UiChatType_Group() => true,
       _ => false,

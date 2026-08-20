@@ -9,7 +9,7 @@ use aircommon::{assert_matches, identifiers::Username};
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile,
-    clients::{CoreUser, store::ClientRecord},
+    clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
@@ -224,7 +224,9 @@ async fn blocked_contact() {
 
     // Not possible to send a message to Bob
     let msg = MimiContent::simple_markdown_message("Hello".into(), [0; 16]);
-    let res = alice_user.send_message(chat_id, msg.clone(), None).await;
+    let res = alice_user
+        .send_message(chat_id, msg.clone(), None, MarkChatAsRead::Yes)
+        .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
     assert_eq!(bob_test_user.fetch_and_process_qs_messages().await, 0);
@@ -256,7 +258,10 @@ async fn blocked_contact() {
     assert!(res.is_empty(), "message is dropped");
 
     // Messages from bob are dropped
-    bob_user.send_message(chat_id, msg, None).await.unwrap();
+    bob_user
+        .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
     bob_test_user.user.outbound_service().run_once().await;
     // We get the message but it is dropped
     let messages = alice_test_user.user.qs_fetch_messages().await.unwrap();
@@ -556,6 +561,7 @@ async fn add_contact_and_change_profile() {
             alice_bob_chat_id,
             MimiContent::simple_markdown_message("hello".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();

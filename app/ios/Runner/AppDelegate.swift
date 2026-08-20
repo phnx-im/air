@@ -1,4 +1,5 @@
 import Flutter
+import Intents
 import UIKit
 
 private let kProtectedBlockedCategory = "protected-blocked"
@@ -272,11 +273,80 @@ private let kStoreNotificationsPendingName =
             result(nil)
         } else if call.method == "requestNotificationPermission" {
             requestNotificationPermission(result: result)
+        } else if call.method == "donateShareTarget" {
+            donateShareTarget(call: call, result: result)
+        } else if call.method == "clearShareTargets" {
+            INInteraction.deleteAll { error in
+                if let error {
+                    NSLog("Failed to delete intent donations: \(error)")
+                }
+            }
+            result(nil)
         } else {
             NSLog("Unknown method called: \(call.method)")
             result(FlutterMethodNotImplemented)
         }
 
+    }
+
+    // Donates an INSendMessageIntent for the chat so it appears as a direct
+    // target in the system share sheet (handled by the share extension).
+    private func donateShareTarget(
+        call: FlutterMethodCall, result: @escaping FlutterResult
+    ) {
+        // The INSendMessageIntent initializer used here requires iOS 14.
+        // Older versions donate no share targets.
+        guard #available(iOS 14.0, *) else {
+            result(nil)
+            return
+        }
+        guard let args = call.arguments as? [String: Any],
+            let chatId = args["chatId"] as? String,
+            let title = args["title"] as? String
+        else {
+            result(
+                FlutterError(
+                    code: "INVALID_ARGUMENTS",
+                    message: "chatId or title not provided",
+                    details: nil
+                ))
+            return
+        }
+        let isGroup = args["isGroup"] as? Bool ?? false
+        let pictureData = (args["picture"] as? FlutterStandardTypedData)?.data
+        let image = pictureData.map { INImage(imageData: $0) }
+
+        let recipient = INPerson(
+            personHandle: INPersonHandle(value: chatId, type: .unknown),
+            nameComponents: nil,
+            displayName: title,
+            image: image,
+            contactIdentifier: nil,
+            customIdentifier: chatId
+        )
+        let intent = INSendMessageIntent(
+            recipients: [recipient],
+            outgoingMessageType: .outgoingMessageText,
+            content: nil,
+            speakableGroupName: isGroup
+                ? INSpeakableString(spokenPhrase: title) : nil,
+            conversationIdentifier: chatId,
+            serviceName: nil,
+            sender: nil,
+            attachments: nil
+        )
+        if isGroup, let image {
+            intent.setImage(image, forParameterNamed: \.speakableGroupName)
+        }
+
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .outgoing
+        interaction.donate { error in
+            if let error {
+                NSLog("Failed to donate share target intent: \(error)")
+            }
+        }
+        result(nil)
     }
 
     // Get device token

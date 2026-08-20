@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::anyhow;
+use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -348,6 +349,7 @@ impl OutboundServiceContext {
             .ok();
 
         // post-processing:
+        let enqueued_at: DateTime<Utc> = message.timestamp();
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // A message that replaced an earlier one keeps that one's place
@@ -367,8 +369,17 @@ impl OutboundServiceContext {
                 }
                 message.update(&mut *txn).await?;
 
-                // Mark message as read, but only if it's not a deletion.
-                if message.status() != MessageStatus::Deleted {
+                // Advance the last-read marker to the DS timestamp, but only
+                // if the message was already marked as read when it was
+                // enqueued. A send that left the marker untouched (e.g. from
+                // the share extension) must not move it here either.
+                // Deletions never move it.
+                let last_read = Chat::load_watermark(&mut *txn, message.chat_id())
+                    .await?
+                    .map(|(last_read, _)| last_read);
+                if message.status() != MessageStatus::Deleted
+                    && last_read.is_some_and(|last_read| last_read >= enqueued_at)
+                {
                     Chat::mark_as_read_until_message_id(
                         txn,
                         message.chat_id(),

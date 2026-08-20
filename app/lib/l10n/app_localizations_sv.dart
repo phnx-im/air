@@ -1332,4 +1332,83 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
+
+  @override
+  String get shareScreen_title => 'Dela till Air';
+
+  @override
+  String get shareScreen_searchHint => 'Sök';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Till: $first, $second och $third',
+      two: 'Till: $first och $second',
+      one: 'Till: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Till: $first, $second och $rest till';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Lägg till ett meddelande';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Logga in i Air först för att dela innehåll.';
+
+  @override
+  String get shareScreen_noChats => 'Inga chattar hittades.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Laddar upp $current av $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Skickar…';
+
+  @override
+  String get shareScreen_queued =>
+      'Det gick inte att skicka just nu. Ditt meddelande är sparat och skickas nästa gång du öppnar Air.';
+
+  @override
+  String get shareScreen_done => 'Klar';
+
+  @override
+  String get shareScreen_sendFailed => 'Det gick inte att skicka. Försök igen.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'För många filer. Du kan dela upp till $max filer åt gången.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count objekt kunde inte delas.',
+      one: '$count objekt kunde inte delas.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Det här innehållet kunde inte delas till Air.';
+
+  @override
+  String get shareScreen_close => 'Stäng';
 }

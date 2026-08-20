@@ -379,5 +379,22 @@
   "messageList_reactions_all": "Alla · {total}",
   "emojiPicker_searchHint": "Sök emoji",
   "emojiPicker_empty": "Inga emojier hittades",
-  "emojiPicker_skinToneHelp": "Anger din standardhudton"
+  "emojiPicker_skinToneHelp": "Anger din standardhudton",
+
+  "shareScreen_title": "Dela till Air",
+  "shareScreen_searchHint": "Sök",
+  "shareScreen_recipients": "{count, plural, =1 {Till: {first}} =2 {Till: {first} och {second}} other {Till: {first}, {second} och {third}}}",
+  "shareScreen_recipientsMore": "Till: {first}, {second} och {rest} till",
+  "shareScreen_captionHint": "Lägg till ett meddelande",
+  "shareScreen_signedOutMessage": "Logga in i Air först för att dela innehåll.",
+  "shareScreen_noChats": "Inga chattar hittades.",
+  "shareScreen_uploading": "Laddar upp {current} av {total}…",
+  "shareScreen_sending": "Skickar…",
+  "shareScreen_queued": "Det gick inte att skicka just nu. Ditt meddelande är sparat och skickas nästa gång du öppnar Air.",
+  "shareScreen_done": "Klar",
+  "shareScreen_sendFailed": "Det gick inte att skicka. Försök igen.",
+  "shareScreen_tooManyAttachments": "För många filer. Du kan dela upp till {max} filer åt gången.",
+  "shareScreen_droppedItems": "{count, plural, one {{count} objekt kunde inte delas.} other {{count} objekt kunde inte delas.}}",
+  "shareScreen_nothingToShare": "Det här innehållet kunde inte delas till Air.",
+  "shareScreen_close": "Stäng"
 }

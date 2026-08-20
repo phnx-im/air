@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use aircoreclient::{
-    ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting, clients::CoreUser,
+    ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting,
+    clients::{CoreUser, MarkChatAsRead},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use indexmap::indexmap;
@@ -302,7 +303,7 @@ async fn retrieve_chat_messages() {
             .collect();
         let message_content = MimiContent::simple_markdown_message(message, [0; 16]); // simple seed for testing
         let message = alice_user
-            .send_message(chat_id, message_content, None)
+            .send_message(chat_id, message_content, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
         messages_sent.push(message);
@@ -346,7 +347,7 @@ async fn mark_as_read() {
                 .collect();
             let message_content = MimiContent::simple_markdown_message(message, [0; 16]); // simple seed for testing
             let message = user
-                .send_message(chat_id, message_content, None)
+                .send_message(chat_id, message_content, None, MarkChatAsRead::Yes)
                 .await
                 .unwrap();
             messages_sent.push(message);
@@ -463,6 +464,7 @@ async fn read_receipts_setting() {
                 chat_id,
                 MimiContent::simple_markdown_message(message.into(), [0; 16]),
                 None,
+                MarkChatAsRead::Yes,
             )
             .await
             .unwrap();
@@ -644,7 +646,7 @@ async fn delete_message_preserves_other_messages() {
     for content in &contents {
         let message_content = MimiContent::simple_markdown_message(content.to_string(), [0; 16]);
         alice_user
-            .send_message(chat_id, message_content, None)
+            .send_message(chat_id, message_content, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
@@ -829,7 +831,7 @@ async fn message_sending_failures() {
     // Send three messages
     for _ in 0..3 {
         alice_user
-            .send_message(chat_id, content.clone(), None)
+            .send_message(chat_id, content.clone(), None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
@@ -863,7 +865,7 @@ async fn recoverable_send_failure_is_retried() {
     const TEXT: &str = "retried after a transient failure";
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
     let message = alice_user
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     assert!(
@@ -914,7 +916,7 @@ async fn lost_response_is_retried_and_deduplicated() {
     const TEXT: &str = "delivered twice, stored once";
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [12u8; 16]);
     let message = alice_user
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
 
@@ -970,6 +972,7 @@ async fn fatal_send_failure_fails_only_that_message() {
             chat_id,
             MimiContent::simple_markdown_message(DOOMED_TEXT.to_owned(), [13u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -981,6 +984,7 @@ async fn fatal_send_failure_fails_only_that_message() {
             chat_id,
             MimiContent::simple_markdown_message(HEALTHY_TEXT.to_owned(), [14u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1066,6 +1070,7 @@ async fn sending_commits_pending_proposals() {
             chat_id,
             MimiContent::simple_markdown_message(TEXT.to_owned(), [15u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1437,12 +1442,12 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
     let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
 
     alice_user
-        .send_message(chat_id, content.clone(), None)
+        .send_message(chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .expect("send from alice should succeed");
 
     bob_user
-        .send_message(chat_id, content.clone(), None)
+        .send_message(chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .expect("send from bob should succeed");
 }
