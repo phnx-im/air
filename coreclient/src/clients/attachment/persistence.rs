@@ -6,7 +6,10 @@ use std::collections::HashMap;
 
 use aircommon::identifiers::RemoteAttachmentId;
 use chrono::{DateTime, Utc};
-use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+use mimi_content::{
+    MessageStatus,
+    content_container::{EncryptionAlgorithm, HashAlgorithm},
+};
 use sqlx::{
     Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as,
     query_scalar,
@@ -17,6 +20,13 @@ use crate::{
     AttachmentId, ChatId, MessageId,
     db::access::{ReadConnection, WriteConnection},
 };
+
+/// An own message with fully uploaded attachments that never reached the
+/// outbound service.
+pub(crate) struct UnqueuedAttachmentMessage {
+    pub(crate) chat_id: ChatId,
+    pub(crate) message_id: MessageId,
+}
 
 /// A record of an attachment.
 ///
@@ -252,6 +262,63 @@ impl AttachmentRecord {
             attachment_id,
         )
         .fetch_optional(connection.as_mut())
+        .await
+    }
+
+    /// Loads own messages whose attachments are all uploaded but which are
+    /// neither sent nor queued for sending.
+    ///
+    /// Uploading an attachment and enqueueing its message are two steps, so a
+    /// client killed in between leaves the content on the server and the message
+    /// stuck. Received messages are stored as sent and never match.
+    pub(crate) async fn load_unqueued_uploaded_messages(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<UnqueuedAttachmentMessage>> {
+        let failed_status: u8 = MessageStatus::Error.into();
+        query_as!(
+            UnqueuedAttachmentMessage,
+            r#"SELECT DISTINCT
+                m.chat_id AS "chat_id: _",
+                m.message_id AS "message_id: _"
+            FROM message m
+            JOIN attachment a ON a.message_id = m.message_id
+            LEFT JOIN chat_message_queue q ON q.message_id = m.message_id
+            WHERE m.sent = 0
+                AND m.status != ?1
+                AND q.message_id IS NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM attachment other
+                    WHERE other.message_id = m.message_id AND other.status != ?2
+                )"#,
+            failed_status,
+            AttachmentStatus::Ready,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
+    /// Loads attachments of unsent, unqueued messages that have been uploading
+    /// since before `stale_before`.
+    ///
+    /// A running upload does not hold the global lock, so only uploads too old
+    /// to still be in flight are reported.
+    pub(crate) async fn load_stale_uploading(
+        mut connection: impl ReadConnection,
+        stale_before: DateTime<Utc>,
+    ) -> sqlx::Result<Vec<AttachmentId>> {
+        query_scalar!(
+            r#"SELECT a.attachment_id AS "attachment_id: AttachmentId"
+            FROM attachment a
+            JOIN message m ON m.message_id = a.message_id
+            LEFT JOIN chat_message_queue q ON q.message_id = a.message_id
+            WHERE a.status = ?1
+                AND a.created_at < ?2
+                AND m.sent = 0
+                AND q.message_id IS NULL"#,
+            AttachmentStatus::Uploading,
+            stale_before,
+        )
+        .fetch_all(connection.as_mut())
         .await
     }
 
@@ -573,6 +640,19 @@ pub(crate) mod test {
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             created_at: Utc::now().round_subsecs(6),
+        }
+    }
+
+    pub(crate) fn test_attachment_record_with(
+        chat_id: ChatId,
+        message_id: MessageId,
+        status: AttachmentStatus,
+        created_at: DateTime<Utc>,
+    ) -> AttachmentRecord {
+        AttachmentRecord {
+            status,
+            created_at,
+            ..test_attachment_record(chat_id, message_id)
         }
     }
 

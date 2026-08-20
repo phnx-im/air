@@ -13,8 +13,8 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageId,
-    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
+    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -374,6 +374,18 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        // The attachment may have uploaded successfully and only be
+        // displayed as failed (e.g. shared from the share extension). There is
+        // nothing to upload again; the outbound service reconciliation hands
+        // the message over for sending.
+        if let Some(AttachmentStatus::Ready) = self
+            .context
+            .core_user
+            .attachment_status(attachment_id)
+            .await?
+        {
+            return Ok(None);
+        }
         let (progress, upload_task) = match self
             .context
             .core_user
