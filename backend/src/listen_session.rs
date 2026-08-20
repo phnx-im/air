@@ -79,6 +79,7 @@ where
                             if !status.is_client_disconnect() {
                                 error!(%status, %name, "listen request stream failed");
                             }
+                            let _ = out_tx.send(Err(status));
                             return;
                         }
                         // The client half-closed the request stream. All requests sent before are
@@ -113,11 +114,11 @@ where
                     }
                 }
                 Event::Evicted => {
-                    let _ = out_tx.try_send(Err(Status::aborted("evicted")));
+                    let _ = out_tx.send(Err(Status::aborted("evicted")));
                     return;
                 }
                 Event::Aborted => {
-                    let _ = out_tx.try_send(Err(Status::unavailable("server stopped")));
+                    let _ = out_tx.send(Err(Status::unavailable("server stopped")));
                     return;
                 }
             }
