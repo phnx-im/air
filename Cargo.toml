@@ -18,6 +18,7 @@ members = [
     "test_harness",
     "xtask",
     "apqmls",
+    "pressure",
 ]
 
 [workspace.dependencies]
@@ -70,6 +71,7 @@ ignore = "0.4"
 # default formats minus avif and exr, which pull in the unmaintained paste
 # crate (RUSTSEC-2024-0436) via ravif and exr
 image = { version = "0.25.1", default-features = false, features = ["rayon", "bmp", "dds", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
+indicatif = "0.18.6"
 indexmap = "2.0"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
@@ -129,6 +131,7 @@ tower = { version = "0.5.2" }
 tower-http = { version = "0.7.0", features = ["trace"] }
 tower_governor = "0.8.0"
 tracing = "0.1.41"
+tracing-appender = "0.2.5"
 tracing-bunyan-formatter = "0.3"
 tracing-log = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log", "parking_lot"] }
@@ -157,7 +160,8 @@ rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48a
 # [#1419](https://github.com/RustCrypto/signatures/pull/1419)
 ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbdd66a702cc0c4ef676b38022e5cbb" }
 
-[profile.release]
+[profile.ci-release]
+inherits = "release"
 strip = true
 lto = true
 codegen-units = 1

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "air-pressure"
+version = "0.21.0"
+edition = "2024"
+publish = false
+license = "AGPL-3.0-or-later"
+
+[[bin]]
+path = "src/main.rs"
+name = "air-pressure"
+
+[[bin]]
+path = "src/bin/ds_blob_sizes.rs"
+name = "ds-blob-sizes"
+
+[dependencies]
+aircommon.workspace = true
+aircoreclient = { workspace = true, features = ["test_utils"] }
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+indicatif.workspace = true
+mimi_content.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+sqlx = { workspace = true, features = ["postgres", "tls-rustls"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true

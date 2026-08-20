@@ -51,6 +51,7 @@ use crate::{
         attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
         group_state::MemberProfile, process::Provider,
     },
+    errors::wrong_epoch_status,
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -1532,12 +1533,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await
             .map_err(to_status)?;
 
-        // verify signature
+        // Verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;
         let payload: SendMessagePayload = request.verify(&sender_key).map_err(InvalidSignature)?;
 
+        // Reject out-of-epoch messages
+        let msg_epoch = message.epoch().as_u64();
+        let current_epoch = group_state.group().epoch().as_u64();
+        if msg_epoch + (MAX_PAST_EPOCHS as u64) < current_epoch {
+            return Err(wrong_epoch_status(format!(
+                "Message epoch {msg_epoch} is older than the group's current epoch {current_epoch}"
+            )));
+        }
+
         if let Some(tags) = payload.collision_tags {
-            let msg_epoch = message.epoch().as_u64();
             super::collision_tags::check_and_insert(
                 &self.ds.db_pool,
                 qgid.group_uuid(),
