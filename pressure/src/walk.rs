@@ -6,9 +6,13 @@
 //! steps.
 //!
 //! A step picks an originator, brings it up to date, and has it drive one
-//! operation against N targets. Every target is then drained and, if the
-//! operation left it in the group, commits a key update of its own, so a step
-//! leaves both sides of the operation converged and rekeyed.
+//! operation against N targets, which are then drained so both sides of the
+//! operation end up converged.
+//!
+//! Only the operations that are commits in MLS produce commits here. Reading a
+//! message or a reaction does not, and leaf rotation is its own `SelfUpdate`
+//! step on the same footing as the rest, mirroring the real client's daily
+//! `SELF_UPDATE_INTERVAL` rather than rekeying in response to traffic.
 //!
 //! # Why rounds, and why partitions
 //!
@@ -28,11 +32,20 @@
 //! drained once at the top of a round, before any step starts, and is only
 //! ever driven by the single partition that holds it.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, clients::CoreUser};
-use rand::{Rng, RngExt, SeedableRng, seq::IteratorRandom};
+use rand::{
+    Rng, RngExt, SeedableRng,
+    seq::{IteratorRandom, SliceRandom},
+};
 use rand_chacha::ChaCha8Rng;
 
 use crate::{ops, rejoin::RejoinTracker, report::Report};
@@ -44,6 +57,10 @@ pub struct WalkContext<'a> {
     pub clients_by_id: &'a HashMap<UserId, &'a CoreUser>,
     /// Upper bound on how many targets a single operation may take.
     pub max_targets: usize,
+    /// Members to add per member removed, once the group is at its target.
+    pub growth_ratio: f64,
+    /// Group size the walk grows toward before it starts removing members.
+    pub target_members: usize,
     /// Full fan-out width, for the sequential parts of a round.
     pub concurrency: usize,
     /// How many steps run at once.
@@ -59,8 +76,8 @@ pub struct WalkState {
     pub rejoins: RejoinTracker,
     /// Number of steps taken so far, used to timestamp rejoins.
     pub step: usize,
-    /// Members added and removed so far, which together size the next invite
-    /// (see [`WalkState::invite_batch_size`]).
+    /// Members added and removed so far, which together size each round's
+    /// invite budget (see [`WalkState::round_invite_budget`]).
     members_added: usize,
     members_removed: usize,
 }
@@ -76,26 +93,87 @@ impl WalkState {
         }
     }
 
-    /// How many members the next invite should add for the group to keep
-    /// growing: enough to bring the running total of adds up to twice the
-    /// removals, and never fewer than one so it still grows once already
-    /// ahead. Removals keep regenerating the deficit, so over a run the adds
-    /// stay at or above the 2:1 target.
-    fn invite_batch_size(&self, max_targets: usize) -> usize {
-        let deficit = (2 * self.members_removed).saturating_sub(self.members_added);
-        deficit.clamp(1, max_targets.max(1))
+    /// How many members this round may add in total, across every concurrent
+    /// step.
+    ///
+    /// Two terms, whichever is larger:
+    ///
+    /// * the gap to `target_members`, so a group below its target climbs at the
+    ///   full per-round cap. Without this the budget would depend entirely on
+    ///   removals, and a group too small to have anything worth removing could
+    ///   never grow: no removals means no deficit means the floor of one.
+    /// * `growth_ratio` times the removals so far, minus the adds so far, which
+    ///   is what keeps the group drifting upward once it is at its target and
+    ///   churn is the only thing moving it.
+    ///
+    /// This is a *per-round* budget rather than a per-step batch size. Giving
+    /// each step its own copy would let a round with several invite steps add
+    /// `concurrent_steps` times the intended amount.
+    ///
+    /// Both terms are cumulative or self-limiting, so overshooting a round just
+    /// drops the next rounds back to the floor of one.
+    fn round_invite_budget(
+        &self,
+        growth_ratio: f64,
+        max_targets: usize,
+        members: usize,
+        target_members: usize,
+    ) -> usize {
+        let ratio_target = (self.members_removed as f64 * growth_ratio) as usize;
+        let ratio_deficit = ratio_target.saturating_sub(self.members_added);
+        let gap_to_target = target_members.saturating_sub(members);
+        ratio_deficit
+            .max(gap_to_target)
+            .clamp(1, max_targets.max(1))
     }
 }
 
-/// Relative frequency of each step kind. Invite batches are sized from the
-/// running add/remove balance rather than by this weight, so these only set
-/// how often each *kind* of pressure is applied.
-const STEP_WEIGHTS: &[(StepKind, u32)] = &[
+/// Claims up to `max` of the round's remaining invite budget, returning how
+/// many were actually available. Concurrent steps draw from the same counter,
+/// so the budget bounds the round rather than each step.
+fn claim_invite_budget(budget: &AtomicUsize, max: usize) -> usize {
+    let mut remaining = budget.load(Ordering::Relaxed);
+    loop {
+        let take = remaining.min(max);
+        if take == 0 {
+            return 0;
+        }
+        match budget.compare_exchange_weak(
+            remaining,
+            remaining - take,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => return take,
+            Err(actual) => remaining = actual,
+        }
+    }
+}
+
+/// Relative frequency of each step kind once the group has reached its target
+/// size. How *many* members an invite adds is the round's budget, not this
+/// weight; these only set how often each kind of pressure is applied.
+const STEADY_WEIGHTS: &[(StepKind, u32)] = &[
     (StepKind::SendMessage, 4),
     (StepKind::Invite, 3),
     (StepKind::Remove, 2),
     (StepKind::SelfUpdate, 2),
+    (StepKind::React, 2),
     (StepKind::Leave, 1),
+];
+
+/// Relative frequency while the group is still below its target size.
+///
+/// Removals are left out entirely and invites dominate. A small group has few
+/// members to target, so it also gets few concurrent steps per round -- with the
+/// steady weights, most of those rounds are spent on churn and the group creeps
+/// up at a fraction of a member per round. Suppressing the shrink operations
+/// until the group is at size is what makes the climb actually happen.
+const GROWTH_WEIGHTS: &[(StepKind, u32)] = &[
+    (StepKind::Invite, 8),
+    (StepKind::SendMessage, 3),
+    (StepKind::SelfUpdate, 2),
+    (StepKind::React, 2),
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -104,13 +182,19 @@ enum StepKind {
     Invite,
     Remove,
     SelfUpdate,
+    React,
     Leave,
 }
 
-fn pick_step(rng: &mut impl Rng) -> StepKind {
-    let total: u32 = STEP_WEIGHTS.iter().map(|(_, weight)| weight).sum();
+fn pick_step(rng: &mut impl Rng, below_target: bool) -> StepKind {
+    let weights = if below_target {
+        GROWTH_WEIGHTS
+    } else {
+        STEADY_WEIGHTS
+    };
+    let total: u32 = weights.iter().map(|(_, weight)| weight).sum();
     let mut roll = rng.random_range(0..total);
-    for (kind, weight) in STEP_WEIGHTS {
+    for (kind, weight) in weights {
         if roll < *weight {
             return *kind;
         }
@@ -137,10 +221,14 @@ struct Partition {
     /// Inactive members this step may invite: already narrowed to the
     /// originator's contacts, and disjoint from every other partition's.
     invite_candidates: Vec<UserId>,
-    /// The batch size the invite should aim for, decided before the round so
-    /// concurrent steps do not all read the same stale balance.
-    invite_batch: usize,
+    /// The round's remaining invite allowance, shared with the other steps in
+    /// the same round so their adds sum to the budget instead of each getting
+    /// the full amount.
+    invite_budget: Arc<AtomicUsize>,
     max_targets: usize,
+    /// Whether the group is still below its target size, which selects the
+    /// step weights this step draws from.
+    below_target: bool,
     concurrency: usize,
     seed: u64,
 }
@@ -158,37 +246,70 @@ struct StepOutcome {
     removed: usize,
 }
 
-/// Runs one round of concurrent steps, returning how many actually ran.
-pub async fn run_round(ctx: &WalkContext<'_>, rng: &mut impl Rng, state: &mut WalkState) -> usize {
+/// What a round reports back to the caller for display and cadence.
+pub struct RoundOutcome {
+    /// Steps that actually ran, which may be fewer than `concurrent_steps`
+    /// when the group is too small to partition that many ways.
+    pub steps: usize,
+    /// Group size as the hub saw it at the top of the round.
+    pub members: usize,
+    /// Who drove the steps, for the caller's originator-diversity check: a
+    /// healthy walk is driven by ever-changing members, and a walk that
+    /// keeps picking the same few can only exercise their corner of the
+    /// group (which is exactly what the broken shuffle did).
+    pub originators: Vec<UserId>,
+}
+
+/// Runs one round of concurrent steps.
+pub async fn run_round(
+    ctx: &WalkContext<'_>,
+    rng: &mut impl Rng,
+    state: &mut WalkState,
+) -> RoundOutcome {
     // The hub owns the group and is what verification compares against, so it
     // is brought up to date before any step starts. Nothing else is in flight
     // at this point, so this is the one safe place to drain it.
     let drain_result = ops::drain(ctx.hub).await;
-    state.report.record("drain_hub", &drain_result);
-    if let Ok(outcome) = &drain_result {
-        state
-            .report
-            .record_drain_outcome(outcome.fetched, outcome.message_errors);
-    }
+    record_drain(&mut state.report, "drain_hub", &drain_result);
     if drain_result.is_err() {
-        return 0;
+        return RoundOutcome {
+            steps: 0,
+            members: 0,
+            originators: Vec::new(),
+        };
     }
 
     let Some(participants) = ctx.hub.chat_participants(ctx.chat_id).await else {
         state
             .report
             .record_divergence("hub has no local view of its own chat".to_owned());
-        return 0;
+        return RoundOutcome {
+            steps: 0,
+            members: 0,
+            originators: Vec::new(),
+        };
     };
+    let members = participants.len();
 
     let partitions = build_partitions(ctx, &participants, state, rng).await;
     if partitions.is_empty() {
-        return 0;
+        return RoundOutcome {
+            steps: 0,
+            members,
+            originators: Vec::new(),
+        };
     }
+    let originators: Vec<UserId> = partitions
+        .iter()
+        .map(|partition| partition.originator.user_id().clone())
+        .collect();
 
     let outcomes = crate::parallel::map(partitions, ctx.concurrent_steps, run_step).await;
 
     let ran = outcomes.len();
+    // Advanced before the fold so rejoins are stamped with the round they
+    // actually happened in. The caller keeps its own running total.
+    state.step += ran;
     for outcome in outcomes {
         state.report.merge(outcome.report);
         state.members_added += outcome.added;
@@ -200,22 +321,31 @@ pub async fn run_round(ctx: &WalkContext<'_>, rng: &mut impl Rng, state: &mut Wa
                 .record_rejoin(&outcome.rejoined, state.step, outcome.rejoin_epoch);
         }
     }
-    ran
+    RoundOutcome {
+        steps: ran,
+        members,
+        originators,
+    }
 }
 
 /// Deals the current membership into disjoint partitions, one per concurrent
 /// step.
 ///
-/// The hub, when it is a participant, always heads the first partition: it is
-/// the only member every other one is connected to, so it is the only reliable
-/// inviter, and confining it to one partition keeps it from being driven by
-/// two steps at once.
+/// The hub, when it is a participant, always heads the first partition. It has
+/// no more contacts than anyone else, but it is the roster oracle the
+/// verification pass compares against, so confining it to one partition keeps
+/// it from being driven by two steps at once.
 async fn build_partitions(
     ctx: &WalkContext<'_>,
     participants: &HashSet<UserId>,
     state: &WalkState,
     rng: &mut impl Rng,
 ) -> Vec<Partition> {
+    // Hysteresis, so the group does not flip out of growth mode the instant it
+    // touches the target and then back in on the first removal: churn stays on
+    // anywhere in the top tenth of the target.
+    let growth_threshold = ctx.target_members - ctx.target_members / 10;
+    let below_target = participants.len() < growth_threshold;
     let hub_id = ctx.hub.user_id();
     let chat_id = ctx.chat_id;
 
@@ -225,9 +355,13 @@ async fn build_partitions(
     // leaving the member listed by the hub while its own chat has already gone
     // inactive. Driving one of those fails with "inactive chat", so each
     // candidate is asked about its own state instead.
-    let candidates: Vec<(UserId, CoreUser)> = participants
-        .iter()
-        .filter(|id| *id != hub_id)
+    // Sorted before anything random touches it. `participants` is a HashSet,
+    // whose iteration order varies between processes, so feeding it to the rng
+    // unsorted would make a seed unrepeatable.
+    let mut candidate_ids: Vec<&UserId> = participants.iter().filter(|id| *id != hub_id).collect();
+    candidate_ids.sort();
+    let candidates: Vec<(UserId, CoreUser)> = candidate_ids
+        .into_iter()
         .filter_map(|id| {
             ctx.clients_by_id
                 .get(id)
@@ -238,10 +372,14 @@ async fn build_partitions(
         ops::is_member(&user, chat_id).await.then_some(id)
     })
     .await;
-    let pool: Vec<UserId> = active.into_iter().flatten().collect();
-    // Shuffled so partition membership is not tied to user id ordering, which
-    // would have the same members share a step every round.
-    let mut pool = pool.iter().cloned().sample(rng, pool.len());
+    let mut pool: Vec<UserId> = active.into_iter().flatten().collect();
+    // A real shuffle, so originators and partitions are uniformly random.
+    // This must not be `sample(rng, len)`: a full-size sample fills its
+    // reservoir sequentially and returns the elements in their original
+    // order, so the pool was never shuffled at all -- the same few members
+    // (the tail of the sorted order) drove every round, and the group only
+    // ever grew around wherever they sat on the ring.
+    pool.shuffle(rng);
 
     // A step needs an originator plus something to target, so the number of
     // steps is capped by how many members there are to go round.
@@ -269,7 +407,12 @@ async fn build_partitions(
     }
 
     let mut invite_pools = deal_invite_candidates(ctx, participants, &originators).await;
-    let invite_batch = state.invite_batch_size(ctx.max_targets);
+    let invite_budget = Arc::new(AtomicUsize::new(state.round_invite_budget(
+        ctx.growth_ratio,
+        ctx.max_targets,
+        participants.len(),
+        ctx.target_members,
+    )));
 
     originators
         .into_iter()
@@ -296,8 +439,9 @@ async fn build_partitions(
                 members,
                 clients,
                 invite_candidates,
-                invite_batch,
+                invite_budget: invite_budget.clone(),
                 max_targets: ctx.max_targets,
+                below_target,
                 concurrency: ctx.step_concurrency,
                 seed: rng.random(),
             }
@@ -334,6 +478,9 @@ async fn deal_invite_candidates(
                 pool.push(id);
             }
         }
+        // Sorted for the same reason the member pool is: the invite draw must
+        // depend only on the seed, not on any container's iteration order.
+        pool.sort();
         pools.push(pool);
     }
     pools
@@ -355,11 +502,12 @@ async fn run_step(partition: Partition) -> StepOutcome {
         }
     }
 
-    match pick_step(&mut rng) {
+    match pick_step(&mut rng, partition.below_target) {
         StepKind::SendMessage => send_message(&partition, &mut rng, &mut outcome).await,
         StepKind::Invite => invite_members(&partition, &mut rng, &mut outcome).await,
         StepKind::Remove => remove_members(&partition, &mut rng, &mut outcome).await,
         StepKind::SelfUpdate => self_update(&partition, &mut outcome).await,
+        StepKind::React => react(&partition, &mut rng, &mut outcome).await,
         StepKind::Leave => leave_group(&partition, &mut rng, &mut outcome).await,
     }
     outcome
@@ -391,72 +539,92 @@ fn record_drain(report: &mut Report, op: &'static str, result: &anyhow::Result<o
     }
 }
 
-/// Drains every target and, when `still_members` says the operation left them
-/// in the group, has each commit a key update.
+/// Brings every target of an operation up to date.
 ///
-/// The catch-up drains run concurrently, since the targets are distinct
-/// members. The commits stay sequential: each target drains to the epoch its
-/// predecessor just created, so a rejection there means it lost the race with
-/// another *step*, not with its own partition-mate.
+/// Draining only. Targets deliberately do *not* commit anything here: reading a
+/// message or being added has no commit in MLS, and the real client rekeys a
+/// group on a timer ([`SELF_UPDATE_INTERVAL`], one day) rather than in response
+/// to traffic. Rekeying every target of every step made target commits ~85% of
+/// the run's total, inflating epoch velocity far past anything production sees
+/// and turning the `MAX_PAST_EPOCHS` window into a bottleneck that only the
+/// harness could hit. Leaf rotation is the `SelfUpdate` step's job instead.
+///
+/// The targets are distinct members, so the drains run concurrently.
+/// Returns the ids of the targets that drained successfully, so callers can
+/// assert delivery against exactly the members that are up to date.
 async fn settle_targets(
     partition: &Partition,
     targets: &[UserId],
-    still_members: bool,
     outcome: &mut StepOutcome,
-) {
-    let users: Vec<CoreUser> = targets
+) -> Vec<UserId> {
+    let pairs: Vec<(UserId, CoreUser)> = targets
         .iter()
-        .filter_map(|id| partition.client(id).cloned())
+        .filter_map(|id| partition.client(id).cloned().map(|user| (id.clone(), user)))
         .collect();
-    if users.len() > 1 {
-        let results = crate::parallel::map(users, partition.concurrency, |user| async move {
-            ops::drain(&user).await
-        })
-        .await;
-        for result in &results {
-            record_drain(&mut outcome.report, "drain_target", result);
+    if pairs.is_empty() {
+        return Vec::new();
+    }
+    let results = crate::parallel::map(pairs, partition.concurrency, |(id, user)| async move {
+        (id, ops::drain(&user).await)
+    })
+    .await;
+    let mut drained = Vec::new();
+    for (id, result) in results {
+        record_drain(&mut outcome.report, "drain_target", &result);
+        if result.is_ok() {
+            drained.push(id);
         }
     }
-
-    for target_id in targets {
-        let Some(target) = partition.client(target_id) else {
-            continue;
-        };
-        let drain_result = ops::drain(target).await;
-        record_drain(&mut outcome.report, "drain_target", &drain_result);
-        if drain_result.is_err() || !still_members {
-            continue;
-        }
-        // The drain may itself have evicted the target (a removal by another
-        // step that it had not yet seen), leaving no group to update.
-        if !ops::is_member(target, partition.chat_id).await {
-            continue;
-        }
-        let result = ops::update_key(target, partition.chat_id).await;
-        outcome.report.record("target_self_update", &result);
-    }
+    drained
 }
 
 async fn send_message(partition: &Partition, rng: &mut impl Rng, outcome: &mut StepOutcome) {
-    let result = ops::send_message(&partition.originator, partition.chat_id).await;
+    // The marker ties this step's message to what the targets must receive.
+    // The partition seed is unique per step, so markers never collide.
+    let marker = format!("walk-{:016x}", partition.seed);
+    let result = ops::send_message(&partition.originator, partition.chat_id, &marker).await;
     outcome.report.record("send_message", &result);
     if result.is_err() {
         return;
     }
-    // The readers are this operation's targets: they consume the message and
-    // then rotate, the same as the targets of a structural change.
+    // The readers are this operation's targets: they consume the message the
+    // same as the targets of a structural change consume its commit.
     let n = rng.random_range(1..=partition.max_targets);
     let targets = partition.pick_targets(n, rng);
-    settle_targets(partition, &targets, true, outcome).await;
+    let drained = settle_targets(partition, &targets, outcome).await;
+
+    // Fan-out completes within the send request, so every drained target
+    // that is still a member must have the message. A missing marker is
+    // silent message loss, the one failure mode nothing else here detects.
+    for target_id in drained {
+        let Some(target) = partition.client(&target_id) else {
+            continue;
+        };
+        if !ops::is_member(target, partition.chat_id).await {
+            continue;
+        }
+        match ops::has_message_with_marker(target, partition.chat_id, &marker).await {
+            Ok(true) => {}
+            Ok(false) => outcome.report.record_divergence(format!(
+                "{target_id:?} drained but never received the message {marker}"
+            )),
+            Err(error) => outcome.report.record_divergence(format!(
+                "delivery check of {marker} on {target_id:?} failed: {error}"
+            )),
+        }
+    }
 }
 
 async fn invite_members(partition: &Partition, rng: &mut impl Rng, outcome: &mut StepOutcome) {
     if partition.invite_candidates.is_empty() {
         return;
     }
-    let n = partition
-        .invite_batch
-        .min(partition.invite_candidates.len());
+    let allowance = claim_invite_budget(&partition.invite_budget, partition.max_targets);
+    let n = allowance.min(partition.invite_candidates.len());
+    if n == 0 {
+        // Another step in this round already used the whole budget.
+        return;
+    }
     let targets: Vec<UserId> = partition.invite_candidates.iter().cloned().sample(rng, n);
     if targets.is_empty() {
         return;
@@ -481,30 +649,11 @@ async fn invite_members(partition: &Partition, rng: &mut impl Rng, outcome: &mut
         .unwrap_or_default();
     outcome.rejoined = targets.clone();
 
-    // The invitees are not in this partition's client map (they were not
-    // participants when it was built), so they are settled directly.
-    settle_invitees(partition, &targets, outcome).await;
-}
-
-/// Settles freshly invited members, which are outside the partition's own
-/// membership. Safe for the same reason the partitions are: the invite
-/// candidates were dealt out so no two steps can invite the same member.
-async fn settle_invitees(partition: &Partition, targets: &[UserId], outcome: &mut StepOutcome) {
-    for target_id in targets {
-        let Some(target) = partition.client(target_id) else {
-            continue;
-        };
-        let drain_result = ops::drain(target).await;
-        record_drain(&mut outcome.report, "drain_target", &drain_result);
-        if drain_result.is_err() {
-            continue;
-        }
-        if !ops::is_member(target, partition.chat_id).await {
-            continue;
-        }
-        let result = ops::update_key(target, partition.chat_id).await;
-        outcome.report.record("target_self_update", &result);
-    }
+    // The invitees are not partition members (they were not participants
+    // when the round was built), but they are in the partition's client map,
+    // and the candidate pools were dealt out so no two steps invite the same
+    // member. Draining them is what processes their Welcome.
+    let _ = settle_targets(partition, &targets, outcome).await;
 }
 
 async fn remove_members(partition: &Partition, rng: &mut impl Rng, outcome: &mut StepOutcome) {
@@ -521,14 +670,54 @@ async fn remove_members(partition: &Partition, rng: &mut impl Rng, outcome: &mut
     outcome.removed += targets.len();
     outcome.evicted = targets.clone();
 
-    // Removed targets still drain, so they observe their own eviction, but
-    // they have no group left to rotate in.
-    settle_targets(partition, &targets, false, outcome).await;
+    // Removed targets still drain, so they observe their own eviction.
+    let _ = settle_targets(partition, &targets, outcome).await;
 }
 
 async fn self_update(partition: &Partition, outcome: &mut StepOutcome) {
     let result = ops::update_key(&partition.originator, partition.chat_id).await;
     outcome.report.record("self_update", &result);
+}
+
+async fn react(partition: &Partition, rng: &mut ChaCha8Rng, outcome: &mut StepOutcome) {
+    let result = ops::react(&partition.originator, partition.chat_id, rng).await;
+    if matches!(result, Ok(None)) {
+        // Nothing to react to yet; not an attempt worth counting.
+        return;
+    }
+    outcome.report.record("send_reaction", &result);
+    let proof = match result {
+        Ok(Some(proof)) => proof,
+        Ok(None) => unreachable!("handled above"),
+        Err(_) => return,
+    };
+    // The readers are this operation's targets, same as for a text message.
+    let n = rng.random_range(1..=partition.max_targets);
+    let targets = partition.pick_targets(n, rng);
+    let drained = settle_targets(partition, &targets, outcome).await;
+
+    let reactor = partition.originator.user_id();
+    for target_id in drained {
+        let Some(target) = partition.client(&target_id) else {
+            continue;
+        };
+        if !ops::is_member(target, partition.chat_id).await {
+            continue;
+        }
+        match ops::reaction_visible(target, partition.chat_id, &proof, reactor).await {
+            // The reacted-to message predates the target's join; nothing to
+            // assert.
+            Ok(None) => {}
+            Ok(Some(true)) => {}
+            Ok(Some(false)) => outcome.report.record_divergence(format!(
+                "{target_id:?} has the reacted-to message but not {reactor:?}'s                  {} on it",
+                proof.emoji
+            )),
+            Err(error) => outcome.report.record_divergence(format!(
+                "reaction check on {target_id:?} failed: {error}"
+            )),
+        }
+    }
 }
 
 async fn leave_group(partition: &Partition, rng: &mut impl Rng, outcome: &mut StepOutcome) {

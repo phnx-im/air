@@ -52,11 +52,11 @@ struct Outcome {
 /// name not listed here still shows up in [`Report::log_summary`].
 const WALK_OPS: &[(&str, &str)] = &[
     ("send_message", "send"),
+    ("send_reaction", "react"),
     ("invite_members", "inv"),
     ("remove_members", "rem"),
     ("leave_group", "leave"),
     ("self_update", "upd"),
-    ("target_self_update", "tupd"),
     ("commit_pending_leave", "sweep"),
 ];
 

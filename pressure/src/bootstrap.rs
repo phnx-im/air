@@ -2,18 +2,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Builds the topology the walk operates on: `fleet.members[0]` (the hub)
-//! connects to every other member and owns the group, and every other member
-//! additionally connects to a handful of peers so it holds contacts of its own.
+//! Prepares the topology the walk operates on: every member connects to a
+//! handful of peers, and `fleet.members[0]` (the hub) creates the group.
 //!
-//! The mesh is what lets a member other than the hub drive an invite: adds are
-//! contact-gated, so a client can only add someone it is already connected to.
-//! Without it the hub would be the sole committer of adds.
+//! The group starts with the hub alone. Growing it is the walk's job, which is
+//! also what exercises joining: prefilling it here would put the group at the
+//! fleet ceiling before the first step, leaving the invite step with nothing to
+//! do and the growth bias nothing to bite on.
+//!
+//! Contacts are a uniform ring, hub included. Adds are contact-gated, so the
+//! mesh is what decides who can invite whom, and a ring keeps that symmetric:
+//! every member can invite its neighbours, and the group grows outward from the
+//! hub as members join and invite their own. The hub is special only in owning
+//! the group and being the roster oracle, not in its contacts.
 //!
 //! Every step checks current local state first, so re-running against an
 //! already-bootstrapped fleet only does the work that is still missing.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, future::Future};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, UsernameRecord, clients::CoreUser};
@@ -24,9 +30,8 @@ use crate::{fleet::Fleet, ops, parallel, progress::bar_style, report::Report};
 
 pub struct BootstrapParams<'a> {
     pub chat_title: &'a str,
-    pub invite_batch_size: usize,
-    /// Peers each non-hub member connects to on top of the hub. Zero leaves
-    /// the fleet a pure star, so only the hub can ever invite.
+    /// Peers each member connects to. Zero leaves the fleet unconnected, so
+    /// nobody can invite anybody and the group stays at one member.
     pub contact_mesh_degree: usize,
     /// How many per-member operations may run at once.
     pub concurrency: usize,
@@ -40,10 +45,10 @@ pub async fn run(
 ) -> anyhow::Result<ChatId> {
     let hub = &fleet.members[0].user;
 
-    // Usernames first, for the whole fleet: the mesh phase needs a record for
-    // any member it might connect to, not just the ones the hub still has to
-    // reach. Already-registered members just load their existing record. One
-    // member per task, since each only touches its own store.
+    // Usernames first, for the whole fleet: the mesh needs a record for any
+    // member it might connect to. Already-registered members just load their
+    // existing record. One member per task, since each only touches its own
+    // store.
     let username_bar = multi.add(ProgressBar::new(fleet.members.len() as u64));
     username_bar.set_style(bar_style("registering usernames"));
     let username_results = parallel::map(
@@ -69,7 +74,6 @@ pub async fn run(
     }
     username_bar.finish_with_message("usernames registered");
 
-    connect_to_hub(fleet, &records, report, multi).await?;
     build_contact_mesh(fleet, &records, params, report, multi).await?;
 
     let chat_id = match find_group_chat(hub, params.chat_title).await? {
@@ -81,63 +85,20 @@ pub async fn run(
         }
     };
 
-    invite_everyone(fleet, chat_id, params.invite_batch_size, report, multi).await?;
-    catch_everyone_up(fleet, params.concurrency, report, multi).await;
+    // catch_everyone_up(fleet, params.concurrency, report, multi).await;
 
     Ok(chat_id)
 }
 
-/// Connects the hub to every other member, so it holds the full contact list
-/// and can always invite.
-///
-/// Sequential, and unavoidably so: the hub is one endpoint of every edge, and
-/// `connect` drains the initiator. Overlapping these would mean concurrent
-/// drains on the hub, which would corrupt its queue ratchet.
-async fn connect_to_hub(
-    fleet: &Fleet,
-    records: &[Option<UsernameRecord>],
-    report: &mut Report,
-    multi: &MultiProgress,
-) -> anyhow::Result<()> {
-    let hub = &fleet.members[0].user;
-    let hub_contacts = contact_ids(hub).await?;
-
-    let bar = multi.add(ProgressBar::new(
-        fleet.members.len().saturating_sub(1) as u64
-    ));
-    bar.set_style(bar_style("connecting clients"));
-
-    for (index, member) in fleet.members.iter().enumerate().skip(1) {
-        let client: &CoreUser = &member.user;
-        if hub_contacts.contains(client.user_id()) {
-            bar.inc(1);
-            continue;
-        }
-        let Some(record) = &records[index] else {
-            bar.inc(1);
-            continue;
-        };
-
-        let connect_result = ops::connect(hub, client, record).await;
-        report.record("connect", &connect_result);
-        if let Ok(chat_id) = &connect_result {
-            info!(index = member.index, %chat_id, "connected client to hub");
-        }
-        bar.inc(1);
-    }
-    bar.finish_with_message("clients connected");
-    Ok(())
-}
-
-/// Connects each non-hub member to the `degree` members that follow it in
-/// index order, wrapping around. A deterministic ring keeps the mesh stable
-/// across resumed runs, and gives every member roughly `2 * degree` contacts
-/// once incoming edges are counted.
+/// Connects each member to the `degree` members that follow it in index order,
+/// wrapping around. A deterministic ring keeps the mesh stable across resumed
+/// runs, and gives every member roughly `2 * degree` contacts once incoming
+/// edges are counted.
 ///
 /// Built one offset at a time. Within a single offset the edges `i -> i+offset`
-/// form a permutation of the clients, so every member is the initiator of
-/// exactly one edge and the responder of exactly one other. That is what makes
-/// the round safe to fan out: no member is ever drained by two tasks at once.
+/// form a permutation of the fleet, so every member is the initiator of exactly
+/// one edge and the responder of exactly one other. That is what makes the round
+/// safe to fan out: no member is ever drained by two tasks at once.
 async fn build_contact_mesh(
     fleet: &Fleet,
     records: &[Option<UsernameRecord>],
@@ -145,23 +106,20 @@ async fn build_contact_mesh(
     report: &mut Report,
     multi: &MultiProgress,
 ) -> anyhow::Result<()> {
-    let client_count = fleet.members.len().saturating_sub(1);
-    // Each client can reach at most every other client.
-    let degree = params
-        .contact_mesh_degree
-        .min(client_count.saturating_sub(1));
+    let count = fleet.members.len();
+    // Each member can reach at most every other member.
+    let degree = params.contact_mesh_degree.min(count.saturating_sub(1));
     if degree == 0 {
         return Ok(());
     }
 
-    let bar = multi.add(ProgressBar::new((degree * client_count) as u64));
+    let bar = multi.add(ProgressBar::new((degree * count) as u64));
     bar.set_style(bar_style("building contact mesh"));
 
     for offset in 1..=degree {
-        let mut edges = Vec::with_capacity(client_count);
-        for index in 1..fleet.members.len() {
-            // Walk the ring over indices 1..len, skipping the hub at 0.
-            let peer = 1 + ((index - 1 + offset) % client_count);
+        let mut edges = Vec::with_capacity(count);
+        for index in 0..count {
+            let peer = (index + offset) % count;
             if peer == index {
                 continue;
             }
@@ -180,9 +138,9 @@ async fn build_contact_mesh(
             move |(initiator, responder, record)| {
                 let bar = bar.clone();
                 async move {
-                    // Checked per edge rather than once per member: an
-                    // earlier round, or an earlier run, may already have
-                    // connected this pair.
+                    // Checked per edge rather than once per member: an earlier
+                    // round, or an earlier run, may already have connected this
+                    // pair.
                     let result = match contact_ids(&initiator).await {
                         Ok(existing) if existing.contains(responder.user_id()) => None,
                         Ok(_) => Some(ops::connect(&initiator, &responder, &record).await),
@@ -199,61 +157,56 @@ async fn build_contact_mesh(
             report.record("mesh_connect", &result);
         }
     }
+
+    // The mesh decides who can invite whom, so a shortfall here caps how far
+    // the walk can ever grow the group -- silently, since the walk just finds no
+    // invite candidates. Counted rather than asserted: a partial mesh still
+    // makes for a usable run, as long as the run says so.
+    // Each edge leaves a contact on both sides, so a complete mesh gives every
+    // member `2 * degree` of them.
+    let expected = 2 * degree * count;
+    let established = fleet
+        .members
+        .iter()
+        .map(|member| async {
+            contact_ids(&member.user)
+                .await
+                .map(|ids| ids.len())
+                .unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
+    let total: usize = futures_total(established).await;
+    info!(
+        expected_edges = expected,
+        contact_entries = total,
+        members = count,
+        "contact mesh established"
+    );
+    if total < expected {
+        tracing::warn!(
+            expected_edges = expected,
+            contact_entries = total,
+            "contact mesh is incomplete; members have fewer contacts than the \
+             ring prescribes, which limits how far the walk can grow the group"
+        );
+    }
+
     bar.finish_with_message("contact mesh built");
     Ok(())
 }
 
-async fn invite_everyone(
-    fleet: &Fleet,
-    chat_id: ChatId,
-    invite_batch_size: usize,
-    report: &mut Report,
-    multi: &MultiProgress,
-) -> anyhow::Result<()> {
-    let hub = &fleet.members[0].user;
-    let hub_participants = hub
-        .chat_participants(chat_id)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("hub lost its own group right after creating it"))?;
-
-    // Only fleet members, so a stale contact from an earlier, larger run does
-    // not get pulled in.
-    let fleet_ids: HashSet<UserId> = fleet.members[1..]
-        .iter()
-        .map(|member| member.user.user_id().clone())
-        .collect();
-    let hub_contacts = contact_ids(hub).await?;
-    let to_invite: Vec<UserId> = fleet_ids
-        .into_iter()
-        .filter(|id| hub_contacts.contains(id) && !hub_participants.contains(id))
-        .collect();
-
-    let batch_size = invite_batch_size.max(1);
-    let bar = multi.add(ProgressBar::new(to_invite.len().div_ceil(batch_size) as u64));
-    bar.set_style(bar_style("inviting into group"));
-
-    for batch in to_invite.chunks(batch_size) {
-        let result = ops::invite(hub, chat_id, batch).await;
-        report.record("bootstrap_invite", &result);
-        if let Err(error) = result {
-            tracing::warn!(%error, batch_size = batch.len(), "bootstrap invite batch failed");
-        } else {
-            info!(batch_size = batch.len(), "invited batch into group");
-        }
-        bar.inc(1);
+/// Sums a set of futures sequentially. Only used for the post-mesh count, where
+/// the reads are cheap and local.
+async fn futures_total(futures: Vec<impl Future<Output = usize>>) -> usize {
+    let mut total = 0;
+    for future in futures {
+        total += future.await;
     }
-    bar.finish_with_message("invites committed");
-    Ok(())
+    total
 }
 
-/// Has every member consume what bootstrap produced, so the walk starts from
-/// a group where everyone has processed their Welcome and reached the hub's
-/// epoch.
-///
-/// Only a drain. Rekeying every leaf up front is left to the walk, which does
-/// it continuously through its self-update step and the key update each target
-/// commits: paying for a commit per member here would buy nothing the first
-/// few rounds do not.
+/// Has every member consume what the mesh produced, so the walk starts from
+/// members that have settled their connection groups.
 ///
 /// Safe to fan out because each task owns a distinct member, so no queue
 /// ratchet is touched twice.

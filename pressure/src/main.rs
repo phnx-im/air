@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Stress-tests a staging (or local) server by building a fleet of
-//! persisted clients around a single hub-owned group and driving it with a
-//! random walk of adds, removes, leaves, and messages, while periodically
-//! checking sampled members converge with the hub's view.
+//! Stress-tests a staging (or local) server by building a fleet of persisted,
+//! mesh-connected clients around a hub-owned group, then driving it with a
+//! random walk of adds, removes, leaves, messages and reactions, while
+//! periodically checking sampled members converge with the hub's view.
+//!
+//! The group starts with the hub alone and the walk grows it, so joining is
+//! exercised throughout rather than once during setup.
 
 mod bootstrap;
 mod fleet;
@@ -18,7 +21,7 @@ mod verify;
 mod walk;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet, VecDeque},
     path::PathBuf,
     sync::{
         Arc,
@@ -65,19 +68,30 @@ struct Args {
     #[arg(long, default_value = "stress-test")]
     chat_title: String,
 
-    /// Members invited per commit while bootstrapping the group.
-    #[arg(long, default_value_t = 20)]
-    invite_batch_size: usize,
-
-    /// Peers each member connects to on top of the hub. Adds are
-    /// contact-gated, so this is what lets members other than the hub drive
-    /// invites. Zero leaves the fleet a pure star.
+    /// Peers each member connects to, as a ring over the whole fleet. Adds are
+    /// contact-gated, so this decides who can invite whom: the group grows
+    /// outward from the hub along these edges. Zero leaves the fleet
+    /// unconnected, so the group stays at one member.
     #[arg(long, default_value_t = 5)]
     contact_mesh_degree: usize,
 
-    /// Upper bound on how many targets a single walk operation takes.
+    /// Upper bound on how many targets a single walk operation takes. Also
+    /// caps how many members one round may add in total.
     #[arg(long, default_value_t = 5)]
     max_targets: usize,
+
+    /// Group size the walk grows toward. The walk suppresses removals until the
+    /// group is within a tenth of this, so it climbs instead of churning in
+    /// place. 0 means the whole fleet. Capped at the fleet size, which is a hard
+    /// ceiling either way.
+    #[arg(long, default_value_t = 0)]
+    target_members: usize,
+
+    /// Members to add per member removed, applied once the group has reached
+    /// `--target-members`. Above 1.0 keeps it drifting up against churn; 1.0
+    /// holds it roughly steady.
+    #[arg(long, default_value_t = 2.0)]
+    growth_ratio: f64,
 
     /// How many per-member operations to run at once. Defaults to the number
     /// of cores. Lower it if the server rate-limits, since the whole fleet
@@ -110,8 +124,11 @@ struct Args {
     #[arg(long, default_value_t = 3)]
     rejoin_grace_checks: usize,
 
-    /// Seed for the walk's RNG. Random if unset; logged either way so a run
-    /// can be replayed.
+    /// Seed for the walk's RNG. Random if unset, and logged either way, so
+    /// passing it back reproduces the same order of operations against the
+    /// same `--root` and `--count`. Only the walk's choices are seeded: crypto
+    /// and user ids stay random, and concurrent steps still interleave by
+    /// wall-clock, so a replay is close but not bit-identical.
     #[arg(long)]
     seed: Option<u64>,
 
@@ -171,7 +188,6 @@ async fn main() -> anyhow::Result<()> {
 
     let bootstrap_params = bootstrap::BootstrapParams {
         chat_title: &args.chat_title,
-        invite_batch_size: args.invite_batch_size,
         contact_mesh_degree: args.contact_mesh_degree,
         concurrency,
     };
@@ -182,13 +198,22 @@ async fn main() -> anyhow::Result<()> {
         .iter()
         .map(|member| (member.user.user_id().clone(), &member.user))
         .collect();
-    let client_ids: Vec<UserId> = clients_by_id.keys().cloned().collect();
+    // Sorted: this feeds the verification sample, and HashMap iteration order
+    // varies between processes, which would make a seeded run unrepeatable.
+    let mut client_ids: Vec<UserId> = clients_by_id.keys().cloned().collect();
+    client_ids.sort();
 
     let ctx = walk::WalkContext {
         hub,
         chat_id,
         clients_by_id: &clients_by_id,
         max_targets: args.max_targets.max(1),
+        growth_ratio: args.growth_ratio.max(0.0),
+        // 0 means the whole fleet, and the fleet is the ceiling regardless.
+        target_members: match args.target_members {
+            0 => fleet.members.len(),
+            requested => requested.min(fleet.members.len()),
+        },
         concurrency,
         concurrent_steps: args.concurrent_steps.max(1),
         // Split between the steps in flight, so the two levels of fan-out
@@ -219,6 +244,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut step_count: usize = 0;
     let mut next_verify = args.verify_every.max(1);
+    let mut liveness = Liveness::new(ctx.target_members, ctx.concurrent_steps);
     loop {
         if let Some(deadline) = deadline
             && tokio::time::Instant::now() >= deadline
@@ -238,14 +264,19 @@ async fn main() -> anyhow::Result<()> {
         // message decrypts against a ratchet generation already consumed
         // (`SecretTreeError(TooDistantInThePast)`). Letting the round finish
         // is what keeps a killed run from leaving the fleet unusable.
-        let ran = walk::run_round(&ctx, &mut rng, &mut state).await;
-        if ran == 0 {
+        let round = walk::run_round(&ctx, &mut rng, &mut state).await;
+        if round.steps == 0 {
             // Nothing to partition: the group is too small to drive. Give the
             // hub a moment rather than spinning on it.
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
-        step_count += ran;
-        state.step = step_count;
+        // run_round advances state.step itself, so rejoins inside the round
+        // are stamped correctly. This total only drives display and cadence.
+        step_count += round.steps;
+
+        if round.steps > 0 {
+            liveness.observe(&round, &mut state.report);
+        }
 
         if deadline.is_some() {
             let elapsed_secs = tokio::time::Instant::now()
@@ -254,7 +285,9 @@ async fn main() -> anyhow::Result<()> {
             walk_bar.set_position(elapsed_secs.min(args.duration_secs));
         }
         walk_bar.set_message(format!(
-            "step {step_count} | {}",
+            "step {step_count} | members {}/{} | {}",
+            round.members,
+            ctx.target_members,
             state.report.summary_line()
         ));
 
@@ -368,6 +401,83 @@ fn walk_progress_bar(args: &Args) -> ProgressBar {
 
 /// Checks a sample of members against the hub. Each check drains its own
 /// member and only reads the hub, so the sample is checked concurrently.
+/// Self-checks on the walk itself, so a harness regression fails a run
+/// instead of silently flattening it.
+///
+/// Watches a sliding window of recent rounds for two symptoms this harness
+/// has actually had:
+///
+/// * no growth while below the target size (invite starvation: candidates
+///   dealt to nobody, budget stuck, mesh broken), and
+/// * the same few members driving every round (a degenerate originator
+///   shuffle), which confines all activity to their corner of the group.
+struct Liveness {
+    target_members: usize,
+    concurrent_steps: usize,
+    /// Member count and originators of the last [`Self::WINDOW`] rounds that
+    /// ran steps.
+    window: VecDeque<(usize, Vec<UserId>)>,
+}
+
+impl Liveness {
+    /// Rounds per observation window. Small enough to fire within a minute
+    /// of a stall, large enough that a quiet stretch of the weighted step
+    /// mix cannot fire it spuriously: at invite weight 8/15 across 4 steps a
+    /// round, 30 rounds without a single invite is a chance of roughly
+    /// 10^-30.
+    const WINDOW: usize = 30;
+
+    fn new(target_members: usize, concurrent_steps: usize) -> Self {
+        Self {
+            target_members,
+            concurrent_steps,
+            window: VecDeque::with_capacity(Self::WINDOW),
+        }
+    }
+
+    fn observe(&mut self, round: &walk::RoundOutcome, report: &mut Report) {
+        self.window
+            .push_back((round.members, round.originators.clone()));
+        if self.window.len() < Self::WINDOW {
+            return;
+        }
+
+        let (oldest_members, _) = self.window.front().expect("window is full");
+        let growth_threshold = self.target_members - self.target_members / 10;
+        if round.members < growth_threshold && round.members <= *oldest_members {
+            report.record_divergence(format!(
+                "walk stalled: {} members after {} rounds below the growth                  threshold of {growth_threshold}, was {oldest_members}",
+                round.members,
+                Self::WINDOW,
+            ));
+            self.window.clear();
+            return;
+        }
+
+        let distinct: HashSet<&UserId> = self
+            .window
+            .iter()
+            .flat_map(|(_, originators)| originators)
+            .collect();
+        // With uniformly random originators the window draws far more
+        // distinct members than steps per round; a degenerate selection
+        // yields exactly the per-round step count.
+        let expected_min = (self.concurrent_steps + 2).min(round.members);
+        if round.members > 2 * self.concurrent_steps && distinct.len() < expected_min {
+            report.record_divergence(format!(
+                "originator selection degenerated: only {} distinct members                  drove the last {} rounds of a {}-member group",
+                distinct.len(),
+                Self::WINDOW,
+                round.members,
+            ));
+            self.window.clear();
+            return;
+        }
+
+        self.window.pop_front();
+    }
+}
+
 async fn run_verification(
     ctx: &verify::CheckContext<'_>,
     client_ids: &[UserId],

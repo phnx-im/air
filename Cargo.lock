@@ -81,17 +81,20 @@ dependencies = [
  "aircommon",
  "aircoreclient",
  "anyhow",
+ "chrono",
  "clap",
  "indicatif",
  "mimi_content",
  "rand 0.10.2",
  "rand_chacha 0.10.0",
+ "sqlx",
  "tokio",
  "tokio-stream",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
  "url",
+ "uuid",
 ]
 
 [[package]]

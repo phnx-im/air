@@ -20,7 +20,6 @@ use url::Url;
 use crate::{ops, progress::bar_style};
 
 pub struct FleetMember {
-    pub index: usize,
     pub user: CoreUser,
 }
 
@@ -121,10 +120,7 @@ impl Fleet {
         for (plan, outcome) in results {
             let user = outcome?;
             info!(index = plan.index, dir = ?plan.dir, user_id = ?user.user_id(), "member ready");
-            members.push(FleetMember {
-                index: plan.index,
-                user,
-            });
+            members.push(FleetMember { user });
         }
         bar.finish_with_message(format!("{created} created, {resumed} resumed"));
 
