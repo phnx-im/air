@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use apqmls::processing::ApqProcessedMessage;
-use chrono::Duration;
 use openmls::group::MergeCommitError;
 
 use crate::{
@@ -11,11 +10,16 @@ use crate::{
     provider_traits::MlsAssistStorageProvider,
 };
 
-use super::Group;
+use super::{Group, RetainedWelcomeInfo};
 
 pub struct ApqGroupRef<'a> {
     pub(crate) t_group: &'a mut Group,
     pub(crate) pq_group: &'a mut Group,
+}
+
+pub struct ApqRetainedWelcomeInfo {
+    pub t: Option<RetainedWelcomeInfo>,
+    pub pq: Option<RetainedWelcomeInfo>,
 }
 
 impl<'a> ApqGroupRef<'a> {
@@ -35,19 +39,16 @@ impl<'a> ApqGroupRef<'a> {
                 },
             group_info,
         }: ApqProcessedAssistedMessage,
-        expiration_time: Duration,
-    ) -> Result<(), MergeCommitError<StorageError<StorageProvider>>> {
+    ) -> Result<ApqRetainedWelcomeInfo, MergeCommitError<StorageError<StorageProvider>>> {
         let (t_group_info, pq_group_info) = group_info.into_parts();
-        self.t_group.accept_processed_message(
+        let t = self.t_group.accept_processed_message(
             t_provider,
             ProcessedAssistedMessage::Commit(t_message, Box::new(t_group_info)),
-            expiration_time,
         )?;
-        self.pq_group.accept_processed_message(
+        let pq = self.pq_group.accept_processed_message(
             pq_provider,
             ProcessedAssistedMessage::Commit(pq_message, Box::new(pq_group_info)),
-            expiration_time,
         )?;
-        Ok(())
+        Ok(ApqRetainedWelcomeInfo { t, pq })
     }
 }
