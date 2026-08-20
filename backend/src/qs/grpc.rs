@@ -30,7 +30,6 @@ use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
 
 use crate::{
-    errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
 };
@@ -70,12 +69,8 @@ impl GrpcQs {
 
 #[derive(Debug, thiserror::Error, Display)]
 enum ProcessListenQueueRequestError {
-    /// {0}
-    Queue(#[from] QueueError),
     /// Unexpected init request
     UnexpectedInitRequest,
-    /// {0}
-    Status(#[from] Status),
     /// Received empty request
     EmptyRequest,
 }
@@ -83,10 +78,6 @@ enum ProcessListenQueueRequestError {
 impl From<ProcessListenQueueRequestError> for Status {
     fn from(error: ProcessListenQueueRequestError) -> Self {
         match error {
-            ProcessListenQueueRequestError::Queue(_)
-            | ProcessListenQueueRequestError::Status(_) => {
-                Status::internal("Failed to process listen queue request")
-            }
             ProcessListenQueueRequestError::UnexpectedInitRequest
             | ProcessListenQueueRequestError::EmptyRequest => {
                 Status::invalid_argument(error.to_string())
