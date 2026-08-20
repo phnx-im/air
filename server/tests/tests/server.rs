@@ -1132,3 +1132,62 @@ async fn listen_stream_eviction() {
         "second stream is still open"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Listen stream durable acks", skip_all)]
+async fn listen_stream_durable_acks() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("hello bob".to_owned(), [0; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives the message on the listen stream and acks it.
+    let bob_user = &setup.get_user(&bob).user;
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let sequence_number = match stream.next().await {
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Message(message)),
+        })) => message.sequence_number,
+        event => panic!("expected a queue message, got {event:?}"),
+    };
+    responder.ack(sequence_number + 1).await;
+
+    // Half-close the request stream. The server handles all requests sent
+    // before, then closes the response stream with OK. Observing OK confirms
+    // that the ack is durable.
+    drop(responder);
+    let terminal = timeout(Duration::from_secs(5), async {
+        loop {
+            match stream.next().await {
+                Some(Ok(_)) => continue,
+                Some(Err(status)) => break Some(status),
+                None => break None,
+            }
+        }
+    })
+    .await
+    .expect("stream closes after half-close");
+    assert_matches!(terminal, None, "stream closes with OK");
+
+    // On reconnect, the acked message is not redelivered.
+    let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        })),
+        "acked message is not redelivered"
+    );
+}
