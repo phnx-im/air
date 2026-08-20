@@ -79,6 +79,7 @@ zbus = "5"
 
 [dev-dependencies]
 mockall.workspace = true
+tempfile.workspace = true
 openmls.workspace = true           # Required for GroupId
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
