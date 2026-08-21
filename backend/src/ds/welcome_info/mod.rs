@@ -37,6 +37,12 @@ use crate::errors::StorageError;
 
 pub(super) mod persistence;
 
+pub(super) type WelcomeInfoParts = (
+    RatchetTree,
+    Vec<(LeafNodeIndex, EncryptedUserProfileKey)>,
+    VerifiedRoomState,
+);
+
 #[derive(Debug)]
 pub struct EncryptedWelcomeInfoCtype;
 pub type EncryptedWelcomeInfo = Ciphertext<EncryptedWelcomeInfoCtype>;
@@ -130,13 +136,7 @@ impl DsWelcomeInfo {
 
     /// The ratchet tree and room state, or `None` if either is missing or the
     /// room state fails to verify.
-    pub(super) fn into_parts(
-        self,
-    ) -> Option<(
-        RatchetTree,
-        Vec<(LeafNodeIndex, EncryptedUserProfileKey)>,
-        VerifiedRoomState,
-    )> {
+    pub(super) fn into_parts(self) -> Option<WelcomeInfoParts> {
         let ratchet_tree = self.ratchet_tree.or_else(|| {
             error!("welcome info record without a ratchet tree");
             None
