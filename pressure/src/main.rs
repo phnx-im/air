@@ -75,10 +75,27 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     contact_mesh_degree: usize,
 
-    /// Upper bound on how many targets a single walk operation takes. Also
-    /// caps how many members one round may add in total.
+    /// Upper bound on how many targets a single walk operation takes (reads,
+    /// removes). Independent of growth -- see `--growth-per-round`.
     #[arg(long, default_value_t = 5)]
     max_targets: usize,
+
+    /// Upper bound on how many members the group may gain in a single round,
+    /// independent of `--max-targets`. Raise this to grow the group fast
+    /// without making removals or read fan-out chunkier.
+    #[arg(long, default_value_t = 5)]
+    growth_per_round: usize,
+
+    /// Members the hub invites in large batches right after bootstrap,
+    /// before the walk starts, so a big group is available immediately
+    /// instead of climbing one round at a time. 0 skips this and leaves
+    /// growth entirely to the walk. Capped at the fleet size.
+    #[arg(long, default_value_t = 0)]
+    bootstrap_members: usize,
+
+    /// Members invited per commit during `--bootstrap-members`.
+    #[arg(long, default_value_t = 50)]
+    bootstrap_batch_size: usize,
 
     /// Group size the walk grows toward. The walk suppresses removals until the
     /// group is within a tenth of this, so it climbs instead of churning in
@@ -189,6 +206,8 @@ async fn main() -> anyhow::Result<()> {
     let bootstrap_params = bootstrap::BootstrapParams {
         chat_title: &args.chat_title,
         contact_mesh_degree: args.contact_mesh_degree,
+        bootstrap_members: args.bootstrap_members,
+        bootstrap_batch_size: args.bootstrap_batch_size,
         concurrency,
     };
     let chat_id = bootstrap::run(&fleet, &bootstrap_params, &mut report, &multi).await?;
@@ -208,6 +227,7 @@ async fn main() -> anyhow::Result<()> {
         chat_id,
         clients_by_id: &clients_by_id,
         max_targets: args.max_targets.max(1),
+        growth_per_round: args.growth_per_round.max(1),
         growth_ratio: args.growth_ratio.max(0.0),
         // 0 means the whole fleet, and the fleet is the ceiling regardless.
         target_members: match args.target_members {
@@ -285,9 +305,10 @@ async fn main() -> anyhow::Result<()> {
             walk_bar.set_position(elapsed_secs.min(args.duration_secs));
         }
         walk_bar.set_message(format!(
-            "step {step_count} | members {}/{} | {}",
+            "step {step_count} | members {}/{} | epoch {} | {}",
             round.members,
             ctx.target_members,
+            round.epoch,
             state.report.summary_line()
         ));
 

@@ -57,6 +57,9 @@ pub struct WalkContext<'a> {
     pub clients_by_id: &'a HashMap<UserId, &'a CoreUser>,
     /// Upper bound on how many targets a single operation may take.
     pub max_targets: usize,
+    /// Members the group may gain per round, independent of `max_targets`,
+    /// so growth can be driven hard without making removals chunkier.
+    pub growth_per_round: usize,
     /// Members to add per member removed, once the group is at its target.
     pub growth_ratio: f64,
     /// Group size the walk grows toward before it starts removing members.
@@ -115,7 +118,7 @@ impl WalkState {
     fn round_invite_budget(
         &self,
         growth_ratio: f64,
-        max_targets: usize,
+        growth_per_round: usize,
         members: usize,
         target_members: usize,
     ) -> usize {
@@ -124,7 +127,7 @@ impl WalkState {
         let gap_to_target = target_members.saturating_sub(members);
         ratio_deficit
             .max(gap_to_target)
-            .clamp(1, max_targets.max(1))
+            .clamp(1, growth_per_round.max(1))
     }
 }
 
@@ -225,6 +228,8 @@ struct Partition {
     /// the same round so their adds sum to the budget instead of each getting
     /// the full amount.
     invite_budget: Arc<AtomicUsize>,
+    /// Per-step cap on how much of the invite budget one commit may claim.
+    growth_per_round: usize,
     max_targets: usize,
     /// Whether the group is still below its target size, which selects the
     /// step weights this step draws from.
@@ -253,6 +258,9 @@ pub struct RoundOutcome {
     pub steps: usize,
     /// Group size as the hub saw it at the top of the round.
     pub members: usize,
+    /// The hub's epoch at the top of the round. Rises with every commit the
+    /// group accepts, so it shows the churn rate the round is generating.
+    pub epoch: u64,
     /// Who drove the steps, for the caller's originator-diversity check: a
     /// healthy walk is driven by ever-changing members, and a walk that
     /// keeps picking the same few can only exercise their corner of the
@@ -275,6 +283,7 @@ pub async fn run_round(
         return RoundOutcome {
             steps: 0,
             members: 0,
+            epoch: 0,
             originators: Vec::new(),
         };
     }
@@ -286,16 +295,26 @@ pub async fn run_round(
         return RoundOutcome {
             steps: 0,
             members: 0,
+            epoch: 0,
             originators: Vec::new(),
         };
     };
     let members = participants.len();
+    let epoch = ctx
+        .hub
+        .group_epoch_and_own_index(ctx.chat_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|(epoch, _)| epoch)
+        .unwrap_or_default();
 
     let partitions = build_partitions(ctx, &participants, state, rng).await;
     if partitions.is_empty() {
         return RoundOutcome {
             steps: 0,
             members,
+            epoch,
             originators: Vec::new(),
         };
     }
@@ -324,6 +343,7 @@ pub async fn run_round(
     RoundOutcome {
         steps: ran,
         members,
+        epoch,
         originators,
     }
 }
@@ -409,7 +429,7 @@ async fn build_partitions(
     let mut invite_pools = deal_invite_candidates(ctx, participants, &originators).await;
     let invite_budget = Arc::new(AtomicUsize::new(state.round_invite_budget(
         ctx.growth_ratio,
-        ctx.max_targets,
+        ctx.growth_per_round,
         participants.len(),
         ctx.target_members,
     )));
@@ -440,6 +460,7 @@ async fn build_partitions(
                 clients,
                 invite_candidates,
                 invite_budget: invite_budget.clone(),
+                growth_per_round: ctx.growth_per_round,
                 max_targets: ctx.max_targets,
                 below_target,
                 concurrency: ctx.step_concurrency,
@@ -619,7 +640,7 @@ async fn invite_members(partition: &Partition, rng: &mut impl Rng, outcome: &mut
     if partition.invite_candidates.is_empty() {
         return;
     }
-    let allowance = claim_invite_budget(&partition.invite_budget, partition.max_targets);
+    let allowance = claim_invite_budget(&partition.invite_budget, partition.growth_per_round);
     let n = allowance.min(partition.invite_candidates.len());
     if n == 0 {
         // Another step in this round already used the whole budget.

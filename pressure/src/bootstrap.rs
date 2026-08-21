@@ -19,7 +19,11 @@
 //! Every step checks current local state first, so re-running against an
 //! already-bootstrapped fleet only does the work that is still missing.
 
-use std::{collections::HashSet, future::Future};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    time::Duration,
+};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, UsernameRecord, clients::CoreUser};
@@ -33,6 +37,12 @@ pub struct BootstrapParams<'a> {
     /// Peers each member connects to. Zero leaves the fleet unconnected, so
     /// nobody can invite anybody and the group stays at one member.
     pub contact_mesh_degree: usize,
+    /// Members the hub invites in large batches right after the group is
+    /// created, before the walk starts. 0 leaves the group at one member and
+    /// growth entirely to the walk.
+    pub bootstrap_members: usize,
+    /// Members invited per commit while prefilling.
+    pub bootstrap_batch_size: usize,
     /// How many per-member operations may run at once.
     pub concurrency: usize,
 }
@@ -85,9 +95,176 @@ pub async fn run(
         }
     };
 
-    // catch_everyone_up(fleet, params.concurrency, report, multi).await;
+    if params.bootstrap_members > 0 {
+        prefill_group(fleet, chat_id, params, report, multi).await?;
+    }
 
     Ok(chat_id)
+}
+
+/// How many times a freshly invited member may drain while waiting for its
+/// Welcome to arrive, before the prefill gives up on it as an inviter.
+const WELCOME_ATTEMPTS: usize = 5;
+
+/// Grows the group to `params.bootstrap_members` before the walk starts, by
+/// cascading invites outward from the hub along the contact ring.
+///
+/// Adds are contact-gated and the ring gives every member only `2 * degree`
+/// contacts, the hub included -- it is not a hub in the contact sense, just
+/// the group's owner. A prefill driven by the hub alone would therefore stop
+/// at its handful of neighbours no matter what target is asked for. Instead
+/// each wave of members that joins becomes the next wave's inviters, so the
+/// group spreads across the ring and the reachable size is bounded by the
+/// fleet rather than by `--contact-mesh-degree`.
+///
+/// Waves are sequential, and so are the commits within them: only one commit
+/// per epoch wins, so racing them here would just burn retries. A member also
+/// has to drain its Welcome before it can invite anyone, which is what
+/// separates one wave from the next.
+async fn prefill_group(
+    fleet: &Fleet,
+    chat_id: ChatId,
+    params: &BootstrapParams<'_>,
+    report: &mut Report,
+    multi: &MultiProgress,
+) -> anyhow::Result<()> {
+    let hub = &fleet.members[0].user;
+    let target = params
+        .bootstrap_members
+        .min(fleet.members.len().saturating_sub(1));
+
+    let participants = hub
+        .chat_participants(chat_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("hub lost its own group right after creating it"))?;
+    if participants.len() > target {
+        info!(target, "bootstrap prefill already satisfied, skipping");
+        return Ok(());
+    }
+
+    let clients: HashMap<UserId, &CoreUser> = fleet
+        .members
+        .iter()
+        .map(|member| (member.user.user_id().clone(), &member.user))
+        .collect();
+
+    let batch_size = params.bootstrap_batch_size.max(1);
+    let bar = multi.add(ProgressBar::new(target as u64));
+    bar.set_style(bar_style("prefilling group"));
+    bar.inc(participants.len().saturating_sub(1) as u64);
+
+    // Everyone already in the group can invite; the hub is simply the first
+    // such member. Members are only promoted to inviters once they have
+    // drained, so `inviters` always holds members able to stage a commit.
+    let mut joined: HashSet<UserId> = participants.clone();
+    let mut inviters: Vec<UserId> = participants.iter().cloned().collect();
+
+    while joined.len() <= target {
+        let mut next_wave: Vec<UserId> = Vec::new();
+
+        for inviter_id in &inviters {
+            if joined.len() > target {
+                break;
+            }
+            let Some(inviter) = clients.get(inviter_id) else {
+                continue;
+            };
+            // Catch up on the commits the previous inviters in this wave just
+            // made. Without this each one stages from a superseded epoch and
+            // the DS rejects it as a lost race.
+            ops::drain(inviter).await?;
+            // Only this inviter's own contacts, and only those nobody has
+            // pulled in yet: the ring overlaps, so neighbours share
+            // candidates.
+            let candidates: Vec<UserId> = contact_ids(inviter)
+                .await?
+                .into_iter()
+                .filter(|id| !joined.contains(id) && clients.contains_key(id))
+                .take(target + 1 - joined.len())
+                .collect();
+            if candidates.is_empty() {
+                continue;
+            }
+
+            for batch in candidates.chunks(batch_size) {
+                let result = ops::invite(inviter, chat_id, batch).await;
+                report.record("bootstrap_invite", &result);
+                match &result {
+                    Ok(()) => {
+                        joined.extend(batch.iter().cloned());
+                        next_wave.extend(batch.iter().cloned());
+                        bar.inc(batch.len() as u64);
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            %error,
+                            batch_size = batch.len(),
+                            "bootstrap invite batch failed"
+                        );
+                    }
+                }
+                // The inviter committed, so it needs to catch up before
+                // staging the next batch from a current epoch.
+                ops::drain(inviter).await?;
+            }
+        }
+
+        if next_wave.is_empty() {
+            tracing::warn!(
+                reached = joined.len().saturating_sub(1),
+                target,
+                "bootstrap prefill ran out of reachable contacts; the ring cannot \
+                 grow the group further, raise --contact-mesh-degree"
+            );
+            break;
+        }
+
+        // The new members must process their Welcome before they can invite in
+        // the next wave, and the Welcome has to be fanned out before a drain
+        // can find it. Retried until the member actually holds the chat:
+        // draining once and assuming would promote members that then fail
+        // every invite with "No chat found". Distinct members, so this fans
+        // out.
+        let waking: Vec<(UserId, CoreUser)> = next_wave
+            .iter()
+            .filter_map(|id| clients.get(id).map(|user| (id.clone(), (*user).clone())))
+            .collect();
+        let woken = parallel::map(waking, params.concurrency, move |(id, user)| async move {
+            for attempt in 0..WELCOME_ATTEMPTS {
+                if attempt > 0 {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+                let result = ops::drain(&user).await;
+                let ready = result.is_ok() && ops::is_member(&user, chat_id).await;
+                if ready || attempt == WELCOME_ATTEMPTS - 1 {
+                    return (id, result, ready);
+                }
+            }
+            unreachable!("loop returns on its last attempt")
+        })
+        .await;
+
+        inviters = Vec::with_capacity(woken.len());
+        for (id, result, ready) in woken {
+            report.record("bootstrap_drain", &result);
+            if let Ok(outcome) = &result {
+                report.record_drain_outcome(outcome.fetched, outcome.message_errors);
+            }
+            if ready {
+                inviters.push(id);
+            }
+        }
+        if inviters.is_empty() {
+            tracing::warn!(
+                wave = next_wave.len(),
+                "no member of the last prefill wave became usable as an inviter"
+            );
+            break;
+        }
+    }
+
+    bar.finish_with_message(format!("group prefilled to {}", joined.len()));
+    Ok(())
 }
 
 /// Connects each member to the `degree` members that follow it in index order,

@@ -10,6 +10,7 @@
 //! (one per add-epoch, 90-day expiry) dominate it; watch the biggest blob
 //! while a stress run is going to see the growth rate.
 
+use std::io::Write;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -34,7 +35,7 @@ struct Args {
 
     /// Re-report every this many seconds instead of exiting.
     #[arg(long, short)]
-    watch: Option<u64>,
+    watch: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -43,22 +44,36 @@ async fn main() -> anyhow::Result<()> {
     let pool = PgPool::connect(&args.db_url).await?;
 
     loop {
-        report(&pool, args.limit).await?;
-        let Some(interval) = args.watch else {
+        report_encrypted_group(&pool, args.limit).await?;
+        report_welcome_info(&pool, args.limit).await?;
+
+        if !args.watch {
             return Ok(());
-        };
-        tokio::time::sleep(Duration::from_secs(interval)).await;
-        println!();
+        }
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        clear_screen();
     }
 }
 
-async fn report(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
+/// Clears the terminal and moves the cursor home, so each re-report
+/// overwrites the last instead of scrolling.
+fn clear_screen() {
+    print!("\x1B[2J\x1B[H");
+    let _ = std::io::stdout().flush();
+}
+
+async fn report_encrypted_group(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
     println!(
-        "=== largest group blobs ({}) ===",
+        "=== [DsGroupState] largest blobs ({}) ===",
         Utc::now().format("%H:%M:%S")
     );
+    // Table/column names can't be bound as query parameters -- only values
+    // can. `table_name` and `time_column` come from a fixed CLI default or
+    // mapping, not arbitrary user input, so interpolating them into the
+    // query text is safe.
     let rows = sqlx::query(
-        "SELECT group_id, pg_column_size(ciphertext) AS size, last_used
+        "SELECT group_id, pg_column_size(ciphertext) AS size, last_used AS last_used
          FROM encrypted_group
          ORDER BY pg_column_size(ciphertext) DESC
          LIMIT $1",
@@ -97,8 +112,8 @@ async fn report(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
         pretty(table_total as u64),
     );
 
-    println!("=== size distribution ===");
-    let rows = sqlx::query(
+    println!("=== [DsGroupState] size distribution ===");
+    let group_rows = sqlx::query(sqlx::AssertSqlSafe(format!(
         "SELECT CASE
                     WHEN pg_column_size(ciphertext) < 10240 THEN '<  10 kB'
                     WHEN pg_column_size(ciphertext) < 102400 THEN '<  100 kB'
@@ -110,11 +125,11 @@ async fn report(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
                 max(pg_column_size(ciphertext))::int8 AS largest
          FROM encrypted_group
          GROUP BY 1
-         ORDER BY min(pg_column_size(ciphertext))",
-    )
+         ORDER BY min(pg_column_size(ciphertext))"
+    )))
     .fetch_all(pool)
     .await?;
-    for row in rows {
+    for row in group_rows {
         let bucket: String = row.try_get("bucket")?;
         let groups: i64 = row.try_get("groups")?;
         let largest: i64 = row.try_get("largest")?;
@@ -123,6 +138,91 @@ async fn report(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
             pretty(largest as u64)
         );
     }
+
+    println!();
+
+    Ok(())
+}
+
+async fn report_welcome_info(pool: &PgPool, limit: i64) -> anyhow::Result<()> {
+    println!(
+        "=== [DsWelcomeInfo] largest blobs ({}) ===",
+        Utc::now().format("%H:%M:%S")
+    );
+    // Table/column names can't be bound as query parameters -- only values
+    // can. `table_name` and `time_column` come from a fixed CLI default or
+    // mapping, not arbitrary user input, so interpolating them into the
+    // query text is safe.
+    let rows = sqlx::query(
+        "SELECT group_id, epoch, pg_column_size(ciphertext) AS size, created_at AS last_used
+         FROM ds_welcome_info
+         ORDER BY pg_column_size(ciphertext) DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    for row in rows {
+        let group_id: Uuid = row.try_get("group_id")?;
+        let epoch: i64 = row.try_get("epoch")?;
+        let size: i32 = row.try_get("size")?;
+        let last_used: DateTime<Utc> = row.try_get("last_used")?;
+        println!(
+            "  {group_id} @ epoch {epoch}  {:>10}  last used {}",
+            pretty(size as u64),
+            last_used.format("%Y-%m-%d %H:%M:%S"),
+        );
+    }
+
+    let totals = sqlx::query(
+        "SELECT count(*) AS welcome_infos,
+                coalesce(sum(pg_column_size(ciphertext)), 0)::int8 AS live,
+                coalesce(avg(pg_column_size(ciphertext)), 0)::int8 AS avg,
+                pg_total_relation_size('ds_welcome_info') AS table_total
+         FROM ds_welcome_info",
+    )
+    .fetch_one(pool)
+    .await?;
+    let welcome_infos: i64 = totals.try_get("welcome_infos")?;
+    let live: i64 = totals.try_get("live")?;
+    let avg: i64 = totals.try_get("avg")?;
+    let table_total: i64 = totals.try_get("table_total")?;
+    println!(
+        "=== totals ===\n  {welcome_infos} welcome_infos, {} live blobs (avg {}), table {} incl. bloat",
+        pretty(live as u64),
+        pretty(avg as u64),
+        pretty(table_total as u64),
+    );
+
+    println!("=== [DsWelcomeInfo] size distribution ===");
+    let group_rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT CASE
+                    WHEN pg_column_size(ciphertext) < 10240 THEN '<  10 kB'
+                    WHEN pg_column_size(ciphertext) < 102400 THEN '<  100 kB'
+                    WHEN pg_column_size(ciphertext) < 1048576 THEN '<  1 MB'
+                    WHEN pg_column_size(ciphertext) < 10485760 THEN '<  10 MB'
+                    ELSE '>= 10 MB'
+                END AS bucket,
+                count(*) AS welcome_infos,
+                max(pg_column_size(ciphertext))::int8 AS largest
+         FROM ds_welcome_info
+         GROUP BY 1
+         ORDER BY min(pg_column_size(ciphertext))"
+    )))
+    .fetch_all(pool)
+    .await?;
+    for row in group_rows {
+        let bucket: String = row.try_get("bucket")?;
+        let welcome_infos: i64 = row.try_get("welcome_infos")?;
+        let largest: i64 = row.try_get("largest")?;
+        println!(
+            "  {bucket:<10} {welcome_infos:>7} groups   largest {}",
+            pretty(largest as u64)
+        );
+    }
+
+    println!();
+
     Ok(())
 }
 
