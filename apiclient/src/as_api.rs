@@ -26,18 +26,21 @@ use aircommon::{
         connection_package::ConnectionPackage,
         connection_package::VersionedConnectionPackageIn,
     },
+    registration::{ChallengeKind, RegistrationChallenge, RegistrationInfo},
 };
 use airprotos::{
     auth_service::v1::{
-        AckListenUsernameRequest, AsCredentialsRequest, CheckInvitationCodeRequest,
+        AckListenUsernameRequest, AsCredentialsRequest, ChallengeType, CheckInvitationCodeRequest,
         CheckUsernameExistsRequest, ConnectUsernameRequest, ConnectUsernameResponse,
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
         EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetInvitationCodesRequest,
-        GetUserProfileRequest, InitListenUsernamePayload, InvitationCode, IssueTokenBatchPayload,
-        IssueTokenBatchResponse, ListenUsernameRequest, MergeUserProfilePayload, OperationType,
-        PublishConnectionPackagesPayload, RefreshUsernamePayload, RegisterUserRequest,
-        ReportSpamPayload, StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
+        GetRegistrationInfoRequest, GetUserProfileRequest, InitListenUsernamePayload,
+        InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse, ListenUsernameRequest,
+        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload,
+        RefreshUsernamePayload, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
+        StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
         connect_username_response, issue_token_batch_response, listen_username_request,
+        register_user_response,
     },
     common::v1::{StatusDetails, StatusDetailsCode},
 };
@@ -63,6 +66,15 @@ pub enum AsRequestError {
 }
 
 impl AsRequestError {
+    /// Returns whether the server does not know the RPC at all, which is how a
+    /// server older than the RPC answers it.
+    pub fn is_unimplemented(&self) -> bool {
+        match self {
+            AsRequestError::Tonic(status) => status.code() == Code::Unimplemented,
+            _ => false,
+        }
+    }
+
     /// Returns whether the error is a gRPC not found error.
     pub fn is_not_found(&self) -> bool {
         match self {
@@ -119,6 +131,50 @@ impl AsRequestError {
     }
 }
 
+/// What the server did with a registration.
+#[derive(Debug)]
+pub enum RegistrationOutcome {
+    Registered(RegisterUserResponseIn),
+    /// The gate is closed and the request carried no challenge of an accepted
+    /// kind.
+    ///
+    /// The gate can close between asking the server what it wants and
+    /// registering, so this is how a client learns it has to ask for a
+    /// challenge after all. Kinds this build does not know are dropped.
+    ChallengeRequired(Vec<ChallengeKind>),
+    /// The server turned down the challenge response the request carried.
+    ChallengeRejected,
+}
+
+impl TryFrom<RegisterUserResponse> for RegistrationOutcome {
+    type Error = AsRequestError;
+
+    fn try_from(response: RegisterUserResponse) -> Result<Self, Self::Error> {
+        use register_user_response::Outcome;
+        match response.outcome {
+            Some(Outcome::UserCredential(credential)) => {
+                Ok(Self::Registered(RegisterUserResponseIn {
+                    user_credential: credential.try_into().map_err(|error| {
+                        error!(%error, "invalid user_credential in response");
+                        AsRequestError::UnexpectedResponse
+                    })?,
+                }))
+            }
+            Some(Outcome::ChallengeRequired(detail)) => Ok(Self::ChallengeRequired(
+                detail
+                    .accepted_challenges()
+                    .filter_map(ChallengeType::known_kind)
+                    .collect(),
+            )),
+            Some(Outcome::ChallengeRejected(_)) => Ok(Self::ChallengeRejected),
+            None => {
+                error!("missing `outcome` in response");
+                Err(AsRequestError::UnexpectedResponse)
+            }
+        }
+    }
+}
+
 impl From<LibraryError> for AsRequestError {
     fn from(_: LibraryError) -> Self {
         AsRequestError::LibraryError
@@ -156,38 +212,43 @@ impl ApiClient {
         Ok(response.invitation_codes)
     }
 
+    /// Asks the server whether registering with it needs a challenge right now.
+    pub async fn as_get_registration_info(&self) -> Result<RegistrationInfo, AsRequestError> {
+        let request = GetRegistrationInfoRequest {};
+        let response = self
+            .as_grpc_client()
+            .get_registration_info(request)
+            .await?
+            .into_inner();
+        Ok(RegistrationInfo {
+            challenge_required: response.challenge_required,
+            accepted_challenges: response
+                .accepted_challenges()
+                .filter_map(ChallengeType::known_kind)
+                .collect(),
+        })
+    }
+
     pub async fn as_register_user(
         &self,
         client_payload: UserCredentialPayload,
         encrypted_user_profile: EncryptedUserProfile,
-        invitation_code: String,
-    ) -> Result<RegisterUserResponseIn, AsRequestError> {
+        challenge: Option<RegistrationChallenge>,
+    ) -> Result<RegistrationOutcome, AsRequestError> {
+        let invitation_code = challenge.map(|challenge| match challenge {
+            RegistrationChallenge::InvitationCode(code) => InvitationCode { code },
+        });
         let request = RegisterUserRequest {
             client_metadata: Some(self.metadata().clone()),
             user_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
-            invitation_code: Some(InvitationCode {
-                code: invitation_code,
-            }),
+            invitation_code,
         };
-        let response = self
-            .as_grpc_client()
+        self.as_grpc_client()
             .register_user(Request::new(request))
             .await?
-            .into_inner();
-        Ok(RegisterUserResponseIn {
-            user_credential: response
-                .user_credential
-                .ok_or_else(|| {
-                    error!("missing `user_credential` in response");
-                    AsRequestError::UnexpectedResponse
-                })?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid user_credential in response");
-                    AsRequestError::UnexpectedResponse
-                })?,
-        })
+            .into_inner()
+            .try_into()
     }
 
     pub async fn as_get_user_profile(
@@ -684,16 +745,19 @@ impl AsConnectionOfferResponder {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::registration::ChallengeKind;
     use airprotos::{
         auth_service::v1::{
-            InvalidAllowanceEpoch, IssuanceConflict, IssueTokenBatchResponse,
+            ChallengeRejected, ChallengeRequired, ChallengeType, InvalidAllowanceEpoch,
+            IssuanceConflict, IssueTokenBatchResponse, RegisterUserResponse,
             issue_token_batch_response::Outcome,
+            register_user_response::Outcome as RegistrationOutcomeProto,
         },
         common::v1::{StatusDetails, StatusDetailsCode},
     };
     use tonic::Code;
 
-    use super::{AsRequestError, TokenBatchResponse};
+    use super::{AsRequestError, RegistrationOutcome, TokenBatchResponse};
 
     fn convert(outcome: Option<Outcome>) -> Result<TokenBatchResponse, AsRequestError> {
         IssueTokenBatchResponse { outcome }.try_into()
@@ -749,5 +813,61 @@ mod tests {
 
         let unavailable = AsRequestError::Tonic(tonic::Status::unavailable("down"));
         assert!(!unavailable.is_unsupported_version());
+    }
+
+    fn convert_registration(
+        outcome: Option<RegistrationOutcomeProto>,
+    ) -> Result<RegistrationOutcome, AsRequestError> {
+        RegisterUserResponse { outcome }.try_into()
+    }
+
+    /// Each registration outcome maps to its own variant. Confusing the two
+    /// rejections would either send the user back to a step they already filled
+    /// in, or leave them on one the server no longer asks about.
+    #[test]
+    fn registration_outcomes_map_to_their_variants() {
+        let required = convert_registration(Some(RegistrationOutcomeProto::ChallengeRequired(
+            ChallengeRequired {
+                accepted_challenges: vec![ChallengeType::InvitationCode.into()],
+            },
+        )))
+        .unwrap();
+        let RegistrationOutcome::ChallengeRequired(accepted) = required else {
+            panic!("expected ChallengeRequired, got {required:?}");
+        };
+        assert_eq!(accepted, [ChallengeKind::InvitationCode]);
+
+        let rejected = convert_registration(Some(RegistrationOutcomeProto::ChallengeRejected(
+            ChallengeRejected {},
+        )))
+        .unwrap();
+        let RegistrationOutcome::ChallengeRejected = rejected else {
+            panic!("expected ChallengeRejected, got {rejected:?}");
+        };
+    }
+
+    /// A kind this build has never heard of is dropped rather than surfacing as
+    /// something the sign-up flow would try to collect.
+    #[test]
+    fn unknown_challenge_kinds_are_dropped() {
+        let required = convert_registration(Some(RegistrationOutcomeProto::ChallengeRequired(
+            ChallengeRequired {
+                accepted_challenges: vec![404, ChallengeType::InvitationCode.into()],
+            },
+        )))
+        .unwrap();
+        let RegistrationOutcome::ChallengeRequired(accepted) = required else {
+            panic!("expected ChallengeRequired, got {required:?}");
+        };
+        assert_eq!(accepted, [ChallengeKind::InvitationCode]);
+    }
+
+    /// An empty oneof means the server sent something we cannot act on.
+    #[test]
+    fn missing_registration_outcome_is_an_unexpected_response() {
+        let error = convert_registration(None).unwrap_err();
+        let AsRequestError::UnexpectedResponse = error else {
+            panic!("expected UnexpectedResponse, got {error:?}");
+        };
     }
 }
