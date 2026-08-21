@@ -5,7 +5,10 @@
 use std::{collections::HashSet, slice, time::Duration};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
-use airbackend::settings::RateLimitsSettings;
+use airbackend::{
+    settings::{RateLimitsSettings, VersionExpiration},
+    version::VersionPolicy,
+};
 use aircommon::{
     assert_matches,
     credentials::keys::UsernameSigningKey,
@@ -26,9 +29,9 @@ use airprotos::{
     queue_service::v1::queue_service_server,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
-use semver::VersionReq;
+use semver::Version;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tonic::{Code, codegen::http, transport::Channel};
@@ -1014,7 +1017,10 @@ async fn invitation_code() {
 )]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
-        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on: DateTime::UNIX_EPOCH,
+        }]),
         ..Default::default()
     })
     .await;

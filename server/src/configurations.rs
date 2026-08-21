@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airbackend::settings::Settings;
-use config::{Config, ConfigError, File, Source};
+use config::{Config, ConfigError, File, FileSourceString, Source};
 
 /// The possible runtime environment for our application.
 pub enum Environment {
@@ -52,6 +52,7 @@ pub fn get_configuration(prefix: &str) -> Result<Settings, ConfigError> {
     get_configuration_impl(
         File::from(configuration_directory.join("base")).required(true),
         File::from(configuration_directory.join(environment.as_str())).required(true),
+        Some(File::from(configuration_directory.join("version_expirations")).required(false)),
     )
 }
 
@@ -60,14 +61,16 @@ pub fn get_configuration_from_str(base: &str, environment: &str) -> Result<Setti
     get_configuration_impl(
         File::from_str(base, config::FileFormat::Yaml),
         File::from_str(environment, config::FileFormat::Yaml),
+        None::<File<FileSourceString, config::FileFormat>>,
     )
 }
 
 fn get_configuration_impl(
     base: impl Source + Send + Sync + 'static,
     environment: impl Source + Send + Sync + 'static,
+    version_expirations: Option<impl Source + Send + Sync + 'static>,
 ) -> Result<Settings, ConfigError> {
-    let builder = Config::builder()
+    let mut builder = Config::builder()
         // Read the "default" configuration file
         .add_source(base)
         // Layer on the environment-specific values.
@@ -75,5 +78,8 @@ fn get_configuration_impl(
         // Add in settings from environment variables (with a prefix of APP and '_' as separator)
         // E.g. `AIR_APPLICATION_PORT=5001 would set `Settings.application.port`
         .add_source(config::Environment::with_prefix("AIR").separator("_"));
+    if let Some(version_expirations) = version_expirations {
+        builder = builder.add_source(version_expirations);
+    }
     builder.build()?.try_deserialize()
 }
