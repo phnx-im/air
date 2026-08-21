@@ -26,6 +26,7 @@ dashmap.workspace = true
 displaydoc.workspace = true
 futures-util.workspace = true
 h2.workspace = true
+hmac.workspace = true
 metrics.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true

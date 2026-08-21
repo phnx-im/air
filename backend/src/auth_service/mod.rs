@@ -21,8 +21,12 @@ use usernames::UsernameQueues;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
-    auth_service::client_record::ClientRecord,
+    auth_service::{
+        client_record::ClientRecord,
+        registration_gate::{IpBucketKey, RegistrationGate},
+    },
     errors::StorageError,
+    settings::RegistrationSettings,
 };
 
 pub mod cli;
@@ -33,6 +37,8 @@ mod credentials;
 pub mod grpc;
 mod invitation_code_record;
 pub mod privacy_pass;
+pub(crate) mod registration_challenge;
+pub(crate) mod registration_gate;
 pub mod user_record;
 mod usernames;
 
@@ -41,7 +47,7 @@ pub struct AuthService {
     db_pool: PgPool,
     pub(crate) username_queues: UsernameQueues,
     client_version_req: Option<VersionReq>,
-    invitation_only: bool,
+    registration_gate: RegistrationGate,
     unredeemable_code: Option<Arc<str>>,
     stop: CancellationToken,
 }
@@ -51,8 +57,22 @@ impl AuthService {
         &self.db_pool
     }
 
-    pub fn disable_invitation_only(&mut self) {
-        self.invitation_only = false;
+    pub fn set_registration_settings(&mut self, settings: RegistrationSettings) {
+        self.registration_gate.set_settings(settings);
+    }
+
+    /// Drops registration rows that no counter window can still see.
+    pub async fn prune_registration_records(&self) -> sqlx::Result<u64> {
+        self.registration_gate.prune(&self.db_pool).await
+    }
+
+    /// Republishes the deployment-scoped registration gate gauge.
+    pub async fn refresh_registration_gauge(&self) {
+        self.registration_gate.refresh_gauge(&self.db_pool).await;
+    }
+
+    pub(crate) fn registration_gate(&self) -> &RegistrationGate {
+        &self.registration_gate
     }
 
     pub fn set_unredeemable_code(&mut self, code: String) {
@@ -96,11 +116,12 @@ impl BackendService for AuthService {
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
+        let bucket_key = IpBucketKey::load_or_generate(&db_pool).await?;
         let auth_service = Self {
             db_pool,
             username_queues,
             client_version_req,
-            invitation_only: true,
+            registration_gate: RegistrationGate::new(RegistrationSettings::default(), bucket_key),
             unredeemable_code: None,
             stop,
         };

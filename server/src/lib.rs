@@ -158,6 +158,24 @@ pub async fn run<
         }
     }));
 
+    // Background task: drop registration rows that no gate window can still
+    // see, so neither counter keeps anything beyond its window, and republish
+    // the gate gauge so it does not sit on the last registrant's reading.
+    let registration_upkeep = auth_service.clone();
+    tokio::spawn(shutdown.clone().run_until_cancelled_owned(async move {
+        // Retention is measured in seconds, so a longer interval would keep
+        // rows well past the point where any counter can see them.
+        const UPKEEP_INTERVAL: Duration = Duration::from_mins(5);
+        loop {
+            match registration_upkeep.prune_registration_records().await {
+                Ok(pruned) => tracing::debug!(pruned, "pruned registration records"),
+                Err(error) => tracing::error!(%error, "failed to prune registration records"),
+            }
+            registration_upkeep.refresh_registration_gauge().await;
+            tokio::time::sleep(UPKEEP_INTERVAL).await;
+        }
+    }));
+
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector.clone(), as_connector);

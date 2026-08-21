@@ -375,6 +375,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header =>
+      'Aktualisierung erforderlich';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air oder frage jemanden, der schon bei Air ist, nach einem Einladungscode.';
+
+  @override
   String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override
@@ -403,6 +411,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Dieser Server verlangt jetzt einen Einladungscode. Gib einen ein, um fortzufahren.';
 
   @override
   String signUpScreen_error_register(String error) {

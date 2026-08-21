@@ -28,7 +28,7 @@ impl CoreUser {
         user_id: UserId,
         server_url: Url,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         use crate::{
             db::notification::DbNotificationsSender, utils::persistence::open_db_in_memory,
@@ -55,7 +55,7 @@ impl CoreUser {
             air_db,
             client_db,
             global_lock,
-            invitation_code,
+            challenge,
         )
         .await
     }

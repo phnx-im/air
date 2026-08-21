@@ -110,6 +110,9 @@
   "invitationCodesScreen_codeClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende den Einladungscode {code}.",
   "invitationCodesScreen_codesClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n{codes}",
 
+  "accountCreation_unsupported_header": "Aktualisierung erforderlich",
+  "accountCreation_unsupported_body": "Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air oder frage jemanden, der schon bei Air ist, nach einem Einladungscode.",
+
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
   "signUpScreen_actionButton": "Erstellen",
@@ -119,6 +122,7 @@
   "signUpScreen_serverHint": "DOMAIN-NAME",
   "signUpScreen_error_invalidDomain": "Domain ist ungültig",
   "signUpScreen_error_emptyDisplayName": "Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu",
+  "signUpScreen_error_challengeRequired": "Dieser Server verlangt jetzt einen Einladungscode. Gib einen ein, um fortzufahren.",
   "signUpScreen_error_register": "Fehler beim Registrieren des Benutzers: {error}",
   "usernameOnboarding_header": "Füge einen Benutzernamen hinzu",
   "usernameOnboarding_body": "Über Benutzernamen kann man sich in Air mit anderen verbinden. Sie sind für andere nicht mehr sichtbar, sobald man verbunden ist.\n\nDu kannst Benutzernamen jederzeit in deinem Profil hinzufügen, ändern oder entfernen.",

@@ -510,6 +510,15 @@
     }
   },
 
+  "accountCreation_unsupported_header": "Update required",
+  "@accountCreation_unsupported_header": {
+    "description": "Header of the sign up step shown when the server asks for a kind of sign up check this version of the app cannot answer."
+  },
+  "accountCreation_unsupported_body": "This server asks for something this version of Air cannot provide. Update Air, or ask someone already on Air for an invite code.",
+  "@accountCreation_unsupported_body": {
+    "description": "Explains that sign up cannot continue until the app is updated, and that an invite code is the alternative."
+  },
+
   "signUpScreen_header": "Create your profile",
   "@signUpScreen_header": {
     "description": "Header of the profile step during sign up."
@@ -545,6 +554,10 @@
   "signUpScreen_error_emptyDisplayName": "Add a display name of at least one character",
   "@signUpScreen_error_emptyDisplayName": {
     "description": "Validation error when the display name field is left empty."
+  },
+  "signUpScreen_error_challengeRequired": "This server now asks for an invite code. Enter one to carry on.",
+  "@signUpScreen_error_challengeRequired": {
+    "description": "Error shown when the server started requiring an invite code while the sign up form was open, and the flow returns to the code step."
   },
   "signUpScreen_error_register": "Error when registering user: {error}",
   "@signUpScreen_error_register": {

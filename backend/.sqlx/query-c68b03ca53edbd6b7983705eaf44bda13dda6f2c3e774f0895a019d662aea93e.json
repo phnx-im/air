@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO registration_record (created_at)\n            VALUES (now() - INTERVAL '1 minute'), (now() - INTERVAL '2 hours')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "c68b03ca53edbd6b7983705eaf44bda13dda6f2c3e774f0895a019d662aea93e"
+}
