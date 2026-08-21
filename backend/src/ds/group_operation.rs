@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 
 use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
