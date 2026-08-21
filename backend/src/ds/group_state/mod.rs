@@ -177,8 +177,25 @@ impl DsGroupState {
     /// so the recorded profile keys are the ones a joiner at that epoch needs.
     pub(super) fn stage_welcome_info(&mut self, retained: Option<RetainedWelcomeInfo>) {
         let Some(retained) = retained else { return };
-        let profiles = self.current_member_profiles().collect();
-        let (epoch, info) = DsWelcomeInfo::new(retained, profiles, &self.room_state);
+        let (epoch, info) = DsWelcomeInfo::new(
+            retained,
+            self.current_member_profiles().collect(),
+            &self.room_state,
+        );
+        self.welcome_info_outbox
+            .stage(epoch, TimeStamp::now(), info);
+    }
+
+    /// Same as [`stage_welcome_info`] but
+    /// without member profile keys as an optimisation.
+    ///
+    /// The client never uses them from the PQ leg of an APQ group.
+    pub(super) fn stage_welcome_info_without_profile_keys(
+        &mut self,
+        retained: Option<RetainedWelcomeInfo>,
+    ) {
+        let Some(retained) = retained else { return };
+        let (epoch, info) = DsWelcomeInfo::new(retained, Vec::new(), &self.room_state);
         self.welcome_info_outbox
             .stage(epoch, TimeStamp::now(), info);
     }

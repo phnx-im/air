@@ -7,7 +7,10 @@ use std::collections::{BTreeSet, HashSet};
 use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
+    group::{
+        ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
+        apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
+    },
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
@@ -371,7 +374,6 @@ impl DsGroupState {
             self.update_membership_profiles(&add_users_state.added_users)?;
         }
 
-        // Persist staged welcome info if any
         self.stage_welcome_info(retained_welcome_info);
 
         #[cfg(debug_assertions)]
@@ -485,13 +487,15 @@ impl DsGroupState {
         // Now we have to update the group state and distribute.
 
         // We first accept the message into the group state ...
-        let t_retained_welcome_info =
-            ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
-                .accept_apq_processed_message(
-                    t_group_state.provider.storage(),
-                    pq_group_state.provider.storage(),
-                    processed_assisted_message,
-                )?;
+        let ApqRetainedWelcomeInfo {
+            t_retained_welcome_info,
+            pq_retained_welcome_info,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+            .accept_apq_processed_message(
+                t_group_state.provider.storage(),
+                pq_group_state.provider.storage(),
+                processed_assisted_message,
+            )?;
 
         // Process removes
         t_group_state.remove_profiles(t_removed_clients);
@@ -499,11 +503,13 @@ impl DsGroupState {
         // Update membership profiles for added users
         if let Some(ref add_users_state) = t_add_users_state {
             t_group_state.update_membership_profiles(&add_users_state.added_users)?;
-            t_group_state.stage_welcome_info(t_retained_welcome_info);
         }
 
         #[cfg(debug_assertions)]
         t_group_state.check_member_profiles("apq_commit");
+
+        t_group_state.stage_welcome_info(t_retained_welcome_info);
+        pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information

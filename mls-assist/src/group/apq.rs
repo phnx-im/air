@@ -18,8 +18,8 @@ pub struct ApqGroupRef<'a> {
 }
 
 pub struct ApqRetainedWelcomeInfo {
-    pub t: Option<RetainedWelcomeInfo>,
-    pub pq: Option<RetainedWelcomeInfo>,
+    pub t_retained_welcome_info: Option<RetainedWelcomeInfo>,
+    pub pq_retained_welcome_info: Option<RetainedWelcomeInfo>,
 }
 
 impl<'a> ApqGroupRef<'a> {
@@ -39,16 +39,19 @@ impl<'a> ApqGroupRef<'a> {
                 },
             group_info,
         }: ApqProcessedAssistedMessage,
-    ) -> Result<Option<RetainedWelcomeInfo>, MergeCommitError<StorageError<StorageProvider>>> {
+    ) -> Result<ApqRetainedWelcomeInfo, MergeCommitError<StorageError<StorageProvider>>> {
         let (t_group_info, pq_group_info) = group_info.into_parts();
         let t_retained_welcome_info = self.t_group.accept_processed_message(
             t_provider,
             ProcessedAssistedMessage::Commit(t_message, Box::new(t_group_info)),
         )?;
-        let _ = self.pq_group.accept_processed_message(
+        let pq_retained_welcome_info = self.pq_group.accept_processed_message(
             pq_provider,
             ProcessedAssistedMessage::Commit(pq_message, Box::new(pq_group_info)),
         )?;
-        Ok(t_retained_welcome_info)
+        Ok(ApqRetainedWelcomeInfo {
+            t_retained_welcome_info,
+            pq_retained_welcome_info,
+        })
     }
 }

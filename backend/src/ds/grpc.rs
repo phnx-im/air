@@ -567,6 +567,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         self.cleanup_after_commit(t_qgid.group_uuid(), t_new_epoch)
             .await;
+        self.sweep_welcome_info(pq_qgid.group_uuid()).await;
 
         Ok(value)
     }

@@ -8,7 +8,10 @@ use aircommon::{
 };
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::{ProcessedAssistedMessage, apq::ApqGroupRef},
+    group::{
+        ProcessedAssistedMessage,
+        apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
+    },
     messages::SerializedMlsMessage,
     openmls::prelude::Sender,
     provider_traits::MlsAssistProvider,
@@ -187,7 +190,6 @@ impl DsGroupState {
         #[cfg(debug_assertions)]
         self.check_member_profiles("resync");
 
-        // Persist staged welcome info if any
         self.stage_welcome_info(retained_welcome_info);
 
         Ok(ResyncOutcome {
@@ -342,7 +344,10 @@ impl DsGroupState {
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
 
-        ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+        let ApqRetainedWelcomeInfo {
+            t_retained_welcome_info,
+            pq_retained_welcome_info,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .accept_apq_processed_message(
                 t_group_state.provider.storage(),
                 pq_group_state.provider.storage(),
@@ -356,6 +361,9 @@ impl DsGroupState {
 
         #[cfg(debug_assertions)]
         t_group_state.check_member_profiles("resync_apq");
+
+        t_group_state.stage_welcome_info(t_retained_welcome_info);
+        pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
         Ok(ResyncOutcome {
             message: processed_assisted_message_plus.serialized_apq_message,

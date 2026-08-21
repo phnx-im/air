@@ -92,7 +92,6 @@ impl DsGroupState {
         // commit info.
         self.proposals.push(serialized_mls_message.0.clone());
 
-        // Persist staged welcome info if any
         self.stage_welcome_info(retained_welcome_info);
 
         // We remove the user and client profile only when the proposal is committed.
