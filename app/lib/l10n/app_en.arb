@@ -1,186 +1,690 @@
 {
   "appTitle": "Air",
+  "@appTitle": {
+    "description": "Product name used as the window and task switcher title. Keep as \"Air\" in every locale."
+  },
   "languageName": "English",
+  "@languageName": {
+    "description": "Name of this language written in the language itself, listed in the language picker."
+  },
 
-  "userSettingsScreen_title": "Profile and Settings",
+  "userSettingsScreen_title": "Profile and settings",
+  "@userSettingsScreen_title": {
+    "description": "Title of the profile and settings screen, opened from the You tab."
+  },
   "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
+  "@userSettingsScreen_profileDescription": {
+    "description": "Explains who can see the display name and profile picture. Sits under the profile section in profile and settings."
+  },
   "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
+  "@userSettingsScreen_userNamesDescription": {
+    "description": "Explains what usernames are for and that they stay private even from contacts. Sits under the Usernames section."
+  },
   "userSettingsScreen_help": "Help",
+  "@userSettingsScreen_help": {
+    "description": "Row label in profile and settings that opens the help section."
+  },
   "userSettingsScreen_deleteAccount": "Delete Air account",
+  "@userSettingsScreen_deleteAccount": {
+    "description": "Destructive row label in profile and settings that starts account deletion."
+  },
   "userSettingsScreen_sendWithEnter": "Send with Enter",
+  "@userSettingsScreen_sendWithEnter": {
+    "description": "Label of the preference toggle that makes the Enter key send a message."
+  },
   "userSettingsScreen_sendWithEnterDescription": "If turned on, the keyboard's \"Enter\" key sends the message.",
+  "@userSettingsScreen_sendWithEnterDescription": {
+    "description": "Explains the Send with Enter toggle. The quoted word is the name of the keyboard key."
+  },
   "userSettingsScreen_readReceipts": "Read receipts",
+  "@userSettingsScreen_readReceipts": {
+    "description": "Label of the preference toggle that enables read receipts."
+  },
   "userSettingsScreen_readReceiptsDescription": "If turned on, others will see if you’ve read their messages and you'll see if they’ve read yours.",
+  "@userSettingsScreen_readReceiptsDescription": {
+    "description": "Explains that the read receipts toggle applies in both directions."
+  },
 
   "userSettingsScreen_displayNameLabel": "Display name",
+  "@userSettingsScreen_displayNameLabel": {
+    "description": "Field label above the user's own display name in profile and settings."
+  },
 
   "userSettingsScreen_usernamesSection": "Usernames",
+  "@userSettingsScreen_usernamesSection": {
+    "description": "Section header above the list of the user's own usernames."
+  },
   "userSettingsScreen_helpSection": "Help",
+  "@userSettingsScreen_helpSection": {
+    "description": "Section header grouping the help rows in profile and settings."
+  },
   "userSettingsScreen_accountSection": "Account",
+  "@userSettingsScreen_accountSection": {
+    "description": "Section header grouping the account rows in profile and settings."
+  },
 
   "userSettingsScreen_inviteCodes": "Invite codes",
+  "@userSettingsScreen_inviteCodes": {
+    "description": "Row label in profile and settings that opens the user's invite codes."
+  },
 
   "userSettingsScreen_devices": "Devices",
+  "@userSettingsScreen_devices": {
+    "description": "Row label in profile and settings that opens the list of linked devices."
+  },
 
   "youSection_profile": "Profile",
+  "@youSection_profile": {
+    "description": "Section header grouping the user's own profile rows in the You tab."
+  },
   "youSection_preferences": "Preferences",
+  "@youSection_preferences": {
+    "description": "Section header grouping app preference rows in the You tab."
+  },
   "youSection_developer": "Developer",
+  "@youSection_developer": {
+    "description": "Section header grouping developer-only rows in the You tab."
+  },
 
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
+  "@settingsScreen_copiedToClipboard": {
+    "description": "Confirmation shown after copying a value from profile and settings."
+  },
 
   "removeUsernameDialog_title": "Remove username?",
+  "@removeUsernameDialog_title": {
+    "description": "Title of the dialog confirming removal of one of the user's own usernames. Phrased as a question."
+  },
   "removeUsernameDialog_content": "People won’t be able to send you a contact request using this username, and it may be taken by someone else.",
+  "@removeUsernameDialog_content": {
+    "description": "Body of the remove username dialog. Says contact requests to that username stop working and someone else may claim it."
+  },
   "removeUsernameDialog_cancel": "Cancel",
+  "@removeUsernameDialog_cancel": {
+    "description": "Button that dismisses the remove username dialog without removing anything."
+  },
   "removeUsernameDialog_remove": "Remove",
+  "@removeUsernameDialog_remove": {
+    "description": "Confirming button of the remove username dialog. Use the glossary term for removing, not for deleting."
+  },
   "userSettingsScreen_usernamePlaceholder": "Username",
+  "@userSettingsScreen_usernamePlaceholder": {
+    "description": "Placeholder in the username row shown before the user has added a username."
+  },
 
   "addMembersScreen_addMembers": "Add member(s)",
+  "@addMembersScreen_addMembers": {
+    "description": "Title of the pane for adding members to an existing group."
+  },
 
   "contactDetailsScreen_title": "Profile",
+  "@contactDetailsScreen_title": {
+    "description": "Title of the pane showing another person's profile."
+  },
   "contactDetailsScreen_chat": "Chat",
+  "@contactDetailsScreen_chat": {
+    "description": "Button on a contact's profile that opens the chat with them."
+  },
   "contactDetailsScreen_viewSafetyCode": "Safety code",
+  "@contactDetailsScreen_viewSafetyCode": {
+    "description": "Row label on a contact's profile that opens their safety code."
+  },
   "contactDetailsScreen_mute": "Mute",
+  "@contactDetailsScreen_mute": {
+    "description": "Button that mutes notifications for this contact's chat."
+  },
   "contactDetailsScreen_unmute": "Unmute",
+  "@contactDetailsScreen_unmute": {
+    "description": "Button that unmutes notifications for a currently muted chat."
+  },
 
-  "safetyCodeScreen_title": "Safety Code",
+  "safetyCodeScreen_title": "Safety code",
+  "@safetyCodeScreen_title": {
+    "description": "Title of the pane showing the safety code shared with one contact."
+  },
   "safetyCodeScreen_tapToCopy": "Tap to copy",
+  "@safetyCodeScreen_tapToCopy": {
+    "description": "Hint under the safety code telling the user they can tap it to copy."
+  },
   "safetyCodeScreen_copiedToClipboard": "Copied to clipboard",
+  "@safetyCodeScreen_copiedToClipboard": {
+    "description": "Confirmation shown after the safety code is copied."
+  },
   "safetyCodeScreen_safetyCodeExplanation": "Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you're sending and receiving end-to-end encrypted messages with the correct person.",
-
-  "chatDetailsScreen_unknownChat": "Unknown chat",
-
-  "muteDurationSheet_title": "Mute chat?",
-  "muteDurationSheet_body": "Choose how long to mute the chat for.",
-  "muteDurationSheet_1hour": "1 hour",
-  "muteDurationSheet_8hours": "8 hours",
-  "muteDurationSheet_untilTomorrow": "Until midnight",
-  "muteDurationSheet_untilNextMonday": "Until next Monday",
-  "muteDurationSheet_always": "Always",
-
-  "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
-  "inactiveChatFooter_message": "You're no longer a member of this chat.",
-
-  "chatScreen_emptyChat": "Select a chat to start messaging",
-
-  "removeUserDialog_title": "Remove user",
-  "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
-  "removeUserDialog_removeUser": "Remove user",
-  "removeUserButton_text": "Remove",
-
-  "blockContactButton_text": "Block",
-  "blockContactDialog_title": "Block {displayName}?",
-  "blockContactDialog_content": "You won’t receive messages from {displayName} and they won’t be able to view any updates to your profile. They won’t be able to see that you blocked them. You can unblock them anytime.",
-  "blockContactDialog_cancel": "Cancel",
-  "blockContactDialog_block": "Block",
-
-  "unblockContactButton_text": "Unblock",
-  "unblockContactDialog_title": "Unblock {displayName}?",
-  "unblockContactDialog_content": "You’ll be able to send and receive messages from {displayName} and they’ll be able to view your current profile.",
-  "unblockContactDialog_cancel": "Cancel",
-  "unblockContactDialog_unblock": "Unblock",
-
-  "deleteContactButton_text": "Delete",
-  "deleteContactDialog_title": "Delete Air Contact",
-  "deleteContactDialog_content": "Are you sure you want to delete your Air Contact {displayName}? If you do, the chat and its message history will be deleted.",
-  "deleteContactDialog_cancel": "Cancel",
-  "deleteContactDialog_delete": "Delete",
-
-  "addContactDialog_title": "Add Air contact",
-  "addContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
-  "addContactDialog_cancel": "Cancel",
-  "addContactDialog_confirm": "Send",
-
-  "changeGroupTitleDialog_title": "Change group title",
-  "changeGroupTitleDialog_content": "Choose a title for the group.",
-  "changeGroupTitleDialog_cancel": "Cancel",
-  "changeGroupTitleDialog_confirm": "Save",
-
-  "unsavedInputDialog_title": "Are you sure you want to close?",
-  "unsavedInputDialog_cancel": "Cancel",
-  "unsavedInputDialog_close": "Close",
-
-  "introScreen_serverLabel": "Choose a server to connect to for linking.",
-  "introScreen_serverHint": "DOMAIN NAME",
-
-  "introScreen_linkExisting": "Link to an existing account",
-  "introScreen_signUp": "Create account",
-  "introScreen_termsLinkText": "Terms of Use",
-  "introScreen_termsText": "By creating an account, you agree to our {termsOfUseLink}.",
-  "@introScreen_termsText": {
+  "@safetyCodeScreen_safetyCodeExplanation": {
+    "description": "Explains how to verify a contact by comparing safety codes out of band.",
     "placeholders": {
-      "termsOfUseLink": {}
+      "displayName": {
+        "type": "String"
+      }
     }
   },
 
-  "invitationCodeScreen_header": "Enter invitation code",
+  "chatDetailsScreen_unknownChat": "Unknown chat",
+  "@chatDetailsScreen_unknownChat": {
+    "description": "Fallback title when a chat has no name and no members to name it after."
+  },
+
+  "muteDurationSheet_title": "Mute chat?",
+  "@muteDurationSheet_title": {
+    "description": "Title of the sheet asking how long to mute a chat. Phrased as a question about the chat, not about notifications."
+  },
+  "muteDurationSheet_body": "Choose how long to mute the chat for.",
+  "@muteDurationSheet_body": {
+    "description": "Body of the mute duration sheet, above the list of durations."
+  },
+  "muteDurationSheet_1hour": "1 hour",
+  "@muteDurationSheet_1hour": {
+    "description": "Mute duration option of one hour."
+  },
+  "muteDurationSheet_8hours": "8 hours",
+  "@muteDurationSheet_8hours": {
+    "description": "Mute duration option of eight hours."
+  },
+  "muteDurationSheet_untilTomorrow": "Until midnight",
+  "@muteDurationSheet_untilTomorrow": {
+    "description": "Mute duration option lasting until midnight tonight."
+  },
+  "muteDurationSheet_untilNextMonday": "Until next Monday",
+  "@muteDurationSheet_untilNextMonday": {
+    "description": "Mute duration option lasting until the coming Monday."
+  },
+  "muteDurationSheet_always": "Always",
+  "@muteDurationSheet_always": {
+    "description": "Mute duration option with no end, until the user changes it."
+  },
+
+  "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
+  "@blockedChatFooter_message": {
+    "description": "Replaces the message composer when the other person is blocked.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "inactiveChatFooter_message": "You're no longer a member of this chat.",
+  "@inactiveChatFooter_message": {
+    "description": "Replaces the message composer after the user has left or been removed from a chat."
+  },
+
+  "chatScreen_emptyChat": "Select a chat to start messaging",
+  "@chatScreen_emptyChat": {
+    "description": "Placeholder in the chat pane on large screens when no chat is selected."
+  },
+
+  "removeUserDialog_title": "Remove user",
+  "@removeUserDialog_title": {
+    "description": "Title of the dialog confirming removal of a member from a group."
+  },
+  "removeUserDialog_content": "Are you sure you want to remove {displayName} from the group?",
+  "@removeUserDialog_content": {
+    "description": "Body of the remove member dialog, naming the person to be removed.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "removeUserDialog_removeUser": "Remove user",
+  "@removeUserDialog_removeUser": {
+    "description": "Confirming button of the remove member dialog."
+  },
+  "removeUserButton_text": "Remove",
+  "@removeUserButton_text": {
+    "description": "Button on a member's profile that starts removing them from the group."
+  },
+
+  "blockContactButton_text": "Block",
+  "@blockContactButton_text": {
+    "description": "Button on a contact's profile that starts blocking them."
+  },
+  "blockContactDialog_title": "Block {displayName}?",
+  "@blockContactDialog_title": {
+    "description": "Title of the block confirmation dialog, naming the person.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactDialog_content": "You won’t receive messages from {displayName} and they won’t be able to view any updates to your profile. They won’t be able to see that you blocked them. You can unblock them anytime.",
+  "@blockContactDialog_content": {
+    "description": "Body of the block dialog. Lists what blocking does and says it can be undone.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactDialog_cancel": "Cancel",
+  "@blockContactDialog_cancel": {
+    "description": "Button that dismisses the block dialog without blocking."
+  },
+  "blockContactDialog_block": "Block",
+  "@blockContactDialog_block": {
+    "description": "Confirming button of the block dialog."
+  },
+
+  "unblockContactButton_text": "Unblock",
+  "@unblockContactButton_text": {
+    "description": "Button on a blocked contact's profile that starts unblocking them."
+  },
+  "unblockContactDialog_title": "Unblock {displayName}?",
+  "@unblockContactDialog_title": {
+    "description": "Title of the unblock confirmation dialog, naming the person.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "unblockContactDialog_content": "You’ll be able to send and receive messages from {displayName} and they’ll be able to view your current profile.",
+  "@unblockContactDialog_content": {
+    "description": "Body of the unblock dialog, describing what becomes possible again.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "unblockContactDialog_cancel": "Cancel",
+  "@unblockContactDialog_cancel": {
+    "description": "Button that dismisses the unblock dialog without unblocking."
+  },
+  "unblockContactDialog_unblock": "Unblock",
+  "@unblockContactDialog_unblock": {
+    "description": "Confirming button of the unblock dialog."
+  },
+
+  "deleteContactButton_text": "Delete",
+  "@deleteContactButton_text": {
+    "description": "Button on a contact's profile that starts deleting the contact."
+  },
+  "deleteContactDialog_title": "Delete Air contact",
+  "@deleteContactDialog_title": {
+    "description": "Title of the dialog confirming deletion of an Air contact."
+  },
+  "deleteContactDialog_content": "Are you sure you want to delete your Air contact {displayName}? If you do, the chat and its message history will be deleted.",
+  "@deleteContactDialog_content": {
+    "description": "Body of the delete contact dialog. Warns that the chat and its history go too.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteContactDialog_cancel": "Cancel",
+  "@deleteContactDialog_cancel": {
+    "description": "Button that dismisses the delete contact dialog."
+  },
+  "deleteContactDialog_delete": "Delete",
+  "@deleteContactDialog_delete": {
+    "description": "Confirming button of the delete contact dialog. Deletes content, so use the glossary term for deleting."
+  },
+
+  "addContactDialog_title": "Add Air contact",
+  "@addContactDialog_title": {
+    "description": "Title of the dialog for adding a group member as an Air contact."
+  },
+  "addContactDialog_content": "{displayName} from the group chat \"{groupTitle}\" isn't an Air contact. To chat with them, send a contact request.",
+  "@addContactDialog_content": {
+    "description": "Body of the add contact dialog. Says the person shares a group but is not yet a contact.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "addContactDialog_cancel": "Cancel",
+  "@addContactDialog_cancel": {
+    "description": "Button that dismisses the add contact dialog."
+  },
+  "addContactDialog_confirm": "Send",
+  "@addContactDialog_confirm": {
+    "description": "Confirming button of the add contact dialog, which sends a contact request."
+  },
+
+  "changeGroupTitleDialog_title": "Change group title",
+  "@changeGroupTitleDialog_title": {
+    "description": "Title of the dialog for renaming a group."
+  },
+  "changeGroupTitleDialog_content": "Choose a title for the group.",
+  "@changeGroupTitleDialog_content": {
+    "description": "Body of the rename group dialog, above the name field."
+  },
+  "changeGroupTitleDialog_cancel": "Cancel",
+  "@changeGroupTitleDialog_cancel": {
+    "description": "Button that dismisses the rename group dialog."
+  },
+  "changeGroupTitleDialog_confirm": "Save",
+  "@changeGroupTitleDialog_confirm": {
+    "description": "Confirming button of the rename group dialog."
+  },
+
+  "unsavedInputDialog_title": "Are you sure you want to close?",
+  "@unsavedInputDialog_title": {
+    "description": "Title of the dialog warning that closing now discards unsaved input."
+  },
+  "unsavedInputDialog_cancel": "Cancel",
+  "@unsavedInputDialog_cancel": {
+    "description": "Button that keeps the form open so the user can carry on editing."
+  },
+  "unsavedInputDialog_close": "Close",
+  "@unsavedInputDialog_close": {
+    "description": "Button that closes the form and discards the unsaved input."
+  },
+
+  "introScreen_serverLabel": "Choose a server to connect to for linking.",
+  "@introScreen_serverLabel": {
+    "description": "Label above the server field on the start screen, shown when linking a device."
+  },
+  "introScreen_serverHint": "DOMAIN NAME",
+  "@introScreen_serverHint": {
+    "description": "Placeholder of the server field, shown in capitals in the source."
+  },
+
+  "introScreen_linkExisting": "Link to an existing account",
+  "@introScreen_linkExisting": {
+    "description": "Start screen button for linking this device to an account that already exists."
+  },
+  "introScreen_signUp": "Create account",
+  "@introScreen_signUp": {
+    "description": "Start screen button for creating a new account."
+  },
+  "introScreen_termsLinkText": "Terms of Use",
+  "@introScreen_termsLinkText": {
+    "description": "Link text inside the terms sentence on the start screen. Must match the wording used inside that sentence so the link can be located in the rendered string."
+  },
+  "introScreen_termsText": "By creating an account, you agree to our {termsOfUseLink}.",
+  "@introScreen_termsText": {
+    "description": "Terms notice on the start screen. The placeholder is replaced by the terms link text and must appear verbatim.",
+    "placeholders": {
+      "termsOfUseLink": {
+        "type": "String"
+      }
+    }
+  },
+
+  "invitationCodeScreen_header": "Enter invite code",
+  "@invitationCodeScreen_header": {
+    "description": "Header of the step asking for an invite code during sign up."
+  },
   "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
-  "invitationCodeScreen_inputLabel": "Invitation code (required)",
-  "invitationCodeScreen_inputHint": "Enter your invitation code...",
+  "@invitationCodeScreen_subheader": {
+    "description": "Explains that Air is invitation-only and where to get a code."
+  },
+  "invitationCodeScreen_inputLabel": "Invite code (required)",
+  "@invitationCodeScreen_inputLabel": {
+    "description": "Label of the invite code field. The parenthesis marks the field as mandatory."
+  },
+  "invitationCodeScreen_inputHint": "Enter your invite code...",
+  "@invitationCodeScreen_inputHint": {
+    "description": "Placeholder of the invite code field."
+  },
   "invitationCodeScreen_error_invalidLength": "Code must be 8 characters",
+  "@invitationCodeScreen_error_invalidLength": {
+    "description": "Validation error when the invite code is not exactly eight characters."
+  },
   "invitationCodeScreen_actionButton": "Join Air",
-  "invitationCodeScreen_error_internal": "Failed to check invitation code: {error}",
-  "invitationCodeScreen_error_missing": "Invitation code is missing",
-  "invitationCodeScreen_error_invalid": "Invalid invitation code. Check your code, then try again.",
+  "@invitationCodeScreen_actionButton": {
+    "description": "Button that submits the invite code and continues sign up."
+  },
+  "invitationCodeScreen_error_internal": "Failed to check invite code: {error}",
+  "@invitationCodeScreen_error_internal": {
+    "description": "Error shown when checking the invite code fails unexpectedly. The placeholder carries an untranslated technical message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "invitationCodeScreen_error_missing": "Invite code is missing",
+  "@invitationCodeScreen_error_missing": {
+    "description": "Validation error when the invite code field is left empty."
+  },
+  "invitationCodeScreen_error_invalid": "Invalid invite code. Check your code, then try again.",
+  "@invitationCodeScreen_error_invalid": {
+    "description": "Error shown when the server rejects the invite code."
+  },
 
   "invitationCodesScreen_title": "Invite codes",
+  "@invitationCodesScreen_title": {
+    "description": "Title of the modal listing the invite codes the user can share."
+  },
   "invitationCodesScreen_copyAll": "Copy all",
+  "@invitationCodesScreen_copyAll": {
+    "description": "Button that copies every unused invite code at once."
+  },
   "invitationCodesScreen_tapToGetCode": "Tap to get code",
+  "@invitationCodesScreen_tapToGetCode": {
+    "description": "Hint on an empty code slot telling the user to tap it to request a code."
+  },
   "invitationCodesScreen_removeUsedCodes": "Remove used codes",
-  "invitationCodesScreen_empty": "No invitation codes available",
+  "@invitationCodesScreen_removeUsedCodes": {
+    "description": "Button that clears already redeemed codes from the list."
+  },
+  "invitationCodesScreen_empty": "No invite codes available",
+  "@invitationCodesScreen_empty": {
+    "description": "Empty state of the invite codes modal."
+  },
   "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",
+  "@invitationCodesScreen_infoText1": {
+    "description": "First paragraph explaining why invite codes exist."
+  },
   "invitationCodesScreen_infoText2": "Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.",
+  "@invitationCodesScreen_infoText2": {
+    "description": "Second paragraph, encouraging the user to share codes."
+  },
   "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
+  "@invitationCodesScreen_global_quota_exceeded": {
+    "description": "Error shown when the server has no invite codes left to hand out."
+  },
   "invitationCodesScreen_errorRequestingCode": "Something went wrong. Try again.",
+  "@invitationCodesScreen_errorRequestingCode": {
+    "description": "Error shown when requesting a new invite code fails."
+  },
   "invitationCodesScreen_copiedToClipboard": "Copied to clipboard",
+  "@invitationCodesScreen_copiedToClipboard": {
+    "description": "Confirmation shown after copying an invite code."
+  },
   "invitationCodesScreen_codeClipboardMessage": "Let's chat on Air: https://air.ms/install. Use invite code {code}.",
+  "@invitationCodesScreen_codeClipboardMessage": {
+    "description": "Text copied to the clipboard for sharing a single invite code. Sent to people outside the app, so keep the install link intact.",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "invitationCodesScreen_codesClipboardMessage": "Let's chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}",
+  "@invitationCodesScreen_codesClipboardMessage": {
+    "description": "Text copied to the clipboard for sharing several invite codes. The blank line before the placeholder separates the codes from the message.",
+    "placeholders": {
+      "codes": {
+        "type": "String"
+      }
+    }
+  },
 
   "signUpScreen_header": "Create your profile",
+  "@signUpScreen_header": {
+    "description": "Header of the profile step during sign up."
+  },
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
+  "@signUpScreen_subheader": {
+    "description": "Explains who sees the profile and that only a display name is required."
+  },
   "signUpScreen_actionButton": "Create",
+  "@signUpScreen_actionButton": {
+    "description": "Button that creates the account and finishes the profile step."
+  },
   "signUpScreen_displayNameInputName": "Display name (required)",
+  "@signUpScreen_displayNameInputName": {
+    "description": "Label of the display name field during sign up. The parenthesis marks it as mandatory."
+  },
   "signUpScreen_displayNameInputHint": "Add a name...",
+  "@signUpScreen_displayNameInputHint": {
+    "description": "Placeholder of the display name field during sign up."
+  },
   "signUpScreen_serverLabel": "Choose a server where you want to create your account.",
+  "@signUpScreen_serverLabel": {
+    "description": "Label above the server field during sign up."
+  },
   "signUpScreen_serverHint": "DOMAIN NAME",
+  "@signUpScreen_serverHint": {
+    "description": "Placeholder of the server field during sign up, shown in capitals in the source."
+  },
   "signUpScreen_error_invalidDomain": "Domain is invalid",
+  "@signUpScreen_error_invalidDomain": {
+    "description": "Validation error when the entered server domain is malformed."
+  },
   "signUpScreen_error_emptyDisplayName": "Add a display name of at least one character",
+  "@signUpScreen_error_emptyDisplayName": {
+    "description": "Validation error when the display name field is left empty."
+  },
   "signUpScreen_error_register": "Error when registering user: {error}",
+  "@signUpScreen_error_register": {
+    "description": "Error shown when account registration fails. The placeholder carries an untranslated technical message.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
 
   "usernameOnboarding_header": "Add a username",
-  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or delete usernames at any time in your profile.",
+  "@usernameOnboarding_header": {
+    "description": "Header of the optional username step during sign up."
+  },
+  "usernameOnboarding_body": "Usernames are how people connect on Air. They aren't visible to others once you're connected.\n\nAdd, change, or remove usernames at any time in your profile.",
+  "@usernameOnboarding_body": {
+    "description": "Explains what usernames do and that they can be changed later. The blank line separates the two paragraphs."
+  },
   "usernameOnboarding_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
+  "@usernameOnboarding_syntax": {
+    "description": "States which characters a username may contain and its minimum length."
+  },
   "usernameOnboarding_addButton": "Add",
+  "@usernameOnboarding_addButton": {
+    "description": "Button that adds the typed username during sign up."
+  },
   "usernameOnboarding_error": "Something went wrong on our end. Wait a moment, then try again.",
+  "@usernameOnboarding_error": {
+    "description": "Error shown when adding a username during sign up fails on the server."
+  },
   "usernameOnboarding_next": "Next",
+  "@usernameOnboarding_next": {
+    "description": "Button that continues past the username step without adding one."
+  },
   "usernameOnboarding_usernameInputName": "Username (optional)",
+  "@usernameOnboarding_usernameInputName": {
+    "description": "Label of the username field during sign up. The parenthesis marks it as optional."
+  },
   "usernameOnboarding_usernameInputHint": "Add a username...",
+  "@usernameOnboarding_usernameInputHint": {
+    "description": "Placeholder of the username field during sign up."
+  },
 
   "linkingDeviceScreen_header": "Link to an existing account",
+  "@linkingDeviceScreen_header": {
+    "description": "Header of the screen that links this device to an existing account."
+  },
   "linkingDeviceScreen_connecting": "Connecting...",
+  "@linkingDeviceScreen_connecting": {
+    "description": "Progress label while this device connects to the server."
+  },
   "linkingDeviceScreen_separator": "or",
+  "@linkingDeviceScreen_separator": {
+    "description": "Separator between the QR code and the numeric code options. A single word."
+  },
   "linkingDeviceScreen_numericCode": "Numeric code",
+  "@linkingDeviceScreen_numericCode": {
+    "description": "Label above the numeric code that the other device has to enter."
+  },
   "linkingDeviceScreen_linking": "Linking...",
+  "@linkingDeviceScreen_linking": {
+    "description": "Progress label while the two devices complete linking."
+  },
   "linkingDeviceScreen_linking_confirm_title": "Confirm linking",
+  "@linkingDeviceScreen_linking_confirm_title": {
+    "description": "Title of the dialog asking the user to confirm linking a new device."
+  },
   "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tap to edit device name",
+  "@linkingDeviceScreen_linking_confirm_edit_subtitle": {
+    "description": "Hint under the device name telling the user they can tap it to rename the device."
+  },
   "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
+  "@linkingDeviceScreen_linking_confirm_body": {
+    "description": "Warns that a linked device gets full account access."
+  },
   "linkingDeviceScreen_linking_confirm_checkbox": "I want to link this device.",
+  "@linkingDeviceScreen_linking_confirm_checkbox": {
+    "description": "Label of the checkbox the user must tick to allow linking."
+  },
   "linkingDeviceScreen_linking_confirm_button": "Confirm",
+  "@linkingDeviceScreen_linking_confirm_button": {
+    "description": "Button that confirms linking the new device."
+  },
   "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
+  "@linkingDeviceScreen_instructions_1": {
+    "description": "First linking step. Names the You tab and the manage devices row as they appear in this locale."
+  },
   "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
+  "@linkingDeviceScreen_instructions_2": {
+    "description": "Second linking step. The quoted text is the Link a device button on the other device."
+  },
   "linkingDeviceScreen_instructions_3": "Keep both apps open during the linking process.",
+  "@linkingDeviceScreen_instructions_3": {
+    "description": "Third linking step, telling the user to keep both apps open."
+  },
   "linkingDeviceScreen_error_codesExpired_title": "Codes expired",
+  "@linkingDeviceScreen_error_codesExpired_title": {
+    "description": "Title of the dialog shown when the linking codes have timed out."
+  },
   "linkingDeviceScreen_error_codesExpired_message": "To link this device, reload the codes and try again.",
+  "@linkingDeviceScreen_error_codesExpired_message": {
+    "description": "Body of the expired codes dialog, telling the user to reload."
+  },
   "linkingDeviceScreen_error_codesExpired_cancel": "Cancel",
+  "@linkingDeviceScreen_error_codesExpired_cancel": {
+    "description": "Button that dismisses the expired codes dialog."
+  },
   "linkingDeviceScreen_error_codesExpired_reload": "Reload",
+  "@linkingDeviceScreen_error_codesExpired_reload": {
+    "description": "Button that requests fresh linking codes."
+  },
   "linkingDevicesScreen_error_title": "Linking failed",
+  "@linkingDevicesScreen_error_title": {
+    "description": "Title of the dialog shown when linking a device fails."
+  },
   "linkingDevicesScreen_error_generic": "An unknown error occurred.",
+  "@linkingDevicesScreen_error_generic": {
+    "description": "Fallback body of the linking failed dialog when the cause is unknown."
+  },
   "linkingDevicesScreen_error_sessionNotFound": "The code you provided is incorrect.",
+  "@linkingDevicesScreen_error_sessionNotFound": {
+    "description": "Body of the linking failed dialog when the entered numeric code does not match."
+  },
   "linkingDevicesScreen_error_dismiss": "Try again",
+  "@linkingDevicesScreen_error_dismiss": {
+    "description": "Button that closes the linking failed dialog so the user can retry."
+  },
 
   "linkedDevicesScreen_thisDevice": "This device",
+  "@linkedDevicesScreen_thisDevice": {
+    "description": "Section header above the entry for the device the app is running on."
+  },
   "linkedDevicesScreen_linkedDevices": "Linked devices",
+  "@linkedDevicesScreen_linkedDevices": {
+    "description": "Section header above the user's other linked devices."
+  },
   "linkedDevicesScreen_linkedOn": "Linked on {date}",
   "@linkedDevicesScreen_linkedOn": {
+    "description": "Subtitle of a device entry giving the date it was linked. The placeholder is an already formatted date.",
     "placeholders": {
       "date": {
         "type": "String"
@@ -188,11 +692,24 @@
     }
   },
   "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
+  "@linkedDevicesScreen_editNameHint": {
+    "description": "Hint under the device list telling the user they can tap a device to rename it."
+  },
   "linkedDevicesScreen_linkDevice": "Link a device",
+  "@linkedDevicesScreen_linkDevice": {
+    "description": "Button that starts linking another device."
+  },
   "linkedDevicesScreen_unknownDevice": "Unknown device",
+  "@linkedDevicesScreen_unknownDevice": {
+    "description": "Fallback name for a linked device that reported no name."
+  },
   "linkedDevicesScreen_renameError_title": "Renaming failed.",
+  "@linkedDevicesScreen_renameError_title": {
+    "description": "Title of the dialog shown when renaming a device fails."
+  },
   "linkedDevicesScreen_renameError": "Couldn't rename the device {deviceName}. Check your network connection and try again.",
   "@linkedDevicesScreen_renameError": {
+    "description": "Body of the rename failed dialog, naming the device.",
     "placeholders": {
       "deviceName": {
         "type": "String"
@@ -200,8 +717,12 @@
     }
   },
   "linkedDevicesScreen_unlinkError_title": "Unlinking failed.",
+  "@linkedDevicesScreen_unlinkError_title": {
+    "description": "Title of the dialog shown when unlinking a device fails."
+  },
   "linkedDevicesScreen_unlinkError": "Unlinking the device {deviceName} failed. Check your network connection and try again.",
   "@linkedDevicesScreen_unlinkError": {
+    "description": "Body of the unlink failed dialog, naming the device.",
     "placeholders": {
       "deviceName": {
         "type": "String"
@@ -209,8 +730,12 @@
     }
   },
   "linkedDevicesScreen_errorDialog_confirm": "Okay",
+  "@linkedDevicesScreen_errorDialog_confirm": {
+    "description": "Button that acknowledges and closes a device error dialog."
+  },
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
+    "description": "Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -218,79 +743,316 @@
     }
   },
   "linkedDevicesScreen_encryptionNotice": "Messages are end-to-end encrypted on all devices.",
+  "@linkedDevicesScreen_encryptionNotice": {
+    "description": "Notice under the device list stating that messages stay encrypted across devices. Followed by a separate learn more link."
+  },
   "linkedDevicesScreen_encryptionNotice_learnMore": "Learn more.",
+  "@linkedDevicesScreen_encryptionNotice_learnMore": {
+    "description": "Link following the encryption notice that opens the explanation dialog."
+  },
   "linkedDevicesScreen_encryptionDialog_title": "Encryption and device linking",
+  "@linkedDevicesScreen_encryptionDialog_title": {
+    "description": "Title of the dialog explaining encryption and device linking."
+  },
   "linkedDevicesScreen_encryptionDialog_content": "On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you're the only one who can read them.",
+  "@linkedDevicesScreen_encryptionDialog_content": {
+    "description": "Explains that messages stay end-to-end encrypted after linking. The blank line separates the two paragraphs."
+  },
   "linkedDevicesScreen_encryptionDialog_confirm": "Okay",
+  "@linkedDevicesScreen_encryptionDialog_confirm": {
+    "description": "Button that closes the encryption explanation dialog."
+  },
   "linkedDevicesScreen_linkDialog_chooseMethod": "If you're using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you're using a computer or a device with a broken camera, choose \"Enter numeric code\".",
+  "@linkedDevicesScreen_linkDialog_chooseMethod": {
+    "description": "Helps the user pick between the two linking methods. The quoted texts are the two buttons below and should match them."
+  },
   "linkedDevicesScreen_linkDialog_openApp": "On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.",
+  "@linkedDevicesScreen_linkDialog_openApp": {
+    "description": "First instruction of the link dialog. The quoted text is the start screen button on the other device."
+  },
   "linkedDevicesScreen_linkDialog_scanQrCode": "Scan QR code",
+  "@linkedDevicesScreen_linkDialog_scanQrCode": {
+    "description": "Button that starts linking by scanning a QR code."
+  },
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scan QR code (unavailable)",
+  "@linkedDevicesScreen_linkDialog_scanQrCode_unavailable": {
+    "description": "The scan QR code button when this platform has no usable camera. The parenthesis explains why it is disabled."
+  },
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Enter numeric code",
+  "@linkedDevicesScreen_linkDialog_enterNumericCode": {
+    "description": "Button that starts linking by typing a numeric code instead of scanning."
+  },
   "linkedDevicesScreen_linkDialog_warning": "Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.",
+  "@linkedDevicesScreen_linkDialog_warning": {
+    "description": "Warns that linked devices get full account access, including managing other devices."
+  },
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Enter the numeric code shown on the device you want to link.",
+  "@linkedDevicesScreen_linkDialog_numericCodeInstructions": {
+    "description": "Tells the user to type the numeric code shown on the other device."
+  },
   "linkedDevicesScreen_linkDialog_link": "Link device",
+  "@linkedDevicesScreen_linkDialog_link": {
+    "description": "Button that confirms linking with the entered numeric code."
+  },
   "linkedDevicesScreen_deviceName_editDialog_title": "Change device name",
+  "@linkedDevicesScreen_deviceName_editDialog_title": {
+    "description": "Title of the dialog for renaming a linked device."
+  },
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Cancel",
+  "@linkedDevicesScreen_deviceName_editDialog_cancel": {
+    "description": "Button that dismisses the rename device dialog."
+  },
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Change",
+  "@linkedDevicesScreen_deviceName_editDialog_confirm": {
+    "description": "Confirming button of the rename device dialog."
+  },
   "linkedDevicesScreen_unlinkDialog_title": "Unlink device",
+  "@linkedDevicesScreen_unlinkDialog_title": {
+    "description": "Title of the dialog confirming that a device will be unlinked."
+  },
   "linkedDevicesScreen_unlinkDialog_content": "The device will no longer be able to send or receive messages. All of your account's data will be deleted from the device the next time it comes online.",
+  "@linkedDevicesScreen_unlinkDialog_content": {
+    "description": "Body of the unlink dialog. Says the device stops working and its data is wiped when it next comes online."
+  },
   "linkedDevicesScreen_unlinkDialog_cancel": "Cancel",
+  "@linkedDevicesScreen_unlinkDialog_cancel": {
+    "description": "Button that dismisses the unlink dialog."
+  },
   "linkedDevicesScreen_unlinkDialog_confirm": "Unlink",
+  "@linkedDevicesScreen_unlinkDialog_confirm": {
+    "description": "Confirming button of the unlink dialog."
+  },
 
   "usernameScreen_title": "Add username",
+  "@usernameScreen_title": {
+    "description": "Title of the dialog for adding one of the user's own usernames."
+  },
   "usernameScreen_inputHint": "Type a username...",
+  "@usernameScreen_inputHint": {
+    "description": "Placeholder of the username field in the add username dialog."
+  },
   "usernameScreen_error_emptyUsername": "Username cannot be empty",
+  "@usernameScreen_error_emptyUsername": {
+    "description": "Validation error when the username field is empty."
+  },
   "usernameScreen_error_alreadyExists": "Username is already in use",
-  "usernameScreen_description": "Choose a username that others can use to connect with you. Use letters, numbers, or dashes. Minimum 5 characters.",
+  "@usernameScreen_error_alreadyExists": {
+    "description": "Validation error when the username is taken by someone else."
+  },
+  "usernameScreen_description": "Choose a username that others can use to connect with you.",
+  "@usernameScreen_description": {
+    "description": "Explains what a username is for. First of two paragraphs below the username field in the add username dialog."
+  },
+  "usernameScreen_syntax": "Use letters, numbers, or dashes. Minimum 5 characters.",
+  "@usernameScreen_syntax": {
+    "description": "Which characters a username may use and its minimum length. Second of two paragraphs below the username field in the add username dialog. Same wording as the helper text in the sign up flow."
+  },
   "usernameScreen_cancel": "Cancel",
+  "@usernameScreen_cancel": {
+    "description": "Button that dismisses the add username dialog."
+  },
   "usernameScreen_confirm": "Add",
+  "@usernameScreen_confirm": {
+    "description": "Confirming button of the add username dialog."
+  },
   "usernameScreen_error_tooShort": "Username must be at least 5 characters",
+  "@usernameScreen_error_tooShort": {
+    "description": "Validation error when the username is shorter than five characters."
+  },
   "usernameScreen_error_tooLong": "Username must be at most 63 characters",
+  "@usernameScreen_error_tooLong": {
+    "description": "Validation error when the username is longer than 63 characters."
+  },
   "usernameScreen_error_invalidCharacter": "Username must only contain letters, numbers, or dashes",
+  "@usernameScreen_error_invalidCharacter": {
+    "description": "Validation error when the username contains a character that is not a letter, number or dash."
+  },
   "usernameScreen_error_consecutiveDashes": "Username must not contain consecutive dashes",
+  "@usernameScreen_error_consecutiveDashes": {
+    "description": "Validation error when the username has two or more dashes in a row."
+  },
   "usernameScreen_error_leadingDigit": "Username must not start with a digit",
+  "@usernameScreen_error_leadingDigit": {
+    "description": "Validation error when the username starts with a digit."
+  },
 
   "editDialog_characters_remaining": "{characters}/{remaining} characters",
+  "@editDialog_characters_remaining": {
+    "description": "Character counter under a text field in an edit dialog. Shows characters typed over the maximum allowed.",
+    "placeholders": {
+      "characters": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
 
   "editDisplayNameScreen_title": "Change display name",
+  "@editDisplayNameScreen_title": {
+    "description": "Title of the dialog for changing the user's own display name."
+  },
   "editDisplayNameScreen_description": "Choose a name that others will see.",
+  "@editDisplayNameScreen_description": {
+    "description": "Explains that the display name is what other people see."
+  },
   "editDisplayNameScreen_cancel": "Cancel",
+  "@editDisplayNameScreen_cancel": {
+    "description": "Button that dismisses the change display name dialog."
+  },
   "editDisplayNameScreen_save": "Save",
+  "@editDisplayNameScreen_save": {
+    "description": "Confirming button of the change display name dialog."
+  },
 
-  "systemMessage_userAddedUser_prefix": "{user1}",
-  "systemMessage_userAddedUser_infix": " added ",
-  "systemMessage_userAddedUser_suffix": "{user2}",
+  "systemMessage_userAddedUser": "{user1} added {user2}",
+  "@systemMessage_userAddedUser": {
+    "description": "Notice in the message list when someone adds someone else to a group. Both names are rendered in bold wherever they land, so put them where your language needs them.",
+    "placeholders": {
+      "user1": {
+        "type": "String"
+      },
+      "user2": {
+        "type": "String"
+      }
+    }
+  },
 
-  "systemMessage_userRemovedUser_prefix": "{user1}",
-  "systemMessage_userRemovedUser_infix": " removed ",
-  "systemMessage_userRemovedUser_suffix": "{user2}",
+  "systemMessage_userRemovedUser": "{user1} removed {user2}",
+  "@systemMessage_userRemovedUser": {
+    "description": "Notice in the message list when someone removes someone else from a group. Both names are rendered in bold wherever they land, so put them where your language needs them.",
+    "placeholders": {
+      "user1": {
+        "type": "String"
+      },
+      "user2": {
+        "type": "String"
+      }
+    }
+  },
 
-  "systemMessage_userChangedTitle_prefix": "{user}",
-  "systemMessage_userChangedTitle_infix_1": " changed the group name from ",
-  "systemMessage_userChangedTitle_infix_2": "{old_name}",
-  "systemMessage_userChangedTitle_infix_3": " to ",
-  "systemMessage_userChangedTitle_suffix": "{new_name}",
+  "systemMessage_userChangedTitle": "{user} changed the group name from {old_name} to {new_name}",
+  "@systemMessage_userChangedTitle": {
+    "description": "Notice in the message list when someone renames a group. The person's name and both group names are rendered in bold wherever they land, so put them where your language needs them.",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      },
+      "old_name": {
+        "type": "String"
+      },
+      "new_name": {
+        "type": "String"
+      }
+    }
+  },
 
   "systemMessage_acceptedHandleConnectionRequest": "You accepted {displayName}'s contact request made through your username {username}.",
+  "@systemMessage_acceptedHandleConnectionRequest": {
+    "description": "System message shown after the user accepts a contact request that arrived through one of their usernames.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_acceptedDirectConnectionRequest": "You accepted {displayName}'s contact request made through a mutual group chat.",
+  "@systemMessage_acceptedDirectConnectionRequest": {
+    "description": "System message shown after the user accepts a contact request that arrived through a shared group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_receivedConnectionConfirmation": "{displayName} accepted your contact request.",
+  "@systemMessage_receivedConnectionConfirmation": {
+    "description": "System message shown when someone accepts the contact request the user sent.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_newHandleConnectionChat": "You sent a contact request to username {username}. They might not be immediately notified about your request.",
+  "@systemMessage_newHandleConnectionChat": {
+    "description": "System message opening a chat where the user sent a contact request to a username.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}. They might not be immediately notified about your request.",
+  "@systemMessage_newDirectConnectionChat": {
+    "description": "System message opening a chat where the user sent a contact request to a person from a shared group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_receivedHandleConnectionRequest": "{displayName} sent you a contact request through your username {username}.",
+  "@systemMessage_receivedHandleConnectionRequest": {
+    "description": "System message shown when a contact request arrives through one of the user's usernames.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_receivedDirectConnectionRequest": "{displayName} sent you a contact request through the group chat {groupName}.",
+  "@systemMessage_receivedDirectConnectionRequest": {
+    "description": "System message shown when a contact request arrives through a shared group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
 
-  "systemMessage_userChangedPicture_prefix": "{user}",
-  "systemMessage_userChangedPicture_infix": " changed the group picture",
+  "systemMessage_userChangedPicture": "{user} changed the group picture",
+  "@systemMessage_userChangedPicture": {
+    "description": "Notice in the message list when someone changes the group picture. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
 
-  "systemMessage_userCreatedGroup_prefix": "{user}",
-  "systemMessage_userCreatedGroup_suffix": " created the group",
+  "systemMessage_userCreatedGroup": "{user} created the group",
+  "@systemMessage_userCreatedGroup": {
+    "description": "Notice in the message list when someone creates a group. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
 
   "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
+  "@systemMessage_onboarded": {
+    "description": "System message marking where a newly linked device joined the chat."
+  },
 
   "timestamp_now": "Now",
+  "@timestamp_now": {
+    "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."
+  },
   "timestamp_minutesAgo": "{count}m",
   "@timestamp_minutesAgo": {
+    "description": "Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -298,25 +1060,71 @@
     }
   },
   "date_today": "Today",
+  "@date_today": {
+    "description": "Date separator above today's messages."
+  },
   "date_yesterday": "Yesterday",
+  "@date_yesterday": {
+    "description": "Date separator above yesterday's messages."
+  },
 
   "messageBubble_sending": "Sending",
+  "@messageBubble_sending": {
+    "description": "Delivery status while a message is still being sent."
+  },
   "messageBubble_failedToSend": "Failed to send",
+  "@messageBubble_failedToSend": {
+    "description": "Delivery status when a message could not be sent."
+  },
   "messageBubble_sent": "Sent",
+  "@messageBubble_sent": {
+    "description": "Delivery status once the server has the message. Use the glossary term for sent."
+  },
   "messageBubble_delivered": "Delivered",
+  "@messageBubble_delivered": {
+    "description": "Delivery status once the message reached the recipient's device. Use the glossary term for delivered."
+  },
   "messageBubble_read": "Read",
+  "@messageBubble_read": {
+    "description": "Delivery status once the recipient has read the message. Use the glossary term for read."
+  },
 
   "chatList_newContact": "New Air contact",
+  "@chatList_newContact": {
+    "description": "Menu item in the chat list header that starts adding an Air contact."
+  },
   "chatList_newGroup": "New group chat",
+  "@chatList_newGroup": {
+    "description": "Menu item in the chat list header that starts creating a group chat."
+  },
   "chatList_emptyMessage": "Add your first Air contact to get started",
+  "@chatList_emptyMessage": {
+    "description": "Empty state of the chat list, shown before the user has any contacts."
+  },
 
   "chatList_draft": "Draft",
+  "@chatList_draft": {
+    "description": "Prefix on a chat list row whose composer holds an unsent draft."
+  },
   "chatList_you": "You",
+  "@chatList_you": {
+    "description": "Refers to the user themselves in member lists and chat list previews."
+  },
   "chatList_imageEmoji": "🖼️",
+  "@chatList_imageEmoji": {
+    "description": "Emoji standing in for an image in a chat list preview. Not translated text."
+  },
   "chatList_fileEmoji": "📎",
+  "@chatList_fileEmoji": {
+    "description": "Emoji standing in for a file attachment in a chat list preview. Not translated text."
+  },
   "chatList_blocked": "Blocked",
+  "@chatList_blocked": {
+    "description": "Marker on a chat list row whose contact is blocked."
+  },
   "chatList_reaction": "{user} reacted {emoji} to \"{message}\"",
   "@chatList_reaction": {
+    "description": "Chat list preview of a reaction someone else sent. The message placeholder holds the reacted-to text and is already quoted in the source.",
     "placeholders": {
       "user": {
         "type": "String"
@@ -331,6 +1139,7 @@
   },
   "chatList_reactionByYou": "You reacted {emoji} to \"{message}\"",
   "@chatList_reactionByYou": {
+    "description": "Chat list preview of a reaction the user sent. The message placeholder holds the reacted-to text and is already quoted in the source.",
     "placeholders": {
       "emoji": {
         "type": "String"
@@ -341,37 +1150,151 @@
     }
   },
   "chatList_contextMenu_mute": "Mute",
+  "@chatList_contextMenu_mute": {
+    "description": "Chat list context menu item that mutes the chat."
+  },
   "chatList_contextMenu_unmute": "Unmute",
+  "@chatList_contextMenu_unmute": {
+    "description": "Chat list context menu item that unmutes the chat."
+  },
 
   "newChatDialog_error": "Failed to create new group chat with name {chatName}",
+  "@newChatDialog_error": {
+    "description": "Error shown when creating a group chat fails, naming the group.",
+    "placeholders": {
+      "chatName": {
+        "type": "String"
+      }
+    }
+  },
   "newChatDialog_error_incompatibleClient": "Couldn't create new group chat with name {chatName} because one of the contacts has an incompatible client.",
+  "@newChatDialog_error_incompatibleClient": {
+    "description": "Error shown when a group cannot be created because a member runs an app version that is too old.",
+    "placeholders": {
+      "chatName": {
+        "type": "String"
+      }
+    }
+  },
 
   "newConnectionDialog_newConnectionTitle": "Add Air contact",
+  "@newConnectionDialog_newConnectionTitle": {
+    "description": "Title of the dialog for adding an Air contact by username."
+  },
   "newConnectionDialog_newConnectionDescription": "Enter the username of the person you want to message.",
+  "@newConnectionDialog_newConnectionDescription": {
+    "description": "Explains that a username is needed to add a contact."
+  },
   "newConnectionDialog_inputLabel": "Username (required)",
+  "@newConnectionDialog_inputLabel": {
+    "description": "Label of the username field in the add contact dialog. The parenthesis marks it as mandatory."
+  },
   "newConnectionDialog_usernamePlaceholder": "Type a username...",
+  "@newConnectionDialog_usernamePlaceholder": {
+    "description": "Placeholder of the username field in the add contact dialog."
+  },
   "newConnectionDialog_handleExists": "{username} exists. Tap “Send” to send a contact request.",
+  "@newConnectionDialog_handleExists": {
+    "description": "Confirmation that the username exists, telling the user how to proceed. The quoted text is the confirming button and should match it.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "newConnectionDialog_cancel": "Cancel",
+  "@newConnectionDialog_cancel": {
+    "description": "Button that dismisses the add contact dialog."
+  },
   "newConnectionDialog_confirm1": "Check",
+  "@newConnectionDialog_confirm1": {
+    "description": "Button in the add contact dialog that looks up the typed username."
+  },
   "newConnectionDialog_confirm2": "Send",
+  "@newConnectionDialog_confirm2": {
+    "description": "Button in the add contact dialog that sends the contact request once the username is confirmed."
+  },
   "newConnectionDialog_error": "Failed to send {username} a contact request. Try again.",
+  "@newConnectionDialog_error": {
+    "description": "Error shown when sending a contact request fails, naming the username.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "newConnectionDialog_error_emptyUsername": "Type the username",
+  "@newConnectionDialog_error_emptyUsername": {
+    "description": "Validation error when the username field in the add contact dialog is empty."
+  },
   "newConnectionDialog_error_usernameNotFound": "{username} wasn't found. Check it and try again.",
+  "@newConnectionDialog_error_usernameNotFound": {
+    "description": "Error shown when the entered username does not exist.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "newConnectionDialog_error_duplicateRequest": "You already have a pending contact request to this username.",
+  "@newConnectionDialog_error_duplicateRequest": {
+    "description": "Error shown when a contact request to this username is already pending."
+  },
   "newConnectionDialog_error_ownUsername": "You can't send a contact request to yourself.",
+  "@newConnectionDialog_error_ownUsername": {
+    "description": "Error shown when the user enters one of their own usernames."
+  },
 
   "composer_inputHint": "Message {chatTitle}",
+  "@composer_inputHint": {
+    "description": "Placeholder of the message composer, naming the chat being written to.",
+    "placeholders": {
+      "chatTitle": {
+        "type": "String"
+      }
+    }
+  },
   "composer_editMessage": "Edit message",
+  "@composer_editMessage": {
+    "description": "Header above the composer while an already sent message is being edited."
+  },
   "composer_error_sendMessage": "Failed to send message. Try again.",
+  "@composer_error_sendMessage": {
+    "description": "Error shown when sending a message fails."
+  },
   "composer_error_attachment": "Failed to upload attachment. Try again.",
+  "@composer_error_attachment": {
+    "description": "Error shown when uploading an attachment fails."
+  },
   "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
+  "@composer_error_attachment_too_large": {
+    "description": "Error shown when an attachment exceeds the size limit. Both placeholders are already formatted sizes with their unit.",
+    "placeholders": {
+      "actualSize": {
+        "type": "String"
+      },
+      "maxSize": {
+        "type": "String"
+      }
+    }
+  },
 
   "composer_reply_deleted_message_placeholder": "Original message deleted",
+  "@composer_reply_deleted_message_placeholder": {
+    "description": "Stands in for the quoted message in a reply whose original was deleted."
+  },
   "composer_reply_noaccess_message_user": "Unknown user",
+  "@composer_reply_noaccess_message_user": {
+    "description": "Stands in for the author of a quoted message the user cannot see."
+  },
   "composer_reply_noaccess_message_placeholder": "You don't have access to this message.",
+  "@composer_reply_noaccess_message_placeholder": {
+    "description": "Stands in for the quoted message in a reply the user has no access to."
+  },
 
   "attachmentSize": "{size} {byteUnit}",
   "@attachmentSize": {
+    "description": "Joins a formatted file size with its unit. Reorder the placeholders if your language puts the unit first, and keep the space between them.",
     "placeholders": {
       "size": {
         "type": "double",
@@ -379,21 +1302,49 @@
         "optionalParameters": {
           "decimalDigits": 2
         }
+      },
+      "byteUnit": {
+        "type": "String"
       }
     }
   },
 
   "attachment_images": "Images",
+  "@attachment_images": {
+    "description": "Attachment menu item for picking images from the photo library."
+  },
   "attachment_camera": "Camera",
+  "@attachment_camera": {
+    "description": "Attachment menu item for taking a new photo."
+  },
   "attachment_otherFiles": "Other files",
+  "@attachment_otherFiles": {
+    "description": "Attachment menu item for picking any other kind of file."
+  },
   "attachment_notFound": "Attachment is no longer available.",
+  "@attachment_notFound": {
+    "description": "Shown in place of an attachment that the server no longer holds."
+  },
 
   "textMessage_edited": "Edited",
+  "@textMessage_edited": {
+    "description": "Marker next to a message that was changed after sending. Use the glossary term for edited."
+  },
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
+  "@textMessage_hiddenPlaceholder": {
+    "description": "Stands in for a message from a blocked user, telling the user they can tap to reveal it."
+  },
   "textMessage_deleted": "Deleted message",
+  "@textMessage_deleted": {
+    "description": "Chat list preview of a message that has been deleted."
+  },
   "textMessage_deletedBySelf": "You deleted this message.",
+  "@textMessage_deletedBySelf": {
+    "description": "Stands in for a message the user deleted themselves."
+  },
   "textMessage_deletedByOther": "{senderName} deleted this message.",
   "@textMessage_deletedByOther": {
+    "description": "Stands in for a message the sender deleted, naming them.",
     "placeholders": {
       "senderName": {
         "type": "String"
@@ -402,65 +1353,218 @@
   },
 
   "linkConfirmation_title": "Open link?",
+  "@linkConfirmation_title": {
+    "description": "Title of the dialog confirming that an external link should open."
+  },
   "linkConfirmation_description": "Check the URL to make sure you want to open it:",
+  "@linkConfirmation_description": {
+    "description": "Tells the user to check the link before opening it. The link itself follows below."
+  },
   "linkConfirmation_openLink": "Open",
+  "@linkConfirmation_openLink": {
+    "description": "Button that opens the external link."
+  },
   "linkConfirmation_cancel": "Cancel",
+  "@linkConfirmation_cancel": {
+    "description": "Button that dismisses the link confirmation dialog."
+  },
 
   "messageContextMenu_reply": "Reply",
+  "@messageContextMenu_reply": {
+    "description": "Message context menu item that starts a reply. Use the glossary term for reply."
+  },
   "messageContextMenu_copy": "Copy",
+  "@messageContextMenu_copy": {
+    "description": "Message context menu item that copies the message text."
+  },
   "messageContextMenu_edit": "Edit",
+  "@messageContextMenu_edit": {
+    "description": "Message context menu item that edits an already sent message."
+  },
   "messageContextMenu_delete": "Delete",
+  "@messageContextMenu_delete": {
+    "description": "Message context menu item that deletes the message."
+  },
   "messageContextMenu_save": "Save",
+  "@messageContextMenu_save": {
+    "description": "Message context menu item that saves an attachment to the device."
+  },
   "messageContextMenu_share": "Share",
+  "@messageContextMenu_share": {
+    "description": "Message context menu item that shares an attachment through the system share sheet."
+  },
 
   "messageContextMenu_saveError": "Failed to save attachment",
+  "@messageContextMenu_saveError": {
+    "description": "Error shown when saving an attachment to the device fails."
+  },
   "messageContextMenu_saveConfirmation": "Attachment saved",
+  "@messageContextMenu_saveConfirmation": {
+    "description": "Confirmation shown after an attachment is saved to the device."
+  },
 
   "deleteMessageDialog_title": "Delete message?",
+  "@deleteMessageDialog_title": {
+    "description": "Title of the dialog asking who a message should be deleted for."
+  },
   "deleteMessageDialog_description": "Choose who to delete this message for. It will be deleted from all your devices.",
+  "@deleteMessageDialog_description": {
+    "description": "Explains the choice between deleting for everyone and deleting only locally."
+  },
   "deleteMessageDialog_forEveryone": "Delete for everyone",
+  "@deleteMessageDialog_forEveryone": {
+    "description": "Option that deletes the message for every member of the chat."
+  },
   "deleteMessageDialog_forMe": "Delete for me",
+  "@deleteMessageDialog_forMe": {
+    "description": "Option that deletes the message only from the user's own devices."
+  },
 
   "deleteMessageForMeDialog_title": "Delete message?",
+  "@deleteMessageForMeDialog_title": {
+    "description": "Title of the dialog confirming deletion of a message the user cannot unsend."
+  },
   "deleteMessageForMeDialog_description": "This message will be deleted from all your devices.",
+  "@deleteMessageForMeDialog_description": {
+    "description": "Explains that the message disappears from all of the user's own devices."
+  },
   "deleteMessageForMeDialog_delete": "Delete",
+  "@deleteMessageForMeDialog_delete": {
+    "description": "Confirming button of the delete for me dialog."
+  },
 
   "reportSpamButton_text": "Report spam",
+  "@reportSpamButton_text": {
+    "description": "Button on a contact's profile that starts a spam report. Use the glossary term for reporting spam."
+  },
   "reportSpamDialog_title": "Report spam?",
+  "@reportSpamDialog_title": {
+    "description": "Title of the dialog confirming a spam report."
+  },
   "reportSpamDialog_content": "Air will be notified that this person may be sending spam. Air is never able to see the contents of any chats.",
+  "@reportSpamDialog_content": {
+    "description": "Body of the spam report dialog. Says what is reported and that chat contents stay private."
+  },
   "reportSpamDialog_cancel": "Cancel",
+  "@reportSpamDialog_cancel": {
+    "description": "Button that dismisses the spam report dialog."
+  },
   "reportSpamDialog_reportSpam": "Report spam",
+  "@reportSpamDialog_reportSpam": {
+    "description": "Confirming button of the spam report dialog."
+  },
   "reportSpamDialog_success": "Spam reported",
+  "@reportSpamDialog_success": {
+    "description": "Confirmation shown after a spam report is sent."
+  },
   "reportSpamDialog_error": "Failed to report spam. Try again.",
+  "@reportSpamDialog_error": {
+    "description": "Error shown when sending a spam report fails."
+  },
 
   "helpScreen_contactUs": "Contact Air",
+  "@helpScreen_contactUs": {
+    "description": "Row label in the help section that opens the contact form."
+  },
   "helpScreen_versionInfo": "Version info",
+  "@helpScreen_versionInfo": {
+    "description": "Row label in the help section that shows the app version."
+  },
   "helpScreen_licenses": "Licenses",
+  "@helpScreen_licenses": {
+    "description": "Row label in the help section that opens the open source licenses."
+  },
 
   "licensesScreen_title": "Licenses",
+  "@licensesScreen_title": {
+    "description": "Title of the screen listing open source licenses."
+  },
 
   "contactUsScreen_title": "Contact Air",
+  "@contactUsScreen_title": {
+    "description": "Title of the modal for contacting the Air team."
+  },
   "contactUsScreen_subject": "Message subject",
+  "@contactUsScreen_subject": {
+    "description": "Label of the subject picker in the contact form."
+  },
   "contactUsScreen_body": "Body",
+  "@contactUsScreen_body": {
+    "description": "Label of the message field in the contact form."
+  },
   "contactUsScreen_includeLogs": "Share your logs (this helps Air fix bugs)",
+  "@contactUsScreen_includeLogs": {
+    "description": "Label of the checkbox that attaches diagnostic logs. The parenthesis explains why it helps."
+  },
   "contactUsScreen_composeEmail": "Compose email",
+  "@contactUsScreen_composeEmail": {
+    "description": "Button that opens the mail client with the composed message."
+  },
   "contactUsScreen_subject_somethingNotWorking": "Something's not working",
+  "@contactUsScreen_subject_somethingNotWorking": {
+    "description": "Subject option for reporting a problem."
+  },
   "contactUsScreen_subject_iHaveAQuestion": "I have a question",
+  "@contactUsScreen_subject_iHaveAQuestion": {
+    "description": "Subject option for asking a question."
+  },
   "contactUsScreen_subject_requestFeature": "Request a feature",
+  "@contactUsScreen_subject_requestFeature": {
+    "description": "Subject option for requesting a feature."
+  },
   "contactUsScreen_subject_other": "Other",
+  "@contactUsScreen_subject_other": {
+    "description": "Subject option for anything not covered by the others."
+  },
   "contactUsScreen_subject_empty": "Select a subject",
+  "@contactUsScreen_subject_empty": {
+    "description": "Validation error when no subject has been picked."
+  },
   "contactUsScreen_body_empty": "Enter your message",
+  "@contactUsScreen_body_empty": {
+    "description": "Validation error when the message field is empty."
+  },
   "contactUsScreen_body_tooShort": "Provide more information",
+  "@contactUsScreen_body_tooShort": {
+    "description": "Validation error when the message is too short to act on."
+  },
   "contactUsScreen_body_logsUrl": "Here are some logs to help you debug my issue: {url}",
+  "@contactUsScreen_body_logsUrl": {
+    "description": "Line appended to the email body linking to the uploaded logs. Written from the user to the Air team.",
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
+  "@contactUsScreen_errorLaunchingEmail": {
+    "description": "Error shown when no mail client could be opened."
+  },
   "contactUsScreen_errorUploadingLogs": "Couldn't upload logs",
+  "@contactUsScreen_errorUploadingLogs": {
+    "description": "Error shown when uploading the diagnostic logs fails."
+  },
 
   "groupDetails_title": "Group details",
+  "@groupDetails_title": {
+    "description": "Title of the pane showing a group's details."
+  },
   "groupDetails_leaveChat": "Leave",
+  "@groupDetails_leaveChat": {
+    "description": "Button on the group details pane that starts leaving the group."
+  },
   "groupDetails_deleteChat": "Delete",
+  "@groupDetails_deleteChat": {
+    "description": "Button on the group details pane that starts deleting the chat."
+  },
   "groupDetails_addPeople": "Add people",
+  "@groupDetails_addPeople": {
+    "description": "Button on the group details pane that starts adding members."
+  },
   "groupDetails_memberCount": "{count, plural, one {{count} person} other {{count} people}}",
   "@groupDetails_memberCount": {
+    "description": "Count of members on the group details pane. Provide the plural forms your language needs.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -468,74 +1572,258 @@
     }
   },
   "groupDetails_seeAll": "See all",
+  "@groupDetails_seeAll": {
+    "description": "Button that expands the shortened member list into the full one."
+  },
   "groupMembersScreen_title": "Group members",
+  "@groupMembersScreen_title": {
+    "description": "Title of the pane listing every member of a group."
+  },
   "groupMembersScreen_searchHint": "Search",
+  "@groupMembersScreen_searchHint": {
+    "description": "Placeholder of the search field above a member list."
+  },
   "groupCreationScreen_title": "Add members",
+  "@groupCreationScreen_title": {
+    "description": "Title of the first group creation step, where members are picked."
+  },
   "groupCreationScreen_next": "Next",
+  "@groupCreationScreen_next": {
+    "description": "Button that moves from picking members to naming the group."
+  },
   "groupCreationDetails_title": "Group details",
+  "@groupCreationDetails_title": {
+    "description": "Title of the second group creation step, where the group is named."
+  },
   "groupCreationDetails_groupNameHint": "Group name (required)",
+  "@groupCreationDetails_groupNameHint": {
+    "description": "Placeholder of the group name field before it has focus. The parenthesis marks it as mandatory."
+  },
   "groupCreationDetails_groupNameHintFocused": "Group name",
+  "@groupCreationDetails_groupNameHintFocused": {
+    "description": "Placeholder of the group name field once it has focus."
+  },
   "groupCreationDetails_groupNameHelper": "Use at least one character",
+  "@groupCreationDetails_groupNameHelper": {
+    "description": "Helper text under the group name field stating the minimum length."
+  },
   "groupCreationDetails_create": "Create",
+  "@groupCreationDetails_create": {
+    "description": "Button that creates the group."
+  },
   "groupCreationDetails_emptySelection": "No members",
+  "@groupCreationDetails_emptySelection": {
+    "description": "Shown in place of the member list when no members have been picked."
+  },
 
   "addMembersScreen_addMembers": "Add members",
+  "@addMembersScreen_addMembers": {
+    "description": "Title of the pane for adding members to an existing group."
+  },
   "addMembersScreen_done": "Done",
+  "@addMembersScreen_done": {
+    "description": "Button that confirms the picked members and adds them to the group."
+  },
   "addMembersScreen_error_incompatibleClient": "Couldn't add member(s) because one of the contacts has an incompatible client",
+  "@addMembersScreen_error_incompatibleClient": {
+    "description": "Error shown when members cannot be added because one of them runs an app version that is too old."
+  },
 
   "leaveChatDialog_title": "Leave group",
+  "@leaveChatDialog_title": {
+    "description": "Title of the dialog confirming that the user leaves the group."
+  },
   "leaveChatDialog_content": "Are you sure you want to leave {chatName}?",
+  "@leaveChatDialog_content": {
+    "description": "Body of the leave group dialog, naming the group.",
+    "placeholders": {
+      "chatName": {
+        "type": "String"
+      }
+    }
+  },
   "leaveChatDialog_cancel": "Cancel",
+  "@leaveChatDialog_cancel": {
+    "description": "Button that dismisses the leave group dialog."
+  },
   "leaveChatDialog_leave": "Leave",
+  "@leaveChatDialog_leave": {
+    "description": "Confirming button of the leave group dialog."
+  },
 
   "deleteChatDialog_title": "Delete chat?",
+  "@deleteChatDialog_title": {
+    "description": "Title of the dialog confirming that the chat is deleted."
+  },
   "deleteChatDialog_content": "This chat will be deleted. There is no way to undo this.",
+  "@deleteChatDialog_content": {
+    "description": "Body of the delete chat dialog, warning that it cannot be undone."
+  },
   "deleteChatDialog_delete": "Delete",
+  "@deleteChatDialog_delete": {
+    "description": "Confirming button of the delete chat dialog."
+  },
 
   "byteUnit_B": "B",
+  "@byteUnit_B": {
+    "description": "Unit for a file size in bytes, joined with the number by attachmentSize. Use the abbreviation your locale uses."
+  },
   "byteUnit_KB": "KB",
+  "@byteUnit_KB": {
+    "description": "Unit for a file size in kilobytes, joined with the number by attachmentSize."
+  },
   "byteUnit_MB": "MB",
+  "@byteUnit_MB": {
+    "description": "Unit for a file size in megabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_GB": "GB",
+  "@byteUnit_GB": {
+    "description": "Unit for a file size in gigabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_TB": "TB",
+  "@byteUnit_TB": {
+    "description": "Unit for a file size in terabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_PB": "PB",
+  "@byteUnit_PB": {
+    "description": "Unit for a file size in petabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_EB": "EB",
+  "@byteUnit_EB": {
+    "description": "Unit for a file size in exabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_ZB": "ZB",
+  "@byteUnit_ZB": {
+    "description": "Unit for a file size in zettabytes, joined with the number by attachmentSize."
+  },
   "byteUnit_YB": "YB",
+  "@byteUnit_YB": {
+    "description": "Unit for a file size in yottabytes, joined with the number by attachmentSize."
+  },
 
   "deleteAccountScreen_title": "Delete my account",
+  "@deleteAccountScreen_title": {
+    "description": "Title of the dialog for deleting the user's own account."
+  },
   "deleteAccountScreen_explanatoryText": "This will delete your Air account and reset the application. You will not be able to recover your account.",
+  "@deleteAccountScreen_explanatoryText": {
+    "description": "Warns that deleting the account resets the app and cannot be undone."
+  },
   "deleteAccountScreen_confirmationInputHint": "Confirmation",
+  "@deleteAccountScreen_confirmationInputHint": {
+    "description": "Placeholder of the field where the confirmation word is typed."
+  },
   "deleteAccountScreen_confirmationInputLabel": "Type 'delete' to confirm.",
+  "@deleteAccountScreen_confirmationInputLabel": {
+    "description": "Tells the user which word to type to confirm. The quoted word is matched literally by the app, so leave it untranslated."
+  },
   "deleteAccountScreen_confirmButtonText": "Delete",
+  "@deleteAccountScreen_confirmButtonText": {
+    "description": "Confirming button of the delete account dialog."
+  },
   "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
+  "@deleteAccountScreen_deleteAccountError": {
+    "description": "Error shown when deleting the account fails on the server."
+  },
 
   "appOutdatedScreen_title": "Software update required",
+  "@appOutdatedScreen_title": {
+    "description": "Title of the screen blocking the app until it is updated."
+  },
   "appOutdatedScreen_message": "Update to keep using Air",
+  "@appOutdatedScreen_message": {
+    "description": "Headline telling the user an update is needed to carry on."
+  },
   "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
+  "@appOutdatedScreen_description": {
+    "description": "Names the store to update from on each mobile platform. TestFlight and Google Play are product names."
+  },
   "appOutdatedScreen_action": "Update",
+  "@appOutdatedScreen_action": {
+    "description": "Button that opens the store so the user can update."
+  },
 
   "contactRequestDialog_title": "Contact request",
+  "@contactRequestDialog_title": {
+    "description": "Title of the dialog showing an incoming contact request."
+  },
   "contactRequestDialog_avatarHint": "Tap to reveal their picture",
+  "@contactRequestDialog_avatarHint": {
+    "description": "Hint over the blurred picture of someone who is not yet a contact, telling the user they can tap to reveal it."
+  },
   "contactRequestDialog_cancel": "Later",
+  "@contactRequestDialog_cancel": {
+    "description": "Button that postpones the contact request without accepting it."
+  },
   "contactRequestDialog_confirm": "Accept",
+  "@contactRequestDialog_confirm": {
+    "description": "Button that accepts the contact request."
+  },
   "contactRequestDialog_error_fatal": "Failed to accept contact request",
+  "@contactRequestDialog_error_fatal": {
+    "description": "Error shown when accepting a contact request fails."
+  },
   "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again.",
+  "@contactRequestDialog_error_incompatibleClient": {
+    "description": "Error shown when a contact request cannot be accepted because this app version is too old."
+  },
 
   "errorBanner_ok": "OK",
+  "@errorBanner_ok": {
+    "description": "Button that dismisses the error banner at the top of the screen."
+  },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",
+  "@memberSelectionList_client_not_supported": {
+    "description": "Shown next to a contact who cannot be picked because their app version is too old."
+  },
 
   "homeTab_chats": "Chats",
+  "@homeTab_chats": {
+    "description": "Label of the chats tab in the bottom bar and sidebar. Use the glossary term for chat."
+  },
   "homeTab_profile": "You",
+  "@homeTab_profile": {
+    "description": "Label of the profile tab in the bottom bar and sidebar. Refers to the user themselves."
+  },
 
   "messageList_newMessages": "New messages",
+  "@messageList_newMessages": {
+    "description": "Divider marking where the user's unread messages begin."
+  },
 
   "messageList_reactions_react": "React",
+  "@messageList_reactions_react": {
+    "description": "Button that opens the emoji picker to react to a message."
+  },
   "messageList_reactions_remove": "Remove",
+  "@messageList_reactions_remove": {
+    "description": "Button that removes the user's own reaction from a message."
+  },
   "messageList_reactions_you": "You",
+  "@messageList_reactions_you": {
+    "description": "Marks the user's own reaction in the list of who reacted."
+  },
   "messageList_reactions_all": "All · {total}",
+  "@messageList_reactions_all": {
+    "description": "Tab showing every reaction on a message together with the total count.",
+    "placeholders": {
+      "total": {
+        "type": "int"
+      }
+    }
+  },
 
   "emojiPicker_searchHint": "Search emoji",
+  "@emojiPicker_searchHint": {
+    "description": "Placeholder of the search field in the emoji picker."
+  },
   "emojiPicker_empty": "No emoji found",
-  "emojiPicker_skinToneHelp": "Sets your default skin tone"
+  "@emojiPicker_empty": {
+    "description": "Empty state of the emoji picker when the search matches nothing."
+  },
+  "emojiPicker_skinToneHelp": "Sets your default skin tone",
+  "@emojiPicker_skinToneHelp": {
+    "description": "Explains that picking a skin tone here sets the default for future reactions."
+  }
 }

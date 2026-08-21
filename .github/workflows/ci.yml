@@ -52,6 +52,8 @@ jobs:
           - name: Dart lints
             just: check-dart
             flutter: true
+          - name: Localization consistency
+            just: check-l10n
           - name: SPDX License headers
             just: check-reuse
             pypi-packages: reuse~=6.2

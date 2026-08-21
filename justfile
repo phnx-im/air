@@ -63,6 +63,11 @@ check-dart:
 [group('check')]
 check-frb: regenerate-frb && _check-unstaged-changes
 
+# Check the ARB files for problems gen-l10n accepts silently.
+[group('check')]
+check-l10n:
+    cargo xtask validate-l10n
+
 [group('check')]
 [working-directory('protos')]
 check-buf:
