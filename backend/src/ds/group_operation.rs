@@ -735,6 +735,8 @@ impl DsGroupState {
 
     #[cfg(debug_assertions)]
     pub(crate) fn check_member_profiles(&self, context: &str) {
+        use std::collections::BTreeSet;
+
         let occupied: BTreeSet<LeafNodeIndex> = self.group().members().map(|m| m.index).collect();
         let profiled: BTreeSet<LeafNodeIndex> = self.member_profiles.keys().copied().collect();
         if occupied == profiled {
