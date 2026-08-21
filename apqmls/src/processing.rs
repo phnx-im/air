@@ -13,16 +13,18 @@ use openmls::{
     },
     prelude::{
         AppDataUpdateOperation, AppDataUpdateProposal, Ciphersuite, Credential, LeafNodeIndex,
-        OpenMlsCrypto, ProcessedMessage, ProcessedMessageContent, Proposal, ProposalType, Sender,
+        OpenMlsCrypto, PreSharedKeyProposal, ProcessedMessage, ProcessedMessageContent, Proposal,
+        ProposalType, Sender,
     },
     schedule::{PreSharedKeyId, Psk, psk::ApplicationPsk},
     storage::OpenMlsProvider,
 };
 use thiserror::Error;
+use tls_codec::{Deserialize as _, Serialize as _};
 
 use crate::{
     ApqMlsGroup, ApqMlsGroupMut,
-    extension::{APQMLS_COMPONENT_ID, ApqInfo},
+    extension::{APQMLS_COMPONENT_ID, ApqInfo, ApqInfoUpdate, ApqInfoUpdateError, ApqInfoUpdates},
     messages::ApqProtocolMessage,
     psk::{ApqPskError, store_psk},
     public_group::ApqPublicGroupMut,
@@ -70,6 +72,8 @@ pub enum ApqProcessMessageError<StorageError> {
     Validation(#[from] ApqProcessMessageValidationError),
     #[error(transparent)]
     AppDataUpdate(#[from] ResolveAppDataCommitError),
+    #[error(transparent)]
+    ApqInfoUpdate(#[from] ApqInfoUpdateError),
 }
 
 #[derive(Debug, Error, PartialEq, Clone)]
@@ -80,6 +84,8 @@ pub enum ApqProcessPublicMessageError {
     Validation(#[from] ApqProcessMessageValidationError),
     #[error(transparent)]
     AppDataUpdate(#[from] ResolveAppDataCommitError),
+    #[error(transparent)]
+    ApqInfoUpdate(#[from] ApqInfoUpdateError),
 }
 
 #[derive(Debug, Error, PartialEq, Eq, Clone, Copy)]
@@ -92,6 +98,16 @@ pub enum ApqProcessMessageValidationError {
     MissingApqInfo,
     #[error("APQInfo extension content is invalid.")]
     InvalidApqInfo,
+    #[error("The commit modifies an APQInfo field other than the two epochs.")]
+    ImmutableApqInfoModified,
+    #[error("The T commit of a FULL commit carries no PreSharedKey proposal for the APQ PSK.")]
+    MissingApqPsk,
+    #[error("The APQ PreSharedKey proposal of the T commit names a different PSK.")]
+    ApqPskMismatch,
+    #[error("The T commit carries more than one APQ PreSharedKey proposal.")]
+    DuplicateApqPsk,
+    #[error("The PreSharedKey proposal of the T commit is malformed.")]
+    MalformedApqPsk,
 }
 
 #[derive(Eq)]
@@ -358,6 +374,9 @@ impl ApqMlsGroupMut<'_> {
             &sender_equivalence,
         )?;
 
+        // The PSK the T commit of this FULL commit must import, if there is one.
+        let mut expected_psk = None;
+
         // If we have a commit message and it is not a self-removal, we need to export the PSK.
         //
         // Self-removal is a special case where PSK injection should be skipped: The T group commit
@@ -385,7 +404,8 @@ impl ApqMlsGroupMut<'_> {
             ));
             let id = PreSharedKeyId::new(self.t_group.ciphersuite(), provider.rand(), psk)
                 .map_err(ApqPskError::DerivingPskId)?;
-            store_psk(provider, id, apq_psk.as_slice())?;
+            let id = store_psk(provider, id, apq_psk.as_slice())?;
+            expected_psk = Some(id.psk().clone());
         }
 
         let t_message = self
@@ -402,6 +422,16 @@ impl ApqMlsGroupMut<'_> {
         // Make sure that messages match up
         if pq_message_info != t_message_info {
             return Err(ApqProcessMessageValidationError::MismatchedMessages.into());
+        }
+
+        // The T commit must announce the PSK we just derived from the new PQ
+        // epoch. Without it OpenMLS runs the T key schedule with a zero
+        // `psk_secret`, so the epoch gets no PQ contribution at all.
+        if let Some(expected_psk) = &expected_psk
+            && let ProcessedMessageContent::StagedCommitMessage(t_staged_commit) =
+                t_message.content()
+        {
+            validate_apq_psk_proposal(t_staged_commit, expected_psk)?;
         }
 
         let pq_params = ValidationParams::from_mls_group(self.pq_group);
@@ -458,6 +488,20 @@ impl ApqPublicGroupMut<'_> {
             return Err(ApqProcessMessageValidationError::MismatchedMessages.into());
         }
 
+        // A `PublicGroup` derives no secrets, so unlike a member it cannot
+        // compare the PSK ID against the one the new PQ epoch yields. The
+        // weaker check that the proposal is there at all is deliberate, not an
+        // oversight: it is all a DS can do, and it still rejects a T commit
+        // that would silently drop the PQ contribution.
+        if let ProcessedMessageContent::StagedCommitMessage(t_staged_commit) = t_message.content()
+            && matches!(
+                pq_message.content(),
+                ProcessedMessageContent::StagedCommitMessage(_)
+            )
+        {
+            require_apq_psk_proposal(t_staged_commit)?;
+        }
+
         let pq_params = ValidationParams::from_public_group(self.pq_public_group);
         let t_params = ValidationParams::from_public_group(self.t_public_group);
         ValidationParams::validate(pq_params, t_params, &pq_message, &t_message)?;
@@ -469,10 +513,68 @@ impl ApqPublicGroupMut<'_> {
     }
 }
 
+/// The [`PreSharedKeyId`] a PSK proposal carries.
+///
+/// OpenMLS has no accessor for it at the pinned revision. On the wire a
+/// `PreSharedKeyProposal` is a `PreSharedKeyID` and nothing else, so the TLS
+/// encoding of the two is identical. `apq_psk_proposal_roundtrips` guards the
+/// assumption.
+fn psk_id_of(proposal: &PreSharedKeyProposal) -> Result<PreSharedKeyId, tls_codec::Error> {
+    PreSharedKeyId::tls_deserialize_exact(proposal.tls_serialize_detached()?)
+}
+
+/// The APQ PSK a commit announces, i.e. the application PSK of the APQMLS
+/// component.
+///
+/// The T commit of a FULL commit announces exactly one. A second one has no
+/// meaning in the draft, so it is rejected rather than ignored: otherwise a
+/// sender could hide a bogus PSK behind a valid one. Other PSK proposals, such
+/// as the external PSKs a connection offer carries, are not APQ PSKs and are
+/// passed over.
+fn apq_psk(staged_commit: &StagedCommit) -> Result<Psk, ApqProcessMessageValidationError> {
+    let mut found: Option<Psk> = None;
+    for proposal in staged_commit.psk_proposals() {
+        let psk_id = psk_id_of(proposal.psk_proposal())
+            .map_err(|_| ApqProcessMessageValidationError::MalformedApqPsk)?;
+        let Psk::Application(psk) = psk_id.psk() else {
+            continue;
+        };
+        if psk.component_id() != APQMLS_COMPONENT_ID {
+            continue;
+        }
+        if found.replace(psk_id.psk().clone()).is_some() {
+            return Err(ApqProcessMessageValidationError::DuplicateApqPsk);
+        }
+    }
+    found.ok_or(ApqProcessMessageValidationError::MissingApqPsk)
+}
+
+/// The T commit of a FULL commit must announce the PSK exported from the new PQ
+/// epoch.
+fn validate_apq_psk_proposal(
+    t_staged_commit: &StagedCommit,
+    expected: &Psk,
+) -> Result<(), ApqProcessMessageValidationError> {
+    if &apq_psk(t_staged_commit)? != expected {
+        return Err(ApqProcessMessageValidationError::ApqPskMismatch);
+    }
+    Ok(())
+}
+
+/// Same as [`validate_apq_psk_proposal`], but without comparing the PSK, for
+/// callers that cannot derive it themselves.
+fn require_apq_psk_proposal(
+    t_staged_commit: &StagedCommit,
+) -> Result<(), ApqProcessMessageValidationError> {
+    apq_psk(t_staged_commit).map(|_| ())
+}
+
 struct ValidationParams<'a> {
     epoch: GroupEpoch,
     group_id: &'a GroupId,
     ciphersuite: Ciphersuite,
+    /// The [`ApqInfo`] of the group's current epoch.
+    apq_info: Option<ApqInfo>,
 }
 
 impl<'a> ValidationParams<'a> {
@@ -481,6 +583,7 @@ impl<'a> ValidationParams<'a> {
             epoch: group.epoch(),
             group_id: group.group_id(),
             ciphersuite: group.ciphersuite(),
+            apq_info: ApqInfo::from_extensions(group.extensions()).ok().flatten(),
         }
     }
 
@@ -489,6 +592,9 @@ impl<'a> ValidationParams<'a> {
             epoch: group.group_context().epoch(),
             group_id: group.group_context().group_id(),
             ciphersuite: group.group_context().ciphersuite(),
+            apq_info: ApqInfo::from_extensions(group.group_context().extensions())
+                .ok()
+                .flatten(),
         }
     }
 
@@ -541,6 +647,22 @@ impl<'a> ValidationParams<'a> {
             {
                 return Err(InvalidApqInfo);
             }
+
+            // Every field other than the two epochs is immutable for the
+            // lifetime of the session.
+            let immutable_fields_unchanged = [
+                (&pq_params.apq_info, &pq_apq_info),
+                (&t_params.apq_info, &t_apq_info),
+            ]
+            .into_iter()
+            .all(|(current, new)| {
+                current
+                    .as_ref()
+                    .is_none_or(|current| current.matches_except_epochs(new))
+            });
+            if !immutable_fields_unchanged {
+                return Err(ImmutableApqInfoModified);
+            }
         }
 
         Ok(())
@@ -552,15 +674,17 @@ fn resolve_app_data_commit<Provider: OpenMlsProvider>(
     group: &MlsGroup,
     provider: &Provider,
     message: ProcessedMessage,
-) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+) -> Result<ProcessedMessage, ApqProcessMessageError<Provider::StorageError>> {
     let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
         return Ok(message);
     };
     let updates = compute_app_data_updates(
         group.app_data_dictionary_updater(),
         unresolved.app_data_update_proposals(),
-    );
-    group.resolve_app_data_commit(provider, message, updates)
+    )?;
+    group
+        .resolve_app_data_commit(provider, message, updates)
+        .map_err(Into::into)
 }
 
 /// Same as [`resolve_app_data_commit`], but for public groups.
@@ -568,24 +692,51 @@ fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
     group: &PublicGroup,
     crypto: &Crypto,
     message: ProcessedMessage,
-) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+) -> Result<ProcessedMessage, ApqProcessPublicMessageError> {
     let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
         return Ok(message);
     };
     let updates = compute_app_data_updates(
         group.app_data_dictionary_updater(),
         unresolved.app_data_update_proposals(),
-    );
-    group.resolve_app_data_commit(crypto, message, updates)
+    )?;
+    group
+        .resolve_app_data_commit(crypto, message, updates)
+        .map_err(Into::into)
 }
 
-fn compute_app_data_updates<'a>(
+/// Computes the app data dictionary changes of a commit.
+///
+/// The APQInfo updates are collected first and applied together, because the
+/// draft only allows a single `full_update` or a `new_t_epoch` paired with a
+/// `new_pq_epoch`. The dictionary entry itself is a bare [`ApqInfo`], only the
+/// proposal payload is an [`ApqInfoUpdate`].
+///
+/// This is the only place that knows that encoding. Every consumer of an
+/// `AppDataUpdate` proposal for [`APQMLS_COMPONENT_ID`] must go through here,
+/// otherwise two parties resolve the same commit into different dictionaries
+/// and their group contexts diverge.
+pub fn compute_app_data_updates<'a>(
     mut updater: AppDataDictionaryUpdater<'a>,
     proposals: impl Iterator<Item = &'a AppDataUpdateProposal>,
-) -> Option<AppDataUpdates> {
+) -> Result<Option<AppDataUpdates>, ApqInfoUpdateError> {
+    let current_apq_info = updater
+        .old_value(APQMLS_COMPONENT_ID)
+        .map(ApqInfo::tls_deserialize_exact)
+        .transpose()
+        .map_err(ApqInfoUpdateError::MalformedApqInfo)?;
+
+    let mut apq_info_updates = ApqInfoUpdates::default();
+    let mut apq_info_removed = false;
     let mut updated = false;
     for proposal in proposals {
+        let is_apq_info = proposal.component_id() == APQMLS_COMPONENT_ID;
         match proposal.operation() {
+            AppDataUpdateOperation::Update(data) if is_apq_info => {
+                let update = ApqInfoUpdate::tls_deserialize_exact(data)
+                    .map_err(ApqInfoUpdateError::MalformedUpdate)?;
+                apq_info_updates.add(update)?;
+            }
             AppDataUpdateOperation::Update(data) => {
                 updater.set(ComponentData::from_parts(
                     proposal.component_id(),
@@ -594,9 +745,284 @@ fn compute_app_data_updates<'a>(
             }
             AppDataUpdateOperation::Remove => {
                 updater.remove(&proposal.component_id());
+                apq_info_removed |= is_apq_info;
             }
         }
         updated = true;
     }
-    updated.then(|| updater.changes()).flatten()
+
+    // Removing the APQInfo and updating it in the same commit contradict each
+    // other, and neither is one of the two shapes the draft allows.
+    if apq_info_removed && !apq_info_updates.is_empty() {
+        return Err(ApqInfoUpdateError::RemovalWithUpdate);
+    }
+
+    if let Some(new_apq_info) = apq_info_updates.resolve(current_apq_info.as_ref())? {
+        updater.set(
+            new_apq_info
+                .to_component_data()
+                .map_err(ApqInfoUpdateError::Serialization)?,
+        );
+    }
+
+    Ok(updated.then(|| updater.changes()).flatten())
+}
+
+#[cfg(test)]
+mod tests {
+    use openmls::{
+        component::ComponentId,
+        prelude::{AppDataDictionary, AppDataUpdateProposal},
+    };
+    use tls_codec::Serialize as _;
+
+    use super::*;
+    use crate::extension::tests::test_apq_info;
+
+    const OTHER_COMPONENT_ID: ComponentId = 0x8002;
+
+    /// The dictionary changes a commit results in, keyed by component ID. A
+    /// `None` value is a removal.
+    type Changes = Vec<(ComponentId, Option<Vec<u8>>)>;
+
+    fn dictionary_with(apq_info: &ApqInfo) -> AppDataDictionary {
+        let mut dictionary = AppDataDictionary::new();
+        dictionary.insert(
+            APQMLS_COMPONENT_ID,
+            apq_info.tls_serialize_detached().unwrap(),
+        );
+        dictionary
+    }
+
+    fn apq_proposal(update: ApqInfoUpdate) -> AppDataUpdateProposal {
+        AppDataUpdateProposal::update(
+            APQMLS_COMPONENT_ID,
+            update.tls_serialize_detached().unwrap(),
+        )
+    }
+
+    fn changes(
+        dictionary: Option<&AppDataDictionary>,
+        proposals: &[AppDataUpdateProposal],
+    ) -> Result<Changes, ApqInfoUpdateError> {
+        let updates =
+            compute_app_data_updates(AppDataDictionaryUpdater::new(dictionary), proposals.iter())?;
+        Ok(updates.into_iter().flatten().collect())
+    }
+
+    #[test]
+    fn full_update_is_stored_as_a_bare_apq_info() {
+        let apq_info = test_apq_info();
+        let proposals = [apq_info.to_full_update_proposal().unwrap()];
+        assert_eq!(
+            changes(None, &proposals).unwrap(),
+            vec![(
+                APQMLS_COMPONENT_ID,
+                Some(apq_info.tls_serialize_detached().unwrap())
+            )]
+        );
+    }
+
+    #[test]
+    fn epoch_updates_are_applied_to_the_current_apq_info() {
+        let mut apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9))),
+            apq_proposal(ApqInfoUpdate::NewPqEpoch(GroupEpoch::from(10))),
+        ];
+
+        apq_info.set_epoch(GroupEpoch::from(9), GroupEpoch::from(10));
+        assert_eq!(
+            changes(Some(&dictionary), &proposals).unwrap(),
+            vec![(
+                APQMLS_COMPONENT_ID,
+                Some(apq_info.tls_serialize_detached().unwrap())
+            )]
+        );
+    }
+
+    #[test]
+    fn epoch_updates_without_an_existing_apq_info_are_rejected() {
+        let proposals = [
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9))),
+            apq_proposal(ApqInfoUpdate::NewPqEpoch(GroupEpoch::from(10))),
+        ];
+        assert_eq!(
+            changes(None, &proposals),
+            Err(ApqInfoUpdateError::NoApqInfo)
+        );
+    }
+
+    #[test]
+    fn a_single_epoch_update_is_rejected() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        for update in [
+            ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9)),
+            ApqInfoUpdate::NewPqEpoch(GroupEpoch::from(9)),
+        ] {
+            let proposals = [apq_proposal(update)];
+            assert_eq!(
+                changes(Some(&dictionary), &proposals),
+                Err(ApqInfoUpdateError::IncompleteEpochUpdate)
+            );
+        }
+    }
+
+    #[test]
+    fn duplicate_epoch_updates_are_rejected() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9))),
+            apq_proposal(ApqInfoUpdate::NewPqEpoch(GroupEpoch::from(10))),
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(11))),
+        ];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals),
+            Err(ApqInfoUpdateError::DuplicateEpochUpdate)
+        );
+    }
+
+    #[test]
+    fn duplicate_full_updates_are_rejected() {
+        let apq_info = test_apq_info();
+        let proposals = [
+            apq_info.to_full_update_proposal().unwrap(),
+            apq_info.to_full_update_proposal().unwrap(),
+        ];
+        assert_eq!(
+            changes(None, &proposals),
+            Err(ApqInfoUpdateError::DuplicateFullUpdate)
+        );
+    }
+
+    #[test]
+    fn a_full_update_mixed_with_epoch_updates_is_rejected() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            apq_info.to_full_update_proposal().unwrap(),
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9))),
+            apq_proposal(ApqInfoUpdate::NewPqEpoch(GroupEpoch::from(10))),
+        ];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals),
+            Err(ApqInfoUpdateError::MixedUpdates)
+        );
+    }
+
+    #[test]
+    fn a_full_update_mixed_with_a_single_epoch_update_is_rejected() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            apq_info.to_full_update_proposal().unwrap(),
+            apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9))),
+        ];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals),
+            Err(ApqInfoUpdateError::MixedUpdates)
+        );
+    }
+
+    #[test]
+    fn a_full_update_replaces_the_current_apq_info_wholesale() {
+        let current = test_apq_info();
+        let dictionary = dictionary_with(&current);
+        let mut replacement = current.clone();
+        replacement.set_epoch(GroupEpoch::from(41), GroupEpoch::from(42));
+        let proposals = [replacement.to_full_update_proposal().unwrap()];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals).unwrap(),
+            vec![(
+                APQMLS_COMPONENT_ID,
+                Some(replacement.tls_serialize_detached().unwrap())
+            )]
+        );
+    }
+
+    #[test]
+    fn malformed_update_is_rejected() {
+        let proposals = [AppDataUpdateProposal::update(
+            APQMLS_COMPONENT_ID,
+            vec![0xff],
+        )];
+        assert!(matches!(
+            changes(None, &proposals),
+            Err(ApqInfoUpdateError::MalformedUpdate(_))
+        ));
+    }
+
+    #[test]
+    fn malformed_current_apq_info_is_rejected() {
+        let mut dictionary = AppDataDictionary::new();
+        dictionary.insert(APQMLS_COMPONENT_ID, vec![0xff]);
+        let proposals = [apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9)))];
+        assert!(matches!(
+            changes(Some(&dictionary), &proposals),
+            Err(ApqInfoUpdateError::MalformedApqInfo(_))
+        ));
+    }
+
+    #[test]
+    fn other_components_are_stored_verbatim() {
+        let proposals = [AppDataUpdateProposal::update(
+            OTHER_COMPONENT_ID,
+            b"opaque".to_vec(),
+        )];
+        assert_eq!(
+            changes(None, &proposals).unwrap(),
+            vec![(OTHER_COMPONENT_ID, Some(b"opaque".to_vec()))]
+        );
+    }
+
+    #[test]
+    fn removals_are_passed_through() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID),
+            AppDataUpdateProposal::remove(OTHER_COMPONENT_ID),
+        ];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals).unwrap(),
+            vec![(APQMLS_COMPONENT_ID, None), (OTHER_COMPONENT_ID, None)]
+        );
+    }
+
+    #[test]
+    fn removing_and_updating_the_apq_info_in_one_commit_is_rejected() {
+        let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
+        let proposals = [
+            apq_info.to_full_update_proposal().unwrap(),
+            AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID),
+        ];
+        assert_eq!(
+            changes(Some(&dictionary), &proposals),
+            Err(ApqInfoUpdateError::RemovalWithUpdate)
+        );
+    }
+
+    #[test]
+    fn no_proposals_means_no_changes() {
+        assert!(changes(None, &[]).unwrap().is_empty());
+    }
+
+    /// [`psk_id_of`] relies on a `PreSharedKeyProposal` and a `PreSharedKeyID`
+    /// having the same TLS encoding.
+    #[test]
+    fn apq_psk_proposal_roundtrips() {
+        let psk = Psk::Application(ApplicationPsk::new(
+            APQMLS_COMPONENT_ID,
+            b"psk id".to_vec().into(),
+        ));
+        let psk_id =
+            PreSharedKeyId::application(APQMLS_COMPONENT_ID, b"psk id".to_vec(), b"nonce".to_vec());
+        assert_eq!(psk_id.psk(), &psk);
+        let proposal = PreSharedKeyProposal::new(psk_id.clone());
+        assert_eq!(psk_id_of(&proposal).unwrap(), psk_id);
+    }
 }
