@@ -66,11 +66,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('opens on the invitation code', (tester) async {
+    testWidgets('opens on the invite code', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter invitation code'), findsOneWidget);
+      expect(find.text('Enter invite code'), findsOneWidget);
 
       await expectLater(
         find.byType(MaterialApp),
@@ -103,7 +103,7 @@ void main() {
 
       await submit(tester, 'Join Air');
 
-      expect(find.text('Enter invitation code'), findsOneWidget);
+      expect(find.text('Enter invite code'), findsOneWidget);
     });
 
     testWidgets('a short code never reaches the server', (tester) async {
@@ -146,7 +146,7 @@ void main() {
       await tester.tap(find.byType(DialogHeaderAction));
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter invitation code'), findsOneWidget);
+      expect(find.text('Enter invite code'), findsOneWidget);
       verifyNever(() => navigationCubit.pop());
     });
 
