@@ -153,6 +153,7 @@ name = "airbackend"
 version = "0.21.0"
 dependencies = [
  "aircommon",
+ "airmacros",
  "airprotos",
  "anyhow",
  "apqmls",
