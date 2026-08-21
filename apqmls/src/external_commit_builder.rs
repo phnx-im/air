@@ -11,8 +11,8 @@ use openmls::{
         MlsGroupJoinConfig,
     },
     prelude::{
-        AppDataUpdateProposal, CredentialWithKey, LeafNodeParameters, PreSharedKeyProposal,
-        PublicMessageIn, RatchetTreeIn, group_info::VerifiableGroupInfo,
+        AppDataUpdateProposal, Credential, CredentialWithKey, LeafNodeParameters,
+        PreSharedKeyProposal, PublicMessageIn, RatchetTreeIn, group_info::VerifiableGroupInfo,
     },
     storage::OpenMlsProvider,
 };
@@ -24,12 +24,13 @@ use crate::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
-    extension::{
-        APQMLS_COMPONENT_ID, ApqInfo, ensure_extension_support, ensure_leaf_node_component_support,
-    },
+    extension::{ensure_extension_support, ensure_leaf_node_component_support},
     key_package::ensure_ciphersuite_support,
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
     psk::{ApqPskError, derive_and_store_psk},
+    validation::{
+        ApqValidationError, validate_apq_group_info, validate_apq_session_at_construction,
+    },
 };
 
 impl ApqMlsGroup {
@@ -119,6 +120,7 @@ impl ApqExternalCommitBuilder {
         signer: &S,
         credential_with_key: ApqCredentialWithKey,
         group_info: VerifiableApqGroupInfo,
+        credential_equivalence: impl Fn(&Credential, &Credential) -> bool,
     ) -> Result<
         (ApqMlsGroup, ApqCommitMessageBundle),
         ApqExternalCommitBuilderError<Provider::StorageError>,
@@ -152,16 +154,18 @@ impl ApqExternalCommitBuilder {
 
         let (t_ratchet_tree, pq_ratchet_tree) = ratchet_tree.map(ApqRatchetTreeIn::split).unzip();
 
-        // Increase the epoch in the apq info component.
-        let mut apq_info = ApqInfo::from_extensions(t_group_info.group_context().extensions())?
-            .ok_or(ApqExternalCommitBuilderError::MissingApqInfo)?;
+        // Both GroupInfos must carry the same APQInfo, it must describe the two
+        // groups, and the ciphersuite pair must be valid for the mode.
+        let mut apq_info = validate_apq_group_info(&t_group_info, &pq_group_info)?;
+
+        // Increase the epoch in the apq info component. The dictionary entry is
+        // a bare `ApqInfo`, the proposal payload is an `ApqInfoUpdate`.
         apq_info.set_epoch(
             GroupEpoch::from(t_group_info.epoch().as_u64() + 1),
             GroupEpoch::from(pq_group_info.epoch().as_u64() + 1),
         );
         let component_data = apq_info.to_component_data()?;
-        let app_data_update_proposal =
-            AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, component_data.data());
+        let app_data_update_proposal = apq_info.to_full_update_proposal()?;
 
         // Leaf node parameters
         let apq_ciphersuite =
@@ -232,13 +236,25 @@ impl ApqExternalCommitBuilder {
                 signer.t_signer(),
             )
         })();
-        let (t_group, t_bundle) = match t_result {
+        let (mut t_group, t_bundle) = match t_result {
             Ok(result) => result,
             Err(err) => {
                 let _ = pq_group.delete(provider.storage());
                 return Err(err);
             }
         };
+
+        // The two external commits are a FULL commit, so the joined session must
+        // satisfy the full set of APQ invariants, including matching epochs and
+        // consistent membership. Both groups are already merged and persisted,
+        // so a rejection has to roll both of them back.
+        if let Err(error) =
+            validate_apq_session_at_construction(&t_group, &pq_group, credential_equivalence)
+        {
+            let _ = t_group.delete(provider.storage());
+            let _ = pq_group.delete(provider.storage());
+            return Err(error.into());
+        }
 
         Ok((
             ApqMlsGroup::from_groups(t_group, pq_group),
@@ -336,9 +352,9 @@ pub enum ApqExternalCommitBuilderError<StorageError> {
     Finalize(#[from] ExternalCommitBuilderFinalizeError<StorageError>),
     #[error(transparent)]
     Psk(#[from] ApqPskError<StorageError>),
-    /// Missing required ApqInfo in group-info extensions
-    #[error("Missing required ApqInfo in group-info extensions")]
-    MissingApqInfo,
+    /// The APQ invariants of the session don't hold
+    #[error(transparent)]
+    Validation(#[from] ApqValidationError),
     /// Malformed extension
     #[error("Malformed extension")]
     MalformedExtension(#[from] tls_codec::Error),

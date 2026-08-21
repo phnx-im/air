@@ -10,8 +10,8 @@ use openmls::{
         QueuedProposal,
     },
     prelude::{
-        AppDataUpdateProposal, InvalidExtensionError, LeafNodeIndex, LeafNodeParameters,
-        PreSharedKeyProposal, Proposal, ProposalType,
+        InvalidExtensionError, LeafNodeIndex, LeafNodeParameters, PreSharedKeyProposal, Proposal,
+        ProposalType,
     },
     storage::OpenMlsProvider,
 };
@@ -22,7 +22,7 @@ use thiserror::Error;
 use crate::{
     ApqCiphersuite, ApqMlsGroup, ApqMlsGroupMut,
     authentication::ApqSigner,
-    extension::{APQMLS_COMPONENT_ID, ensure_leaf_node_parameters},
+    extension::ensure_leaf_node_parameters,
     messages::{ApqGroupInfo, ApqKeyPackage, ApqMlsMessageOut, ApqWelcome},
     psk::{ApqPskError, derive_and_store_psk},
 };
@@ -293,9 +293,10 @@ impl<'a> CommitBuilder<'a> {
             GroupEpoch::from(new_pq_epoch),
         );
 
+        // The dictionary entry is a bare `ApqInfo`, the proposal payload is an
+        // `ApqInfoUpdate`.
         let apq_info_component_data = apq_info.to_component_data()?;
-        let app_data_update_proposal =
-            AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, apq_info_component_data.data());
+        let app_data_update_proposal = apq_info.to_full_update_proposal()?;
 
         // Create the PQ commit first s.t. we can export the PSK for the T group.
         let pq_builder = self

@@ -36,6 +36,21 @@ pub enum ApqPskError<StorageError> {
     SerializingPskId(#[from] tls_codec::Error),
 }
 
+/// Derives the combiner PSK from the pending commit of the PQ group and stores
+/// it, returning the [`PreSharedKeyId`] the T commit must reference.
+///
+/// The two commits of a FULL commit are tied together by this PSK, so a caller
+/// that builds them itself, instead of going through
+/// [`crate::commit_builder::CommitBuilder`], has to call this between staging
+/// the PQ commit and building the T commit.
+pub fn derive_and_store_commit_psk<Provider: OpenMlsProvider>(
+    provider: &Provider,
+    pq_group: &mut MlsGroup,
+    t_ciphersuite: Ciphersuite,
+) -> Result<PreSharedKeyId, ApqPskError<Provider::StorageError>> {
+    derive_and_store_psk::<_, true>(provider, pq_group, t_ciphersuite)
+}
+
 /// <https://datatracker.ietf.org/doc/html/draft-ietf-mls-combiner#name-key-schedule>
 pub(crate) fn derive_and_store_psk<
     Provider: openmls::storage::OpenMlsProvider,
