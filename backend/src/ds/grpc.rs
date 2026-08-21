@@ -1662,15 +1662,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(t_sender_index)
                     .collect();
 
-                let pq_serialized = pq_group_state.delete_pq_group(pq_message)?;
-                let t_serialized = t_group_state.delete_group(t_message)?;
+                let serialized_apq_message = DsGroupState::delete_apq_group(
+                    t_group_state,
+                    pq_group_state,
+                    t_message,
+                    pq_message,
+                )?;
 
                 t_group_state.proposals.clear();
                 pq_group_state.proposals.clear();
 
                 let timestamp = TimeStamp::now();
-                let serialized_apq_message =
-                    SerializedMlsMessage::combine_apq(t_serialized, pq_serialized);
                 let apq_payload =
                     QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
 

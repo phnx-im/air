@@ -152,17 +152,54 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
-async fn delete_group() {
+#[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
+async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    let delete_group = setup.delete_group(chat_id, &alice);
-    delete_group.await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_non_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group test", skip_all)]
+async fn delete_apq_group() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group by invitee", skip_all)]
+async fn delete_apq_group_by_invitee() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &bob).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
