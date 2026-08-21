@@ -8,6 +8,13 @@ import UserNotifications
 import os
 
 private let kProtectedBlockedCategory = "protected-blocked"
+
+// The staging NSE (`ms.air.staging.nse`) is only entitled to the staging App
+// Group. Requesting the production group there returns nil. Kept in sync with
+// ShareViewController's `appGroupIdentifier`.
+private let appGroupIdentifier =
+    Bundle.main.bundleIdentifier?.contains(".staging") == true
+    ? "group.ms.air.staging" : "group.ms.air"
 private let reentryQueue = DispatchQueue(
     label: "ms.air.NotificationService.reentry")
 private var isHandlingNotification = false
@@ -95,7 +102,7 @@ class NotificationService: UNNotificationServiceExtension {
 
         guard
             let sharedContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air")
+                forSecurityApplicationGroupIdentifier: appGroupIdentifier)
         else {
             rustLog(.error, "Could not find app group container")
             self.completeNotification()
@@ -405,7 +412,7 @@ class NotificationService: UNNotificationServiceExtension {
         // Use the App Group container so extensions can also access it
         guard
             let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air"
+                forSecurityApplicationGroupIdentifier: appGroupIdentifier
             )
         else {
             return nil
