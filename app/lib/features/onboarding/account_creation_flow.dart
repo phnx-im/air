@@ -88,9 +88,8 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
 
     // The account is created between the profile and username steps, which
     // flips the loadable user to loaded. That swaps the intro subtree for the
-    // logged-in one and rebuilds this flow from scratch. When a user is already
-    // loaded as the flow initializes, it is that rebuild: resume on the
-    // username step instead of dropping back to the first step.
+    // logged-in one and rebuilds this flow from scratch, so we need to avoid
+    // dropping back to the first step (invitationCode).
     final userLoaded =
         context.read<LoadableUserCubit>().state.loadedUser != null;
     _step = userLoaded ? _Step.username : _Step.invitationCode;
@@ -103,8 +102,6 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     );
     _domainController = TextEditingController(text: registration.domain);
     _usernameController = TextEditingController(
-      // The submit path fills this before advancing, but that runs on the old
-      // widget; the rebuilt one derives the same suggestion here.
       text: userLoaded ? _usernameSuggestion(registration.displayName) : '',
     );
   }
