@@ -370,6 +370,13 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Uppdatering krävs';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air, eller be någon som redan finns på Air om en inbjudningskod.';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override
@@ -399,6 +406,10 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Lägg till ett visningsnamn med minst ett tecken';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Den här servern kräver nu en inbjudningskod. Ange en för att fortsätta.';
 
   @override
   String signUpScreen_error_register(String error) {

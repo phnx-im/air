@@ -48,6 +48,7 @@ class IntroScreen extends HookWidget {
     final tokens = NuxScaffoldTokens.of(context);
 
     final serverFieldVisible = useState(false);
+    final openingSignUp = useState(false);
 
     final bool experimentalFeatures = context.select(
       (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
@@ -59,6 +60,25 @@ class IntroScreen extends HookWidget {
       await requestNotificationPermission();
       if (!context.mounted) return;
       context.read<NavigationCubit>().openLinking();
+    }
+
+    openSignUp() async {
+      if (openingSignUp.value) return;
+      openingSignUp.value = true;
+      try {
+        await requestNotificationPermission();
+        if (!context.mounted) return;
+        // Asked here rather than in the flow, so the flow opens on the step the
+        // server actually wants and never has to drop one the user is looking
+        // at.
+        await context.read<RegistrationCubit>().loadRegistrationInfo();
+        if (!context.mounted) return;
+        context.read<NavigationCubit>().openSignUp();
+      } finally {
+        // The flag goes with the screen, so one that left the tree has nothing
+        // left to reset.
+        if (context.mounted) openingSignUp.value = false;
+      }
     }
 
     // A window gives the picker a top row inside the safe zone. A phone floats
@@ -111,11 +131,8 @@ class IntroScreen extends HookWidget {
                 Button(
                   type: .primary,
                   label: loc.introScreen_signUp,
-                  onPressed: () async {
-                    await requestNotificationPermission();
-                    if (!context.mounted) return;
-                    context.read<NavigationCubit>().openSignUp();
-                  },
+                  state: openingSignUp.value ? .pending : .active,
+                  onPressed: openSignUp,
                 ),
               ],
             )

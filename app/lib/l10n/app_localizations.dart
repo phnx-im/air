@@ -732,6 +732,18 @@ abstract class AppLocalizations {
   /// **'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}'**
   String invitationCodesScreen_codesClipboardMessage(String codes);
 
+  /// Header of the sign up step shown when the server asks for a kind of sign up check this version of the app cannot answer.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get accountCreation_unsupported_header;
+
+  /// Explains that sign up cannot continue until the app is updated, and that an invite code is the alternative.
+  ///
+  /// In en, this message translates to:
+  /// **'This server asks for something this version of Air cannot provide. Update Air, or ask someone already on Air for an invite code.'**
+  String get accountCreation_unsupported_body;
+
   /// Header of the profile step during sign up.
   ///
   /// In en, this message translates to:
@@ -785,6 +797,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a display name of at least one character'**
   String get signUpScreen_error_emptyDisplayName;
+
+  /// Error shown when the server started requiring an invite code while the sign up form was open, and the flow returns to the code step.
+  ///
+  /// In en, this message translates to:
+  /// **'This server now asks for an invite code. Enter one to carry on.'**
+  String get signUpScreen_error_challengeRequired;
 
   /// Error shown when account registration fails. The placeholder carries an untranslated technical message.
   ///
