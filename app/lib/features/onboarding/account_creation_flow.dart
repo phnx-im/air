@@ -14,6 +14,7 @@ import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
@@ -84,6 +85,16 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     super.initState();
     // The fields open on what the cubit already holds rather than on blanks.
     final registration = context.read<RegistrationCubit>().state;
+
+    // The account is created between the profile and username steps, which
+    // flips the loadable user to loaded. That swaps the intro subtree for the
+    // logged-in one and rebuilds this flow from scratch. When a user is already
+    // loaded as the flow initializes, it is that rebuild: resume on the
+    // username step instead of dropping back to the first step.
+    final userLoaded =
+        context.read<LoadableUserCubit>().state.loadedUser != null;
+    _step = userLoaded ? _Step.username : _Step.invitationCode;
+
     _codeController = TextEditingController(
       text: registration.invitationCode ?? '',
     );
@@ -91,7 +102,11 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       text: registration.displayName,
     );
     _domainController = TextEditingController(text: registration.domain);
-    _usernameController = TextEditingController();
+    _usernameController = TextEditingController(
+      // The submit path fills this before advancing, but that runs on the old
+      // widget; the rebuilt one derives the same suggestion here.
+      text: userLoaded ? _usernameSuggestion(registration.displayName) : '',
+    );
   }
 
   @override
