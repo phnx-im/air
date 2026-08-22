@@ -22,6 +22,17 @@ part 'share_cubit.freezed.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
+/// This loads the most recently used chats to be published to the OS as direct
+/// share targets. It runs on every chat navigation, so the details are loaded
+/// one chat at a time and only until the limit is reached.
+Future<List<UiShareTarget>> loadShareTargets({
+  required UserCubitBase userCubit,
+  required int limit,
+}) => RustLib.instance.api.crateApiShareCubitLoadShareTargets(
+  userCubit: userCubit,
+  limit: limit,
+);
+
 /// Loads a single chat as a direct share target (e.g. for donating an
 /// intent when the chat is opened).
 Future<UiShareTarget?> loadShareTarget({
@@ -137,7 +148,8 @@ sealed class UiShareSendStatus with _$UiShareSendStatus {
 
 /// A chat published to the OS as a direct share target
 ///
-/// Donated to the share sheet as an `INSendMessageIntent`.
+/// Published as a sharing shortcut on Android and as an
+/// `INSendMessageIntent` donation on iOS.
 class UiShareTarget {
   final ChatId chatId;
   final String title;

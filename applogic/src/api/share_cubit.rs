@@ -4,9 +4,9 @@
 
 //! Share feature
 //!
-//! Backs the share UI hosted by the iOS share extension. Loads the default
-//! user, exposes the chats to pick from and sends the shared content into the
-//! chosen chats.
+//! Backs the share UI hosted by the iOS share extension and the Android
+//! share activity. Loads the default user, exposes the chats to pick from
+//! and sends the shared content into the chosen chats.
 
 use std::{
     collections::HashMap,
@@ -117,8 +117,9 @@ pub struct ShareState {
 /// The cubit backing the share UI
 ///
 /// Unlike the other cubits it is not derived from a [`UserCubitBase`]. The
-/// share UI runs in its own process, without the full app. The cubit loads
-/// the default user itself and does not listen to the server queues.
+/// share UI runs in its own Flutter engine, on iOS even in its own process,
+/// without the full app. The cubit loads the default user itself and does
+/// not listen to the server queues.
 #[frb(opaque)]
 pub struct ShareCubitBase {
     core: CubitCore<ShareState>,
@@ -222,8 +223,8 @@ impl ShareCubitBase {
         let core_user = self.core_user.get().context("user is not loaded")?.clone();
 
         // Capture store notifications of all writes below. They are
-        // persisted at the end, so that the main app in its own process can
-        // reload its stores.
+        // persisted at the end, so that the main app (separate process on
+        // iOS, separate engine on Android) can reload its stores.
         let pending_store_notifications = core_user.pending_db_notifications();
 
         let status = self
@@ -407,7 +408,8 @@ async fn load_share_chat(core_user: &CoreUser, chat_id: &ChatId) -> Option<UiCha
 
 /// A chat published to the OS as a direct share target
 ///
-/// Donated to the share sheet as an `INSendMessageIntent`.
+/// Published as a sharing shortcut on Android and as an
+/// `INSendMessageIntent` donation on iOS.
 pub struct UiShareTarget {
     pub chat_id: ChatId,
     pub title: String,
@@ -440,6 +442,27 @@ impl UiShareTarget {
             picture,
         }
     }
+}
+
+/// This loads the most recently used chats to be published to the OS as direct
+/// share targets. It runs on every chat navigation, so the details are loaded
+/// one chat at a time and only until the limit is reached.
+pub async fn load_share_targets(user_cubit: &UserCubitBase, limit: u32) -> Vec<UiShareTarget> {
+    let core_user = user_cubit.core_user();
+    let limit = limit as usize;
+    let chat_ids = share_chat_ids(core_user).await;
+
+    let mut targets = Vec::with_capacity(limit.min(chat_ids.len()));
+    for chat_id in chat_ids {
+        if targets.len() >= limit {
+            break;
+        }
+        let Some(details) = load_share_chat(core_user, &chat_id).await else {
+            continue;
+        };
+        targets.push(UiShareTarget::from_details(details));
+    }
+    targets
 }
 
 /// Loads a single chat as a direct share target (e.g. for donating an

@@ -1026,6 +1026,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiReaction> dco_decode_list_ui_reaction(dynamic raw);
 
   @protected
+  List<UiShareTarget> dco_decode_list_ui_share_target(dynamic raw);
+
+  @protected
   List<UiSharedAttachment> dco_decode_list_ui_shared_attachment(dynamic raw);
 
   @protected
@@ -2431,6 +2434,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiReaction> sse_decode_list_ui_reaction(SseDeserializer deserializer);
+
+  @protected
+  List<UiShareTarget> sse_decode_list_ui_share_target(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<UiSharedAttachment> sse_decode_list_ui_shared_attachment(
@@ -4163,6 +4171,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ui_reaction(
     List<UiReaction> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ui_share_target(
+    List<UiShareTarget> self,
     SseSerializer serializer,
   );
 
