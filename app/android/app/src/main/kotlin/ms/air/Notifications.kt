@@ -101,6 +101,16 @@ data class ConversationMessage(
     val timestamp: Long
 )
 
+// A chat published to the OS as a direct share target
+//
+// Not a data class because the generated equals/hashCode would compare the
+// avatar array by reference.
+class ShareTarget(
+    val chatId: String,
+    val title: String,
+    val avatar: ByteArray?
+)
+
 @Serializable
 data class NotificationBatch(
     val badgeCount: Int,
@@ -192,6 +202,14 @@ class Notifications {
         // Category required for the conversation shortcut
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
 
+        // App-defined category matched by the <share-target> in
+        // res/xml/shortcuts.xml.
+        private const val SHORTCUT_CATEGORY_SHARE_TARGET = "ms.air.shortcut.share_target"
+
+        // Every conversation shortcut we publish doubles as a share target,
+        // whether it came from a notification or from the share target list.
+        private val SHORTCUT_CATEGORIES =
+            setOf(SHORTCUT_CATEGORY_CONVERSATION, SHORTCUT_CATEGORY_SHARE_TARGET)
 
         fun showNotification(context: Context, content: NotificationContent) {
             if (ActivityCompat.checkSelfPermission(
@@ -351,6 +369,126 @@ class Notifications {
                 putExtra(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
             }
 
+        // Launcher-tap intent of a share-target shortcut. Routes to the chat
+        // like a notification tap does.
+        private fun buildChatIntent(context: Context, chatUuid: String): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                action = SELECT_NOTIFICATION
+                putExtra(EXTRAS_NOTIFICATION_ID_KEY, chatUuid)
+                putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
+            }
+
+        // Publishes the chats as long-lived conversation shortcuts, which
+        // makes them direct targets in the system share sheet.
+        //
+        // Pushed back to front, because pushDynamicShortcut ranks the most
+        // recently pushed shortcut highest and the caller passes the most
+        // recently used chat first.
+        fun publishShareShortcuts(context: Context, targets: List<ShareTarget>) {
+            for (target in targets.asReversed()) {
+                try {
+                    val icon = target.avatar
+                        ?.let { avatarIconFromBytes(it, circular = true) }
+                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
+                    val person = Person.Builder()
+                        .setKey(target.chatId)
+                        .setName(target.title)
+                        .build()
+                    val shortcut = ShortcutInfoCompat.Builder(context, target.chatId)
+                        .setLongLived(true)
+                        .setShortLabel(target.title)
+                        .setPerson(person)
+                        .setCategories(SHORTCUT_CATEGORIES)
+                        .setIcon(icon)
+                        .setIntent(buildChatIntent(context, target.chatId))
+                        .build()
+                    ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
+                } catch (e: Exception) {
+                    Log.e(NOTIF_LOGTAG, "Failed to publish share shortcut", e)
+                }
+            }
+        }
+
+        // Withdraws the chats offered in the share sheet and the launcher.
+        //
+        // The shortcuts are long-lived, so a launcher keeps a cached copy once
+        // one has backed a notification. Cached copies are not part of the
+        // dynamic list and survive its removal, which would leave chat names
+        // and avatars in the share sheet after logout. Enumerating cached
+        // shortcuts too and removing them as long-lived takes both copies.
+        fun clearShareShortcuts(context: Context) {
+            try {
+                val ids = ShortcutManagerCompat.getShortcuts(
+                    context,
+                    ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or
+                        ShortcutManagerCompat.FLAG_MATCH_CACHED
+                )
+                    .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
+                    .map { it.id }
+                if (ids.isNotEmpty()) {
+                    ShortcutManagerCompat.removeLongLivedShortcuts(context, ids)
+                }
+                sanitizePinnedShortcuts(context)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to clear share shortcuts", e)
+            }
+        }
+
+        // Pinned shortcuts cannot be removed programmatically, only disabled
+        // or updated. Disabling leaves a grayed-out entry that the app cannot
+        // reliably republish, so the chat name and avatar are replaced with
+        // the app name and icon instead. Publishing the same chat id again
+        // (e.g. after signing back in) restores the pin.
+        private fun sanitizePinnedShortcuts(context: Context) {
+            val pinned = ShortcutManagerCompat.getShortcuts(
+                context,
+                ShortcutManagerCompat.FLAG_MATCH_PINNED
+            )
+                .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
+            if (pinned.isEmpty()) {
+                return
+            }
+            val sanitized = pinned.map { info ->
+                ShortcutInfoCompat.Builder(context, info.id)
+                    .setShortLabel(context.getString(R.string.app_name))
+                    .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
+                    .setIntent(
+                        Intent(context, MainActivity::class.java)
+                            .setAction(Intent.ACTION_MAIN)
+                    )
+                    .build()
+            }
+            ShortcutManagerCompat.updateShortcuts(context, sanitized)
+        }
+
+        // Ids of the currently published share targets (dynamic and cached).
+        fun shareShortcutIds(context: Context): List<String> =
+            try {
+                ShortcutManagerCompat.getShortcuts(
+                    context,
+                    ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or
+                        ShortcutManagerCompat.FLAG_MATCH_CACHED
+                )
+                    .filter { SHORTCUT_CATEGORY_SHARE_TARGET in it.categories.orEmpty() }
+                    .map { it.id }
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to list share shortcuts", e)
+                emptyList()
+            }
+
+        // Withdraws the given share targets (e.g. chats deleted since they
+        // were published).
+        fun removeShareShortcuts(context: Context, ids: List<String>) {
+            if (ids.isEmpty()) {
+                return
+            }
+            try {
+                ShortcutManagerCompat.removeLongLivedShortcuts(context, ids)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to remove share shortcuts", e)
+            }
+        }
+
         private fun buildMessagingStyle(conversation: ConversationNotification): NotificationCompat.MessagingStyle {
             val user = Person.Builder()
                 .setName(conversation.ownDisplayName)
@@ -408,6 +546,15 @@ class Notifications {
             if (avatarBase64.isNullOrEmpty()) return null
             return try {
                 val bytes = Base64.decode(avatarBase64, Base64.DEFAULT)
+                avatarIconFromBytes(bytes, circular)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to decode avatar", e)
+                null
+            }
+        }
+
+        private fun avatarIconFromBytes(bytes: ByteArray, circular: Boolean): IconCompat? {
+            return try {
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
                 if (circular) {
                     IconCompat.createWithBitmap(cropToCircle(bitmap))
@@ -415,7 +562,7 @@ class Notifications {
                     IconCompat.createWithBitmap(bitmap)
                 }
             } catch (e: Exception) {
-                Log.e(NOTIF_LOGTAG, "Failed to decode avatar", e)
+                Log.e(NOTIF_LOGTAG, "Failed to decode avatar bytes", e)
                 null
             }
         }
@@ -525,7 +672,7 @@ class Notifications {
                     .setLongLived(true)
                     .setShortLabel(shortLabel)
                     .setPerson(person)
-                    .setCategories(setOf(SHORTCUT_CATEGORY_CONVERSATION))
+                    .setCategories(SHORTCUT_CATEGORIES)
                     .setIcon(icon)
                     .setIntent(buildContentIntent(context, content))
                     .build()

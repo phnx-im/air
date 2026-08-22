@@ -367,12 +367,9 @@ class _MessageComposerState extends State<MessageComposer>
       await chatDetailsCubit.sendMessage(messageText);
       final chatId = chatDetailsCubit.state.chat?.id;
       if (chatId != null && mounted) {
-        unawaited(
-          donateShareTarget(
-            userCubit: context.read<UserCubit>(),
-            chatId: chatId,
-          ),
-        );
+        final userCubit = context.read<UserCubit>();
+        unawaited(donateShareTarget(userCubit: userCubit, chatId: chatId));
+        unawaited(publishShareTargets(userCubit: userCubit, chatId: chatId));
       }
     } catch (e, stackTrace) {
       _log.severe("Failed to send message", e, stackTrace);
@@ -568,6 +565,9 @@ class _MessageComposerState extends State<MessageComposer>
                   if (chatId != null) {
                     unawaited(
                       donateShareTarget(userCubit: userCubit, chatId: chatId),
+                    );
+                    unawaited(
+                      publishShareTargets(userCubit: userCubit, chatId: chatId),
                     );
                   }
                   break;

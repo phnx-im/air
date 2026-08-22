@@ -148,6 +148,14 @@ class MainActivity : FlutterFragmentActivity() {
         )
     }
 
+    private fun decodeShareTargetArgument(raw: Any?): ShareTarget? {
+        val map = raw as? Map<*, *> ?: return null
+        val chatId = map["chatId"] as? String ?: return null
+        val title = map["title"] as? String ?: return null
+        val avatar = map["picture"] as? ByteArray
+        return ShareTarget(chatId = chatId, title = title, avatar = avatar)
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         super.cleanUpFlutterEngine(flutterEngine)
 
@@ -233,6 +241,29 @@ class MainActivity : FlutterFragmentActivity() {
                             "DeserializeError", "Failed to decode 'identifiers' arguments", ""
                         )
                     }
+                }
+
+                "publishShareShortcuts" -> {
+                    val targets = call.argument<List<Any?>>("targets")
+                        ?.mapNotNull { decodeShareTargetArgument(it) }
+                        .orEmpty()
+                    Notifications.publishShareShortcuts(this, targets)
+                    result.success(null)
+                }
+
+                "clearShareTargets" -> {
+                    Notifications.clearShareShortcuts(this)
+                    result.success(null)
+                }
+
+                "getShareShortcutIds" -> {
+                    result.success(Notifications.shareShortcutIds(this))
+                }
+
+                "removeShareShortcuts" -> {
+                    val ids = call.argument<List<String>>("ids").orEmpty()
+                    Notifications.removeShareShortcuts(this, ids)
+                    result.success(null)
                 }
 
                 "saveFile" -> {
