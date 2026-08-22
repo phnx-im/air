@@ -387,6 +387,7 @@
   "shareScreen_recipientsMore": "Till: {first}, {second} och {rest} till",
   "shareScreen_captionHint": "Lägg till ett meddelande",
   "shareScreen_signedOutMessage": "Logga in i Air först för att dela innehåll.",
+  "shareScreen_openApp": "Öppna Air",
   "shareScreen_noChats": "Inga chattar hittades.",
   "shareScreen_uploading": "Laddar upp {current} av {total}…",
   "shareScreen_sending": "Skickar…",

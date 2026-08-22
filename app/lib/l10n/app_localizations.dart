@@ -2369,6 +2369,12 @@ abstract class AppLocalizations {
   /// **'Sign in to Air first to share content.'**
   String get shareScreen_signedOutMessage;
 
+  /// Button on the share screen that leaves it for the app itself.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Air'**
+  String get shareScreen_openApp;
+
   /// Shown when the chat search on the share screen matches nothing.
   ///
   /// In en, this message translates to:

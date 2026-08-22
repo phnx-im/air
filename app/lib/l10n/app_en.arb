@@ -1876,6 +1876,10 @@
   "@shareScreen_signedOutMessage": {
     "description": "Shown on the share screen when nobody is signed in yet."
   },
+  "shareScreen_openApp": "Open Air",
+  "@shareScreen_openApp": {
+    "description": "Button on the share screen that leaves it for the app itself."
+  },
   "shareScreen_noChats": "No chats found.",
   "@shareScreen_noChats": {
     "description": "Shown when the chat search on the share screen matches nothing."

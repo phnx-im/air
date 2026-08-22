@@ -1388,6 +1388,9 @@ class AppLocalizationsFr extends AppLocalizations {
       'Connectez-vous d\'abord à Air pour partager du contenu.';
 
   @override
+  String get shareScreen_openApp => 'Ouvrir Air';
+
+  @override
   String get shareScreen_noChats => 'Aucune discussion trouvée.';
 
   @override

@@ -1379,6 +1379,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Melde dich zuerst in Air an, um Inhalte zu teilen.';
 
   @override
+  String get shareScreen_openApp => 'Air öffnen';
+
+  @override
   String get shareScreen_noChats => 'Keine Chats gefunden.';
 
   @override

@@ -6,7 +6,8 @@ import 'package:air/core/core.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 
-/// Channel to the native share host (the iOS share extension).
+/// Channel to the native share host (iOS share extension / Android share
+/// activity).
 const shareChannel = MethodChannel('ms.air/share');
 
 final _log = Logger('SharePayload');
@@ -81,6 +82,16 @@ Future<void> closeShareHost({required bool success}) async {
     await shareChannel.invokeMethod('close', {'success': success});
   } on PlatformException catch (e, stacktrace) {
     _log.severe("Failed to close share host: '${e.message}'", e, stacktrace);
+  }
+}
+
+/// Asks the native share host to open the main app (e.g. when no user is
+/// signed in). The host closes the share UI afterwards. Android only.
+Future<void> openMainApp() async {
+  try {
+    await shareChannel.invokeMethod('openMainApp');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to open main app: '${e.message}'", e, stacktrace);
   }
 }
 

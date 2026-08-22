@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <share-target android:targetClass="ms.air.ShareActivity">
+        <data android:mimeType="*/*" />
+        <category android:name="ms.air.shortcut.share_target" />
+    </share-target>
+</shortcuts>

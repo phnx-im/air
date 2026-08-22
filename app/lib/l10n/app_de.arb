@@ -389,6 +389,7 @@
   "shareScreen_recipientsMore": "An: {first}, {second} und {rest} weitere",
   "shareScreen_captionHint": "Nachricht hinzufügen",
   "shareScreen_signedOutMessage": "Melde dich zuerst in Air an, um Inhalte zu teilen.",
+  "shareScreen_openApp": "Air öffnen",
   "shareScreen_noChats": "Keine Chats gefunden.",
   "shareScreen_uploading": "Lade {current} von {total} hoch…",
   "shareScreen_sending": "Wird gesendet…",

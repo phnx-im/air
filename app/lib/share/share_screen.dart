@@ -18,6 +18,7 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/share/share_cubit.dart';
 import 'package:air/share/share_payload.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -320,13 +321,24 @@ class _SignedOutView extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.all(S.s24),
-      // An iOS share extension can reach its host app only through a
-      // registered URL scheme, which we do not want to expose app-wide for a
-      // single button. So the message is all there is.
-      child: Text(
-        loc.shareScreen_signedOutMessage,
-        textAlign: TextAlign.center,
-        style: typeScale.body.regular.style(color: palette.text.primary),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            loc.shareScreen_signedOutMessage,
+            textAlign: TextAlign.center,
+            style: typeScale.body.regular.style(color: palette.text.primary),
+          ),
+          // Only Android can reach the main app from the share host, see
+          // openMainApp.
+          if (defaultTargetPlatform == TargetPlatform.android) ...[
+            const SizedBox(height: S.s16),
+            OutlinedButton(
+              onPressed: () => openMainApp(),
+              child: Text(loc.shareScreen_openApp),
+            ),
+          ],
+        ],
       ),
     );
   }

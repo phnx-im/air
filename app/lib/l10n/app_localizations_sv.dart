@@ -1369,6 +1369,9 @@ class AppLocalizationsSv extends AppLocalizations {
       'Logga in i Air först för att dela innehåll.';
 
   @override
+  String get shareScreen_openApp => 'Öppna Air';
+
+  @override
   String get shareScreen_noChats => 'Inga chattar hittades.';
 
   @override
