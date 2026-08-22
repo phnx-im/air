@@ -170,7 +170,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Sélectionnez une discussion pour commencer à envoyer des messages';
 
   @override
-  String get removeUserDialog_title => 'Retirer l\'utilisateur';
+  String get removeUserDialog_title => 'Retirer le membre';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -178,7 +178,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Retirer l\'utilisateur';
+  String get removeUserDialog_removeUser => 'Retirer le membre';
 
   @override
   String get removeUserButton_text => 'Retirer';

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/navigation/app_router.dart';
@@ -221,10 +222,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 final appLocale = context.select(
                   (AppLocaleCubit cubit) => cubit.state,
                 );
-                // Prefer persisted user locale; fall back to in-memory selection.
-                final locale = userLocaleCode != null
-                    ? Locale(userLocaleCode)
-                    : appLocale;
+                // Prefer the persisted user locale over the in-memory one.
+                final locale = localeFromTag(userLocaleCode) ?? appLocale;
 
                 return MaterialApp.router(
                   scrollBehavior: const AppScrollBehavior(),
@@ -317,14 +316,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
                 !navigationState.isCreatingAccount) {
               navigationCubit.openHome();
             }
-            final userLocaleCode = userSettingsCubit.state.locale;
+            final userLocale = localeFromTag(userSettingsCubit.state.locale);
             final appLocale = appLocaleCubit.state;
-            if (userLocaleCode != null) {
+            if (userLocale != null) {
               // Sync UI locale with persisted user preference.
-              appLocaleCubit.setLocale(Locale(userLocaleCode));
+              appLocaleCubit.setLocale(userLocale);
             } else if (appLocale != null) {
               // Persist pre-user selection once the user exists.
-              await userSettingsCubit.setLocale(value: appLocale.languageCode);
+              await userSettingsCubit.setLocale(value: localeToTag(appLocale));
             }
             unawaited(coreClient.refreshPushToken());
 
