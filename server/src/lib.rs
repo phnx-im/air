@@ -158,9 +158,9 @@ pub async fn run<
         }
     }));
 
-    // Background task: drop registration rows that no gate window can still
-    // see, so neither counter keeps anything beyond its window, and republish
-    // the gate gauge so it does not sit on the last registrant's reading.
+    // Background task: drop registration and admission rows no counter can
+    // still see, and republish the gate gauge so it does not sit on the last
+    // registrant's reading.
     let registration_upkeep = auth_service.clone();
     tokio::spawn(shutdown.clone().run_until_cancelled_owned(async move {
         // Retention is measured in seconds, so a longer interval would keep
@@ -170,6 +170,10 @@ pub async fn run<
             match registration_upkeep.prune_registration_records().await {
                 Ok(pruned) => tracing::debug!(pruned, "pruned registration records"),
                 Err(error) => tracing::error!(%error, "failed to prune registration records"),
+            }
+            match registration_upkeep.prune_admission_records().await {
+                Ok(pruned) => tracing::debug!(pruned, "pruned admission records"),
+                Err(error) => tracing::error!(%error, "failed to prune admission records"),
             }
             registration_upkeep.refresh_registration_gauge().await;
             tokio::time::sleep(UPKEEP_INTERVAL).await;

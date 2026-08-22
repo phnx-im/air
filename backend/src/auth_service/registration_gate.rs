@@ -408,6 +408,7 @@ mod test {
             challenges: vec![ChallengeKind::InvitationCode],
             perip,
             total,
+            admission: Default::default(),
         }
     }
 

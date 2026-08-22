@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(s.created_at) AS \"count!\"\n        FROM unnest($2::BIGINT[]) WITH ORDINALITY AS w(win, ord)\n        LEFT JOIN admission_send_record s\n            ON s.endpoint_bucket = $1\n            AND s.created_at >= now() - w.win * INTERVAL '1 second'\n        GROUP BY w.ord\n        ORDER BY w.ord\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0f83a1c4b4354ccd57496099456bb744656baca6a0b2709f7a416cefe49bae4a"
+}

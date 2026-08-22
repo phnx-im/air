@@ -5,18 +5,18 @@
 //! Registration challenges, as both sides see them.
 //!
 //! A deployment can require registration to answer a challenge, either always
-//! or once its signup counters cross a threshold. These are the kinds a
-//! challenge comes in and the responses to them, shared so that the server's
-//! configuration, the wire types, and the client's sign-up flow all name the
-//! same thing.
+//! or once its signup counters cross a threshold.
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use uuid::Uuid;
 
 /// A kind of challenge a gated registration can be answered with.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ChallengeKind {
     InvitationCode,
+    AdmissionSession,
 }
 
 impl ChallengeKind {
@@ -24,23 +24,43 @@ impl ChallengeKind {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::InvitationCode => "invitation_code",
+            Self::AdmissionSession => "admission_session",
         }
     }
 }
 
+/// An answered push-admission session.
+///
+/// The id arrives over HTTPS and the challenge over the push service, so
+/// spending it takes both halves.
+#[derive(Debug, Clone)]
+pub struct AdmissionSession {
+    pub session_id: Uuid,
+    pub challenge: String,
+}
+
+/// A session the server just opened, with the deadline it has to be spent by.
+#[derive(Debug, Clone)]
+pub struct NewAdmissionSession {
+    pub session_id: Uuid,
+    pub expires_at: DateTime<Utc>,
+}
+
 /// A response to a registration challenge.
 ///
-/// Short-lived by nature, so it is passed through registration rather than
-/// persisted with it.
+/// Short-lived, so it is passed through registration rather than persisted
+/// with it.
 #[derive(Debug, Clone)]
 pub enum RegistrationChallenge {
     InvitationCode(String),
+    AdmissionSession(AdmissionSession),
 }
 
 impl RegistrationChallenge {
     pub fn kind(&self) -> ChallengeKind {
         match self {
             Self::InvitationCode(_) => ChallengeKind::InvitationCode,
+            Self::AdmissionSession(_) => ChallengeKind::AdmissionSession,
         }
     }
 }

@@ -9,6 +9,8 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+import 'package:uuid/uuid.dart';
+import 'user.dart';
 part 'registration.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `from_anyhow`
@@ -19,15 +21,40 @@ Future<RegistrationInfo> getRegistrationInfo({required String domain}) =>
       domain: domain,
     );
 
-enum ChallengeKind { invitationCode }
+/// Asks the server to send a challenge to this device's push endpoint.
+Future<NewAdmissionSession> createAdmissionSession({
+  required String domain,
+  required PlatformPushToken pushToken,
+}) => RustLib.instance.api.crateApiRegistrationCreateAdmissionSession(
+  domain: domain,
+  pushToken: pushToken,
+);
+
+class AdmissionSession {
+  final UuidValue sessionId;
+  final String challenge;
+
+  const AdmissionSession({required this.sessionId, required this.challenge});
+
+  @override
+  int get hashCode => sessionId.hashCode ^ challenge.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AdmissionSession &&
+          runtimeType == other.runtimeType &&
+          sessionId == other.sessionId &&
+          challenge == other.challenge;
+}
+
+enum ChallengeKind { invitationCode, admissionSession }
 
 @freezed
 sealed class CreateUserError with _$CreateUserError implements FrbException {
   const CreateUserError._();
 
-  /// The server wants one of these kinds of challenge answered first. The
-  /// flow reached this either because it never asked, or because the gate
-  /// closed while the user was filling the form in.
+  /// The server wants one of these kinds of challenge answered first.
   const factory CreateUserError.challengeRequired({
     required List<ChallengeKind> accepted,
   }) = CreateUserError_ChallengeRequired;
@@ -41,12 +68,33 @@ sealed class CreateUserError with _$CreateUserError implements FrbException {
       CreateUserError_Other;
 }
 
+class NewAdmissionSession {
+  final UuidValue sessionId;
+  final DateTime expiresAt;
+
+  const NewAdmissionSession({required this.sessionId, required this.expiresAt});
+
+  @override
+  int get hashCode => sessionId.hashCode ^ expiresAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NewAdmissionSession &&
+          runtimeType == other.runtimeType &&
+          sessionId == other.sessionId &&
+          expiresAt == other.expiresAt;
+}
+
 @freezed
 sealed class RegistrationChallenge with _$RegistrationChallenge {
   const RegistrationChallenge._();
 
   const factory RegistrationChallenge.invitationCode(String field0) =
       RegistrationChallenge_InvitationCode;
+  const factory RegistrationChallenge.admissionSession(
+    AdmissionSession field0,
+  ) = RegistrationChallenge_AdmissionSession;
 }
 
 @freezed

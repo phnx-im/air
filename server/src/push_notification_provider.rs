@@ -9,10 +9,13 @@ use std::{
 };
 
 use airbackend::{
+    auth_service::admission::{ChallengeSendError, ChallengeSender},
     qs::{PushNotificationError, PushNotificationProvider},
     settings::{ApnsSettings, FcmSettings},
 };
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::{
     Client, StatusCode,
@@ -413,6 +416,81 @@ impl ProductionPushNotificationProvider {
         }
     }
 
+    /// Sends the silent admission challenge to an APNs endpoint.
+    ///
+    /// Only `content-available` keeps the notification service extension out of
+    /// it, so the challenge reaches the app.
+    async fn send_apple_challenge(
+        &self,
+        device_token: &str,
+        challenge: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ChallengeSendError> {
+        let Some(apns_state) = &self.apns_state else {
+            return Err(ChallengeSendError::PlatformUnavailable);
+        };
+
+        let body = json!({
+            "aps": { "content-available": 1 },
+            "challenge": challenge
+        });
+
+        let expiration = expires_at.timestamp().max(0).unsigned_abs();
+        let (status, response) = self
+            .post_apns(
+                apns_state,
+                device_token,
+                "background",
+                "5",
+                expiration,
+                body,
+            )
+            .await
+            .map_err(|error| ChallengeSendError::NotAccepted(error.to_string()))?;
+
+        match status {
+            StatusCode::OK => Ok(()),
+            StatusCode::GONE | StatusCode::BAD_REQUEST => Err(ChallengeSendError::EndpointRejected),
+            s => Err(ChallengeSendError::NotAccepted(format!(
+                "status {s}: {response}"
+            ))),
+        }
+    }
+
+    /// Sends the silent admission challenge to an FCM endpoint.
+    ///
+    /// A data-only message, which reaches the messaging service without a
+    /// notification being shown.
+    async fn send_google_challenge(
+        &self,
+        device_token: &str,
+        challenge: &str,
+    ) -> Result<(), ChallengeSendError> {
+        let Some(fcm_state) = &self.fcm_state else {
+            return Err(ChallengeSendError::PlatformUnavailable);
+        };
+
+        let (status, response) = self
+            .post_fcm(fcm_state, device_token, json!({ "challenge": challenge }))
+            .await
+            .map_err(|error| match error {
+                FcmPostError::MissingProjectId => ChallengeSendError::PlatformUnavailable,
+                FcmPostError::OAuth(_) | FcmPostError::Network(_) => {
+                    ChallengeSendError::NotAccepted(error.to_string())
+                }
+            })?;
+
+        match status {
+            StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => {
+                Err(ChallengeSendError::EndpointRejected)
+            }
+            s => Err(ChallengeSendError::NotAccepted(format!(
+                "status {s}: {response}"
+            ))),
+        }
+    }
+
     /// Posts one APNs request and reads the response.
     ///
     /// The URL is stripped from any transport error, so a failed push cannot log
@@ -524,6 +602,27 @@ impl PushNotificationProvider for ProductionPushNotificationProvider {
         match push_token.operator() {
             PushTokenOperator::Apple => self.push_apple(push_token).await,
             PushTokenOperator::Google => self.push_google(push_token).await,
+        }
+    }
+}
+
+#[async_trait]
+impl ChallengeSender for ProductionPushNotificationProvider {
+    async fn send_challenge(
+        &self,
+        push_token: &PushToken,
+        challenge: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ChallengeSendError> {
+        match push_token.operator() {
+            PushTokenOperator::Apple => {
+                self.send_apple_challenge(push_token.token(), challenge, expires_at)
+                    .await
+            }
+            PushTokenOperator::Google => {
+                self.send_google_challenge(push_token.token(), challenge)
+                    .await
+            }
         }
     }
 }
