@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO registration_ip_bucket_key (key)\n                VALUES ($1)\n                ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key\n                RETURNING key",
+  "query": "INSERT INTO registration_ip_bucket_key (key)\n        VALUES ($1)\n        ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key\n        RETURNING key",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "12bba0ff5425437b254451f7e1c71458283dbfae09f3a4bd126fe531d244564f"
+  "hash": "9ca79d3770dd87d1a80eb4e82cc8f6d93bd3137cdac26624f18e50d5ed7b0e47"
 }

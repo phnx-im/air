@@ -23,7 +23,7 @@ use crate::{
     air_service::{BackendService, ServiceCreationError},
     auth_service::{
         client_record::ClientRecord,
-        registration_gate::{IpBucketKey, RegistrationGate},
+        registration_gate::{RegistrationGate, load_or_generate_ip_bucket_key},
     },
     errors::StorageError,
     settings::RegistrationSettings,
@@ -116,7 +116,7 @@ impl BackendService for AuthService {
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
-        let bucket_key = IpBucketKey::load_or_generate(&db_pool).await?;
+        let bucket_key = load_or_generate_ip_bucket_key(&db_pool).await?;
         let auth_service = Self {
             db_pool,
             username_queues,
