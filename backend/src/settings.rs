@@ -90,6 +90,10 @@ pub struct ApnsSettings {
     pub keyid: String,
     pub teamid: String,
     pub privatekeypath: PathBuf,
+    /// The app's bundle id.
+    pub topic: Option<String>,
+    /// Production or sandbox.
+    pub endpoint: Option<String>,
 }
 
 /// Settings for an external object storage provider
