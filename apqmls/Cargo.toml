@@ -22,6 +22,4 @@ tls_codec.workspace = true
 [dev-dependencies]
 # `test-utils` exposes `MlsGroup::export_group_context` for the group context tests
 openmls = { workspace = true, features = ["test-utils"] }
-openmls_memory_storage.workspace = true
 openmls_rust_crypto.workspace = true
-openmls_sqlite_storage.workspace = true
