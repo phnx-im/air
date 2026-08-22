@@ -49,8 +49,58 @@ Future<void> _handleMethod(
     case 'processStoreNotifications':
       CoreClient().maybeUser?.signalPendingStoreNotifications();
       break;
+    case 'receivedAdmissionChallenge':
+      final challenge = call.arguments as String?;
+      if (challenge != null) {
+        _admissionChallenges.add(challenge);
+      }
+      break;
     default:
       _log.severe('Unknown method called: ${call.method}');
+  }
+}
+
+final _admissionChallenges = StreamController<String>.broadcast();
+
+/// The challenge that arrived before anything was listening. Reading it clears
+/// it.
+Future<String?> takePendingAdmissionChallenge() async {
+  if (!Platform.isAndroid && !Platform.isIOS) {
+    return null;
+  }
+  try {
+    return await platform.invokeMethod('getPendingAdmissionChallenge');
+  } on PlatformException catch (e, stacktrace) {
+    _log.warning(
+      "Failed to read the pending challenge: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+    return null;
+  }
+}
+
+/// Waits for a challenge to arrive over the push service, or null when none
+/// arrives in time.
+Future<String?> awaitAdmissionChallenge(Duration timeout) async {
+  final arrived = Completer<String>();
+  // Subscribed before the mailbox is read, so a challenge that lands in between
+  // is not missed.
+  final subscription = _admissionChallenges.stream.listen((challenge) {
+    if (!arrived.isCompleted) {
+      arrived.complete(challenge);
+    }
+  });
+  try {
+    final pending = await takePendingAdmissionChallenge();
+    if (pending != null) {
+      return pending;
+    }
+    return await arrived.future.timeout(timeout);
+  } on TimeoutException {
+    return null;
+  } finally {
+    await subscription.cancel();
   }
 }
 
