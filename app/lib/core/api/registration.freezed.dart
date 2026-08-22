@@ -215,23 +215,18 @@ as String,
 /// @nodoc
 mixin _$RegistrationChallenge {
 
- String get field0;
-/// Create a copy of RegistrationChallenge
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$RegistrationChallengeCopyWith<RegistrationChallenge> get copyWith => _$RegistrationChallengeCopyWithImpl<RegistrationChallenge>(this as RegistrationChallenge, _$identity);
+ Object get field0;
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge&&(identical(other.field0, field0) || other.field0 == field0));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge&&const DeepCollectionEquality().equals(other.field0, field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
 
 @override
 String toString() {
@@ -242,34 +237,8 @@ String toString() {
 }
 
 /// @nodoc
-abstract mixin class $RegistrationChallengeCopyWith<$Res>  {
-  factory $RegistrationChallengeCopyWith(RegistrationChallenge value, $Res Function(RegistrationChallenge) _then) = _$RegistrationChallengeCopyWithImpl;
-@useResult
-$Res call({
- String field0
-});
-
-
-
-
-}
-/// @nodoc
-class _$RegistrationChallengeCopyWithImpl<$Res>
-    implements $RegistrationChallengeCopyWith<$Res> {
-  _$RegistrationChallengeCopyWithImpl(this._self, this._then);
-
-  final RegistrationChallenge _self;
-  final $Res Function(RegistrationChallenge) _then;
-
-/// Create a copy of RegistrationChallenge
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? field0 = null,}) {
-  return _then(_self.copyWith(
-field0: null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
+class $RegistrationChallengeCopyWith<$Res>  {
+$RegistrationChallengeCopyWith(RegistrationChallenge _, $Res Function(RegistrationChallenge) __);
 }
 
 
@@ -285,7 +254,7 @@ class RegistrationChallenge_InvitationCode extends RegistrationChallenge {
 
 /// Create a copy of RegistrationChallenge
 /// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
+@JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $RegistrationChallenge_InvitationCodeCopyWith<RegistrationChallenge_InvitationCode> get copyWith => _$RegistrationChallenge_InvitationCodeCopyWithImpl<RegistrationChallenge_InvitationCode>(this, _$identity);
 
@@ -311,7 +280,7 @@ String toString() {
 /// @nodoc
 abstract mixin class $RegistrationChallenge_InvitationCodeCopyWith<$Res> implements $RegistrationChallengeCopyWith<$Res> {
   factory $RegistrationChallenge_InvitationCodeCopyWith(RegistrationChallenge_InvitationCode value, $Res Function(RegistrationChallenge_InvitationCode) _then) = _$RegistrationChallenge_InvitationCodeCopyWithImpl;
-@override @useResult
+@useResult
 $Res call({
  String field0
 });
@@ -330,10 +299,76 @@ class _$RegistrationChallenge_InvitationCodeCopyWithImpl<$Res>
 
 /// Create a copy of RegistrationChallenge
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
   return _then(RegistrationChallenge_InvitationCode(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class RegistrationChallenge_AdmissionSession extends RegistrationChallenge {
+  const RegistrationChallenge_AdmissionSession(this.field0): super._();
+  
+
+@override final  AdmissionSession field0;
+
+/// Create a copy of RegistrationChallenge
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RegistrationChallenge_AdmissionSessionCopyWith<RegistrationChallenge_AdmissionSession> get copyWith => _$RegistrationChallenge_AdmissionSessionCopyWithImpl<RegistrationChallenge_AdmissionSession>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge_AdmissionSession&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'RegistrationChallenge.admissionSession(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RegistrationChallenge_AdmissionSessionCopyWith<$Res> implements $RegistrationChallengeCopyWith<$Res> {
+  factory $RegistrationChallenge_AdmissionSessionCopyWith(RegistrationChallenge_AdmissionSession value, $Res Function(RegistrationChallenge_AdmissionSession) _then) = _$RegistrationChallenge_AdmissionSessionCopyWithImpl;
+@useResult
+$Res call({
+ AdmissionSession field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$RegistrationChallenge_AdmissionSessionCopyWithImpl<$Res>
+    implements $RegistrationChallenge_AdmissionSessionCopyWith<$Res> {
+  _$RegistrationChallenge_AdmissionSessionCopyWithImpl(this._self, this._then);
+
+  final RegistrationChallenge_AdmissionSession _self;
+  final $Res Function(RegistrationChallenge_AdmissionSession) _then;
+
+/// Create a copy of RegistrationChallenge
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(RegistrationChallenge_AdmissionSession(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as AdmissionSession,
   ));
 }
 

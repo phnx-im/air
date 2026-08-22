@@ -820,6 +820,7 @@ impl From<registration::ChallengeKind> for ChallengeType {
     fn from(kind: registration::ChallengeKind) -> Self {
         match kind {
             registration::ChallengeKind::InvitationCode => Self::InvitationCode,
+            registration::ChallengeKind::AdmissionSession => Self::AdmissionSession,
         }
     }
 }
@@ -830,6 +831,7 @@ impl ChallengeType {
     pub fn known_kind(self) -> Option<registration::ChallengeKind> {
         match self {
             Self::InvitationCode => Some(registration::ChallengeKind::InvitationCode),
+            Self::AdmissionSession => Some(registration::ChallengeKind::AdmissionSession),
             Self::Unspecified => None,
         }
     }

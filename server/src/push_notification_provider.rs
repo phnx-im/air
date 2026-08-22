@@ -9,19 +9,26 @@ use std::{
 };
 
 use airbackend::{
+    auth_service::admission::{ChallengeSendError, ChallengeSender},
     qs::{PushNotificationError, PushNotificationProvider},
     settings::{ApnsSettings, FcmSettings},
 };
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::{
     Client, StatusCode,
     header::{AUTHORIZATION, HeaderMap, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+const DEFAULT_APNS_ENDPOINT: &str = "https://api.push.apple.com";
+
+const DEFAULT_APNS_TOPIC: &str = "ms.air";
 
 #[derive(Debug, Serialize)]
 struct FcmClaims<'a> {
@@ -120,6 +127,8 @@ impl fmt::Debug for FcmState {
 struct ApnsState {
     key_id: String,
     team_id: String,
+    topic: String,
+    endpoint: String,
     // Note: zeroized in <https://github.com/Keats/jsonwebtoken/issues/337>
     private_key: EncodingKey,
     token: Arc<Mutex<Option<ApnsToken>>>,
@@ -130,10 +139,33 @@ impl fmt::Debug for ApnsState {
         f.debug_struct("ApnsState")
             .field("key_id", &self.key_id)
             .field("team_id", &self.team_id)
+            .field("topic", &self.topic)
+            .field("endpoint", &self.endpoint)
             .field("private_key", &"[[REDACTED]]")
             .field("token", &self.token)
             .finish()
     }
+}
+
+/// What went wrong before APNs answered. The request URL carries the device
+/// token, so it is stripped from the error before the message is built.
+#[derive(Debug, thiserror::Error)]
+enum ApnsPostError {
+    #[error("failed to create the APNs JWT: {0}")]
+    Jwt(String),
+    #[error("the APNs request failed: {0}")]
+    Network(String),
+}
+
+/// What went wrong before FCM answered.
+#[derive(Debug, thiserror::Error)]
+enum FcmPostError {
+    #[error("the service account names no project")]
+    MissingProjectId,
+    #[error("failed to issue the FCM bearer token: {0}")]
+    OAuth(String),
+    #[error("the FCM request failed: {0}")]
+    Network(String),
 }
 
 #[derive(Debug, Deserialize, Zeroize, ZeroizeOnDrop)]
@@ -190,6 +222,12 @@ impl ProductionPushNotificationProvider {
             Some(ApnsState {
                 key_id: apns_settings.keyid,
                 team_id: apns_settings.teamid,
+                topic: apns_settings
+                    .topic
+                    .unwrap_or_else(|| DEFAULT_APNS_TOPIC.to_owned()),
+                endpoint: apns_settings
+                    .endpoint
+                    .unwrap_or_else(|| DEFAULT_APNS_ENDPOINT.to_owned()),
                 private_key,
                 token: Arc::new(Mutex::new(None)),
             })
@@ -316,129 +354,229 @@ impl ProductionPushNotificationProvider {
             return Ok(());
         };
 
-        let service_account = &fcm_state.service_account;
-
-        let bearer_token = self
-            .issue_fcm_token("https://oauth2.googleapis.com/token")
+        let (status, response) = self
+            .post_fcm(fcm_state, push_token.token(), json!({ "data": "" }))
             .await
-            .map_err(|e| PushNotificationError::OAuthError(e.to_string()))?;
+            .map_err(|error| match error {
+                FcmPostError::MissingProjectId => PushNotificationError::InvalidConfiguration(
+                    "missing project id in the service account".to_string(),
+                ),
+                FcmPostError::OAuth(error) => PushNotificationError::OAuthError(error),
+                FcmPostError::Network(error) => PushNotificationError::NetworkError(error),
+            })?;
 
-        // Extract the project ID from the service account
-        let Some(ref project_id) = service_account.project_id else {
-            return Err(PushNotificationError::InvalidConfiguration(
-                "Missing project ID in service account".to_string(),
-            ));
-        };
-
-        // Create the URL
-        let url = format!("https://fcm.googleapis.com/v1/projects/{project_id}/messages:send");
-
-        // Construct the message payload
-        let message = json!({
-            "message": {
-                "token": push_token.token(),
-                "data": {
-                    "data": "",
-                },
-                "android": {
-                    "priority": "HIGH",
-                }
-            }
-        });
-
-        // Send the request
-        let res = self
-            .client
-            .post(&url)
-            .bearer_auth(bearer_token.token())
-            .json(&message)
-            .send()
-            .await
-            .map_err(|e| PushNotificationError::NetworkError(e.to_string()))?;
-
-        match res.status() {
+        match status {
             StatusCode::OK => Ok(()),
             // If the token is invalid, we might want to know it and
             // delete it
-            StatusCode::NOT_FOUND => Err(PushNotificationError::InvalidToken(
-                res.text().await.unwrap_or_default(),
-            )),
+            StatusCode::NOT_FOUND => Err(PushNotificationError::InvalidToken(response)),
             // If the status code is not OK or NOT_FOUND, we might want to
             // log the error
             s => Err(PushNotificationError::Other(format!(
-                "Unexpected status code: {} with body: {}",
-                s,
-                res.text().await.unwrap_or_default()
+                "Unexpected status code: {s} with body: {response}"
             ))),
         }
     }
 
     async fn push_apple(&self, push_token: PushToken) -> Result<(), PushNotificationError> {
         // If we don't have an APNS state, we can't send push notifications
-        if self.apns_state.is_none() {
+        let Some(apns_state) = &self.apns_state else {
             return Ok(());
-        }
+        };
 
-        // Issue the JWT
-        let token = self
-            .issue_apns_jwt()
-            .await
-            .map_err(|e| PushNotificationError::JwtCreationError(e.to_string()))?;
-
-        // Create the URL
-        let url = format!("https://api.push.apple.com/3/device/{}", push_token.token());
-
-        // Create the headers and payload
-        let mut headers = HeaderMap::with_capacity(5);
-        headers.insert(
-            AUTHORIZATION,
-            format!("bearer {}", token.jwt)
-                .parse()
-                .map_err(|_| PushNotificationError::InvalidBearer)?,
-        );
-        headers.insert("apns-topic", HeaderValue::from_static("ms.air"));
-        headers.insert("apns-push-type", HeaderValue::from_static("alert"));
-        headers.insert("apns-priority", HeaderValue::from_static("10"));
-        headers.insert("apns-expiration", HeaderValue::from_static("0"));
-
-        let body = r#"
-        {
+        let body = json!({
             "aps": {
                 "alert": {
-                "title": "Empty notification",
-                "body": "This artefact should disappear once the app is in public beta."
+                    "title": "Empty notification",
+                    "body": "This artefact should disappear once the app is in public beta."
                 },
-                 "mutable-content": 1
+                "mutable-content": 1
             },
-            "data": "data",
-        }
-        "#;
+            "data": "data"
+        });
 
-        // Send the push notification
-        let res = self
-            .client
-            .post(url)
-            .headers(headers)
-            .body(body)
-            .send()
+        let (status, response) = self
+            .post_apns(apns_state, push_token.token(), "alert", "10", 0, body)
             .await
-            .map_err(|e| PushNotificationError::NetworkError(e.to_string()))?;
+            .map_err(|error| match error {
+                ApnsPostError::Jwt(error) => PushNotificationError::JwtCreationError(error),
+                ApnsPostError::Network(error) => PushNotificationError::NetworkError(error),
+            })?;
 
-        match res.status() {
+        match status {
             StatusCode::OK => Ok(()),
             // If the token is invalid, we might want to know it and
             // delete it
-            StatusCode::GONE => Err(PushNotificationError::InvalidToken(
-                res.text().await.unwrap_or_default(),
-            )),
+            StatusCode::GONE => Err(PushNotificationError::InvalidToken(response)),
             // If the status code is not OK or GONE, we might want to
             // log the error
             s => Err(PushNotificationError::Other(format!(
-                "Unexpected status code: {} with body: {}",
-                s,
-                res.text().await.unwrap_or_default()
+                "Unexpected status code: {s} with body: {response}"
             ))),
         }
+    }
+
+    /// Sends the silent admission challenge to an APNs endpoint.
+    ///
+    /// Only `content-available` keeps the notification service extension out of
+    /// it, so the challenge reaches the app.
+    async fn send_apple_challenge(
+        &self,
+        device_token: &str,
+        challenge: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ChallengeSendError> {
+        let Some(apns_state) = &self.apns_state else {
+            return Err(ChallengeSendError::PlatformUnavailable);
+        };
+
+        let body = json!({
+            "aps": { "content-available": 1 },
+            "challenge": challenge
+        });
+
+        let expiration = expires_at.timestamp().max(0).unsigned_abs();
+        let (status, response) = self
+            .post_apns(
+                apns_state,
+                device_token,
+                "background",
+                "5",
+                expiration,
+                body,
+            )
+            .await
+            .map_err(|error| ChallengeSendError::NotAccepted(error.to_string()))?;
+
+        match status {
+            StatusCode::OK => Ok(()),
+            StatusCode::GONE | StatusCode::BAD_REQUEST => Err(ChallengeSendError::EndpointRejected),
+            s => Err(ChallengeSendError::NotAccepted(format!(
+                "status {s}: {response}"
+            ))),
+        }
+    }
+
+    /// Sends the silent admission challenge to an FCM endpoint.
+    ///
+    /// A data-only message, which reaches the messaging service without a
+    /// notification being shown.
+    async fn send_google_challenge(
+        &self,
+        device_token: &str,
+        challenge: &str,
+    ) -> Result<(), ChallengeSendError> {
+        let Some(fcm_state) = &self.fcm_state else {
+            return Err(ChallengeSendError::PlatformUnavailable);
+        };
+
+        let (status, response) = self
+            .post_fcm(fcm_state, device_token, json!({ "challenge": challenge }))
+            .await
+            .map_err(|error| match error {
+                FcmPostError::MissingProjectId => ChallengeSendError::PlatformUnavailable,
+                FcmPostError::OAuth(_) | FcmPostError::Network(_) => {
+                    ChallengeSendError::NotAccepted(error.to_string())
+                }
+            })?;
+
+        match status {
+            StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => {
+                Err(ChallengeSendError::EndpointRejected)
+            }
+            s => Err(ChallengeSendError::NotAccepted(format!(
+                "status {s}: {response}"
+            ))),
+        }
+    }
+
+    /// Posts one APNs request and reads the response.
+    ///
+    /// The URL is stripped from any transport error, so a failed push cannot log
+    /// the device token it carries.
+    async fn post_apns(
+        &self,
+        apns_state: &ApnsState,
+        device_token: &str,
+        push_type: &'static str,
+        priority: &'static str,
+        expiration: u64,
+        body: Value,
+    ) -> Result<(StatusCode, String), ApnsPostError> {
+        let token = self
+            .issue_apns_jwt()
+            .await
+            .map_err(|error| ApnsPostError::Jwt(error.to_string()))?;
+
+        let mut headers = HeaderMap::with_capacity(5);
+        let bearer = format!("bearer {}", token.jwt)
+            .parse()
+            .map_err(|_| ApnsPostError::Jwt("the JWT is not a valid header value".to_owned()))?;
+        headers.insert(AUTHORIZATION, bearer);
+        headers.insert(
+            "apns-topic",
+            HeaderValue::from_str(&apns_state.topic).map_err(|_| {
+                ApnsPostError::Jwt("the APNs topic is not a header value".to_owned())
+            })?,
+        );
+        headers.insert("apns-push-type", HeaderValue::from_static(push_type));
+        headers.insert("apns-priority", HeaderValue::from_static(priority));
+        headers.insert("apns-expiration", HeaderValue::from(expiration));
+
+        let res = self
+            .client
+            .post(format!(
+                "{}/3/device/{device_token}",
+                apns_state.endpoint.trim_end_matches('/')
+            ))
+            .headers(headers)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| ApnsPostError::Network(error.without_url().to_string()))?;
+
+        let status = res.status();
+        Ok((status, res.text().await.unwrap_or_default()))
+    }
+
+    /// Posts one FCM request and reads the response.
+    async fn post_fcm(
+        &self,
+        fcm_state: &FcmState,
+        device_token: &str,
+        data: Value,
+    ) -> Result<(StatusCode, String), FcmPostError> {
+        let Some(project_id) = fcm_state.service_account.project_id.as_ref() else {
+            return Err(FcmPostError::MissingProjectId);
+        };
+
+        let bearer_token = self
+            .issue_fcm_token("https://oauth2.googleapis.com/token")
+            .await
+            .map_err(|error| FcmPostError::OAuth(error.to_string()))?;
+
+        let message = json!({
+            "message": {
+                "token": device_token,
+                "data": data,
+                "android": { "priority": "HIGH" }
+            }
+        });
+
+        let res = self
+            .client
+            .post(format!(
+                "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+            ))
+            .bearer_auth(bearer_token.token())
+            .json(&message)
+            .send()
+            .await
+            .map_err(|error| FcmPostError::Network(error.without_url().to_string()))?;
+
+        let status = res.status();
+        Ok((status, res.text().await.unwrap_or_default()))
     }
 }
 
@@ -464,6 +602,27 @@ impl PushNotificationProvider for ProductionPushNotificationProvider {
         match push_token.operator() {
             PushTokenOperator::Apple => self.push_apple(push_token).await,
             PushTokenOperator::Google => self.push_google(push_token).await,
+        }
+    }
+}
+
+#[async_trait]
+impl ChallengeSender for ProductionPushNotificationProvider {
+    async fn send_challenge(
+        &self,
+        push_token: &PushToken,
+        challenge: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), ChallengeSendError> {
+        match push_token.operator() {
+            PushTokenOperator::Apple => {
+                self.send_apple_challenge(push_token.token(), challenge, expires_at)
+                    .await
+            }
+            PushTokenOperator::Google => {
+                self.send_google_challenge(push_token.token(), challenge)
+                    .await
+            }
         }
     }
 }
@@ -553,6 +712,8 @@ c5gHRTX9xPNNaAWBZLCP/wIXCn+hRANCAATXcnNCtSV8Qzeep3Ic3vTSyhCowC5G
             privatekeypath: apns_file.path().to_path_buf(),
             keyid: "KEY123".to_string(),
             teamid: "TEAM456".to_string(),
+            topic: None,
+            endpoint: None,
         });
 
         let provider = ProductionPushNotificationProvider::new(None, apns_settings).unwrap();
@@ -578,6 +739,8 @@ c5gHRTX9xPNNaAWBZLCP/wIXCn+hRANCAATXcnNCtSV8Qzeep3Ic3vTSyhCowC5G
             privatekeypath: apns_file.path().to_path_buf(),
             keyid: "K".into(),
             teamid: "T".into(),
+            topic: None,
+            endpoint: None,
         });
 
         let provider =
@@ -685,6 +848,8 @@ c5gHRTX9xPNNaAWBZLCP/wIXCn+hRANCAATXcnNCtSV8Qzeep3Ic3vTSyhCowC5G
             privatekeypath: apns_file.path().to_path_buf(),
             keyid: "KEY123".to_string(),
             teamid: "TEAM456".to_string(),
+            topic: None,
+            endpoint: None,
         });
 
         ProductionPushNotificationProvider::new(None, apns_settings).unwrap()

@@ -9,6 +9,7 @@ private let kStoreNotificationsPendingName =
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
+    private var pendingAdmissionChallenge: String?
     private let notificationChannelName: String = "ms.air/channel"
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var storeNotificationsChannel: FlutterMethodChannel?
@@ -94,6 +95,32 @@ private let kStoreNotificationsPendingName =
         NSLog("Failed to register: \(error)")
     }
 
+    // A silent push carrying an admission challenge.
+    override func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (
+            UIBackgroundFetchResult
+        ) -> Void
+    ) {
+        guard let challenge = userInfo["challenge"] as? String else {
+            super.application(
+                application,
+                didReceiveRemoteNotification: userInfo,
+                fetchCompletionHandler: completionHandler
+            )
+            return
+        }
+
+        NSLog("Admission challenge received")
+        // We deliver it, but also keep it in memory so Flutter can retrieve it
+        // if it wasn't ready to receive it yet.
+        pendingAdmissionChallenge = challenge
+        storeNotificationsChannel?.invokeMethod(
+            "receivedAdmissionChallenge", arguments: challenge)
+        completionHandler(.newData)
+    }
+
     // This method will be called when app received push notifications in foreground
     override func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -154,6 +181,8 @@ private let kStoreNotificationsPendingName =
     ) {
         if call.method == "getDeviceToken" {
             self.getDeviceToken(result: result)
+        } else if call.method == "getPendingAdmissionChallenge" {
+            result(self.takePendingAdmissionChallenge())
         } else if call.method == "getDatabasesDirectory" {
             if let path = self.getDatabasesDirectoryPath() {
                 result(path)
@@ -282,6 +311,12 @@ private let kStoreNotificationsPendingName =
     // Get device token
     private func getDeviceToken(result: FlutterResult) {
         result(deviceToken)
+    }
+
+    private func takePendingAdmissionChallenge() -> String? {
+        let challenge = pendingAdmissionChallenge
+        pendingAdmissionChallenge = nil
+        return challenge
     }
 
     // Allow to write to the given URL when the device is locked

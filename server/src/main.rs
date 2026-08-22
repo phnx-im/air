@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::Arc;
+
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
@@ -143,12 +145,25 @@ async fn main() -> anyhow::Result<()> {
         warn!("registration policy is open: anyone can register without a challenge");
     }
     info!(?registration, "Applying registration policy");
+    let offers_admission_sessions = registration.offers_admission_sessions();
     auth_service.set_registration_settings(registration);
+
+    // We only offer the push admission challenge if the server is configured to
+    // do so and has push credentials.
+    let push_configured = configuration.fcm.is_some() || configuration.apns.is_some();
+    let push_notification_provider =
+        ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
+    if offers_admission_sessions {
+        if push_configured {
+            // The clone shares the cached provider credentials.
+            auth_service.set_challenge_sender(Arc::new(push_notification_provider.clone()));
+        } else {
+            warn!("push admission is configured but push credentials are not, so it's not offered");
+        }
+    }
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
-    let push_notification_provider =
-        ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
     let qs_connector = SimpleEnqueueProvider {
         qs: qs.clone(),
         push_notification_provider,

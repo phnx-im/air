@@ -13,8 +13,9 @@ use aircommon::{
     credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
     identifiers::{QsClientId, UserId, Username},
+    messages::push_token::{PushToken, PushTokenOperator},
     mls_group_config::MAX_PAST_EPOCHS,
-    registration::ChallengeKind,
+    registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
     ChatId, DisplayName, UserProfile,
@@ -42,6 +43,7 @@ use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
 use tracing::{info, warn};
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
@@ -1141,6 +1143,112 @@ async fn an_open_gate_ignores_a_code() {
             .await
             .unwrap();
     }
+}
+
+/// The push-admission challenge end to end, from opening a session to finding
+/// the endpoint's quota spent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Push admission registration", skip_all)]
+async fn push_admission_registration() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: RegistrationSettings {
+            policy: RegistrationPolicy::Required,
+            challenges: vec![ChallengeKind::AdmissionSession],
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let domain = setup.domain().clone();
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let info = client.as_get_registration_info().await.unwrap();
+    assert!(info.challenge_required);
+    assert_eq!(info.accepted_challenges, [ChallengeKind::AdmissionSession]);
+
+    // A bare registration is told what would answer for it.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(
+        error,
+        RegistrationError::ChallengeRequired(kinds) if kinds == [ChallengeKind::AdmissionSession]
+    );
+
+    let endpoint = PushToken::new(PushTokenOperator::Google, "fcm-endpoint".to_owned());
+    let session = client.as_create_admission_session(&endpoint).await.unwrap();
+    let challenge = setup
+        .last_sent_challenge()
+        .expect("no challenge reached the endpoint");
+    let answered = AdmissionSession {
+        session_id: session.session_id,
+        challenge: challenge.clone(),
+    };
+
+    // The session id alone admits nothing, and the challenge is the half a
+    // plain HTTP caller does not have.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: session.session_id,
+            challenge: "not the challenge".to_owned(),
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The challenge alone admits nothing either, which keeps the push service
+    // from redeeming what it carried.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: Uuid::new_v4(),
+            challenge,
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    let user_id = UserId::random(domain.clone());
+    TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered.clone())),
+    )
+    .await
+    .unwrap();
+
+    // The session is spent, so it does not admit a second account.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered)),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The endpoint has had the account its quota allows, so the client gets a
+    // session no challenge arrives for, which is what a lost push looks like.
+    let sent = setup.sent_challenge_count();
+    client.as_create_admission_session(&endpoint).await.unwrap();
+    assert_eq!(setup.sent_challenge_count(), sent);
 }
 
 fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {

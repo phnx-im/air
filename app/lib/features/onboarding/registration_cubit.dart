@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
@@ -21,8 +22,9 @@ final _domainRegex = RegExp(
   r'^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$',
 );
 
-/// The challenge kinds this build can collect an answer for.
-const _supportedChallenges = {ChallengeKind.invitationCode};
+/// How long the challenge gets to arrive before the flow goes with its
+/// fallback.
+const _challengeTimeout = Duration(seconds: 8);
 
 @freezed
 sealed class RegistrationState with _$RegistrationState {
@@ -41,26 +43,43 @@ sealed class RegistrationState with _$RegistrationState {
 
     /// What the server said about signing up with it, once it was asked.
     RegistrationInfo? registrationInfo,
+
+    /// The admission session this device holds, and when it stops being
+    /// spendable.
+    AdmissionSession? admissionSession,
+    DateTime? admissionExpiresAt,
   }) = _RegistrationState;
 
-  /// Whether the flow collects an invitation code.
-  ///
-  /// Also true before the server has answered, because that is what every
-  /// server that gates registration accepts, and what servers older than the
-  /// question do.
-  bool get invitationCodeRequired {
-    final info = registrationInfo;
-    if (info == null) return true;
-    return info.challengeRequired &&
-        info.acceptedChallenges.contains(ChallengeKind.invitationCode);
+  /// Whether the flow has to answer a challenge at all. True before the server
+  /// has answered, since a gated server is the case to be ready for.
+  bool get challengeRequired => registrationInfo?.challengeRequired ?? true;
+
+  bool _serverTakes(ChallengeKind kind) =>
+      registrationInfo?.acceptedChallenges.contains(kind) ?? false;
+
+  bool get serverTakesAdmissionSession =>
+      _serverTakes(ChallengeKind.admissionSession);
+
+  /// Whether a session is in hand and still spendable.
+  bool get hasAdmissionSession {
+    final expiresAt = admissionExpiresAt;
+    return admissionSession != null &&
+        expiresAt != null &&
+        expiresAt.isAfter(DateTime.now().toUtc());
   }
 
-  /// Whether the server wants a challenge of a kind this build cannot collect.
+  /// Whether the flow collects an invitation code, which is what it falls back
+  /// to without a session in hand.
+  bool get invitationCodeRequired {
+    if (!challengeRequired || hasAdmissionSession) return false;
+    if (registrationInfo == null) return true;
+    return _serverTakes(ChallengeKind.invitationCode);
+  }
+
+  /// Whether the server asks for something this flow has no way to supply.
   bool get challengeUnsupported {
-    final info = registrationInfo;
-    if (info == null) return false;
-    return info.challengeRequired &&
-        !info.acceptedChallenges.any(_supportedChallenges.contains);
+    if (!challengeRequired || registrationInfo == null) return false;
+    return !hasAdmissionSession && !_serverTakes(ChallengeKind.invitationCode);
   }
 
   bool get isDomainValid => _domainRegex.hasMatch(domain);
@@ -138,6 +157,39 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     }
   }
 
+  /// Acquires an admission session, where the server offers one.
+  ///
+  /// Every failure is silent and leaves the flow asking for an invitation code.
+  Future<void> acquireAdmissionSession() async {
+    if (!state.serverTakesAdmissionSession || state.hasAdmissionSession) return;
+
+    final pushToken = await getPushToken();
+    if (pushToken == null) return;
+
+    try {
+      // A challenge from an earlier attempt would be taken for this one.
+      await takePendingAdmissionChallenge();
+
+      final session = await createAdmissionSession(
+        domain: state.domain,
+        pushToken: pushToken,
+      );
+      final challenge = await awaitAdmissionChallenge(_challengeTimeout);
+      if (challenge == null) return;
+      emit(
+        state.copyWith(
+          admissionSession: AdmissionSession(
+            sessionId: session.sessionId,
+            challenge: challenge,
+          ),
+          admissionExpiresAt: session.expiresAt,
+        ),
+      );
+    } catch (e) {
+      _log.warning("Could not acquire an admission session: ${e.toString()}");
+    }
+  }
+
   Future<CheckInvitationCodeError?> submitInvitationCode() async {
     if (state.invitationCode == null) {
       return const CheckInvitationCodeError(code: .missing);
@@ -164,18 +216,36 @@ class RegistrationCubit extends Cubit<RegistrationState> {
   }
 
   Future<SignUpError?> signUp() async {
-    // A challenge the server did not ask for is not sent: it would be spent
-    // for nothing.
-    RegistrationChallenge? challenge;
-    if (state.invitationCodeRequired) {
-      final code = state.invitationCode;
-      if (code == null) {
-        return const SignUpError(code: .challengeRequired);
-      }
-      challenge = RegistrationChallenge.invitationCode(code);
+    emit(state.copyWith(isSigningUp: true));
+    try {
+      return await _createUser();
+    } finally {
+      emit(state.copyWith(isSigningUp: false));
+    }
+  }
+
+  Future<SignUpError?> _createUser() async {
+    // Sessions live minutes and filling the form in takes longer, so an expired
+    // one is replaced here.
+    if (state.challengeRequired && !state.hasAdmissionSession) {
+      await acquireAdmissionSession();
     }
 
-    emit(state.copyWith(isSigningUp: true));
+    // A challenge the server did not ask for would be spent for nothing.
+    RegistrationChallenge? challenge;
+    if (state.challengeRequired) {
+      final session = state.admissionSession;
+      final code = state.invitationCode;
+      if (state.hasAdmissionSession && session != null) {
+        challenge = RegistrationChallenge.admissionSession(session);
+      } else if (state.invitationCodeRequired && code != null) {
+        challenge = RegistrationChallenge.invitationCode(code);
+      } else {
+        return const SignUpError(code: .challengeRequired);
+      }
+    }
+    final answeredWithSession =
+        challenge is RegistrationChallenge_AdmissionSession;
 
     try {
       _log.info("Registering user...");
@@ -187,13 +257,12 @@ class RegistrationCubit extends Cubit<RegistrationState> {
       );
     } on CreateUserError catch (e) {
       _log.severe("Error when registering user: ${e.toString()}");
-      emit(state.copyWith(isSigningUp: false));
       return switch (e) {
         CreateUserError_ChallengeRequired(:final accepted) => _requireChallenge(
           accepted,
         ),
-        CreateUserError_ChallengeRejected() => const SignUpError(
-          code: .challengeRejected,
+        CreateUserError_ChallengeRejected() => _challengeRejected(
+          answeredWithSession,
         ),
         CreateUserError_Other(:final message) => SignUpError(
           code: .internal,
@@ -202,11 +271,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
       };
     } catch (e) {
       _log.severe("Error when registering user: ${e.toString()}");
-      emit(state.copyWith(isSigningUp: false));
       return SignUpError(code: .internal, message: e.toString());
     }
-
-    emit(state.copyWith(isSigningUp: false));
 
     return null;
   }
@@ -225,6 +291,16 @@ class RegistrationCubit extends Cubit<RegistrationState> {
         ),
       ),
     );
+    return const SignUpError(code: .challengeRequired);
+  }
+
+  /// A turned-down session is gone for good, so the flow drops it and asks for
+  /// a challenge again.
+  SignUpError _challengeRejected(bool answeredWithSession) {
+    if (!answeredWithSession) {
+      return const SignUpError(code: .challengeRejected);
+    }
+    emit(state.copyWith(admissionSession: null, admissionExpiresAt: null));
     return const SignUpError(code: .challengeRequired);
   }
 }

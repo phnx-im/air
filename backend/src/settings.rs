@@ -90,6 +90,10 @@ pub struct ApnsSettings {
     pub keyid: String,
     pub teamid: String,
     pub privatekeypath: PathBuf,
+    /// The app's bundle id.
+    pub topic: Option<String>,
+    /// Production or sandbox.
+    pub endpoint: Option<String>,
 }
 
 /// Settings for an external object storage provider
@@ -233,15 +237,19 @@ pub struct RegistrationSettings {
     #[serde(default = "default_challenges")]
     pub challenges: Vec<ChallengeKind>,
     /// Attempts at registration one client address bucket may make before the
-    /// gate closes for it, over independent windows. Any one of them closes the
-    /// gate, and an empty list never closes it.
+    /// gate closes for it. Any window closes the gate, and an empty list never
+    /// does.
     #[serde(default = "default_perip_thresholds")]
     pub perip: Vec<RegistrationThreshold>,
     /// Challenge-free registrations the deployment may complete before the gate
-    /// closes for everyone, over independent windows. Any one of them closes
-    /// the gate, and an empty list never closes it.
+    /// closes for everyone. Any window closes the gate, and an empty list never
+    /// does.
     #[serde(default = "default_total_thresholds")]
     pub total: Vec<RegistrationThreshold>,
+    /// Terms of the push-admission challenge, which is only offered while
+    /// `admissionsession` is among the challenges.
+    #[serde(default)]
+    pub admission: AdmissionSettings,
 }
 
 impl Default for RegistrationSettings {
@@ -251,6 +259,37 @@ impl Default for RegistrationSettings {
             challenges: default_challenges(),
             perip: default_perip_thresholds(),
             total: default_total_thresholds(),
+            admission: AdmissionSettings::default(),
+        }
+    }
+}
+
+impl RegistrationSettings {
+    pub fn offers_admission_sessions(&self) -> bool {
+        self.challenges.contains(&ChallengeKind::AdmissionSession)
+    }
+}
+
+/// Terms of the push-admission challenge.
+#[derive(Debug, Deserialize, Clone)]
+pub struct AdmissionSettings {
+    /// How long a session stays open for its challenge to arrive and be spent.
+    #[serde(default = "default_session_lifetime", with = "duration_seconds")]
+    pub sessionlifetime: Duration,
+    /// Challenges one endpoint may have sent to it.
+    #[serde(default = "default_send_throttle")]
+    pub sendthrottle: RegistrationThreshold,
+    /// Registrations one endpoint admits. Every window applies.
+    #[serde(default = "default_endpoint_quotas")]
+    pub quotas: Vec<RegistrationThreshold>,
+}
+
+impl Default for AdmissionSettings {
+    fn default() -> Self {
+        Self {
+            sessionlifetime: default_session_lifetime(),
+            sendthrottle: default_send_throttle(),
+            quotas: default_endpoint_quotas(),
         }
     }
 }
@@ -271,9 +310,8 @@ pub enum RegistrationPolicy {
 #[derive(Debug, Deserialize, Clone, Copy)]
 pub struct RegistrationThreshold {
     pub limit: u64,
-    /// Required, because the two dimensions count over windows orders of
-    /// magnitude apart. A default here would hand a config that names only a
-    /// limit the wrong window.
+    /// Required, since the two dimensions count over windows orders of
+    /// magnitude apart.
     #[serde(with = "duration_seconds")]
     pub window: Duration,
 }
@@ -312,6 +350,32 @@ fn default_total_thresholds() -> Vec<RegistrationThreshold> {
         RegistrationThreshold {
             limit: 1000,
             window: Duration::days(1),
+        },
+    ]
+}
+
+fn default_session_lifetime() -> Duration {
+    Duration::minutes(5)
+}
+
+fn default_send_throttle() -> RegistrationThreshold {
+    RegistrationThreshold {
+        limit: 10,
+        window: Duration::hours(1),
+    }
+}
+
+/// An honest signup needs one account, so the day window is what an attacker
+/// runs into and the month window caps what token rotation buys.
+fn default_endpoint_quotas() -> Vec<RegistrationThreshold> {
+    vec![
+        RegistrationThreshold {
+            limit: 5,
+            window: Duration::days(1),
+        },
+        RegistrationThreshold {
+            limit: 10,
+            window: Duration::days(7),
         },
     ]
 }

@@ -31,7 +31,9 @@ use aircommon::{
             GetUserProfileParams, MergeUserProfileParamsTbs, RegisterUserParamsIn,
             StageUserProfileParamsTbs,
         },
+        push_token::{PushToken, PushTokenOperator},
     },
+    time::TimeStamp,
     utils::CancellableStream,
 };
 use privacypass::{
@@ -354,9 +356,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .await;
         report_gate_reason(decision);
 
-        // A response the gate did not ask for is left untouched, so a gate that
-        // opens between discovery and registration does not spend the code the
-        // client already entered.
+        // A response the gate did not ask for is left unspent.
         let challenge = if decision.challenge_required() {
             let Some(challenge) = self.inner.select_challenge(&request) else {
                 return Ok(Response::new(self.challenge_required()));
@@ -412,6 +412,30 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(GetRegistrationInfoResponse {
             challenge_required: decision.challenge_required(),
             accepted_challenges: self.challenge_types(),
+        }))
+    }
+
+    async fn create_admission_session(
+        &self,
+        request: Request<CreateAdmissionSessionRequest>,
+    ) -> Result<Response<CreateAdmissionSessionResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let operator = match request.platform() {
+            PushPlatform::Apple => PushTokenOperator::Apple,
+            PushPlatform::Google => PushTokenOperator::Google,
+            PushPlatform::Unspecified => {
+                return Err(Status::invalid_argument("unknown push platform"));
+            }
+        };
+        let push_token = PushToken::new(operator, request.push_token);
+
+        let session = self.inner.create_admission_session(push_token).await?;
+
+        Ok(Response::new(CreateAdmissionSessionResponse {
+            session_id: Some(session.session_id.into()),
+            expires_at: Some(TimeStamp::from(session.expires_at).into()),
         }))
     }
 
@@ -1183,7 +1207,7 @@ mod tests {
     }
 
     /// Without an address the per-address threshold cannot apply, so the
-    /// adaptive gate reports closed rather than guessing.
+    /// adaptive gate reports closed.
     #[sqlx::test]
     async fn registration_info_without_an_address_reports_closed(
         pool: PgPool,
