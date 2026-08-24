@@ -248,6 +248,9 @@ class MainActivity : FlutterFragmentActivity() {
                         ?.mapNotNull { decodeShareTargetArgument(it) }
                         .orEmpty()
                     Notifications.publishShareShortcuts(this, targets)
+                    call.argument<String>("usedChatId")?.let {
+                        Notifications.reportShareShortcutUsed(this, it)
+                    }
                     result.success(null)
                 }
 

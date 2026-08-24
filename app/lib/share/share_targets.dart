@@ -44,23 +44,34 @@ Future<void> _enqueueUpdate(
 /// Publishes the most recently used chats to the system share sheet as
 /// direct share targets (Android sharing shortcuts) and withdraws targets
 /// whose chat can no longer be shared into.
-Future<void> publishShareTargets({required UserCubit userCubit}) {
+///
+/// [chatId] is the chat the user just interacted with, if any. It is
+/// reported to the OS as shortcut usage, which is what the share sheet
+/// ranks the direct share targets by.
+Future<void> publishShareTargets({
+  required UserCubit userCubit,
+  ChatId? chatId,
+}) {
   if (!Platform.isAndroid) {
     return Future.value();
   }
   return _enqueueUpdate(
     'publish share targets',
-    () => _publishShareTargets(userCubit),
+    () => _publishShareTargets(userCubit, chatId),
   );
 }
 
-Future<void> _publishShareTargets(UserCubit userCubit) async {
+Future<void> _publishShareTargets(
+  UserCubit userCubit,
+  ChatId? usedChatId,
+) async {
   final targets = await loadShareTargets(
     userCubit: userCubit.impl,
     limit: _maxShareTargets,
   );
   await platform.invokeMethod('publishShareShortcuts', {
     'targets': targets.map(_encodeTarget).toList(),
+    'usedChatId': usedChatId?.uuid.toString(),
   });
   await _removeStaleShareTargets(userCubit, targets);
 }

@@ -1382,6 +1382,9 @@ class AppLocalizationsPt extends AppLocalizations {
       'Entre primeiro no Air para compartilhar conteúdo.';
 
   @override
+  String get shareScreen_openApp => 'Open Air';
+
+  @override
   String get shareScreen_noChats => 'Nenhum chat encontrado.';
 
   @override

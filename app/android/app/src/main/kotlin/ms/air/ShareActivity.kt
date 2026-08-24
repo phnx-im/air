@@ -110,8 +110,10 @@ class ShareActivity : FlutterActivity() {
             }
     }
 
-    // Content URIs are copied into the app cache off the main thread,
-    // because the read permission on them is transient.
+    // Content URIs have no filesystem path behind them, so they are copied
+    // into the app cache. Both the upload pipeline and the share UI preview
+    // need a real file. The copy runs off the main thread, because a shared
+    // item can be tens of megabytes.
     private fun getSharedPayload(result: MethodChannel.Result) {
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
         val shareTargetIdentifier = intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)

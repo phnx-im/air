@@ -1382,6 +1382,9 @@ class AppLocalizationsEs extends AppLocalizations {
       'Entra primero en Air para compartir contenido.';
 
   @override
+  String get shareScreen_openApp => 'Open Air';
+
+  @override
   String get shareScreen_noChats => 'No se encontró ningún chat.';
 
   @override
