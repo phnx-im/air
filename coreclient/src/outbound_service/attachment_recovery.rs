@@ -59,7 +59,8 @@ pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> any
                 .await?;
         }
 
-        let abandoned = AttachmentRecord::load_stale_uploading_attachments(&mut *txn, stale_before).await?;
+        let abandoned =
+            AttachmentRecord::load_stale_uploading_attachments(&mut *txn, stale_before).await?;
         for attachment_id in abandoned {
             info!(
                 ?attachment_id,
@@ -141,10 +142,6 @@ mod tests {
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<AttachmentStatus>> {
         Ok(AttachmentRecord::status(db.read().await?, attachment_id).await?)
-    }
-
-    fn abandoned_at() -> DateTime<Utc> {
-        Utc::now() - UPLOAD_STALE_AFTER - chrono::Duration::minutes(1)
     }
 
     /// Killed after the upload, before the enqueue: the content is on the

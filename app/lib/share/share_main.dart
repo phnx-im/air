@@ -21,7 +21,7 @@ import 'package:path/path.dart' as p;
 final _log = Logger('ShareMain');
 
 /// Runs in a Flutter engine separate from the main app.
-/// 
+///
 /// Boots the Rust library, fetches the shared payload from the native host and
 /// mounts the [ShareScreen]. There is no user cubit, no navigation stack and
 /// no push registration.
