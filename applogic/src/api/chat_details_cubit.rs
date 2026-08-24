@@ -13,8 +13,8 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
-    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
+    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -277,11 +277,12 @@ impl ChatDetailsCubitBase {
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
         content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
-        Box::pin(
-            self.context
-                .core_user
-                .send_message(self.context.chat_id, content, replaces),
-        )
+        Box::pin(self.context.core_user.send_message(
+            self.context.chat_id,
+            content,
+            replaces,
+            MarkChatAsRead::Yes,
+        ))
         .await
         .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
@@ -353,16 +354,17 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match Box::pin(
-            self.context
-                .core_user
-                .upload_chat_attachment(self.context.chat_id, &path),
-        )
-        .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
-        };
+        let (attachment_id, progress, upload_task) =
+            match Box::pin(self.context.core_user.upload_chat_attachment(
+                self.context.chat_id,
+                &path,
+                MarkChatAsRead::Yes,
+            ))
+            .await?
+            {
+                Ok(result) => result,
+                Err(error) => return error.into_ui_result(),
+            };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
@@ -372,6 +374,18 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        // The attachment may have uploaded successfully and only be
+        // displayed as failed (e.g. shared from the iOS share extension).
+        // There is nothing to upload again; the outbound service's recovery
+        // pass hands the message over for sending.
+        if let Some(AttachmentStatus::Ready) = self
+            .context
+            .core_user
+            .attachment_status(attachment_id)
+            .await?
+        {
+            return Ok(None);
+        }
         let (progress, upload_task) = match self
             .context
             .core_user
@@ -528,7 +542,7 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        // Get plain body if any; if none, this message is not editable.
+        // Get the plain body. A message without one is not editable.
         let Some(body) = message
             .message()
             .mimi_content()

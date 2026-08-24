@@ -8,7 +8,7 @@ use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, Message, ReadReceiptsSetting, UserProfile,
     clients::{
-        CoreUser,
+        CoreUser, MarkChatAsRead,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
     },
 };
@@ -28,7 +28,7 @@ async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: Cha
 
     let content = MimiContent::simple_markdown_message(text.to_owned(), [7u8; 16]);
     sender
-        .send_message(chat_id, content.clone(), None)
+        .send_message(chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     sender.outbound_service().run_once().await;
@@ -1891,6 +1891,7 @@ async fn one_unread_message_on_both_devices(
             chat_id,
             MimiContent::simple_markdown_message("from bob".to_owned(), [1u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1955,6 +1956,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
             chat_id,
             MimiContent::simple_markdown_message("from bob again".to_owned(), [3u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1971,6 +1973,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
             chat_id,
             MimiContent::simple_markdown_message("from device 1".to_owned(), [2u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -2071,7 +2074,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
 
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
     let message = first_device
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     let message_id = message.id();
@@ -2168,7 +2171,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     // A regular, confirmed send of the original message.
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [21u8; 16]);
     let message = first_device
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     let message_id = message.id();
@@ -2182,7 +2185,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     let original = first_device.message(message_id).await.unwrap().unwrap();
     let edit = MimiContent::simple_markdown_message(EDITED_TEXT.to_owned(), [22u8; 16]);
     let edited = first_device
-        .send_message(chat_id, edit, Some(original))
+        .send_message(chat_id, edit, Some(original), MarkChatAsRead::Yes)
         .await
         .unwrap();
     assert!(
@@ -2230,7 +2233,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     let original = first_device.message(message_id).await.unwrap().unwrap();
     let second_edit = MimiContent::simple_markdown_message(FINAL_TEXT.to_owned(), [23u8; 16]);
     first_device
-        .send_message(chat_id, second_edit, Some(original))
+        .send_message(chat_id, second_edit, Some(original), MarkChatAsRead::Yes)
         .await
         .unwrap();
     first_device.outbound_service().run_once().await;

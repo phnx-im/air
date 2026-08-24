@@ -9,6 +9,8 @@ use tokio_stream::{Stream, wrappers::WatchStream};
 #[derive(Debug, Clone)]
 pub struct AttachmentProgress {
     rx: watch::Receiver<AttachmentProgressEvent>,
+    /// Total number of bytes to transfer, if known upfront (uploads).
+    total_bytes: Option<u64>,
 }
 
 /// Attachment upload or download progress event
@@ -24,7 +26,23 @@ pub enum AttachmentProgressEvent {
 impl AttachmentProgress {
     pub(crate) fn new() -> (AttachmentProgressSender, Self) {
         let (tx, rx) = watch::channel(AttachmentProgressEvent::Init);
-        (AttachmentProgressSender { tx: Some(tx) }, Self { rx })
+        (
+            AttachmentProgressSender { tx: Some(tx) },
+            Self {
+                rx,
+                total_bytes: None,
+            },
+        )
+    }
+
+    pub(crate) fn with_total_bytes(mut self, total_bytes: u64) -> Self {
+        self.total_bytes = Some(total_bytes);
+        self
+    }
+
+    /// Total number of bytes to transfer, if known upfront (uploads).
+    pub fn total_bytes(&self) -> Option<u64> {
+        self.total_bytes
     }
 
     pub fn is_failed(&self) -> bool {

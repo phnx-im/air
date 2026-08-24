@@ -379,5 +379,21 @@
   "messageList_reactions_all": "Todas · {total}",
   "emojiPicker_searchHint": "Buscar emoji",
   "emojiPicker_empty": "Nenhum emoji encontrado",
-  "emojiPicker_skinToneHelp": "Define seu tom de pele padrão"
+  "emojiPicker_skinToneHelp": "Define seu tom de pele padrão",
+  "shareScreen_title": "Compartilhar no Air",
+  "shareScreen_searchHint": "Buscar",
+  "shareScreen_recipients": "{count, plural, =1 {Para: {first}} =2 {Para: {first} e {second}} other {Para: {first}, {second} e {third}}}",
+  "shareScreen_recipientsMore": "Para: {first}, {second} e mais {rest}",
+  "shareScreen_captionHint": "Adicione uma mensagem",
+  "shareScreen_signedOutMessage": "Entre primeiro no Air para compartilhar conteúdo.",
+  "shareScreen_noChats": "Nenhum chat encontrado.",
+  "shareScreen_uploading": "Carregando {current} de {total}…",
+  "shareScreen_sending": "Enviando…",
+  "shareScreen_queued": "Não foi possível enviar agora. Sua mensagem está salva e será enviada na próxima vez que você abrir o Air.",
+  "shareScreen_done": "Pronto",
+  "shareScreen_sendFailed": "Não foi possível enviar. Tente de novo.",
+  "shareScreen_tooManyAttachments": "Arquivos demais. Você pode compartilhar até {max} arquivos de uma vez.",
+  "shareScreen_droppedItems": "{count, plural, one {Não foi possível compartilhar {count} item.} other {Não foi possível compartilhar {count} itens.}}",
+  "shareScreen_nothingToShare": "Não foi possível compartilhar este conteúdo no Air.",
+  "shareScreen_close": "Fechar"
 }

@@ -1318,4 +1318,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Sets your default skin tone';
+
+  @override
+  String get shareScreen_title => 'Share to Air';
+
+  @override
+  String get shareScreen_searchHint => 'Search';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'To: $first, $second and $third',
+      two: 'To: $first and $second',
+      one: 'To: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'To: $first, $second and $rest more';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Add a message';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Sign in to Air first to share content.';
+
+  @override
+  String get shareScreen_noChats => 'No chats found.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Uploading $current of $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Sending…';
+
+  @override
+  String get shareScreen_queued =>
+      'Couldn\'t send right now. Your message is saved and will be sent when you next open Air.';
+
+  @override
+  String get shareScreen_done => 'Done';
+
+  @override
+  String get shareScreen_sendFailed => 'Failed to send. Try again.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Too many files. You can share up to $max files at once.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items couldn\'t be shared.',
+      one: '$count item couldn\'t be shared.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'This content couldn\'t be shared to Air.';
+
+  @override
+  String get shareScreen_close => 'Close';
 }

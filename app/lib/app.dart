@@ -21,6 +21,7 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_targets.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -331,6 +332,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
+            // The published share targets carry chat names and avatars, so
+            // drop them before the account unloads.
+            unawaited(clearShareTargets());
             userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but

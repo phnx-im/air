@@ -1345,6 +1345,86 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define seu tom de pele padrão';
+
+  @override
+  String get shareScreen_title => 'Compartilhar no Air';
+
+  @override
+  String get shareScreen_searchHint => 'Buscar';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Para: $first, $second e $third',
+      two: 'Para: $first e $second',
+      one: 'Para: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Para: $first, $second e mais $rest';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Adicione uma mensagem';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Entre primeiro no Air para compartilhar conteúdo.';
+
+  @override
+  String get shareScreen_noChats => 'Nenhum chat encontrado.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Carregando $current de $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Enviando…';
+
+  @override
+  String get shareScreen_queued =>
+      'Não foi possível enviar agora. Sua mensagem está salva e será enviada na próxima vez que você abrir o Air.';
+
+  @override
+  String get shareScreen_done => 'Pronto';
+
+  @override
+  String get shareScreen_sendFailed =>
+      'Não foi possível enviar. Tente de novo.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Arquivos demais. Você pode compartilhar até $max arquivos de uma vez.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Não foi possível compartilhar $count itens.',
+      one: 'Não foi possível compartilhar $count item.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Não foi possível compartilhar este conteúdo no Air.';
+
+  @override
+  String get shareScreen_close => 'Fechar';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -2685,4 +2765,84 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define o teu tom de pele predefinido';
+
+  @override
+  String get shareScreen_title => 'Partilhar no Air';
+
+  @override
+  String get shareScreen_searchHint => 'Pesquisar';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Para: $first, $second e $third',
+      two: 'Para: $first e $second',
+      one: 'Para: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Para: $first, $second e mais $rest';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Adiciona uma mensagem';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Entra primeiro no Air para partilhares conteúdo.';
+
+  @override
+  String get shareScreen_noChats => 'Nenhum chat encontrado.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'A carregar $current de $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'A enviar…';
+
+  @override
+  String get shareScreen_queued =>
+      'Não foi possível enviar agora. A tua mensagem está guardada e será enviada da próxima vez que abrires o Air.';
+
+  @override
+  String get shareScreen_done => 'Concluído';
+
+  @override
+  String get shareScreen_sendFailed =>
+      'Não foi possível enviar. Tenta de novo.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Demasiados ficheiros. Podes partilhar até $max ficheiros de uma vez.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Não foi possível partilhar $count itens.',
+      one: 'Não foi possível partilhar $count item.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Não foi possível partilhar este conteúdo no Air.';
+
+  @override
+  String get shareScreen_close => 'Fechar';
 }

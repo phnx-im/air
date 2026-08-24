@@ -2327,6 +2327,107 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
+
+  /// Title of the screen that receives content shared from another app.
+  ///
+  /// In en, this message translates to:
+  /// **'Share to Air'**
+  String get shareScreen_title;
+
+  /// Placeholder of the chat search field on the share screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get shareScreen_searchHint;
+
+  /// Line above the shared content naming the chats it is sent to. The last arm is reached with exactly three chats, as a longer list uses shareScreen_recipientsMore instead. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {To: {first}} =2 {To: {first} and {second}} other {To: {first}, {second} and {third}}}'**
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  );
+
+  /// The same line for more than three chats, naming two of them and counting the rest. The count is always two or more.
+  ///
+  /// In en, this message translates to:
+  /// **'To: {first}, {second} and {rest} more'**
+  String shareScreen_recipientsMore(String first, String second, int rest);
+
+  /// Placeholder of the field for a message sent alongside the shared content.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a message'**
+  String get shareScreen_captionHint;
+
+  /// Shown on the share screen when nobody is signed in yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Air first to share content.'**
+  String get shareScreen_signedOutMessage;
+
+  /// Shown when the chat search on the share screen matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats found.'**
+  String get shareScreen_noChats;
+
+  /// Progress while the shared files upload, counting the one in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {current} of {total}…'**
+  String shareScreen_uploading(int current, int total);
+
+  /// Progress while the shared content is sent to the chosen chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get shareScreen_sending;
+
+  /// Shown when sharing could not finish and the message waits for the next app start.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send right now. Your message is saved and will be sent when you next open Air.'**
+  String get shareScreen_queued;
+
+  /// Confirmation that the shared content reached the chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get shareScreen_done;
+
+  /// Shown when sharing failed and the person can retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send. Try again.'**
+  String get shareScreen_sendFailed;
+
+  /// Shown when more files were shared than one message can carry.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many files. You can share up to {max} files at once.'**
+  String shareScreen_tooManyAttachments(int max);
+
+  /// Notice on the share screen when the system handed over fewer items than were shared. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} item couldn\'t be shared.} other {{count} items couldn\'t be shared.}}'**
+  String shareScreen_droppedItems(int count);
+
+  /// Shown on the share screen when none of the shared items could be read.
+  ///
+  /// In en, this message translates to:
+  /// **'This content couldn\'t be shared to Air.'**
+  String get shareScreen_nothingToShare;
+
+  /// Button that dismisses the share screen after nothing could be shared.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get shareScreen_close;
 }
 
 class _AppLocalizationsDelegate

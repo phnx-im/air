@@ -1345,4 +1345,83 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get emojiPicker_skinToneHelp =>
       'Define tu tono de piel predeterminado';
+
+  @override
+  String get shareScreen_title => 'Compartir en Air';
+
+  @override
+  String get shareScreen_searchHint => 'Buscar';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Para: $first, $second y $third',
+      two: 'Para: $first y $second',
+      one: 'Para: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Para: $first, $second y $rest más';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Añade un mensaje';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Entra primero en Air para compartir contenido.';
+
+  @override
+  String get shareScreen_noChats => 'No se encontró ningún chat.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Subiendo $current de $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Enviando…';
+
+  @override
+  String get shareScreen_queued =>
+      'No se pudo enviar ahora mismo. Tu mensaje está guardado y se enviará la próxima vez que abras Air.';
+
+  @override
+  String get shareScreen_done => 'Listo';
+
+  @override
+  String get shareScreen_sendFailed => 'No se pudo enviar. Inténtalo de nuevo.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Demasiados archivos. Puedes compartir hasta $max archivos a la vez.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'No se pudieron compartir $count elementos.',
+      one: 'No se pudo compartir $count elemento.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Este contenido no se pudo compartir en Air.';
+
+  @override
+  String get shareScreen_close => 'Cerrar';
 }
