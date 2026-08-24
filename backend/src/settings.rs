@@ -223,7 +223,7 @@ impl Default for RateLimitsSettings {
 /// How registration is gated.
 ///
 /// Field names carry no underscores, because environment overrides split on
-/// them (`AIR_REGISTRATION_PERIP_LIMIT`).
+/// them (`AIR_REGISTRATION_POLICY`).
 #[derive(Debug, Deserialize, Clone)]
 pub struct RegistrationSettings {
     #[serde(default)]
