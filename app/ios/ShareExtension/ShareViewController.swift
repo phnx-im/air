@@ -10,14 +10,7 @@ import os
 
 private let logger = Logger(subsystem: "ms.air.share", category: "ShareViewController")
 
-// The staging extension (`ms.air.staging.share`) is only entitled to the
-// staging App Group. Requesting the production group there returns nil.
-private let appGroupIdentifier =
-    Bundle.main.bundleIdentifier?.contains(".staging") == true
-    ? "group.ms.air.staging" : "group.ms.air"
-private let appChannelName = "ms.air/channel"
 private let shareChannelName = "ms.air/share"
-private let storeNotificationsPendingName = "ms.air.store-notifications-pending"
 
 // Matches ShareCubitBase::MAX_SHARED_ATTACHMENTS. One extra item is
 // extracted so the Dart side still sees too many items and reports the
@@ -117,12 +110,12 @@ class ShareViewController: UIViewController {
     private func setupChannels(engine: FlutterEngine) {
         // Minimal subset of the main app channel used by the share engine
         let appChannel = FlutterMethodChannel(
-            name: appChannelName, binaryMessenger: engine.binaryMessenger)
-        appChannel.setMethodCallHandler { [weak self] call, result in
+            name: AppChannel.name, binaryMessenger: engine.binaryMessenger)
+        appChannel.setMethodCallHandler { call, result in
             switch call.method {
             case "getDatabasesDirectory":
-                if let path = self?.databasesDirectoryPath() {
-                    result(path.path)
+                if let url = AppGroup.databasesDirectory(create: false) {
+                    result(url.path)
                 } else {
                     result(
                         FlutterError(
@@ -131,8 +124,8 @@ class ShareViewController: UIViewController {
                             details: nil))
                 }
             case "getSharedCacheDirectory":
-                if let path = self?.sharedCacheDirectoryPath() {
-                    result(path.path)
+                if let url = AppGroup.sharedCachesDirectory(create: true) {
+                    result(url.path)
                 } else {
                     result(
                         FlutterError(
@@ -366,7 +359,7 @@ class ShareViewController: UIViewController {
             try FileManager.default.createDirectory(
                 at: targetDir, withIntermediateDirectories: true)
             rememberCacheDir(targetDir)
-            applyProtection(targetDir)
+            AppGroup.applyProtection(targetDir)
             try FileManager.default.copyItem(at: url, to: target)
             return target
         } catch {
@@ -377,15 +370,7 @@ class ShareViewController: UIViewController {
     }
 
     private func shareCacheDirectory() -> URL? {
-        guard
-            let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier)
-        else {
-            return nil
-        }
-        return
-            containerURL
-            .appendingPathComponent("Caches", isDirectory: true)
+        AppGroup.sharedCachesDirectory(create: false)?
             .appendingPathComponent("share", isDirectory: true)
     }
 
@@ -432,58 +417,6 @@ class ShareViewController: UIViewController {
         }
     }
 
-    // MARK: - Paths
-
-    // Same directory the main app and the NSE use (see
-    // NotificationService.getDatabasesDirectoryPath)
-    private func databasesDirectoryPath() -> URL? {
-        guard
-            let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier)
-        else {
-            return nil
-        }
-        let dbsURL =
-            containerURL
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Databases", isDirectory: true)
-        // The main app creates this directory. Without it there is no user.
-        guard FileManager.default.fileExists(atPath: dbsURL.path) else {
-            return nil
-        }
-        applyProtection(dbsURL)
-        // sqlite writes statement journals to the temp directory, see
-        // <https://sqlite.org/tempfiles.html>
-        applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
-        return dbsURL
-    }
-
-    private func sharedCacheDirectoryPath() -> URL? {
-        guard
-            let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier)
-        else {
-            return nil
-        }
-        let cachesURL = containerURL.appendingPathComponent(
-            "Caches", isDirectory: true)
-        try? FileManager.default.createDirectory(
-            at: cachesURL, withIntermediateDirectories: true)
-        return cachesURL
-    }
-
-    // Allows writing to the given URL while the device is locked
-    private func applyProtection(_ url: URL) {
-        try? FileManager.default.setAttributes(
-            [
-                .protectionKey: FileProtectionType
-                    .completeUntilFirstUserAuthentication
-            ],
-            ofItemAtPath: url.path
-        )
-    }
-
     // MARK: - Closing
 
     private func close(success: Bool) {
@@ -498,7 +431,7 @@ class ShareViewController: UIViewController {
             CFNotificationCenterPostNotification(
                 CFNotificationCenterGetDarwinNotifyCenter(),
                 CFNotificationName(
-                    storeNotificationsPendingName as CFString),
+                    AppChannel.storeNotificationsPendingName as CFString),
                 nil, nil, true)
         }
         extensionContext?.completeRequest(returningItems: nil)
