@@ -111,7 +111,7 @@
   "invitationCodesScreen_codesClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n{codes}",
 
   "accountCreation_unsupported_header": "Aktualisierung erforderlich",
-  "accountCreation_unsupported_body": "Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air oder frage jemanden, der schon bei Air ist, nach einem Einladungscode.",
+  "accountCreation_unsupported_body": "Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air, um fortzufahren.",
 
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",

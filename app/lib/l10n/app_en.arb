@@ -514,9 +514,9 @@
   "@accountCreation_unsupported_header": {
     "description": "Header of the sign up step shown when the server asks for a kind of sign up check this version of the app cannot answer."
   },
-  "accountCreation_unsupported_body": "This server asks for something this version of Air cannot provide. Update Air, or ask someone already on Air for an invite code.",
+  "accountCreation_unsupported_body": "This server asks for something this version of Air cannot provide. Update Air to continue.",
   "@accountCreation_unsupported_body": {
-    "description": "Explains that sign up cannot continue until the app is updated, and that an invite code is the alternative."
+    "description": "Explains that sign up cannot continue until the app is updated. Shown only when none of the server's accepted challenge kinds are supported, so it must not suggest an invite code."
   },
 
   "signUpScreen_header": "Create your profile",

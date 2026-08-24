@@ -738,10 +738,10 @@ abstract class AppLocalizations {
   /// **'Update required'**
   String get accountCreation_unsupported_header;
 
-  /// Explains that sign up cannot continue until the app is updated, and that an invite code is the alternative.
+  /// Explains that sign up cannot continue until the app is updated. Shown only when none of the server's accepted challenge kinds are supported, so it must not suggest an invite code.
   ///
   /// In en, this message translates to:
-  /// **'This server asks for something this version of Air cannot provide. Update Air, or ask someone already on Air for an invite code.'**
+  /// **'This server asks for something this version of Air cannot provide. Update Air to continue.'**
   String get accountCreation_unsupported_body;
 
   /// Header of the profile step during sign up.

@@ -374,7 +374,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get accountCreation_unsupported_body =>
-      'Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air, eller be någon som redan finns på Air om en inbjudningskod.';
+      'Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air för att fortsätta.';
 
   @override
   String get signUpScreen_header => 'Skapa din profil';

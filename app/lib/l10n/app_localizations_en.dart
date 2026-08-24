@@ -371,7 +371,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountCreation_unsupported_body =>
-      'This server asks for something this version of Air cannot provide. Update Air, or ask someone already on Air for an invite code.';
+      'This server asks for something this version of Air cannot provide. Update Air to continue.';
 
   @override
   String get signUpScreen_header => 'Create your profile';

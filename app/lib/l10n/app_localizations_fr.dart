@@ -383,7 +383,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get accountCreation_unsupported_body =>
-      'Ce serveur demande quelque chose que cette version d\'Air ne peut pas fournir. Mettez Air à jour, ou demandez un code d\'invitation à quelqu\'un déjà sur Air.';
+      'Ce serveur demande quelque chose que cette version d\'Air ne peut pas fournir. Mettez Air à jour pour continuer.';
 
   @override
   String get signUpScreen_header => 'Créez votre profil';
