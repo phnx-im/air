@@ -214,7 +214,9 @@ impl ApiClient {
 
     /// Asks the server whether registering with it needs a challenge right now.
     pub async fn as_get_registration_info(&self) -> Result<RegistrationInfo, AsRequestError> {
-        let request = GetRegistrationInfoRequest {};
+        let request = GetRegistrationInfoRequest {
+            client_metadata: Some(self.metadata().clone()),
+        };
         let response = self
             .as_grpc_client()
             .get_registration_info(request)

@@ -190,7 +190,11 @@ enum ChallengeType {
   reserved 2, 3;
 }
 
-message GetRegistrationInfoRequest {}
+message GetRegistrationInfoRequest {
+  // Must be set, but the server never rejects on the version it carries: this
+  // endpoint has to answer any client, and enforcement happens at RegisterUser.
+  common.v1.ClientMetadata client_metadata = 1;
+}
 
 message GetRegistrationInfoResponse {
   // Whether a registration right now has to carry a challenge response. The
