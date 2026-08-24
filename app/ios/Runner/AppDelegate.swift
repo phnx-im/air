@@ -1,15 +1,13 @@
 import Flutter
+import Intents
 import UIKit
 
 private let kProtectedBlockedCategory = "protected-blocked"
 
-private let kStoreNotificationsPendingName =
-    "ms.air.store-notifications-pending" as CFString
-
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
-    private let notificationChannelName: String = "ms.air/channel"
+    private let notificationChannelName: String = AppChannel.name
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var storeNotificationsChannel: FlutterMethodChannel?
 
@@ -68,7 +66,7 @@ private let kStoreNotificationsPendingName =
                         "processStoreNotifications", arguments: nil)
                 }
             },
-            kStoreNotificationsPendingName,
+            AppChannel.storeNotificationsPendingName as CFString,
             nil,
             .deliverImmediately)
     }
@@ -155,8 +153,8 @@ private let kStoreNotificationsPendingName =
         if call.method == "getDeviceToken" {
             self.getDeviceToken(result: result)
         } else if call.method == "getDatabasesDirectory" {
-            if let path = self.getDatabasesDirectoryPath() {
-                result(path)
+            if let url = AppGroup.databasesDirectory(create: true) {
+                result(url.path)
             } else {
                 result(
                     FlutterError(
@@ -166,8 +164,8 @@ private let kStoreNotificationsPendingName =
                     ))
             }
         } else if call.method == "getSharedCacheDirectory" {
-            if let path = self.getSharedCacheDirectory() {
-                result(path)
+            if let url = AppGroup.sharedCachesDirectory(create: true) {
+                result(url.path)
             } else {
                 result(
                     FlutterError(
@@ -272,6 +270,15 @@ private let kStoreNotificationsPendingName =
             result(nil)
         } else if call.method == "requestNotificationPermission" {
             requestNotificationPermission(result: result)
+        } else if call.method == "donateShareTarget" {
+            donateShareTarget(call: call, result: result)
+        } else if call.method == "clearShareTargets" {
+            INInteraction.deleteAll { error in
+                if let error {
+                    NSLog("Failed to delete intent donations: \(error)")
+                }
+            }
+            result(nil)
         } else {
             NSLog("Unknown method called: \(call.method)")
             result(FlutterMethodNotImplemented)
@@ -279,82 +286,69 @@ private let kStoreNotificationsPendingName =
 
     }
 
+    // Donates an INSendMessageIntent for the chat so it appears as a direct
+    // target in the system share sheet (handled by the share extension).
+    private func donateShareTarget(
+        call: FlutterMethodCall, result: @escaping FlutterResult
+    ) {
+        // The INSendMessageIntent initializer used here requires iOS 14.
+        // Older versions donate no share targets.
+        guard #available(iOS 14.0, *) else {
+            result(nil)
+            return
+        }
+        guard let args = call.arguments as? [String: Any],
+            let chatId = args["chatId"] as? String,
+            let title = args["title"] as? String
+        else {
+            result(
+                FlutterError(
+                    code: "INVALID_ARGUMENTS",
+                    message: "chatId or title not provided",
+                    details: nil
+                ))
+            return
+        }
+        let isGroup = args["isGroup"] as? Bool ?? false
+        let pictureData = (args["picture"] as? FlutterStandardTypedData)?.data
+        let image = pictureData.map { INImage(imageData: $0) }
+
+        let recipient = INPerson(
+            personHandle: INPersonHandle(value: chatId, type: .unknown),
+            nameComponents: nil,
+            displayName: title,
+            image: image,
+            contactIdentifier: nil,
+            customIdentifier: chatId
+        )
+        let intent = INSendMessageIntent(
+            recipients: [recipient],
+            outgoingMessageType: .outgoingMessageText,
+            content: nil,
+            speakableGroupName: isGroup
+                ? INSpeakableString(spokenPhrase: title) : nil,
+            conversationIdentifier: chatId,
+            serviceName: nil,
+            sender: nil,
+            attachments: nil
+        )
+        if isGroup, let image {
+            intent.setImage(image, forParameterNamed: \.speakableGroupName)
+        }
+
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .outgoing
+        interaction.donate { error in
+            if let error {
+                NSLog("Failed to donate share target intent: \(error)")
+            }
+        }
+        result(nil)
+    }
+
     // Get device token
     private func getDeviceToken(result: FlutterResult) {
         result(deviceToken)
-    }
-
-    // Allow to write to the given URL when the device is locked
-    private func applyProtection(_ url: URL) {
-        try? FileManager.default.setAttributes(
-            [
-                .protectionKey: FileProtectionType
-                    .completeUntilFirstUserAuthentication
-            ],
-            ofItemAtPath: url.path
-        )
-    }
-
-    // Get a databases directory path that is NOT backed up to iCloud
-    private func getDatabasesDirectoryPath() -> String? {
-        // Use the App Group container so extensions can also access it
-        guard
-            let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air"
-            )
-        else {
-            return nil
-        }
-
-        // Prefer Library/Application Support for persistent, non-user‑visible data
-        let dbsURL =
-            containerURL
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Databases", isDirectory: true)
-
-        do {
-            try createBackupExcludedDirectory(at: dbsURL)
-            applyProtection(dbsURL)
-            // Note: Protection is also applied to the temp directory, because sqlite
-            // uses it to write statement journal files:
-            // <https://sqlite.org/tempfiles.html>
-            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
-            return dbsURL.path
-        } catch {
-            return nil
-        }
-    }
-
-    // Get a cache directory path that is shared between the application and the
-    // background extension
-    private func getSharedCacheDirectory() -> String? {
-        guard
-            let sharedContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air"
-            )
-        else {
-            return nil
-        }
-
-        let sharedCaches = sharedContainer.appendingPathComponent("Caches")
-
-        do {
-            try createBackupExcludedDirectory(at: sharedCaches)
-            return sharedCaches.path
-        } catch {
-            return nil
-        }
-    }
-
-    private func createBackupExcludedDirectory(at url: URL) throws {
-        try FileManager.default.createDirectory(
-            at: url, withIntermediateDirectories: true)
-        // exclude from backups
-        var vals = URLResourceValues()
-        vals.isExcludedFromBackup = true
-        var u = url
-        try? u.setResourceValues(vals)
     }
 
     // Set the badge count

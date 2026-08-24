@@ -79,6 +79,8 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use message::MarkChatAsRead;
+
 pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;

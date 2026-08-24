@@ -19,7 +19,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId, DisplayName, UserProfile,
     clients::{
-        ListenResponse, listen_response, process::process_qs::ProcessedQsMessages,
+        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
         registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
@@ -77,6 +77,7 @@ async fn rate_limit() {
                 chat_id,
                 MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
                 None,
+                MarkChatAsRead::Yes,
             )
             .await
             .unwrap();
@@ -107,6 +108,7 @@ async fn rate_limit() {
             chat_id,
             MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -299,7 +301,7 @@ async fn update_and_send_message(
     let bob_user = &setup.get_user(bob).user;
     let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
     bob_user
-        .send_message(contact_chat_id, msg, None)
+        .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
@@ -327,7 +329,7 @@ async fn ratchet_tolerance() {
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
         alice_user
-            .send_message(contact_chat_id, msg, None)
+            .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
@@ -516,6 +518,7 @@ async fn resync() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -854,6 +857,7 @@ async fn resync_with_blank_leaf_succeeds() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();

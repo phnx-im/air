@@ -13,7 +13,9 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
+import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_pt.dart';
 import 'app_localizations_sv.dart';
 
 // ignore_for_file: type=lint
@@ -104,7 +106,10 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('de'),
     Locale('en'),
+    Locale('es'),
     Locale('fr'),
+    Locale('pt'),
+    Locale('pt', 'PT'),
     Locale('sv'),
   ];
 
@@ -393,7 +398,7 @@ abstract class AppLocalizations {
   /// Title of the dialog confirming removal of a member from a group.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_title;
 
   /// Body of the remove member dialog, naming the person to be removed.
@@ -405,7 +410,7 @@ abstract class AppLocalizations {
   /// Confirming button of the remove member dialog.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_removeUser;
 
   /// Button on a member's profile that starts removing them from the group.
@@ -1381,7 +1386,7 @@ abstract class AppLocalizations {
   /// **'Now'**
   String get timestamp_now;
 
-  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.
+  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the locale's standard minutes abbreviation allows.
   ///
   /// In en, this message translates to:
   /// **'{count}m'**
@@ -2340,6 +2345,107 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
+
+  /// Title of the screen that receives content shared from another app.
+  ///
+  /// In en, this message translates to:
+  /// **'Share to Air'**
+  String get shareScreen_title;
+
+  /// Placeholder of the chat search field on the share screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get shareScreen_searchHint;
+
+  /// Line above the shared content naming the chats it is sent to. The last arm is reached with exactly three chats, as a longer list uses shareScreen_recipientsMore instead. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {To: {first}} =2 {To: {first} and {second}} other {To: {first}, {second} and {third}}}'**
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  );
+
+  /// The same line for more than three chats, naming two of them and counting the rest. The count is always two or more.
+  ///
+  /// In en, this message translates to:
+  /// **'To: {first}, {second} and {rest} more'**
+  String shareScreen_recipientsMore(String first, String second, int rest);
+
+  /// Placeholder of the field for a message sent alongside the shared content.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a message'**
+  String get shareScreen_captionHint;
+
+  /// Shown on the share screen when nobody is signed in yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Air first to share content.'**
+  String get shareScreen_signedOutMessage;
+
+  /// Shown when the chat search on the share screen matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats found.'**
+  String get shareScreen_noChats;
+
+  /// Progress while the shared files upload, counting the one in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {current} of {total}…'**
+  String shareScreen_uploading(int current, int total);
+
+  /// Progress while the shared content is sent to the chosen chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get shareScreen_sending;
+
+  /// Shown when sharing could not finish and the message waits for the next app start.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send right now. Your message is saved and will be sent when you next open Air.'**
+  String get shareScreen_queued;
+
+  /// Confirmation that the shared content reached the chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get shareScreen_done;
+
+  /// Shown when sharing failed and the person can retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send. Try again.'**
+  String get shareScreen_sendFailed;
+
+  /// Shown when more files were shared than one message can carry.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many files. You can share up to {max} files at once.'**
+  String shareScreen_tooManyAttachments(int max);
+
+  /// Notice on the share screen when the system handed over fewer items than were shared. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} item couldn\'t be shared.} other {{count} items couldn\'t be shared.}}'**
+  String shareScreen_droppedItems(int count);
+
+  /// Shown on the share screen when none of the shared items could be read.
+  ///
+  /// In en, this message translates to:
+  /// **'This content couldn\'t be shared to Air.'**
+  String get shareScreen_nothingToShare;
+
+  /// Button that dismisses the share screen after nothing could be shared.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get shareScreen_close;
 }
 
 class _AppLocalizationsDelegate
@@ -2352,22 +2458,44 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'fr', 'sv'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'de',
+    'en',
+    'es',
+    'fr',
+    'pt',
+    'sv',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+country codes are specified.
+  switch (locale.languageCode) {
+    case 'pt':
+      {
+        switch (locale.countryCode) {
+          case 'PT':
+            return AppLocalizationsPtPt();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'de':
       return AppLocalizationsDe();
     case 'en':
       return AppLocalizationsEn();
+    case 'es':
+      return AppLocalizationsEs();
     case 'fr':
       return AppLocalizationsFr();
+    case 'pt':
+      return AppLocalizationsPt();
     case 'sv':
       return AppLocalizationsSv();
   }

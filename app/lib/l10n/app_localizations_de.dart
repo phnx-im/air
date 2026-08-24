@@ -168,7 +168,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 
   @override
-  String get removeUserDialog_title => 'Benutzer entfernen';
+  String get removeUserDialog_title => 'Mitglied entfernen';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -176,7 +176,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Benutzer entfernen';
+  String get removeUserDialog_removeUser => 'Mitglied entfernen';
 
   @override
   String get removeUserButton_text => 'Entfernen';
@@ -1354,4 +1354,84 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
+
+  @override
+  String get shareScreen_title => 'Mit Air teilen';
+
+  @override
+  String get shareScreen_searchHint => 'Suchen';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'An: $first, $second und $third',
+      two: 'An: $first und $second',
+      one: 'An: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'An: $first, $second und $rest weitere';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Nachricht hinzufügen';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Melde dich zuerst in Air an, um Inhalte zu teilen.';
+
+  @override
+  String get shareScreen_noChats => 'Keine Chats gefunden.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Lade $current von $total hoch…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Wird gesendet…';
+
+  @override
+  String get shareScreen_queued =>
+      'Senden gerade nicht möglich. Deine Nachricht ist gespeichert und wird gesendet, wenn du Air das nächste Mal öffnest.';
+
+  @override
+  String get shareScreen_done => 'Fertig';
+
+  @override
+  String get shareScreen_sendFailed =>
+      'Senden fehlgeschlagen. Versuche es erneut.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Zu viele Dateien. Du kannst bis zu $max Dateien auf einmal teilen.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Elemente konnten nicht geteilt werden.',
+      one: '$count Element konnte nicht geteilt werden.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Dieser Inhalt konnte nicht mit Air geteilt werden.';
+
+  @override
+  String get shareScreen_close => 'Schließen';
 }

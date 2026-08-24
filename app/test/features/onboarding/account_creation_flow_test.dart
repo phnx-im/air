@@ -9,6 +9,7 @@ import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:bloc_test/bloc_test.dart';
@@ -41,12 +42,19 @@ void main() {
     late MockRegistrationCubit registrationCubit;
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
+    late MockLoadableUserCubit loadableUserCubit;
 
     setUp(() {
       registrationCubit = MockRegistrationCubit();
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
+      loadableUserCubit = MockLoadableUserCubit();
 
+      // No user until the account is created between the profile and username
+      // steps. Tests that reach the created-account state override this.
+      when(
+        () => loadableUserCubit.state,
+      ).thenReturn(const LoadableUser.unloaded());
       when(() => navigationCubit.state).thenReturn(
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
@@ -65,6 +73,7 @@ void main() {
         BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
         BlocProvider<UserCubit>.value(value: userCubit),
+        BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
       ],
       child: Builder(
         builder: (context) => MaterialApp(
@@ -199,6 +208,40 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/account_creation_username.png'),
       );
+    });
+
+    testWidgets('a rebuild after account creation resumes on the username', (
+      tester,
+    ) async {
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: _validCode,
+          displayName: 'Ellie',
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+      await submit(tester, 'Join Air');
+      await submit(tester, 'Create');
+      expect(find.text('Add a username'), findsOneWidget);
+
+      // Creating the account loads the user, which in the app swaps the intro
+      // subtree for the logged-in one and tears down this flow. Mimic that:
+      // drop the widget entirely, mark the user loaded, then build a brand-new
+      // flow.
+      when(
+        () => loadableUserCubit.state,
+      ).thenReturn(LoadableUser.loaded(MockUser()));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      // The rebuilt flow must resume on the username step. Without reading the
+      // loaded user, the fresh state drops back to the first (invite code)
+      // step.
+      expect(find.text('Add a username'), findsOneWidget);
+      expect(find.text('Enter invite code'), findsNothing);
     });
 
     testWidgets('skipping the username enters the app', (tester) async {
