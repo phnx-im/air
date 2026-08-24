@@ -48,9 +48,5 @@ UuidValue? _clientRecordIdArg(List<String> args) {
 }
 
 /// Entrypoint of the share UI, hosted by the iOS share extension.
-///
-/// Lives here because the compiler only includes libraries reachable from
-/// `main.dart`. Defining it only in the share module would leave it out of
-/// the compiled program.
 @pragma('vm:entry-point')
 void shareMain() => share.shareMain();

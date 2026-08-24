@@ -407,9 +407,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     ),
                   ],
                   child: UnlinkedDeviceHandler(
-                    child: ShareTargetsListener(
-                      child: UpdateRequiredScreen(child: child),
-                    ),
+                    child: UpdateRequiredScreen(child: child),
                   ),
                 ),
               ),

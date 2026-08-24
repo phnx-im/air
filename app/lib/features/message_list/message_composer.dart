@@ -28,8 +28,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
+import 'package:air/share/share_targets.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/platform/method_channel.dart'
@@ -363,6 +365,15 @@ class _MessageComposerState extends State<MessageComposer>
 
     try {
       await chatDetailsCubit.sendMessage(messageText);
+      final chatId = chatDetailsCubit.state.chat?.id;
+      if (chatId != null && mounted) {
+        unawaited(
+          donateShareTarget(
+            userCubit: context.read<UserCubit>(),
+            chatId: chatId,
+          ),
+        );
+      }
     } catch (e, stackTrace) {
       _log.severe("Failed to send message", e, stackTrace);
       showSnackBarStandalone(
@@ -552,6 +563,15 @@ class _MessageComposerState extends State<MessageComposer>
                   );
                   break;
                 case null:
+                  final chatId = cubit.state.chat?.id;
+                  if (chatId != null && context.mounted) {
+                    unawaited(
+                      donateShareTarget(
+                        userCubit: context.read<UserCubit>(),
+                        chatId: chatId,
+                      ),
+                    );
+                  }
                   break;
               }
             } catch (e) {

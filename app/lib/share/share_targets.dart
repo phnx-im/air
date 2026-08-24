@@ -56,27 +56,3 @@ Map<String, dynamic> _encodeTarget(UiShareTarget target) => {
   'isGroup': target.isGroup,
   'picture': target.picture,
 };
-
-/// Donates a chat to the OS as a direct share target when it is opened.
-///
-/// The donations are cleared on logout, see `clearShareTargets`.
-class ShareTargetsListener extends StatelessWidget {
-  const ShareTargetsListener({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocListener<NavigationCubit, NavigationState>(
-      // A null chat id means no chat is open, which is also where logout
-      // lands. Donating the chat of an unloading user must not happen.
-      listenWhen: (previous, current) =>
-          current.chatId != null && previous.chatId != current.chatId,
-      listener: (context, state) => donateShareTarget(
-        userCubit: context.read<UserCubit>(),
-        chatId: state.chatId!,
-      ),
-      child: child,
-    );
-  }
-}

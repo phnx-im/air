@@ -20,16 +20,12 @@ import 'package:path/path.dart' as p;
 
 final _log = Logger('ShareMain');
 
-/// Implementation of the share UI entrypoint
-///
-/// The `@pragma('vm:entry-point')` wrapper the native host runs lives in
-/// `main.dart`. Runs in a Flutter engine separate from the main app. Boots
-/// the Rust library, fetches the shared payload from the native host and
-/// mounts the [ShareScreen]. There is no user cubit, no navigation stack
-/// and no push registration.
+/// Runs in a Flutter engine separate from the main app.
+/// 
+/// Boots the Rust library, fetches the shared payload from the native host and
+/// mounts the [ShareScreen]. There is no user cubit, no navigation stack and
+/// no push registration.
 void shareMain() {
-  // The UI is mounted before any asynchronous bootstrap so that a failing
-  // or slow initialization is visible instead of an empty sheet.
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ShareApp());
 }
