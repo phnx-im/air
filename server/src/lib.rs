@@ -42,13 +42,11 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status};
 use tonic::{service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
-use tower_governor::{
-    GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
-};
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{Level, enabled, error, info};
 
-use crate::grpc_metrics::GrpcMetricsLayer;
+use crate::{connect_info::ClientIpExtractor, grpc_metrics::GrpcMetricsLayer};
 
 pub mod args;
 pub mod as_connector;
@@ -188,7 +186,7 @@ pub async fn run<
     let governor_config = GovernorConfigBuilder::default()
         .period(period)
         .burst_size(burst)
-        .key_extractor(SmartIpKeyExtractor)
+        .key_extractor(ClientIpExtractor)
         .finish()
         .expect("invalid governor config");
 
