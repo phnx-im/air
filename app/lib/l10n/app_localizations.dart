@@ -13,7 +13,9 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
+import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_pt.dart';
 import 'app_localizations_sv.dart';
 
 // ignore_for_file: type=lint
@@ -104,7 +106,10 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('de'),
     Locale('en'),
+    Locale('es'),
     Locale('fr'),
+    Locale('pt'),
+    Locale('pt', 'PT'),
     Locale('sv'),
   ];
 
@@ -393,7 +398,7 @@ abstract class AppLocalizations {
   /// Title of the dialog confirming removal of a member from a group.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_title;
 
   /// Body of the remove member dialog, naming the person to be removed.
@@ -405,7 +410,7 @@ abstract class AppLocalizations {
   /// Confirming button of the remove member dialog.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_removeUser;
 
   /// Button on a member's profile that starts removing them from the group.
@@ -1363,7 +1368,7 @@ abstract class AppLocalizations {
   /// **'Now'**
   String get timestamp_now;
 
-  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.
+  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the locale's standard minutes abbreviation allows.
   ///
   /// In en, this message translates to:
   /// **'{count}m'**
@@ -2334,22 +2339,44 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'fr', 'sv'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'de',
+    'en',
+    'es',
+    'fr',
+    'pt',
+    'sv',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+country codes are specified.
+  switch (locale.languageCode) {
+    case 'pt':
+      {
+        switch (locale.countryCode) {
+          case 'PT':
+            return AppLocalizationsPtPt();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'de':
       return AppLocalizationsDe();
     case 'en':
       return AppLocalizationsEn();
+    case 'es':
+      return AppLocalizationsEs();
     case 'fr':
       return AppLocalizationsFr();
+    case 'pt':
+      return AppLocalizationsPt();
     case 'sv':
       return AppLocalizationsSv();
   }

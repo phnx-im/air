@@ -168,7 +168,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 
   @override
-  String get removeUserDialog_title => 'Benutzer entfernen';
+  String get removeUserDialog_title => 'Mitglied entfernen';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -176,7 +176,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Benutzer entfernen';
+  String get removeUserDialog_removeUser => 'Mitglied entfernen';
 
   @override
   String get removeUserButton_text => 'Entfernen';
