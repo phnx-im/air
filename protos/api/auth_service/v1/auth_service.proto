@@ -204,13 +204,13 @@ message GetRegistrationInfoResponse {
 // register user
 
 message RegisterUserRequest {
-  // Each challenge kind owns one optional field. 2 and 3 were used by fields
-  // that no longer exist.
+  // 2 and 3 were used by fields that no longer exist
   reserved 2, 3;
 
   common.v1.ClientMetadata client_metadata = 5;
   UserCredentialPayload user_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
+  // Each challenge kind owns one optional field.
   InvitationCode invitation_code = 6;
 }
 
