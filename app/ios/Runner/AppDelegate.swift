@@ -3,13 +3,6 @@ import UIKit
 
 private let kProtectedBlockedCategory = "protected-blocked"
 
-// The staging build (`ms.air.staging`) is only entitled to the staging App
-// Group. Requesting the production group there returns nil. Kept in sync with
-// ShareViewController's `appGroupIdentifier`.
-private let appGroupIdentifier =
-    Bundle.main.bundleIdentifier?.contains(".staging") == true
-    ? "group.ms.air.staging" : "group.ms.air"
-
 private let kStoreNotificationsPendingName =
     "ms.air.store-notifications-pending" as CFString
 
@@ -307,7 +300,7 @@ private let kStoreNotificationsPendingName =
         // Use the App Group container so extensions can also access it
         guard
             let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier
+                forSecurityApplicationGroupIdentifier: "group.ms.air"
             )
         else {
             return nil
@@ -338,7 +331,7 @@ private let kStoreNotificationsPendingName =
     private func getSharedCacheDirectory() -> String? {
         guard
             let sharedContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: appGroupIdentifier
+                forSecurityApplicationGroupIdentifier: "group.ms.air"
             )
         else {
             return nil
