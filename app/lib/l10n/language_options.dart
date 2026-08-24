@@ -23,19 +23,43 @@ List<LanguageOption> buildLanguageOptions() {
       .toList();
 }
 
-Locale? localeForLanguageCode(String? languageCode) {
-  if (languageCode == null) {
+/// Parses a persisted locale tag such as "de" or "pt-PT".
+///
+/// Tags stored before regional variants shipped carry no region, so a tag
+/// without one parses to a locale without a country code.
+Locale? localeFromTag(String? tag) {
+  if (tag == null || tag.isEmpty) {
     return null;
   }
-  for (final locale in AppLocalizations.supportedLocales) {
-    if (locale.languageCode == languageCode) {
-      return locale;
-    }
+  final parts = tag.split(RegExp('[-_]'));
+  final languageCode = parts.first;
+  if (languageCode.isEmpty) {
+    return null;
   }
-  return null;
+  final countryCode = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+  return Locale(languageCode, countryCode);
 }
 
-Locale supportedLanguageLocale(Locale locale) {
+/// Serializes a locale into the tag that gets persisted.
+String localeToTag(Locale locale) {
+  final countryCode = locale.countryCode;
+  if (countryCode == null || countryCode.isEmpty) {
+    return locale.languageCode;
+  }
+  return '${locale.languageCode}-$countryCode';
+}
+
+/// Supported locale that [locale] should be displayed in.
+///
+/// A region match is tried before a language match, so that two variants of
+/// one language stay apart. Falling back to the first supported locale mirrors
+/// how Flutter resolves a locale that no entry matches.
+Locale resolveSupportedLocale(Locale locale) {
+  for (final supportedLocale in AppLocalizations.supportedLocales) {
+    if (supportedLocale == locale) {
+      return supportedLocale;
+    }
+  }
   for (final supportedLocale in AppLocalizations.supportedLocales) {
     if (supportedLocale.languageCode == locale.languageCode) {
       return supportedLocale;
