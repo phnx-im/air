@@ -537,6 +537,7 @@ class _MessageComposerState extends State<MessageComposer>
     required String chatTitle,
   }) {
     final cubit = context.read<ChatDetailsCubit>();
+    final userCubit = context.read<UserCubit>();
 
     return Navigator.of(context).push(
       MaterialPageRoute(
@@ -564,12 +565,9 @@ class _MessageComposerState extends State<MessageComposer>
                   break;
                 case null:
                   final chatId = cubit.state.chat?.id;
-                  if (chatId != null && context.mounted) {
+                  if (chatId != null) {
                     unawaited(
-                      donateShareTarget(
-                        userCubit: context.read<UserCubit>(),
-                        chatId: chatId,
-                      ),
+                      donateShareTarget(userCubit: userCubit, chatId: chatId),
                     );
                   }
                   break;
