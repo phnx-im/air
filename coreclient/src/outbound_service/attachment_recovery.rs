@@ -10,8 +10,8 @@
 //! cannot end up like that, because [`CoreUser::send_message`] enqueues in the
 //! same transaction that stores the message.
 //!
-//! The share extension makes this likely, because the OS kills it for memory
-//! routinely.
+//! The iOS share extension makes this likely, because the OS kills it for
+//! memory routinely.
 //!
 //! [`CoreUser::send_message`]: crate::clients::CoreUser::send_message
 
@@ -33,15 +33,15 @@ use crate::{
 /// counts as abandoned.
 ///
 /// An upload running in another process does not hold the global lock, so a
-/// fresh record must be left alone. The share extension caps a shared file
-/// well below what could legitimately take this long to upload.
+/// fresh record must be left alone. The iOS share extension caps a shared
+/// file well below what could legitimately take this long to upload.
 const UPLOAD_STALE_AFTER: Duration = Duration::from_secs(30 * 60);
 
 /// Picks up attachment messages that a killed upload left behind.
 ///
 /// Runs under the global lock, so no other outbound service works on the same
 /// database at the same time.
-pub(super) async fn reconcile_attachment_messages(db: &DbAccess) -> anyhow::Result<()> {
+pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> anyhow::Result<()> {
     let stale_before = Utc::now() - UPLOAD_STALE_AFTER;
     db.with_write_transaction(async |txn| -> anyhow::Result<()> {
         let uploaded = AttachmentRecord::load_unqueued_uploaded_messages(&mut *txn).await?;
@@ -59,7 +59,7 @@ pub(super) async fn reconcile_attachment_messages(db: &DbAccess) -> anyhow::Resu
                 .await?;
         }
 
-        let abandoned = AttachmentRecord::load_stale_uploading(&mut *txn, stale_before).await?;
+        let abandoned = AttachmentRecord::load_stale_uploading_attachments(&mut *txn, stale_before).await?;
         for attachment_id in abandoned {
             info!(
                 ?attachment_id,
@@ -101,7 +101,7 @@ mod tests {
         outbound_service::chat_message_queue::ChatMessageQueue,
     };
 
-    use super::{UPLOAD_STALE_AFTER, reconcile_attachment_messages};
+    use super::{UPLOAD_STALE_AFTER, recover_interrupted_attachment_uploads};
 
     /// Stores a chat with one unsent message and an attachment in the state a
     /// kill at the given point of the upload leaves behind.
@@ -155,7 +155,7 @@ mod tests {
         let (message, attachment_id) =
             unsent_attachment_message(&db, AttachmentStatus::Ready, Utc::now()).await?;
 
-        reconcile_attachment_messages(&db).await?;
+        recover_interrupted_attachment_uploads(&db).await?;
 
         assert_eq!(queued_message_ids(&db).await?, vec![message.id()]);
         assert_eq!(
@@ -180,7 +180,7 @@ mod tests {
         })
         .await?;
 
-        reconcile_attachment_messages(&db).await?;
+        recover_interrupted_attachment_uploads(&db).await?;
 
         assert_eq!(queued_message_ids(&db).await?, vec![message.id()]);
 
@@ -192,10 +192,11 @@ mod tests {
     #[sqlx::test]
     async fn abandoned_upload_is_marked_as_failed(pool: SqlitePool) -> anyhow::Result<()> {
         let db = DbAccess::for_tests(pool);
+        let abandoned_at = Utc::now() - UPLOAD_STALE_AFTER - chrono::Duration::minutes(1);
         let (_, attachment_id) =
-            unsent_attachment_message(&db, AttachmentStatus::Uploading, abandoned_at()).await?;
+            unsent_attachment_message(&db, AttachmentStatus::Uploading, abandoned_at).await?;
 
-        reconcile_attachment_messages(&db).await?;
+        recover_interrupted_attachment_uploads(&db).await?;
 
         assert_eq!(
             stored_status(&db, attachment_id).await?,
@@ -207,15 +208,15 @@ mod tests {
         Ok(())
     }
 
-    /// An upload still running in the share extension does not hold the global
-    /// lock, so a fresh record must survive the pass.
+    /// An upload still running in the iOS share extension does not hold the
+    /// global lock, so a fresh record must survive the pass.
     #[sqlx::test]
     async fn running_upload_is_left_alone(pool: SqlitePool) -> anyhow::Result<()> {
         let db = DbAccess::for_tests(pool);
         let (_, attachment_id) =
             unsent_attachment_message(&db, AttachmentStatus::Uploading, Utc::now()).await?;
 
-        reconcile_attachment_messages(&db).await?;
+        recover_interrupted_attachment_uploads(&db).await?;
 
         assert_eq!(
             stored_status(&db, attachment_id).await?,
@@ -243,7 +244,7 @@ mod tests {
         })
         .await?;
 
-        reconcile_attachment_messages(&db).await?;
+        recover_interrupted_attachment_uploads(&db).await?;
 
         assert!(queued_message_ids(&db).await?.is_empty());
 

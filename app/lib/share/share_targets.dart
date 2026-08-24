@@ -5,12 +5,9 @@
 import 'dart:io';
 
 import 'package:air/core/core.dart';
-import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('ShareTargets');

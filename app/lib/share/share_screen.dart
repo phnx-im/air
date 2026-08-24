@@ -320,9 +320,9 @@ class _SignedOutView extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.all(S.s24),
-      // A share extension can reach its host app only through a registered
-      // URL scheme, which we do not want to expose app-wide for a single
-      // button. So the message is all there is.
+      // An iOS share extension can reach its host app only through a
+      // registered URL scheme, which we do not want to expose app-wide for a
+      // single button. So the message is all there is.
       child: Text(
         loc.shareScreen_signedOutMessage,
         textAlign: TextAlign.center,

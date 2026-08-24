@@ -372,7 +372,7 @@ impl OutboundServiceContext {
                 // Advance the last-read marker to the DS timestamp, but only
                 // if the message was already marked as read when it was
                 // enqueued. A send that left the marker untouched (e.g. from
-                // the share extension) must not move it here either.
+                // the iOS share extension) must not move it here either.
                 // Deletions never move it.
                 let last_read = Chat::load_watermark(&mut *txn, message.chat_id())
                     .await?

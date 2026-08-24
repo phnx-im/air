@@ -302,7 +302,7 @@ impl AttachmentRecord {
     ///
     /// A running upload does not hold the global lock, so only uploads too old
     /// to still be in flight are reported.
-    pub(crate) async fn load_stale_uploading(
+    pub(crate) async fn load_stale_uploading_attachments(
         mut connection: impl ReadConnection,
         stale_before: DateTime<Utc>,
     ) -> sqlx::Result<Vec<AttachmentId>> {

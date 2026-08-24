@@ -375,9 +375,9 @@ impl ChatDetailsCubitBase {
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         // The attachment may have uploaded successfully and only be
-        // displayed as failed (e.g. shared from the share extension). There is
-        // nothing to upload again; the outbound service reconciliation hands
-        // the message over for sending.
+        // displayed as failed (e.g. shared from the iOS share extension).
+        // There is nothing to upload again; the outbound service's recovery
+        // pass hands the message over for sending.
         if let Some(AttachmentStatus::Ready) = self
             .context
             .core_user
