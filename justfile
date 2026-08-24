@@ -52,7 +52,7 @@ check-cargo-deny:
 
 [group('check')]
 check-cargo-machete:
-    cargo machete
+    cargo machete --with-metadata
 
 [group('check')]
 check-dart:

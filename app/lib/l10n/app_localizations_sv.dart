@@ -167,7 +167,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Välj en chatt för att börja skicka meddelanden';
 
   @override
-  String get removeUserDialog_title => 'Ta bort användare';
+  String get removeUserDialog_title => 'Ta bort medlem';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -175,7 +175,7 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Ta bort användare';
+  String get removeUserDialog_removeUser => 'Ta bort medlem';
 
   @override
   String get removeUserButton_text => 'Ta bort';

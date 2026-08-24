@@ -18,7 +18,10 @@
 	<array>
 		<string>en</string>
 		<string>de</string>
+		<string>es</string>
 		<string>fr</string>
+		<string>pt</string>
+		<string>pt-PT</string>
 		<string>sv</string>
 	</array>
 	<key>CFBundleName</key>

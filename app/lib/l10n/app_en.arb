@@ -213,7 +213,7 @@
     "description": "Placeholder in the chat pane on large screens when no chat is selected."
   },
 
-  "removeUserDialog_title": "Remove user",
+  "removeUserDialog_title": "Remove member",
   "@removeUserDialog_title": {
     "description": "Title of the dialog confirming removal of a member from a group."
   },
@@ -226,7 +226,7 @@
       }
     }
   },
-  "removeUserDialog_removeUser": "Remove user",
+  "removeUserDialog_removeUser": "Remove member",
   "@removeUserDialog_removeUser": {
     "description": "Confirming button of the remove member dialog."
   },
@@ -1052,7 +1052,7 @@
   },
   "timestamp_minutesAgo": "{count}m",
   "@timestamp_minutesAgo": {
-    "description": "Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.",
+    "description": "Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the locale's standard minutes abbreviation allows.",
     "placeholders": {
       "count": {
         "type": "int"
