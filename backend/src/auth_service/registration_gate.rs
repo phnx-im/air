@@ -406,6 +406,7 @@ struct Counts {
 
 /// Whether any window of a counter reached its limit.
 fn reached(thresholds: &[RegistrationThreshold], counts: &[u64]) -> bool {
+    debug_assert_eq!(thresholds.len(), counts.len());
     thresholds
         .iter()
         .zip(counts)
