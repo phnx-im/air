@@ -24,7 +24,10 @@ use airbackend::{
     relay_service::Rs,
     settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
-use aircommon::{identifiers::Fqdn, messages::push_token::PushToken};
+use aircommon::{
+    identifiers::Fqdn,
+    messages::push_token::{PushToken, PushTokenOperator},
+};
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
     configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
@@ -70,6 +73,10 @@ struct LoopbackChallengeSender {
 
 #[async_trait]
 impl ChallengeSender for LoopbackChallengeSender {
+    fn supports(&self, _operator: &PushTokenOperator) -> bool {
+        true
+    }
+
     async fn send_challenge(
         &self,
         _push_token: &PushToken,

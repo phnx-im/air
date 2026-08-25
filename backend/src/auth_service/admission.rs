@@ -42,6 +42,9 @@ const MAX_PUSH_TOKEN_LEN: usize = 512;
 /// Sends an admission challenge to a push endpoint.
 #[async_trait]
 pub trait ChallengeSender: fmt::Debug + Send + Sync + 'static {
+    /// Whether this sender supports the given push token operator.
+    fn supports(&self, operator: &PushTokenOperator) -> bool;
+
     /// Sends `challenge` to the endpoint. The challenge is dropped after
     /// `expires_at`.
     async fn send_challenge(
@@ -103,6 +106,10 @@ impl AuthService {
         let sender = self.challenge_sender()?.clone();
         let settings = &self.registration_gate().settings().admission;
         validate_push_token(push_token.token())?;
+
+        if !sender.supports(push_token.operator()) {
+            return Err(AdmissionError::Unavailable);
+        }
 
         let platform = platform_label(push_token.operator());
         let bucket = self.endpoint_bucket(&push_token);
@@ -474,7 +481,8 @@ mod test {
 
     use super::*;
 
-    /// Keeps what it was asked to deliver instead of delivering it.
+    /// Keeps what it was asked to deliver instead of delivering it. Has
+    /// credentials for Apple only, like a deployment with one push platform.
     #[derive(Debug, Default)]
     struct Loopback {
         sent: Mutex<Vec<String>>,
@@ -495,6 +503,10 @@ mod test {
 
     #[async_trait]
     impl ChallengeSender for Loopback {
+        fn supports(&self, operator: &PushTokenOperator) -> bool {
+            matches!(operator, PushTokenOperator::Apple)
+        }
+
         async fn send_challenge(
             &self,
             _push_token: &PushToken,
@@ -807,6 +819,29 @@ mod test {
             let result = service.create_admission_session(push_token(token)).await;
             assert!(matches!(result, Err(AdmissionError::InvalidPushToken)));
         }
+
+        Ok(())
+    }
+
+    /// The client falls back at once instead of waiting for a challenge that
+    /// cannot be sent.
+    #[sqlx::test]
+    async fn an_unsupported_platform_is_turned_down(pool: PgPool) -> anyhow::Result<()> {
+        let (service, sender) = service(&pool, 2, 10).await;
+
+        let result = service
+            .create_admission_session(PushToken::new(
+                PushTokenOperator::Google,
+                "fcm-token".to_owned(),
+            ))
+            .await;
+
+        assert!(matches!(result, Err(AdmissionError::Unavailable)));
+        assert!(sender.challenges().is_empty());
+        let sessions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admission_session")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(sessions, 0);
 
         Ok(())
     }

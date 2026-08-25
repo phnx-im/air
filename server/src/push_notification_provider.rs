@@ -608,6 +608,13 @@ impl PushNotificationProvider for ProductionPushNotificationProvider {
 
 #[async_trait]
 impl ChallengeSender for ProductionPushNotificationProvider {
+    fn supports(&self, operator: &PushTokenOperator) -> bool {
+        match operator {
+            PushTokenOperator::Apple => self.apns_state.is_some(),
+            PushTokenOperator::Google => self.fcm_state.is_some(),
+        }
+    }
+
     async fn send_challenge(
         &self,
         push_token: &PushToken,
