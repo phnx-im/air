@@ -1840,7 +1840,7 @@
     "description": "Explains that picking a skin tone here sets the default for future reactions."
   },
 
-  "shareBanner_chooseChat": "Choose a chat to share into",
+  "shareBanner_chooseChat": "Send to…",
   "@shareBanner_chooseChat": {
     "description": "Banner on the chat list while shared content waits for a destination chat (Android). Tapping a chat stages the content there."
   },

@@ -436,6 +436,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Object dco_decode_DartOpaque(dynamic raw);
 
   @protected
+  Map<ChatId, List<UiUserId>> dco_decode_Map_chat_id_list_ui_user_id_None(
+    dynamic raw,
+  );
+
+  @protected
   Map<int, DebugCapabilities> dco_decode_Map_u_32_debug_capabilities_None(
     dynamic raw,
   );
@@ -1007,6 +1012,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RangedInlineElement> dco_decode_list_ranged_inline_element(dynamic raw);
 
   @protected
+  List<(ChatId, List<UiUserId>)> dco_decode_list_record_chat_id_list_ui_user_id(
+    dynamic raw,
+  );
+
+  @protected
   List<(int, DebugCapabilities)> dco_decode_list_record_u_32_debug_capabilities(
     dynamic raw,
   );
@@ -1293,6 +1303,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RangedInlineElement dco_decode_ranged_inline_element(dynamic raw);
+
+  @protected
+  (ChatId, List<UiUserId>) dco_decode_record_chat_id_list_ui_user_id(
+    dynamic raw,
+  );
 
   @protected
   (int, DebugCapabilities) dco_decode_record_u_32_debug_capabilities(
@@ -1738,6 +1753,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Object sse_decode_DartOpaque(SseDeserializer deserializer);
+
+  @protected
+  Map<ChatId, List<UiUserId>> sse_decode_Map_chat_id_list_ui_user_id_None(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Map<int, DebugCapabilities> sse_decode_Map_u_32_debug_capabilities_None(
@@ -2427,6 +2447,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<(ChatId, List<UiUserId>)> sse_decode_list_record_chat_id_list_ui_user_id(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<(int, DebugCapabilities)> sse_decode_list_record_u_32_debug_capabilities(
     SseDeserializer deserializer,
   );
@@ -2801,6 +2826,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RangedInlineElement sse_decode_ranged_inline_element(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (ChatId, List<UiUserId>) sse_decode_record_chat_id_list_ui_user_id(
     SseDeserializer deserializer,
   );
 
@@ -3342,6 +3372,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_DartOpaque(Object self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_Map_chat_id_list_ui_user_id_None(
+    Map<ChatId, List<UiUserId>> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_Map_u_32_debug_capabilities_None(
@@ -4181,6 +4217,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_record_chat_id_list_ui_user_id(
+    List<(ChatId, List<UiUserId>)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_record_u_32_debug_capabilities(
     List<(int, DebugCapabilities)> self,
     SseSerializer serializer,
@@ -4651,6 +4693,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ranged_inline_element(
     RangedInlineElement self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_chat_id_list_ui_user_id(
+    (ChatId, List<UiUserId>) self,
     SseSerializer serializer,
   );
 

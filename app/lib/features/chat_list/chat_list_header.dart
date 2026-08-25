@@ -26,9 +26,6 @@ class ChatListHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final tokens = ListHeaderTokens.current;
-
-    // A pending share turns the list into a destination picker, so the
-    // compose menu is hidden until the share is staged or dropped.
     final sharePending = context.select(
       (AndroidShareCubit cubit) => cubit.state != null,
     );

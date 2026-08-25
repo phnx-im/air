@@ -1331,7 +1331,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Sets your default skin tone';
 
   @override
-  String get shareBanner_chooseChat => 'Choose a chat to share into';
+  String get shareBanner_chooseChat => 'Send to…';
 
   @override
   String get shareScreen_title => 'Share to Air';

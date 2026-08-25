@@ -2349,7 +2349,7 @@ abstract class AppLocalizations {
   /// Banner on the chat list while shared content waits for a destination chat (Android). Tapping a chat stages the content there.
   ///
   /// In en, this message translates to:
-  /// **'Choose a chat to share into'**
+  /// **'Send to…'**
   String get shareBanner_chooseChat;
 
   /// Title of the screen that receives content shared from another app.

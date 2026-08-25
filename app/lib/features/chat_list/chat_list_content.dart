@@ -29,6 +29,7 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/haptics.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
@@ -85,8 +86,11 @@ class ChatListContent extends HookWidget {
         final isLast = index == chatIds.length - 1;
         return BlocProvider(
           key: ValueKey(chatId),
-          create: (context) =>
-              ChatListItemCubit(repository: context.read(), chatId: chatId),
+          create: (context) => ChatListItemCubit(
+            repository: context.read(),
+            chatId: chatId,
+            withMembers: true,
+          ),
           child: _ListTile(
             chatId: chatId,
             nextChatId: isLast ? null : chatIds[index + 1],
@@ -150,10 +154,13 @@ class _ListTile extends StatelessWidget {
         (!context.breakpoint.isSmall &&
             (isActive || currentChatId == nextChatId));
 
-    final chat = context.select((ChatListItemCubit cubit) => cubit.state.chat);
+    final (chat, members) = context.select(
+      (ChatListItemCubit cubit) => (cubit.state.chat, cubit.state.members),
+    );
 
     return _ChatRow(
       chat: chat,
+      members: members,
       isActive: isActive,
       hideSeparator: hideSeparator,
       onTap: () => context.read<NavigationCubit>().openChat(chatId),
@@ -247,6 +254,7 @@ class _ListTile extends StatelessWidget {
 class _ChatRow extends StatelessWidget {
   const _ChatRow({
     required this.chat,
+    this.members,
     required this.isActive,
     required this.hideSeparator,
     required this.onTap,
@@ -254,6 +262,7 @@ class _ChatRow extends StatelessWidget {
   });
 
   final UiChatDetails chat;
+  final List<UiUserId>? members;
   final bool isActive;
   final bool hideSeparator;
   final VoidCallback onTap;
@@ -273,9 +282,19 @@ class _ChatRow extends StatelessWidget {
 
     final isBlocked = chat.status == const UiChatStatus.blocked();
 
+    final sharePending = context.select(
+      (AndroidShareCubit cubit) => cubit.state != null,
+    );
+
     final Widget? preview;
     if (isBlocked) {
       preview = const _BlockedPreview();
+    } else if (sharePending) {
+      preview = _GroupParticipantNames.maybeBuild(
+        chat: chat,
+        members: members,
+        ownClientId: ownId,
+      );
     } else if (ownId != null) {
       preview = _LastMessage(chat: chat, ownClientId: ownId);
     } else {
@@ -292,9 +311,9 @@ class _ChatRow extends StatelessWidget {
               color: palette.text.tertiary,
             )
           : null,
-      timestamp: _LastUpdated(chat: chat),
+      timestamp: sharePending ? null : _LastUpdated(chat: chat),
       preview: preview,
-      trailing: isBlocked || ownId == null
+      trailing: isBlocked || ownId == null || sharePending
           ? null
           : _TrailingIndicator(ownClientId: ownId),
       isActive: isActive,
@@ -507,6 +526,52 @@ class _LastMessage extends StatelessWidget {
           TextSpan(text: prefix, style: prefixStyle),
           TextSpan(text: suffix, style: previewStyle),
         ],
+      ),
+      maxLines: 2,
+      softWrap: true,
+      overflow: .ellipsis,
+    );
+  }
+}
+
+/// Group members, comma separated, own name excluded. Stands in for
+/// [_LastMessage] while an Android share is pending, so the row reads as a
+/// share destination rather than a conversation.
+class _GroupParticipantNames extends HookWidget {
+  const _GroupParticipantNames({
+    required this.members,
+    required this.ownClientId,
+  });
+
+  final List<UiUserId>? members;
+  final UiUserId? ownClientId;
+
+  /// Returns null unless [chat] is a group chat.
+  static Widget? maybeBuild({
+    required UiChatDetails chat,
+    required List<UiUserId>? members,
+    required UiUserId? ownClientId,
+  }) {
+    debugPrint(members.toString());
+    if (chat.chatType is! UiChatType_Group) {
+      return null;
+    }
+    return _GroupParticipantNames(members: members, ownClientId: ownClientId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayNames = context.select(
+      (UsersCubit cubit) => [
+        for (final userId in members ?? [])
+          if (userId != ownClientId) cubit.state.displayName(userId: userId),
+      ],
+    );
+
+    return Text(
+      displayNames.join(", "),
+      style: typeScale.body.s.style(
+        color: SemanticPalette.of(context).text.tertiary,
       ),
       maxLines: 2,
       softWrap: true,

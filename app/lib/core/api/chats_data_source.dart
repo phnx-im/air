@@ -22,6 +22,9 @@ import 'user_cubit.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 abstract class ChatsDataSource implements RustOpaqueInterface {
+  /// Members of a chat, sorted.
+  Future<List<UiUserId>> chatParticipants({required ChatId chatId});
+
   Future<void> close();
 
   Future<AddUsernameContactError?> createContactChat({
@@ -59,11 +62,18 @@ class ChatsDelta {
 
   /// Only when ordering of chats changed.
   final List<ChatId>? order;
+  final Map<ChatId, List<UiUserId>> members;
 
-  const ChatsDelta({required this.upserted, required this.removed, this.order});
+  const ChatsDelta({
+    required this.upserted,
+    required this.removed,
+    this.order,
+    required this.members,
+  });
 
   @override
-  int get hashCode => upserted.hashCode ^ removed.hashCode ^ order.hashCode;
+  int get hashCode =>
+      upserted.hashCode ^ removed.hashCode ^ order.hashCode ^ members.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -72,5 +82,6 @@ class ChatsDelta {
           runtimeType == other.runtimeType &&
           upserted == other.upserted &&
           removed == other.removed &&
-          order == other.order;
+          order == other.order &&
+          members == other.members;
 }
