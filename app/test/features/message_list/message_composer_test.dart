@@ -10,11 +10,13 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -46,6 +48,7 @@ void main() {
   late MockChatDetailsCubit chatDetailsCubit;
   late MockMessageListCubit messageListCubit;
   late MockUserSettingsCubit userSettingsCubit;
+  late MockAndroidShareCubit androidShareCubit;
   late TextEditingController inputController;
 
   setUpAll(() async {
@@ -61,6 +64,7 @@ void main() {
     chatDetailsCubit = MockChatDetailsCubit();
     messageListCubit = MockMessageListCubit();
     userSettingsCubit = MockUserSettingsCubit();
+    androidShareCubit = MockAndroidShareCubit();
     // The composer owns the controller it is handed and disposes it, so the
     // test must not dispose it a second time.
     inputController = TextEditingController();
@@ -94,12 +98,16 @@ void main() {
   // test has to carry the very key `showSnackBarStandalone` reaches for.
   Widget buildSubject() => MultiBlocProvider(
     providers: [
+      RepositoryProvider<ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
+      ),
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: usersCubit),
       BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
       BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
     ],
     child: Builder(
       builder: (context) => MaterialApp(

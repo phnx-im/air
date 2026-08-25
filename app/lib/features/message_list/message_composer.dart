@@ -28,10 +28,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
+import 'package:air/share/share_cubit.dart';
 import 'package:air/share/share_targets.dart';
+import 'package:air/share/staged_share.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/platform/method_channel.dart'
@@ -68,6 +71,9 @@ class _MessageComposerState extends State<MessageComposer>
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
   bool _inputIsEmpty = true;
+  late final AndroidShareCubit _androidShareCubit;
+  StreamSubscription<StagedShare?>? _stagedShareSubscription;
+  bool _acceptUnaddressedShare = false;
   String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
@@ -121,10 +127,22 @@ class _MessageComposerState extends State<MessageComposer>
     // 2. In Reply To ID has changed (when user clicks reply on another message)
     UiMimiId? currentInReplyToId;
 
+    // A share without a destination goes to the chat the user opens from
+    // the chat list.
+    _androidShareCubit = context.read<AndroidShareCubit>();
+    final pendingShare = _androidShareCubit.state;
+    _acceptUnaddressedShare =
+        pendingShare != null && pendingShare.chatId == null;
+    _stagedShareSubscription = _androidShareCubit.stream.listen(
+      (_) => _maybeApplyStagedShare(),
+    );
+
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
       if (state.chat == null) {
         return;
       }
+
+      _maybeApplyStagedShare();
 
       // always request focus on chat draft loading on desktop
       bool requestFocus = DeviceType.isDesktop;
@@ -162,9 +180,73 @@ class _MessageComposerState extends State<MessageComposer>
     });
   }
 
+  /// Stages a share handed over from the Android share activity: the shared
+  /// text goes into the input field and the shared files run through the
+  /// regular attachment upload preview, one after the other, as if picked
+  /// in-app.
+  void _maybeApplyStagedShare() {
+    final chat = _chatDetailsCubit.state.chat;
+    if (chat == null || !mounted) {
+      return;
+    }
+    final share = _androidShareCubit.take(
+      chat.id,
+      acceptUnaddressed: _acceptUnaddressedShare,
+    );
+    if (share == null) {
+      return;
+    }
+    _acceptUnaddressedShare = false;
+    final text = share.text;
+    if (text != null && text.isNotEmpty) {
+      _inputController.text = text;
+    }
+    if (share.attachments.isNotEmpty) {
+      // Post-frame: the composer may still be mounting when the share is
+      // applied, and the preview pushes a route.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_stageSharedAttachments(share.attachments, chat.title));
+      });
+    }
+  }
+
+  /// Runs each shared file through the upload preview in turn. Backing out
+  /// of a preview drops that file and the remaining ones.
+  Future<void> _stageSharedAttachments(
+    List<UiSharedAttachment> attachments,
+    String chatTitle,
+  ) async {
+    for (var index = 0; index < attachments.length; index++) {
+      final attachment = attachments[index];
+      var uploaded = false;
+      if (mounted) {
+        uploaded = await _navigateToUploadPreview(
+          context,
+          XFile(attachment.path, mimeType: attachment.mimeType),
+          isTempFile: true,
+          chatTitle: chatTitle,
+        );
+      }
+      if (!uploaded) {
+        // An uploaded file is deleted by the preview's temp-file handling,
+        // a dropped one and the not yet previewed rest are deleted here.
+        for (final dropped in attachments.sublist(index)) {
+          try {
+            await File(dropped.path).delete();
+          } catch (e) {
+            _log.warning("Failed to delete dropped share file: $e");
+          }
+        }
+        return;
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+
+    _stagedShareSubscription?.cancel();
 
     _storeDraftDebouncer.dispose();
 
@@ -367,9 +449,12 @@ class _MessageComposerState extends State<MessageComposer>
       await chatDetailsCubit.sendMessage(messageText);
       final chatId = chatDetailsCubit.state.chat?.id;
       if (chatId != null && mounted) {
+        final userCubit = context.read<UserCubit>();
+        final chatsRepository = context.read<ChatsRepository>();
         unawaited(
-          donateShareTarget(
-            userCubit: context.read<UserCubit>(),
+          publishShareTarget(
+            userCubit: userCubit,
+            chatsRepository: chatsRepository,
             chatId: chatId,
           ),
         );
@@ -530,21 +615,26 @@ class _MessageComposerState extends State<MessageComposer>
     );
   }
 
-  Future<void> _navigateToUploadPreview(
+  /// Returns whether the user confirmed the upload, as opposed to backing
+  /// out of the preview.
+  Future<bool> _navigateToUploadPreview(
     BuildContext context,
     XFile file, {
     bool isTempFile = false,
     required String chatTitle,
-  }) {
+  }) async {
     final cubit = context.read<ChatDetailsCubit>();
     final userCubit = context.read<UserCubit>();
+    final chatsRepository = context.read<ChatsRepository>();
 
-    return Navigator.of(context).push(
+    var uploaded = false;
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AttachmentUploadView(
           title: chatTitle,
           file: file,
           onUpload: () async {
+            uploaded = true;
             try {
               final error = await cubit.uploadAttachment(file.path);
               switch (error) {
@@ -567,7 +657,11 @@ class _MessageComposerState extends State<MessageComposer>
                   final chatId = cubit.state.chat?.id;
                   if (chatId != null) {
                     unawaited(
-                      donateShareTarget(userCubit: userCubit, chatId: chatId),
+                      publishShareTarget(
+                        userCubit: userCubit,
+                        chatsRepository: chatsRepository,
+                        chatId: chatId,
+                      ),
                     );
                   }
                   break;
@@ -588,6 +682,7 @@ class _MessageComposerState extends State<MessageComposer>
         ),
       ),
     );
+    return uploaded;
   }
 
   void _onTextChanged() {

@@ -12,6 +12,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -26,11 +27,16 @@ class ChatListHeader extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final tokens = ListHeaderTokens.current;
 
+    // A pending share turns the list into a destination picker, so the
+    // compose menu is hidden until the share is staged or dropped.
+    final sharePending = context.select(
+      (AndroidShareCubit cubit) => cubit.state != null,
+    );
     return ListHeader(
       tokens: tokens,
-      title: loc.homeTab_chats,
+      title: sharePending ? loc.shareBanner_chooseChat : loc.homeTab_chats,
       scrollOffset: scrollOffset,
-      leading: _ComposeButton(tokens: tokens),
+      leading: sharePending ? null : _ComposeButton(tokens: tokens),
     );
   }
 }

@@ -68,7 +68,8 @@ class ConversationNotification {
   /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
   final String newestTimestamp;
 
-  /// The group picture for group chats, absent for 1:1 chats
+  /// The chat's avatar: the group picture for a group chat, the
+  /// counterpart's profile picture for a 1:1 chat
   ///
   /// Base64 on JNI JSON path
   final Uint8List? chatAvatar;

@@ -137,7 +137,8 @@ sealed class UiShareSendStatus with _$UiShareSendStatus {
 
 /// A chat published to the OS as a direct share target
 ///
-/// Donated to the share sheet as an `INSendMessageIntent`.
+/// Published as a sharing shortcut on Android and as an
+/// `INSendMessageIntent` donation on iOS.
 class UiShareTarget {
   final ChatId chatId;
   final String title;

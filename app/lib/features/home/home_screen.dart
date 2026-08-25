@@ -15,6 +15,7 @@ import 'package:air/features/you/you_pane.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/resizable_panel/resizable_panel.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:provider/provider.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -44,6 +45,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
         IntroState() => HomeTab.chats,
       },
     );
+    final sharePending = context.select(
+      (AndroidShareCubit cubit) => cubit.state != null,
+    );
 
     return Stack(
       children: [
@@ -64,15 +68,16 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             },
           ),
         ),
-        const Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          // The boundary keeps the bar out of the route's layer, which is
-          // re-recorded during scrolling; without it the whole pill repaints
-          // on every scroll frame.
-          child: RepaintBoundary(child: AppTabBar()),
-        ),
+        if (!sharePending)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            // The boundary keeps the bar out of the route's layer, which is
+            // re-recorded during scrolling; without it the whole pill
+            // repaints on every scroll frame.
+            child: RepaintBoundary(child: AppTabBar()),
+          ),
       ],
     );
   }

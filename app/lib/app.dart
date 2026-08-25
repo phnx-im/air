@@ -21,7 +21,9 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:air/share/share_targets.dart';
+import 'package:air/share/staged_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -60,6 +62,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
   late final StreamSubscription<ChatId> _openedNotificationSubscription;
+  final StreamController<StagedShare> _sharedIntoChatController =
+      StreamController<StagedShare>();
+  late final StreamSubscription<StagedShare> _sharedIntoChatSubscription;
+  final AndroidShareCubit _androidShareCubit = AndroidShareCubit();
   final NavigationCubit _navigationCubit = NavigationCubit(
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
@@ -74,17 +80,37 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    initMethodChannel(_openedNotificationController.sink);
+    initMethodChannel(
+      _openedNotificationController.sink,
+      _sharedIntoChatController.sink,
+    );
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
+    _sharedIntoChatSubscription = _sharedIntoChatController.stream.listen((
+      share,
+    ) {
+      // Staged before navigating, so the composer finds the share when the
+      // chat mounts.
+      _androidShareCubit.stage(share);
+      _appRouter.dismissOverlays();
+      final chatId = share.chatId;
+      if (chatId != null) {
+        _navigationCubit.openChat(chatId);
+      } else {
+        // No direct share target chose a destination: the user picks it
+        // from the chat list, which shows a banner while a share pends.
+        _navigationCubit.openHome();
+      }
+    });
 
-    // Fetch potential initial notification that launched the app on Android
-    // cold start.
+    // Fetch potential initial notification or share handoff that launched
+    // the app on Android cold start.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
+    unawaited(consumeInitialShare(_sharedIntoChatController.sink));
 
     _backgroundService.start(runImmediately: true);
   }
@@ -94,6 +120,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _openedNotificationSubscription.cancel();
     _openedNotificationController.close();
+    _sharedIntoChatSubscription.cancel();
+    _sharedIntoChatController.close();
+    _androidShareCubit.close();
     _backgroundService.stop();
     super.dispose();
   }
@@ -194,6 +223,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       providers: [
         Provider.value(value: _coreClient),
         BlocProvider<NavigationCubit>.value(value: _navigationCubit),
+        BlocProvider<AndroidShareCubit>.value(value: _androidShareCubit),
         BlocProvider<RegistrationCubit>(
           create: (context) => RegistrationCubit(coreClient: _coreClient),
         ),

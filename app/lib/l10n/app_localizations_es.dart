@@ -1358,6 +1358,9 @@ class AppLocalizationsEs extends AppLocalizations {
       'Define tu tono de piel predeterminado';
 
   @override
+  String get shareBanner_chooseChat => 'Elige un chat para compartir';
+
+  @override
   String get shareScreen_title => 'Compartir en Air';
 
   @override

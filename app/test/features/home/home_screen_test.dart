@@ -20,6 +20,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/you_pane.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 
 import '../chat/chat_screen_view_test.dart';
@@ -88,6 +89,7 @@ void main() {
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
         ],
         child: SDTFScope(
           child: Builder(

@@ -47,13 +47,19 @@ Future<void> publishShareTarget({
   required ChatsRepository chatsRepository,
   required ChatId chatId,
 }) {
-  if (!Platform.isAndroid) {
+  if (Platform.isAndroid) {
+    return _enqueueUpdate(
+      'publish share targets',
+      () => _publishShareTarget(userCubit, chatsRepository, chatId),
+    );
+  } else if (Platform.isIOS) {
+    return _enqueueUpdate(
+      'donate share target',
+      () => _donateIOSShareTarget(userCubit, chatId),
+    );
+  } else {
     return Future.value();
   }
-  return _enqueueUpdate(
-    'publish share targets',
-    () => _publishShareTarget(userCubit, chatsRepository, chatId),
-  );
 }
 
 Future<void> _publishShareTarget(
@@ -114,21 +120,6 @@ ChatId? _parseChatId(String id) {
   } on FormatException {
     return null;
   }
-}
-
-/// Donates the chat to the share sheet suggestions (iOS
-/// `INSendMessageIntent`).
-Future<void> donateIOSShareTarget({
-  required UserCubit userCubit,
-  required ChatId chatId,
-}) {
-  if (!Platform.isIOS) {
-    return Future.value();
-  }
-  return _enqueueUpdate(
-    'donate share target',
-    () => _donateIOSShareTarget(userCubit, chatId),
-  );
 }
 
 Future<void> _donateIOSShareTarget(UserCubit userCubit, ChatId chatId) async {

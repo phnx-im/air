@@ -384,6 +384,7 @@
   "emojiPicker_searchHint": "Pesquisar emoji",
   "emojiPicker_empty": "Nenhum emoji encontrado",
   "emojiPicker_skinToneHelp": "Define o teu tom de pele predefinido",
+  "shareBanner_chooseChat": "Escolhe um chat para partilhares",
   "shareScreen_title": "Partilhar no Air",
   "shareScreen_searchHint": "Pesquisar",
   "shareScreen_recipients": "{count, plural, =1 {Para: {first}} =2 {Para: {first} e {second}} other {Para: {first}, {second} e {third}}}",

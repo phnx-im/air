@@ -9,6 +9,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +55,7 @@ void main() {
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: contactsCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
         ],
         child: SDTFScope(
           child: Builder(

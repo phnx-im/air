@@ -3,12 +3,68 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:air/core/core.dart';
+import 'package:air/share/staged_share.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:logging/logging.dart';
 
-class ShareCubit implements StateStreamableSource<ShareState> {
-  ShareCubit({required String dbPath}) : _impl = ShareCubitBase(dbPath: dbPath);
+final _log = Logger('ShareCubit');
+
+/// Holds the share waiting to be staged in a chat's composer (Android share
+/// handoff). Runs in the main app, unlike [IOSShareCubit], which backs the
+/// share UI in the iOS share extension.
+///
+/// Single slot: a new share replaces an unconsumed one.
+class AndroidShareCubit extends Cubit<StagedShare?> {
+  AndroidShareCubit() : super(null);
+
+  void stage(StagedShare share) {
+    final previous = state;
+    emit(share);
+    if (previous != null) {
+      unawaited(_deleteFiles(previous.attachments));
+    }
+  }
+
+  /// Takes the pending share destined for [chatId], if any.
+  StagedShare? take(ChatId chatId, {bool acceptUnaddressed = false}) {
+    final share = state;
+    if (share == null) {
+      return null;
+    }
+    final destination = share.chatId;
+    if (destination != null ? destination != chatId : !acceptUnaddressed) {
+      return null;
+    }
+    emit(null);
+    return share;
+  }
+
+  /// Drops the pending share and deletes its extracted files.
+  void cancel() {
+    final share = state;
+    emit(null);
+    if (share != null) {
+      unawaited(_deleteFiles(share.attachments));
+    }
+  }
+
+  Future<void> _deleteFiles(List<UiSharedAttachment> attachments) async {
+    for (final attachment in attachments) {
+      try {
+        await File(attachment.path).delete();
+      } catch (e) {
+        _log.warning("Failed to delete dropped share file: $e");
+      }
+    }
+  }
+}
+
+class IOSShareCubit implements StateStreamableSource<ShareState> {
+  IOSShareCubit({required String dbPath})
+    : _impl = ShareCubitBase(dbPath: dbPath);
 
   final ShareCubitBase _impl;
 

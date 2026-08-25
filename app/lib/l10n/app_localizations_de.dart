@@ -1356,6 +1356,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
 
   @override
+  String get shareBanner_chooseChat =>
+      'Wähle einen Chat, in den du teilen möchtest';
+
+  @override
   String get shareScreen_title => 'Mit Air teilen';
 
   @override

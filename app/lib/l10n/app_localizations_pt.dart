@@ -1358,6 +1358,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Define seu tom de pele padrão';
 
   @override
+  String get shareBanner_chooseChat => 'Escolha um chat para compartilhar';
+
+  @override
   String get shareScreen_title => 'Compartilhar no Air';
 
   @override
@@ -2787,6 +2790,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define o teu tom de pele predefinido';
+
+  @override
+  String get shareBanner_chooseChat => 'Escolhe um chat para partilhares';
 
   @override
   String get shareScreen_title => 'Partilhar no Air';

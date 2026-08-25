@@ -385,6 +385,7 @@
   "emojiPicker_empty": "Inga emojier hittades",
   "emojiPicker_skinToneHelp": "Anger din standardhudton",
 
+  "shareBanner_chooseChat": "Välj en chatt att dela till",
   "shareScreen_title": "Dela till Air",
   "shareScreen_searchHint": "Sök",
   "shareScreen_recipients": "{count, plural, =1 {Till: {first}} =2 {Till: {first} och {second}} other {Till: {first}, {second} och {third}}}",

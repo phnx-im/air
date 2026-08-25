@@ -17,6 +17,8 @@ import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_cubit.dart';
+import 'package:air/share/staged_share.dart';
 import 'package:air/util/anchored_list/data.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -276,6 +278,9 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
+
+class MockAndroidShareCubit extends MockCubit<StagedShare?>
+    implements AndroidShareCubit {}
 
 /// A [chats_repository.ChatsRepository] serving a fixed set of chats.
 class FakeChatsRepository implements chats_repository.ChatsRepository {

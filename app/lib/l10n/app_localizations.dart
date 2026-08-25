@@ -2346,6 +2346,12 @@ abstract class AppLocalizations {
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
 
+  /// Banner on the chat list while shared content waits for a destination chat (Android). Tapping a chat stages the content there.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a chat to share into'**
+  String get shareBanner_chooseChat;
+
   /// Title of the screen that receives content shared from another app.
   ///
   /// In en, this message translates to:

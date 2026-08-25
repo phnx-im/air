@@ -1364,6 +1364,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Définit votre teinte de peau par défaut';
 
   @override
+  String get shareBanner_chooseChat =>
+      'Choisissez une conversation où partager';
+
+  @override
   String get shareScreen_title => 'Partager vers Air';
 
   @override
