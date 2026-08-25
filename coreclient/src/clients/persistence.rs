@@ -25,15 +25,140 @@ use super::store::{ClientRecord, ClientRecordState, UserCreationState};
 // `CurrentVersion` and the current version must be renamed to `VX`, where `X`
 // is the next version number. The content type of the old `CurrentVersion` must
 // be renamed and otherwise preserved to ensure backwards compatibility.
-#[derive(Serialize, Deserialize)]
+//
+// The codec keys variants by name, so every variant also pins the tag it reads
+// and writes. Renaming a variant without pinning its tag would orphan the rows
+// written under the old name.
+#[derive(Deserialize)]
 enum StorableUserCreationState {
+    #[serde(rename = "CurrentVersion")]
+    V1(v1::UserCreationState),
+    #[serde(rename = "V2")]
     CurrentVersion(UserCreationState),
 }
 
 // Only change this enum in tandem with its non-Ref variant.
 #[derive(Serialize)]
 enum StorableUserCreationStateRef<'a> {
+    #[serde(rename = "V2")]
     CurrentVersion(&'a UserCreationState),
+}
+
+/// The shapes the registration states had while the invitation code was stored
+/// alongside them.
+///
+/// A challenge response is short-lived, so it is passed through registration
+/// rather than persisted with it. A state written by an older client still
+/// decodes and its code is dropped: a registration that has not reached the AS
+/// yet asks for a challenge again.
+mod v1 {
+    use aircommon::{
+        credentials::{
+            AsIntermediateCredential, UserCredentialPayload, VerifiableUserCredential,
+            keys::PreliminaryUserSigningKey,
+        },
+        crypto::kdf::keys::RatchetSecret,
+        identifiers::UserId,
+        messages::{
+            client_as_out::EncryptedUserProfile,
+            push_token::{EncryptedPushToken, PushToken},
+        },
+    };
+    use serde::Deserialize;
+
+    use crate::{clients::create_user, key_stores::MemoryUserKeyStoreBase};
+
+    #[derive(Deserialize)]
+    pub(super) enum UserCreationState {
+        BasicUserData(BasicUserData),
+        InitialUserState(InitialUserState),
+        PostRegistrationInitState(PostAsRegistrationState),
+        UnfinalizedRegistrationState(create_user::UnfinalizedRegistrationState),
+        AsRegisteredUserState(create_user::AsRegisteredUserState),
+        QsRegisteredUserState(create_user::QsRegisteredUserState),
+        FinalUserState(create_user::PersistedUserState),
+    }
+
+    #[derive(Deserialize)]
+    pub(super) struct BasicUserData {
+        user_id: UserId,
+        push_token: Option<PushToken>,
+        #[expect(dead_code, reason = "decoded, then dropped")]
+        invitation_code: String,
+    }
+
+    #[derive(Deserialize)]
+    pub(super) struct InitialUserState {
+        #[serde(rename = "client_credential_payload")]
+        user_credential_payload: UserCredentialPayload,
+        as_intermediate_credential: AsIntermediateCredential,
+        encrypted_push_token: Option<EncryptedPushToken>,
+        encrypted_user_profile: EncryptedUserProfile,
+        key_store: MemoryUserKeyStoreBase<PreliminaryUserSigningKey>,
+        qs_initial_ratchet_secret: RatchetSecret,
+        #[expect(dead_code, reason = "decoded, then dropped")]
+        invitation_code: String,
+    }
+
+    #[derive(Deserialize)]
+    pub(super) struct PostAsRegistrationState {
+        initial_user_state: InitialUserState,
+        #[serde(rename = "client_credential")]
+        user_credential: VerifiableUserCredential,
+    }
+
+    impl From<UserCreationState> for super::UserCreationState {
+        fn from(state: UserCreationState) -> Self {
+            match state {
+                UserCreationState::BasicUserData(state) => Self::BasicUserData(state.into()),
+                UserCreationState::InitialUserState(state) => Self::InitialUserState(state.into()),
+                UserCreationState::PostRegistrationInitState(state) => {
+                    Self::PostRegistrationInitState(state.into())
+                }
+                UserCreationState::UnfinalizedRegistrationState(state) => {
+                    Self::UnfinalizedRegistrationState(state)
+                }
+                UserCreationState::AsRegisteredUserState(state) => {
+                    Self::AsRegisteredUserState(state)
+                }
+                UserCreationState::QsRegisteredUserState(state) => {
+                    Self::QsRegisteredUserState(state)
+                }
+                UserCreationState::FinalUserState(state) => Self::FinalUserState(state),
+            }
+        }
+    }
+
+    impl From<BasicUserData> for create_user::BasicUserData {
+        fn from(state: BasicUserData) -> Self {
+            Self {
+                user_id: state.user_id,
+                push_token: state.push_token,
+            }
+        }
+    }
+
+    impl From<InitialUserState> for create_user::InitialUserState {
+        fn from(state: InitialUserState) -> Self {
+            Self {
+                user_credential_payload: state.user_credential_payload,
+                as_intermediate_credential: state.as_intermediate_credential,
+                encrypted_push_token: state.encrypted_push_token,
+                encrypted_user_profile: state.encrypted_user_profile,
+                key_store: state.key_store,
+                qs_initial_ratchet_secret: state.qs_initial_ratchet_secret,
+            }
+        }
+    }
+
+    impl From<PostAsRegistrationState> for create_user::PostAsRegistrationState {
+        fn from(state: PostAsRegistrationState) -> Self {
+            Self {
+                initial_user_state: state.initial_user_state.into(),
+                user_credential: state.user_credential,
+            }
+        }
+    }
 }
 
 impl Type<Sqlite> for UserCreationState {
@@ -58,6 +183,7 @@ impl<'r> Decode<'r, Sqlite> for UserCreationState {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
         let state = PersistenceCodec::from_slice(bytes)?;
         match state {
+            StorableUserCreationState::V1(state) => Ok(state.into()),
             StorableUserCreationState::CurrentVersion(state) => Ok(state),
         }
     }
@@ -317,7 +443,6 @@ mod tests {
                 PushTokenOperator::Google,
                 "token".to_owned(),
             )),
-            invitation_code: "DUMMY007".to_owned(),
         })
     });
 
@@ -331,5 +456,62 @@ mod tests {
     #[test]
     fn user_creation_state_basic_json_codec() {
         insta::assert_json_snapshot!(&*USER_CREATION_STATE_BASIC);
+    }
+
+    #[test]
+    fn the_current_state_round_trips() {
+        let bytes = PersistenceCodec::to_vec(&StorableUserCreationStateRef::CurrentVersion(
+            &USER_CREATION_STATE_BASIC,
+        ))
+        .unwrap();
+
+        let decoded: StorableUserCreationState = PersistenceCodec::from_slice(&bytes).unwrap();
+
+        assert!(matches!(
+            decoded,
+            StorableUserCreationState::CurrentVersion(_)
+        ));
+    }
+
+    /// A state a client wrote while the invitation code was persisted with it
+    /// still decodes, and loses the code.
+    #[test]
+    fn a_v1_state_decodes_without_its_code() {
+        #[derive(Serialize)]
+        struct BasicUserDataV1<'a> {
+            user_id: &'a UserId,
+            push_token: Option<PushToken>,
+            invitation_code: &'a str,
+        }
+
+        #[derive(Serialize)]
+        enum UserCreationStateV1<'a> {
+            BasicUserData(BasicUserDataV1<'a>),
+        }
+
+        // The tag those clients wrote, which is what pins the V1 variant's
+        // rename.
+        #[derive(Serialize)]
+        enum StorableV1<'a> {
+            CurrentVersion(UserCreationStateV1<'a>),
+        }
+
+        let user_id = UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap());
+        let bytes = PersistenceCodec::to_vec(&StorableV1::CurrentVersion(
+            UserCreationStateV1::BasicUserData(BasicUserDataV1 {
+                user_id: &user_id,
+                push_token: None,
+                invitation_code: "DUMMY007",
+            }),
+        ))
+        .unwrap();
+
+        let decoded: StorableUserCreationState = PersistenceCodec::from_slice(&bytes).unwrap();
+        let StorableUserCreationState::V1(state) = decoded else {
+            panic!("a v1 state decoded as the current version");
+        };
+
+        let state: UserCreationState = state.into();
+        assert_eq!(state.user_id(), &user_id);
     }
 }

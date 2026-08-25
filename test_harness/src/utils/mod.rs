@@ -15,7 +15,7 @@ use airbackend::{
     ds::{Ds, storage::Storage},
     qs::Qs,
     relay_service::Rs,
-    settings::{DatabaseSettings, RateLimitsSettings},
+    settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -130,7 +130,7 @@ pub(crate) async fn spawn_app(
     let TestBackendParams {
         rate_limits,
         version_policy,
-        invitation_only,
+        registration,
         unredeemable_code,
         max_attachment_size,
     } = params;
@@ -204,8 +204,8 @@ pub(crate) async fn spawn_app(
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
-    let codes = if !invitation_only {
-        auth_service.disable_invitation_only();
+    // Any policy that can close the gate needs codes to answer it with.
+    let codes = if registration.policy == RegistrationPolicy::Open {
         Vec::new()
     } else {
         const N: usize = 10;
@@ -218,6 +218,7 @@ pub(crate) async fn spawn_app(
             .map(|(code, _)| code)
             .collect::<Vec<_>>()
     };
+    auth_service.set_registration_settings(registration);
     if let Some(code) = unredeemable_code {
         auth_service.set_unredeemable_code(code);
     }

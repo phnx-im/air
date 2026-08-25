@@ -7,6 +7,7 @@ use std::{
     path::PathBuf,
 };
 
+use aircommon::registration::ChallengeKind;
 use chrono::{DateTime, Duration, Utc};
 use semver::Version;
 use serde::Deserialize;
@@ -27,6 +28,8 @@ pub struct Settings {
     pub storage: Option<StorageSettings>,
     #[serde(default)]
     pub ratelimits: RateLimitsSettings,
+    #[serde(default)]
+    pub registration: RegistrationSettings,
 }
 
 /// Configuration for the application.
@@ -58,12 +61,6 @@ pub struct ApplicationSettings {
     ///
     /// This code can be used to register as many users as desired. Useful for testing.
     pub unredeemablecode: Option<String>,
-    /// Whether registration requires a valid invitation code.
-    ///
-    /// Defaults to `true`. Set to `false` to disable invitation codes entirely
-    /// and allow open registration.
-    #[serde(default = "default_true")]
-    pub invitationonly: bool,
 }
 
 /// A version expiration entry
@@ -238,6 +235,102 @@ impl Default for RateLimitsSettings {
     }
 }
 
+/// How registration is gated.
+///
+/// Field names carry no underscores, because environment overrides split on
+/// them (`AIR_REGISTRATION_POLICY`).
+#[derive(Debug, Deserialize, Clone)]
+pub struct RegistrationSettings {
+    #[serde(default)]
+    pub policy: RegistrationPolicy,
+    /// Challenge types a gated registration may answer with, in the order the
+    /// server verifies them.
+    #[serde(default = "default_challenges")]
+    pub challenges: Vec<ChallengeKind>,
+    /// Attempts at registration one client address bucket may make before the
+    /// gate closes for it, over independent windows. Any one of them closes the
+    /// gate, and an empty list never closes it.
+    #[serde(default = "default_perip_thresholds")]
+    pub perip: Vec<RegistrationThreshold>,
+    /// Challenge-free registrations the deployment may complete before the gate
+    /// closes for everyone, over independent windows. Any one of them closes
+    /// the gate, and an empty list never closes it.
+    #[serde(default = "default_total_thresholds")]
+    pub total: Vec<RegistrationThreshold>,
+}
+
+impl Default for RegistrationSettings {
+    fn default() -> Self {
+        Self {
+            policy: RegistrationPolicy::default(),
+            challenges: default_challenges(),
+            perip: default_perip_thresholds(),
+            total: default_total_thresholds(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RegistrationPolicy {
+    /// Registration never needs a challenge.
+    Open,
+    /// Registration needs a challenge once any threshold is reached.
+    Adaptive,
+    /// Registration always needs a challenge.
+    #[default]
+    Required,
+}
+
+/// A limit and the rolling window it applies to.
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct RegistrationThreshold {
+    pub limit: u64,
+    /// Required, because the two dimensions count over windows orders of
+    /// magnitude apart. A default here would hand a config that names only a
+    /// limit the wrong window.
+    #[serde(with = "duration_seconds")]
+    pub window: Duration,
+}
+
+fn default_challenges() -> Vec<ChallengeKind> {
+    vec![ChallengeKind::InvitationCode]
+}
+
+fn default_perip_thresholds() -> Vec<RegistrationThreshold> {
+    vec![
+        RegistrationThreshold {
+            limit: 3,
+            window: Duration::seconds(10),
+        },
+        RegistrationThreshold {
+            limit: 10,
+            window: Duration::hours(1),
+        },
+        RegistrationThreshold {
+            limit: 20,
+            window: Duration::days(1),
+        },
+    ]
+}
+
+fn default_total_thresholds() -> Vec<RegistrationThreshold> {
+    vec![
+        RegistrationThreshold {
+            limit: 100,
+            window: Duration::seconds(60),
+        },
+        RegistrationThreshold {
+            limit: 300,
+            window: Duration::hours(1),
+        },
+        RegistrationThreshold {
+            limit: 1000,
+            window: Duration::days(1),
+        },
+    ]
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct StoragePaths {
     /// Path prefix in the bucket for attachments
@@ -337,10 +430,6 @@ mod duration_millis {
 }
 
 fn default_require_content_length() -> bool {
-    true
-}
-
-fn default_true() -> bool {
     true
 }
 

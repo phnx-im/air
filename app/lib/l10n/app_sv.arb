@@ -49,9 +49,9 @@
   "blockedChatFooter_message": "Du får inga meddelanden från {displayName} förrän du avblockerar {displayName}.",
   "inactiveChatFooter_message": "Du är inte längre medlem i den här chatten.",
   "chatScreen_emptyChat": "Välj en chatt för att börja skicka meddelanden",
-  "removeUserDialog_title": "Ta bort användare",
+  "removeUserDialog_title": "Ta bort medlem",
   "removeUserDialog_content": "Är du säker på att du vill ta bort {displayName} från gruppen?",
-  "removeUserDialog_removeUser": "Ta bort användare",
+  "removeUserDialog_removeUser": "Ta bort medlem",
   "removeUserButton_text": "Ta bort",
   "blockContactButton_text": "Blockera",
   "blockContactDialog_title": "Blockera {displayName}?",
@@ -110,6 +110,9 @@
   "invitationCodesScreen_codeClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden {code}.",
   "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n\n{codes}",
 
+  "accountCreation_unsupported_header": "Uppdatering krävs",
+  "accountCreation_unsupported_body": "Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air för att fortsätta.",
+
   "signUpScreen_header": "Skapa din profil",
   "signUpScreen_subheader": "Din profil är synlig för personer du ansluter till och medlemmar i grupper du är med i. Air kräver ett visningsnamn, men en bild är valfri.",
   "signUpScreen_actionButton": "Skapa",
@@ -119,6 +122,7 @@
   "signUpScreen_serverHint": "DOMÄNNAMN",
   "signUpScreen_error_invalidDomain": "Domänen är ogiltig",
   "signUpScreen_error_emptyDisplayName": "Lägg till ett visningsnamn med minst ett tecken",
+  "signUpScreen_error_challengeRequired": "Den här servern kräver nu en inbjudningskod. Ange en för att fortsätta.",
   "signUpScreen_error_register": "Fel vid registrering av användare: {error}",
   "usernameOnboarding_header": "Lägg till ett användarnamn",
   "usernameOnboarding_body": "Användarnamn är hur man ansluter på Air. De är inte synliga för andra när du väl är ansluten.\n\nLägg till, ändra eller ta bort användarnamn när som helst i din profil.",
@@ -379,5 +383,22 @@
   "messageList_reactions_all": "Alla · {total}",
   "emojiPicker_searchHint": "Sök emoji",
   "emojiPicker_empty": "Inga emojier hittades",
-  "emojiPicker_skinToneHelp": "Anger din standardhudton"
+  "emojiPicker_skinToneHelp": "Anger din standardhudton",
+
+  "shareScreen_title": "Dela till Air",
+  "shareScreen_searchHint": "Sök",
+  "shareScreen_recipients": "{count, plural, =1 {Till: {first}} =2 {Till: {first} och {second}} other {Till: {first}, {second} och {third}}}",
+  "shareScreen_recipientsMore": "Till: {first}, {second} och {rest} till",
+  "shareScreen_captionHint": "Lägg till ett meddelande",
+  "shareScreen_signedOutMessage": "Logga in i Air först för att dela innehåll.",
+  "shareScreen_noChats": "Inga chattar hittades.",
+  "shareScreen_uploading": "Laddar upp {current} av {total}…",
+  "shareScreen_sending": "Skickar…",
+  "shareScreen_queued": "Det gick inte att skicka just nu. Ditt meddelande är sparat och skickas nästa gång du öppnar Air.",
+  "shareScreen_done": "Klar",
+  "shareScreen_sendFailed": "Det gick inte att skicka. Försök igen.",
+  "shareScreen_tooManyAttachments": "För många filer. Du kan dela upp till {max} filer åt gången.",
+  "shareScreen_droppedItems": "{count, plural, one {{count} objekt kunde inte delas.} other {{count} objekt kunde inte delas.}}",
+  "shareScreen_nothingToShare": "Det här innehållet kunde inte delas till Air.",
+  "shareScreen_close": "Stäng"
 }

@@ -10,10 +10,14 @@ use std::{
     time::Duration,
 };
 
-use airbackend::{settings::RateLimitsSettings, version::VersionPolicy};
+use airbackend::{
+    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
+    version::VersionPolicy,
+};
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
+    registration::RegistrationChallenge,
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
@@ -58,7 +62,7 @@ impl AsMut<CoreUser> for TestUser {
 
 impl TestUser {
     pub async fn new(user_id: &UserId, server_url: Url) -> Self {
-        let user = Self::try_new(user_id, server_url, "DUMMY007")
+        let user = Self::try_new(user_id, server_url, Some("DUMMY007"))
             .await
             .unwrap();
         // Run outbound service to upload KeyPackages
@@ -66,18 +70,15 @@ impl TestUser {
         user
     }
 
+    /// Registers a user, carrying an invitation code when one is given.
     pub async fn try_new(
         user_id: &UserId,
         server_url: Url,
-        invitation_code: &str,
+        invitation_code: Option<&str>,
     ) -> anyhow::Result<Self> {
-        let user = CoreUser::new_ephemeral(
-            user_id.clone(),
-            server_url,
-            None,
-            invitation_code.to_owned(),
-        )
-        .await?;
+        let challenge =
+            invitation_code.map(|code| RegistrationChallenge::InvitationCode(code.to_owned()));
+        let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None, challenge).await?;
 
         Ok(Self {
             user,
@@ -92,7 +93,7 @@ impl TestUser {
             Some(server_url),
             db_dir,
             None,
-            "DUMMY007".to_owned(),
+            Some(RegistrationChallenge::InvitationCode("DUMMY007".to_owned())),
         )
         .await
         .unwrap();
@@ -182,7 +183,7 @@ enum ServerUrl {
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
     pub version_policy: VersionPolicy,
-    pub invitation_only: bool,
+    pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
 }
@@ -204,7 +205,10 @@ impl Default for TestBackendParams {
         Self {
             rate_limits: None,
             version_policy: Default::default(),
-            invitation_only: false,
+            registration: RegistrationSettings {
+                policy: RegistrationPolicy::Open,
+                ..Default::default()
+            },
             unredeemable_code: None,
             max_attachment_size: 20 * 1024 * 1024,
         }
@@ -757,7 +761,7 @@ impl TestBackend {
         sender.fully_process_qs_messages(sender_qs_messages).await;
 
         sender
-            .send_message(chat_id, orig_message.clone(), None)
+            .send_message(chat_id, orig_message.clone(), None, MarkChatAsRead::Yes)
             .await
             .unwrap();
         sender.outbound_service().run_once().await;
@@ -858,7 +862,12 @@ impl TestBackend {
 
         test_sender
             .user
-            .send_message(chat_id, orig_message.clone(), Some(last_message.clone()))
+            .send_message(
+                chat_id,
+                orig_message.clone(),
+                Some(last_message.clone()),
+                MarkChatAsRead::Yes,
+            )
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
@@ -1000,7 +1009,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let (_local_attachment_id, _progress, upload_task) = sender
-            .upload_chat_attachment(chat_id, &path)
+            .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
             .await
             .expect("fatal error")?;
 

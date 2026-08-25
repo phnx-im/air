@@ -213,7 +213,7 @@
     "description": "Placeholder in the chat pane on large screens when no chat is selected."
   },
 
-  "removeUserDialog_title": "Remove user",
+  "removeUserDialog_title": "Remove member",
   "@removeUserDialog_title": {
     "description": "Title of the dialog confirming removal of a member from a group."
   },
@@ -226,7 +226,7 @@
       }
     }
   },
-  "removeUserDialog_removeUser": "Remove user",
+  "removeUserDialog_removeUser": "Remove member",
   "@removeUserDialog_removeUser": {
     "description": "Confirming button of the remove member dialog."
   },
@@ -510,6 +510,15 @@
     }
   },
 
+  "accountCreation_unsupported_header": "Update required",
+  "@accountCreation_unsupported_header": {
+    "description": "Header of the sign up step shown when the server asks for a kind of sign up check this version of the app cannot answer."
+  },
+  "accountCreation_unsupported_body": "This server asks for something this version of Air cannot provide. Update Air to continue.",
+  "@accountCreation_unsupported_body": {
+    "description": "Explains that sign up cannot continue until the app is updated. Shown only when none of the server's accepted challenge kinds are supported, so it must not suggest an invite code."
+  },
+
   "signUpScreen_header": "Create your profile",
   "@signUpScreen_header": {
     "description": "Header of the profile step during sign up."
@@ -545,6 +554,10 @@
   "signUpScreen_error_emptyDisplayName": "Add a display name of at least one character",
   "@signUpScreen_error_emptyDisplayName": {
     "description": "Validation error when the display name field is left empty."
+  },
+  "signUpScreen_error_challengeRequired": "This server now asks for an invite code. Enter one to carry on.",
+  "@signUpScreen_error_challengeRequired": {
+    "description": "Error shown when the server started requiring an invite code while the sign up form was open, and the flow returns to the code step."
   },
   "signUpScreen_error_register": "Error when registering user: {error}",
   "@signUpScreen_error_register": {
@@ -1052,7 +1065,7 @@
   },
   "timestamp_minutesAgo": "{count}m",
   "@timestamp_minutesAgo": {
-    "description": "Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.",
+    "description": "Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the locale's standard minutes abbreviation allows.",
     "placeholders": {
       "count": {
         "type": "int"
@@ -1825,5 +1838,113 @@
   "emojiPicker_skinToneHelp": "Sets your default skin tone",
   "@emojiPicker_skinToneHelp": {
     "description": "Explains that picking a skin tone here sets the default for future reactions."
+  },
+
+  "shareScreen_title": "Share to Air",
+  "@shareScreen_title": {
+    "description": "Title of the screen that receives content shared from another app."
+  },
+  "shareScreen_searchHint": "Search",
+  "@shareScreen_searchHint": {
+    "description": "Placeholder of the chat search field on the share screen."
+  },
+  "shareScreen_recipients": "{count, plural, =1 {To: {first}} =2 {To: {first} and {second}} other {To: {first}, {second} and {third}}}",
+  "@shareScreen_recipients": {
+    "description": "Line above the shared content naming the chats it is sent to. The last arm is reached with exactly three chats, as a longer list uses shareScreen_recipientsMore instead. Provide the plural forms your language needs.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      },
+      "third": {
+        "type": "String"
+      }
+    }
+  },
+  "shareScreen_recipientsMore": "To: {first}, {second} and {rest} more",
+  "@shareScreen_recipientsMore": {
+    "description": "The same line for more than three chats, naming two of them and counting the rest. The count is always two or more.",
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "second": {
+        "type": "String"
+      },
+      "rest": {
+        "type": "int"
+      }
+    }
+  },
+  "shareScreen_captionHint": "Add a message",
+  "@shareScreen_captionHint": {
+    "description": "Placeholder of the field for a message sent alongside the shared content."
+  },
+  "shareScreen_signedOutMessage": "Sign in to Air first to share content.",
+  "@shareScreen_signedOutMessage": {
+    "description": "Shown on the share screen when nobody is signed in yet."
+  },
+  "shareScreen_noChats": "No chats found.",
+  "@shareScreen_noChats": {
+    "description": "Shown when the chat search on the share screen matches nothing."
+  },
+  "shareScreen_uploading": "Uploading {current} of {total}…",
+  "@shareScreen_uploading": {
+    "description": "Progress while the shared files upload, counting the one in flight.",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "shareScreen_sending": "Sending…",
+  "@shareScreen_sending": {
+    "description": "Progress while the shared content is sent to the chosen chat."
+  },
+  "shareScreen_queued": "Couldn't send right now. Your message is saved and will be sent when you next open Air.",
+  "@shareScreen_queued": {
+    "description": "Shown when sharing could not finish and the message waits for the next app start."
+  },
+  "shareScreen_done": "Done",
+  "@shareScreen_done": {
+    "description": "Confirmation that the shared content reached the chat."
+  },
+  "shareScreen_sendFailed": "Failed to send. Try again.",
+  "@shareScreen_sendFailed": {
+    "description": "Shown when sharing failed and the person can retry."
+  },
+  "shareScreen_tooManyAttachments": "Too many files. You can share up to {max} files at once.",
+  "@shareScreen_tooManyAttachments": {
+    "description": "Shown when more files were shared than one message can carry.",
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "shareScreen_droppedItems": "{count, plural, one {{count} item couldn't be shared.} other {{count} items couldn't be shared.}}",
+  "@shareScreen_droppedItems": {
+    "description": "Notice on the share screen when the system handed over fewer items than were shared. Provide the plural forms your language needs.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareScreen_nothingToShare": "This content couldn't be shared to Air.",
+  "@shareScreen_nothingToShare": {
+    "description": "Shown on the share screen when none of the shared items could be read."
+  },
+  "shareScreen_close": "Close",
+  "@shareScreen_close": {
+    "description": "Button that dismisses the share screen after nothing could be shared."
   }
 }

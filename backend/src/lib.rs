@@ -8,6 +8,7 @@
 
 pub mod air_service;
 pub mod auth_service;
+pub mod client_ip;
 pub mod ds;
 pub(crate) mod errors;
 pub mod messages;

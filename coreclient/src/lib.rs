@@ -31,6 +31,7 @@ pub use crate::{
         reactions::LastReaction,
     },
     clients::{
+        MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentStatus, AttachmentUrl,
