@@ -36,7 +36,7 @@ mod welcome_info;
 pub const GROUP_STATE_EXPIRATION: Duration = Duration::days(90);
 
 /// How long the welcome information of an epoch is kept.
-pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(7);
+pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(90);
 
 #[derive(Debug, Clone)]
 pub struct Ds {
