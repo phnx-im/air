@@ -453,7 +453,10 @@ impl ProductionPushNotificationProvider {
 
         match status {
             StatusCode::OK => Ok(()),
-            StatusCode::GONE | StatusCode::BAD_REQUEST => Err(ChallengeSendError::EndpointRejected),
+            // A 400 also answers a misconfigured request, so the reason stays.
+            StatusCode::GONE | StatusCode::BAD_REQUEST => Err(
+                ChallengeSendError::EndpointRejected(format!("status {status}: {response}")),
+            ),
             s => Err(ChallengeSendError::NotAccepted(format!(
                 "status {s}: {response}"
             ))),
@@ -499,9 +502,10 @@ impl ProductionPushNotificationProvider {
 
         match status {
             StatusCode::OK => Ok(()),
-            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => {
-                Err(ChallengeSendError::EndpointRejected)
-            }
+            // A 400 also answers a malformed message, so the reason stays.
+            StatusCode::NOT_FOUND | StatusCode::BAD_REQUEST => Err(
+                ChallengeSendError::EndpointRejected(format!("status {status}: {response}")),
+            ),
             s => Err(ChallengeSendError::NotAccepted(format!(
                 "status {s}: {response}"
             ))),

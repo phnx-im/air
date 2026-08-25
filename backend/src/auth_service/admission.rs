@@ -61,8 +61,8 @@ pub trait ChallengeSender: fmt::Debug + Send + Sync + 'static {
 pub enum ChallengeSendError {
     #[error("no credentials are configured for this push platform")]
     PlatformUnavailable,
-    #[error("the push service does not know this endpoint")]
-    EndpointRejected,
+    #[error("the push service does not know this endpoint: {0}")]
+    EndpointRejected(String),
     #[error("the push service did not accept the challenge: {0}")]
     NotAccepted(String),
 }
@@ -71,7 +71,7 @@ impl ChallengeSendError {
     fn as_str(&self) -> &'static str {
         match self {
             Self::PlatformUnavailable => "platform_unavailable",
-            Self::EndpointRejected => "endpoint_rejected",
+            Self::EndpointRejected(_) => "endpoint_rejected",
             Self::NotAccepted(_) => "not_accepted",
         }
     }
