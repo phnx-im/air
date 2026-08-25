@@ -217,8 +217,9 @@ impl AuthService {
                 RegisterUserError::StorageError
             })?;
         if reached(quotas, &used) {
-            // The same answer a wrong challenge gets.
-            report_session(&platform, SendVerdict::QuotaExhausted.as_str());
+            // The same answer a wrong challenge gets. Labelled apart from the
+            // create-time verdict, which sends no challenge in the first place.
+            report_session(&platform, "spend_quota_exhausted");
             return Ok(ChallengeVerdict::Rejected);
         }
 
