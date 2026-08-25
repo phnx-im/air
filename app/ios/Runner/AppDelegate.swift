@@ -118,8 +118,9 @@ private let kProtectedBlockedCategory = "protected-blocked"
         guard let challenge = userInfo["challenge"] as? String,
             let sessionId = userInfo["sessionId"] as? String
         else {
-            // Not a challenge. FlutterAppDelegate has no implementation of this
-            // selector to defer to, so complete the fetch here.
+            // Not a challenge. FlutterAppDelegate only forwards this to plugins
+            // and never completes the fetch when none claims it, so complete
+            // it here.
             completionHandler(.noData)
             return
         }
