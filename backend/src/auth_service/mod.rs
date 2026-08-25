@@ -13,7 +13,6 @@ use credentials::{
     CredentialGenerationError, intermediate_signing_key::IntermediateSigningKey,
     signing_key::StorableSigningKey,
 };
-use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
@@ -29,6 +28,7 @@ use crate::{
     bucket_key::BucketKey,
     errors::StorageError,
     settings::RegistrationSettings,
+    version::VersionPolicy,
 };
 
 pub mod admission;
@@ -49,7 +49,7 @@ mod usernames;
 pub struct AuthService {
     db_pool: PgPool,
     pub(crate) username_queues: UsernameQueues,
-    client_version_req: Option<VersionReq>,
+    version_policy: VersionPolicy,
     registration_gate: RegistrationGate,
     endpoint_bucket_key: BucketKey,
     challenge_sender: Option<Arc<dyn ChallengeSender>>,
@@ -132,7 +132,7 @@ impl BackendService for AuthService {
     async fn initialize(
         db_pool: PgPool,
         domain: Fqdn,
-        client_version_req: Option<VersionReq>,
+        version_policy: VersionPolicy,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
@@ -141,7 +141,7 @@ impl BackendService for AuthService {
         let auth_service = Self {
             db_pool,
             username_queues,
-            client_version_req,
+            version_policy,
             registration_gate: RegistrationGate::new(RegistrationSettings::default(), bucket_key),
             endpoint_bucket_key,
             challenge_sender: None,

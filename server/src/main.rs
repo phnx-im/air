@@ -11,6 +11,7 @@ use airbackend::{
     qs::Qs,
     relay_service::Rs,
     settings::RegistrationPolicy,
+    version::VersionPolicy,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -20,6 +21,7 @@ use airserver::{
     qs_connector::SimpleEnqueueProvider, run, username_command::run_username_command,
 };
 use anyhow::{Context, bail};
+use chrono::Utc;
 use clap::Parser;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
@@ -66,11 +68,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Failed to bind");
 
-    let version_req = configuration.application.versionreq.as_ref();
+    let version_policy = VersionPolicy::new(configuration.application.version_expirations);
+    let min_version = version_policy.min_supported(Utc::now());
     info!(
         %domain,
         %listen_addr,
-        version_req =? version_req.map(|v| v.to_string()),
+        min_version =? min_version.map(|v| v.to_string()),
         "Starting server"
     );
     let network_provider = MockNetworkProvider::new();
@@ -85,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
     let mut ds_result = Ds::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await;
@@ -102,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
         ds_result = Ds::new(
             &configuration.database,
             domain.clone(),
-            version_req.cloned(),
+            version_policy.clone(),
             shutdown.clone(),
         )
         .await;
@@ -119,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let qs = Qs::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await
@@ -132,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await

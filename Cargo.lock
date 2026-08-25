@@ -154,6 +154,7 @@ name = "airbackend"
 version = "0.21.0"
 dependencies = [
  "aircommon",
+ "airmacros",
  "airprotos",
  "anyhow",
  "apqmls",
@@ -406,7 +407,6 @@ dependencies = [
  "mimi_content",
  "png",
  "rand 0.10.2",
- "semver",
  "sqlx",
  "tempfile",
  "tokio",
@@ -8879,7 +8879,9 @@ dependencies = [
  "askama",
  "camino",
  "cargo_metadata",
+ "chrono",
  "clap",
+ "config",
  "ignore",
  "regex",
  "semver",

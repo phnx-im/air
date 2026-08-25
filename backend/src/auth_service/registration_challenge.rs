@@ -146,7 +146,9 @@ mod test {
     use sqlx::PgPool;
     use tokio_util::sync::CancellationToken;
 
-    use crate::{air_service::BackendService, settings::RegistrationSettings};
+    use crate::{
+        air_service::BackendService, settings::RegistrationSettings, version::VersionPolicy,
+    };
 
     use super::*;
 
@@ -154,7 +156,7 @@ mod test {
         Ok(AuthService::initialize(
             pool.clone(),
             "example.com".parse()?,
-            None,
+            VersionPolicy::default(),
             CancellationToken::new(),
         )
         .await?)

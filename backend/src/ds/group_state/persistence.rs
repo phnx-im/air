@@ -171,7 +171,7 @@ mod test {
         let ds = Ds::new_from_pool(
             pool,
             "example.com".parse().unwrap(),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await
@@ -195,7 +195,7 @@ mod test {
         let ds = Ds::new_from_pool(
             pool,
             "example.com".parse().unwrap(),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await
@@ -284,7 +284,7 @@ mod test {
         let ds = Ds::new_from_pool(
             pool.clone(),
             "example.com".parse().unwrap(),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?;
@@ -302,7 +302,7 @@ mod test {
         let ds = Ds::new_from_pool(
             pool.clone(),
             "example.com".parse().unwrap(),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?;
@@ -329,7 +329,7 @@ mod test {
         let ds = Ds::new_from_pool(
             pool.clone(),
             "example.com".parse().unwrap(),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?;

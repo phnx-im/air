@@ -545,7 +545,7 @@ mod test {
         let mut service = AuthService::initialize(
             pool.clone(),
             "example.com".parse().expect("the test domain is a domain"),
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await
