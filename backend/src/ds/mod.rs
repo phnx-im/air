@@ -29,10 +29,14 @@ mod resync;
 mod self_remove;
 pub mod storage;
 mod update_user_profile_key;
+mod welcome_info;
 
 /// Number of days after its last use upon which a group state is considered
 /// expired.
 pub const GROUP_STATE_EXPIRATION: Duration = Duration::days(90);
+
+/// How long the welcome information of an epoch is kept.
+pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(90);
 
 #[derive(Debug, Clone)]
 pub struct Ds {
