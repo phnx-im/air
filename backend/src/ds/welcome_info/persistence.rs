@@ -100,6 +100,7 @@ mod test {
     use crate::{
         air_service::BackendService,
         ds::{Ds, group_state::StorableDsGroupData},
+        version::VersionPolicy,
     };
 
     use super::*;
@@ -118,7 +119,7 @@ mod test {
         Ok(Ds::new_from_pool(
             pool,
             "example.com".parse().unwrap(),
-            None,
+            VersionPolicy::default(),
             CancellationToken::new(),
         )
         .await?)

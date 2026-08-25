@@ -22,10 +22,10 @@ use aircommon::{
     utils::CancellableStream,
     virtual_client::KeyPackageBatchId,
 };
+use chrono::Utc;
 use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
-use semver::Version;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tonic::{Code, Request, Response, Status, Streaming, async_trait};
@@ -35,6 +35,7 @@ use crate::{
     errors::QueueError,
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
     util::{find_cause, select_until_first_ends},
+    version::VerifiedClientVersion,
 };
 
 /// Maximum number of key packages per batch to upload in one request.
@@ -114,9 +115,10 @@ impl GrpcQs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.qs.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+    ) -> Result<VerifiedClientVersion, Status> {
+        self.qs
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())
     }
 }
 
@@ -526,13 +528,15 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        let client_version = self.verify_client_version(
-            init_request
-                .payload
-                .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(init_request.client_metadata.as_ref()),
-        )?;
+        let client_version = self
+            .verify_client_version(
+                init_request
+                    .payload
+                    .as_ref()
+                    .and_then(|p| p.client_metadata.as_ref())
+                    .or(init_request.client_metadata.as_ref()),
+            )?
+            .version;
 
         let payload_bytes = init_request
             .payload

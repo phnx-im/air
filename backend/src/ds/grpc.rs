@@ -29,7 +29,7 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
-use chrono::TimeDelta;
+use chrono::{TimeDelta, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     group::Group,
@@ -576,8 +576,11 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.ds.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+        let verified = self
+            .ds
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())?;
+        Ok(verified.version)
     }
 }
 

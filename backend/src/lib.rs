@@ -18,6 +18,6 @@ pub mod rate_limiter;
 pub mod relay_service;
 pub mod settings;
 pub(crate) mod util;
-pub(crate) mod version;
+pub mod version;
 
 pub use mls_assist::messages::{AssistedGroupInfo, AssistedMessageOut};

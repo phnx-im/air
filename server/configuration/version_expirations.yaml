@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Client version expirations. All client versions below `older_than` stop
+# being accepted at `expires_on`, given as a date (YYYY-MM-DD, midnight UTC)
+# or an RFC 3339 timestamp. Re-running the tooling never extends an existing
+# entry.
+#
+# Managed by `cargo xtask cut-release`. Edit by hand only to postpone or
+# emergency-expire a version.
+application:
+  version_expirations: []

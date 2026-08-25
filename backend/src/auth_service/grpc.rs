@@ -186,8 +186,11 @@ impl GrpcAs {
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.inner.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+        let verified = self
+            .inner
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())?;
+        Ok(verified.version)
     }
 
     /// The challenge kinds this server verifies, on the wire.
@@ -973,7 +976,7 @@ mod tests {
         let service = AuthService::initialize(
             pool.clone(),
             "example.com".parse()?,
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?;

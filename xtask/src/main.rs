@@ -9,6 +9,7 @@ mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
 mod validate_l10n;
+mod version_expirations;
 
 use clap::{Parser, Subcommand};
 

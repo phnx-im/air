@@ -10,7 +10,10 @@ use std::{
     time::Duration,
 };
 
-use airbackend::settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings};
+use airbackend::{
+    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
+    version::VersionPolicy,
+};
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
@@ -24,7 +27,6 @@ use mimi_content::{
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
-use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet, spawn_blocking},
@@ -180,7 +182,7 @@ enum ServerUrl {
 #[derive(Debug)]
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
-    pub client_version_req: Option<VersionReq>,
+    pub version_policy: VersionPolicy,
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
@@ -202,7 +204,7 @@ impl Default for TestBackendParams {
     fn default() -> Self {
         Self {
             rate_limits: None,
-            client_version_req: None,
+            version_policy: Default::default(),
             registration: RegistrationSettings {
                 policy: RegistrationPolicy::Open,
                 ..Default::default()
