@@ -14,11 +14,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -38,7 +33,6 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
-import androidx.core.graphics.createBitmap
 
 private const val LOGTAG = "NativeLib"
 private const val NOTIF_LOGTAG = "Notifications"
@@ -99,6 +93,13 @@ data class ConversationMessage(
     val text: String,
     val isReaction: Boolean,
     val timestamp: Long
+)
+
+// A chat published to the OS as a direct share target
+class ShareTarget(
+    val chatId: String,
+    val title: String,
+    val avatar: ByteArray?
 )
 
 @Serializable
@@ -191,7 +192,12 @@ class Notifications {
 
         // Category required for the conversation shortcut
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
+        private const val SHORTCUT_CATEGORY_SHARE_TARGET = "ms.air.shortcut.SHARE_TARGET"
 
+        // Every conversation shortcut we publish doubles as a share target,
+        // whether it came from a notification or from the share target list.
+        private val SHORTCUT_CATEGORIES =
+            setOf(SHORTCUT_CATEGORY_CONVERSATION, SHORTCUT_CATEGORY_SHARE_TARGET)
 
         fun showNotification(context: Context, content: NotificationContent) {
             if (ActivityCompat.checkSelfPermission(
@@ -244,6 +250,7 @@ class Notifications {
                     .setContentIntent(pendingIntent)
                     .setDefaults(Notification.DEFAULT_ALL)
                     .setPriority(NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                     .addExtras(extras)
                     .setGroup(GROUP_KEY)
                     .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
@@ -291,6 +298,14 @@ class Notifications {
                 putString(EXTRAS_CHAT_ID_KEY, chatUuid)
             }
 
+            val chatPerson = Person.Builder()
+                .setKey(chatUuid)
+                .setName(conversation.chatTitle.ifBlank { chatUuid })
+                .apply {
+                    decodeAvatarIcon(conversation.chatAvatar)?.let { setIcon(it) }
+                }
+                .build()
+
             val notification =
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setContentTitle(content.title)
@@ -300,6 +315,8 @@ class Notifications {
                     .setDeleteIntent(deleteIntent)
                     .setDefaults(Notification.DEFAULT_ALL)
                     .setPriority(NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                    .addPerson(chatPerson)
                     .addExtras(extras)
                     .setStyle(buildMessagingStyle(conversation))
                     .setShortcutId(chatUuid)
@@ -310,6 +327,7 @@ class Notifications {
                     .build()
 
             pushConversationShortcut(context, content, chatUuid, conversation)
+            reportShareShortcutUsed(context, chatUuid)
 
             NotificationManagerCompat.from(context)
                 .notify(content.identifier, NOTIFICATION_ID, notification)
@@ -350,6 +368,122 @@ class Notifications {
                 putExtra(EXTRAS_NOTIFICATION_ID_KEY, content.identifier)
                 putExtra(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
             }
+
+        // Launcher-tap intent of a share-target shortcut.
+        private fun buildChatIntent(context: Context, chatUuid: String): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                action = SELECT_NOTIFICATION
+                putExtra(EXTRAS_NOTIFICATION_ID_KEY, chatUuid)
+                putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
+            }
+
+        // Publishes the chats as long-lived conversation shortcuts, which
+        // makes them direct targets in the system share sheet.
+        fun publishShareShortcuts(context: Context, targets: List<ShareTarget>) {
+            for (target in targets.asReversed()) {
+                try {
+                    val icon = shortcutAvatarIcon(target.avatar)
+                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
+                    val person = Person.Builder()
+                        .setKey(target.chatId)
+                        .setName(target.title)
+                        .build()
+                    val shortcut = ShortcutInfoCompat.Builder(context, target.chatId)
+                        .setLongLived(true)
+                        .setShortLabel(target.title)
+                        .setPerson(person)
+                        .setCategories(SHORTCUT_CATEGORIES)
+                        .setLocusId(LocusIdCompat(target.chatId))
+                        .setIcon(icon)
+                        .setIntent(buildChatIntent(context, target.chatId))
+                        .build()
+                    ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
+                } catch (e: Exception) {
+                    Log.e(NOTIF_LOGTAG, "Failed to publish share shortcut", e)
+                }
+            }
+        }
+
+        // Tells the system that the chat was just used, so that the share
+        // sheet ranks its shortcut.
+        fun reportShareShortcutUsed(context: Context, chatId: String) {
+            try {
+                ShortcutManagerCompat.reportShortcutUsed(context, chatId)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to report share shortcut usage", e)
+            }
+        }
+
+        // Withdraws the chats offered in the share sheet and the launcher.
+        // because the shortcuts are long-lived.
+        fun clearShareShortcuts(context: Context) {
+            try {
+                val ids = ShortcutManagerCompat.getShortcuts(
+                    context,
+                    ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or
+                        ShortcutManagerCompat.FLAG_MATCH_CACHED
+                )
+                    .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
+                    .map { it.id }
+                if (ids.isNotEmpty()) {
+                    ShortcutManagerCompat.removeLongLivedShortcuts(context, ids)
+                }
+                sanitizePinnedShortcuts(context)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to clear share shortcuts", e)
+            }
+        }
+
+        // Pinned shortcuts cannot be removed programmatically, only disabled
+        // or updated.
+        private fun sanitizePinnedShortcuts(context: Context) {
+            val pinned = ShortcutManagerCompat.getShortcuts(
+                context,
+                ShortcutManagerCompat.FLAG_MATCH_PINNED
+            )
+                .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
+            if (pinned.isEmpty()) {
+                return
+            }
+            val sanitized = pinned.map { info ->
+                ShortcutInfoCompat.Builder(context, info.id)
+                    .setShortLabel(context.getString(R.string.app_name))
+                    .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
+                    .setIntent(
+                        Intent(context, MainActivity::class.java)
+                            .setAction(Intent.ACTION_MAIN)
+                    )
+                    .build()
+            }
+            ShortcutManagerCompat.updateShortcuts(context, sanitized)
+        }
+
+        // Ids of the currently published chat shortcuts (dynamic and cached).
+        fun shareShortcutIds(context: Context): List<String> =
+            try {
+                ShortcutManagerCompat.getShortcuts(
+                    context,
+                    ShortcutManagerCompat.FLAG_MATCH_DYNAMIC or
+                        ShortcutManagerCompat.FLAG_MATCH_CACHED
+                )
+                    .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
+                    .map { it.id }
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to list share shortcuts", e)
+                emptyList()
+            }
+
+        // Withdraws the given share targets.
+        fun removeShareShortcuts(context: Context, ids: List<String>) {
+            if (ids.isEmpty()) {
+                return
+            }
+            try {
+                ShortcutManagerCompat.removeLongLivedShortcuts(context, ids)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to remove share shortcuts", e)
+            }
+        }
 
         private fun buildMessagingStyle(conversation: ConversationNotification): NotificationCompat.MessagingStyle {
             val user = Person.Builder()
@@ -399,47 +533,64 @@ class Notifications {
 
         // Decodes a base64 avatar into an icon.
         //
-        // Shortcut icons are pre-cropped to a circle because launcher and
-        // settings surfaces show bitmap icons unmasked.
-        private fun decodeAvatarIcon(
-            avatarBase64: String?,
-            circular: Boolean = false
-        ): IconCompat? {
+        // Notification icons stay plain bitmaps. The notification framework
+        // masks a Person icon itself.
+        private fun decodeAvatarIcon(avatarBase64: String?): IconCompat? {
             if (avatarBase64.isNullOrEmpty()) return null
             return try {
                 val bytes = Base64.decode(avatarBase64, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-                if (circular) {
-                    IconCompat.createWithBitmap(cropToCircle(bitmap))
-                } else {
-                    IconCompat.createWithBitmap(bitmap)
-                }
+                IconCompat.createWithBitmap(bitmap)
             } catch (e: Exception) {
                 Log.e(NOTIF_LOGTAG, "Failed to decode avatar", e)
                 null
             }
         }
 
-        // Center-crops the bitmap to a circle with transparent corners.
+        // Avatar icon for a long-lived shortcut.
         //
-        // TODO: Consider to do this in Rust.
-        private fun cropToCircle(source: Bitmap): Bitmap {
+        // The platform rejects plain bitmap icons on long-lived shortcuts
+        // so this is an adaptive one.
+        //
+        // The launcher masks an adaptive icon to its own shape,
+        // so the bitmap is only center-cropped to a square.
+        private fun shortcutAvatarIcon(bytes: ByteArray?): IconCompat? {
+            if (bytes == null || bytes.isEmpty()) return null
+            return try {
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?: return null
+                IconCompat.createWithAdaptiveBitmap(cropToSquare(bitmap))
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to decode shortcut avatar", e)
+                null
+            }
+        }
+
+        // Variant for the JNI notification path, which carries avatars as
+        // base64.
+        private fun shortcutAvatarIconFromBase64(avatarBase64: String?): IconCompat? {
+            if (avatarBase64.isNullOrEmpty()) return null
+            return try {
+                shortcutAvatarIcon(Base64.decode(avatarBase64, Base64.DEFAULT))
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to decode shortcut avatar", e)
+                null
+            }
+        }
+
+        // Center-crops the bitmap to a square.
+        private fun cropToSquare(source: Bitmap): Bitmap {
             val side = minOf(source.width, source.height)
-            val result = createBitmap(side, side)
-            val canvas = Canvas(result)
-            val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-            val radius = side / 2f
-            canvas.drawCircle(radius, radius, radius, paint)
-            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-            val srcLeft = (source.width - side) / 2
-            val srcTop = (source.height - side) / 2
-            canvas.drawBitmap(
+            if (source.width == side && source.height == side) {
+                return source
+            }
+            return Bitmap.createBitmap(
                 source,
-                Rect(srcLeft, srcTop, srcLeft + side, srcTop + side),
-                Rect(0, 0, side, side),
-                paint
+                (source.width - side) / 2,
+                (source.height - side) / 2,
+                side,
+                side
             )
-            return result
         }
 
         // Italicizes a reaction line, except emoji code points.
@@ -512,20 +663,22 @@ class Notifications {
                     }
                     .build()
 
-                val icon = if (!conversation.isGroup) {
-                    decodeAvatarIcon(senderParticipant?.avatar, circular = true)
-                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
-                } else {
-                    decodeAvatarIcon(conversation.chatAvatar, circular = true)
-                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
-                }
+                // The chat avatar, not the sender's. Both are the same for a
+                // 1:1 chat, but the sender is unresolvable for a system
+                // message or one of the user's own, which would degrade a
+                // published share target to the app icon. It also keeps this
+                // in step with `publishShareShortcuts`, which publishes the
+                // same shortcut id from the chat avatar.
+                val icon = shortcutAvatarIconFromBase64(conversation.chatAvatar)
+                    ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
 
                 // TODO: Do we have to set isGroup here?
                 val shortcut = ShortcutInfoCompat.Builder(context, chatUuid)
                     .setLongLived(true)
                     .setShortLabel(shortLabel)
                     .setPerson(person)
-                    .setCategories(setOf(SHORTCUT_CATEGORY_CONVERSATION))
+                    .setCategories(SHORTCUT_CATEGORIES)
+                    .setLocusId(LocusIdCompat(chatUuid))
                     .setIcon(icon)
                     .setIntent(buildContentIntent(context, content))
                     .build()

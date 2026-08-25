@@ -1,0 +1,223 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package ms.air
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.provider.OpenableColumns
+import androidx.activity.ComponentActivity
+import androidx.core.content.IntentCompat
+import io.flutter.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.InputStream
+import java.util.UUID
+
+// Receives the system share sheet intents, extracts the shared content into
+// the app cache and hands it to the main app, which stages it in a chat's
+// composer like an in-app attachment pick. Shows no UI of its own: the
+// picker is the app's own chat list.
+class ShareActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "ShareActivity"
+        private const val SHARE_CACHE_DIR = "share"
+
+        // Shares are capped at the composer's staging limit; anything beyond
+        // is reported as dropped.
+        private const val MAX_ATTACHMENTS = 10
+
+        // Upper bound for copying a single shared stream. Tracks the deployed
+        // `max_attachment_size` (see StorageSettings in the backend) with
+        // slack.
+        private const val MAX_ATTACHMENT_COPY_BYTES = 32L * 1024 * 1024
+
+        // Cache entries older than this are leftovers of a killed share or
+        // an abandoned handoff and are removed on the next share.
+        private const val STALE_CACHE_AGE_MILLIS = 24L * 60 * 60 * 1000
+    }
+
+    private val scope = MainScope()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+        val chatId = intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)
+        val uris: List<Uri> = when (intent.action) {
+            Intent.ACTION_SEND ->
+                listOfNotNull(
+                    IntentCompat.getParcelableExtra(
+                        intent,
+                        Intent.EXTRA_STREAM,
+                        Uri::class.java
+                    )
+                )
+
+            Intent.ACTION_SEND_MULTIPLE ->
+                IntentCompat.getParcelableArrayListExtra(
+                    intent,
+                    Intent.EXTRA_STREAM,
+                    Uri::class.java
+                ).orEmpty()
+
+            else -> emptyList()
+        }
+
+        if (text.isNullOrEmpty() && uris.isEmpty()) {
+            openMainApp()
+            finish()
+            return
+        }
+
+        // Content URIs have no filesystem path behind them, so they are
+        // copied into the app cache. Both the upload pipeline and the
+        // composer preview need a real file. The copy runs off the main
+        // thread, because a shared item can be tens of megabytes.
+        scope.launch {
+            val candidates = uris.take(MAX_ATTACHMENTS)
+            val attachments = withContext(Dispatchers.IO) {
+                deleteStaleCacheDirs()
+                candidates.mapNotNull { uri -> copyToCache(uri) }
+            }
+            handOff(
+                chatId = chatId,
+                text = text,
+                attachments = attachments,
+                // Unreadable and oversized streams are skipped in the copy,
+                // anything over the cap never reaches it.
+                dropped = uris.size - attachments.size,
+            )
+            finish()
+        }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    // Hands the extracted content to the main app. The files belong to the
+    // main app from here on, which deletes them after the upload; the stale
+    // cache sweep collects them if it never gets there.
+    private fun handOff(
+        chatId: String?,
+        text: String?,
+        attachments: List<Pair<String, String?>>,
+        dropped: Int
+    ) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = MainActivity.SHARE_INTO_CHAT
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(Notifications.EXTRAS_CHAT_ID_KEY, chatId)
+            putStringArrayListExtra(
+                MainActivity.EXTRAS_SHARE_PATHS_KEY,
+                ArrayList(attachments.map { it.first })
+            )
+            // Parallel to the paths; empty when the provider reported no
+            // type.
+            putStringArrayListExtra(
+                MainActivity.EXTRAS_SHARE_MIME_TYPES_KEY,
+                ArrayList(attachments.map { it.second.orEmpty() })
+            )
+            putExtra(MainActivity.EXTRAS_SHARE_TEXT_KEY, text)
+            putExtra(MainActivity.EXTRAS_SHARE_DROPPED_KEY, dropped)
+        }
+        startActivity(intent)
+    }
+
+    // Removes cache directories left behind by share sessions or handoffs
+    // that never reached their upload.
+    private fun deleteStaleCacheDirs() {
+        try {
+            val cutoff = System.currentTimeMillis() - STALE_CACHE_AGE_MILLIS
+            File(cacheDir, SHARE_CACHE_DIR).listFiles()
+                ?.filter { it.lastModified() < cutoff }
+                ?.forEach { it.deleteRecursively() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete stale share cache directories", e)
+        }
+    }
+
+    // Returns the `(path, mimeType)` entry for the handoff, or null when the
+    // URI cannot be read.
+    private fun copyToCache(uri: Uri): Pair<String, String?>? {
+        return try {
+            val displayName = queryDisplayName(uri) ?: "shared"
+            // The display name is attacker-controlled, so keep only the
+            // last path segment.
+            val fileName = File(displayName).name.ifEmpty { "shared" }
+            val targetDir = File(cacheDir, "$SHARE_CACHE_DIR/${UUID.randomUUID()}")
+            if (!targetDir.mkdirs()) {
+                Log.w(TAG, "Failed to create share cache directory")
+                return null
+            }
+            val target = File(targetDir, fileName)
+            contentResolver.openInputStream(uri).use { input ->
+                if (input == null) {
+                    return null
+                }
+                if (!copyBounded(input, target)) {
+                    Log.w(TAG, "Shared content exceeds the copy limit, dropping it")
+                    targetDir.deleteRecursively()
+                    return null
+                }
+            }
+            target.absolutePath to contentResolver.getType(uri)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to copy shared content to cache", e)
+            null
+        }
+    }
+
+    // Returns false when the stream exceeds MAX_ATTACHMENT_COPY_BYTES.
+    private fun copyBounded(input: InputStream, target: File): Boolean {
+        target.outputStream().use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0L
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) {
+                    return true
+                }
+                total += read
+                if (total > MAX_ATTACHMENT_COPY_BYTES) {
+                    return false
+                }
+                output.write(buffer, 0, read)
+            }
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String? =
+        contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+            } else {
+                null
+            }
+        }
+
+    private fun openMainApp() {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent == null) {
+            Log.w(TAG, "No launch intent for the main app")
+            return
+        }
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(launchIntent)
+    }
+}

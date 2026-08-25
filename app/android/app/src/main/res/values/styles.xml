@@ -9,6 +9,10 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <!-- The share activity shows no UI of its own: it extracts the shared
+         content and hands it to the main app. Translucent so nothing flashes
+         while it copies. -->
+    <style name="ShareTheme" parent="@android:style/Theme.Translucent.NoTitleBar" />
     <!-- Theme applied to the activity via the AndroidX SplashScreen compat
          library. Kept on screen until MainActivity's keepOnScreenCondition
          clears, which Flutter triggers once it knows whether to land on Home

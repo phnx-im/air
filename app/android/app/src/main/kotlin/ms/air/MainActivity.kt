@@ -38,6 +38,12 @@ class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
         private const val APP_DIR_NAME: String = "Air"
+        
+        const val SHARE_INTO_CHAT: String = "SHARE_INTO_CHAT"
+        const val EXTRAS_SHARE_PATHS_KEY: String = "ms.air/share_paths"
+        const val EXTRAS_SHARE_MIME_TYPES_KEY: String = "ms.air/share_mime_types"
+        const val EXTRAS_SHARE_TEXT_KEY: String = "ms.air/share_text"
+        const val EXTRAS_SHARE_DROPPED_KEY: String = "ms.air/share_dropped"
 
         @Volatile
         private var activeChannelRef: WeakReference<MethodChannel>? = null
@@ -57,6 +63,8 @@ class MainActivity : FlutterFragmentActivity() {
 
     private var pendingInitialNotification: Map<String, String?>? = null
 
+    private var pendingInitialShare: Map<String, Any?>? = null
+
     @Volatile
     private var keepSplashScreenOn = true
 
@@ -65,17 +73,24 @@ class MainActivity : FlutterFragmentActivity() {
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { keepSplashScreenOn }
 
-        // We store a potential notification tap event, so it can be delivered
-        // once the Flutter engine is ready.
+        // We store a potential notification tap or share handoff event, so it
+        // can be delivered once the Flutter engine is ready.
         readNotificationPayload(intent)?.let { pendingInitialNotification = it }
+        readSharePayload(intent)?.let { pendingInitialShare = it }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
 
         // Send the notification tap event to Dart directly
-        val payload = readNotificationPayload(intent) ?: return
-        channel?.invokeMethod("openedNotification", payload)
+        readNotificationPayload(intent)?.let {
+            channel?.invokeMethod("openedNotification", it)
+            return
+        }
+        // Send the share handoff to Dart directly
+        readSharePayload(intent)?.let {
+            channel?.invokeMethod("sharedIntoChat", it)
+        }
     }
 
     private fun readNotificationPayload(intent: Intent): Map<String, String?>? {
@@ -85,6 +100,20 @@ class MainActivity : FlutterFragmentActivity() {
             intent.extras?.getString(Notifications.EXTRAS_NOTIFICATION_ID_KEY) ?: return null
         val chatId = intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY)
         return mapOf("identifier" to notificationId, "chatId" to chatId)
+    }
+
+    private fun readSharePayload(intent: Intent): Map<String, Any?>? {
+        if (intent.action != SHARE_INTO_CHAT) return null
+        return mapOf(
+            // Absent when the user picks the destination from the chat list
+            "chatId" to intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY),
+            "paths" to intent.extras?.getStringArrayList(EXTRAS_SHARE_PATHS_KEY)
+                .orEmpty(),
+            "mimeTypes" to intent.extras?.getStringArrayList(EXTRAS_SHARE_MIME_TYPES_KEY)
+                .orEmpty(),
+            "text" to intent.extras?.getString(EXTRAS_SHARE_TEXT_KEY),
+            "dropped" to (intent.extras?.getInt(EXTRAS_SHARE_DROPPED_KEY, 0) ?: 0),
+        )
     }
 
 
@@ -148,6 +177,14 @@ class MainActivity : FlutterFragmentActivity() {
         )
     }
 
+    private fun decodeShareTargetArgument(raw: Any?): ShareTarget? {
+        val map = raw as? Map<*, *> ?: return null
+        val chatId = map["chatId"] as? String ?: return null
+        val title = map["title"] as? String ?: return null
+        val avatar = map["picture"] as? ByteArray
+        return ShareTarget(chatId = chatId, title = title, avatar = avatar)
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         super.cleanUpFlutterEngine(flutterEngine)
 
@@ -181,6 +218,12 @@ class MainActivity : FlutterFragmentActivity() {
                 "getInitialNotification" -> {
                     val payload = pendingInitialNotification
                     pendingInitialNotification = null
+                    result.success(payload)
+                }
+
+                "getInitialShare" -> {
+                    val payload = pendingInitialShare
+                    pendingInitialShare = null
                     result.success(payload)
                 }
 
@@ -233,6 +276,32 @@ class MainActivity : FlutterFragmentActivity() {
                             "DeserializeError", "Failed to decode 'identifiers' arguments", ""
                         )
                     }
+                }
+
+                "publishShareShortcuts" -> {
+                    val targets = call.argument<List<Any?>>("targets")
+                        ?.mapNotNull { decodeShareTargetArgument(it) }
+                        .orEmpty()
+                    Notifications.publishShareShortcuts(this, targets)
+                    call.argument<String>("usedChatId")?.let {
+                        Notifications.reportShareShortcutUsed(this, it)
+                    }
+                    result.success(null)
+                }
+
+                "clearShareTargets" -> {
+                    Notifications.clearShareShortcuts(this)
+                    result.success(null)
+                }
+
+                "getShareShortcutIds" -> {
+                    result.success(Notifications.shareShortcutIds(this))
+                }
+
+                "removeShareShortcuts" -> {
+                    val ids = call.argument<List<String>>("ids").orEmpty()
+                    Notifications.removeShareShortcuts(this, ids)
+                    result.success(null)
                 }
 
                 "saveFile" -> {
