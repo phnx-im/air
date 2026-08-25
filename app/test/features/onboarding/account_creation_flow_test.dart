@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../helpers.dart';
 import '../../mocks.dart';
@@ -35,6 +36,26 @@ const _openRegistration = RegistrationInfo(
 const _unsupportedRegistration = RegistrationInfo(
   challengeRequired: true,
   acceptedChallenges: [],
+);
+
+/// A gated server that takes either an admission session or a code.
+const _gatedRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [
+    ChallengeKind.invitationCode,
+    ChallengeKind.admissionSession,
+  ],
+);
+
+/// A gated server that takes nothing but an admission session.
+const _sessionOnlyRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [ChallengeKind.admissionSession],
+);
+
+AdmissionSession _admissionSession() => AdmissionSession(
+  sessionId: UuidValue.fromString('7f4a4d4c-0000-4000-8000-000000000001'),
+  challenge: 'a1b2c3',
 );
 
 void main() {
@@ -344,6 +365,70 @@ void main() {
         await submit(tester, 'Create');
 
         expect(find.text('Enter invite code'), findsOneWidget);
+      });
+    });
+
+    group('admission session', () {
+      testWidgets('a session in hand skips the code step', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          RegistrationState(
+            displayName: 'Ellie',
+            registrationInfo: _gatedRegistration,
+            admissionSession: _admissionSession(),
+            admissionExpiresAt: DateTime.now().toUtc().add(
+              const Duration(minutes: 5),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Enter invite code'), findsNothing);
+      });
+
+      testWidgets('an expired session falls back to the code', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          RegistrationState(
+            invitationCode: _validCode,
+            registrationInfo: _gatedRegistration,
+            admissionSession: _admissionSession(),
+            admissionExpiresAt: DateTime.now().toUtc().subtract(
+              const Duration(seconds: 1),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+      });
+
+      testWidgets('no session falls back to the code', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(registrationInfo: _gatedRegistration),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+      });
+
+      /// Asking for a code the server ignores would be the wrong dead end.
+      testWidgets('a server that takes nothing else is a dead end', (
+        tester,
+      ) async {
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(registrationInfo: _sessionOnlyRegistration),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Update required'), findsOneWidget);
       });
     });
 

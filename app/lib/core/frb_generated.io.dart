@@ -405,6 +405,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_CastedPrimitive_usize(dynamic raw);
 
   @protected
+  Duration dco_decode_Chrono_Duration(dynamic raw);
+
+  @protected
   DateTime dco_decode_Chrono_Local(dynamic raw);
 
   @protected
@@ -659,6 +662,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
 
   @protected
+  AdmissionSession dco_decode_admission_session(dynamic raw);
+
+  @protected
   AirComponent dco_decode_air_component(dynamic raw);
 
   @protected
@@ -709,6 +715,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
     dynamic raw,
   );
+
+  @protected
+  AdmissionSession dco_decode_box_autoadd_admission_session(dynamic raw);
 
   @protected
   AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
@@ -1092,6 +1101,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MultiDeviceProvisionEvent dco_decode_multi_device_provision_event(
     dynamic raw,
   );
+
+  @protected
+  NewAdmissionSession dco_decode_new_admission_session(dynamic raw);
 
   @protected
   NotificationContent dco_decode_notification_content(dynamic raw);
@@ -1731,6 +1743,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_CastedPrimitive_usize(SseDeserializer deserializer);
 
   @protected
+  Duration sse_decode_Chrono_Duration(SseDeserializer deserializer);
+
+  @protected
   DateTime sse_decode_Chrono_Local(SseDeserializer deserializer);
 
   @protected
@@ -1979,6 +1994,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  AdmissionSession sse_decode_admission_session(SseDeserializer deserializer);
+
+  @protected
   AirComponent sse_decode_air_component(SseDeserializer deserializer);
 
   @protected
@@ -2027,6 +2045,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AdmissionSession sse_decode_box_autoadd_admission_session(
     SseDeserializer deserializer,
   );
 
@@ -2538,6 +2561,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MultiDeviceProvisionEvent sse_decode_multi_device_provision_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  NewAdmissionSession sse_decode_new_admission_session(
     SseDeserializer deserializer,
   );
 
@@ -3308,6 +3336,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_Chrono_Duration(Duration self, SseSerializer serializer);
+
+  @protected
   void sse_encode_Chrono_Local(DateTime self, SseSerializer serializer);
 
   @protected
@@ -3623,6 +3654,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_admission_session(
+    AdmissionSession self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_air_component(AirComponent self, SseSerializer serializer);
 
   @protected
@@ -3682,6 +3719,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_add_username_contact_error(
     AddUsernameContactError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_admission_session(
+    AdmissionSession self,
     SseSerializer serializer,
   );
 
@@ -4327,6 +4370,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_multi_device_provision_event(
     MultiDeviceProvisionEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_new_admission_session(
+    NewAdmissionSession self,
     SseSerializer serializer,
   );
 

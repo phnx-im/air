@@ -178,6 +178,10 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
 
+                "getPendingAdmissionChallenge" -> {
+                    result.success(AdmissionChallenges.take())
+                }
+
                 "getInitialNotification" -> {
                     val payload = pendingInitialNotification
                     pendingInitialNotification = null

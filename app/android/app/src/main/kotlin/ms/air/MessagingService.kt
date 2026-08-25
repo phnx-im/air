@@ -24,6 +24,16 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
     // Handle incoming messages from the OS
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(TAG, "onMessageReceived")
+
+        val sessionId = remoteMessage.data["sessionId"]
+        val challenge = remoteMessage.data["challenge"]
+
+        if (sessionId != null && challenge != null) {
+            Log.d(TAG, "admission challenge received for session $sessionId")
+            AdmissionChallenges.publish(sessionId, challenge)
+            return
+        }
+
         val isHighPriority =
             remoteMessage.priority == RemoteMessage.PRIORITY_HIGH ||
                     remoteMessage.originalPriority == RemoteMessage.PRIORITY_HIGH

@@ -11,17 +11,14 @@ use std::{fmt, net::IpAddr};
 /// The server resolves this once and inserts it as a request extension, so
 /// handlers do not have to know which header carried it.
 ///
-/// `Debug` prints no address. The only thing we ever persist or report about a
-/// registrant address is a keyed hash of its bucket, so a stray `?client_ip` in
-/// a tracing call must not undo that.
+/// `Debug` prints no address, so a stray `?client_ip` in a tracing call cannot
+/// log one.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ClientIp(IpAddr);
 
 /// The bytes an address is counted under.
 ///
-/// Both families use the 16-byte IPv6 layout, which cannot collide: a masked
-/// IPv6 prefix has zero low bytes, where a mapped IPv4 address carries the
-/// address itself.
+/// Both families use the 16-byte IPv6 layout, which cannot collide.
 pub type IpBucket = [u8; 16];
 
 impl ClientIp {
@@ -31,9 +28,6 @@ impl ClientIp {
 
     /// The bucket this address counts under: the full address for IPv4, the
     /// /64 prefix for IPv6.
-    ///
-    /// Anything finer than /64 lets one IPv6 allocation mint buckets without
-    /// limit.
     pub fn bucket(&self) -> IpBucket {
         match self.0 {
             IpAddr::V4(addr) => addr.to_ipv6_mapped().octets(),

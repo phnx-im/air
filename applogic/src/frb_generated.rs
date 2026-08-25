@@ -55,7 +55,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -249516083;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1860976094;
 
 // Section: executor
 
@@ -8009,6 +8009,48 @@ fn wire__crate__api__logging__clear_background_logs_impl(
         },
     )
 }
+fn wire__crate__api__registration__create_admission_session_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_admission_session",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_domain = <String>::sse_decode(&mut deserializer);
+            let api_push_token =
+                <crate::api::user::PlatformPushToken>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::registration::create_admission_session(
+                            api_domain,
+                            api_push_token,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__logging__create_log_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -9140,6 +9182,11 @@ const _: fn() = || {
         }
     }
     {
+        let AdmissionSession = None::<crate::api::registration::AdmissionSession>.unwrap();
+        let _: uuid::Uuid = AdmissionSession.session_id;
+        let _: String = AdmissionSession.challenge;
+    }
+    {
         let AirComponent = None::<crate::api::types::AirComponent>.unwrap();
         let _: crate::api::types::AirFeatures = AirComponent.features;
         let _: bool = AirComponent.is_self_group;
@@ -9237,6 +9284,11 @@ const _: fn() = || {
         let _: uuid::Uuid = MessageId.uuid;
     }
     {
+        let NewAdmissionSession = None::<crate::api::registration::NewAdmissionSession>.unwrap();
+        let _: uuid::Uuid = NewAdmissionSession.session_id;
+        let _: chrono::Duration = NewAdmissionSession.lifetime;
+    }
+    {
         let PqGroupDebugInfo = None::<crate::api::chat_details_cubit::PqGroupDebugInfo>.unwrap();
         let _: String = PqGroupDebugInfo.group_id;
         let _: u64 = PqGroupDebugInfo.epoch;
@@ -9249,6 +9301,9 @@ const _: fn() = || {
     match None::<crate::api::registration::RegistrationChallenge>.unwrap() {
         crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
             let _: String = field0;
+        }
+        crate::api::registration::RegistrationChallenge::AdmissionSession(field0) => {
+            let _: crate::api::registration::AdmissionSession = field0;
         }
     }
     {
@@ -9722,6 +9777,14 @@ impl SseDecode for [u64; 12] {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u64>>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::from_vec_to_array(inner);
+    }
+}
+
+impl SseDecode for chrono::Duration {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i64>::sse_decode(deserializer);
+        return chrono::Duration::microseconds(inner);
     }
 }
 
@@ -10255,6 +10318,18 @@ impl SseDecode for crate::api::types::AddUsernameContactError {
     }
 }
 
+impl SseDecode for crate::api::registration::AdmissionSession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_sessionId = <uuid::Uuid>::sse_decode(deserializer);
+        let mut var_challenge = <String>::sse_decode(deserializer);
+        return crate::api::registration::AdmissionSession {
+            session_id: var_sessionId,
+            challenge: var_challenge,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::AirComponent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10399,6 +10474,7 @@ impl SseDecode for crate::api::registration::ChallengeKind {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
             0 => crate::api::registration::ChallengeKind::InvitationCode,
+            1 => crate::api::registration::ChallengeKind::AdmissionSession,
             _ => unreachable!("Invalid variant for ChallengeKind: {}", inner),
         };
     }
@@ -11445,6 +11521,18 @@ impl SseDecode for crate::api::multi_device::MultiDeviceProvisionEvent {
     }
 }
 
+impl SseDecode for crate::api::registration::NewAdmissionSession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_sessionId = <uuid::Uuid>::sse_decode(deserializer);
+        let mut var_lifetime = <chrono::Duration>::sse_decode(deserializer);
+        return crate::api::registration::NewAdmissionSession {
+            session_id: var_sessionId,
+            lifetime: var_lifetime,
+        };
+    }
+}
+
 impl SseDecode for crate::notifications::NotificationContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12205,6 +12293,13 @@ impl SseDecode for crate::api::registration::RegistrationChallenge {
             0 => {
                 let mut var_field0 = <String>::sse_decode(deserializer);
                 return crate::api::registration::RegistrationChallenge::InvitationCode(var_field0);
+            }
+            1 => {
+                let mut var_field0 =
+                    <crate::api::registration::AdmissionSession>::sse_decode(deserializer);
+                return crate::api::registration::RegistrationChallenge::AdmissionSession(
+                    var_field0,
+                );
             }
             _ => {
                 unimplemented!("");
@@ -13237,29 +13332,30 @@ fn pde_ffi_dispatcher_primary_impl(
 155 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
 156 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
 157 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-158 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-159 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-160 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-161 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-164 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-165 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-166 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-167 => wire__crate__api__share_cubit__load_share_target_impl(port, ptr, rust_vec_len, data_len),
-168 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-169 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-170 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-171 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-173 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+158 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
+159 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+160 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+161 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+162 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+165 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+167 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__share_cubit__load_share_target_impl(port, ptr, rust_vec_len, data_len),
+169 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+170 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+171 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+172 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+174 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+175 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -13487,17 +13583,17 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        162 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        172 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        163 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        164 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        173 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        184 => {
+        185 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        185 => wire__crate__api__username_suggestions__username_from_display_impl(
+        186 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -13942,6 +14038,27 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddUsername
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::AdmissionSession> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.session_id.into_into_dart().into_dart(),
+            self.0.challenge.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::registration::AdmissionSession>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::registration::AdmissionSession>>
+    for crate::api::registration::AdmissionSession
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::registration::AdmissionSession> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirComponent> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14106,6 +14223,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::Chal
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
             crate::api::registration::ChallengeKind::InvitationCode => 0.into_dart(),
+            crate::api::registration::ChallengeKind::AdmissionSession => 1.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -14975,6 +15093,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::multi_device::MultiDeviceProv
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::NewAdmissionSession> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.session_id.into_into_dart().into_dart(),
+            self.0.lifetime.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::registration::NewAdmissionSession>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::registration::NewAdmissionSession>>
+    for crate::api::registration::NewAdmissionSession
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::registration::NewAdmissionSession> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::notifications::NotificationContent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15193,6 +15332,9 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::Regi
         match self.0 {
             crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
                 [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::registration::RegistrationChallenge::AdmissionSession(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -16584,6 +16726,17 @@ impl SseEncode for [u64; 12] {
     }
 }
 
+impl SseEncode for chrono::Duration {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(
+            self.num_microseconds()
+                .expect("cannot get microseconds from time"),
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for chrono::DateTime<chrono::Local> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17107,6 +17260,14 @@ impl SseEncode for crate::api::types::AddUsernameContactError {
     }
 }
 
+impl SseEncode for crate::api::registration::AdmissionSession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <uuid::Uuid>::sse_encode(self.session_id, serializer);
+        <String>::sse_encode(self.challenge, serializer);
+    }
+}
+
 impl SseEncode for crate::api::types::AirComponent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17230,6 +17391,7 @@ impl SseEncode for crate::api::registration::ChallengeKind {
         <i32>::sse_encode(
             match self {
                 crate::api::registration::ChallengeKind::InvitationCode => 0,
+                crate::api::registration::ChallengeKind::AdmissionSession => 1,
                 _ => {
                     unimplemented!("");
                 }
@@ -18059,6 +18221,14 @@ impl SseEncode for crate::api::multi_device::MultiDeviceProvisionEvent {
     }
 }
 
+impl SseEncode for crate::api::registration::NewAdmissionSession {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <uuid::Uuid>::sse_encode(self.session_id, serializer);
+        <chrono::Duration>::sse_encode(self.lifetime, serializer);
+    }
+}
+
 impl SseEncode for crate::notifications::NotificationContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18684,6 +18854,10 @@ impl SseEncode for crate::api::registration::RegistrationChallenge {
             crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
                 <i32>::sse_encode(0, serializer);
                 <String>::sse_encode(field0, serializer);
+            }
+            crate::api::registration::RegistrationChallenge::AdmissionSession(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::registration::AdmissionSession>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");
