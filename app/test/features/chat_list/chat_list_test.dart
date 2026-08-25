@@ -26,12 +26,14 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late AndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       contactsCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      androidShareCubit = MockAndroidShareCubit();
 
       when(
         () => navigationCubit.state,
@@ -55,7 +57,7 @@ void main() {
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: contactsCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
+          BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
         ],
         child: SDTFScope(
           child: Builder(

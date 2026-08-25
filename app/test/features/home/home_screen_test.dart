@@ -42,6 +42,7 @@ void main() {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late AndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -50,6 +51,7 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      androidShareCubit = MockAndroidShareCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -89,7 +91,7 @@ void main() {
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
+          BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
         ],
         child: SDTFScope(
           child: Builder(

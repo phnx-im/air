@@ -663,12 +663,6 @@ class Notifications {
                     }
                     .build()
 
-                // The chat avatar, not the sender's. Both are the same for a
-                // 1:1 chat, but the sender is unresolvable for a system
-                // message or one of the user's own, which would degrade a
-                // published share target to the app icon. It also keeps this
-                // in step with `publishShareShortcuts`, which publishes the
-                // same shortcut id from the chat avatar.
                 val icon = shortcutAvatarIconFromBase64(conversation.chatAvatar)
                     ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
 

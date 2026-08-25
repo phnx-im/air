@@ -21,21 +21,18 @@ import java.io.InputStream
 import java.util.UUID
 
 // Receives the system share sheet intents, extracts the shared content into
-// the app cache and hands it to the main app, which stages it in a chat's
-// composer like an in-app attachment pick. Shows no UI of its own: the
-// picker is the app's own chat list.
+// the app cache and hands it to the main app.
 class ShareActivity : ComponentActivity() {
     companion object {
         private const val TAG = "ShareActivity"
         private const val SHARE_CACHE_DIR = "share"
 
-        // Shares are capped at the composer's staging limit; anything beyond
-        // is reported as dropped.
+        // Anything beyond is reported as dropped.
         private const val MAX_ATTACHMENTS = 10
 
-        // Upper bound for copying a single shared stream. Tracks the deployed
-        // `max_attachment_size` (see StorageSettings in the backend) with
-        // slack.
+        // Upper bound for copying a single shared stream.
+        // 
+        // See `max_attachment_size` in StorageSettings in the backend).
         private const val MAX_ATTACHMENT_COPY_BYTES = 32L * 1024 * 1024
 
         // Cache entries older than this are leftovers of a killed share or
@@ -77,9 +74,7 @@ class ShareActivity : ComponentActivity() {
         }
 
         // Content URIs have no filesystem path behind them, so they are
-        // copied into the app cache. Both the upload pipeline and the
-        // composer preview need a real file. The copy runs off the main
-        // thread, because a shared item can be tens of megabytes.
+        // copied into the app cache.
         scope.launch {
             val candidates = uris.take(MAX_ATTACHMENTS)
             val attachments = withContext(Dispatchers.IO) {
@@ -104,8 +99,7 @@ class ShareActivity : ComponentActivity() {
     }
 
     // Hands the extracted content to the main app. The files belong to the
-    // main app from here on, which deletes them after the upload; the stale
-    // cache sweep collects them if it never gets there.
+    // main app from here on, which deletes them after the upload.
     private fun handOff(
         chatId: String?,
         text: String?,

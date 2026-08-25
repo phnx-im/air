@@ -485,10 +485,6 @@ pub struct NotificationHandle {
 
 /// The chat's own avatar: the group picture for a group chat, the
 /// counterpart's profile picture for a 1:1 chat.
-///
-/// Not taken from the notification's participants, because those only cover
-/// the senders referenced by the rebuilt messages. A system message or one of
-/// the user's own leaves the counterpart out of that set.
 async fn chat_avatar(user: &CoreUser, chat: &Chat) -> Option<Vec<u8>> {
     match chat.chat_type() {
         ChatType::Group(attrs) => attrs.picture().map(|bytes| bytes.to_vec()),

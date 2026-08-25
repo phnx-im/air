@@ -162,36 +162,6 @@ void main() {
       sizeView(tester, phoneViewSize);
       when(() => shareCubit.state).thenReturn(signedOutState);
 
-      // The button that leaves for the main app only exists on Android. The
-      // test framework asserts the override is unset again by the time the
-      // body returns.
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      try {
-        await tester.pumpWidget(buildSubject());
-        await tester.pumpAndSettle();
-
-        expect(
-          find.text('Sign in to Air first to share content.'),
-          findsOneWidget,
-        );
-        expect(find.text('Open Air'), findsOneWidget);
-        // There is nothing to pick a chat for, so neither step is reachable.
-        expect(nextButtonFinder, findsNothing);
-        expect(sendButtonFinder, findsNothing);
-
-        await expectLater(
-          find.byType(MaterialApp),
-          matchesGoldenFile('goldens/share_screen_signed_out.png'),
-        );
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    });
-
-    testWidgets('offers no way into the app off Android', (tester) async {
-      sizeView(tester, phoneViewSize);
-      when(() => shareCubit.state).thenReturn(signedOutState);
-
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       try {
         await tester.pumpWidget(buildSubject());

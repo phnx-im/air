@@ -74,12 +74,14 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      androidShareCubit = MockAndroidShareCubit();
 
       when(
         () => navigationCubit.state,
@@ -93,70 +95,70 @@ void main() {
       ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
-    Widget buildSubject(
-      ProductShotPlatform platform,
-    ) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shotSize = _productShotSizeFor(platform);
-              final shot = ProductShot(
-                size: shotSize,
-                backgroundColor: backgroundColor,
-                titleColor: titleColor,
-                subtitleColor: subtitleColor,
-                title: title,
-                subtitle: subtitle,
-                frameColor: frameColor,
-                device: ProductShotDevices.forPlatform(platform),
-                child: const Stack(
-                  children: [
-                    Positioned.fill(child: ChatListView(scaffold: true)),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AppTabBar(),
+    Widget buildSubject(ProductShotPlatform platform) =>
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AttachmentsRepository>.value(
+              value: MockAttachmentsRepository(),
+            ),
+            RepositoryProvider<chats_repository.ChatsRepository>.value(
+              value: FakeChatsRepository(chats),
+            ),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: usersCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+            ],
+            child: SDTFScope(
+              child: Builder(
+                builder: (context) {
+                  final shotSize = _productShotSizeFor(platform);
+                  final shot = ProductShot(
+                    size: shotSize,
+                    backgroundColor: backgroundColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    title: title,
+                    subtitle: subtitle,
+                    frameColor: frameColor,
+                    device: ProductShotDevices.forPlatform(platform),
+                    child: const Stack(
+                      children: [
+                        Positioned.fill(child: ChatListView(scaffold: true)),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: AppTabBar(),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
+                  );
 
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: .light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
-                    child: shot,
-                  ),
-                ),
-              );
-            },
+                  return MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: testLightTheme,
+                    themeMode: .light,
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    home: Material(
+                      child: MediaQuery(
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(platformBrightness: .light),
+                        child: shot,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
 
     testProductShot(
       "Chat List (iOS)",
@@ -210,6 +212,7 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -219,6 +222,7 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      androidShareCubit = MockAndroidShareCubit();
 
       final chat = chats[0];
 
@@ -267,55 +271,55 @@ void main() {
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
     });
 
-    Widget buildSubject(
-      ProductShotPlatform platform,
-    ) => RepositoryProvider<AttachmentsRepository>.value(
-      value: attachmentsRepository,
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: contactsCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
-        ],
-        child: Builder(
-          builder: (context) {
-            final shotSize = _productShotSizeFor(platform);
-            final shot = ProductShot(
-              size: shotSize,
-              backgroundColor: backgroundColor,
-              titleColor: titleColor,
-              subtitleColor: subtitleColor,
-              title: title,
-              subtitle: subtitle,
-              frameColor: frameColor,
-              device: ProductShotDevices.forPlatform(platform),
-              child: const ChatScreenView(
-                createMessageCubit: createMockMessageCubit,
-              ),
-            );
+    Widget buildSubject(ProductShotPlatform platform) =>
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: contactsCubit),
+              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+              BlocProvider<MessageListCubit>.value(value: messageListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+            ],
+            child: Builder(
+              builder: (context) {
+                final shotSize = _productShotSizeFor(platform);
+                final shot = ProductShot(
+                  size: shotSize,
+                  backgroundColor: backgroundColor,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
+                  frameColor: frameColor,
+                  device: ProductShotDevices.forPlatform(platform),
+                  child: const ChatScreenView(
+                    createMessageCubit: createMockMessageCubit,
+                  ),
+                );
 
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testLightTheme,
-              themeMode: ThemeMode.light,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Material(
-                child: MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(platformBrightness: .light),
-                  child: shot,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
+                return MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  theme: testLightTheme,
+                  themeMode: ThemeMode.light,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  home: Material(
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(platformBrightness: .light),
+                      child: shot,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
 
     testProductShot(
       "Private Chat (iOS)",
@@ -369,6 +373,7 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -378,6 +383,7 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      androidShareCubit = MockAndroidShareCubit();
 
       final chat = chats[4];
 
@@ -407,55 +413,55 @@ void main() {
       messageListCubit.setState(gardeningPartyMessages);
     });
 
-    Widget buildSubject(
-      ProductShotPlatform platform,
-    ) => RepositoryProvider<AttachmentsRepository>.value(
-      value: attachmentsRepository,
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: contactsCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
-        ],
-        child: Builder(
-          builder: (context) {
-            final shotSize = _productShotSizeFor(platform);
-            final shot = ProductShot(
-              size: shotSize,
-              backgroundColor: backgroundColor,
-              titleColor: titleColor,
-              subtitleColor: subtitleColor,
-              title: title,
-              subtitle: subtitle,
-              frameColor: frameColor,
-              device: ProductShotDevices.forPlatform(platform),
-              child: const ChatScreenView(
-                createMessageCubit: createMockMessageCubit,
-              ),
-            );
+    Widget buildSubject(ProductShotPlatform platform) =>
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: contactsCubit),
+              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+              BlocProvider<MessageListCubit>.value(value: messageListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+            ],
+            child: Builder(
+              builder: (context) {
+                final shotSize = _productShotSizeFor(platform);
+                final shot = ProductShot(
+                  size: shotSize,
+                  backgroundColor: backgroundColor,
+                  titleColor: titleColor,
+                  subtitleColor: subtitleColor,
+                  title: title,
+                  subtitle: subtitle,
+                  frameColor: frameColor,
+                  device: ProductShotDevices.forPlatform(platform),
+                  child: const ChatScreenView(
+                    createMessageCubit: createMockMessageCubit,
+                  ),
+                );
 
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testLightTheme,
-              themeMode: ThemeMode.light,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Material(
-                child: MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(platformBrightness: .light),
-                  child: shot,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
+                return MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  theme: testLightTheme,
+                  themeMode: ThemeMode.light,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  home: Material(
+                    child: MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(platformBrightness: .light),
+                      child: shot,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
 
     testProductShot(
       "Group Chat (iOS)",
@@ -502,6 +508,7 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
+    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -511,6 +518,7 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
+      androidShareCubit = MockAndroidShareCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
       when(() => usersCubit.state).thenReturn(
@@ -576,7 +584,7 @@ void main() {
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>(create: (_) => AndroidShareCubit()),
+          BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
         ],
         child: SDTFScope(
           child: Builder(
