@@ -19,7 +19,7 @@ use metrics::counter;
 use rand::RngExt;
 use sha2::{Digest, Sha256};
 use sqlx::{PgExecutor, PgPool, PgTransaction};
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -150,6 +150,7 @@ impl AuthService {
                 error.as_str()
             }
         };
+        debug!(%session_id, platform, "opened an admission session");
         report_session(platform, outcome);
 
         Ok(answer)
@@ -243,6 +244,7 @@ impl AuthService {
             RegisterUserError::StorageError
         })?;
 
+        debug!(session_id = %session.session_id, "spent an admission session");
         report_session(&platform, "spent");
         Ok(ChallengeVerdict::Accepted)
     }
@@ -331,6 +333,7 @@ impl AuthService {
 }
 
 fn report_session(platform: &str, outcome: &'static str) {
+    debug!(platform, outcome, "admission session");
     counter!(
         "air_admission_sessions_total",
         "platform" => platform.to_owned(),

@@ -109,15 +109,23 @@ Future<String?> awaitAdmissionChallenge(
   final arrived = Completer<String>();
   // Subscribed before the mailbox is read, so a challenge that lands in between
   // is not missed.
+  void ignore(DeliveredChallenge delivered) => _log.info(
+    "Ignoring challenge for session ${delivered.sessionId}, "
+    "waiting for $expected",
+  );
+
   final subscription = _admissionChallenges.stream.listen((delivered) {
-    if (matches(delivered) && !arrived.isCompleted) {
+    if (!matches(delivered)) {
+      ignore(delivered);
+    } else if (!arrived.isCompleted) {
       arrived.complete(delivered.challenge);
     }
   });
   try {
     final pending = await takePendingAdmissionChallenge();
-    if (pending != null && matches(pending)) {
-      return pending.challenge;
+    if (pending != null) {
+      if (matches(pending)) return pending.challenge;
+      ignore(pending);
     }
     return await arrived.future.timeout(timeout);
   } on TimeoutException {

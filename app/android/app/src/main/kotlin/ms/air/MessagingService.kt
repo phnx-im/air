@@ -29,7 +29,7 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
         val challenge = remoteMessage.data["challenge"]
 
         if (sessionId != null && challenge != null) {
-            Log.d(TAG, "admission challenge received")
+            Log.d(TAG, "admission challenge received for session $sessionId")
             AdmissionChallenges.publish(sessionId, challenge)
             return
         }

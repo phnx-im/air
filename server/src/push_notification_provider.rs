@@ -551,7 +551,7 @@ impl ProductionPushNotificationProvider {
             .json(&body)
             .send()
             .await
-            .map_err(|error| ApnsPostError::Network(error.without_url().to_string()))?;
+            .map_err(|error| ApnsPostError::Network(describe(error)))?;
 
         let status = res.status();
         Ok((status, res.text().await.unwrap_or_default()))
@@ -597,11 +597,18 @@ impl ProductionPushNotificationProvider {
             .json(&message)
             .send()
             .await
-            .map_err(|error| FcmPostError::Network(error.without_url().to_string()))?;
+            .map_err(|error| FcmPostError::Network(describe(error)))?;
 
         let status = res.status();
         Ok((status, res.text().await.unwrap_or_default()))
     }
+}
+
+/// The error with its causes. reqwest's own message stops at "error sending
+/// request", the cause underneath says whether it was DNS, TLS, or a refused
+/// connection. The URL is stripped, since it carries the device token.
+fn describe(error: reqwest::Error) -> String {
+    format!("{:#}", anyhow::Error::new(error.without_url()))
 }
 
 fn create_google_jwt_token(

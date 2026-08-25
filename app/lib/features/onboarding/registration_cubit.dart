@@ -171,18 +171,35 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     if (!state.serverTakesAdmissionSession || state.hasAdmissionSession) return;
 
     final pushToken = await getPushToken();
-    if (pushToken == null) return;
+    if (pushToken == null) {
+      _log.info("No push token, not acquiring an admission session");
+      return;
+    }
 
     try {
       final session = await createAdmissionSession(
         domain: state.domain,
         pushToken: pushToken,
       );
+      _log.info(
+        "Opened admission session ${session.sessionId} "
+        "(lifetime ${session.lifetime.inSeconds}s)",
+      );
+      final waited = Stopwatch()..start();
       final challenge = await awaitAdmissionChallenge(
         session.sessionId,
         _challengeTimeout,
       );
-      if (challenge == null) return;
+      if (challenge == null) {
+        _log.warning(
+          "No admission challenge within ${_challengeTimeout.inSeconds}s, "
+          "falling back",
+        );
+        return;
+      }
+      _log.info(
+        "Admission challenge arrived after ${waited.elapsedMilliseconds}ms",
+      );
       emit(
         state.copyWith(
           admissionSession: AdmissionSession(
