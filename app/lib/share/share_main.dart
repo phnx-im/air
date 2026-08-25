@@ -42,9 +42,11 @@ Future<ShareBootstrap> _bootstrap() async {
   await initializeDateFormatting();
   await RustLib.init();
 
-  // The extension process survives a dismissed sheet and gets reused for the
-  // next share. Its second engine then finds the Rust logger initialized
-  // already, and initializing it again fails.
+  // Another engine in this process may have initialized the Rust logger
+  // already, in which case a second initialization fails. On iOS the
+  // extension process survives a dismissed sheet and gets reused for the next
+  // share. On Android the share activity shares the process with a running
+  // main app.
   try {
     final cacheDir = await getCacheDirectory();
     final logWriter = initRustLogging(logFile: p.join(cacheDir, 'app.log'));

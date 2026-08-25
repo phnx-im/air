@@ -6,7 +6,8 @@ import 'package:air/core/core.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 
-/// Channel to the native share host (the iOS share extension).
+/// Channel to the native share host (iOS share extension / Android share
+/// activity).
 const shareChannel = MethodChannel('ms.air/share');
 
 final _log = Logger('SharePayload');
