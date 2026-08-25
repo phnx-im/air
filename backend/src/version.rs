@@ -21,7 +21,7 @@ use crate::settings::VersionExpiration;
 /// [`Default]` implemenentation constructs an empty policy.
 #[derive(Debug, Clone, Default)]
 pub struct VersionPolicy {
-    // Invariant: sorted by (`older_than`, `expires_on`)
+    // Invariant: sorted by (`older_than`, `expires_on`), `expires_on` non-decreasing
     expirations: Arc<[VersionExpiration]>,
 }
 
@@ -57,6 +57,14 @@ pub(crate) struct VerifiedClientVersion {
 impl VersionPolicy {
     pub fn new(mut expirations: Vec<VersionExpiration>) -> Self {
         expirations.sort_unstable();
+        // A version below one entry is also below every later one, so the effective expiry is the
+        // minimum over the remaining entries. Normalizing here keeps a hand-edited postponement
+        // from letting an older client outlive a newer one.
+        let mut min_expires_on = DateTime::<Utc>::MAX_UTC;
+        for expiration in expirations.iter_mut().rev() {
+            min_expires_on = min_expires_on.min(expiration.expires_on);
+            expiration.expires_on = min_expires_on;
+        }
         Self {
             expirations: expirations.into(),
         }
@@ -319,6 +327,25 @@ mod tests {
             .verify_client_version(Some(&metadata), now())
             .unwrap();
         assert_eq!(verified.expires_at, Some(date("2026-07-25")));
+    }
+
+    #[test]
+    fn postponed_entry_does_not_outlive_a_later_one() {
+        // 0.19.0 was postponed by hand past 0.20.0's expiry
+        let policy = policy(&[("0.19.0", "2026-09-15"), ("0.20.0", "2026-09-01")]);
+        let now = date("2026-09-05");
+
+        assert_eq!(policy.min_supported(now), Some(&Version::new(0, 20, 0)));
+
+        let metadata = mock_client_metadata(0, 18, 0);
+        policy
+            .verify_client_version(Some(&metadata), now)
+            .expect_err("0.18.0 must not outlive 0.19.5");
+
+        let metadata = mock_client_metadata(0, 19, 5);
+        policy
+            .verify_client_version(Some(&metadata), now)
+            .expect_err("0.19.5 expired on 2026-09-01");
     }
 
     #[test]
