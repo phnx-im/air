@@ -6,7 +6,8 @@ use std::{collections::HashSet, slice, time::Duration};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::settings::{
-    RateLimitsSettings, RegistrationPolicy, RegistrationSettings, RegistrationThreshold,
+    AdmissionSettings, RateLimitsSettings, RegistrationPolicy, RegistrationSettings,
+    RegistrationThreshold,
 };
 use aircommon::{
     assert_matches,
@@ -1158,6 +1159,14 @@ async fn push_admission_registration() {
         registration: RegistrationSettings {
             policy: RegistrationPolicy::Required,
             challenges: vec![ChallengeKind::AdmissionSession],
+            // One account per endpoint, so the last step finds the quota spent.
+            admission: AdmissionSettings {
+                quotas: vec![RegistrationThreshold {
+                    limit: 1,
+                    window: chrono::Duration::days(1),
+                }],
+                ..Default::default()
+            },
             ..Default::default()
         },
         ..Default::default()
