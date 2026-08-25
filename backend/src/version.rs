@@ -104,18 +104,6 @@ impl VersionPolicy {
         client_metadata: Option<&ClientMetadata>,
         now: DateTime<Utc>,
     ) -> Result<VerifiedClientVersion, Status> {
-        // parse client version, but don't fail
-        if self.expirations.is_empty() {
-            let version = client_metadata.and_then(|metadata| {
-                let version = metadata.version.clone()?;
-                version.try_into().ok()
-            });
-            return Ok(VerifiedClientVersion {
-                version,
-                expires_at: None,
-            });
-        }
-
         let min_supported = self.min_supported(now);
 
         let version = client_metadata.and_then(|metadata| {
