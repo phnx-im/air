@@ -227,7 +227,9 @@ class RegistrationCubit extends Cubit<RegistrationState> {
   Future<SignUpError?> _createUser() async {
     // Sessions live minutes and filling the form in takes longer, so an expired
     // one is replaced here.
-    if (state.challengeRequired && !state.hasAdmissionSession) {
+    if (state.challengeRequired &&
+        !state.hasAdmissionSession &&
+        state.invitationCode == null) {
       await acquireAdmissionSession();
     }
 
