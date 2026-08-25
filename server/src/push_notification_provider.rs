@@ -24,6 +24,7 @@ use reqwest::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const DEFAULT_APNS_ENDPOINT: &str = "https://api.push.apple.com";
@@ -423,6 +424,7 @@ impl ProductionPushNotificationProvider {
     async fn send_apple_challenge(
         &self,
         device_token: &str,
+        session_id: Uuid,
         challenge: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), ChallengeSendError> {
@@ -432,7 +434,8 @@ impl ProductionPushNotificationProvider {
 
         let body = json!({
             "aps": { "content-available": 1 },
-            "challenge": challenge
+            "challenge": challenge,
+            "sessionId": session_id,
         });
 
         let expiration = expires_at.timestamp().max(0).unsigned_abs();
@@ -464,6 +467,7 @@ impl ProductionPushNotificationProvider {
     async fn send_google_challenge(
         &self,
         device_token: &str,
+        session_id: Uuid,
         challenge: &str,
     ) -> Result<(), ChallengeSendError> {
         let Some(fcm_state) = &self.fcm_state else {
@@ -471,7 +475,14 @@ impl ProductionPushNotificationProvider {
         };
 
         let (status, response) = self
-            .post_fcm(fcm_state, device_token, json!({ "challenge": challenge }))
+            .post_fcm(
+                fcm_state,
+                device_token,
+                json!({
+                    "challenge": challenge,
+                    "sessionId": session_id
+                }),
+            )
             .await
             .map_err(|error| match error {
                 FcmPostError::MissingProjectId => ChallengeSendError::PlatformUnavailable,
@@ -618,16 +629,17 @@ impl ChallengeSender for ProductionPushNotificationProvider {
     async fn send_challenge(
         &self,
         push_token: &PushToken,
+        session_id: Uuid,
         challenge: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), ChallengeSendError> {
         match push_token.operator() {
             PushTokenOperator::Apple => {
-                self.send_apple_challenge(push_token.token(), challenge, expires_at)
+                self.send_apple_challenge(push_token.token(), session_id, challenge, expires_at)
                     .await
             }
             PushTokenOperator::Google => {
-                self.send_google_challenge(push_token.token(), challenge)
+                self.send_google_challenge(push_token.token(), session_id, challenge)
                     .await
             }
         }

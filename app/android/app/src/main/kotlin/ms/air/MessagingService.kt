@@ -25,10 +25,12 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(TAG, "onMessageReceived")
 
+        val sessionId = remoteMessage.data["sessionId"]
         val challenge = remoteMessage.data["challenge"]
-        if (challenge != null) {
+
+        if (sessionId != null && challenge != null) {
             Log.d(TAG, "admission challenge received")
-            AdmissionChallenges.publish(challenge)
+            AdmissionChallenges.publish(sessionId, challenge)
             return
         }
 

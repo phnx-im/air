@@ -10,6 +10,7 @@ import 'package:air/core/core.dart';
 import 'package:air/core/api/utils.dart' as rust_utils;
 import 'package:air/platform/notifications.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 const platform = MethodChannel('ms.air/channel');
 
@@ -50,9 +51,9 @@ Future<void> _handleMethod(
       CoreClient().maybeUser?.signalPendingStoreNotifications();
       break;
     case 'receivedAdmissionChallenge':
-      final challenge = call.arguments as String?;
-      if (challenge != null) {
-        _admissionChallenges.add(challenge);
+      final delivered = _parseChallenge(call.arguments);
+      if (delivered != null) {
+        _admissionChallenges.add(delivered);
       }
       break;
     default:
@@ -60,16 +61,28 @@ Future<void> _handleMethod(
   }
 }
 
-final _admissionChallenges = StreamController<String>.broadcast();
+typedef DeliveredChallenge = ({String sessionId, String challenge});
+
+final _admissionChallenges = StreamController<DeliveredChallenge>.broadcast();
+
+DeliveredChallenge? _parseChallenge(Object? arguments) {
+  if (arguments is! Map) return null;
+  final sessionId = arguments['sessionId'];
+  final challenge = arguments['challenge'];
+  if (sessionId is! String || challenge is! String) return null;
+  return (sessionId: sessionId, challenge: challenge);
+}
 
 /// The challenge that arrived before anything was listening. Reading it clears
 /// it.
-Future<String?> takePendingAdmissionChallenge() async {
+Future<DeliveredChallenge?> takePendingAdmissionChallenge() async {
   if (!Platform.isAndroid && !Platform.isIOS) {
     return null;
   }
   try {
-    return await platform.invokeMethod('getPendingAdmissionChallenge');
+    return _parseChallenge(
+      await platform.invokeMethod('getPendingAdmissionChallenge'),
+    );
   } on PlatformException catch (e, stacktrace) {
     _log.warning(
       "Failed to read the pending challenge: '${e.message}'.",
@@ -80,21 +93,31 @@ Future<String?> takePendingAdmissionChallenge() async {
   }
 }
 
-/// Waits for a challenge to arrive over the push service, or null when none
-/// arrives in time.
-Future<String?> awaitAdmissionChallenge(Duration timeout) async {
+/// Waits for a challenge of `sessionId` to arrive over the push service, or
+/// null when none arrives in time.
+///
+/// Challenges for other sessions are dropped, so one that outlived its attempt
+/// cannot be paired with the next.
+Future<String?> awaitAdmissionChallenge(
+  UuidValue sessionId,
+  Duration timeout,
+) async {
+  final expected = sessionId.uuid.toLowerCase();
+  bool matches(DeliveredChallenge delivered) =>
+      delivered.sessionId.toLowerCase() == expected;
+
   final arrived = Completer<String>();
   // Subscribed before the mailbox is read, so a challenge that lands in between
   // is not missed.
-  final subscription = _admissionChallenges.stream.listen((challenge) {
-    if (!arrived.isCompleted) {
-      arrived.complete(challenge);
+  final subscription = _admissionChallenges.stream.listen((delivered) {
+    if (matches(delivered) && !arrived.isCompleted) {
+      arrived.complete(delivered.challenge);
     }
   });
   try {
     final pending = await takePendingAdmissionChallenge();
-    if (pending != null) {
-      return pending;
+    if (pending != null && matches(pending)) {
+      return pending.challenge;
     }
     return await arrived.future.timeout(timeout);
   } on TimeoutException {

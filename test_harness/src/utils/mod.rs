@@ -80,6 +80,7 @@ impl ChallengeSender for LoopbackChallengeSender {
     async fn send_challenge(
         &self,
         _push_token: &PushToken,
+        _session_id: Uuid,
         challenge: &str,
         _expires_at: DateTime<Utc>,
     ) -> Result<(), ChallengeSendError> {

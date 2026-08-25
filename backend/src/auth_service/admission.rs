@@ -50,6 +50,7 @@ pub trait ChallengeSender: fmt::Debug + Send + Sync + 'static {
     async fn send_challenge(
         &self,
         push_token: &PushToken,
+        session_id: Uuid,
         challenge: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), ChallengeSendError>;
@@ -139,7 +140,7 @@ impl AuthService {
             .await?;
 
         let outcome = match sender
-            .send_challenge(&push_token, &challenge, expires_at)
+            .send_challenge(&push_token, session_id, &challenge, expires_at)
             .await
         {
             Ok(()) => SendVerdict::Send.as_str(),
@@ -510,6 +511,7 @@ mod test {
         async fn send_challenge(
             &self,
             _push_token: &PushToken,
+            _session_id: Uuid,
             challenge: &str,
             _expires_at: DateTime<Utc>,
         ) -> Result<(), ChallengeSendError> {

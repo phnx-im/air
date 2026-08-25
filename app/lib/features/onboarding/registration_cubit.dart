@@ -167,14 +167,14 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     if (pushToken == null) return;
 
     try {
-      // A challenge from an earlier attempt would be taken for this one.
-      await takePendingAdmissionChallenge();
-
       final session = await createAdmissionSession(
         domain: state.domain,
         pushToken: pushToken,
       );
-      final challenge = await awaitAdmissionChallenge(_challengeTimeout);
+      final challenge = await awaitAdmissionChallenge(
+        session.sessionId,
+        _challengeTimeout,
+      );
       if (challenge == null) return;
       emit(
         state.copyWith(

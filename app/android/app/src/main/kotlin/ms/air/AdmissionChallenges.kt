@@ -6,6 +6,7 @@ package ms.air
 
 import android.os.Handler
 import android.os.Looper
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Challenges that arrived over FCM for the sign-up flow.
@@ -14,20 +15,16 @@ import android.os.Looper
  * listening. The latest one wins.
  */
 object AdmissionChallenges {
-    @Volatile
-    private var pending: String? = null
+    private val pending = AtomicReference<Map<String, String>?>(null)
 
-    fun publish(challenge: String) {
-        pending = challenge
+    fun publish(sessionId: String, challenge: String) {
+        val arguments = mapOf("sessionId" to sessionId, "challenge" to challenge)
+        pending.set(arguments)
         val channel = MainActivity.activeChannel() ?: return
         Handler(Looper.getMainLooper()).post {
-            channel.invokeMethod("receivedAdmissionChallenge", challenge)
+            channel.invokeMethod("receivedAdmissionChallenge", arguments)
         }
     }
 
-    fun take(): String? {
-        val challenge = pending
-        pending = null
-        return challenge
-    }
+    fun take(): Map<String, String>? = pending.getAndSet(null)
 }

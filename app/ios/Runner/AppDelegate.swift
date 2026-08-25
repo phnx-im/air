@@ -7,7 +7,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
-    private var pendingAdmissionChallenge: String?
+    private var pendingAdmissionChallenge: PendingAdmissionChallenge?
     private let notificationChannelName: String = AppChannel.name
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var storeNotificationsChannel: FlutterMethodChannel?
@@ -101,7 +101,9 @@ private let kProtectedBlockedCategory = "protected-blocked"
             UIBackgroundFetchResult
         ) -> Void
     ) {
-        guard let challenge = userInfo["challenge"] as? String else {
+        guard let challenge = userInfo["challenge"] as? String,
+            let sessionId = userInfo["sessionId"] as? String
+        else {
             super.application(
                 application,
                 didReceiveRemoteNotification: userInfo,
@@ -113,9 +115,12 @@ private let kProtectedBlockedCategory = "protected-blocked"
         NSLog("Admission challenge received")
         // We deliver it, but also keep it in memory so Flutter can retrieve it
         // if it wasn't ready to receive it yet.
-        pendingAdmissionChallenge = challenge
+        pendingAdmissionChallenge = PendingAdmissionChallenge(
+            challenge: challenge,
+            sessionId: sessionId
+        )
         storeNotificationsChannel?.invokeMethod(
-            "receivedAdmissionChallenge", arguments: challenge)
+            "receivedAdmissionChallenge", arguments: pendingAdmissionChallenge.channelArguments)
         completionHandler(.newData)
     }
 
@@ -380,10 +385,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
         result(deviceToken)
     }
 
-    private func takePendingAdmissionChallenge() -> String? {
-        let challenge = pendingAdmissionChallenge
-        pendingAdmissionChallenge = nil
-        return challenge
+    private func takePendingAdmissionChallenge() -> [String: String]? {
+        defer { pendingAdmissionChallenge = nil }
+        guard let pending = pendingAdmissionChallenge else { return nil }
+        return pending.channelArguments
     }
 
     // Set the badge count
@@ -541,4 +546,13 @@ func cancelNotifications(identifiers: [UUID]) {
         withIdentifiers: identifiers.map {
             $0.uuidString
         })
+}
+
+struct PendingAdmissionChallenge {
+    let challenge: String
+    let sessionId: String
+
+    var channelArguments: [String: String] {
+        ["sessionId": sessionId, "challenge": challenge]
+    }
 }
