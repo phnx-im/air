@@ -29,7 +29,6 @@ use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
 use chrono::Utc;
-use openmls::components::vc_derivation_info::EpochId;
 use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
@@ -52,8 +51,6 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use crate::db::access::WriteConnection;
-use crate::groups::self_group::SelfGroup;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
     clients::{
@@ -692,18 +689,6 @@ impl CoreUser {
             .await?;
 
         Ok(())
-    }
-
-    /// Register a virtual-clients emulation epoch on the self group.
-    pub(crate) async fn register_self_group_vc_emulation_epoch(
-        mut connection: impl WriteConnection,
-    ) -> anyhow::Result<EpochId> {
-        let mut self_group = SelfGroup::load(&mut connection)
-            .await?
-            .context("self group not found")?;
-        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
-        debug!(?epoch_id, "registered self-group VC emulation epoch");
-        Ok(epoch_id)
     }
 
     /// Poll our QS queue until the self-group Welcome arrives.

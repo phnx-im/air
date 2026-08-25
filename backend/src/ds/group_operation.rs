@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use airprotos::client::virtual_client::extract_virtual_client_action;
+use airprotos::client::virtual_client::extract_virtual_client_commit_data;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -138,6 +138,23 @@ impl DsGroupState {
         }
 
         let is_self_group = self.is_self_group();
+
+        // Temporary measure to prevent old clients from derailing self-groups on new clients. Will
+        // be removed shortly.
+        if is_self_group
+            && staged_commit.add_proposals().next().is_none()
+            && staged_commit.remove_proposals().next().is_none()
+        {
+            let commit_data =
+                extract_virtual_client_commit_data(processed_message).map_err(|error| {
+                    error!(%error, "Failed to extract virtual client commit data from safe AAD");
+                    GroupOperationError::InvalidMessage
+                })?;
+            if commit_data.is_none() {
+                warn!("Self-group commit without membership change or commit data");
+                return Err(GroupOperationError::InvalidMessage);
+            }
+        }
 
         // If the commit carries an update path, the sender's new leaf credential must match the
         // group kind.
@@ -803,12 +820,14 @@ impl DsGroupState {
 fn extract_virtual_client_hint(
     processed_message: &ProcessedMessage,
 ) -> Result<Option<QsVirtualClientHint>, GroupOperationError> {
-    extract_virtual_client_action(processed_message)
-        .map_err(|error| {
-            error!(%error, "Failed to extract KeyPackageUpload from safe AAD");
-            GroupOperationError::InvalidMessage
-        })
-        .map(|action| action.map(From::from))
+    let commit_data = extract_virtual_client_commit_data(processed_message).map_err(|error| {
+        error!(%error, "Failed to extract virtual client commit data from safe AAD");
+        GroupOperationError::InvalidMessage
+    })?;
+    Ok(commit_data
+        .as_ref()
+        .and_then(|commit_data| commit_data.key_package_uploads().next())
+        .map(From::from))
 }
 
 pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);

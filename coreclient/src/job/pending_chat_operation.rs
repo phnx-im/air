@@ -50,7 +50,8 @@ use crate::{
         self_group::SelfGroup,
     },
     job::{
-        Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
+        Job, JobContext, JobContextReadConnection, JobError,
+        chat_operation::{ChatOperationError, DerivationEpoch},
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
@@ -786,6 +787,7 @@ impl PendingChatOperation {
         chat_id: ChatId,
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
+        derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
         let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
         Self::create_update_with_raw_group_data(
@@ -794,6 +796,7 @@ impl PendingChatOperation {
             chat_id,
             group_data_bytes,
             new_chat_picture,
+            derivation_epoch,
         )
         .await
     }
@@ -802,12 +805,16 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
+        derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-        let params = group.group_mut().apq_update(txn, &signer).await?;
+        let params = group
+            .group_mut()
+            .apq_update(txn, &signer, derivation_epoch)
+            .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)
@@ -982,6 +989,7 @@ impl PendingChatOperation {
         chat_id: ChatId,
         group_data_bytes: Option<GroupDataBytes>,
         new_chat_picture: Option<Vec<u8>>,
+        derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
@@ -990,7 +998,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes)
+            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
             .await?;
 
         let job = Self::new(
@@ -1950,9 +1958,13 @@ mod tests {
                     Chat::new_group_chat(t_group_id, ChatAttributes::new("Notes".to_owned(), None));
                 chat.store(&mut *txn).await?;
 
-                let job =
-                    PendingChatOperation::create_apq_self_update(txn, &user_signing_key, chat.id())
-                        .await?;
+                let job = PendingChatOperation::create_apq_self_update(
+                    txn,
+                    &user_signing_key,
+                    chat.id(),
+                    DerivationEpoch::Keep,
+                )
+                .await?;
 
                 let staged = job
                     .group

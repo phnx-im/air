@@ -20,6 +20,7 @@ use apqmls::{
 };
 use openmls::{
     components::vc_derivation_info::{EpochId, KeyPackageInfo},
+    group::GroupId,
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, KeyPackage, KeyPackageBuilder,
         KeyPackageRef, LastResortExtension, OpenMlsProvider, SignaturePublicKey, UnknownExtension,
@@ -224,7 +225,7 @@ impl MemoryUserKeyStore {
         &self,
         mut connection: impl WriteConnection,
         qs_client_id: &QsClientId,
-        epoch_id: EpochId,
+        emulation_group_id: &GroupId,
         config: VcKeyPackageBatchConfig,
     ) -> Result<HeterogeneousVcKeyPackageBatch> {
         let t_credential = CredentialWithKey {
@@ -244,8 +245,11 @@ impl MemoryUserKeyStore {
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
-        let mut batch_builder =
-            VcKeyPackageBatchBuilder::with_capacity(&provider, epoch_id, config.num_plain())?;
+        let mut batch_builder = VcKeyPackageBatchBuilder::with_capacity(
+            &provider,
+            emulation_group_id,
+            config.num_plain(),
+        )?;
 
         for is_last_resort in (0..config.key_packages)
             .map(|_| false)
@@ -286,6 +290,7 @@ impl MemoryUserKeyStore {
         let batch = batch_builder.finalize(&provider)?;
 
         let mut res = HeterogeneousVcKeyPackageBatch {
+            epoch_id: batch.epoch_id,
             generation: batch.generation,
             key_packages: Vec::with_capacity(config.num_plain()),
             apq_key_packages: Vec::with_capacity(config.num_apq()),
@@ -341,6 +346,8 @@ impl VcKeyPackageBatchConfig {
 }
 
 pub(crate) struct HeterogeneousVcKeyPackageBatch {
+    /// The derivation epoch the batch was built from.
+    pub(crate) epoch_id: EpochId,
     pub(crate) generation: u32,
     pub(crate) key_packages: Vec<KeyPackage>,
     pub(crate) apq_key_packages: Vec<ApqKeyPackage>,
