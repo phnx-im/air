@@ -26,6 +26,11 @@ final _domainRegex = RegExp(
 /// fallback.
 const _challengeTimeout = Duration(seconds: 8);
 
+/// How much of a session's lifetime is left unused. The expiry is anchored to
+/// the clock at receipt, which runs ahead of the server's by one round trip,
+/// and the registration itself takes time to land.
+const _admissionExpiryMargin = Duration(seconds: 30);
+
 @freezed
 sealed class RegistrationState with _$RegistrationState {
   const RegistrationState._();
@@ -65,7 +70,7 @@ sealed class RegistrationState with _$RegistrationState {
     final expiresAt = admissionExpiresAt;
     return admissionSession != null &&
         expiresAt != null &&
-        expiresAt.isAfter(DateTime.now().toUtc());
+        expiresAt.subtract(_admissionExpiryMargin).isAfter(DateTime.now().toUtc());
   }
 
   /// Whether the flow collects an invitation code, which is what it falls back
@@ -182,7 +187,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
             sessionId: session.sessionId,
             challenge: challenge,
           ),
-          admissionExpiresAt: session.expiresAt,
+          admissionExpiresAt: DateTime.now().toUtc().add(session.lifetime),
         ),
       );
     } catch (e) {

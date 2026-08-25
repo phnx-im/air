@@ -9286,7 +9286,7 @@ const _: fn() = || {
     {
         let NewAdmissionSession = None::<crate::api::registration::NewAdmissionSession>.unwrap();
         let _: uuid::Uuid = NewAdmissionSession.session_id;
-        let _: chrono::DateTime<chrono::Utc> = NewAdmissionSession.expires_at;
+        let _: chrono::Duration = NewAdmissionSession.lifetime;
     }
     {
         let PqGroupDebugInfo = None::<crate::api::chat_details_cubit::PqGroupDebugInfo>.unwrap();
@@ -9777,6 +9777,14 @@ impl SseDecode for [u64; 12] {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u64>>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::from_vec_to_array(inner);
+    }
+}
+
+impl SseDecode for chrono::Duration {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i64>::sse_decode(deserializer);
+        return chrono::Duration::microseconds(inner);
     }
 }
 
@@ -11517,10 +11525,10 @@ impl SseDecode for crate::api::registration::NewAdmissionSession {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_sessionId = <uuid::Uuid>::sse_decode(deserializer);
-        let mut var_expiresAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        let mut var_lifetime = <chrono::Duration>::sse_decode(deserializer);
         return crate::api::registration::NewAdmissionSession {
             session_id: var_sessionId,
-            expires_at: var_expiresAt,
+            lifetime: var_lifetime,
         };
     }
 }
@@ -15089,7 +15097,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::NewA
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.session_id.into_into_dart().into_dart(),
-            self.0.expires_at.into_into_dart().into_dart(),
+            self.0.lifetime.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16718,6 +16726,17 @@ impl SseEncode for [u64; 12] {
     }
 }
 
+impl SseEncode for chrono::Duration {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(
+            self.num_microseconds()
+                .expect("cannot get microseconds from time"),
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for chrono::DateTime<chrono::Local> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18206,7 +18225,7 @@ impl SseEncode for crate::api::registration::NewAdmissionSession {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <uuid::Uuid>::sse_encode(self.session_id, serializer);
-        <chrono::DateTime<chrono::Utc>>::sse_encode(self.expires_at, serializer);
+        <chrono::Duration>::sse_encode(self.lifetime, serializer);
     }
 }
 

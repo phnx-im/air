@@ -8723,6 +8723,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Duration dco_decode_Chrono_Duration(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeDuration(dco_decode_i_64(raw).toInt());
+  }
+
+  @protected
   DateTime dco_decode_Chrono_Local(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeTimestamp(ts: dco_decode_i_64(raw).toInt(), isUtc: false);
@@ -10365,7 +10371,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return NewAdmissionSession(
       sessionId: dco_decode_Uuid(arr[0]),
-      expiresAt: dco_decode_Chrono_Utc(arr[1]),
+      lifetime: dco_decode_Chrono_Duration(arr[1]),
     );
   }
 
@@ -12151,6 +12157,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_usize(deserializer);
     return inner.toInt();
+  }
+
+  @protected
+  Duration sse_decode_Chrono_Duration(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_64(deserializer);
+    return Duration(microseconds: inner.toInt());
   }
 
   @protected
@@ -14142,10 +14155,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_sessionId = sse_decode_Uuid(deserializer);
-    var var_expiresAt = sse_decode_Chrono_Utc(deserializer);
+    var var_lifetime = sse_decode_Chrono_Duration(deserializer);
     return NewAdmissionSession(
       sessionId: var_sessionId,
-      expiresAt: var_expiresAt,
+      lifetime: var_lifetime,
     );
   }
 
@@ -16321,6 +16334,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_Chrono_Duration(Duration self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(PlatformInt64Util.from(self.inMicroseconds), serializer);
+  }
+
+  @protected
   void sse_encode_Chrono_Local(DateTime self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(
@@ -18450,7 +18469,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_Uuid(self.sessionId, serializer);
-    sse_encode_Chrono_Utc(self.expiresAt, serializer);
+    sse_encode_Chrono_Duration(self.lifetime, serializer);
   }
 
   @protected

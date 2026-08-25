@@ -13,7 +13,7 @@ pub(crate) use aircommon::registration::{
     AdmissionSession, ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo,
 };
 use aircoreclient::clients::{CoreUser, registration::RegistrationError};
-use chrono::{DateTime, Utc};
+use chrono::Duration;
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
@@ -44,7 +44,7 @@ pub struct _AdmissionSession {
 #[frb(mirror(NewAdmissionSession))]
 pub struct _NewAdmissionSession {
     pub session_id: Uuid,
-    pub expires_at: DateTime<Utc>,
+    pub lifetime: Duration,
 }
 
 #[doc(hidden)]

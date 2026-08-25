@@ -118,10 +118,11 @@ impl AuthService {
         let session_id = Uuid::new_v4();
         let challenge_bytes: [u8; 32] = rand::rng().random();
         let challenge = hex::encode(challenge_bytes);
-        let expires_at = Utc::now() + settings.sessionlifetime;
+        let lifetime = settings.sessionlifetime;
+        let expires_at = Utc::now() + lifetime;
         let answer = NewAdmissionSession {
             session_id,
-            expires_at,
+            lifetime,
         };
 
         let verdict = self
@@ -808,7 +809,7 @@ mod test {
             .await?;
 
         assert_eq!(sender.challenges().len(), sent_before);
-        assert!(answer.expires_at > Utc::now());
+        assert_eq!(answer.lifetime, Duration::minutes(5));
 
         Ok(())
     }

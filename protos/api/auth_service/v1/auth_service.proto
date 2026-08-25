@@ -235,7 +235,10 @@ message CreateAdmissionSessionResponse {
   // challenge that reaches it over the push service, so the push service cannot
   // redeem what it carried.
   common.v1.Uuid session_id = 1;
-  common.v1.Timestamp expires_at = 2;
+  // How long the session stays spendable, counted from receipt. A duration
+  // rather than an instant, so the client's clock need not agree with the
+  // server's.
+  uint32 lifetime_seconds = 2;
 }
 
 message AdmissionSession {

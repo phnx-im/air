@@ -70,12 +70,12 @@ sealed class CreateUserError with _$CreateUserError implements FrbException {
 
 class NewAdmissionSession {
   final UuidValue sessionId;
-  final DateTime expiresAt;
+  final Duration lifetime;
 
-  const NewAdmissionSession({required this.sessionId, required this.expiresAt});
+  const NewAdmissionSession({required this.sessionId, required this.lifetime});
 
   @override
-  int get hashCode => sessionId.hashCode ^ expiresAt.hashCode;
+  int get hashCode => sessionId.hashCode ^ lifetime.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -83,7 +83,7 @@ class NewAdmissionSession {
       other is NewAdmissionSession &&
           runtimeType == other.runtimeType &&
           sessionId == other.sessionId &&
-          expiresAt == other.expiresAt;
+          lifetime == other.lifetime;
 }
 
 @freezed

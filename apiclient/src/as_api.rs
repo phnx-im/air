@@ -28,7 +28,7 @@ use aircommon::{
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
-    time::TimeStamp,
+    time::Duration,
 };
 use airprotos::{
     auth_service::v1::{
@@ -250,11 +250,7 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?
                 .into(),
-            expires_at: TimeStamp::from(response.expires_at.ok_or_else(|| {
-                error!("missing `expires_at` in response");
-                AsRequestError::UnexpectedResponse
-            })?)
-            .into(),
+            lifetime: Duration::seconds(response.lifetime_seconds.into()),
         })
     }
 

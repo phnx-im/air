@@ -7,7 +7,7 @@
 //! A deployment can require registration to answer a challenge, either always
 //! or once its signup counters cross a threshold.
 
-use chrono::{DateTime, Utc};
+use chrono::Duration;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -39,11 +39,14 @@ pub struct AdmissionSession {
     pub challenge: String,
 }
 
-/// A session the server just opened, with the deadline it has to be spent by.
+/// A session the server just opened.
+///
+/// The lifetime is a duration rather than an instant, so a client anchors it
+/// to its own clock at receipt and never compares against the server's.
 #[derive(Debug, Clone)]
 pub struct NewAdmissionSession {
     pub session_id: Uuid,
-    pub expires_at: DateTime<Utc>,
+    pub lifetime: Duration,
 }
 
 /// A response to a registration challenge.

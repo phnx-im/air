@@ -33,7 +33,6 @@ use aircommon::{
         },
         push_token::{PushToken, PushTokenOperator},
     },
-    time::TimeStamp,
     utils::CancellableStream,
 };
 use privacypass::{
@@ -443,7 +442,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
         Ok(Response::new(CreateAdmissionSessionResponse {
             session_id: Some(session.session_id.into()),
-            expires_at: Some(TimeStamp::from(session.expires_at).into()),
+            lifetime_seconds: u32::try_from(session.lifetime.num_seconds()).unwrap_or(u32::MAX),
         }))
     }
 
