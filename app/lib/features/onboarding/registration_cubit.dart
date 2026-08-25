@@ -70,7 +70,9 @@ sealed class RegistrationState with _$RegistrationState {
     final expiresAt = admissionExpiresAt;
     return admissionSession != null &&
         expiresAt != null &&
-        expiresAt.subtract(_admissionExpiryMargin).isAfter(DateTime.now().toUtc());
+        expiresAt
+            .subtract(_admissionExpiryMargin)
+            .isAfter(DateTime.now().toUtc());
   }
 
   /// Whether the flow collects an invitation code, which is what it falls back
