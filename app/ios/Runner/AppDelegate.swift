@@ -115,12 +115,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
         NSLog("Admission challenge received")
         // We deliver it, but also keep it in memory so Flutter can retrieve it
         // if it wasn't ready to receive it yet.
-        pendingAdmissionChallenge = PendingAdmissionChallenge(
-            challenge: challenge,
-            sessionId: sessionId
-        )
+        let pending = PendingAdmissionChallenge(challenge: challenge, sessionId: sessionId)
+        pendingAdmissionChallenge = pending
         storeNotificationsChannel?.invokeMethod(
-            "receivedAdmissionChallenge", arguments: pendingAdmissionChallenge.channelArguments)
+            "receivedAdmissionChallenge", arguments: pending.channelArguments)
         completionHandler(.newData)
     }
 
