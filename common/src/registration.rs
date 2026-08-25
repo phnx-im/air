@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 /// A kind of challenge a gated registration can be answered with.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum ChallengeKind {
     InvitationCode,
     AdmissionSession,
