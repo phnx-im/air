@@ -18,7 +18,7 @@ use crate::settings::VersionExpiration;
 
 /// Cheaply-cloneable version policy
 ///
-/// [`Default]` implemenentation constructs an empty policy.
+/// `Default` implementation constructs an empty policy.
 #[derive(Debug, Clone, Default)]
 pub struct VersionPolicy {
     // Invariant: sorted by (`older_than`, `expires_on`), `expires_on` non-decreasing
@@ -84,7 +84,7 @@ impl VersionPolicy {
     /// Minimum supported version at `now`, the largest `older_than` version among already expired
     /// versions.
     ///
-    /// `None if nothing has expired yet.
+    /// `None` if nothing has expired yet.
     pub fn min_supported(&self, now: DateTime<Utc>) -> Option<&Version> {
         self.expirations
             .iter()
@@ -92,13 +92,14 @@ impl VersionPolicy {
             .map(|expiration| &expiration.older_than)
     }
 
-    /// Verifies that the client version matches the given version requirement.
+    /// Verifies the client version against this policy at `now`.
     ///
-    /// If the version requirement is not set, this function returns `Ok(None)`, otherwise, on success,
-    /// it returns the client version.
+    /// On success, returns the client version, if the metadata carried a valid one, together with
+    /// its upcoming expiry, if any.
     ///
-    /// If version requirement does not match, this function returns a [`Status`] with
-    /// [`Code::FailedPrecondition`] and [`StatusDetailsCode::VersionUnsupported`].
+    /// If the version is expired, or is missing while some version has already expired, this
+    /// function returns a [`Status`] with [`Code::FailedPrecondition`] and
+    /// [`StatusDetailsCode::VersionUnsupported`].
     pub(crate) fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
@@ -153,7 +154,7 @@ impl VersionPolicy {
 }
 
 /// Compares two versions (major, minor, patch) ignoring pre-release and build metadata.
-fn release_cmp(a: &Version, b: &Version) -> std::cmp::Ordering {
+fn release_cmp(a: &Version, b: &Version) -> Ordering {
     (a.major, a.minor, a.patch).cmp(&(b.major, b.minor, b.patch))
 }
 

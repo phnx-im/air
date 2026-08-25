@@ -74,12 +74,15 @@ fn get_configuration_impl(
         // Read the "default" configuration file
         .add_source(base)
         // Layer on the environment-specific values.
-        .add_source(environment)
-        // Add in settings from environment variables (with a prefix of APP and '_' as separator)
-        // E.g. `AIR_APPLICATION_PORT=5001 would set `Settings.application.port`
-        .add_source(config::Environment::with_prefix("AIR").separator("_"));
+        .add_source(environment);
+    // Layer on the generated version expirations. Note that the '_' separator below makes
+    // `application.version_expirations` unreachable from the environment, so this file is the only
+    // way to set it.
     if let Some(version_expirations) = version_expirations {
         builder = builder.add_source(version_expirations);
     }
+    // Add in settings from environment variables (with a prefix of APP and '_' as separator)
+    // E.g. `AIR_APPLICATION_PORT=5001 would set `Settings.application.port`
+    let builder = builder.add_source(config::Environment::with_prefix("AIR").separator("_"));
     builder.build()?.try_deserialize()
 }
