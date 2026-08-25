@@ -93,6 +93,20 @@ private let kProtectedBlockedCategory = "protected-blocked"
         NSLog("Failed to register: \(error)")
     }
 
+    // FlutterAppDelegate answers respondsToSelector: for this selector out of
+    // its plugin registry alone and never falls through to super, so an
+    // implementation in a subclass stays invisible to UIKit unless some plugin
+    // also claims it. We have no push plugin, so answer for ourselves.
+    private static let remoteNotificationSelector = Selector(
+        "application:didReceiveRemoteNotification:fetchCompletionHandler:")
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        if aSelector == Self.remoteNotificationSelector {
+            return true
+        }
+        return super.responds(to: aSelector)
+    }
+
     // A silent push carrying an admission challenge.
     override func application(
         _ application: UIApplication,
@@ -104,11 +118,9 @@ private let kProtectedBlockedCategory = "protected-blocked"
         guard let challenge = userInfo["challenge"] as? String,
             let sessionId = userInfo["sessionId"] as? String
         else {
-            super.application(
-                application,
-                didReceiveRemoteNotification: userInfo,
-                fetchCompletionHandler: completionHandler
-            )
+            // Not a challenge. FlutterAppDelegate has no implementation of this
+            // selector to defer to, so complete the fetch here.
+            completionHandler(.noData)
             return
         }
 
