@@ -179,7 +179,7 @@ async fn delete_user() {
 
     let alice = setup.add_user().await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&alice, setup.server_url(), "DUMMY007").await {
+    match TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007")).await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -192,7 +192,7 @@ async fn delete_user() {
     setup.delete_user(&alice).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+    TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
 }
@@ -360,7 +360,7 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
     // Adding a username to the new user should work, because the previous username was

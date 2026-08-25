@@ -34,6 +34,10 @@ const String _codeAlphabet = r'[A-HJKMNP-Z0-9]';
 
 /// What the flow asks for, in order.
 enum _Step {
+  /// A dead end: the server gates registration behind something this build
+  /// cannot collect.
+  unsupportedChallenge,
+
   invitationCode,
   profile,
 
@@ -41,7 +45,8 @@ enum _Step {
   username,
 }
 
-/// Creating an account: the invitation code, then the profile, then a username.
+/// Creating an account: a challenge where the server asks for one, then the
+/// profile, then a username.
 ///
 /// One flow rather than three screens: the account is created between the last
 /// two steps, so a screen stack would have a rung nobody could return to. The
@@ -54,7 +59,7 @@ class AccountCreationFlow extends StatefulWidget {
 }
 
 class _AccountCreationFlowState extends State<AccountCreationFlow> {
-  _Step _step = _Step.invitationCode;
+  late _Step _step;
 
   /// Errors only show once a step has been submitted.
   bool _showErrors = false;
@@ -89,10 +94,10 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     // The account is created between the profile and username steps, which
     // flips the loadable user to loaded. That swaps the intro subtree for the
     // logged-in one and rebuilds this flow from scratch, so we need to avoid
-    // dropping back to the first step (invitationCode).
+    // dropping back to the first standing step.
     final userLoaded =
         context.read<LoadableUserCubit>().state.loadedUser != null;
-    _step = userLoaded ? _Step.username : _Step.invitationCode;
+    _step = userLoaded ? _Step.username : _steps(registration).first;
 
     _codeController = TextEditingController(
       text: registration.invitationCode ?? '',
@@ -118,6 +123,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final steps = _steps(context.watch<RegistrationCubit>().state);
 
     return PopScope(
       canPop: !_isBusy && _step != _Step.username,
@@ -125,28 +131,34 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         onBack: _back,
         onDismiss: _dismiss,
         pages: [
-          ModalStackEntry(
-            key: const ValueKey('account-creation-code'),
-            child: _pane(loc, _Step.invitationCode),
-          ),
-          if (_step != _Step.invitationCode)
+          // A step the server stopped asking for drops out of the list, so the
+          // flow falls back to the first one still standing.
+          for (final step in steps.take(
+            steps.contains(_step) ? steps.indexOf(_step) + 1 : 1,
+          ))
             ModalStackEntry(
-              key: const ValueKey('account-creation-profile'),
-              child: _pane(loc, _Step.profile),
-            ),
-          if (_step == _Step.username)
-            // The account exists behind this step, so neither action leads
-            // anywhere it could go.
-            ModalStackEntry(
-              key: const ValueKey('account-creation-username'),
-              canGoBack: false,
-              canDismiss: false,
-              child: _pane(loc, _Step.username),
+              key: ValueKey('account-creation-${step.name}'),
+              // The account exists behind the username step, so neither action
+              // leads anywhere it could go.
+              canGoBack: step != _Step.username,
+              canDismiss: step != _Step.username,
+              child: _pane(loc, step),
             ),
         ],
       ),
     );
   }
+
+  /// The steps this flow walks, in order.
+  ///
+  /// A challenge step is there only while the server asks for one, which can
+  /// start being true between opening the flow and submitting it.
+  List<_Step> _steps(RegistrationState registration) => [
+    if (registration.challengeUnsupported) _Step.unsupportedChallenge,
+    if (registration.invitationCodeRequired) _Step.invitationCode,
+    _Step.profile,
+    _Step.username,
+  ];
 
   // Chrome
 
@@ -155,6 +167,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   Widget _pane(AppLocalizations loc, _Step step) {
     return ModalPane(
       title: switch (step) {
+        _Step.unsupportedChallenge => loc.accountCreation_unsupported_header,
         _Step.invitationCode => loc.invitationCodeScreen_header,
         _Step.profile => loc.signUpScreen_header,
         _Step.username => loc.usernameOnboarding_header,
@@ -188,9 +201,11 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       _displayNameController.text.trim().isNotEmpty ||
       _usernameController.text.trim().isNotEmpty;
 
-  Widget _footer(AppLocalizations loc, _Step step) {
+  Widget? _footer(AppLocalizations loc, _Step step) {
     final registration = context.watch<RegistrationCubit>().state;
-    final (label, onPressed, isBusy) = switch (step) {
+    final (String, VoidCallback, bool)? action = switch (step) {
+      // Nothing on the dead end leads anywhere: the app has to be updated.
+      _Step.unsupportedChallenge => null,
       _Step.invitationCode => (
         loc.invitationCodeScreen_actionButton,
         _submitCode,
@@ -207,6 +222,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         _isAddingUsername,
       ),
     };
+
+    if (action == null) return null;
+    final (label, onPressed, isBusy) = action;
 
     return Button(
       label: label,
@@ -230,6 +248,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
           crossAxisAlignment: .stretch,
           mainAxisSize: .min,
           children: switch (step) {
+            _Step.unsupportedChallenge => _unsupportedChallengeStep(loc),
             _Step.invitationCode => _invitationCodeStep(loc),
             _Step.profile => _profileStep(loc),
             _Step.username => _usernameStep(loc),
@@ -240,6 +259,16 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
   }
 
   // Steps
+
+  List<Widget> _unsupportedChallengeStep(AppLocalizations loc) {
+    return [
+      _Copy(
+        text: loc.accountCreation_unsupported_body,
+        onLongPress: _revealServerField,
+      ),
+      ..._serverField(loc),
+    ];
+  }
 
   List<Widget> _invitationCodeStep(AppLocalizations loc) {
     return [
@@ -361,7 +390,7 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         onSubmitted: (_) => switch (_step) {
           _Step.invitationCode => _submitCode(),
           _Step.profile => _submitProfile(),
-          _Step.username => null,
+          _Step.unsupportedChallenge || _Step.username => null,
         },
       ),
     ];
@@ -379,15 +408,13 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
 
   void _back() {
     if (_isBusy) return;
-    switch (_step) {
-      case _Step.invitationCode:
-        break;
-      case _Step.profile:
-        _goTo(_Step.invitationCode);
-      // The account already exists, so there is nothing to go back to.
-      case _Step.username:
-        break;
-    }
+    // The account already exists behind the username step, so there is nothing
+    // to go back to.
+    if (_step == _Step.username) return;
+    final steps = _steps(context.read<RegistrationCubit>().state);
+    final index = steps.indexOf(_step);
+    if (index <= 0) return;
+    _goTo(steps[index - 1]);
   }
 
   /// Leaves the flow without an account.
@@ -451,9 +478,11 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         ? loc.signUpScreen_error_emptyDisplayName
         : null;
     // The rule follows the value, not the field: the account is created
-    // against the domain whether or not it is on screen. The username step is
-    // past that point and carries no rule.
-    _domainError = _step != _Step.username && !registration.isDomainValid
+    // against the domain whether or not it is on screen. The steps that submit
+    // nothing carry no rule.
+    final carriesDomain =
+        _step == _Step.invitationCode || _step == _Step.profile;
+    _domainError = carriesDomain && !registration.isDomainValid
         ? loc.signUpScreen_error_invalidDomain
         : null;
 
@@ -512,14 +541,34 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     if (!mounted) return;
 
     if (error != null) {
-      showErrorBannerStandalone(
-        (loc) => loc.signUpScreen_error_register(error.message),
-      );
+      _reportSignUpError(error);
       return;
     }
 
     _usernameController.text = _usernameSuggestion(displayName);
     _goTo(_Step.username);
+  }
+
+  /// Puts a failed sign-up on screen, and walks back to the challenge step when
+  /// the server started asking for one while the form was open.
+  void _reportSignUpError(SignUpError error) {
+    switch (error.code) {
+      case SignUpErrorCode.challengeRequired:
+        final steps = _steps(context.read<RegistrationCubit>().state);
+        _goTo(steps.first);
+        showErrorBannerStandalone(
+          (loc) => loc.signUpScreen_error_challengeRequired,
+        );
+      case SignUpErrorCode.challengeRejected:
+        _goTo(_Step.invitationCode);
+        showErrorBannerStandalone(
+          (loc) => loc.invitationCodeScreen_error_invalid,
+        );
+      case SignUpErrorCode.internal:
+        showErrorBannerStandalone(
+          (loc) => loc.signUpScreen_error_register(error.message ?? ""),
+        );
+    }
   }
 
   Future<void> _submitUsername() async {

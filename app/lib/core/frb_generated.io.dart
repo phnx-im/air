@@ -21,6 +21,7 @@ import 'api/message_list_cubit.dart';
 import 'api/multi_device.dart';
 import 'api/notification_context.dart';
 import 'api/notifications.dart';
+import 'api/registration.dart';
 import 'api/share_cubit.dart';
 import 'api/types.dart';
 import 'api/user.dart';
@@ -781,6 +782,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
   @protected
+  RegistrationChallenge dco_decode_box_autoadd_registration_challenge(
+    dynamic raw,
+  );
+
+  @protected
   RequestInvitationCodeError
   dco_decode_box_autoadd_request_invitation_code_error(dynamic raw);
 
@@ -869,6 +875,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
 
   @protected
+  ChallengeKind dco_decode_challenge_kind(dynamic raw);
+
+  @protected
   ChatDetailsState dco_decode_chat_details_state(dynamic raw);
 
   @protected
@@ -885,6 +894,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationParticipant dco_decode_conversation_participant(dynamic raw);
+
+  @protected
+  CreateUserError dco_decode_create_user_error(dynamic raw);
 
   @protected
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
@@ -946,6 +958,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ChallengeKind> dco_decode_list_challenge_kind(dynamic raw);
 
   @protected
   List<ChatId> dco_decode_list_chat_id(dynamic raw);
@@ -1195,6 +1210,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RegistrationChallenge? dco_decode_opt_box_autoadd_registration_challenge(
+    dynamic raw,
+  );
+
+  @protected
   RequestInvitationCodeError?
   dco_decode_opt_box_autoadd_request_invitation_code_error(dynamic raw);
 
@@ -1282,6 +1302,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   (UiMimiId, UiInReplyToMessage)
   dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
+
+  @protected
+  RegistrationChallenge dco_decode_registration_challenge(dynamic raw);
+
+  @protected
+  RegistrationInfo dco_decode_registration_info(dynamic raw);
 
   @protected
   RequestInvitationCodeError dco_decode_request_invitation_code_error(
@@ -2106,6 +2132,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RegistrationChallenge sse_decode_box_autoadd_registration_challenge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RequestInvitationCodeError
   sse_decode_box_autoadd_request_invitation_code_error(
     SseDeserializer deserializer,
@@ -2234,6 +2265,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ChallengeKind sse_decode_challenge_kind(SseDeserializer deserializer);
+
+  @protected
   ChatDetailsState sse_decode_chat_details_state(SseDeserializer deserializer);
 
   @protected
@@ -2256,6 +2290,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConversationParticipant sse_decode_conversation_participant(
     SseDeserializer deserializer,
   );
+
+  @protected
+  CreateUserError sse_decode_create_user_error(SseDeserializer deserializer);
 
   @protected
   DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
@@ -2325,6 +2362,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ChallengeKind> sse_decode_list_challenge_kind(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
@@ -2648,6 +2690,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RegistrationChallenge? sse_decode_opt_box_autoadd_registration_challenge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RequestInvitationCodeError?
   sse_decode_opt_box_autoadd_request_invitation_code_error(
     SseDeserializer deserializer,
@@ -2767,6 +2814,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
   );
+
+  @protected
+  RegistrationChallenge sse_decode_registration_challenge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RegistrationInfo sse_decode_registration_info(SseDeserializer deserializer);
 
   @protected
   RequestInvitationCodeError sse_decode_request_invitation_code_error(
@@ -3754,6 +3809,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_registration_challenge(
+    RegistrationChallenge self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_request_invitation_code_error(
     RequestInvitationCodeError self,
     SseSerializer serializer,
@@ -3913,6 +3974,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_challenge_kind(ChallengeKind self, SseSerializer serializer);
+
+  @protected
   void sse_encode_chat_details_state(
     ChatDetailsState self,
     SseSerializer serializer,
@@ -3939,6 +4003,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_conversation_participant(
     ConversationParticipant self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_create_user_error(
+    CreateUserError self,
     SseSerializer serializer,
   );
 
@@ -4031,6 +4101,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_challenge_kind(
+    List<ChallengeKind> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
@@ -4432,6 +4508,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_registration_challenge(
+    RegistrationChallenge? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_request_invitation_code_error(
     RequestInvitationCodeError? self,
     SseSerializer serializer,
@@ -4581,6 +4663,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_registration_challenge(
+    RegistrationChallenge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_registration_info(
+    RegistrationInfo self,
     SseSerializer serializer,
   );
 

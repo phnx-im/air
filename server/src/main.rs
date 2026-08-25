@@ -8,6 +8,7 @@ use airbackend::{
     ds::{Ds, storage::Storage},
     qs::Qs,
     relay_service::Rs,
+    settings::RegistrationPolicy,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -137,10 +138,12 @@ async fn main() -> anyhow::Result<()> {
     if let Some(code) = configuration.application.unredeemablecode {
         auth_service.set_unredeemable_code(code);
     }
-    if !configuration.application.invitationonly {
-        warn!("invitation codes disabled: registration is open to anyone");
-        auth_service.disable_invitation_only();
+    let registration = configuration.registration.clone();
+    if registration.policy == RegistrationPolicy::Open {
+        warn!("registration policy is open: anyone can register without a challenge");
     }
+    info!(?registration, "Applying registration policy");
+    auth_service.set_registration_settings(registration);
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 

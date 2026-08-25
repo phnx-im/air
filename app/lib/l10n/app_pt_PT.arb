@@ -110,6 +110,9 @@
   "invitationCodesScreen_codeClipboardMessage": "Vamos falar no Air: https://air.ms/install. Usa o código de convite {code}.",
   "invitationCodesScreen_codesClipboardMessage": "Vamos falar no Air: https://air.ms/install. Usa um destes códigos de convite para entrares:\n\n{codes}",
 
+  "accountCreation_unsupported_header": "Atualização necessária",
+  "accountCreation_unsupported_body": "Este servidor pede algo que esta versão do Air não consegue fornecer. Atualiza o Air para continuares.",
+
   "signUpScreen_header": "Cria o teu perfil",
   "signUpScreen_subheader": "O teu perfil fica visível para as pessoas com quem te conectas e para os membros dos grupos em que estás. O Air precisa de um nome a apresentar, mas a fotografia é opcional.",
   "signUpScreen_actionButton": "Criar",
@@ -119,6 +122,7 @@
   "signUpScreen_serverHint": "NOME DE DOMÍNIO",
   "signUpScreen_error_invalidDomain": "O domínio é inválido",
   "signUpScreen_error_emptyDisplayName": "Adiciona um nome a apresentar com pelo menos um carácter",
+  "signUpScreen_error_challengeRequired": "Este servidor agora pede um código de convite. Introduz um para continuares.",
   "signUpScreen_error_register": "Erro ao registar o utilizador: {error}",
   "usernameOnboarding_header": "Adiciona um nome de utilizador",
   "usernameOnboarding_body": "Os nomes de utilizador são a forma de te conectares no Air. Depois de te conectares, deixam de estar visíveis para os outros.\n\nPodes adicionar, alterar ou remover nomes de utilizador quando quiseres, no teu perfil.",

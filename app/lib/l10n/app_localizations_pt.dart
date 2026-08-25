@@ -375,6 +375,13 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Atualização necessária';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Este servidor pede algo que esta versão do Air não pode fornecer. Atualize o Air para continuar.';
+
+  @override
   String get signUpScreen_header => 'Crie seu perfil';
 
   @override
@@ -404,6 +411,10 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Adicione um nome de exibição com pelo menos um caractere';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Este servidor agora pede um código de convite. Digite um para continuar.';
 
   @override
   String signUpScreen_error_register(String error) {
@@ -1793,6 +1804,13 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Atualização necessária';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Este servidor pede algo que esta versão do Air não consegue fornecer. Atualiza o Air para continuares.';
+
+  @override
   String get signUpScreen_header => 'Cria o teu perfil';
 
   @override
@@ -1822,6 +1840,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Adiciona um nome a apresentar com pelo menos um carácter';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Este servidor agora pede um código de convite. Introduz um para continuares.';
 
   @override
   String signUpScreen_error_register(String error) {

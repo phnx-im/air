@@ -66,6 +66,7 @@ futures-util = "0.3.31"
 h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.13"
+hmac = "0.13"
 ignore = "0.4"
 # default formats minus avif and exr, which pull in the unmaintained paste
 # crate (RUSTSEC-2024-0436) via ravif and exr

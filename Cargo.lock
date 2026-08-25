@@ -168,6 +168,7 @@ dependencies = [
  "displaydoc",
  "futures-util",
  "h2",
+ "hmac 0.13.0",
  "insta",
  "metrics",
  "mimi-room-policy",

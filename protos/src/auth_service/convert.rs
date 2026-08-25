@@ -10,6 +10,7 @@ use aircommon::{
         self,
         client_as::{self},
     },
+    registration,
 };
 use displaydoc::Display;
 use openmls::prelude::HpkeCiphertext;
@@ -28,10 +29,10 @@ use crate::{
 use super::v1::{
     AirProtocolVersion, AsCredential, AsCredentialBody, AsIntermediateCredential,
     AsIntermediateCredentialBody, AsIntermediateCredentialCsr, AsIntermediateCredentialPayload,
-    AsIntermediateVerifyingKey, AsVerifyingKey, ClientVerifyingKey, ConnectionEncryptionKey,
-    ConnectionOfferMessage, ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile,
-    Hash, SignatureScheme, UserCredential, UserCredentialCsr, UserCredentialPayload, UsernameHash,
-    UsernameSignature, UsernameVerifyingKey,
+    AsIntermediateVerifyingKey, AsVerifyingKey, ChallengeType, ClientVerifyingKey,
+    ConnectionEncryptionKey, ConnectionOfferMessage, ConnectionPackage, ConnectionPackagePayload,
+    EncryptedUserProfile, Hash, SignatureScheme, UserCredential, UserCredentialCsr,
+    UserCredentialPayload, UsernameHash, UsernameSignature, UsernameVerifyingKey,
 };
 
 impl From<identifiers::UserId> for UserId {
@@ -812,5 +813,24 @@ impl From<keys::UsernameSignature> for UsernameSignature {
 impl From<UsernameSignature> for keys::UsernameSignature {
     fn from(proto: UsernameSignature) -> Self {
         keys::UsernameSignature::from_bytes(proto.signature.unwrap_or_default().value)
+    }
+}
+
+impl From<registration::ChallengeKind> for ChallengeType {
+    fn from(kind: registration::ChallengeKind) -> Self {
+        match kind {
+            registration::ChallengeKind::InvitationCode => Self::InvitationCode,
+        }
+    }
+}
+
+impl ChallengeType {
+    /// The kind this value names, or `None` for a kind this build does not
+    /// know. A server may accept kinds a client has never heard of.
+    pub fn known_kind(self) -> Option<registration::ChallengeKind> {
+        match self {
+            Self::InvitationCode => Some(registration::ChallengeKind::InvitationCode),
+            Self::Unspecified => None,
+        }
     }
 }

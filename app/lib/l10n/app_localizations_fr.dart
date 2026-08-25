@@ -379,6 +379,13 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Mise à jour requise';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Ce serveur demande quelque chose que cette version d\'Air ne peut pas fournir. Mettez Air à jour pour continuer.';
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
@@ -408,6 +415,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Ajoutez un nom d\'affichage d\'au moins un caractère';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Ce serveur demande maintenant un code d\'invitation. Saisissez-en un pour continuer.';
 
   @override
   String signUpScreen_error_register(String error) {

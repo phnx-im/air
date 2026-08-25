@@ -55,7 +55,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1517806657;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -249516083;
 
 // Section: executor
 
@@ -7099,10 +7099,13 @@ fn wire__crate__api__user__User_new_impl(
                 <Option<crate::api::user::PlatformPushToken>>::sse_decode(&mut deserializer);
             let api_display_name = <String>::sse_decode(&mut deserializer);
             let api_profile_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
-            let api_invitation_code = <String>::sse_decode(&mut deserializer);
+            let api_challenge =
+                <Option<crate::api::registration::RegistrationChallenge>>::sse_decode(
+                    &mut deserializer,
+                );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::api::registration::CreateUserError>(
                     (move || async move {
                         let output_ok = crate::api::user::User::new(
                             api_domain,
@@ -7110,7 +7113,7 @@ fn wire__crate__api__user__User_new_impl(
                             api_push_token,
                             api_display_name,
                             api_profile_picture,
-                            api_invitation_code,
+                            api_challenge,
                         )
                         .await?;
                         Ok(output_ok)
@@ -8134,6 +8137,43 @@ fn wire__crate__api__utils__delete_databases_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::utils::delete_databases(api_db_path).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__registration__get_registration_info_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_registration_info",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_domain = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::registration::get_registration_info(api_domain).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -9205,6 +9245,16 @@ const _: fn() = || {
         let _: usize = PqGroupDebugInfo.pending_proposals;
         let _: bool = PqGroupDebugInfo.has_pending_commit;
         let _: u64 = PqGroupDebugInfo.size_bytes;
+    }
+    match None::<crate::api::registration::RegistrationChallenge>.unwrap() {
+        crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
+            let _: String = field0;
+        }
+    }
+    {
+        let RegistrationInfo = None::<crate::api::registration::RegistrationInfo>.unwrap();
+        let _: bool = RegistrationInfo.challenge_required;
+        let _: Vec<crate::api::registration::ChallengeKind> = RegistrationInfo.accepted_challenges;
     }
     {
         let RequiredDebugCapabilities =
@@ -10343,6 +10393,17 @@ impl SseDecode for Box<crate::api::types::UiContentMessage> {
     }
 }
 
+impl SseDecode for crate::api::registration::ChallengeKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::registration::ChallengeKind::InvitationCode,
+            _ => unreachable!("Invalid variant for ChallengeKind: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::chat_details_cubit::ChatDetailsState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10431,6 +10492,34 @@ impl SseDecode for crate::notifications::ConversationParticipant {
             display_name: var_displayName,
             avatar: var_avatar,
         };
+    }
+}
+
+impl SseDecode for crate::api::registration::CreateUserError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_accepted =
+                    <Vec<crate::api::registration::ChallengeKind>>::sse_decode(deserializer);
+                return crate::api::registration::CreateUserError::ChallengeRequired {
+                    accepted: var_accepted,
+                };
+            }
+            1 => {
+                return crate::api::registration::CreateUserError::ChallengeRejected;
+            }
+            2 => {
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::registration::CreateUserError::Other {
+                    message: var_message,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -10750,6 +10839,20 @@ impl SseDecode for Vec<String> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<String>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::registration::ChallengeKind> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::registration::ChallengeKind>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -11740,6 +11843,19 @@ impl SseDecode
     }
 }
 
+impl SseDecode for Option<crate::api::registration::RegistrationChallenge> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::registration::RegistrationChallenge>::sse_decode(deserializer),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::invitation_codes_cubit::RequestInvitationCodeError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12078,6 +12194,35 @@ impl SseDecode
         let mut var_field0 = <crate::api::message_content::UiMimiId>::sse_decode(deserializer);
         let mut var_field1 = <crate::api::types::UiInReplyToMessage>::sse_decode(deserializer);
         return (var_field0, var_field1);
+    }
+}
+
+impl SseDecode for crate::api::registration::RegistrationChallenge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::registration::RegistrationChallenge::InvitationCode(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseDecode for crate::api::registration::RegistrationInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_challengeRequired = <bool>::sse_decode(deserializer);
+        let mut var_acceptedChallenges =
+            <Vec<crate::api::registration::ChallengeKind>>::sse_decode(deserializer);
+        return crate::api::registration::RegistrationInfo {
+            challenge_required: var_challengeRequired,
+            accepted_challenges: var_acceptedChallenges,
+        };
     }
 }
 
@@ -13095,25 +13240,26 @@ fn pde_ffi_dispatcher_primary_impl(
 158 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
 159 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
 160 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-163 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-164 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-165 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-166 => wire__crate__api__share_cubit__load_share_target_impl(port, ptr, rust_vec_len, data_len),
-167 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-168 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-169 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-170 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-172 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-173 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+161 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+164 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+165 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+167 => wire__crate__api__share_cubit__load_share_target_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+169 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+170 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+171 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+173 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+174 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+175 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -13341,17 +13487,17 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        161 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        162 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        171 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        162 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        163 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        172 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        183 => {
+        184 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        184 => wire__crate__api__username_suggestions__username_from_display_impl(
+        185 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -13956,6 +14102,26 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::BlockElement>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::ChallengeKind> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::registration::ChallengeKind::InvitationCode => 0.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::registration::ChallengeKind>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::registration::ChallengeKind>>
+    for crate::api::registration::ChallengeKind
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::registration::ChallengeKind> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::ChatDetailsState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14084,6 +14250,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::notifications::ConversationPartici
     for crate::notifications::ConversationParticipant
 {
     fn into_into_dart(self) -> crate::notifications::ConversationParticipant {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::registration::CreateUserError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::registration::CreateUserError::ChallengeRequired { accepted } => {
+                [0.into_dart(), accepted.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::registration::CreateUserError::ChallengeRejected => {
+                [1.into_dart()].into_dart()
+            }
+            crate::api::registration::CreateUserError::Other { message } => {
+                [2.into_dart(), message.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::registration::CreateUserError
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::registration::CreateUserError>
+    for crate::api::registration::CreateUserError
+{
+    fn into_into_dart(self) -> crate::api::registration::CreateUserError {
         self
     }
 }
@@ -14989,6 +15185,51 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::RangedInlineElement
 {
     fn into_into_dart(self) -> crate::api::markdown::RangedInlineElement {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::RegistrationChallenge> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
+                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::registration::RegistrationChallenge>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::registration::RegistrationChallenge>>
+    for crate::api::registration::RegistrationChallenge
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::registration::RegistrationChallenge> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::registration::RegistrationInfo> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.challenge_required.into_into_dart().into_dart(),
+            self.0.accepted_challenges.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::registration::RegistrationInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::registration::RegistrationInfo>>
+    for crate::api::registration::RegistrationInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::registration::RegistrationInfo> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -16983,6 +17224,21 @@ impl SseEncode for Box<crate::api::types::UiContentMessage> {
     }
 }
 
+impl SseEncode for crate::api::registration::ChallengeKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::registration::ChallengeKind::InvitationCode => 0,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::chat_details_cubit::ChatDetailsState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17043,6 +17299,28 @@ impl SseEncode for crate::notifications::ConversationParticipant {
         <uuid::Uuid>::sse_encode(self.uuid, serializer);
         <String>::sse_encode(self.display_name, serializer);
         <Option<Vec<u8>>>::sse_encode(self.avatar, serializer);
+    }
+}
+
+impl SseEncode for crate::api::registration::CreateUserError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::registration::CreateUserError::ChallengeRequired { accepted } => {
+                <i32>::sse_encode(0, serializer);
+                <Vec<crate::api::registration::ChallengeKind>>::sse_encode(accepted, serializer);
+            }
+            crate::api::registration::CreateUserError::ChallengeRejected => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::api::registration::CreateUserError::Other { message } => {
+                <i32>::sse_encode(2, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -17307,6 +17585,16 @@ impl SseEncode for Vec<String> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <String>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::registration::ChallengeKind> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::registration::ChallengeKind>::sse_encode(item, serializer);
         }
     }
 }
@@ -18105,6 +18393,16 @@ impl SseEncode
     }
 }
 
+impl SseEncode for Option<crate::api::registration::RegistrationChallenge> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::registration::RegistrationChallenge>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::invitation_codes_cubit::RequestInvitationCodeError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18376,6 +18674,32 @@ impl SseEncode
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::message_content::UiMimiId>::sse_encode(self.0, serializer);
         <crate::api::types::UiInReplyToMessage>::sse_encode(self.1, serializer);
+    }
+}
+
+impl SseEncode for crate::api::registration::RegistrationChallenge {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::registration::RegistrationChallenge::InvitationCode(field0) => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseEncode for crate::api::registration::RegistrationInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.challenge_required, serializer);
+        <Vec<crate::api::registration::ChallengeKind>>::sse_encode(
+            self.accepted_challenges,
+            serializer,
+        );
     }
 }
 
