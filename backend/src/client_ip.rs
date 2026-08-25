@@ -23,7 +23,7 @@ pub type IpBucket = [u8; 16];
 
 impl ClientIp {
     pub fn new(addr: IpAddr) -> Self {
-        Self(addr)
+        Self(addr.to_canonical())
     }
 
     /// The bucket this address counts under: the full address for IPv4, the
@@ -83,5 +83,15 @@ mod test {
     fn debug_hides_the_address() {
         let ip = ClientIp::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)));
         assert_eq!(format!("{ip:?}"), "ClientIp(redacted)");
+    }
+
+    #[test]
+    fn mapped_ipv4_addresses() {
+        let a = ClientIp::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)));
+        let b = ClientIp::new(IpAddr::V6(Ipv4Addr::new(203, 0, 113, 1).to_ipv6_mapped()));
+        assert_eq!(a.bucket(), b.bucket());
+
+        let c = ClientIp::new(IpAddr::V6(Ipv4Addr::new(203, 0, 113, 2).to_ipv6_mapped()));
+        assert_ne!(a.bucket(), c.bucket());
     }
 }

@@ -21,6 +21,7 @@ import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -408,7 +409,7 @@ class _LanguageSettings extends StatelessWidget {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
-          value: locale.languageCode,
+          value: localeToTag(locale),
         );
       },
       childBuilder: (context, option, onTap) {

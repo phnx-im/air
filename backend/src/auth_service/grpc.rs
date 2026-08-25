@@ -403,6 +403,14 @@ impl auth_service_server::AuthService for GrpcAs {
     ) -> Result<Response<GetRegistrationInfoResponse>, Status> {
         let client_ip = request.extensions().get::<ClientIp>().copied();
 
+        // Presence is required, but the version is not enforced: this endpoint
+        // has to answer any client, and enforcement happens at RegisterUser.
+        request
+            .get_ref()
+            .client_metadata
+            .as_ref()
+            .ok_or_missing_field("client_metadata")?;
+
         let decision = self
             .inner
             .registration_gate()
@@ -1159,7 +1167,9 @@ mod tests {
         });
         let grpc_as = GrpcAs::new(service);
 
-        let mut request = Request::new(GetRegistrationInfoRequest::default());
+        let mut request = Request::new(GetRegistrationInfoRequest {
+            client_metadata: Some(ClientMetadata::default()),
+        });
         if let Some(client_ip) = client_ip {
             request.extensions_mut().insert(client_ip);
         }
@@ -1215,6 +1225,23 @@ mod tests {
         let info = registration_info(&pool, RegistrationPolicy::Adaptive, None).await?;
 
         assert!(info.challenge_required);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn registration_info_without_client_metadata_is_rejected(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let (service, _public_key) = setup(&pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let status = grpc_as
+            .get_registration_info(Request::new(GetRegistrationInfoRequest::default()))
+            .await
+            .expect_err("missing client metadata should be rejected");
+
+        assert_eq!(status.code(), Code::InvalidArgument);
 
         Ok(())
     }

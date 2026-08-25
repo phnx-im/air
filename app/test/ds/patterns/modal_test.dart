@@ -65,6 +65,24 @@ Widget _routedHost(TargetPlatform platform) => MaterialApp(
   ),
 );
 
+/// A page whose dismiss picks its own glyph, as a host the platform already
+/// presents as a sheet does.
+Widget _sheetHost({required AppIconType dismissIcon}) => Builder(
+  builder: (context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    home: ModalSurface(
+      child: ModalPane(
+        title: 'Share',
+        onDismiss: () {},
+        dismissIcon: dismissIcon,
+        child: const SizedBox(height: 100),
+      ),
+    ),
+  ),
+);
+
 /// A modal with the actions a test wants. Which surface it renders on comes
 /// from the viewport the test sizes, as it does in the app.
 Widget _actionHost({
@@ -408,6 +426,17 @@ void main() {
 
       await tester.tap(find.byType(ButtonIcon));
       expect(back, 1);
+    });
+
+    testWidgets('takes the dismiss glyph a full-screen page asks for', (
+      tester,
+    ) async {
+      sizeView(tester, phoneViewSize);
+
+      await tester.pumpWidget(_sheetHost(dismissIcon: AppIconType.x));
+      await tester.pumpAndSettle();
+
+      expect(_headerGlyphs(tester), [AppIconType.x]);
     });
   });
 

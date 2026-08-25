@@ -15,6 +15,7 @@ use crate::settings::RegistrationThreshold;
 /// Whether any window of a counter reached its limit. The counts arrive in the
 /// order the thresholds are configured.
 pub(crate) fn reached(thresholds: &[RegistrationThreshold], counts: &[u64]) -> bool {
+    debug_assert_eq!(thresholds.len(), counts.len());
     thresholds
         .iter()
         .zip(counts)

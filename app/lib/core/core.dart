@@ -17,6 +17,7 @@ export 'api/multi_device.dart';
 export 'api/notification_context.dart';
 export 'api/notifications.dart';
 export 'api/registration.dart';
+export 'api/share_cubit.dart';
 export 'api/types.dart';
 export 'api/user.dart';
 export 'api/user_cubit.dart';

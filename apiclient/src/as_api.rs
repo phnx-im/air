@@ -69,15 +69,6 @@ pub enum AsRequestError {
 }
 
 impl AsRequestError {
-    /// Returns whether the server does not know the RPC at all, which is how a
-    /// server older than the RPC answers it.
-    pub fn is_unimplemented(&self) -> bool {
-        match self {
-            AsRequestError::Tonic(status) => status.code() == Code::Unimplemented,
-            _ => false,
-        }
-    }
-
     /// Returns whether the error is a gRPC not found error.
     pub fn is_not_found(&self) -> bool {
         match self {
@@ -213,7 +204,9 @@ impl ApiClient {
 
     /// Asks the server whether registering with it needs a challenge right now.
     pub async fn as_get_registration_info(&self) -> Result<RegistrationInfo, AsRequestError> {
-        let request = GetRegistrationInfoRequest {};
+        let request = GetRegistrationInfoRequest {
+            client_metadata: Some(self.metadata().clone()),
+        };
         let response = self
             .as_grpc_client()
             .get_registration_info(request)

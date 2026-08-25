@@ -4,8 +4,9 @@
 
 use std::net::IpAddr;
 
-use airbackend::client_ip::ClientIp;
-use tonic::{Request, Status, metadata::MetadataMap, service::Interceptor};
+use airbackend::client_ip::{ClientIp, IpBucket};
+use tonic::{Status, metadata::MetadataMap, service::Interceptor};
+use tower_governor::{GovernorError, key_extractor::KeyExtractor};
 
 /// Resolves the client address once per request, for the rate limiter's key
 /// extractor and for handlers that gate on it.
@@ -17,30 +18,35 @@ pub struct ConnectInfoInterceptor;
 const REAL_IP_HEADER: &str = "x-real-ip";
 
 impl Interceptor for ConnectInfoInterceptor {
-    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
-        if let Some(client_ip) = resolve_client_ip(&request) {
-            request.extensions_mut().insert(client_ip);
-        }
-
-        let metadata = request.metadata();
-        if metadata.contains_key(REAL_IP_HEADER)
-            || metadata.contains_key("x-forwarded-for")
-            || metadata.contains_key("forwarded")
-        {
-            return Ok(request);
-        }
-        // fallback to remote_addr: this won't work behind a reverse proxy
-        let addr = request
-            .remote_addr()
-            .ok_or_else(|| Status::internal("failed to extract remote address from request"))?;
-        request.extensions_mut().insert(addr);
+    fn call(&mut self, mut request: tonic::Request<()>) -> Result<tonic::Request<()>, Status> {
+        let client_ip = resolve_client_ip(&request)
+            .ok_or_else(|| Status::internal("failed to extract client address"))?;
+        request.extensions_mut().insert(client_ip);
         Ok(request)
+    }
+}
+
+/// Keys the rate limiter by the resolved client address IP bucket.
+///
+/// Unifies IP extraction for the rate limiter and the registration gate.
+#[derive(Debug, Clone)]
+pub struct ClientIpExtractor;
+
+impl KeyExtractor for ClientIpExtractor {
+    type Key = IpBucket;
+
+    fn extract<T>(&self, request: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
+        let client_ip = request
+            .extensions()
+            .get::<ClientIp>()
+            .ok_or(GovernorError::UnableToExtractKey)?;
+        Ok(client_ip.bucket())
     }
 }
 
 /// The client address, from `X-Real-IP` where the ingress set it and from the
 /// peer address otherwise, which is what local development has.
-fn resolve_client_ip(request: &Request<()>) -> Option<ClientIp> {
+fn resolve_client_ip(request: &tonic::Request<()>) -> Option<ClientIp> {
     real_ip_header(request.metadata())
         .or_else(|| request.remote_addr().map(|addr| addr.ip()))
         .map(ClientIp::new)
@@ -62,8 +68,8 @@ mod test {
 
     use super::*;
 
-    fn request_with(header: Option<&str>, peer: Option<SocketAddr>) -> Request<()> {
-        let mut request = Request::new(());
+    fn request_with(header: Option<&str>, peer: Option<SocketAddr>) -> tonic::Request<()> {
+        let mut request = tonic::Request::new(());
         if let Some(header) = header {
             request
                 .metadata_mut()

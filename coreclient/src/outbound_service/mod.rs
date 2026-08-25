@@ -30,6 +30,7 @@ use crate::{
 
 pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 
+mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod error;
@@ -317,6 +318,11 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
+        }
+        if let Err(error) =
+            attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await
+        {
+            error!(%error, "Failed to recover interrupted attachment uploads");
         }
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
