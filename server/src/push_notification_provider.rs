@@ -15,7 +15,7 @@ use airbackend::{
 };
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::{
     Client, StatusCode,
@@ -356,7 +356,7 @@ impl ProductionPushNotificationProvider {
         };
 
         let (status, response) = self
-            .post_fcm(fcm_state, push_token.token(), json!({ "data": "" }))
+            .post_fcm(fcm_state, push_token.token(), json!({ "data": "" }), None)
             .await
             .map_err(|error| match error {
                 FcmPostError::MissingProjectId => PushNotificationError::InvalidConfiguration(
@@ -463,17 +463,22 @@ impl ProductionPushNotificationProvider {
     /// Sends the silent admission challenge to an FCM endpoint.
     ///
     /// A data-only message, which reaches the messaging service without a
-    /// notification being shown.
+    /// notification being shown. It expires with the session, since FCM would
+    /// otherwise hold it for weeks.
     async fn send_google_challenge(
         &self,
         device_token: &str,
         session_id: Uuid,
         challenge: &str,
+        expires_at: DateTime<Utc>,
     ) -> Result<(), ChallengeSendError> {
         let Some(fcm_state) = &self.fcm_state else {
             return Err(ChallengeSendError::PlatformUnavailable);
         };
 
+        let ttl = expires_at
+            .signed_duration_since(Utc::now())
+            .max(Duration::seconds(1));
         let (status, response) = self
             .post_fcm(
                 fcm_state,
@@ -482,6 +487,7 @@ impl ProductionPushNotificationProvider {
                     "challenge": challenge,
                     "sessionId": session_id
                 }),
+                Some(ttl),
             )
             .await
             .map_err(|error| match error {
@@ -552,11 +558,14 @@ impl ProductionPushNotificationProvider {
     }
 
     /// Posts one FCM request and reads the response.
+    ///
+    /// Without a `ttl`, FCM keeps an undeliverable message for four weeks.
     async fn post_fcm(
         &self,
         fcm_state: &FcmState,
         device_token: &str,
         data: Value,
+        ttl: Option<Duration>,
     ) -> Result<(StatusCode, String), FcmPostError> {
         let Some(project_id) = fcm_state.service_account.project_id.as_ref() else {
             return Err(FcmPostError::MissingProjectId);
@@ -567,11 +576,15 @@ impl ProductionPushNotificationProvider {
             .await
             .map_err(|error| FcmPostError::OAuth(error.to_string()))?;
 
+        let mut android = json!({ "priority": "HIGH" });
+        if let Some(ttl) = ttl {
+            android["ttl"] = json!(format!("{}s", ttl.num_seconds()));
+        }
         let message = json!({
             "message": {
                 "token": device_token,
                 "data": data,
-                "android": { "priority": "HIGH" }
+                "android": android
             }
         });
 
@@ -639,7 +652,7 @@ impl ChallengeSender for ProductionPushNotificationProvider {
                     .await
             }
             PushTokenOperator::Google => {
-                self.send_google_challenge(push_token.token(), session_id, challenge)
+                self.send_google_challenge(push_token.token(), session_id, challenge, expires_at)
                     .await
             }
         }
