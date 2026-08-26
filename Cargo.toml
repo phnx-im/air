@@ -85,10 +85,10 @@ minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 num_enum = "0.7"
-openmls = { git = "https://github.com/openmls/openmls", rev = "7cee93e26800a64a59b2173888fe17bbcccdb3e0", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
-openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "7cee93e26800a64a59b2173888fe17bbcccdb3e0", features = ["clonable"] }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "7cee93e26800a64a59b2173888fe17bbcccdb3e0", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7cee93e26800a64a59b2173888fe17bbcccdb3e0", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls = { git = "https://github.com/openmls/openmls", rev = "f8427087333e002b4796793097fa67cf6b3bb2d1", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "f8427087333e002b4796793097fa67cf6b3bb2d1", features = ["clonable"] }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "f8427087333e002b4796793097fa67cf6b3bb2d1", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "f8427087333e002b4796793097fa67cf6b3bb2d1", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
