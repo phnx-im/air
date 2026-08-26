@@ -425,7 +425,7 @@ class Notifications {
         }
 
         // Withdraws the chats offered in the share sheet and the launcher.
-        // because the shortcuts are long-lived.
+        // Pinned shortcuts stay: the platform lets only the user remove them.
         fun clearShareShortcuts(context: Context) {
             try {
                 val ids = ShortcutManagerCompat.getShortcuts(
@@ -438,34 +438,9 @@ class Notifications {
                 if (ids.isNotEmpty()) {
                     ShortcutManagerCompat.removeLongLivedShortcuts(context, ids)
                 }
-                sanitizePinnedShortcuts(context)
             } catch (e: Exception) {
                 Log.e(NOTIF_LOGTAG, "Failed to clear share shortcuts", e)
             }
-        }
-
-        // Pinned shortcuts cannot be removed programmatically, only disabled
-        // or updated.
-        private fun sanitizePinnedShortcuts(context: Context) {
-            val pinned = ShortcutManagerCompat.getShortcuts(
-                context,
-                ShortcutManagerCompat.FLAG_MATCH_PINNED
-            )
-                .filter { SHORTCUT_CATEGORY_CONVERSATION in it.categories.orEmpty() }
-            if (pinned.isEmpty()) {
-                return
-            }
-            val sanitized = pinned.map { info ->
-                ShortcutInfoCompat.Builder(context, info.id)
-                    .setShortLabel(context.getString(R.string.app_name))
-                    .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
-                    .setIntent(
-                        Intent(context, MainActivity::class.java)
-                            .setAction(Intent.ACTION_MAIN)
-                    )
-                    .build()
-            }
-            ShortcutManagerCompat.updateShortcuts(context, sanitized)
         }
 
         // Ids of the currently published chat shortcuts (dynamic and cached).
