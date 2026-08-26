@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart' as chats_repository;
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/chat_details/member_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/message_list/message_cubit.dart';
@@ -279,6 +280,8 @@ class MockAttachmentsRepository extends Mock implements AttachmentsRepository {}
 class MockUserSettingsCubit extends MockCubit<UserSettings>
     implements UserSettingsCubit {}
 
+class MockShareTargetPublisher extends Mock implements ShareTargetPublisher {}
+
 class MockAndroidShareCubit extends MockCubit<StagedShare?>
     implements AndroidShareCubit {}
 
@@ -302,6 +305,9 @@ class FakeChatsRepository implements chats_repository.ChatsRepository {
 
   @override
   UiChatDetails getChat(ChatId id) => _chats[id]!;
+
+  @override
+  Stream<Set<ChatId>> watchChanges() => const Stream.empty();
 
   @override
   Stream<UiChatDetails?> watchChat(ChatId id) => Stream.value(_chats[id]);

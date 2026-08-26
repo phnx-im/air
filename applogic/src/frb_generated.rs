@@ -55,7 +55,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1860976094;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -137990403;
 
 // Section: executor
 
@@ -8388,70 +8388,6 @@ fn wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(
         },
     )
 }
-fn wire__crate__api__share_cubit__load_share_target_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "load_share_target",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_user_cubit = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
-            >>::sse_decode(&mut deserializer);
-            let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, ()>(
-                    (move || async move {
-                        let mut api_user_cubit_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_user_cubit,
-                                    0,
-                                    false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_user_cubit_guard =
-                                        Some(api_user_cubit.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_user_cubit_guard = api_user_cubit_guard.unwrap();
-                        let output_ok = Result::<_, ()>::Ok(
-                            crate::api::share_cubit::load_share_target(
-                                &*api_user_cubit_guard,
-                                api_chat_id,
-                            )
-                            .await,
-                        )?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__user_settings_cubit__load_user_settings_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -12116,19 +12052,6 @@ impl SseDecode for Option<crate::api::types::UiMessageDraft> {
     }
 }
 
-impl SseDecode for Option<crate::api::share_cubit::UiShareTarget> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::share_cubit::UiShareTarget>::sse_decode(
-                deserializer,
-            ));
-        } else {
-            return None;
-        }
-    }
-}
-
 impl SseDecode for Option<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13025,22 +12948,6 @@ impl SseDecode for crate::api::share_cubit::UiShareSendStatus {
     }
 }
 
-impl SseDecode for crate::api::share_cubit::UiShareTarget {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
-        let mut var_title = <String>::sse_decode(deserializer);
-        let mut var_isGroup = <bool>::sse_decode(deserializer);
-        let mut var_picture = <Option<Vec<u8>>>::sse_decode(deserializer);
-        return crate::api::share_cubit::UiShareTarget {
-            chat_id: var_chatId,
-            title: var_title,
-            is_group: var_isGroup,
-            picture: var_picture,
-        };
-    }
-}
-
 impl SseDecode for crate::api::share_cubit::UiSharedAttachment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13382,22 +13289,21 @@ fn pde_ffi_dispatcher_primary_impl(
 165 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
 166 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
 167 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-168 => wire__crate__api__share_cubit__load_share_target_impl(port, ptr, rust_vec_len, data_len),
-169 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-170 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-171 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-172 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-184 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+169 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+170 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+171 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+173 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+174 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+175 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -13627,15 +13533,15 @@ fn pde_ffi_dispatcher_sync_impl(
         ),
         163 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
         164 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        173 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        172 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        185 => {
+        184 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        186 => wire__crate__api__username_suggestions__username_from_display_impl(
+        185 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -16246,29 +16152,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::share_cubit::UiShareSendStatu
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::UiShareTarget {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.chat_id.into_into_dart().into_dart(),
-            self.title.into_into_dart().into_dart(),
-            self.is_group.into_into_dart().into_dart(),
-            self.picture.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::share_cubit::UiShareTarget
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::share_cubit::UiShareTarget>
-    for crate::api::share_cubit::UiShareTarget
-{
-    fn into_into_dart(self) -> crate::api::share_cubit::UiShareTarget {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::UiSharedAttachment {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -18755,16 +18638,6 @@ impl SseEncode for Option<crate::api::types::UiMessageDraft> {
     }
 }
 
-impl SseEncode for Option<crate::api::share_cubit::UiShareTarget> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::share_cubit::UiShareTarget>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19487,16 +19360,6 @@ impl SseEncode for crate::api::share_cubit::UiShareSendStatus {
                 unimplemented!("");
             }
         }
-    }
-}
-
-impl SseEncode for crate::api::share_cubit::UiShareTarget {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
-        <String>::sse_encode(self.title, serializer);
-        <bool>::sse_encode(self.is_group, serializer);
-        <Option<Vec<u8>>>::sse_encode(self.picture, serializer);
     }
 }
 

@@ -17,6 +17,11 @@ abstract interface class ChatsRepository {
 
   UiChatDetails? getChat(ChatId id);
 
+  /// Ids of chats that changed or were removed.
+  ///
+  /// Does *not* replay.
+  Stream<Set<ChatId>> watchChanges();
+
   /// Must replay the current chat details on subscription.
   Stream<UiChatDetails?> watchChat(ChatId id);
   Stream<List<UiUserId>?> watchMembers(ChatId id);
@@ -82,6 +87,9 @@ class RustChatsRepository implements ChatsRepository {
 
   @override
   UiChatDetails? getChat(ChatId id) => _chats[id];
+
+  @override
+  Stream<Set<ChatId>> watchChanges() => _chatChanges.stream;
 
   @override
   Stream<UiChatDetails?> watchChat(ChatId id) => Stream.multi((controller) {

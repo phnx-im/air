@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:air/features/attachments/attachment_upload_view.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
@@ -30,11 +31,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/share/share_cubit.dart';
-import 'package:air/share/share_targets.dart';
 import 'package:air/share/staged_share.dart';
 import 'package:provider/provider.dart';
 
@@ -473,15 +472,7 @@ class _MessageComposerState extends State<MessageComposer>
       await chatDetailsCubit.sendMessage(messageText);
       final chatId = chatDetailsCubit.state.chat?.id;
       if (chatId != null && mounted) {
-        final userCubit = context.read<UserCubit>();
-        final chatsRepository = context.read<ChatsRepository>();
-        unawaited(
-          publishShareTarget(
-            userCubit: userCubit,
-            chatsRepository: chatsRepository,
-            chatId: chatId,
-          ),
-        );
+        context.read<ShareTargetPublisher>().reportUsed(chatId);
       }
     } catch (e, stackTrace) {
       _log.severe("Failed to send message", e, stackTrace);
@@ -648,8 +639,7 @@ class _MessageComposerState extends State<MessageComposer>
     required String chatTitle,
   }) async {
     final cubit = context.read<ChatDetailsCubit>();
-    final userCubit = context.read<UserCubit>();
-    final chatsRepository = context.read<ChatsRepository>();
+    final shareTargetPublisher = context.read<ShareTargetPublisher>();
 
     var uploaded = false;
     await Navigator.of(context).push(
@@ -680,13 +670,7 @@ class _MessageComposerState extends State<MessageComposer>
                 case null:
                   final chatId = cubit.state.chat?.id;
                   if (chatId != null) {
-                    unawaited(
-                      publishShareTarget(
-                        userCubit: userCubit,
-                        chatsRepository: chatsRepository,
-                        chatId: chatId,
-                      ),
-                    );
+                    shareTargetPublisher.reportUsed(chatId);
                   }
                   break;
               }

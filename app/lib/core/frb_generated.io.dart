@@ -858,9 +858,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiShareSendError dco_decode_box_autoadd_ui_share_send_error(dynamic raw);
 
   @protected
-  UiShareTarget dco_decode_box_autoadd_ui_share_target(dynamic raw);
-
-  @protected
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
 
   @protected
@@ -1274,9 +1271,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
 
   @protected
-  UiShareTarget? dco_decode_opt_box_autoadd_ui_share_target(dynamic raw);
-
-  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
@@ -1448,9 +1442,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiShareSendStatus dco_decode_ui_share_send_status(dynamic raw);
-
-  @protected
-  UiShareTarget dco_decode_ui_share_target(dynamic raw);
 
   @protected
   UiSharedAttachment dco_decode_ui_shared_attachment(dynamic raw);
@@ -2267,11 +2258,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiShareTarget sse_decode_box_autoadd_ui_share_target(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UiSystemMessage sse_decode_box_autoadd_ui_system_message(
     SseDeserializer deserializer,
   );
@@ -2805,11 +2791,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiShareTarget? sse_decode_opt_box_autoadd_ui_share_target(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -3003,9 +2984,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiShareSendStatus sse_decode_ui_share_send_status(
     SseDeserializer deserializer,
   );
-
-  @protected
-  UiShareTarget sse_decode_ui_share_target(SseDeserializer deserializer);
 
   @protected
   UiSharedAttachment sse_decode_ui_shared_attachment(
@@ -3999,12 +3977,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_ui_share_target(
-    UiShareTarget self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_ui_system_message(
     UiSystemMessage self,
     SseSerializer serializer,
@@ -4671,12 +4643,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_share_target(
-    UiShareTarget? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
     SseSerializer serializer,
@@ -4945,9 +4911,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     UiShareSendStatus self,
     SseSerializer serializer,
   );
-
-  @protected
-  void sse_encode_ui_share_target(UiShareTarget self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_shared_attachment(

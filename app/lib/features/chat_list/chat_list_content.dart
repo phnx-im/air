@@ -30,7 +30,6 @@ import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/share/share_cubit.dart';
-import 'package:air/share/share_targets.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
@@ -287,7 +286,7 @@ class _ChatRow extends StatelessWidget {
       (AndroidShareCubit cubit) => cubit.state != null,
     );
     final canSelectShareDestination =
-        canShareIntoChat(chat) &&
+        chat.canShareInto &&
         switch (chat.chatType) {
           UiChatType_Group() =>
             ownId != null && members?.contains(ownId) == true,

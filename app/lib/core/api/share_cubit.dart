@@ -14,23 +14,12 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
-import 'user_cubit.dart';
 part 'share_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `from_details`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `send_impl`, `send_text_message`, `share_chat_ids`, `upload_attachment`
+// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `send_impl`, `send_text_message`, `share_chat_ids`, `upload_attachment`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatSendProgress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
-
-/// Loads a single chat as a direct share target (e.g. for donating an
-/// intent when the chat is opened).
-Future<UiShareTarget?> loadShareTarget({
-  required UserCubitBase userCubit,
-  required ChatId chatId,
-}) => RustLib.instance.api.crateApiShareCubitLoadShareTarget(
-  userCubit: userCubit,
-  chatId: chatId,
-);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ShareCubitBase>>
 abstract class ShareCubitBase implements RustOpaqueInterface {
@@ -133,38 +122,6 @@ sealed class UiShareSendStatus with _$UiShareSendStatus {
 
   static Future<UiShareSendStatus> default_() =>
       RustLib.instance.api.crateApiShareCubitUiShareSendStatusDefault();
-}
-
-/// A chat published to the OS as a direct share target
-///
-/// Published as a sharing shortcut on Android and as an
-/// `INSendMessageIntent` donation on iOS.
-class UiShareTarget {
-  final ChatId chatId;
-  final String title;
-  final bool isGroup;
-  final Uint8List? picture;
-
-  const UiShareTarget({
-    required this.chatId,
-    required this.title,
-    required this.isGroup,
-    this.picture,
-  });
-
-  @override
-  int get hashCode =>
-      chatId.hashCode ^ title.hashCode ^ isGroup.hashCode ^ picture.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UiShareTarget &&
-          runtimeType == other.runtimeType &&
-          chatId == other.chatId &&
-          title == other.title &&
-          isGroup == other.isGroup &&
-          picture == other.picture;
 }
 
 /// A single attachment shared into the app from the native share sheet

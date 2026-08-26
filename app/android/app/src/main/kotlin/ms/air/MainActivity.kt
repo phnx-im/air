@@ -17,6 +17,8 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -177,6 +179,22 @@ class MainActivity : FlutterFragmentActivity() {
         return ShareTarget(chatId = chatId, title = title, avatar = avatar)
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Runs a shortcut operation in the background and answers Dart once it
+    // is done. Always answers, so the Dart update chain never stalls.
+    private fun <T> shortcutCall(result: MethodChannel.Result, op: () -> T) {
+        Notifications.runShortcutOp {
+            val outcome = runCatching(op)
+            mainHandler.post {
+                outcome.fold(
+                    onSuccess = { result.success(it) },
+                    onFailure = { result.error("ShortcutError", it.message, null) },
+                )
+            }
+        }
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         super.cleanUpFlutterEngine(flutterEngine)
 
@@ -274,30 +292,44 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
 
-                "publishShareShortcuts" -> {
-                    val targets = call.argument<List<Any?>>("targets")
-                        ?.mapNotNull { decodeShareTargetArgument(it) }
-                        .orEmpty()
-                    Notifications.publishShareShortcuts(this, targets)
-                    call.argument<String>("usedChatId")?.let {
-                        Notifications.reportShareShortcutUsed(this, it)
+                "publishShareShortcut" -> {
+                    val target = decodeShareTargetArgument(call.arguments)
+                    if (target == null) {
+                        result.error(
+                            "DeserializeError",
+                            "Failed to decode share target ${call.arguments}",
+                            ""
+                        )
+                        return@setMethodCallHandler
                     }
-                    result.success(null)
+                    val context = applicationContext
+                    shortcutCall(result) { Notifications.publishShareShortcut(context, target) }
+                }
+
+                "reportShareShortcutUsed" -> {
+                    val chatId = call.argument<String>("chatId")
+                    if (chatId == null) {
+                        result.error("DeserializeError", "Missing 'chatId' argument", "")
+                        return@setMethodCallHandler
+                    }
+                    val context = applicationContext
+                    shortcutCall(result) { Notifications.reportShareShortcutUsed(context, chatId) }
                 }
 
                 "clearShareTargets" -> {
-                    Notifications.clearShareShortcuts(this)
-                    result.success(null)
+                    val context = applicationContext
+                    shortcutCall(result) { Notifications.clearShareShortcuts(context) }
                 }
 
                 "getShareShortcutIds" -> {
-                    result.success(Notifications.shareShortcutIds(this))
+                    val context = applicationContext
+                    shortcutCall(result) { Notifications.shareShortcutIds(context) }
                 }
 
                 "removeShareShortcuts" -> {
                     val ids = call.argument<List<String>>("ids").orEmpty()
-                    Notifications.removeShareShortcuts(this, ids)
-                    result.success(null)
+                    val context = applicationContext
+                    shortcutCall(result) { Notifications.removeShareShortcuts(context, ids) }
                 }
 
                 "saveFile" -> {

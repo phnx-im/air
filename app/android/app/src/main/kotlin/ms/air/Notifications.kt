@@ -33,6 +33,8 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 private const val LOGTAG = "NativeLib"
 private const val NOTIF_LOGTAG = "Notifications"
@@ -199,6 +201,16 @@ class Notifications {
         private val SHORTCUT_CATEGORIES =
             setOf(SHORTCUT_CATEGORY_CONVERSATION, SHORTCUT_CATEGORY_SHARE_TARGET)
 
+        // Shortcut operations decode bitmaps and do binder calls, so they run
+        // off the main thread. A single thread keeps them in call order, which
+        // the Dart side relies on: a clear must not be overtaken by an earlier
+        // publish.
+        private val shortcutExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
+        fun runShortcutOp(block: () -> Unit) {
+            shortcutExecutor.execute(block)
+        }
+
         fun showNotification(context: Context, content: NotificationContent) {
             if (ActivityCompat.checkSelfPermission(
                     context, Manifest.permission.POST_NOTIFICATIONS
@@ -327,7 +339,6 @@ class Notifications {
                     .build()
 
             pushConversationShortcut(context, content, chatUuid, conversation)
-            reportShareShortcutUsed(context, chatUuid)
 
             NotificationManagerCompat.from(context)
                 .notify(content.identifier, NOTIFICATION_ID, notification)
@@ -377,30 +388,29 @@ class Notifications {
                 putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
             }
 
-        // Publishes the chats as long-lived conversation shortcuts, which
-        // makes them direct targets in the system share sheet.
-        fun publishShareShortcuts(context: Context, targets: List<ShareTarget>) {
-            for (target in targets.asReversed()) {
-                try {
-                    val icon = shortcutAvatarIcon(target.avatar)
-                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
-                    val person = Person.Builder()
-                        .setKey(target.chatId)
-                        .setName(target.title)
-                        .build()
-                    val shortcut = ShortcutInfoCompat.Builder(context, target.chatId)
-                        .setLongLived(true)
-                        .setShortLabel(target.title)
-                        .setPerson(person)
-                        .setCategories(SHORTCUT_CATEGORIES)
-                        .setLocusId(LocusIdCompat(target.chatId))
-                        .setIcon(icon)
-                        .setIntent(buildChatIntent(context, target.chatId))
-                        .build()
-                    ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
-                } catch (e: Exception) {
-                    Log.e(NOTIF_LOGTAG, "Failed to publish share shortcut", e)
-                }
+        // Publishes the chat as a long-lived conversation shortcut, which
+        // makes it a direct target in the system share sheet. Also reports
+        // the shortcut as used.
+        fun publishShareShortcut(context: Context, target: ShareTarget) {
+            try {
+                val icon = shortcutAvatarIcon(target.avatar)
+                    ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
+                val person = Person.Builder()
+                    .setKey(target.chatId)
+                    .setName(target.title)
+                    .build()
+                val shortcut = ShortcutInfoCompat.Builder(context, target.chatId)
+                    .setLongLived(true)
+                    .setShortLabel(target.title)
+                    .setPerson(person)
+                    .setCategories(SHORTCUT_CATEGORIES)
+                    .setLocusId(LocusIdCompat(target.chatId))
+                    .setIcon(icon)
+                    .setIntent(buildChatIntent(context, target.chatId))
+                    .build()
+                ShortcutManagerCompat.pushDynamicShortcut(context, shortcut)
+            } catch (e: Exception) {
+                Log.e(NOTIF_LOGTAG, "Failed to publish share shortcut", e)
             }
         }
 

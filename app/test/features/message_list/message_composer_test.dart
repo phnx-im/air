@@ -10,6 +10,7 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -108,6 +109,9 @@ void main() {
       BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
       BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+      RepositoryProvider<ShareTargetPublisher>.value(
+        value: MockShareTargetPublisher(),
+      ),
     ],
     child: Builder(
       builder: (context) => MaterialApp(

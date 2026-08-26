@@ -5,6 +5,7 @@
 import 'dart:io';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
@@ -112,6 +113,9 @@ void main() {
               BlocProvider<UsersCubit>.value(value: usersCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
               BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
             ],
             child: SDTFScope(
               child: Builder(
@@ -283,6 +287,9 @@ void main() {
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
               BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
             ],
             child: Builder(
               builder: (context) {
@@ -425,6 +432,9 @@ void main() {
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
               BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
             ],
             child: Builder(
               builder: (context) {
@@ -585,6 +595,9 @@ void main() {
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
           BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
+          RepositoryProvider<ShareTargetPublisher>.value(
+            value: MockShareTargetPublisher(),
+          ),
         ],
         child: SDTFScope(
           child: Builder(

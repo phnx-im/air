@@ -93,7 +93,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1860976094;
+  int get rustContentHash => -137990403;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -848,11 +848,6 @@ abstract class RustLibApi extends BaseApi {
 
   Future<LinkedDevicesState>
   crateApiLinkedDevicesCubitLinkedDevicesStateDefault();
-
-  Future<UiShareTarget?> crateApiShareCubitLoadShareTarget({
-    required UserCubitBase userCubit,
-    required ChatId chatId,
-  });
 
   Future<UserSettings> crateApiUserSettingsCubitLoadUserSettings({
     required User user,
@@ -7340,44 +7335,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<UiShareTarget?> crateApiShareCubitLoadShareTarget({
-    required UserCubitBase userCubit,
-    required ChatId chatId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-            userCubit,
-            serializer,
-          );
-          sse_encode_box_autoadd_chat_id(chatId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 168,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_ui_share_target,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiShareCubitLoadShareTargetConstMeta,
-        argValues: [userCubit, chatId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiShareCubitLoadShareTargetConstMeta =>
-      const TaskConstMeta(
-        debugName: "load_share_target",
-        argNames: ["userCubit", "chatId"],
-      );
-
-  @override
   Future<UserSettings> crateApiUserSettingsCubitLoadUserSettings({
     required User user,
   }) {
@@ -7392,7 +7349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 169,
+            funcId: 168,
             port: port_,
           );
         },
@@ -7420,7 +7377,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 170,
+            funcId: 169,
             port: port_,
           );
         },
@@ -7455,7 +7412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 171,
+            funcId: 170,
             port: port_,
           );
         },
@@ -7488,7 +7445,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 172,
+            funcId: 171,
             port: port_,
           );
         },
@@ -7521,7 +7478,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 173,
+            funcId: 172,
           )!;
         },
         codec: SseCodec(
@@ -7550,7 +7507,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 174,
+            funcId: 173,
             port: port_,
           );
         },
@@ -7596,7 +7553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 175,
+              funcId: 174,
               port: port_,
             );
           },
@@ -7645,7 +7602,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 176,
+              funcId: 175,
               port: port_,
             );
           },
@@ -7678,7 +7635,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 177,
+            funcId: 176,
             port: port_,
           );
         },
@@ -7710,7 +7667,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 178,
+            funcId: 177,
             port: port_,
           );
         },
@@ -7738,7 +7695,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 179,
+            funcId: 178,
             port: port_,
           );
         },
@@ -7768,7 +7725,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 180,
+            funcId: 179,
             port: port_,
           );
         },
@@ -7795,7 +7752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 181,
+            funcId: 180,
             port: port_,
           );
         },
@@ -7822,7 +7779,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 182,
+            funcId: 181,
             port: port_,
           );
         },
@@ -7850,7 +7807,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 183,
+            funcId: 182,
             port: port_,
           );
         },
@@ -7877,7 +7834,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 184,
+            funcId: 183,
             port: port_,
           );
         },
@@ -7910,7 +7867,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 185,
+            funcId: 184,
           )!;
         },
         codec: SseCodec(
@@ -7943,7 +7900,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 186,
+            funcId: 185,
           )!;
         },
         codec: SseCodec(
@@ -9607,12 +9564,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiShareTarget dco_decode_box_autoadd_ui_share_target(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_ui_share_target(raw);
-  }
-
-  @protected
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_system_message(raw);
@@ -10757,12 +10708,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiShareTarget? dco_decode_opt_box_autoadd_ui_share_target(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_ui_share_target(raw);
-  }
-
-  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_user_id(raw);
@@ -11459,20 +11404,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
-  }
-
-  @protected
-  UiShareTarget dco_decode_ui_share_target(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
-    return UiShareTarget(
-      chatId: dco_decode_chat_id(arr[0]),
-      title: dco_decode_String(arr[1]),
-      isGroup: dco_decode_bool(arr[2]),
-      picture: dco_decode_opt_list_prim_u_8_strict(arr[3]),
-    );
   }
 
   @protected
@@ -13172,14 +13103,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiShareTarget sse_decode_box_autoadd_ui_share_target(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_ui_share_target(deserializer));
-  }
-
-  @protected
   UiSystemMessage sse_decode_box_autoadd_ui_system_message(
     SseDeserializer deserializer,
   ) {
@@ -14803,19 +14726,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiShareTarget? sse_decode_opt_box_autoadd_ui_share_target(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_ui_share_target(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(
     SseDeserializer deserializer,
   ) {
@@ -15607,21 +15517,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
-  }
-
-  @protected
-  UiShareTarget sse_decode_ui_share_target(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_chatId = sse_decode_chat_id(deserializer);
-    var var_title = sse_decode_String(deserializer);
-    var var_isGroup = sse_decode_bool(deserializer);
-    var var_picture = sse_decode_opt_list_prim_u_8_strict(deserializer);
-    return UiShareTarget(
-      chatId: var_chatId,
-      title: var_title,
-      isGroup: var_isGroup,
-      picture: var_picture,
-    );
   }
 
   @protected
@@ -17648,15 +17543,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_ui_share_target(
-    UiShareTarget self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_ui_share_target(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_ui_system_message(
     UiSystemMessage self,
     SseSerializer serializer,
@@ -19133,19 +19019,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_share_target(
-    UiShareTarget? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_ui_share_target(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
     SseSerializer serializer,
@@ -19825,18 +19698,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(5, serializer);
         sse_encode_box_autoadd_ui_share_send_error(error, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_ui_share_target(
-    UiShareTarget self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_chat_id(self.chatId, serializer);
-    sse_encode_String(self.title, serializer);
-    sse_encode_bool(self.isGroup, serializer);
-    sse_encode_opt_list_prim_u_8_strict(self.picture, serializer);
   }
 
   @protected

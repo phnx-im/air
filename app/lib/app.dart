@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -22,7 +23,6 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/share/share_cubit.dart';
-import 'package:air/share/share_targets.dart';
 import 'package:air/share/staged_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
@@ -363,9 +363,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
-            // The published share targets carry chat names and avatars, so
-            // drop them before the account unloads.
-            unawaited(clearShareTargets());
             userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but
@@ -433,6 +430,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
                       ),
                       dispose: (repository) => unawaited(repository.dispose()),
                       // immediately hydrate chats
+                      lazy: false,
+                    ),
+                    RepositoryProvider<ShareTargetPublisher>(
+                      create: (context) => ShareTargetPublisher(
+                        chatsRepository: context.read<ChatsRepository>(),
+                      ),
+                      dispose: (publisher) => unawaited(publisher.dispose()),
+                      // reconciles leftover OS shortcuts right away
                       lazy: false,
                     ),
                   ],
