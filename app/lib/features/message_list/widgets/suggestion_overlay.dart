@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:flutter/material.dart';
 
 /// Smallest gap kept between a suggestion overlay and the safe area edges.
@@ -25,7 +26,7 @@ class SuggestionOverlayStyle {
 
   final Color backgroundColor;
   final BorderRadius borderRadius;
-  final double elevation;
+  final Elevation elevation;
   final double maxWidth;
   final double maxHeight;
 }
@@ -414,31 +415,37 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
       onPointerDown: (_) => controller.handlePointerDown(),
       onPointerUp: (_) => controller.handlePointerUp(),
       onPointerCancel: (_) => controller.handlePointerCancel(),
-      child: Material(
+      child: DecoratedBox(
         key: controller.overlayKey,
-        elevation: style.elevation,
-        color: style.backgroundColor,
-        borderRadius: style.borderRadius,
-        clipBehavior: .antiAlias,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: min(style.maxWidth, availableWidth),
-            maxHeight: min(style.maxHeight, availableHeight),
-          ),
-          child: SingleChildScrollView(
-            child: IntrinsicWidth(
-              child: Column(
-                mainAxisSize: .min,
-                crossAxisAlignment: .stretch,
-                children: List.generate(suggestions.length, (index) {
-                  final item = suggestions[index];
-                  final isHighlighted = index == controller.highlightIndex;
-                  return InkWell(
-                    key: controller.itemKey(index),
-                    onTap: () => controller.selectSuggestion(index),
-                    child: itemBuilder(context, item, isHighlighted),
-                  );
-                }),
+        decoration: BoxDecoration(
+          color: style.backgroundColor,
+          borderRadius: style.borderRadius,
+          boxShadow: Effect.elevation(style.elevation),
+        ),
+        child: Material(
+          type: .transparency,
+          borderRadius: style.borderRadius,
+          clipBehavior: .antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: min(style.maxWidth, availableWidth),
+              maxHeight: min(style.maxHeight, availableHeight),
+            ),
+            child: SingleChildScrollView(
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .stretch,
+                  children: List.generate(suggestions.length, (index) {
+                    final item = suggestions[index];
+                    final isHighlighted = index == controller.highlightIndex;
+                    return InkWell(
+                      key: controller.itemKey(index),
+                      onTap: () => controller.selectSuggestion(index),
+                      child: itemBuilder(context, item, isHighlighted),
+                    );
+                  }),
+                ),
               ),
             ),
           ),

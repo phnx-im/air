@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,18 +45,15 @@ void main() {
         context: tester.element(find.byType(Scaffold)),
         offset: const Offset(0, _maxHeight),
         suggestions: List.generate(_suggestionCount, (index) => index),
-        style: const SuggestionOverlayStyle(
+        style: SuggestionOverlayStyle(
           backgroundColor: Colors.white,
           borderRadius: BorderRadius.zero,
-          elevation: 0,
+          elevation: Elevation.flat,
           maxWidth: maxWidth,
           maxHeight: _maxHeight,
         ),
-        itemBuilder: (context, item, isHighlighted) => SizedBox(
-          width: rowWidth,
-          height: _rowHeight,
-          child: Text('$item'),
-        ),
+        itemBuilder: (context, item, isHighlighted) =>
+            SizedBox(width: rowWidth, height: _rowHeight, child: Text('$item')),
         onSelected: (_) {},
       ),
     );
@@ -108,7 +106,8 @@ void main() {
   testWidgets('a clamped key press scrolls the highlight back into view', (
     tester,
   ) async {
-    await pumpOverlay(tester);
+    // Rows need a width for the drag below to hit the scroll view.
+    await pumpOverlay(tester, rowWidth: 100);
     final scrollable = find.byType(Scrollable).last;
 
     // Scroll the highlighted first row out of view by hand.

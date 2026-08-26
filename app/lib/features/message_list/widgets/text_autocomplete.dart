@@ -300,8 +300,7 @@ class TextAutocompleteController<T> {
         inset.right -
         suggestionOverlayViewportMargin -
         overlaySize.width;
-    final maxY =
-        screen.height - inset.bottom - suggestionOverlayViewportMargin;
+    final maxY = screen.height - inset.bottom - suggestionOverlayViewportMargin;
 
     // An overlay bigger than the safe area leaves no valid position, so favour
     // the top left corner instead of letting clamp assert on an empty range.

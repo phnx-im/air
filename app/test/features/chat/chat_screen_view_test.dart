@@ -365,6 +365,27 @@ void main() {
           matchesGoldenFile('goldens/composer_quote.png'),
         );
       });
+
+      // State 7: Emoji autocomplete -- the suggestion overlay sits above the
+      // caret, anchored inside the viewport.
+      testWidgets('emoji autocomplete', (tester) async {
+        messageListCubit.setState([
+          _msg(1, 'The user typed a colon shortcode.'),
+          _msg(2, 'Emoji suggestions open above the composer.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), ':smi');
+        // Flush the draft debounce, then let the overlay animate in.
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_emoji_autocomplete.png'),
+        );
+      });
     });
 
     group('scroll-back button', () {
