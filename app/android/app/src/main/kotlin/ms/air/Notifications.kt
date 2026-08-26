@@ -14,6 +14,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -195,6 +196,11 @@ class Notifications {
         // Category required for the conversation shortcut
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
         private const val SHORTCUT_CATEGORY_SHARE_TARGET = "ms.air.shortcut.SHARE_TARGET"
+
+        // Adaptive icon canvas and its safe zone (dp). Launchers and the
+        // share sheet mask the icon to the safe zone.
+        private const val ADAPTIVE_ICON_SIZE = 108
+        private const val ADAPTIVE_ICON_SAFE_ZONE = 72
 
         // Every conversation shortcut we publish doubles as a share target,
         // whether it came from a notification or from the share target list.
@@ -537,14 +543,15 @@ class Notifications {
         // The platform rejects plain bitmap icons on long-lived shortcuts
         // so this is an adaptive one.
         //
-        // The launcher masks an adaptive icon to its own shape,
-        // so the bitmap is only center-cropped to a square.
+        // The launcher masks an adaptive icon to its own shape, but only
+        // within the safe zone, so the square avatar is inset into the
+        // canvas instead of filling it.
         private fun shortcutAvatarIcon(bytes: ByteArray?): IconCompat? {
             if (bytes == null || bytes.isEmpty()) return null
             return try {
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     ?: return null
-                IconCompat.createWithAdaptiveBitmap(cropToSquare(bitmap))
+                IconCompat.createWithAdaptiveBitmap(insetToSafeZone(cropToSquare(bitmap)))
             } catch (e: Exception) {
                 Log.e(NOTIF_LOGTAG, "Failed to decode shortcut avatar", e)
                 null
@@ -576,6 +583,16 @@ class Notifications {
                 side,
                 side
             )
+        }
+
+        // Centers the square bitmap in the safe zone of a transparent
+        // adaptive icon canvas.
+        private fun insetToSafeZone(square: Bitmap): Bitmap {
+            val canvasSide = square.width * ADAPTIVE_ICON_SIZE / ADAPTIVE_ICON_SAFE_ZONE
+            val offset = ((canvasSide - square.width) / 2).toFloat()
+            val canvas = Bitmap.createBitmap(canvasSide, canvasSide, Bitmap.Config.ARGB_8888)
+            Canvas(canvas).drawBitmap(square, offset, offset, null)
+            return canvas
         }
 
         // Italicizes a reaction line, except emoji code points.
