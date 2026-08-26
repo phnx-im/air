@@ -36,12 +36,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
-/// The surface the list paints on: the surrounding panel in the two-pane
-/// layout, or its own background tier when it fills the screen.
-Color chatListBackgroundColor(BuildContext context) =>
-    PanelSurface.maybeOf(context) ??
-    SemanticPalette.of(context).backgroundBase.primary;
-
 /// The chats, resolved from [ChatsRepository.watchOrder] and handed to the
 /// design system's list: each row gets its own [ChatListItemCubit], and every
 /// piece of localized copy is picked here.
@@ -76,7 +70,7 @@ class ChatListContent extends HookWidget {
 
     final list = ChatList(
       tokens: ChatListTokens.current,
-      backgroundColor: chatListBackgroundColor(context),
+      backgroundColor: PanelSurface.colorOf(context),
       header: header,
       headerHeight: headerHeight,
       itemCount: chatIds.length,
@@ -409,10 +403,9 @@ class _LastMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-
-    final previewStyle = typeScale.body.s.style(color: palette.text.tertiary);
+    final textTertiary = PanelSurface.textOf(context).tertiary;
+    final previewStyle = typeScale.body.s.style(color: textTertiary);
     final italicStyle = previewStyle.copyWith(fontStyle: .italic);
 
     final lastMessage = chat.lastMessage;
@@ -474,7 +467,7 @@ class _LastMessage extends StatelessWidget {
     final prefixStyle = showDraft
         ? italicStyle
         : typeScale.body.s.style(
-            color: palette.text.tertiary,
+            color: textTertiary,
             weight: Weight.emphasized,
           );
 
