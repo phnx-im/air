@@ -10,7 +10,10 @@ use std::{
     time::Duration,
 };
 
-use airbackend::settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings};
+use airbackend::{
+    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
+    version::VersionPolicy,
+};
 use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
@@ -24,7 +27,6 @@ use mimi_content::{
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
-use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet, spawn_blocking},
@@ -35,7 +37,7 @@ use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::{controlled_listener::ControlHandle, spawn_app};
+use crate::utils::{SentChallenges, controlled_listener::ControlHandle, spawn_app};
 
 #[derive(Debug)]
 pub struct TestUser {
@@ -76,6 +78,15 @@ impl TestUser {
     ) -> anyhow::Result<Self> {
         let challenge =
             invitation_code.map(|code| RegistrationChallenge::InvitationCode(code.to_owned()));
+        Self::try_new_with_challenge(user_id, server_url, challenge).await
+    }
+
+    /// Registers a user, answering the registration gate with `challenge`.
+    pub async fn try_new_with_challenge(
+        user_id: &UserId,
+        server_url: Url,
+        challenge: Option<RegistrationChallenge>,
+    ) -> anyhow::Result<Self> {
         let user = CoreUser::new_ephemeral(user_id.clone(), server_url, None, challenge).await?;
 
         Ok(Self {
@@ -161,6 +172,7 @@ pub struct TestBackend {
     server_url: ServerUrl,
     domain: Fqdn,
     invitation_codes: Vec<String>,
+    sent_challenges: SentChallenges,
     temp_dir: TempDir,
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
@@ -180,7 +192,7 @@ enum ServerUrl {
 #[derive(Debug)]
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
-    pub client_version_req: Option<VersionReq>,
+    pub version_policy: VersionPolicy,
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
@@ -202,7 +214,7 @@ impl Default for TestBackendParams {
     fn default() -> Self {
         Self {
             rate_limits: None,
-            client_version_req: None,
+            version_policy: Default::default(),
             registration: RegistrationSettings {
                 policy: RegistrationPolicy::Open,
                 ..Default::default()
@@ -242,29 +254,44 @@ impl TestBackend {
         let local = LocalSet::new();
         let _guard = local.enter();
 
-        let (server_url, domain, listener_control_handle, invitation_codes, _cleanup) =
-            if let Ok(value) = std::env::var("TEST_SERVER_URL") {
-                let url: Url = value.parse().unwrap();
-                info!(%url, "using external test server");
-                let domain: Fqdn = url.host().unwrap().to_owned().into();
-                (ServerUrl::External(url), domain, None, Vec::new(), None)
-            } else {
-                let network_provider = MockNetworkProvider::new();
-                let domain: Fqdn = "localhost".parse().unwrap();
-                let app = spawn_app(domain.clone(), network_provider, params).await;
-                let listen_addr = app.address;
-                let control_handle = app.control_handle.clone();
-                let codes = app.codes.clone();
-                info!(%listen_addr, "using spawned test server");
-                let cleanup: Box<dyn Any> = Box::new(app);
-                (
-                    ServerUrl::Local(listen_addr),
-                    domain,
-                    Some(control_handle),
-                    codes,
-                    Some(cleanup),
-                )
-            };
+        let (
+            server_url,
+            domain,
+            listener_control_handle,
+            invitation_codes,
+            sent_challenges,
+            _cleanup,
+        ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
+            let url: Url = value.parse().unwrap();
+            info!(%url, "using external test server");
+            let domain: Fqdn = url.host().unwrap().to_owned().into();
+            (
+                ServerUrl::External(url),
+                domain,
+                None,
+                Vec::new(),
+                SentChallenges::default(),
+                None,
+            )
+        } else {
+            let network_provider = MockNetworkProvider::new();
+            let domain: Fqdn = "localhost".parse().unwrap();
+            let app = spawn_app(domain.clone(), network_provider, params).await;
+            let listen_addr = app.address;
+            let control_handle = app.control_handle.clone();
+            let codes = app.codes.clone();
+            let sent_challenges = app.sent_challenges.clone();
+            info!(%listen_addr, "using spawned test server");
+            let cleanup: Box<dyn Any> = Box::new(app);
+            (
+                ServerUrl::Local(listen_addr),
+                domain,
+                Some(control_handle),
+                codes,
+                sent_challenges,
+                Some(cleanup),
+            )
+        };
 
         let apq_groups = std::env::var("TEST_WITH_APQ_GROUPS").unwrap_or("false".to_string());
         let apq_groups: bool = apq_groups
@@ -283,6 +310,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             invitation_codes,
+            sent_challenges,
             apq_groups,
             _guard: Some(_guard),
             _cleanup,
@@ -318,6 +346,22 @@ impl TestBackend {
 
     pub fn invitation_codes(&self) -> &[String] {
         &self.invitation_codes
+    }
+
+    /// The challenge the server last aimed at a push endpoint.
+    pub fn last_sent_challenge(&self) -> Option<String> {
+        self.sent_challenges
+            .lock()
+            .expect("the challenge lock is poisoned")
+            .last()
+            .cloned()
+    }
+
+    pub fn sent_challenge_count(&self) -> usize {
+        self.sent_challenges
+            .lock()
+            .expect("the challenge lock is poisoned")
+            .len()
     }
 
     pub async fn add_persisted_user(&mut self) -> UserId {

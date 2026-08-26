@@ -4,7 +4,8 @@
 
 use aircommon::{
     identifiers::Fqdn,
-    registration::{ChallengeKind, RegistrationInfo},
+    messages::push_token::PushToken,
+    registration::{ChallengeKind, NewAdmissionSession, RegistrationInfo},
 };
 
 use crate::clients::{CoreUser, api_clients::ApiClients};
@@ -25,11 +26,28 @@ pub enum RegistrationError {
 impl CoreUser {
     /// Asks a server whether registering with it needs a challenge right now.
     ///
-    /// Note: This function creates a new API client for each call. Therefore,
-    /// the TCP/TLS/HTTP connection is not reused.
+    /// Note: This function creates a new API client for each call, because
+    /// there is no CoreUser instance yet.
     pub async fn get_registration_info(domain: Fqdn) -> anyhow::Result<RegistrationInfo> {
         let api_clients = ApiClients::new(domain, None);
         let api_client = api_clients.default_client()?;
         Ok(api_client.as_get_registration_info().await?)
+    }
+
+    /// Opens an admission session, which has the server send a challenge to
+    /// this device's push endpoint.
+    ///
+    /// Note: This function creates a new API client for each call, because
+    /// there is no CoreUser instance yet.
+    pub async fn create_admission_session(
+        domain: Fqdn,
+        push_token: PushToken,
+    ) -> anyhow::Result<NewAdmissionSession> {
+        let api_clients = ApiClients::new(domain, None);
+        let session = api_clients
+            .default_client()?
+            .as_create_admission_session(&push_token)
+            .await?;
+        Ok(session)
     }
 }

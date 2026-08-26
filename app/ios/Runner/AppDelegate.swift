@@ -7,6 +7,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
+    private var pendingAdmissionChallenge: PendingAdmissionChallenge?
     private let notificationChannelName: String = AppChannel.name
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var storeNotificationsChannel: FlutterMethodChannel?
@@ -92,6 +93,48 @@ private let kProtectedBlockedCategory = "protected-blocked"
         NSLog("Failed to register: \(error)")
     }
 
+    // FlutterAppDelegate answers respondsToSelector: for this selector out of
+    // its plugin registry alone and never falls through to super, so an
+    // implementation in a subclass stays invisible to UIKit unless some plugin
+    // also claims it. We have no push plugin, so answer for ourselves.
+    private static let remoteNotificationSelector = Selector(
+        "application:didReceiveRemoteNotification:fetchCompletionHandler:")
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        if aSelector == Self.remoteNotificationSelector {
+            return true
+        }
+        return super.responds(to: aSelector)
+    }
+
+    // A silent push carrying an admission challenge.
+    override func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (
+            UIBackgroundFetchResult
+        ) -> Void
+    ) {
+        guard let challenge = userInfo["challenge"] as? String,
+            let sessionId = userInfo["sessionId"] as? String
+        else {
+            // Not a challenge. FlutterAppDelegate only forwards this to plugins
+            // and never completes the fetch when none claims it, so complete
+            // it here.
+            completionHandler(.noData)
+            return
+        }
+
+        NSLog("Admission challenge received for session \(sessionId)")
+        // We deliver it, but also keep it in memory so Flutter can retrieve it
+        // if it wasn't ready to receive it yet.
+        let pending = PendingAdmissionChallenge(challenge: challenge, sessionId: sessionId)
+        pendingAdmissionChallenge = pending
+        storeNotificationsChannel?.invokeMethod(
+            "receivedAdmissionChallenge", arguments: pending.channelArguments)
+        completionHandler(.newData)
+    }
+
     // This method will be called when app received push notifications in foreground
     override func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -152,6 +195,8 @@ private let kProtectedBlockedCategory = "protected-blocked"
     ) {
         if call.method == "getDeviceToken" {
             self.getDeviceToken(result: result)
+        } else if call.method == "getPendingAdmissionChallenge" {
+            result(self.takePendingAdmissionChallenge())
         } else if call.method == "getDatabasesDirectory" {
             if let url = AppGroup.databasesDirectory(create: true) {
                 result(url.path)
@@ -351,6 +396,12 @@ private let kProtectedBlockedCategory = "protected-blocked"
         result(deviceToken)
     }
 
+    private func takePendingAdmissionChallenge() -> [String: String]? {
+        defer { pendingAdmissionChallenge = nil }
+        guard let pending = pendingAdmissionChallenge else { return nil }
+        return pending.channelArguments
+    }
+
     // Set the badge count
     private func setBadgeCount(_ count: Int, result: FlutterResult) {
         UIApplication.shared.applicationIconBadgeNumber = count
@@ -506,4 +557,13 @@ func cancelNotifications(identifiers: [UUID]) {
         withIdentifiers: identifiers.map {
             $0.uuidString
         })
+}
+
+struct PendingAdmissionChallenge {
+    let challenge: String
+    let sessionId: String
+
+    var channelArguments: [String: String] {
+        ["sessionId": sessionId, "challenge": challenge]
+    }
 }

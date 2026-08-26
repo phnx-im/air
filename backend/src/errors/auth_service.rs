@@ -43,6 +43,31 @@ impl From<RegisterUserError> for Status {
     }
 }
 
+/// Things that can go wrong while opening a push-admission session.
+#[derive(Error, Debug)]
+pub(crate) enum AdmissionError {
+    /// This deployment does not offer the push-admission challenge
+    #[error("Push admission is not available")]
+    Unavailable,
+    /// The push token cannot be a push token
+    #[error("Invalid push token")]
+    InvalidPushToken,
+    /// Storage provider error
+    #[error("Storage provider error")]
+    StorageError,
+}
+
+impl From<AdmissionError> for Status {
+    fn from(e: AdmissionError) -> Self {
+        let msg = e.to_string();
+        match e {
+            AdmissionError::Unavailable => Status::failed_precondition(msg),
+            AdmissionError::InvalidPushToken => Status::invalid_argument(msg),
+            AdmissionError::StorageError => Status::internal(msg),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum DeleteUserError {
     /// Storage provider error

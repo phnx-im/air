@@ -378,6 +378,7 @@
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
+  "homeTab_share": "Wähle einen Chat, in den du teilen möchtest",
   "messageList_newMessages": "Neue Nachrichten",
   "messageList_reactions_react": "Reagieren",
   "messageList_reactions_remove": "Entfernen",
@@ -387,7 +388,6 @@
   "emojiPicker_empty": "Keine Emojis gefunden",
   "emojiPicker_skinToneHelp": "Legt deinen Standard-Hautton fest",
 
-  "shareBanner_chooseChat": "Wähle einen Chat, in den du teilen möchtest",
   "shareScreen_title": "Mit Air teilen",
   "shareScreen_searchHint": "Suchen",
   "shareScreen_recipients": "{count, plural, =1 {An: {first}} =2 {An: {first} und {second}} other {An: {first}, {second} und {third}}}",

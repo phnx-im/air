@@ -25,18 +25,21 @@ use aircommon::{
         },
         connection_package::ConnectionPackage,
         connection_package::VersionedConnectionPackageIn,
+        push_token::{PushToken, PushTokenOperator},
     },
-    registration::{ChallengeKind, RegistrationChallenge, RegistrationInfo},
+    registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
+    time::Duration,
 };
 use airprotos::{
     auth_service::v1::{
-        AckListenUsernameRequest, AsCredentialsRequest, ChallengeType, CheckInvitationCodeRequest,
-        CheckUsernameExistsRequest, ConnectUsernameRequest, ConnectUsernameResponse,
+        AckListenUsernameRequest, AdmissionSession as ProtoAdmissionSession, AsCredentialsRequest,
+        ChallengeType, CheckInvitationCodeRequest, CheckUsernameExistsRequest,
+        ConnectUsernameRequest, ConnectUsernameResponse, CreateAdmissionSessionRequest,
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
         EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetInvitationCodesRequest,
         GetRegistrationInfoRequest, GetUserProfileRequest, InitListenUsernamePayload,
         InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse, ListenUsernameRequest,
-        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload,
+        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload, PushPlatform,
         RefreshUsernamePayload, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
         StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
         connect_username_response, issue_token_batch_response, listen_username_request,
@@ -127,11 +130,7 @@ impl AsRequestError {
 pub enum RegistrationOutcome {
     Registered(RegisterUserResponseIn),
     /// The gate is closed and the request carried no challenge of an accepted
-    /// kind.
-    ///
-    /// The gate can close between asking the server what it wants and
-    /// registering, so this is how a client learns it has to ask for a
-    /// challenge after all. Kinds this build does not know are dropped.
+    /// kind. Kinds this build does not know are dropped.
     ChallengeRequired(Vec<ChallengeKind>),
     /// The server turned down the challenge response the request carried.
     ChallengeRejected,
@@ -222,20 +221,65 @@ impl ApiClient {
         })
     }
 
+    /// Opens an admission session, which sends a challenge to the push
+    /// endpoint. The answer says nothing about whether one is on its way.
+    pub async fn as_create_admission_session(
+        &self,
+        push_token: &PushToken,
+    ) -> Result<NewAdmissionSession, AsRequestError> {
+        let platform = match push_token.operator() {
+            PushTokenOperator::Apple => PushPlatform::Apple,
+            PushTokenOperator::Google => PushPlatform::Google,
+        };
+        let request = CreateAdmissionSessionRequest {
+            client_metadata: Some(self.metadata().clone()),
+            platform: platform.into(),
+            push_token: push_token.token().to_owned(),
+        };
+        let response = self
+            .as_grpc_client()
+            .create_admission_session(request)
+            .await?
+            .into_inner();
+
+        Ok(NewAdmissionSession {
+            session_id: response
+                .session_id
+                .ok_or_else(|| {
+                    error!("missing `session_id` in response");
+                    AsRequestError::UnexpectedResponse
+                })?
+                .into(),
+            lifetime: Duration::seconds(response.lifetime_seconds.into()),
+        })
+    }
+
     pub async fn as_register_user(
         &self,
         client_payload: UserCredentialPayload,
         encrypted_user_profile: EncryptedUserProfile,
         challenge: Option<RegistrationChallenge>,
     ) -> Result<RegistrationOutcome, AsRequestError> {
-        let invitation_code = challenge.map(|challenge| match challenge {
-            RegistrationChallenge::InvitationCode(code) => InvitationCode { code },
-        });
+        let mut invitation_code = None;
+        let mut admission_session = None;
+        match challenge {
+            Some(RegistrationChallenge::InvitationCode(code)) => {
+                invitation_code = Some(InvitationCode { code });
+            }
+            Some(RegistrationChallenge::AdmissionSession(session)) => {
+                admission_session = Some(ProtoAdmissionSession {
+                    session_id: Some(session.session_id.into()),
+                    challenge: session.challenge,
+                });
+            }
+            None => {}
+        }
         let request = RegisterUserRequest {
             client_metadata: Some(self.metadata().clone()),
             user_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
             invitation_code,
+            admission_session,
         };
         self.as_grpc_client()
             .register_user(Request::new(request))
@@ -814,9 +858,6 @@ mod tests {
         RegisterUserResponse { outcome }.try_into()
     }
 
-    /// Each registration outcome maps to its own variant. Confusing the two
-    /// rejections would either send the user back to a step they already filled
-    /// in, or leave them on one the server no longer asks about.
     #[test]
     fn registration_outcomes_map_to_their_variants() {
         let required = convert_registration(Some(RegistrationOutcomeProto::ChallengeRequired(
@@ -839,8 +880,6 @@ mod tests {
         };
     }
 
-    /// A kind this build has never heard of is dropped rather than surfacing as
-    /// something the sign-up flow would try to collect.
     #[test]
     fn unknown_challenge_kinds_are_dropped() {
         let required = convert_registration(Some(RegistrationOutcomeProto::ChallengeRequired(

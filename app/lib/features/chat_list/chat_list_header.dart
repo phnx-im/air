@@ -31,7 +31,7 @@ class ChatListHeader extends StatelessWidget {
     );
     return ListHeader(
       tokens: tokens,
-      title: sharePending ? loc.shareBanner_chooseChat : loc.homeTab_chats,
+      title: sharePending ? loc.homeTab_share : loc.homeTab_chats,
       scrollOffset: scrollOffset,
       leading: sharePending ? null : _ComposeButton(tokens: tokens),
     );

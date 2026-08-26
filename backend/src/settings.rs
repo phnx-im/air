@@ -8,7 +8,8 @@ use std::{
 };
 
 use aircommon::registration::ChallengeKind;
-use chrono::Duration;
+use chrono::{DateTime, Duration, Utc};
+use semver::Version;
 use serde::Deserialize;
 use zeroize::Zeroize;
 
@@ -49,15 +50,29 @@ pub struct ApplicationSettings {
     ///
     /// Can *not* be changed after the first start of the server.
     pub domain: String,
-    /// SemVer version requirement for the client
+    /// List of version expirations
     ///
-    /// Only clients satisfying this requirement will be able to connect to the server. When empty,
-    /// no version requirement is enforced.
-    pub versionreq: Option<semver::VersionReq>,
+    /// 1. Version older than some entry -> the earliest matching expires_on governs: past means
+    ///    blocked, future means allowed-with-warning.
+    /// 2. Otherwise -> allowed, unconditionally. This includes versions newer than any entry.
+    #[serde(default)]
+    pub version_expirations: Vec<VersionExpiration>,
     /// Special invitation code that is never redeemed.
     ///
     /// This code can be used to register as many users as desired. Useful for testing.
     pub unredeemablecode: Option<String>,
+}
+
+/// A version expiration entry
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+pub struct VersionExpiration {
+    /// The version that is no longer allowed.
+    pub older_than: Version,
+    /// When any version < `older_than` is not allowed anymore.
+    ///
+    /// Accepts a date `YYYY-MM-DD` (midnight UTC) or an RFC 3339 timestamp.
+    #[serde(with = "date_or_datetime")]
+    pub expires_on: DateTime<Utc>,
 }
 
 fn default_listen() -> SocketAddr {
@@ -90,6 +105,10 @@ pub struct ApnsSettings {
     pub keyid: String,
     pub teamid: String,
     pub privatekeypath: PathBuf,
+    /// The app's bundle id.
+    pub topic: Option<String>,
+    /// Production or sandbox.
+    pub endpoint: Option<String>,
 }
 
 /// Settings for an external object storage provider
@@ -233,15 +252,19 @@ pub struct RegistrationSettings {
     #[serde(default = "default_challenges")]
     pub challenges: Vec<ChallengeKind>,
     /// Attempts at registration one client address bucket may make before the
-    /// gate closes for it, over independent windows. Any one of them closes the
-    /// gate, and an empty list never closes it.
+    /// gate closes for it. Any window closes the gate, and an empty list never
+    /// does.
     #[serde(default = "default_perip_thresholds")]
     pub perip: Vec<RegistrationThreshold>,
     /// Challenge-free registrations the deployment may complete before the gate
-    /// closes for everyone, over independent windows. Any one of them closes
-    /// the gate, and an empty list never closes it.
+    /// closes for everyone. Any window closes the gate, and an empty list never
+    /// does.
     #[serde(default = "default_total_thresholds")]
     pub total: Vec<RegistrationThreshold>,
+    /// Terms of the push-admission challenge, which is only offered while
+    /// `admissionsession` is among the challenges.
+    #[serde(default)]
+    pub admission: AdmissionSettings,
 }
 
 impl Default for RegistrationSettings {
@@ -251,6 +274,37 @@ impl Default for RegistrationSettings {
             challenges: default_challenges(),
             perip: default_perip_thresholds(),
             total: default_total_thresholds(),
+            admission: AdmissionSettings::default(),
+        }
+    }
+}
+
+impl RegistrationSettings {
+    pub fn offers_admission_sessions(&self) -> bool {
+        self.challenges.contains(&ChallengeKind::AdmissionSession)
+    }
+}
+
+/// Terms of the push-admission challenge.
+#[derive(Debug, Deserialize, Clone)]
+pub struct AdmissionSettings {
+    /// How long a session stays open for its challenge to arrive and be spent.
+    #[serde(default = "default_session_lifetime", with = "duration_seconds")]
+    pub sessionlifetime: Duration,
+    /// Challenges one endpoint may have sent to it.
+    #[serde(default = "default_send_throttle")]
+    pub sendthrottle: RegistrationThreshold,
+    /// Registrations one endpoint admits. Every window applies.
+    #[serde(default = "default_endpoint_quotas")]
+    pub quotas: Vec<RegistrationThreshold>,
+}
+
+impl Default for AdmissionSettings {
+    fn default() -> Self {
+        Self {
+            sessionlifetime: default_session_lifetime(),
+            sendthrottle: default_send_throttle(),
+            quotas: default_endpoint_quotas(),
         }
     }
 }
@@ -271,9 +325,8 @@ pub enum RegistrationPolicy {
 #[derive(Debug, Deserialize, Clone, Copy)]
 pub struct RegistrationThreshold {
     pub limit: u64,
-    /// Required, because the two dimensions count over windows orders of
-    /// magnitude apart. A default here would hand a config that names only a
-    /// limit the wrong window.
+    /// Required, since the two dimensions count over windows orders of
+    /// magnitude apart.
     #[serde(with = "duration_seconds")]
     pub window: Duration,
 }
@@ -312,6 +365,32 @@ fn default_total_thresholds() -> Vec<RegistrationThreshold> {
         RegistrationThreshold {
             limit: 1000,
             window: Duration::days(1),
+        },
+    ]
+}
+
+fn default_session_lifetime() -> Duration {
+    Duration::minutes(5)
+}
+
+fn default_send_throttle() -> RegistrationThreshold {
+    RegistrationThreshold {
+        limit: 10,
+        window: Duration::hours(1),
+    }
+}
+
+/// An honest signup needs one account, so the day window is what an attacker
+/// runs into and the month window caps what token rotation buys.
+fn default_endpoint_quotas() -> Vec<RegistrationThreshold> {
+    vec![
+        RegistrationThreshold {
+            limit: 5,
+            window: Duration::days(1),
+        },
+        RegistrationThreshold {
+            limit: 10,
+            window: Duration::days(7),
         },
     ]
 }
@@ -364,6 +443,25 @@ fn default_debug_logs_bucket() -> String {
     "debug-logs".to_string()
 }
 
+mod date_or_datetime {
+    use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+    use serde::de;
+
+    /// Accepts a date `YYYY-MM-DD` (midnight UTC) or an RFC 3339 timestamp.
+    pub fn deserialize<'de, D>(d: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let s: String = serde::Deserialize::deserialize(d)?;
+        if let Ok(date) = s.parse::<NaiveDate>() {
+            return Ok(date.and_time(NaiveTime::MIN).and_utc());
+        }
+        DateTime::parse_from_rfc3339(&s)
+            .map(|dt| dt.to_utc())
+            .map_err(de::Error::custom)
+    }
+}
+
 mod duration_seconds {
     use serde::de;
 
@@ -397,4 +495,40 @@ mod duration_millis {
 
 fn default_require_content_length() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn version_expiration_accepts_date_and_timestamp() {
+        let expiration: VersionExpiration = serde_json::from_value(json!({
+            "older_than": "0.20.0",
+            "expires_on": "2026-09-02",
+        }))
+        .unwrap();
+        assert_eq!(
+            expiration.expires_on,
+            "2026-09-02T00:00:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+
+        let expiration: VersionExpiration = serde_json::from_value(json!({
+            "older_than": "0.20.0",
+            "expires_on": "2026-09-02T15:30:00Z",
+        }))
+        .unwrap();
+        assert_eq!(
+            expiration.expires_on,
+            "2026-09-02T15:30:00Z".parse::<DateTime<Utc>>().unwrap()
+        );
+
+        let result = serde_json::from_value::<VersionExpiration>(json!({
+            "older_than": "0.20.0",
+            "expires_on": "not a date",
+        }));
+        assert!(result.is_err());
+    }
 }

@@ -4,86 +4,30 @@
 
 //! The adaptive registration gate.
 //!
-//! Two counters decide whether a registration must answer a challenge, each
-//! counting what suits its threat model.
+//! Two counters decide whether a registration must answer a challenge. Per
+//! client address bucket, the gate counts registration attempts. Across the
+//! deployment, it counts completed challenge-free registrations.
 //!
 //! Each counter carries a list of independent windows, and reaching any one of
-//! them closes it. A short window catches a burst, a long one catches the slow
-//! trickle that stays under it.
-//!
-//! Per client address bucket, the gate counts registration attempts. Abuse
-//! then only closes the abuser's own bucket, and the gap between reading the
-//! count and recording the attempt is one short locked transaction.
-//!
-//! Across the deployment, the gate counts completed challenge-free
-//! registrations. Counting attempts there would let a cheap flood of malformed
-//! requests close public registration for everyone. Only unvouched signups
-//! advance that counter, so the threshold reads as "at most N unvouched
-//! accounts per window" and an invite-driven signup wave does not close the
-//! door on everyone else.
-//!
-//! Reading the counters fails closed: a database error requires a challenge
-//! rather than admitting the request. Degradation is graceful, because the
-//! challenge path still admits users.
-//!
-//! The `air_registration_gate_open` gauge answers one deployment-scoped
-//! question, "would a fresh address be admitted right now", so only the policy
-//! and the deployment-wide counter move it. A single abusive bucket would
-//! otherwise report the deployment as closed.
+//! them closes it. Reading them fails closed.
 
 use chrono::Duration;
-use hmac::{Hmac, KeyInit, Mac};
 use metrics::gauge;
-use sha2::Sha256;
 use sqlx::{PgConnection, PgExecutor, PgPool, PgTransaction};
 use tracing::error;
 
 use crate::{
-    client_ip::{ClientIp, IpBucket},
-    settings::{RegistrationPolicy, RegistrationSettings, RegistrationThreshold},
+    bucket_key::BucketKey,
+    client_ip::ClientIp,
+    settings::{RegistrationPolicy, RegistrationSettings},
+    window_counter::{bucket_lock_key, longest_window, reached, saturating_count, window_seconds},
 };
 
-/// The key that registration address buckets are hashed under.
-///
-/// Registrant addresses are never stored. The per-address counter only has to
-/// tell two buckets apart inside one window, which a keyed hash does, and rows
-/// are pruned once they age out of that window.
-#[derive(Clone)]
-pub(crate) struct IpBucketKey([u8; 32]);
-
-/// Domain separation, so the same key can never produce a value that means
-/// something else somewhere else.
+/// Registrant addresses are never stored, only a keyed name for their bucket.
 const BUCKET_LABEL: &[u8] = b"AirRegistrationIpBucket";
 
-impl IpBucketKey {
-    /// The stored form of an address bucket.
-    fn hash(&self, bucket: &IpBucket) -> [u8; 32] {
-        let mut mac =
-            Hmac::<Sha256>::new_from_slice(&self.0).expect("HMAC accepts a key of any length");
-        mac.update(BUCKET_LABEL);
-        mac.update(bucket);
-        mac.finalize().into_bytes().into()
-    }
-}
-
-impl std::fmt::Debug for IpBucketKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("IpBucketKey(redacted)")
-    }
-}
-
-/// Class of the advisory lock that serializes attempt counting. The two-int
-/// form of `pg_advisory_xact_lock` shares one namespace across the database, so
-/// the class separates these locks from any other advisory lock use.
+/// Class of the advisory lock that serializes attempt counting.
 const ATTEMPT_LOCK_CLASS: i32 = 0x4154_4d50;
-
-/// The lock object id for an address bucket, taken from its hash.
-///
-/// Two buckets that collide here only serialize against each other for the
-/// length of one insert, so four bytes are enough.
-fn bucket_lock_key(bucket: &[u8; 32]) -> i32 {
-    i32::from_be_bytes([bucket[0], bucket[1], bucket[2], bucket[3]])
-}
 
 /// Whether a registration request has to answer a challenge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,8 +42,8 @@ impl GateDecision {
     }
 }
 
-/// Why the gate is closed. Reported as a metric label, which is why it carries
-/// no address.
+/// Why the gate is closed. Reported as a metric label, so it carries no
+/// address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum GateReason {
     /// The configured policy always requires a challenge.
@@ -131,11 +75,11 @@ impl GateReason {
 #[derive(Debug, Clone)]
 pub(crate) struct RegistrationGate {
     settings: RegistrationSettings,
-    bucket_key: IpBucketKey,
+    bucket_key: BucketKey,
 }
 
 impl RegistrationGate {
-    pub(crate) fn new(settings: RegistrationSettings, bucket_key: IpBucketKey) -> Self {
+    pub(crate) fn new(settings: RegistrationSettings, bucket_key: BucketKey) -> Self {
         Self {
             settings,
             bucket_key,
@@ -151,9 +95,6 @@ impl RegistrationGate {
     }
 
     /// How long each counter's rows stay relevant to it.
-    ///
-    /// A counter keeps its rows for its longest window, and a counter without
-    /// windows keeps nothing.
     fn retention(&self) -> RegistrationRetention {
         RegistrationRetention {
             attempts: longest_window(&self.settings.perip),
@@ -163,8 +104,7 @@ impl RegistrationGate {
 
     /// Reads the counters and decides, without recording anything.
     ///
-    /// Answering a question about the gate must not move it, or a client could
-    /// close its own gate by asking.
+    /// Answering a question about the gate must not move it.
     pub(crate) async fn decide(&self, pool: &PgPool, client_ip: Option<ClientIp>) -> GateDecision {
         let bucket = match self.bucket_to_count(client_ip) {
             Ok(bucket) => bucket,
@@ -176,9 +116,8 @@ impl RegistrationGate {
 
     /// Records the attempt and decides.
     ///
-    /// The count and the insert share one short transaction under a per-bucket
-    /// advisory lock, so concurrent attempts from one bucket cannot all read
-    /// the same count.
+    /// The count and the insert share one transaction under a per-bucket
+    /// advisory lock.
     pub(crate) async fn admit(&self, pool: &PgPool, client_ip: Option<ClientIp>) -> GateDecision {
         let bucket = match self.bucket_to_count(client_ip) {
             Ok(bucket) => bucket,
@@ -230,9 +169,7 @@ impl RegistrationGate {
     /// Counts a completed challenge-free registration.
     ///
     /// Runs inside the registration transaction, so a registration that does
-    /// not complete does not count. Concurrent registrations can overshoot the
-    /// deployment-wide threshold by the number in flight, which the per-address
-    /// counter bounds per bucket.
+    /// not complete does not count.
     pub(crate) async fn record_completion(&self, txn: &mut PgTransaction<'_>) -> sqlx::Result<()> {
         sqlx::query!("INSERT INTO registration_record DEFAULT VALUES")
             .execute(txn.as_mut())
@@ -242,9 +179,6 @@ impl RegistrationGate {
 
     /// The bucket to count under, or the decision the policy reaches without
     /// touching the counters at all.
-    ///
-    /// The policy decides the deployment view on its own, so those two arms
-    /// publish it. A missing address says nothing about the deployment.
     fn bucket_to_count(&self, client_ip: Option<ClientIp>) -> Result<[u8; 32], GateDecision> {
         match self.settings.policy {
             RegistrationPolicy::Open => {
@@ -258,14 +192,12 @@ impl RegistrationGate {
             RegistrationPolicy::Adaptive => {}
         }
 
-        // Without an address the per-address threshold cannot be applied, and
-        // treating the request as if it were the first from a fresh bucket
-        // would hand an attacker the open door by stripping a header.
+        // Without an address the per-address threshold cannot be applied.
         let Some(client_ip) = client_ip else {
             return Err(GateDecision::ChallengeRequired(GateReason::AddressUnknown));
         };
 
-        Ok(self.bucket_key.hash(&client_ip.bucket()))
+        Ok(self.bucket_key.bucket(BUCKET_LABEL, &client_ip.bucket()))
     }
 
     /// Publishes what the counts say about the deployment, then decides for the
@@ -312,8 +244,8 @@ impl RegistrationGate {
         // Counted before the insert, so a limit of N admits N per window.
         let counts = self.counts(&mut txn, bucket).await?;
 
-        // Recorded whether or not the counts admit it. A caller already over
-        // its limit must not earn free retries by hammering.
+        // Recorded whether or not the counts admit it, so a caller over its
+        // limit earns no free retries.
         sqlx::query!(
             "INSERT INTO registration_attempt (ip_bucket) VALUES ($1)",
             bucket.as_slice(),
@@ -332,9 +264,6 @@ impl RegistrationGate {
     }
 
     /// Both counters, each read over its own windows.
-    ///
-    /// One connection rather than two, so the two readings sit as close
-    /// together in time as two statements can.
     async fn counts(
         &self,
         connection: &mut PgConnection,
@@ -404,34 +333,6 @@ struct Counts {
     total: Vec<u64>,
 }
 
-/// Whether any window of a counter reached its limit.
-fn reached(thresholds: &[RegistrationThreshold], counts: &[u64]) -> bool {
-    debug_assert_eq!(thresholds.len(), counts.len());
-    thresholds
-        .iter()
-        .zip(counts)
-        .any(|(threshold, count)| *count >= threshold.limit)
-}
-
-fn longest_window(thresholds: &[RegistrationThreshold]) -> Duration {
-    thresholds
-        .iter()
-        .map(|threshold| threshold.window)
-        .max()
-        .unwrap_or_else(Duration::zero)
-}
-
-fn window_seconds(thresholds: &[RegistrationThreshold]) -> Vec<i64> {
-    thresholds
-        .iter()
-        .map(|threshold| threshold.window.num_seconds())
-        .collect()
-}
-
-fn saturating_count(count: i64) -> u64 {
-    count.try_into().unwrap_or(u64::MAX)
-}
-
 /// Publishes whether a fresh address would be admitted right now.
 fn report_gate_open(open: bool) {
     gauge!("air_registration_gate_open").set(if open { 1.0 } else { 0.0 });
@@ -444,36 +345,24 @@ struct RegistrationRetention {
     completions: Duration,
 }
 
-mod persistence {
-    use rand::RngExt;
-    use sqlx::{PgPool, query_scalar};
+/// Loads the deployment's address bucket key, generating it on first start.
+///
+/// The no-op update makes the insert return the existing row, so a concurrent
+/// first start cannot end up with two keys.
+pub(crate) async fn load_or_generate_ip_bucket_key(pool: &PgPool) -> sqlx::Result<BucketKey> {
+    let fresh = BucketKey::random();
 
-    use super::*;
+    let stored = sqlx::query_scalar!(
+        "INSERT INTO registration_ip_bucket_key (key)
+        VALUES ($1)
+        ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key
+        RETURNING key",
+        fresh.as_bytes(),
+    )
+    .fetch_one(pool)
+    .await?;
 
-    impl IpBucketKey {
-        /// Loads the deployment's key, generating it on first start.
-        ///
-        /// The no-op update is what makes the insert return the existing row,
-        /// so a concurrent first start cannot end up with two keys.
-        pub(crate) async fn load_or_generate(pool: &PgPool) -> sqlx::Result<Self> {
-            let fresh: [u8; 32] = rand::rng().random();
-
-            let stored = query_scalar!(
-                "INSERT INTO registration_ip_bucket_key (key)
-                VALUES ($1)
-                ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key
-                RETURNING key",
-                fresh.as_slice(),
-            )
-            .fetch_one(pool)
-            .await?;
-
-            let stored: [u8; 32] = stored.try_into().map_err(|_| {
-                sqlx::Error::Decode("registration ip bucket key is not 32 bytes".into())
-            })?;
-            Ok(Self(stored))
-        }
-    }
+    BucketKey::from_stored(stored)
 }
 
 #[cfg(test)]
@@ -487,6 +376,8 @@ mod test {
     use tokio::{sync::Barrier, task::JoinSet};
 
     use aircommon::registration::ChallengeKind;
+
+    use crate::settings::RegistrationThreshold;
 
     use super::*;
 
@@ -517,6 +408,7 @@ mod test {
             challenges: vec![ChallengeKind::InvitationCode],
             perip,
             total,
+            admission: Default::default(),
         }
     }
 
@@ -526,12 +418,12 @@ mod test {
         perip: u64,
         total: u64,
     ) -> RegistrationGate {
-        let key = IpBucketKey::load_or_generate(pool).await.unwrap();
+        let key = load_or_generate_ip_bucket_key(pool).await.unwrap();
         RegistrationGate::new(settings(policy, perip, total), key)
     }
 
     async fn gate_with(pool: &PgPool, settings: RegistrationSettings) -> RegistrationGate {
-        let key = IpBucketKey::load_or_generate(pool).await.unwrap();
+        let key = load_or_generate_ip_bucket_key(pool).await.unwrap();
         RegistrationGate::new(settings, key)
     }
 
@@ -923,11 +815,14 @@ mod test {
 
     #[sqlx::test]
     async fn the_bucket_key_is_stable_across_loads(pool: PgPool) -> anyhow::Result<()> {
-        let first = IpBucketKey::load_or_generate(&pool).await?;
-        let second = IpBucketKey::load_or_generate(&pool).await?;
+        let first = load_or_generate_ip_bucket_key(&pool).await?;
+        let second = load_or_generate_ip_bucket_key(&pool).await?;
 
         let bucket = client_ip(1).bucket();
-        assert_eq!(first.hash(&bucket), second.hash(&bucket));
+        assert_eq!(
+            first.bucket(BUCKET_LABEL, &bucket),
+            second.bucket(BUCKET_LABEL, &bucket)
+        );
 
         Ok(())
     }

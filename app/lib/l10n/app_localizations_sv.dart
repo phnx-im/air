@@ -1319,6 +1319,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
+  String get homeTab_share => 'Välj en chatt att dela till';
+
+  @override
   String get messageList_newMessages => 'Nya meddelanden';
 
   @override
@@ -1343,9 +1346,6 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
-
-  @override
-  String get shareBanner_chooseChat => 'Välj en chatt att dela till';
 
   @override
   String get shareScreen_title => 'Dela till Air';

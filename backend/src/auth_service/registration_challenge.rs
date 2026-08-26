@@ -4,16 +4,13 @@
 
 //! Challenges a gated registration can answer with.
 //!
-//! A kind is a convention rather than a registry: one optional field on
-//! `RegisterUserRequest`, one verify-and-consume arm here, one entry in
-//! `registration.challenges`. Adding a kind touches those three places and
-//! nothing else.
-//!
 //! A closed gate takes the first configured kind the request carries and
-//! consumes exactly that one, inside the registration transaction, so a
-//! registration that does not complete leaves the response unspent.
+//! consumes exactly that one, inside the registration transaction.
+//!
+//! Adding a kind means one optional field on `RegisterUserRequest`, one
+//! verify-and-consume arm here, and one entry in `registration.challenges`.
 
-use aircommon::registration::{ChallengeKind, RegistrationChallenge};
+use aircommon::registration::{AdmissionSession, ChallengeKind, RegistrationChallenge};
 use airprotos::auth_service::v1::RegisterUserRequest;
 use metrics::counter;
 use sqlx::PgTransaction;
@@ -34,9 +31,8 @@ pub(crate) enum ChallengeVerdict {
 impl AuthService {
     /// The first configured kind the request carries, if any.
     ///
-    /// Only called for a closed gate. An unrequired response is left alone, or
-    /// a gate that opens between discovery and registration would silently
-    /// burn the code the client already entered.
+    /// Only called for a closed gate, so an unrequired response is left
+    /// unspent.
     pub(crate) fn select_challenge(
         &self,
         request: &RegisterUserRequest,
@@ -50,12 +46,32 @@ impl AuthService {
                     .invitation_code
                     .as_ref()
                     .map(|code| RegistrationChallenge::InvitationCode(code.code.clone())),
+                ChallengeKind::AdmissionSession => request
+                    .admission_session
+                    .as_ref()
+                    .and_then(|session| Some((session.session_id?, session)))
+                    .map(|(id, session)| {
+                        RegistrationChallenge::AdmissionSession(AdmissionSession {
+                            session_id: id.into(),
+                            challenge: session.challenge.clone(),
+                        })
+                    }),
             })
     }
 
-    /// The kinds this server verifies, in its own preference order.
+    /// The challenge kinds this server verifies, in its own preference order. A
+    /// challenge kind it cannot actually run is not offered.
     pub(crate) fn accepted_challenges(&self) -> Vec<ChallengeKind> {
-        self.registration_gate.settings().challenges.clone()
+        self.registration_gate
+            .settings()
+            .challenges
+            .iter()
+            .copied()
+            .filter(|kind| match kind {
+                ChallengeKind::InvitationCode => true,
+                ChallengeKind::AdmissionSession => self.has_challenge_sender(),
+            })
+            .collect()
     }
 
     /// Verifies a response and consumes it.
@@ -71,6 +87,9 @@ impl AuthService {
         let result = match challenge {
             RegistrationChallenge::InvitationCode(code) => {
                 self.consume_invitation_code(txn, code).await
+            }
+            RegistrationChallenge::AdmissionSession(session) => {
+                self.consume_admission_session(txn, session).await
             }
         };
 
@@ -127,7 +146,9 @@ mod test {
     use sqlx::PgPool;
     use tokio_util::sync::CancellationToken;
 
-    use crate::{air_service::BackendService, settings::RegistrationSettings};
+    use crate::{
+        air_service::BackendService, settings::RegistrationSettings, version::VersionPolicy,
+    };
 
     use super::*;
 
@@ -135,7 +156,7 @@ mod test {
         Ok(AuthService::initialize(
             pool.clone(),
             "example.com".parse()?,
-            None,
+            VersionPolicy::default(),
             CancellationToken::new(),
         )
         .await?)

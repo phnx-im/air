@@ -47,10 +47,8 @@ enum StorableUserCreationStateRef<'a> {
 /// The shapes the registration states had while the invitation code was stored
 /// alongside them.
 ///
-/// A challenge response is short-lived, so it is passed through registration
-/// rather than persisted with it. A state written by an older client still
-/// decodes and its code is dropped: a registration that has not reached the AS
-/// yet asks for a challenge again.
+/// A state written by an older client still decodes and loses its code, so a
+/// registration that has not reached the AS yet asks for a challenge again.
 mod v1 {
     use aircommon::{
         credentials::{

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::Arc;
+
 use airbackend::{
     air_service::BackendService,
     auth_service::AuthService,
@@ -9,6 +11,7 @@ use airbackend::{
     qs::Qs,
     relay_service::Rs,
     settings::RegistrationPolicy,
+    version::VersionPolicy,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -18,6 +21,7 @@ use airserver::{
     qs_connector::SimpleEnqueueProvider, run, username_command::run_username_command,
 };
 use anyhow::{Context, bail};
+use chrono::Utc;
 use clap::Parser;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
@@ -64,11 +68,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Failed to bind");
 
-    let version_req = configuration.application.versionreq.as_ref();
+    let version_policy = VersionPolicy::new(configuration.application.version_expirations);
+    let min_version = version_policy.min_supported(Utc::now());
     info!(
         %domain,
         %listen_addr,
-        version_req =? version_req.map(|v| v.to_string()),
+        min_version =? min_version.map(|v| v.to_string()),
         "Starting server"
     );
     let network_provider = MockNetworkProvider::new();
@@ -83,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
     let mut ds_result = Ds::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await;
@@ -100,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
         ds_result = Ds::new(
             &configuration.database,
             domain.clone(),
-            version_req.cloned(),
+            version_policy.clone(),
             shutdown.clone(),
         )
         .await;
@@ -117,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     let qs = Qs::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await
@@ -130,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
-        version_req.cloned(),
+        version_policy.clone(),
         shutdown.clone(),
     )
     .await
@@ -143,12 +148,25 @@ async fn main() -> anyhow::Result<()> {
         warn!("registration policy is open: anyone can register without a challenge");
     }
     info!(?registration, "Applying registration policy");
+    let offers_admission_sessions = registration.offers_admission_sessions();
     auth_service.set_registration_settings(registration);
+
+    // We only offer the push admission challenge if the server is configured to
+    // do so and has push credentials.
+    let push_configured = configuration.fcm.is_some() || configuration.apns.is_some();
+    let push_notification_provider =
+        ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
+    if offers_admission_sessions {
+        if push_configured {
+            // The clone shares the cached provider credentials.
+            auth_service.set_challenge_sender(Arc::new(push_notification_provider.clone()));
+        } else {
+            warn!("push admission is configured but push credentials are not, so it's not offered");
+        }
+    }
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
-    let push_notification_provider =
-        ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
     let qs_connector = SimpleEnqueueProvider {
         qs: qs.clone(),
         push_notification_provider,

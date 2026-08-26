@@ -13,9 +13,8 @@ use tower_governor::{GovernorError, key_extractor::KeyExtractor};
 #[derive(Debug, Clone)]
 pub struct ConnectInfoInterceptor;
 
-/// The one header a request cannot forge in our deployment: the ingress
-/// controller overwrites it. `X-Forwarded-For` and `Forwarded` arrive
-/// attacker-controlled, so neither is read here.
+/// The one header our ingress controller overwrites, so it cannot be forged.
+/// `X-Forwarded-For` and `Forwarded` arrive attacker-controlled.
 const REAL_IP_HEADER: &str = "x-real-ip";
 
 impl Interceptor for ConnectInfoInterceptor {

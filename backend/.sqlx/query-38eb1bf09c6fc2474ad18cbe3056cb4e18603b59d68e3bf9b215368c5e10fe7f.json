@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO admission_session (\n                session_id, challenge_hash, endpoint_bucket, platform, expires_at\n            ) VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "38eb1bf09c6fc2474ad18cbe3056cb4e18603b59d68e3bf9b215368c5e10fe7f"
+}

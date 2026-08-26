@@ -14,6 +14,7 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 aircommon.workspace = true
+airmacros.workspace = true
 airprotos.workspace = true
 apqmls.workspace = true
 async-trait.workspace = true
@@ -26,6 +27,7 @@ dashmap.workspace = true
 displaydoc.workspace = true
 futures-util.workspace = true
 h2.workspace = true
+hex.workspace = true
 hmac.workspace = true
 metrics.workspace = true
 mimi-room-policy.workspace = true

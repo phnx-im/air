@@ -69,9 +69,10 @@ class IntroScreen extends HookWidget {
         await requestNotificationPermission();
         if (!context.mounted) return;
         // Asked here rather than in the flow, so the flow opens on the step the
-        // server actually wants and never has to drop one the user is looking
-        // at.
-        await context.read<RegistrationCubit>().loadRegistrationInfo();
+        // server wants and never has to drop one the user is looking at.
+        final registration = context.read<RegistrationCubit>();
+        await registration.loadRegistrationInfo();
+        await registration.acquireAdmissionSession();
         if (!context.mounted) return;
         context.read<NavigationCubit>().openSignUp();
       } finally {

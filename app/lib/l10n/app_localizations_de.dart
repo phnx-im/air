@@ -1330,6 +1330,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
+  String get homeTab_share => 'Wähle einen Chat, in den du teilen möchtest';
+
+  @override
   String get messageList_newMessages => 'Neue Nachrichten';
 
   @override
@@ -1354,10 +1357,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
-
-  @override
-  String get shareBanner_chooseChat =>
-      'Wähle einen Chat, in den du teilen möchtest';
 
   @override
   String get shareScreen_title => 'Mit Air teilen';
