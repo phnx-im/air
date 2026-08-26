@@ -35,7 +35,10 @@ impl AddMembers {
     }
 
     /// Drops users that are already members.
-    async fn refine(&mut self, context: &mut JobContext<'_, '_>) -> anyhow::Result<()> {
+    async fn drop_existing_members(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+    ) -> anyhow::Result<()> {
         let group = load_active_group(&mut context.db, self.chat_id).await?;
         let members: HashSet<_> = group.members().collect();
         self.users.retain(|user_id| !members.contains(user_id));
@@ -55,7 +58,7 @@ impl Job for AddMembers {
         // The group state may have changed since the users were picked, either
         // due to a PendingChatOperation executed as a dependency, or one or
         // more commits arriving from the QS.
-        self.refine(context).await?;
+        self.drop_existing_members(context).await?;
 
         let Self { chat_id, users } = self;
         if users.is_empty() {
