@@ -166,6 +166,7 @@ impl PartialCreateGroupParams {
             room_state: self.room_state,
             pq,
             creator_user_credential: None,
+            group_bootstrap: None,
         }
     }
 }

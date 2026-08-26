@@ -42,6 +42,7 @@ pub mod processing;
 mod psk;
 pub mod public_group;
 mod secret;
+pub mod vc_join;
 pub mod welcome;
 
 /// The combined ciphersuite of a [`ApqMlsGroup`].

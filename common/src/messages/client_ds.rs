@@ -65,6 +65,7 @@ pub enum QsQueueMessageType {
     UserProfileKeyUpdate = 2,
     TargetedMessage = 3,
     DsResponse = 4,
+    GroupCreationEcho = 7,
 }
 
 // TODO: Check if TLS serialization is actually used
@@ -128,6 +129,10 @@ impl QsQueueMessagePayload {
                     DsCommitResponse::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::DsCommitResponse(response)
             }
+            QsQueueMessageType::GroupCreationEcho => {
+                let echo = GroupCreationEcho::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                ExtractedQsQueueMessagePayload::GroupCreationEcho(echo)
+            }
         };
         Ok(ExtractedQsQueueMessage {
             timestamp: self.timestamp,
@@ -150,6 +155,26 @@ pub struct DsCommitResponse {
     pub key_package_batch: Option<KeyPackageBatchId>,
 }
 
+/// Announces a group a virtual client created. Meant to be put into the QS
+/// queues of all of the creating user's clients.
+///
+/// The DS sends it when it accepts the creation, before any other traffic of
+/// that group reaches those queues. A sibling client uses it to join the group
+/// it was not part of creating.
+#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
+pub struct GroupCreationEcho {
+    pub group_id: GroupId,
+    /// Group id of the PQ leg, present iff the group is an APQ group.
+    pub pq_group_id: Option<GroupId>,
+    /// Epoch of the snapshot the sibling fetches from the DS, always 0 at
+    /// creation.
+    pub epoch: GroupEpoch,
+    pub timestamp: TimeStamp,
+    /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`), encrypted for the
+    /// creator's siblings. The DS echoes it unread.
+    pub group_bootstrap: Vec<u8>,
+}
+
 #[derive(Debug)]
 pub struct ExtractedQsQueueMessage {
     pub timestamp: TimeStamp,
@@ -165,6 +190,7 @@ pub enum ExtractedQsQueueMessagePayload {
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
     TargetedMessage(QsQueueTargetedMessage),
     DsCommitResponse(DsCommitResponse),
+    GroupCreationEcho(GroupCreationEcho),
 }
 
 impl QsQueueMessagePayload {
@@ -196,6 +222,15 @@ impl QsQueueMessagePayload {
         Ok(Self {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::DsResponse,
+            payload,
+        })
+    }
+
+    pub fn group_creation_echo(echo: GroupCreationEcho) -> Result<Self, tls_codec::Error> {
+        let payload = echo.tls_serialize_detached()?;
+        Ok(Self {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::GroupCreationEcho,
             payload,
         })
     }
