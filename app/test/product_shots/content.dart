@@ -14,99 +14,147 @@ import '../helpers.dart';
 const ownIdx = 1;
 final ownId = ownIdx.userId();
 
-final samId = ownId;
-final fredId = 2.userId();
-final jessicaId = 3.userId();
-final daveId = 4.userId();
-final frankId = 5.userId();
-final alexId = 6.userId();
-final ireneId = 7.userId();
-final kamalId = 8.userId();
+final sashaId = ownId;
+final sigridId = 2.userId();
+final deeptiId = 3.userId();
+final juleId = 4.userId();
+final fredericId = 5.userId();
+final amaraId = 6.userId();
+final jacobId = 7.userId();
+final luisId = 8.userId();
+final kristijanId = 9.userId();
+final josefinaId = 10.userId();
+final lucaId = 11.userId();
+final lukasId = 12.userId();
 
-final samChatId = 1.chatId();
-final fredChatId = 2.chatId();
-final jessicaChatId = 3.chatId();
-final daveChatId = 4.chatId();
-final frankChatId = 5.chatId();
-final alexChatId = 6.chatId();
-final ireneChatId = 7.chatId();
-final kamalChatId = 8.chatId();
+final sigridChatId = 1.chatId();
+final roomiesChatId = 2.chatId();
+final shiftSwapsChatId = 3.chatId();
+final amaraChatId = 4.chatId();
+final lukasChatId = 5.chatId();
+final communityMealsChatId = 6.chatId();
+final jacobChatId = 7.chatId();
+final neighborhoodCleaningChatId = 8.chatId();
+final luisChatId = 9.chatId();
+final kristijanChatId = 10.chatId();
 
-final scienceClubId = 10.chatId();
-final gardeningPartyId = 11.chatId();
-final dinnerPartyId = 12.chatId();
-
-final samProfilePicture = _loadImageSync('test/assets/images/sam.jpg');
-final fredProfilePicture = _loadImageSync('test/assets/images/fred.jpg');
-final jessicaProfilePicture = _loadImageSync('test/assets/images/jessica.jpg');
-final daveProfilePicture = _loadImageSync('test/assets/images/dave.jpg');
-final frankProfilePicture = _loadImageSync('test/assets/images/frank.jpg');
-final alexProfilePicture = _loadImageSync('test/assets/images/alex.jpg');
-final ireneProfilePicture = _loadImageSync('test/assets/images/irene.jpg');
-final kamalProfilePicture = _loadImageSync('test/assets/images/kamal.jpg');
-
-final scienceClubProfilePicture = _loadImageSync(
-  'test/assets/images/science-club.jpg',
+final sashaProfilePicture = _loadImageSync('test/assets/images/sasha.jpg');
+final sigridProfilePicture = _loadImageSync('test/assets/images/sigridh.jpg');
+final deeptiProfilePicture = _loadImageSync('test/assets/images/deepti.jpg');
+final juleProfilePicture = _loadImageSync('test/assets/images/jule.jpg');
+final fredericProfilePicture = _loadImageSync(
+  'test/assets/images/frederic.jpg',
 );
-final gardeningPartyProfilePicture = _loadImageSync(
-  'test/assets/images/gardening-group.jpg',
+final amaraProfilePicture = _loadImageSync('test/assets/images/amara.jpg');
+final jacobProfilePicture = _loadImageSync('test/assets/images/jacob.jpg');
+final luisProfilePicture = _loadImageSync('test/assets/images/luis.jpg');
+final kristijanProfilePicture = _loadImageSync(
+  'test/assets/images/kristijan.jpg',
 );
-final dinnerPartyProfilePicture = _loadImageSync(
-  'test/assets/images/dinner-party.jpg',
+final josefinaProfilePicture = _loadImageSync(
+  'test/assets/images/josefina.jpg',
+);
+final lucaProfilePicture = _loadImageSync('test/assets/images/luca.jpg');
+final lukasProfilePicture = _loadImageSync('test/assets/images/lukas.jpg');
+
+final roomiesProfilePicture = _loadImageSync(
+  'test/assets/images/group-roomies.jpg',
+);
+final shiftSwapsProfilePicture = _loadImageSync(
+  'test/assets/images/group-dinner-club.jpg',
+);
+final communityMealsProfilePicture = _loadImageSync(
+  'test/assets/images/group-market-crew.jpg',
+);
+final neighborhoodCleaningProfilePicture = _loadImageSync(
+  'test/assets/images/neighborhood-cleanup.jpg',
 );
 
-final jupiterAttachmentImage = _loadImageSync('test/assets/images/jupiter.jpg');
-
-final samProfile = UiUserProfile(
-  userId: samId,
-  displayName: 'Sam',
-  profilePicture: samProfilePicture,
+final cookiesAttachmentImage = _loadImageSync('test/assets/images/cookies.jpg');
+final hikeLakeViewImage = _loadImageSync(
+  'test/assets/images/hike-lake-view.jpg',
 );
-final fredProfile = UiUserProfile(
-  userId: fredId,
+final hikeDogImage = _loadImageSync('test/assets/images/hike-dog.jpg');
+final hikePineImage = _loadImageSync('test/assets/images/hike-pine.jpg');
+
+final hikeLakeViewAttachmentId = 101.attachmentId();
+final hikeDogAttachmentId = 102.attachmentId();
+final hikePineAttachmentId = 103.attachmentId();
+
+final sashaProfile = UiUserProfile(
+  userId: sashaId,
+  displayName: 'Sasha',
+  profilePicture: sashaProfilePicture,
+);
+final sigridProfile = UiUserProfile(
+  userId: sigridId,
+  displayName: 'Sigrid H',
+  profilePicture: sigridProfilePicture,
+);
+final deeptiProfile = UiUserProfile(
+  userId: deeptiId,
+  displayName: 'Deepti',
+  profilePicture: deeptiProfilePicture,
+);
+final juleProfile = UiUserProfile(
+  userId: juleId,
+  displayName: 'Jule',
+  profilePicture: juleProfilePicture,
+);
+final fredericProfile = UiUserProfile(
+  userId: fredericId,
   displayName: 'Frederic',
-  profilePicture: fredProfilePicture,
+  profilePicture: fredericProfilePicture,
 );
-final jessicaProfile = UiUserProfile(
-  userId: jessicaId,
-  displayName: 'Jessica',
-  profilePicture: jessicaProfilePicture,
+final amaraProfile = UiUserProfile(
+  userId: amaraId,
+  displayName: 'Amara',
+  profilePicture: amaraProfilePicture,
 );
-final daveProfile = UiUserProfile(
-  userId: daveId,
-  displayName: 'David',
-  profilePicture: daveProfilePicture,
+final jacobProfile = UiUserProfile(
+  userId: jacobId,
+  displayName: 'Jacob Brooks',
+  profilePicture: jacobProfilePicture,
 );
-final frankProfile = UiUserProfile(
-  userId: frankId,
-  displayName: 'Frank',
-  profilePicture: frankProfilePicture,
+final luisProfile = UiUserProfile(
+  userId: luisId,
+  displayName: 'Luis',
+  profilePicture: luisProfilePicture,
 );
-final alexProfile = UiUserProfile(
-  userId: alexId,
-  displayName: 'Alex G',
-  profilePicture: alexProfilePicture,
+final kristijanProfile = UiUserProfile(
+  userId: kristijanId,
+  displayName: 'Kristijan P',
+  profilePicture: kristijanProfilePicture,
 );
-final ireneProfile = UiUserProfile(
-  userId: ireneId,
-  displayName: 'Irene',
-  profilePicture: ireneProfilePicture,
+final josefinaProfile = UiUserProfile(
+  userId: josefinaId,
+  displayName: 'Josefina',
+  profilePicture: josefinaProfilePicture,
 );
-final kamalProfile = UiUserProfile(
-  userId: kamalId,
-  displayName: 'Kamal',
-  profilePicture: kamalProfilePicture,
+final lucaProfile = UiUserProfile(
+  userId: lucaId,
+  displayName: 'Luca',
+  profilePicture: lucaProfilePicture,
+);
+final lukasProfile = UiUserProfile(
+  userId: lukasId,
+  displayName: 'Lukas',
+  profilePicture: lukasProfilePicture,
 );
 
 final userProfiles = [
-  samProfile,
-  fredProfile,
-  jessicaProfile,
-  daveProfile,
-  frankProfile,
-  alexProfile,
-  ireneProfile,
-  kamalProfile,
+  sashaProfile,
+  sigridProfile,
+  deeptiProfile,
+  juleProfile,
+  fredericProfile,
+  amaraProfile,
+  jacobProfile,
+  luisProfile,
+  kristijanProfile,
+  josefinaProfile,
+  lucaProfile,
+  lukasProfile,
 ];
 
 var messageIdx = 1;
@@ -114,174 +162,168 @@ var messageIdx = 1;
 final now = DateTime.now();
 
 final chats = [
-  // Frederic
+  // Sigrid H
   UiChatDetails(
-    id: fredChatId,
+    id: sigridChatId,
     status: const UiChatStatus.active(),
     isApq: false,
-    chatType: UiChatType_Connection(fredProfile),
-    unreadMessages: 1,
+    chatType: UiChatType_Connection(sigridProfile),
+    unreadMessages: 2,
     lastUsed: now,
-    lastMessage: _lastChatMessage(
-      fredChatId,
-      fredId,
-      'My favorite planet is Jupiter. But I also like Venus a lot.',
-    ),
+    lastMessage: _lastChatMessage(sigridChatId, sigridId, 'Can you make it?'),
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // Jessica
+  // Roomies
   UiChatDetails(
-    id: jessicaChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(jessicaProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 1)),
-    lastMessage: _lastChatMessage(
-      jessicaChatId,
-      jessicaId,
-      "What's the recipe for that olive oil cake you made? It was so good.",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Science club
-  UiChatDetails(
-    id: scienceClubId,
+    id: roomiesChatId,
     status: const UiChatStatus.active(),
     isApq: false,
     chatType: UiChatType_Group(
-      UiChatAttributes(
-        title: 'Science club',
-        picture: scienceClubProfilePicture,
-      ),
+      UiChatAttributes(title: 'Roomies', picture: roomiesProfilePicture),
     ),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 10)),
+    unreadMessages: 1,
+    lastUsed: now.subtract(const Duration(minutes: 5)),
     lastMessage: _lastChatMessage(
-      scienceClubId,
-      samId,
-      "Riemanian Zeta function is one of the most important mathematical functions in the history of mathematics.",
+      roomiesChatId,
+      deeptiId,
+      '😍😍 You really love those cookies.',
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // Dave
+  // Shift swaps
   UiChatDetails(
-    id: daveChatId,
+    id: shiftSwapsChatId,
     status: const UiChatStatus.active(),
     isApq: false,
-    chatType: UiChatType_Connection(daveProfile),
+    chatType: UiChatType_Group(
+      UiChatAttributes(title: 'Shift swaps', picture: shiftSwapsProfilePicture),
+    ),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 15)),
     lastMessage: _lastChatMessage(
-      daveChatId,
-      daveId,
-      'I have to tell you all about my weekend...',
+      shiftSwapsChatId,
+      sashaId,
+      'I could trade my Sunday opening for your Friday close!',
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // Gardening club
+  // Amara
   UiChatDetails(
-    id: gardeningPartyId,
+    id: amaraChatId,
     status: const UiChatStatus.active(),
     isApq: false,
-    chatType: UiChatType_Group(
-      UiChatAttributes(
-        title: 'Gardening club',
-        picture: gardeningPartyProfilePicture,
-      ),
-    ),
+    chatType: UiChatType_Connection(amaraProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 20)),
     lastMessage: _lastChatMessage(
-      gardeningPartyId,
-      jessicaId,
-      "Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...",
+      amaraChatId,
+      amaraId,
+      "I'm going to cast on tonight!",
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // Frank
+  // Lukas
   UiChatDetails(
-    id: frankChatId,
+    id: lukasChatId,
     status: const UiChatStatus.active(),
     isApq: false,
-    chatType: UiChatType_Connection(frankProfile),
+    chatType: UiChatType_Connection(lukasProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 30)),
     lastMessage: _lastChatMessage(
-      frankChatId,
-      frankId,
-      'Going to the store. Need anything?',
+      lukasChatId,
+      lukasId,
+      "I'll be in your area later, so I'll drop off a couple pieces at your apartment!",
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
   ),
-  // Alex
+  // Community meals crew
   UiChatDetails(
-    id: alexChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(alexProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Irene
-  UiChatDetails(
-    id: ireneChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(ireneProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(
-      ireneChatId,
-      ireneId,
-      "The nearest star is Proxima Centauri.",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Dinner party
-  UiChatDetails(
-    id: dinnerPartyId,
+    id: communityMealsChatId,
     status: const UiChatStatus.active(),
     isApq: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
-        title: 'Dinner party',
-        picture: dinnerPartyProfilePicture,
+        title: 'Community meals crew',
+        picture: communityMealsProfilePicture,
       ),
     ),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
-      dinnerPartyId,
-      daveId,
-      "Sorry, I can't join the party. I'm going to the movies already.",
+      communityMealsChatId,
+      fredericId,
+      "Here's the plan recap: Amara and Deepti do the shopping, I'll bring the kitchen gear as usual, and we all meet at the park at 10am to prep so we're ready to serve by noon.",
     ),
     mutedUntil: null,
-    // make sure nothing shows up for now (experimental feature)
-    pendingCommitFailed: true,
+    pendingCommitFailed: false,
   ),
-  // Kamal
+  // Jacob Brooks
   UiChatDetails(
-    id: kamalChatId,
+    id: jacobChatId,
     status: const UiChatStatus.active(),
     isApq: false,
-    chatType: UiChatType_Connection(kamalProfile),
+    chatType: UiChatType_Connection(jacobProfile),
     unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
+    lastUsed: now.subtract(const Duration(days: 1, minutes: 10)),
+    lastMessage: _lastChatMessage(jacobChatId, sashaId, 'Welcome to Air!'),
+    mutedUntil: null,
+    pendingCommitFailed: false,
+  ),
+  // Neighborhood cleaning
+  UiChatDetails(
+    id: neighborhoodCleaningChatId,
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: UiChatType_Group(
+      UiChatAttributes(
+        title: 'Neighborhood cleaning',
+        picture: neighborhoodCleaningProfilePicture,
+      ),
+    ),
+    unreadMessages: 0,
+    lastUsed: now.subtract(const Duration(days: 1, minutes: 20)),
     lastMessage: _lastChatMessage(
-      kamalChatId,
-      ownId,
-      "Hey Kamal, I'm going to the movies with my friends. Want to come with us?",
+      neighborhoodCleaningChatId,
+      kristijanId,
+      'Wonderful! We actually have a little more budget for printing than last month.',
+    ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
+  ),
+  // Luis
+  UiChatDetails(
+    id: luisChatId,
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: UiChatType_Connection(luisProfile),
+    unreadMessages: 0,
+    lastUsed: now.subtract(const Duration(days: 1, minutes: 30)),
+    lastMessage: _lastChatMessage(
+      luisChatId,
+      luisId,
+      "Eagle Ridge. You have to come next time, it's so beautiful.",
+    ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
+  ),
+  // Kristijan P
+  UiChatDetails(
+    id: kristijanChatId,
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: UiChatType_Connection(kristijanProfile),
+    unreadMessages: 0,
+    lastUsed: now.subtract(const Duration(days: 7)),
+    lastMessage: _lastChatMessage(
+      kristijanChatId,
+      kristijanId,
+      "That's so great! I started this monthly event a few years ago just for that reason.",
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -330,151 +372,283 @@ MessageContent _simpleMessage(String msg) {
   );
 }
 
-final fredMessages = [
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now.subtract(const Duration(minutes: 1)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: ownId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("Hey Frederic, what’s your favorite planet?"),
-          attachments: [],
-        ),
+UiChatMessage _textMessage(
+  ChatId chatId,
+  UiUserId senderId,
+  String body,
+  DateTime timestamp, {
+  UiMessageStatus status = UiMessageStatus.sent,
+  List<UiReaction> reactions = const [],
+}) => UiChatMessage(
+  id: (messageIdx++).messageId(),
+  chatId: chatId,
+  timestamp: timestamp,
+  message: UiMessage_Content(
+    UiContentMessage(
+      sender: senderId,
+      sent: true,
+      edited: false,
+      content: UiMimiContent(
+        plainBody: "",
+        topicId: Uint8List(0),
+        content: _simpleMessage(body),
+        attachments: [],
       ),
     ),
-    status: UiMessageStatus.read,
-    reactions: [],
   ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now,
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            "My favorite planet is Jupiter. But I also like Venus a lot.",
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
-  ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now,
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("Isn't it beautiful?"),
-          attachments: [
-            UiAttachment(
-              attachmentId: 1.attachmentId(),
-              filename: "jupiter.jpg",
-              contentType: "image/jpeg",
-              size: jupiterAttachmentImage.data.length,
-              description: "Jupiter",
-              imageMetadata: const UiImageMetadata(
-                blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
-                width: 1080,
-                height: 1080,
-              ),
+  status: status,
+  reactions: reactions,
+);
+
+UiChatMessage _imageMessage(
+  ChatId chatId,
+  UiUserId senderId,
+  String body,
+  String filename,
+  ImageData image,
+  DateTime timestamp, {
+  AttachmentId? attachmentId,
+  UiMessageStatus status = UiMessageStatus.sent,
+  List<UiReaction> reactions = const [],
+}) => UiChatMessage(
+  id: (messageIdx++).messageId(),
+  chatId: chatId,
+  timestamp: timestamp,
+  message: UiMessage_Content(
+    UiContentMessage(
+      sender: senderId,
+      sent: true,
+      edited: false,
+      content: UiMimiContent(
+        plainBody: "",
+        topicId: Uint8List(0),
+        content: _simpleMessage(body),
+        attachments: [
+          UiAttachment(
+            attachmentId: attachmentId ?? (messageIdx).attachmentId(),
+            filename: filename,
+            contentType: "image/jpeg",
+            size: image.data.length,
+            description: filename,
+            imageMetadata: const UiImageMetadata(
+              blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
+              width: 1080,
+              height: 1080,
             ),
-          ],
-          firstAttachmentType: UiAttachmentType.image,
-        ),
+          ),
+        ],
+        firstAttachmentType: UiAttachmentType.image,
       ),
     ),
-    status: UiMessageStatus.sent,
-    reactions: [],
+  ),
+  status: status,
+  reactions: reactions,
+);
+
+final luisMessages = [
+  _textMessage(
+    luisChatId,
+    sashaId,
+    'Wait, so you actually liked the new album?',
+    now.subtract(const Duration(hours: 76)),
+    status: UiMessageStatus.read,
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    'Track 4 is unreal.',
+    now.subtract(const Duration(hours: 75, minutes: 52)),
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    "I think the best thing they've done.",
+    now.subtract(const Duration(hours: 75, minutes: 51)),
+  ),
+  _textMessage(
+    luisChatId,
+    sashaId,
+    'I told you the synths would win you over eventually.',
+    now.subtract(const Duration(hours: 75, minutes: 50)),
+    status: UiMessageStatus.read,
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    'Haha, yes, you were right!',
+    now.subtract(const Duration(hours: 75, minutes: 49)),
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    'Heads up, they just announced a show here in November. Want to go?',
+    now.subtract(const Duration(hours: 47)),
+  ),
+  _textMessage(
+    luisChatId,
+    sashaId,
+    'Obviously. Setting a reminder for the presale right now.',
+    now.subtract(const Duration(hours: 46, minutes: 58)),
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: '🤘', users: [luisId]),
+    ],
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    'Also, I took the album on my hike this morning. The perfect soundtrack 🎧',
+    now.subtract(const Duration(hours: 46, minutes: 56)),
+  ),
+  _imageMessage(
+    luisChatId,
+    luisId,
+    '',
+    'hike-lake-view.jpg',
+    hikeLakeViewImage,
+    now.subtract(const Duration(hours: 46, minutes: 55)),
+    attachmentId: hikeLakeViewAttachmentId,
+  ),
+  _imageMessage(
+    luisChatId,
+    luisId,
+    '',
+    'hike-dog.jpg',
+    hikeDogImage,
+    now.subtract(const Duration(hours: 46, minutes: 54)),
+    attachmentId: hikeDogAttachmentId,
+  ),
+  _imageMessage(
+    luisChatId,
+    luisId,
+    '',
+    'hike-pine.jpg',
+    hikePineImage,
+    now.subtract(const Duration(hours: 46, minutes: 53)),
+    attachmentId: hikePineAttachmentId,
+    reactions: [
+      UiReaction(emoji: '🤩', users: [sashaId]),
+    ],
+  ),
+  _textMessage(
+    luisChatId,
+    sashaId,
+    'Okay, that view!! Where is this?',
+    now.subtract(const Duration(hours: 46, minutes: 49)),
+    status: UiMessageStatus.read,
+  ),
+  _textMessage(
+    luisChatId,
+    luisId,
+    "Eagle Ridge. You have to come next time, it's so beautiful.",
+    now.subtract(const Duration(hours: 46, minutes: 46)),
   ),
 ];
 
-final gardeningPartyMembers = [samId, fredId, jessicaId];
+final roomiesMembers = [sashaId, deeptiId, juleId];
 
-final gardeningPartyMessages = [
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 23)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: samId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            'Does anyone know the best time of year to plant carrots?',
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
+final roomiesMessages = [
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    'Did anyone take the trash out last night?',
+    now.subtract(const Duration(minutes: 29)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    juleId,
+    'I thought it was your week 😬',
+    now.subtract(const Duration(minutes: 27)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    'Absolutely not.',
+    now.subtract(const Duration(minutes: 27)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    sashaId,
+    "It was Jule's week. I did it last week AND the week before.",
+    now.subtract(const Duration(minutes: 24)),
     status: UiMessageStatus.read,
-    reactions: [],
   ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 21)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("I don't know, I've never tried it."),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
+  _textMessage(
+    roomiesChatId,
+    juleId,
+    "I'll do it tonight. Sorry!",
+    now.subtract(const Duration(minutes: 23)),
   ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 20)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: jessicaId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            'Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...',
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    '🫶',
+    now.subtract(const Duration(minutes: 23)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    sashaId,
+    'Also, are we doing dinner together on Friday? I was thinking I could make that lentil salad with the pickled cherries again.',
+    now.subtract(const Duration(minutes: 21)),
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: '❤️', users: [deeptiId, juleId]),
+    ],
+  ),
+  _textMessage(
+    roomiesChatId,
+    juleId,
+    'Yes, please!',
+    now.subtract(const Duration(minutes: 20)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    '🙌',
+    now.subtract(const Duration(minutes: 20)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    'Can we invite Jana? She’s been having a rough week.',
+    now.subtract(const Duration(minutes: 19)),
+  ),
+  _textMessage(
+    roomiesChatId,
+    sashaId,
+    'Obviously! The more the merrier.',
+    now.subtract(const Duration(minutes: 18)),
+    status: UiMessageStatus.read,
+  ),
+  _textMessage(
+    roomiesChatId,
+    sashaId,
+    'Tell her to bring cookies from the bakery near her place, and she’s in 🎪',
+    now.subtract(const Duration(minutes: 18)),
+    status: UiMessageStatus.read,
+  ),
+  _textMessage(
+    roomiesChatId,
+    juleId,
+    'CHOCOLATE CHIP, PLEASE!!! 🍪🍪🍪 I’m already drooling.',
+    now.subtract(const Duration(minutes: 16)),
+  ),
+  _imageMessage(
+    roomiesChatId,
+    juleId,
+    '',
+    'cookies.jpg',
+    cookiesAttachmentImage,
+    now.subtract(const Duration(minutes: 15)),
+    reactions: [
+      UiReaction(emoji: '🤤', users: [deeptiId]),
+    ],
+  ),
+  _textMessage(
+    roomiesChatId,
+    deeptiId,
+    '😍😍 You really love those cookies.',
+    now.subtract(const Duration(minutes: 14)),
   ),
 ];
 

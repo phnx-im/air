@@ -218,7 +218,7 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
 
-      final chat = chats[0];
+      final chat = chats[8];
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
@@ -229,7 +229,7 @@ void main() {
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+      ).thenReturn(ChatDetailsState(chat: chat, members: [luisId]));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -243,21 +243,8 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      messageListCubit.setState(fredMessages);
-      when(
-        () => attachmentsRepository.loadImageAttachment(
-          attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
-        ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      messageListCubit.setState(luisMessages);
+      _stubHikeAttachments(attachmentsRepository);
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -376,7 +363,7 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
 
-      final chat = chats[4];
+      final chat = chats[1];
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
@@ -385,9 +372,9 @@ void main() {
       when(
         () => contactsCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(() => chatDetailsCubit.state).thenReturn(
-        ChatDetailsState(chat: chat, members: gardeningPartyMembers),
-      );
+      when(
+        () => chatDetailsCubit.state,
+      ).thenReturn(ChatDetailsState(chat: chat, members: roomiesMembers));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -401,7 +388,26 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      messageListCubit.setState(gardeningPartyMessages);
+      messageListCubit.setState(roomiesMessages);
+      when(
+        () => attachmentsRepository.loadImageAttachment(
+          attachmentId: any(named: "attachmentId"),
+          retryDownloadIfFailed: false,
+          chunkEventCallback: any(named: "chunkEventCallback"),
+        ),
+      ).thenAnswer(
+        (_) => Future.value(
+          LoadedImageAttachment(
+            bytes: cookiesAttachmentImage.data,
+            isAnimated: false,
+          ),
+        ),
+      );
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: any(named: "attachmentId"),
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>
@@ -528,20 +534,6 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(
-        () => attachmentsRepository.loadImageAttachment(
-          attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
-        ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
-      when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
         ),
@@ -621,7 +613,7 @@ void main() {
       physicalSize: macosPhysicalSize,
       targetPlatform: TargetPlatform.macOS,
       (tester) async {
-        final chat = chats[0];
+        final chat = chats[8];
         when(() => navigationCubit.state).thenReturn(
           NavigationState.home(
             home: HomeNavigationState(chatOpen: true, chatId: chat.id),
@@ -629,8 +621,9 @@ void main() {
         );
         when(
           () => chatDetailsCubit.state,
-        ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
-        messageListCubit.setState(fredMessages);
+        ).thenReturn(ChatDetailsState(chat: chat, members: [luisId]));
+        messageListCubit.setState(luisMessages);
+        _stubHikeAttachments(attachmentsRepository);
 
         // The desktop layout always shows the chat list, so this shot doubles
         // as the hero image and carries the lead store copy.
@@ -661,16 +654,30 @@ void main() {
       physicalSize: macosPhysicalSize,
       targetPlatform: TargetPlatform.macOS,
       (tester) async {
-        final chat = chats[4];
+        final chat = chats[1];
         when(() => navigationCubit.state).thenReturn(
           NavigationState.home(
             home: HomeNavigationState(chatOpen: true, chatId: chat.id),
           ),
         );
-        when(() => chatDetailsCubit.state).thenReturn(
-          ChatDetailsState(chat: chat, members: gardeningPartyMembers),
+        when(
+          () => chatDetailsCubit.state,
+        ).thenReturn(ChatDetailsState(chat: chat, members: roomiesMembers));
+        messageListCubit.setState(roomiesMessages);
+        when(
+          () => attachmentsRepository.loadImageAttachment(
+            attachmentId: any(named: "attachmentId"),
+            retryDownloadIfFailed: false,
+            chunkEventCallback: any(named: "chunkEventCallback"),
+          ),
+        ).thenAnswer(
+          (_) => Future.value(
+            LoadedImageAttachment(
+              bytes: cookiesAttachmentImage.data,
+              isAnimated: false,
+            ),
+          ),
         );
-        messageListCubit.setState(gardeningPartyMessages);
 
         await tester.pumpWidget(
           buildSubject(
@@ -693,6 +700,29 @@ void main() {
       },
     );
   });
+}
+
+/// Stubs each hike-gallery attachment id to its own image, since the mocked
+/// repository otherwise can't tell which attachment is being requested.
+void _stubHikeAttachments(MockAttachmentsRepository attachmentsRepository) {
+  final images = {
+    hikeLakeViewAttachmentId: hikeLakeViewImage,
+    hikeDogAttachmentId: hikeDogImage,
+    hikePineAttachmentId: hikePineImage,
+  };
+  for (final entry in images.entries) {
+    when(
+      () => attachmentsRepository.loadImageAttachment(
+        attachmentId: entry.key,
+        retryDownloadIfFailed: false,
+        chunkEventCallback: any(named: "chunkEventCallback"),
+      ),
+    ).thenAnswer(
+      (_) => Future.value(
+        LoadedImageAttachment(bytes: entry.value.data, isAnimated: false),
+      ),
+    );
+  }
 }
 
 /// [hostPlatform] is the OS that records the shot, not the device it depicts:
