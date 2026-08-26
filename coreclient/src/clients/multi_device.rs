@@ -23,7 +23,7 @@ use aircommon::mls_group_config::{
     default_leaf_node_extensions, self_group_leaf_node_capabilities,
 };
 use airprotos::client::component::AirComponent;
-use airprotos::client::self_group::{LinkedDevice, SettingsUpdate};
+use airprotos::client::self_group::{LinkedDevice, SettingsUpdate, TokenSeed};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
@@ -74,6 +74,7 @@ use crate::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
+    privacy_pass,
     utils::persistence::{open_air_db, open_client_db, open_lock_file},
 };
 
@@ -107,6 +108,10 @@ pub(crate) struct ProvisioningPackage {
     // Synced user settings snapshot so the new device starts with the
     // provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
+    // The agreed Privacy Pass token seeds, so the new device derives the same
+    // token requests as its sibling instead of running an agreement round for a
+    // key whose allowance epoch the sibling has already locked.
+    pub(crate) token_seeds: Vec<TokenSeed>,
     // The name the confirming user gave this device. Empty means "no choice
     // made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
@@ -503,6 +508,7 @@ impl CoreUser {
             .db()
             .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
             .await?;
+        let token_seeds = privacy_pass::committed_seeds(self.db().read().await?).await?;
 
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
@@ -521,6 +527,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key,
             synced_settings,
+            token_seeds,
             device_name,
             groups,
         })
@@ -801,6 +808,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key: _,
             synced_settings,
+            token_seeds,
             device_name: _,
             groups,
         } = package;
@@ -848,11 +856,12 @@ impl CoreUser {
                 )
                 .await?;
 
-                // Seed the synced settings before the device processes any
-                // self-group traffic. A device joining via Welcome cannot
-                // decrypt updates from before its join, so the current state
-                // has to arrive in the linking payload.
+                // Seed the synced settings and the token seeds before the
+                // device processes any self-group traffic. A device joining via
+                // Welcome cannot decrypt commits from before its join, so the
+                // current state has to arrive in the linking payload.
                 apply_settings_update(txn, &synced_settings).await?;
+                privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
 
                 // Queue the onboarding into the groups the virtual client is
                 // already a member of. This is committed before the client
@@ -901,8 +910,11 @@ mod tests {
     use super::*;
 
     /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
-    /// and otherwise freshly generated key material.
-    fn sample_package(synced_settings: SettingsUpdate) -> anyhow::Result<ProvisioningPackage> {
+    /// and token seeds, and otherwise freshly generated key material.
+    fn sample_package(
+        synced_settings: SettingsUpdate,
+        token_seeds: Vec<TokenSeed>,
+    ) -> anyhow::Result<ProvisioningPackage> {
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
         let self_group_id = GroupId::from(QualifiedGroupId::new(
@@ -927,6 +939,7 @@ mod tests {
             self_group_id,
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
+            token_seeds,
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
             user_id,
@@ -934,13 +947,21 @@ mod tests {
     }
 
     /// A full package roundtrips through the linking channel with its synced
-    /// settings intact.
+    /// settings and token seeds intact.
     #[test]
-    fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
-        let package = sample_package(SettingsUpdate {
-            send_read_receipts: Some(false),
-            linked_devices: None,
-        })?;
+    fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
+        let seeds = vec![TokenSeed {
+            operation_type: 1,
+            key_fingerprint: [0x11; 32],
+            seed: [0x22; 32],
+        }];
+        let package = sample_package(
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                linked_devices: None,
+            },
+            seeds.clone(),
+        )?;
         let user_id = package.user_id.clone();
 
         let key = MultiDeviceLinkingKey::random()?;
@@ -954,6 +975,7 @@ mod tests {
                 linked_devices: None,
             }
         );
+        assert_eq!(decoded.token_seeds, seeds);
         assert_eq!(decoded.user_id, user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");

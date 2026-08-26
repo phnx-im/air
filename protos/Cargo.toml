@@ -4,7 +4,7 @@
 
 [package]
 name = "airprotos"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 publish = false
 description = "Protobuf and gRPC definitions of the APIs"
@@ -44,6 +44,8 @@ insta.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = [
-    "tonic-prost", # needed for generated tonic code
-    "serde_bytes", # used in SerializeTaggedMap/DeserializeTaggedMap generated code
+    "tonic-prost",         # needed for generated tonic code
+    "serde_bytes",         # used in SerializeTaggedMap/DeserializeTaggedMap generated code
+    "protoc-bin-vendored", # used in build.rs
+    "tonic-prost-build",   # used in build.rs
 ]

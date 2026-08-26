@@ -51,6 +51,28 @@ class ChatAvatar extends StatelessWidget {
       return details;
     });
 
+    return ChatDetailsAvatar(chat: chat, size: size, onPressed: onPressed);
+  }
+}
+
+/// Same as [ChatAvatar], but takes the chat details directly instead of
+/// reading them from a [ChatDetailsCubit].
+class ChatDetailsAvatar extends StatelessWidget {
+  const ChatDetailsAvatar({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails? chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = this.chat;
+
     final showImage = switch (chat?.chatType) {
       UiChatType_Connection() || UiChatType_Group() => true,
       _ => false,
@@ -59,6 +81,40 @@ class ChatAvatar extends StatelessWidget {
     final displayName = chat?.title ?? chat?.displayName ?? "";
     final image = chat?.picture;
     final gradientKey = chat?.userId?.uuid ?? chat?.id.uuid;
+
+    return _Avatar(
+      displayName: displayName,
+      image: showImage ? image : null,
+      size: size,
+      onPressed: onPressed,
+      gradientKey: gradientKey,
+    );
+  }
+}
+
+/// Avatar for a chat the host already has.
+class ChatAvatarView extends StatelessWidget {
+  const ChatAvatarView({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final showImage = switch (chat.chatType) {
+      UiChatType_Connection() || UiChatType_Group() => true,
+      _ => false,
+    };
+
+    final displayName = chat.title;
+    final image = chat.picture;
+    final gradientKey = chat.userId?.uuid ?? chat.id.uuid;
 
     return _Avatar(
       displayName: displayName,

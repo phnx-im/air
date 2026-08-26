@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver_test_harness"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"
@@ -15,10 +15,11 @@ aircommon.workspace = true
 aircoreclient = { workspace = true, features = ["test_utils"] }
 airserver = { workspace = true, features = ["test_utils"] }
 anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
 mimi_content.workspace = true
 png.workspace = true
 rand.workspace = true
-semver.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["process"] }

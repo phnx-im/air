@@ -36,6 +36,7 @@ aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
 arboard = "3"
 argon2 = "0.5.3"
+askama = "0.16.0"
 async-trait = "0.1.53"
 aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.119.0", default-features = false, features = ["behavior-version-latest", "http-1x"] }
@@ -53,7 +54,7 @@ clap = { version = "4.5", features = ["derive", "env"] }
 config = { version = "0.15", default-features = false, features = ["yaml"] }
 criterion = { version = "0.8.2", features = ["html_reports", "async", "async_tokio"] }
 dashmap = "6.1.0"
-derive_more = { version = "0.99.19", features = ["from"] }
+derive_more = { version = "2.1.1", features = ["from"] }
 deunicode = "1.6.2"
 digest-io = "0.1.0"
 displaydoc = "0.2.5"
@@ -66,31 +67,16 @@ futures-util = "0.3.31"
 h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.13"
+hmac = "0.13"
 ignore = "0.4"
 # default formats minus avif and exr, which pull in the unmaintained paste
 # crate (RUSTSEC-2024-0436) via ravif and exr
-image = { version = "0.25.1", default-features = false, features = [
-    "rayon",
-    "bmp",
-    "dds",
-    "ff",
-    "gif",
-    "hdr",
-    "ico",
-    "jpeg",
-    "png",
-    "pnm",
-    "qoi",
-    "tga",
-    "tiff",
-    "webp",
-] }
+image = { version = "0.25.1", default-features = false, features = ["rayon", "bmp", "dds", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 indexmap = "2.0"
 infer = "0.19.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
-lru = "0.18.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
@@ -103,14 +89,12 @@ mockito = "1.7.0"
 num_enum = "0.7"
 openmls = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
 openmls_basic_credential = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["clonable"] }
-openmls_memory_storage = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 openmls_rust_crypto = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_sqlite_storage = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 openmls_traits = { git = "https://github.com/phnx-im/openmls", rev = "8671133aba7db4955c24c19e147096aeb741262d", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
-privacypass = "0.2.0-pre.2"
+privacypass = { version = "0.2.0-pre.3", features = ["deterministic-issuance"] }
 prost = "0.14.0"
 protoc-bin-vendored = "3.1.0"
 pulldown-cmark = "0.13.0"
@@ -118,16 +102,15 @@ qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 rand = "0.10.0"
-rand_chacha = "0.10.0"
 regex = "1.11.1"
-reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
+reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "http2"], default-features = false }
 secrecy = "0.10"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"
 sha2 = "0.11.0"
-sqlx = { version = "0.9.0", default-features = false, features = ["macros", "uuid", "chrono", "migrate", "bigdecimal", "runtime-tokio", "sqlx-toml"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["macros", "uuid", "chrono", "migrate", "runtime-tokio", "sqlx-toml"] }
 strum = { version = "0.28", features = ["derive"] }
 tap = "1.0.1"
 tar = "0.4.44"

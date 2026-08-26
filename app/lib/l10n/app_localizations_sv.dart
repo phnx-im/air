@@ -82,7 +82,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
-  String get removeUsernameDialog_title => 'Ta bort användarnamn';
+  String get removeUsernameDialog_title => 'Ta bort användarnamn?';
 
   @override
   String get removeUsernameDialog_content =>
@@ -107,7 +107,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactDetailsScreen_chat => 'Chatt';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
+  String get contactDetailsScreen_viewSafetyCode => 'Säkerhetskod';
 
   @override
   String get contactDetailsScreen_mute => 'Tysta';
@@ -125,7 +125,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get safetyCodeScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
-  String safetyCodeScreen_safetyCodeExplanation(Object displayName) {
+  String safetyCodeScreen_safetyCodeExplanation(String displayName) {
     return 'Jämför säkerhetskoden du ser med den $displayName ser. Om koderna matchar vet du att du skickar och tar emot ände-till-ände-krypterade meddelanden med rätt person.';
   }
 
@@ -133,7 +133,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get chatDetailsScreen_unknownChat => 'Okänd chatt';
 
   @override
-  String get muteDurationSheet_title => 'Tysta notifikationer';
+  String get muteDurationSheet_title => 'Tysta chatten?';
 
   @override
   String get muteDurationSheet_body => 'Välj hur länge du vill tysta chatten.';
@@ -154,7 +154,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get muteDurationSheet_always => 'Alltid (tills jag ändrar det)';
 
   @override
-  String blockedChatFooter_message(Object displayName) {
+  String blockedChatFooter_message(String displayName) {
     return 'Du får inga meddelanden från $displayName förrän du avblockerar $displayName.';
   }
 
@@ -167,15 +167,15 @@ class AppLocalizationsSv extends AppLocalizations {
       'Välj en chatt för att börja skicka meddelanden';
 
   @override
-  String get removeUserDialog_title => 'Ta bort användare';
+  String get removeUserDialog_title => 'Ta bort medlem';
 
   @override
-  String removeUserDialog_content(Object displayName) {
+  String removeUserDialog_content(String displayName) {
     return 'Är du säker på att du vill ta bort $displayName från gruppen?';
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Ta bort användare';
+  String get removeUserDialog_removeUser => 'Ta bort medlem';
 
   @override
   String get removeUserButton_text => 'Ta bort';
@@ -184,12 +184,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get blockContactButton_text => 'Blockera';
 
   @override
-  String blockContactDialog_title(Object displayName) {
+  String blockContactDialog_title(String displayName) {
     return 'Blockera $displayName?';
   }
 
   @override
-  String blockContactDialog_content(Object displayName) {
+  String blockContactDialog_content(String displayName) {
     return 'Du får inga meddelanden från $displayName och personen kan inte se några uppdateringar av din profil. Personen ser inte att du har blockerat $displayName. Du kan avblockera $displayName när som helst.';
   }
 
@@ -203,12 +203,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get unblockContactButton_text => 'Avblockera';
 
   @override
-  String unblockContactDialog_title(Object displayName) {
+  String unblockContactDialog_title(String displayName) {
     return 'Avblockera $displayName?';
   }
 
   @override
-  String unblockContactDialog_content(Object displayName) {
+  String unblockContactDialog_content(String displayName) {
     return 'Du kan skicka och ta emot meddelanden med $displayName och personen kan se din aktuella profil.';
   }
 
@@ -219,27 +219,27 @@ class AppLocalizationsSv extends AppLocalizations {
   String get unblockContactDialog_unblock => 'Avblockera';
 
   @override
-  String get deleteContactButton_text => 'Ta bort';
+  String get deleteContactButton_text => 'Radera';
 
   @override
-  String get deleteContactDialog_title => 'Ta bort Air-kontakt';
+  String get deleteContactDialog_title => 'Radera Air-kontakt';
 
   @override
-  String deleteContactDialog_content(Object displayName) {
-    return 'Är du säker på att du vill ta bort din Air-kontakt $displayName? Om du gör det raderas chatten och dess meddelandehistorik.';
+  String deleteContactDialog_content(String displayName) {
+    return 'Är du säker på att du vill radera din Air-kontakt $displayName? Om du gör det raderas chatten och dess meddelandehistorik.';
   }
 
   @override
   String get deleteContactDialog_cancel => 'Avbryt';
 
   @override
-  String get deleteContactDialog_delete => 'Ta bort';
+  String get deleteContactDialog_delete => 'Radera';
 
   @override
   String get addContactDialog_title => 'Lägg till Air-kontakt';
 
   @override
-  String addContactDialog_content(Object displayName, Object groupTitle) {
+  String addContactDialog_content(String displayName, String groupTitle) {
     return '$displayName från gruppchatten \"$groupTitle\" är inte en Air-kontakt. För att chatta, skicka en kontaktförfrågan.';
   }
 
@@ -287,7 +287,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get introScreen_termsLinkText => 'Användarvillkor';
 
   @override
-  String introScreen_termsText(Object termsOfUseLink) {
+  String introScreen_termsText(String termsOfUseLink) {
     return 'Genom att registrera dig godkänner du våra $termsOfUseLink.';
   }
 
@@ -313,7 +313,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get invitationCodeScreen_actionButton => 'Gå med i Air';
 
   @override
-  String invitationCodeScreen_error_internal(Object error) {
+  String invitationCodeScreen_error_internal(String error) {
     return 'Misslyckades att kontrollera inbjudningskod: $error';
   }
 
@@ -360,14 +360,21 @@ class AppLocalizationsSv extends AppLocalizations {
   String get invitationCodesScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
-  String invitationCodesScreen_codeClipboardMessage(Object code) {
+  String invitationCodesScreen_codeClipboardMessage(String code) {
     return 'Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden $code.';
   }
 
   @override
-  String invitationCodesScreen_codesClipboardMessage(Object codes) {
-    return 'Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n$codes';
+  String invitationCodesScreen_codesClipboardMessage(String codes) {
+    return 'Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n\n$codes';
   }
+
+  @override
+  String get accountCreation_unsupported_header => 'Uppdatering krävs';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air för att fortsätta.';
 
   @override
   String get signUpScreen_header => 'Skapa din profil';
@@ -401,7 +408,11 @@ class AppLocalizationsSv extends AppLocalizations {
       'Lägg till ett visningsnamn med minst ett tecken';
 
   @override
-  String signUpScreen_error_register(Object error) {
+  String get signUpScreen_error_challengeRequired =>
+      'Den här servern kräver nu en inbjudningskod. Ange en för att fortsätta.';
+
+  @override
+  String signUpScreen_error_register(String error) {
     return 'Fel vid registrering av användare: $error';
   }
 
@@ -560,7 +571,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_encryptionNotice =>
-      'Meddelanden är end-to-end-krypterade på alla enheter. null';
+      'Meddelanden är end-to-end-krypterade på alla enheter.';
 
   @override
   String get linkedDevicesScreen_encryptionNotice_learnMore => 'Läs mer.';
@@ -645,7 +656,11 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get usernameScreen_description =>
-      'Välj ett användarnamn som andra kan använda för att ansluta till dig.\n\nAnvänd bokstäver, siffror eller bindestreck. Minst 5 tecken.';
+      'Välj ett användarnamn som andra kan använda för att ansluta till dig.';
+
+  @override
+  String get usernameScreen_syntax =>
+      'Använd bokstäver, siffror eller bindestreck. Minst 5 tecken.';
 
   @override
   String get usernameScreen_cancel => 'Avbryt';
@@ -674,7 +689,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Användarnamn får inte börja med en siffra';
 
   @override
-  String editDialog_characters_remaining(Object characters, Object remaining) {
+  String editDialog_characters_remaining(int characters, int remaining) {
     return '$characters/$remaining tecken';
   }
 
@@ -692,112 +707,77 @@ class AppLocalizationsSv extends AppLocalizations {
   String get editDisplayNameScreen_save => 'Spara';
 
   @override
-  String systemMessage_userAddedUser_prefix(Object user1) {
-    return '$user1';
+  String systemMessage_userAddedUser(String user1, String user2) {
+    return '$user1 lade till $user2';
   }
 
   @override
-  String get systemMessage_userAddedUser_infix => ' lade till ';
-
-  @override
-  String systemMessage_userAddedUser_suffix(Object user2) {
-    return '$user2';
+  String systemMessage_userRemovedUser(String user1, String user2) {
+    return '$user1 tog bort $user2';
   }
 
   @override
-  String systemMessage_userRemovedUser_prefix(Object user1) {
-    return '$user1';
-  }
-
-  @override
-  String get systemMessage_userRemovedUser_infix => ' tog bort ';
-
-  @override
-  String systemMessage_userRemovedUser_suffix(Object user2) {
-    return '$user2';
-  }
-
-  @override
-  String systemMessage_userChangedTitle_prefix(Object user) {
-    return '$user';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_1 =>
-      ' ändrade gruppnamnet från ';
-
-  @override
-  String systemMessage_userChangedTitle_infix_2(Object old_name) {
-    return '$old_name';
-  }
-
-  @override
-  String get systemMessage_userChangedTitle_infix_3 => ' till ';
-
-  @override
-  String systemMessage_userChangedTitle_suffix(Object new_name) {
-    return '$new_name';
+  String systemMessage_userChangedTitle(
+    String user,
+    String old_name,
+    String new_name,
+  ) {
+    return '$user ändrade gruppnamnet från $old_name till $new_name';
   }
 
   @override
   String systemMessage_acceptedHandleConnectionRequest(
-    Object displayName,
-    Object username,
+    String displayName,
+    String username,
   ) {
     return 'Du accepterade kontaktförfrågan från $displayName via ditt användarnamn $username.';
   }
 
   @override
-  String systemMessage_acceptedDirectConnectionRequest(Object displayName) {
+  String systemMessage_acceptedDirectConnectionRequest(String displayName) {
     return 'Du accepterade kontaktförfrågan från $displayName via en gemensam gruppchatt.';
   }
 
   @override
-  String systemMessage_receivedConnectionConfirmation(Object displayName) {
+  String systemMessage_receivedConnectionConfirmation(String displayName) {
     return '$displayName accepterade din kontaktförfrågan.';
   }
 
   @override
-  String systemMessage_newHandleConnectionChat(Object username) {
+  String systemMessage_newHandleConnectionChat(String username) {
     return 'Du skickade en kontaktförfrågan till användarnamnet $username. Personen kanske inte får någon avisering direkt.';
   }
 
   @override
-  String systemMessage_newDirectConnectionChat(Object displayName) {
+  String systemMessage_newDirectConnectionChat(String displayName) {
     return 'Du skickade en kontaktförfrågan till $displayName. Personen kanske inte får någon avisering direkt.';
   }
 
   @override
   String systemMessage_receivedHandleConnectionRequest(
-    Object displayName,
-    Object username,
+    String displayName,
+    String username,
   ) {
     return '$displayName skickade en kontaktförfrågan till dig via ditt användarnamn $username.';
   }
 
   @override
   String systemMessage_receivedDirectConnectionRequest(
-    Object displayName,
-    Object groupName,
+    String displayName,
+    String groupName,
   ) {
     return '$displayName skickade en kontaktförfrågan till dig via gruppchatten $groupName.';
   }
 
   @override
-  String systemMessage_userChangedPicture_prefix(Object user) {
-    return '$user';
+  String systemMessage_userChangedPicture(String user) {
+    return '$user ändrade gruppbilden';
   }
 
   @override
-  String get systemMessage_userChangedPicture_infix => ' ändrade gruppbilden';
-
-  @override
-  String systemMessage_userCreatedGroup_prefix(Object user) {
-    return '$user';
+  String systemMessage_userCreatedGroup(String user) {
+    return '$user skapade gruppen';
   }
-
-  @override
-  String get systemMessage_userCreatedGroup_suffix => ' skapade gruppen';
 
   @override
   String get systemMessage_onboarded =>
@@ -833,7 +813,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageBubble_read => 'Läst';
 
   @override
-  String get chatList_newContact => 'Ny kontakt';
+  String get chatList_newContact => 'Ny Air-kontakt';
 
   @override
   String get chatList_newGroup => 'Ny gruppchatt';
@@ -874,12 +854,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get chatList_contextMenu_unmute => 'Sluta tysta';
 
   @override
-  String newChatDialog_error(Object chatName) {
+  String newChatDialog_error(String chatName) {
     return 'Kunde inte skapa en ny gruppchatt med namnet $chatName';
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(Object chatName) {
+  String newChatDialog_error_incompatibleClient(String chatName) {
     return 'Kunde inte skapa en ny gruppchatt med namnet $chatName eftersom en av kontakterna har en inkompatibel klient.';
   }
 
@@ -898,7 +878,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Skriv ett användarnamn...';
 
   @override
-  String newConnectionDialog_handleExists(Object username) {
+  String newConnectionDialog_handleExists(String username) {
     return '$username finns. Tryck på \"Skicka\" för att skicka en kontaktförfrågan.';
   }
 
@@ -912,7 +892,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get newConnectionDialog_confirm2 => 'Skicka';
 
   @override
-  String newConnectionDialog_error(Object username) {
+  String newConnectionDialog_error(String username) {
     return 'Misslyckades att skicka en kontaktförfrågan till $username. Försök igen.';
   }
 
@@ -921,7 +901,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Skriv in användarnamnet';
 
   @override
-  String newConnectionDialog_error_usernameNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(String username) {
     return '$username hittades inte. Kontrollera det och försök igen.';
   }
 
@@ -934,7 +914,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Du kan inte skicka en kontaktförfrågan till dig själv.';
 
   @override
-  String composer_inputHint(Object chatTitle) {
+  String composer_inputHint(String chatTitle) {
     return 'Meddelande till $chatTitle';
   }
 
@@ -951,8 +931,8 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String composer_error_attachment_too_large(
-    Object actualSize,
-    Object maxSize,
+    String actualSize,
+    String maxSize,
   ) {
     return 'Bilagan är för stor. Maxstorleken är $maxSize och den faktiska storleken är $actualSize.';
   }
@@ -969,7 +949,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Du har inte tillgång till det här meddelandet.';
 
   @override
-  String attachmentSize(double size, Object byteUnit) {
+  String attachmentSize(double size, String byteUnit) {
     final intl.NumberFormat sizeNumberFormat =
         intl.NumberFormat.decimalPatternDigits(
           locale: localeName,
@@ -1144,7 +1124,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body_tooShort => 'Ge mer information';
 
   @override
-  String contactUsScreen_body_logsUrl(Object url) {
+  String contactUsScreen_body_logsUrl(String url) {
     return 'Här är några loggar för att hjälpa dig felsöka mitt problem: $url';
   }
 
@@ -1223,7 +1203,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get leaveChatDialog_title => 'Lämna grupp';
 
   @override
-  String leaveChatDialog_content(Object chatName) {
+  String leaveChatDialog_content(String chatName) {
     return 'Är du säker på att du vill lämna $chatName?';
   }
 
@@ -1351,7 +1331,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get messageList_reactions_you => 'Du';
 
   @override
-  String messageList_reactions_all(Object total) {
+  String messageList_reactions_all(int total) {
     return 'Alla · $total';
   }
 
@@ -1363,4 +1343,83 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
+
+  @override
+  String get shareScreen_title => 'Dela till Air';
+
+  @override
+  String get shareScreen_searchHint => 'Sök';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Till: $first, $second och $third',
+      two: 'Till: $first och $second',
+      one: 'Till: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Till: $first, $second och $rest till';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Lägg till ett meddelande';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Logga in i Air först för att dela innehåll.';
+
+  @override
+  String get shareScreen_noChats => 'Inga chattar hittades.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Laddar upp $current av $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Skickar…';
+
+  @override
+  String get shareScreen_queued =>
+      'Det gick inte att skicka just nu. Ditt meddelande är sparat och skickas nästa gång du öppnar Air.';
+
+  @override
+  String get shareScreen_done => 'Klar';
+
+  @override
+  String get shareScreen_sendFailed => 'Det gick inte att skicka. Försök igen.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'För många filer. Du kan dela upp till $max filer åt gången.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count objekt kunde inte delas.',
+      one: '$count objekt kunde inte delas.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Det här innehållet kunde inte delas till Air.';
+
+  @override
+  String get shareScreen_close => 'Stäng';
 }

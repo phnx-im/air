@@ -5,17 +5,28 @@
 use std::{collections::HashSet, slice, time::Duration};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
-use airbackend::settings::RateLimitsSettings;
+use airbackend::{
+    settings::{
+        AdmissionSettings, RateLimitsSettings, RegistrationPolicy, RegistrationSettings,
+        RegistrationThreshold, VersionExpiration,
+    },
+    version::VersionPolicy,
+};
 use aircommon::{
     assert_matches,
     credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
     identifiers::{QsClientId, UserId, Username},
+    messages::push_token::{PushToken, PushTokenOperator},
     mls_group_config::MAX_PAST_EPOCHS,
+    registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
     ChatId, DisplayName, UserProfile,
-    clients::{ListenResponse, listen_response, process::process_qs::ProcessedQsMessages},
+    clients::{
+        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
+        registration::RegistrationError,
+    },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
 
@@ -26,9 +37,9 @@ use airprotos::{
     queue_service::v1::queue_service_server,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
-use semver::VersionReq;
+use semver::Version;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tonic::{Code, codegen::http, transport::Channel};
@@ -36,6 +47,7 @@ use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
 use tracing::{info, warn};
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
@@ -71,6 +83,7 @@ async fn rate_limit() {
                 chat_id,
                 MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
                 None,
+                MarkChatAsRead::Yes,
             )
             .await
             .unwrap();
@@ -101,6 +114,7 @@ async fn rate_limit() {
             chat_id,
             MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -293,7 +307,7 @@ async fn update_and_send_message(
     let bob_user = &setup.get_user(bob).user;
     let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
     bob_user
-        .send_message(contact_chat_id, msg, None)
+        .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
@@ -321,7 +335,7 @@ async fn ratchet_tolerance() {
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
         alice_user
-            .send_message(contact_chat_id, msg, None)
+            .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
@@ -510,6 +524,7 @@ async fn resync() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -848,6 +863,7 @@ async fn resync_with_blank_leaf_succeeds() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -953,7 +969,10 @@ async fn key_package_upload() {
 async fn invitation_code() {
     const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
-        invitation_only: true,
+        registration: RegistrationSettings {
+            policy: RegistrationPolicy::Required,
+            ..Default::default()
+        },
         unredeemable_code: Some(UNREDEEMABLE_CODE.to_owned()),
         ..Default::default()
     })
@@ -963,7 +982,7 @@ async fn invitation_code() {
     let user_id = UserId::random(setup.domain().clone());
     let code = setup.invitation_codes().first().unwrap();
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
             .await
             .is_ok()
     );
@@ -971,40 +990,296 @@ async fn invitation_code() {
     // code used twice
     let user_id = UserId::random(setup.domain().clone());
     let code = setup.invitation_codes().first().unwrap();
-    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
         .await
         .unwrap_err();
-    let error = error.downcast::<AsRequestError>().unwrap();
-    assert_matches!(error, AsRequestError::Tonic(status)
-        if status.code() == tonic::Code::InvalidArgument
-    );
+    let error = error.downcast::<RegistrationError>().unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
 
     // not working code
     let user_id = UserId::random(setup.domain().clone());
     let code = "DUMMY007";
-    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
         .await
         .unwrap_err();
-    let error = error.downcast::<AsRequestError>().unwrap();
-    assert_matches!(error, AsRequestError::Tonic(status)
-        if status.code() == tonic::Code::InvalidArgument
-    );
+    let error = error.downcast::<RegistrationError>().unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
 
     // unredeemable code (first use)
     let user_id = UserId::random(setup.domain().clone());
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
-            .await
-            .is_ok()
+        TestUser::try_new(
+            &user_id,
+            setup.server_url().clone(),
+            Some(UNREDEEMABLE_CODE)
+        )
+        .await
+        .is_ok()
     );
 
     // unredeemable code (second use)
     let user_id = UserId::random(setup.domain().clone());
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
-            .await
-            .is_ok()
+        TestUser::try_new(
+            &user_id,
+            setup.server_url().clone(),
+            Some(UNREDEEMABLE_CODE)
+        )
+        .await
+        .is_ok()
     );
+}
+
+/// An adaptive deployment: bare registration until a threshold is reached, then
+/// a challenge, and a challenge-verified registration that leaves the counters
+/// where they were.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adaptive registration gate", skip_all)]
+async fn adaptive_registration_gate() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(2, 100),
+        ..Default::default()
+    })
+    .await;
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+
+    // Nothing has registered, so nothing is asked for.
+    let info = client.as_get_registration_info().await.unwrap();
+    assert!(!info.challenge_required);
+    assert_eq!(info.accepted_challenges, [ChallengeKind::InvitationCode]);
+
+    for _ in 0..2 {
+        let user_id = UserId::random(setup.domain().clone());
+        TestUser::try_new(&user_id, setup.server_url().clone(), None)
+            .await
+            .unwrap();
+    }
+
+    // Every test client shares one address bucket, so the per-address threshold
+    // is spent and the gate has closed.
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+
+    let user_id = UserId::random(setup.domain().clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(
+        error,
+        RegistrationError::ChallengeRequired(kinds) if kinds == [ChallengeKind::InvitationCode]
+    );
+
+    // A code gets in.
+    let code = setup.invitation_codes().first().unwrap().clone();
+    let user_id = UserId::random(setup.domain().clone());
+    TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+        .await
+        .unwrap();
+
+    // The gated registration was vouched for, so it did not count against the
+    // next one either.
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+
+    // A code the server has already spent does not get in twice.
+    let user_id = UserId::random(setup.domain().clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+}
+
+/// The total threshold closes the gate for an address that has registered
+/// nothing itself.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adaptive registration total threshold", skip_all)]
+async fn adaptive_registration_total_threshold() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(100, 1),
+        ..Default::default()
+    })
+    .await;
+
+    let user_id = UserId::random(setup.domain().clone());
+    TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap();
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+}
+
+/// An open gate leaves a code the request carried anyway unspent, so a gate
+/// that opens between discovery and registration does not burn it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "An open gate ignores a code", skip_all)]
+async fn an_open_gate_ignores_a_code() {
+    // Room to spare on both thresholds, so the gate is open while codes exist.
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(100, 100),
+        ..Default::default()
+    })
+    .await;
+
+    let code = setup.invitation_codes().first().unwrap().clone();
+
+    // Two registrations on one code only work while the code goes unspent.
+    for _ in 0..2 {
+        let user_id = UserId::random(setup.domain().clone());
+        TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+            .await
+            .unwrap();
+    }
+}
+
+/// The push-admission challenge end to end, from opening a session to finding
+/// the endpoint's quota spent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Push admission registration", skip_all)]
+async fn push_admission_registration() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: RegistrationSettings {
+            policy: RegistrationPolicy::Required,
+            challenges: vec![ChallengeKind::AdmissionSession],
+            // One account per endpoint, so the last step finds the quota spent.
+            admission: AdmissionSettings {
+                quotas: vec![RegistrationThreshold {
+                    limit: 1,
+                    window: chrono::Duration::days(1),
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let domain = setup.domain().clone();
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let info = client.as_get_registration_info().await.unwrap();
+    assert!(info.challenge_required);
+    assert_eq!(info.accepted_challenges, [ChallengeKind::AdmissionSession]);
+
+    // A bare registration is told what would answer for it.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(
+        error,
+        RegistrationError::ChallengeRequired(kinds) if kinds == [ChallengeKind::AdmissionSession]
+    );
+
+    let endpoint = PushToken::new(PushTokenOperator::Google, "fcm-endpoint".to_owned());
+    let session = client.as_create_admission_session(&endpoint).await.unwrap();
+    let challenge = setup
+        .last_sent_challenge()
+        .expect("no challenge reached the endpoint");
+    let answered = AdmissionSession {
+        session_id: session.session_id,
+        challenge: challenge.clone(),
+    };
+
+    // The session id alone admits nothing, and the challenge is the half a
+    // plain HTTP caller does not have.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: session.session_id,
+            challenge: "not the challenge".to_owned(),
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The challenge alone admits nothing either, which keeps the push service
+    // from redeeming what it carried.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: Uuid::new_v4(),
+            challenge,
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    let user_id = UserId::random(domain.clone());
+    TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered.clone())),
+    )
+    .await
+    .unwrap();
+
+    // The session is spent, so it does not admit a second account.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered)),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The endpoint has had the account its quota allows, so the client gets a
+    // session no challenge arrives for, which is what a lost push looks like.
+    let sent = setup.sent_challenge_count();
+    client.as_create_admission_session(&endpoint).await.unwrap();
+    assert_eq!(setup.sent_challenge_count(), sent);
+}
+
+fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {
+    RegistrationSettings {
+        policy: RegistrationPolicy::Adaptive,
+        perip: vec![RegistrationThreshold {
+            limit: per_ip,
+            window: chrono::Duration::days(1),
+        }],
+        total: vec![RegistrationThreshold {
+            limit: total,
+            window: chrono::Duration::days(1),
+        }],
+        ..Default::default()
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1014,7 +1289,10 @@ async fn invitation_code() {
 )]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
-        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on: DateTime::UNIX_EPOCH,
+        }]),
         ..Default::default()
     })
     .await;

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/navigation/app_router.dart';
@@ -20,6 +21,7 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/share/share_targets.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -31,6 +33,8 @@ import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
+import 'package:air/features/chat/chats_repository.dart';
 
 final _appRouter = AppRouter();
 
@@ -219,10 +223,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 final appLocale = context.select(
                   (AppLocaleCubit cubit) => cubit.state,
                 );
-                // Prefer persisted user locale; fall back to in-memory selection.
-                final locale = userLocaleCode != null
-                    ? Locale(userLocaleCode)
-                    : appLocale;
+                // Prefer the persisted user locale over the in-memory one.
+                final locale = localeFromTag(userLocaleCode) ?? appLocale;
 
                 return MaterialApp.router(
                   scrollBehavior: const AppScrollBehavior(),
@@ -315,14 +317,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
                 !navigationState.isCreatingAccount) {
               navigationCubit.openHome();
             }
-            final userLocaleCode = userSettingsCubit.state.locale;
+            final userLocale = localeFromTag(userSettingsCubit.state.locale);
             final appLocale = appLocaleCubit.state;
-            if (userLocaleCode != null) {
+            if (userLocale != null) {
               // Sync UI locale with persisted user preference.
-              appLocaleCubit.setLocale(Locale(userLocaleCode));
+              appLocaleCubit.setLocale(userLocale);
             } else if (appLocale != null) {
               // Persist pre-user selection once the user exists.
-              await userSettingsCubit.setLocale(value: appLocale.languageCode);
+              await userSettingsCubit.setLocale(value: localeToTag(appLocale));
             }
             unawaited(coreClient.refreshPushToken());
 
@@ -330,6 +332,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
+            // The published share targets carry chat names and avatars, so
+            // drop them before the account unloads.
+            unawaited(clearShareTargets());
             userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but
@@ -349,46 +354,60 @@ class LoadableUserCubitProvider extends StatelessWidget {
         final settingsAttached = context.select(
           (UserSettingsCubit cubit) => cubit.isAttached,
         );
+
+        Widget resolved(Widget child) {
+          unawaited(dismissSplashScreen());
+          return child;
+        }
+
         return switch (loadableUser) {
-          LoadingUser() || UnloadedUser() => child,
-          LoadedUser() when !settingsAttached => child,
-          LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.clientRecordId),
-            child: MultiBlocProvider(
-              providers: [
-                // Logged-in user and contacts are accessible everywhere inside
-                // the app after the user is loaded.
-                BlocProvider<UserCubit>(
-                  create: (context) => UserCubit(
-                    user: user,
-                    navigationCubit: context.read<NavigationCubit>(),
-                    appStateStream: appStateController.stream,
-                  ),
-                ),
-                BlocProvider<UsersCubit>(
-                  create: (context) =>
-                      UsersCubit(userCubit: context.read<UserCubit>()),
-                ),
-              ],
-              child: MultiRepositoryProvider(
+          // Neither the login state nor the destination is settled yet.
+          // Stay on the splash instead of the intro screen: a returning
+          // user would otherwise see its sign-up chrome flash before
+          // landing on Home.
+          LoadingUser() => const _LoadingSplash(),
+          LoadedUser() when !settingsAttached => const _LoadingSplash(),
+          UnloadedUser() => resolved(child),
+          LoadedUser(:final user) || UnloadingUser(:final user) => resolved(
+            KeyedSubtree(
+              key: ValueKey(user.clientRecordId),
+              child: MultiBlocProvider(
                 providers: [
-                  RepositoryProvider<AttachmentsRepository>(
-                    create: (context) => AttachmentsRepository(
-                      userCubit: context.read<UserCubit>().impl,
+                  // Logged-in user and contacts are accessible everywhere
+                  // inside the app after the user is loaded.
+                  BlocProvider<UserCubit>(
+                    create: (context) => UserCubit(
+                      user: user,
+                      navigationCubit: context.read<NavigationCubit>(),
+                      appStateStream: appStateController.stream,
                     ),
-                    // immediately download pending attachments
-                    lazy: false,
                   ),
-                  RepositoryProvider<ChatsRepository>(
-                    create: (context) => ChatsRepository(
-                      userCubit: context.read<UserCubit>().impl,
-                    ),
-                    // immediately cache chats
-                    lazy: false,
+                  BlocProvider<UsersCubit>(
+                    create: (context) =>
+                        UsersCubit(userCubit: context.read<UserCubit>()),
                   ),
                 ],
-                child: UnlinkedDeviceHandler(
-                  child: UpdateRequiredScreen(child: child),
+                child: MultiRepositoryProvider(
+                  providers: [
+                    RepositoryProvider<AttachmentsRepository>(
+                      create: (context) => AttachmentsRepository(
+                        userCubit: context.read<UserCubit>().impl,
+                      ),
+                      // immediately download pending attachments
+                      lazy: false,
+                    ),
+                    RepositoryProvider<ChatsRepository>(
+                      create: (context) => RustChatsRepository(
+                        userCubit: context.read<UserCubit>().impl,
+                      ),
+                      dispose: (repository) => unawaited(repository.dispose()),
+                      // immediately hydrate chats
+                      lazy: false,
+                    ),
+                  ],
+                  child: UnlinkedDeviceHandler(
+                    child: UpdateRequiredScreen(child: child),
+                  ),
                 ),
               ),
             ),
@@ -400,7 +419,19 @@ class LoadableUserCubitProvider extends StatelessWidget {
 
   /// Checks if [LoadableUser] was loaded or unloaded
   bool _isUserLoadedOrUnloaded(LoadableUser previous, LoadableUser current) {
-    return (previous is LoadedUser || current is LoadedUser) &&
+    return (previous is LoadedUser ||
+            current is LoadedUser ||
+            current is UnloadedUser) &&
         previous != current;
+  }
+}
+
+/// Shown while the initial user load is in flight, in place of [IntroScreen].
+class _LoadingSplash extends StatelessWidget {
+  const _LoadingSplash();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(color: NuxScaffoldTokens.surface(context));
   }
 }

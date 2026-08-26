@@ -270,8 +270,13 @@ mod tests {
     #[sqlx::test]
     async fn enqueue_message_fans_out_to_all_active_clients(pool: PgPool) -> anyhow::Result<()> {
         let domain: Fqdn = "example.com".parse()?;
-        let qs =
-            Qs::initialize(pool.clone(), domain.clone(), None, CancellationToken::new()).await?;
+        let qs = Qs::initialize(
+            pool.clone(),
+            domain.clone(),
+            Default::default(),
+            CancellationToken::new(),
+        )
+        .await?;
 
         let user = store_random_user_record(&pool).await?;
 

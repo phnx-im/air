@@ -43,6 +43,31 @@ impl From<RegisterUserError> for Status {
     }
 }
 
+/// Things that can go wrong while opening a push-admission session.
+#[derive(Error, Debug)]
+pub(crate) enum AdmissionError {
+    /// This deployment does not offer the push-admission challenge
+    #[error("Push admission is not available")]
+    Unavailable,
+    /// The push token cannot be a push token
+    #[error("Invalid push token")]
+    InvalidPushToken,
+    /// Storage provider error
+    #[error("Storage provider error")]
+    StorageError,
+}
+
+impl From<AdmissionError> for Status {
+    fn from(e: AdmissionError) -> Self {
+        let msg = e.to_string();
+        match e {
+            AdmissionError::Unavailable => Status::failed_precondition(msg),
+            AdmissionError::InvalidPushToken => Status::invalid_argument(msg),
+            AdmissionError::StorageError => Status::internal(msg),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub(crate) enum DeleteUserError {
     /// Storage provider error
@@ -145,6 +170,42 @@ impl From<IssueTokensError> for Status {
             ),
             IssueTokensError::PrivacyPassError(error) => {
                 error!(%error, "failed to issue tokens");
+                Status::internal(msg)
+            }
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub(crate) enum IssueTokenBatchError {
+    /// Something was wrong in the request
+    #[error("Bad request: {0}")]
+    BadRequest(&'static str),
+    /// Storage provider error
+    #[error("Storage provider error")]
+    StorageError(#[from] StorageError),
+    /// PrivacyPass protocol error
+    #[error("PrivacyPass protocol error")]
+    PrivacyPassError(#[from] IssueTokenResponseError),
+}
+
+impl From<sqlx::Error> for IssueTokenBatchError {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(StorageError::Database(error.into()))
+    }
+}
+
+impl From<IssueTokenBatchError> for Status {
+    fn from(e: IssueTokenBatchError) -> Self {
+        let msg = e.to_string();
+        match e {
+            IssueTokenBatchError::BadRequest(msg) => Status::invalid_argument(msg),
+            IssueTokenBatchError::StorageError(error) => {
+                error!(%error, "storage error while issuing a token batch");
+                Status::internal(msg)
+            }
+            IssueTokenBatchError::PrivacyPassError(error) => {
+                error!(%error, "failed to issue a token batch");
                 Status::internal(msg)
             }
         }

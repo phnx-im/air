@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import android.util.Base64
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
@@ -56,8 +57,13 @@ class MainActivity : FlutterFragmentActivity() {
 
     private var pendingInitialNotification: Map<String, String?>? = null
 
+    @Volatile
+    private var keepSplashScreenOn = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition { keepSplashScreenOn }
 
         // We store a potential notification tap event, so it can be delivered
         // once the Flutter engine is ready.
@@ -172,6 +178,10 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
 
+                "getPendingAdmissionChallenge" -> {
+                    result.success(AdmissionChallenges.take())
+                }
+
                 "getInitialNotification" -> {
                     val payload = pendingInitialNotification
                     pendingInitialNotification = null
@@ -247,6 +257,11 @@ class MainActivity : FlutterFragmentActivity() {
 
                 "requestNotificationPermission" -> {
                     handleNotificationPermissionRequest(result)
+                }
+
+                "dismissSplashScreen" -> {
+                    keepSplashScreenOn = false
+                    result.success(null)
                 }
 
                 "getClipboardImage" -> {

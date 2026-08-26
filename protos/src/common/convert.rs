@@ -69,9 +69,9 @@ impl From<identifiers::Fqdn> for Fqdn {
 
 #[derive(Debug, derive_more::Display)]
 pub enum QualifiedGroupIdField {
-    #[display(fmt = "group_uuid")]
+    #[display("group_uuid")]
     GroupUuid,
-    #[display(fmt = "domain")]
+    #[display("domain")]
     Domain,
 }
 

@@ -4,17 +4,19 @@
 
 [package]
 name = "xtask"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"
 
 [dependencies]
 anyhow.workspace = true
-askama = "0.16.0"
+askama.workspace = true
 camino.workspace = true
 cargo_metadata.workspace = true
+chrono.workspace = true
 clap.workspace = true
+config.workspace = true
 ignore.workspace = true
 regex.workspace = true
 semver.workspace = true

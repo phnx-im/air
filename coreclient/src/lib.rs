@@ -31,6 +31,7 @@ pub use crate::{
         reactions::LastReaction,
     },
     clients::{
+        MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentStatus, AttachmentUrl,
@@ -53,7 +54,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
-    privacy_pass::{RequestTokensError, TokenId},
+    privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
     utils::{

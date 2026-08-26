@@ -10,6 +10,7 @@ import 'package:air/core/core.dart';
 import 'package:air/core/api/utils.dart' as rust_utils;
 import 'package:air/platform/notifications.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 const platform = MethodChannel('ms.air/channel');
 
@@ -49,8 +50,88 @@ Future<void> _handleMethod(
     case 'processStoreNotifications':
       CoreClient().maybeUser?.signalPendingStoreNotifications();
       break;
+    case 'receivedAdmissionChallenge':
+      final delivered = _parseChallenge(call.arguments);
+      if (delivered != null) {
+        _admissionChallenges.add(delivered);
+      }
+      break;
     default:
       _log.severe('Unknown method called: ${call.method}');
+  }
+}
+
+typedef DeliveredChallenge = ({String sessionId, String challenge});
+
+final _admissionChallenges = StreamController<DeliveredChallenge>.broadcast();
+
+DeliveredChallenge? _parseChallenge(Object? arguments) {
+  if (arguments is! Map) return null;
+  final sessionId = arguments['sessionId'];
+  final challenge = arguments['challenge'];
+  if (sessionId is! String || challenge is! String) return null;
+  return (sessionId: sessionId, challenge: challenge);
+}
+
+/// The challenge that arrived before anything was listening. Reading it clears
+/// it.
+Future<DeliveredChallenge?> takePendingAdmissionChallenge() async {
+  if (!Platform.isAndroid && !Platform.isIOS) {
+    return null;
+  }
+  try {
+    return _parseChallenge(
+      await platform.invokeMethod('getPendingAdmissionChallenge'),
+    );
+  } on PlatformException catch (e, stacktrace) {
+    _log.warning(
+      "Failed to read the pending challenge: '${e.message}'.",
+      e,
+      stacktrace,
+    );
+    return null;
+  }
+}
+
+/// Waits for a challenge of `sessionId` to arrive over the push service, or
+/// null when none arrives in time.
+///
+/// Challenges for other sessions are dropped, so one that outlived its attempt
+/// cannot be paired with the next.
+Future<String?> awaitAdmissionChallenge(
+  UuidValue sessionId,
+  Duration timeout,
+) async {
+  final expected = sessionId.uuid.toLowerCase();
+  bool matches(DeliveredChallenge delivered) =>
+      delivered.sessionId.toLowerCase() == expected;
+
+  final arrived = Completer<String>();
+  // Subscribed before the mailbox is read, so a challenge that lands in between
+  // is not missed.
+  void ignore(DeliveredChallenge delivered) => _log.info(
+    "Ignoring challenge for session ${delivered.sessionId}, "
+    "waiting for $expected",
+  );
+
+  final subscription = _admissionChallenges.stream.listen((delivered) {
+    if (!matches(delivered)) {
+      ignore(delivered);
+    } else if (!arrived.isCompleted) {
+      arrived.complete(delivered.challenge);
+    }
+  });
+  try {
+    final pending = await takePendingAdmissionChallenge();
+    if (pending != null) {
+      if (matches(pending)) return pending.challenge;
+      ignore(pending);
+    }
+    return await arrived.future.timeout(timeout);
+  } on TimeoutException {
+    return null;
+  } finally {
+    await subscription.cancel();
   }
 }
 
@@ -204,6 +285,21 @@ Future<void> setBadgeCount(int count) async {
     await platform.invokeMethod('setBadgeCount', {'count': count});
   } on PlatformException catch (e, stacktrace) {
     _log.severe("Failed to set badge count: '${e.message}'.", e, stacktrace);
+  }
+}
+
+/// Lets the native Android splash screen close, once we know whether the app
+/// is landing on Home or the intro screen.
+Future<void> dismissSplashScreen() async {
+  if (!Platform.isAndroid) return;
+  try {
+    await platform.invokeMethod('dismissSplashScreen');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to dismiss splash screen: '${e.message}'.",
+      e,
+      stacktrace,
+    );
   }
 }
 

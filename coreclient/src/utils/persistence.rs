@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs,
     future::ready,
@@ -16,16 +17,20 @@ use sqlx::{
     Connection, Database, Encode, Sqlite, SqlitePool, Type,
     encode::IsNull,
     error::BoxDynError,
-    migrate,
+    migrate::{Migrate, MigrateError},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
+use strum::VariantArray;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
     clients::{own_client_info::OwnClientInfo, store::ClientRecord},
-    db::{access::DbAccess, notification::DbNotificationsSender},
+    db::{
+        access::{DbAccess, WriteConnection},
+        notification::DbNotificationsSender,
+    },
     utils::global_lock::GlobalLock,
 };
 
@@ -53,7 +58,7 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
             .await?;
     }
 
-    migrate!("migrations/air").run(&write_pool).await?;
+    sqlx::migrate!("migrations/air").run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
     let air_db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
@@ -247,30 +252,108 @@ fn client_db_name(client_record_id: Uuid) -> String {
 pub async fn open_client_db(
     client_db_path: &str,
     client_record_id: Uuid,
-) -> sqlx::Result<DbAccess> {
+) -> anyhow::Result<DbAccess> {
     let client_db_name = client_db_name(client_record_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     info!(db_url, "opening client DB");
     let opts: SqliteConnectOptions = db_url.parse()?;
 
     let write_pool = write_pool(opts.clone()).await?;
-    migrate!().run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
-
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    // The client-id migration defaults the column to the nil UUID for clients that existed
-    // before it.
-    OwnClientInfo::backfill_client_id(db.write().await?).await?;
-
-    // Deletions processed by older client versions left state behind. The
-    // purge reruns on every open, so a failure only defers it and must not
-    // block opening the DB.
-    if let Err(error) = purge_stale_deleted_messages(&db).await {
-        error!(%error, "Failed to purge stale deleted messages");
-    }
+    run_client_migrations(&db).await?;
 
     Ok(db)
+}
+
+#[derive(Debug, Clone, Copy, strum::VariantArray)]
+#[repr(i64)]
+/// To add a new migration, add your variant here with the matching
+/// sqlx migration version as value, then follow the compiler.
+enum RustMigration {
+    OwnClientIdBackfill = 20260817150000,
+    StaleDeletedMessagesPurge = 20260817150100,
+}
+
+impl RustMigration {
+    fn from_version(version: i64) -> Option<Self> {
+        match version {
+            20260817150000 => Some(Self::OwnClientIdBackfill),
+            20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            _ => None,
+        }
+    }
+
+    /// Applies the code migration to the database.
+    async fn apply(&self, write: impl WriteConnection) -> anyhow::Result<()> {
+        match self {
+            RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
+            RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+        }
+        Ok(())
+    }
+}
+
+/// Runs the client DB's SQL migrations, interleaved with one-time code
+/// migrations that must not rerun on every open.
+///
+/// Each SQL migration can have a corresponding optional code migration. After it is applied, the
+/// code migration is applied in the *same* transaction.
+///
+/// Note: This function is implemented along the lines of `sqlx::migrate::Migrator::run`, but
+/// adjusted to sqlite.
+async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
+    let migrator = sqlx::migrate!();
+    let table = "_sqlx_migrations";
+
+    // Check that every rust migration has a matching migration file.
+    for m in RustMigration::VARIANTS {
+        anyhow::ensure!(
+            migrator.version_exists(*m as i64),
+            "no migration file for paired code migration version {m:?}",
+        );
+    }
+
+    let mut write = db.write().await?;
+    write.as_mut().ensure_migrations_table(table).await?;
+    if let Some(version) = write.as_mut().dirty_version(table).await? {
+        return Err(MigrateError::Dirty(version).into());
+    }
+    let applied = write.as_mut().list_applied_migrations(table).await?;
+    for m in &applied {
+        anyhow::ensure!(
+            migrator.version_exists(m.version),
+            "unknown applied version {}",
+            m.version,
+        );
+    }
+    let applied: HashMap<i64, _> = applied.into_iter().map(|m| (m.version, m)).collect();
+
+    for migration in migrator.iter() {
+        if migration.migration_type.is_down_migration() {
+            continue;
+        }
+        match applied.get(&migration.version) {
+            Some(applied) if migration.checksum != applied.checksum => {
+                return Err(MigrateError::VersionMismatch(migration.version).into());
+            }
+            Some(_) => {} // already applied
+            None => match RustMigration::from_version(migration.version) {
+                Some(code) => {
+                    let mut txn = write.begin().await?;
+                    txn.as_mut().apply(table, migration).await?;
+                    code.apply(&mut txn).await?;
+                    txn.commit().await?;
+                }
+                None => {
+                    write.as_mut().apply(table, migration).await?;
+                }
+            },
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {
@@ -317,13 +400,25 @@ impl From<GroupIdWrapper> for GroupId {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::UserId;
+    use aircommon::identifiers::{QsClientId, QsUserId, UserId};
     use chrono::Utc;
     use tempfile::tempdir;
     use uuid::Uuid;
 
     use super::*;
     use crate::clients::store::{ClientRecord, ClientRecordState};
+
+    #[test]
+    fn from_version_covers_all_variants() {
+        for migration in RustMigration::VARIANTS {
+            let version = *migration as i64;
+            assert_eq!(
+                RustMigration::from_version(version).map(|migration| migration as i64),
+                Some(version),
+                "from_version disagrees with the discriminant of {migration:?}",
+            );
+        }
+    }
 
     async fn store_record(
         air_db: &DbAccess,
@@ -521,6 +616,130 @@ mod tests {
                 .await?
                 .is_none()
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn own_client_id_backfill_runs_once() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let user_id = UserId::random("localhost".parse()?);
+        let mut rng = rand::rng();
+
+        // Fully migrate a fresh DB; this consumes the marker migration since there is nothing to
+        // backfill yet.
+        let db = open_client_db(db_path, client_record_id).await?;
+        db.close().await;
+
+        // Roll back past the marker and insert an `own_client_info` row the way an old,
+        // pre-backfill client would have left it on disk: with a nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations WHERE version >= ?")
+            .bind(RustMigration::OwnClientIdBackfill as i64)
+            .execute(db.write().await?.as_mut())
+            .await?;
+        sqlx::query(
+            "INSERT INTO own_client_info (qs_user_id, qs_client_id, user_uuid, user_domain)
+            VALUES (?, ?, ?, ?)",
+        )
+        .bind(QsUserId::random())
+        .bind(QsClientId::random(&mut rng))
+        .bind(user_id.uuid())
+        .bind(user_id.domain().to_string())
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        // Reopening reruns the marker's code, backfilling the nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_ne!(client_id, Uuid::nil());
+        db.close().await;
+
+        // Reset it to nil directly. The marker has re-applied, so a further open must leave it
+        // alone rather than backfilling it again.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("UPDATE own_client_info SET client_id = ?")
+            .bind(Uuid::nil())
+            .execute(db.write().await?.as_mut())
+            .await?;
+        db.close().await;
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_eq!(client_id, Uuid::nil());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn modified_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET checksum = x'00'
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(
+            error.downcast_ref(),
+            Some(MigrateError::VersionMismatch(_))
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dirty_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET success = 0
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(error.downcast_ref(), Some(MigrateError::Dirty(_))));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time)
+            VALUES (99999999999999, 'from the future', 1, x'00', 0)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(error.to_string().contains("unknown applied version"));
 
         Ok(())
     }

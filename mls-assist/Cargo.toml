@@ -4,7 +4,7 @@
 
 [package]
 name = "mls-assist"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
@@ -12,7 +12,6 @@ license = "AGPL-3.0-or-later"
 apqmls.workspace = true
 chrono.workspace = true
 openmls.workspace = true
-openmls_memory_storage.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 serde.workspace = true
@@ -22,7 +21,3 @@ tls_codec.workspace = true
 
 [dev-dependencies]
 openmls_basic_credential.workspace = true
-
-[package.metadata.cargo-machete]
-# Included to enable the `extensions-draft-08` feature
-ignored = ["openmls_memory_storage"]

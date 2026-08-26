@@ -14,7 +14,7 @@ use crate::{
     ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, reactions::Reaction},
     clients::attachment::AttachmentRecord,
-    db::access::{DbAccess, WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
 };
 
 pub(crate) struct MessageEdit<'a> {
@@ -50,7 +50,7 @@ impl<'a> MessageEdit<'a> {
 /// to come first, since both resolve superseded versions of the message
 /// through the edit history.
 pub(crate) async fn purge_deleted_message(
-    txn: &mut WriteDbTransaction<'_>,
+    mut connection: impl WriteConnection,
     message_id: MessageId,
     original_mimi_id: Option<&MimiId>,
     placeholder_mimi_id: Option<&MimiId>,
@@ -59,21 +59,21 @@ pub(crate) async fn purge_deleted_message(
         && let Some(placeholder_mimi_id) = placeholder_mimi_id
     {
         let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-            &mut *txn,
+            &mut connection,
             &message_id,
             original_mimi_id,
             placeholder_mimi_id,
         )
         .await?;
         for updated_message_id in updated_message_ids {
-            txn.notifier().add(updated_message_id);
+            connection.notifier().add(updated_message_id);
         }
     }
 
-    Reaction::delete_by_message_versions(&mut *txn, message_id, original_mimi_id).await?;
-    MessageEdit::delete_by_message_id(&mut *txn, message_id).await?;
-    AttachmentRecord::delete_by_message_id(&mut *txn, message_id).await?;
-    ChatMessage::clear_in_reply_to(&mut *txn, message_id).await?;
+    Reaction::delete_by_message_versions(&mut connection, message_id, original_mimi_id).await?;
+    MessageEdit::delete_by_message_id(&mut connection, message_id).await?;
+    AttachmentRecord::delete_by_message_id(&mut connection, message_id).await?;
+    ChatMessage::clear_in_reply_to(&mut connection, message_id).await?;
 
     Ok(())
 }
@@ -87,18 +87,23 @@ pub(crate) async fn purge_deleted_message(
 /// The rows are re-marked as deleted so that status-based queries treat them
 /// as such again. Reactions targeting the version deleted last are not
 /// resolvable here and are swept up by the migration instead.
-pub(crate) async fn purge_stale_deleted_messages(db: &DbAccess) -> anyhow::Result<()> {
-    db.with_write_transaction(async |txn| {
-        for message in ChatMessage::load_all_edited(&mut *txn).await? {
-            if !message.message().is_deleted() {
-                continue;
-            }
-            purge_deleted_message(txn, message.id(), None, message.message().mimi_id()).await?;
-            ChatMessage::mark_deleted(&mut *txn, message.id()).await?;
+pub(crate) async fn purge_stale_deleted_messages(
+    mut connection: impl WriteConnection,
+) -> anyhow::Result<()> {
+    for message in ChatMessage::load_all_edited(&mut connection).await? {
+        if !message.message().is_deleted() {
+            continue;
         }
-        Ok(())
-    })
-    .await
+        purge_deleted_message(
+            &mut connection,
+            message.id(),
+            None,
+            message.message().mimi_id(),
+        )
+        .await?;
+        ChatMessage::mark_deleted(&mut connection, message.id()).await?;
+    }
+    Ok(())
 }
 
 /// Applies an incoming edit (or delete, indicated by a null part) to the
@@ -179,7 +184,7 @@ pub(crate) async fn handle_message_edit(
     if is_delete {
         message.set_status(MessageStatus::Deleted);
         purge_deleted_message(
-            txn,
+            &mut *txn,
             original_message_id,
             Some(&original_mimi_id),
             message.message().mimi_id(),
@@ -692,7 +697,7 @@ mod tests {
         edited_message.set_edited_at(TimeStamp::now());
         edited_message.update(pool.write().await?).await?;
 
-        purge_stale_deleted_messages(&pool).await?;
+        purge_stale_deleted_messages(pool.write().await?).await?;
 
         assert!(
             MessageEdit::find_message_id(pool.read().await?, &superseded_mimi_id)

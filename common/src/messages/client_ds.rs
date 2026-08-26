@@ -19,7 +19,6 @@ use tls_codec::{
 };
 
 use crate::{
-    credentials::keys::ClientVerifyingKey,
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable,
@@ -330,13 +329,6 @@ pub struct CreateGroupParams {
     pub creator_qs_reference: QsReference,
     pub group_info: MlsMessageIn,
     pub room_state: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct WelcomeInfoParams {
-    pub group_id: GroupId,
-    pub sender: ClientVerifyingKey,
-    pub epoch: GroupEpoch,
 }
 
 #[derive(Debug)]

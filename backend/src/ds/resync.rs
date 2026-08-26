@@ -4,11 +4,14 @@
 
 use aircommon::{
     credentials::LeafCredential, identifiers::QsReference,
-    mls_group_config::leaf_node_is_virtual_client, time::Duration, utils::removed_clients,
+    mls_group_config::leaf_node_is_virtual_client, utils::removed_clients,
 };
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::{ProcessedAssistedMessage, apq::ApqGroupRef},
+    group::{
+        ProcessedAssistedMessage,
+        apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
+    },
     messages::SerializedMlsMessage,
     openmls::prelude::Sender,
     provider_traits::MlsAssistProvider,
@@ -22,7 +25,6 @@ use tracing::error;
 use crate::errors::ResyncClientError;
 
 use super::group_state::{DsGroupState, leaf_credential_matches_flag};
-use super::process::USER_EXPIRATION_DAYS;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
@@ -176,10 +178,9 @@ impl DsGroupState {
             })?;
 
         // We just accept the message into the group state.
-        self.group.accept_processed_message(
+        let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         self.remove_profiles(removed_indices);
@@ -188,6 +189,8 @@ impl DsGroupState {
 
         #[cfg(debug_assertions)]
         self.check_member_profiles("resync");
+
+        self.stage_welcome_info(retained_welcome_info);
 
         Ok(ResyncOutcome {
             message: processed_assisted_message_plus.serialized_mls_message,
@@ -341,12 +344,14 @@ impl DsGroupState {
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
 
-        ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+        let ApqRetainedWelcomeInfo {
+            t_retained_welcome_info,
+            pq_retained_welcome_info,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .accept_apq_processed_message(
                 t_group_state.provider.storage(),
                 pq_group_state.provider.storage(),
                 processed_assisted_message_plus.processed_assisted_message,
-                Duration::days(USER_EXPIRATION_DAYS),
             )?;
 
         t_group_state.remove_profiles(t_removed_indices);
@@ -356,6 +361,9 @@ impl DsGroupState {
 
         #[cfg(debug_assertions)]
         t_group_state.check_member_profiles("resync_apq");
+
+        t_group_state.stage_welcome_info(t_retained_welcome_info);
+        pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
         Ok(ResyncOutcome {
             message: processed_assisted_message_plus.serialized_apq_message,

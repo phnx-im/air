@@ -6,7 +6,7 @@
 name = "apqmls"
 description = "Amortized Post-Quantum MLS Combiner"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
@@ -22,6 +22,4 @@ tls_codec.workspace = true
 [dev-dependencies]
 # `test-utils` exposes `MlsGroup::export_group_context` for the group context tests
 openmls = { workspace = true, features = ["test-utils"] }
-openmls_memory_storage.workspace = true
 openmls_rust_crypto.workspace = true
-openmls_sqlite_storage.workspace = true

@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/features/chat/mute_chat_sheet.dart';
+
+import 'package:air/core/core.dart';
 import 'package:air/ds/components/counter/counter.dart';
 import 'package:air/ds/components/counter/counter_tokens.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_list/chat_list.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item_tokens.dart';
@@ -17,33 +18,23 @@ import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
-import 'package:air/core/core.dart';
-import 'package:air/l10n/app_localizations.dart';
+import 'package:air/features/chat/chat_list_item_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/chat/mute_chat_sheet.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:air/features/user/avatar.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-import 'package:air/features/chat_list/chat_list_cubit.dart';
-
-typedef ChatDetailsCubitCreate =
-    ChatDetailsCubit Function({
-      required UserCubit userCubit,
-      required UserSettingsCubit userSettingsCubit,
-      required ChatId chatId,
-      required ChatsRepository chatsRepository,
-      required AttachmentsRepository attachmentsRepository,
-      bool withMembers,
-    });
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// The surface the list paints on: the surrounding panel in the two-pane
 /// layout, or its own background tier when it fills the screen.
@@ -51,19 +42,16 @@ Color chatListBackgroundColor(BuildContext context) =>
     PanelSurface.maybeOf(context) ??
     SemanticPalette.of(context).backgroundBase.primary;
 
-/// The chats, resolved from [ChatListCubit] and handed to the design system's
-/// list: each row gets its own [ChatDetailsCubit], and every piece of localized
-/// copy is picked here.
-class ChatListContent extends StatelessWidget {
+/// The chats, resolved from [ChatsRepository.watchOrder] and handed to the
+/// design system's list: each row gets its own [ChatListItemCubit], and every
+/// piece of localized copy is picked here.
+class ChatListContent extends HookWidget {
   const ChatListContent({
     super.key,
-    this.createChatDetailsCubit = ChatDetailsCubit.new,
     this.header = const SizedBox.shrink(),
     this.headerHeight = 0,
     this.onScrollOffset,
   });
-
-  final ChatDetailsCubitCreate createChatDetailsCubit;
 
   /// Pinned over the list, which scrolls behind it. It floats over a full-bleed
   /// list, so the host insets it for the status bar itself.
@@ -78,9 +66,13 @@ class ChatListContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chatIds = context.select(
-      (ChatListCubit cubit) => cubit.state.chatIds,
+    final chatIdsStream = useMemoized(
+      () => context.read<ChatsRepository>().watchOrder(),
     );
+    final chatIdsSnapshot = useStream(chatIdsStream);
+    // Always show the current order
+    final chatIds =
+        chatIdsSnapshot.data ?? context.read<ChatsRepository>().order;
 
     final list = ChatList(
       tokens: ChatListTokens.current,
@@ -93,15 +85,8 @@ class ChatListContent extends StatelessWidget {
         final isLast = index == chatIds.length - 1;
         return BlocProvider(
           key: ValueKey(chatId),
-          create: (context) => createChatDetailsCubit(
-            userCubit: context.read<UserCubit>(),
-            userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatId: chatId,
-            chatsRepository: context.read<ChatsRepository>(),
-            attachmentsRepository: context.read<AttachmentsRepository>(),
-            withMembers: false,
-          ),
-          lazy: false,
+          create: (context) =>
+              ChatListItemCubit(repository: context.read(), chatId: chatId),
           child: _ListTile(
             chatId: chatId,
             nextChatId: isLast ? null : chatIds[index + 1],
@@ -165,10 +150,7 @@ class _ListTile extends StatelessWidget {
         (!context.breakpoint.isSmall &&
             (isActive || currentChatId == nextChatId));
 
-    final chat = context.select((ChatDetailsCubit cubit) => cubit.state.chat);
-    if (chat == null) {
-      return const SizedBox.shrink();
-    }
+    final chat = context.select((ChatListItemCubit cubit) => cubit.state.chat);
 
     return _ChatRow(
       chat: chat,
@@ -194,14 +176,14 @@ class _ListTile extends StatelessWidget {
 
   List<MenuItem> _muteMenuItems(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final cubit = context.read<ChatDetailsCubit>();
+    final cubit = context.read<ChatListItemCubit>();
 
-    if (cubit.state.chat?.isMuted ?? false) {
+    if (cubit.state.chat.isMuted) {
       return [
         MenuItem(
           label: loc.chatList_contextMenu_unmute,
           leading: const AppIcon.bell(size: 16),
-          onPressed: () => cubit.unmuteChat(),
+          onPressed: () => cubit.unmute(),
         ),
       ];
     }
@@ -211,7 +193,16 @@ class _ListTile extends StatelessWidget {
         MenuItem(
           label: loc.chatList_contextMenu_mute,
           leading: const AppIcon.bellOff(size: 16),
-          onPressed: () => showMuteChatSheet(context),
+          onPressed: () => showMuteChatSheet(
+            context,
+            onMute: ({until}) {
+              if (until != null) {
+                cubit.mute(until: until);
+              } else {
+                cubit.unmute();
+              }
+            },
+          ),
         ),
       ];
     }
@@ -224,29 +215,26 @@ class _ListTile extends StatelessWidget {
           MenuItem(
             label: loc.muteDurationSheet_1hour,
             onPressed: () =>
-                cubit.muteChat(mutedUntil: UiChatMutedExtension.inOneHour()),
+                cubit.mute(until: UiChatMutedExtension.inOneHour()),
           ),
           MenuItem(
             label: loc.muteDurationSheet_8hours,
             onPressed: () =>
-                cubit.muteChat(mutedUntil: UiChatMutedExtension.inEightHours()),
+                cubit.mute(until: UiChatMutedExtension.inEightHours()),
           ),
           MenuItem(
             label: loc.muteDurationSheet_untilTomorrow,
-            onPressed: () => cubit.muteChat(
-              mutedUntil: UiChatMutedExtension.untilTomorrow(),
-            ),
+            onPressed: () =>
+                cubit.mute(until: UiChatMutedExtension.untilTomorrow()),
           ),
           MenuItem(
             label: loc.muteDurationSheet_untilNextMonday,
-            onPressed: () => cubit.muteChat(
-              mutedUntil: UiChatMutedExtension.untilNextMonday(),
-            ),
+            onPressed: () =>
+                cubit.mute(until: UiChatMutedExtension.untilNextMonday()),
           ),
           MenuItem(
             label: loc.muteDurationSheet_always,
-            onPressed: () =>
-                cubit.muteChat(mutedUntil: const UiChatMuted.forever()),
+            onPressed: () => cubit.mute(until: const UiChatMuted.forever()),
           ),
         ],
       ),
@@ -297,7 +285,7 @@ class _ChatRow extends StatelessWidget {
     return ChatListItem(
       tokens: tokens,
       title: chat.title,
-      avatar: ChatAvatar(chatId: chat.id, size: tokens.avatarSize),
+      avatar: ChatAvatarView(chat: chat, size: tokens.avatarSize),
       titleIcon: chat.isMuted
           ? AppIcon.bellOff(
               size: ChatListItemTokens.titleIconSize,
@@ -363,14 +351,10 @@ class _TrailingIndicator extends StatelessWidget {
     );
 
     final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
-      ChatDetailsCubit cubit,
+      ChatListItemCubit cubit,
     ) {
       final chat = cubit.state.chat;
-      return (
-        chat?.unreadMessages,
-        chat?.lastMessage,
-        chat?.pendingCommitFailed ?? false,
-      );
+      return (chat.unreadMessages, chat.lastMessage, chat.pendingCommitFailed);
     });
 
     if (experimentalFeatures && pendingCommitFailed) {
@@ -379,7 +363,7 @@ class _TrailingIndicator extends StatelessWidget {
       );
     }
 
-    if (unreadMessages != null && unreadMessages > 0) {
+    if (unreadMessages > 0) {
       return Counter(tokens: CounterTokens.current, count: unreadMessages);
     }
 
