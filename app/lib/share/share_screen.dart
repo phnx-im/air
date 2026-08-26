@@ -445,10 +445,20 @@ class _AttachmentPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_isImage) {
+      // Decode at thumbnail size. A full-resolution camera photo decodes to
+      // a bitmap larger than the extension's memory budget.
+      final pixels = (_stripHeight * MediaQuery.devicePixelRatioOf(context))
+          .round();
       return ClipRRect(
         borderRadius: BorderRadius.circular(CornerRadius.px12),
-        child: Image.file(
-          File(attachment.path),
+        child: Image(
+          image: ResizeImage(
+            FileImage(File(attachment.path)),
+            width: pixels,
+            height: pixels,
+            policy: .fit,
+            allowUpscaling: false,
+          ),
           width: _stripHeight,
           height: _stripHeight,
           fit: BoxFit.cover,

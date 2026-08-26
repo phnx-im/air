@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Flutter
+import ImageIO
 import Intents
 import UIKit
 import UniformTypeIdentifiers
@@ -26,6 +27,14 @@ private let maxAttachments = 10
 // friendly error is shown. Tracks the deployed `max_attachment_size` (see
 // StorageSettings in the backend) with slack.
 private let maxAttachmentCopyBytes: UInt64 = 32 * 1024 * 1024
+
+// Matches the limit the Rust side resizes images to
+// (MAX_ATTACHMENT_IMAGE_WIDTH/HEIGHT in coreclient), preventing OOM
+// issues in the share extension.
+private let maxImagePixelSize = 4096
+
+// Matches ATTACHMENT_IMAGE_QUALITY_PERCENT of the Rust re-encode.
+private let downscaledImageQuality = 0.9
 
 // Cache entries older than this are leftovers of a share session that was
 // killed before its cleanup ran. They are removed on the next share.
@@ -298,9 +307,15 @@ class ShareViewController: UIViewController {
             }
             // The URL is only valid within this completion handler, so
             // copy the file into storage owned by the extension.
-            guard
-                let target = self.copyToShareCache(
-                    url, named: self.fileName(for: provider, loadedFrom: url))
+            let name = self.fileName(for: provider, loadedFrom: url)
+            if type.conforms(to: .image),
+                let target = self.downscaledImageCopy(url, named: name)
+            {
+                state.addAttachment(
+                    path: target.path, mimeType: "image/jpeg", at: index)
+                return
+            }
+            guard let target = self.copyToShareCache(url, named: name)
             else {
                 return
             }
@@ -337,6 +352,81 @@ class ShareViewController: UIViewController {
             return "\(suggested).\(url.pathExtension)"
         }
         return suggested
+    }
+
+    // Copies an oversized still image into the App Group caches downscaled
+    // to `maxImagePixelSize`, transcoded to JPEG. Returns nil where
+    // downscaling does not apply. If the image is small enough, animated, or
+    // not decodable, we leave the plain copy to handle the file.
+    //
+    // ImageIO scales images in streaming fashion, which prevents from running
+    // out of memory in the share extension.
+    private func downscaledImageCopy(_ url: URL, named name: String) -> URL? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+            // A multi-frame image is an animation, which a downscale to a
+            // single frame would freeze. The Rust side re-encodes it with
+            // its frames intact.
+            CGImageSourceGetCount(source) == 1,
+            let properties = CGImageSourceCopyPropertiesAtIndex(
+                source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int,
+            max(width, height) > maxImagePixelSize
+        else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            // Bakes the EXIF orientation into the pixels, since the
+            // orientation tag does not survive the re-encode.
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxImagePixelSize,
+        ]
+        guard
+            let scaled = CGImageSourceCreateThumbnailAtIndex(
+                source, 0, options as CFDictionary)
+        else {
+            logger.error("Failed to downscale shared image")
+            return nil
+        }
+
+        guard let shareCacheURL = shareCacheDirectory() else {
+            return nil
+        }
+        let targetDir = shareCacheURL.appendingPathComponent(
+            UUID().uuidString, isDirectory: true)
+        let target = targetDir.appendingPathComponent(
+            (name as NSString).deletingPathExtension + ".jpg")
+        do {
+            try FileManager.default.createDirectory(
+                at: targetDir, withIntermediateDirectories: true)
+        } catch {
+            logger.error(
+                "Failed to create image cache directory: \(error.localizedDescription)"
+            )
+            return nil
+        }
+        rememberCacheDir(targetDir)
+        AppGroup.applyProtection(targetDir)
+
+        guard
+            let destination = CGImageDestinationCreateWithURL(
+                target as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+        else {
+            logger.error("Failed to create image destination")
+            return nil
+        }
+        let encodeOptions: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: downscaledImageQuality
+        ]
+        CGImageDestinationAddImage(
+            destination, scaled, encodeOptions as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            logger.error("Failed to write downscaled shared image")
+            return nil
+        }
+        return target
     }
 
     // Copies the extracted file into the App Group caches, protected like
