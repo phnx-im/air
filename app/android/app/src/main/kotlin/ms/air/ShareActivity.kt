@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.core.content.IntentCompat
+import androidx.core.content.pm.ShortcutManagerCompat
 import io.flutter.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -31,7 +32,7 @@ class ShareActivity : ComponentActivity() {
         private const val MAX_ATTACHMENTS = 10
 
         // Upper bound for copying a single shared stream.
-        // 
+        //
         // See `max_attachment_size` in StorageSettings in the backend).
         private const val MAX_ATTACHMENT_COPY_BYTES = 32L * 1024 * 1024
 
@@ -46,7 +47,7 @@ class ShareActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
-        val chatId = intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)
+        val chatId = intent.getStringExtra(ShortcutManagerCompat.EXTRA_SHORTCUT_ID)
         val uris: List<Uri> = when (intent.action) {
             Intent.ACTION_SEND ->
                 listOfNotNull(
@@ -106,22 +107,20 @@ class ShareActivity : ComponentActivity() {
         attachments: List<Pair<String, String?>>,
         dropped: Int
     ) {
+        PendingShare.put(
+            mapOf(
+                // Absent when the user picks the destination from the chat list
+                "chatId" to chatId,
+                "paths" to attachments.map { it.first },
+                // Parallel to the paths; empty when the provider reported no type
+                "mimeTypes" to attachments.map { it.second.orEmpty() },
+                "text" to text,
+                "dropped" to dropped,
+            )
+        )
         val intent = Intent(this, MainActivity::class.java).apply {
             action = MainActivity.SHARE_INTO_CHAT
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            putExtra(Notifications.EXTRAS_CHAT_ID_KEY, chatId)
-            putStringArrayListExtra(
-                MainActivity.EXTRAS_SHARE_PATHS_KEY,
-                ArrayList(attachments.map { it.first })
-            )
-            // Parallel to the paths; empty when the provider reported no
-            // type.
-            putStringArrayListExtra(
-                MainActivity.EXTRAS_SHARE_MIME_TYPES_KEY,
-                ArrayList(attachments.map { it.second.orEmpty() })
-            )
-            putExtra(MainActivity.EXTRAS_SHARE_TEXT_KEY, text)
-            putExtra(MainActivity.EXTRAS_SHARE_DROPPED_KEY, dropped)
         }
         startActivity(intent)
     }

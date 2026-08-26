@@ -38,12 +38,8 @@ class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
         private const val APP_DIR_NAME: String = "Air"
-        
+
         const val SHARE_INTO_CHAT: String = "SHARE_INTO_CHAT"
-        const val EXTRAS_SHARE_PATHS_KEY: String = "ms.air/share_paths"
-        const val EXTRAS_SHARE_MIME_TYPES_KEY: String = "ms.air/share_mime_types"
-        const val EXTRAS_SHARE_TEXT_KEY: String = "ms.air/share_text"
-        const val EXTRAS_SHARE_DROPPED_KEY: String = "ms.air/share_dropped"
 
         @Volatile
         private var activeChannelRef: WeakReference<MethodChannel>? = null
@@ -109,21 +105,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun readSharePayload(intent: Intent): Map<String, Any?>? {
         if (intent.action != SHARE_INTO_CHAT) return null
-        val paths = intent.extras?.getStringArrayList(EXTRAS_SHARE_PATHS_KEY).orEmpty()
-        val mimeTypes = intent.extras?.getStringArrayList(EXTRAS_SHARE_MIME_TYPES_KEY).orEmpty()
-        // The intent is exported, so only accept files extracted by ShareActivity.
-        val shareDir = File(cacheDir, ShareActivity.SHARE_CACHE_DIR).canonicalPath + File.separator
-        val accepted = paths.indices.filter {
-            runCatching { File(paths[it]).canonicalPath }.getOrNull()?.startsWith(shareDir) == true
-        }
-        return mapOf(
-            // Absent when the user picks the destination from the chat list
-            "chatId" to intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY),
-            "paths" to accepted.map { paths[it] },
-            "mimeTypes" to accepted.map { mimeTypes.getOrNull(it).orEmpty() },
-            "text" to intent.extras?.getString(EXTRAS_SHARE_TEXT_KEY),
-            "dropped" to (intent.extras?.getInt(EXTRAS_SHARE_DROPPED_KEY, 0) ?: 0),
-        )
+        return PendingShare.take()
     }
 
 
