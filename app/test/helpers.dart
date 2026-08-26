@@ -16,7 +16,11 @@ import 'package:uuid/uuid.dart';
 ThemeData testThemeData(Brightness brightness) {
   final theme = themeData(brightness);
   return theme.copyWith(
-    textTheme: theme.textTheme.apply(fontFamilyFallback: const ['NotoEmoji']),
+    textTheme: theme.textTheme.apply(
+      fontFamilyFallback: Platform.isMacOS
+          ? ['Apple Color Emoji']
+          : ['NotoEmoji'],
+    ),
   );
 }
 
