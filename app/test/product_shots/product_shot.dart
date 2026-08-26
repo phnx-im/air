@@ -14,7 +14,7 @@ import 'product_shot_device.dart';
 class ProductShot extends StatelessWidget {
   const ProductShot({
     super.key,
-    // required this.size,
+    required this.size,
     required this.backgroundColor,
     required this.titleColor,
     required this.subtitleColor,
@@ -25,7 +25,9 @@ class ProductShot extends StatelessWidget {
     required this.device,
   });
 
-  // final Size size;
+  /// The marketing canvas size, distinct from [ProductShotDevice.screenSize]
+  /// (the device frame drawn inside it, scaled to fit).
+  final Size size;
   final Color backgroundColor;
   final Color titleColor;
   final Color subtitleColor;
@@ -37,10 +39,7 @@ class ProductShot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final platform = device.platform;
     final dev = device;
-    final size = dev.screenSize;
-    // final dev = device ?? ProductShotDevices.forPlatform(platform);
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
     final statusBar = _statusBarFor(dev.platform, statusBarHeight);
@@ -65,19 +64,21 @@ class ProductShot extends StatelessWidget {
             final outerPadding = EdgeInsets.all(
               isLandscape ? size.height * 0.05 : size.width * 0.1,
             );
+            // Fractions are budgeted against the space left after padding,
+            // not the raw canvas, so header + frame always fit regardless of
+            // the canvas aspect ratio.
+            final availableWidth = size.width - outerPadding.horizontal;
+            final availableHeight = size.height - outerPadding.vertical;
+
             final frameHeightFraction = isLandscape ? 0.62 : 0.7;
-            final frameHeight = size.height * frameHeightFraction;
-            final scaleY = frameHeight / dev.screenSize.height;
+            final frameHeight = availableHeight * frameHeightFraction;
 
             const frameWidthFraction = 0.9;
-            final frameWidth = size.width * frameWidthFraction;
-            final scaleX = frameWidth / dev.screenSize.width;
-
-            final scaleFactor = math.min(scaleX, scaleY);
+            final frameWidth = availableWidth * frameWidthFraction;
 
             final headerHeight = isLandscape
-                ? size.height * 0.24
-                : size.height * (1 - frameHeightFraction - 0.1);
+                ? availableHeight * 0.24
+                : availableHeight * (1 - frameHeightFraction - 0.1);
             // Font sizes derive from the canvas width, which is far too large
             // on a landscape canvas, so reference the height there instead.
             final fontReference = isLandscape ? size.height : size.width;
@@ -116,19 +117,23 @@ class ProductShot extends StatelessWidget {
                   ),
                   Align(
                     alignment: Alignment.topCenter,
-                    child: Transform.scale(
-                      scale: scaleFactor,
-                      alignment: Alignment.topCenter,
-                      child: ProductShotFrame(
-                        statusBar: statusBar,
-                        statusBarHeight: statusBarHeight,
-                        screenSize: dev.screenSize,
-                        devicePixelRatio: dev.pixelRatio,
-                        safeArea: resolvedSafeArea,
-                        borderWidth: frameStyle.borderWidth,
-                        cornerRadius: frameStyle.cornerRadius,
-                        frameColor: frameStyle.frameColor,
-                        child: child,
+                    child: SizedBox(
+                      width: frameWidth,
+                      height: frameHeight,
+                      child: FittedBox(
+                        fit: .contain,
+                        alignment: Alignment.topCenter,
+                        child: ProductShotFrame(
+                          statusBar: statusBar,
+                          statusBarHeight: statusBarHeight,
+                          screenSize: dev.screenSize,
+                          devicePixelRatio: dev.pixelRatio,
+                          safeArea: resolvedSafeArea,
+                          borderWidth: frameStyle.borderWidth,
+                          cornerRadius: frameStyle.cornerRadius,
+                          frameColor: frameStyle.frameColor,
+                          child: child,
+                        ),
                       ),
                     ),
                   ),

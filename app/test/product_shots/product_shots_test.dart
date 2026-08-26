@@ -22,6 +22,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 
 import '../helpers.dart';
@@ -43,13 +45,64 @@ const androidPhysicalSize = Size(2160, 3840);
 const iosPhysicalSize = Size(1290, 2796);
 // One of the sizes accepted by the Mac App Store (16:10 retina).
 const macosPhysicalSize = Size(2880, 1800);
+/// The marketing canvas size for a framed product shot, distinct from the
+/// device's own screen resolution (used as-is for the frameless shots).
+Size _canvasSizeFor(TargetPlatform platform) {
+  switch (platform) {
+    case TargetPlatform.android:
+      return androidPhysicalSize;
+    case TargetPlatform.iOS:
+      return iosPhysicalSize;
+    case TargetPlatform.macOS:
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
+      // Laptop/desktop devices are landscape, so they share the macOS
+      // canvas rather than being squeezed into a portrait phone canvas.
+      return macosPhysicalSize;
+    default:
+      throw "Unsupported platform";
+  }
+}
 
 class ProductShotInfo {
-  ProductShotInfo({required this.hostPlatform, required this.targetPlatform});
+  const ProductShotInfo({
+    required this.hostPlatform,
+    required this.targetPlatform,
+  });
 
-  String hostPlatform;
-  TargetPlatform targetPlatform;
+  final String hostPlatform;
+  final TargetPlatform targetPlatform;
 }
+
+/// Providers + app scaffolding shared by every product shot subject.
+///
+/// [shot] is a [ProductShot] for the marketing variant or a [DeviceFrame] for
+/// the [frameless] one, which also centers it on a transparent background
+/// instead of stretching it under the marketing canvas.
+Widget buildProductShotSubject({
+  required List<SingleChildWidget> providers,
+  required Widget shot,
+  bool frameless = false,
+}) => MultiProvider(
+  providers: providers,
+  child: SDTFScope(
+    child: Builder(
+      builder: (context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: testLightTheme,
+        themeMode: .light,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Material(
+          color: frameless ? Colors.transparent : null,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(platformBrightness: .light),
+            child: frameless ? Center(child: shot) : shot,
+          ),
+        ),
+      ),
+    ),
+  ),
+);
 
 void main() {
   setUpAll(() {
@@ -57,6 +110,26 @@ void main() {
     registerFallbackValue(0.userId());
     registerFallbackValue(0.attachmentId());
   });
+
+  const productShotsMatrix = [
+    ProductShotInfo(hostPlatform: 'macos', targetPlatform: TargetPlatform.iOS),
+    ProductShotInfo(
+      hostPlatform: 'macos',
+      targetPlatform: TargetPlatform.macOS,
+    ),
+    ProductShotInfo(
+      hostPlatform: 'linux',
+      targetPlatform: TargetPlatform.android,
+    ),
+    ProductShotInfo(
+      hostPlatform: 'linux',
+      targetPlatform: TargetPlatform.linux,
+    ),
+    ProductShotInfo(
+      hostPlatform: 'windows',
+      targetPlatform: TargetPlatform.windows,
+    ),
+  ];
 
   group('Chat List Product Shots', () {
     final backgroundColor = Primitive.neutral(NeutralShade.s100);
@@ -89,154 +162,57 @@ void main() {
       ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
-    Widget buildSubject(ProductShotDevice device) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shot = ProductShot(
-                backgroundColor: backgroundColor,
-                titleColor: titleColor,
-                subtitleColor: subtitleColor,
-                title: title,
-                subtitle: subtitle,
-                frameColor: frameColor,
-                device: device,
-                child: const Stack(
-                  children: [
-                    Positioned.fill(child: ChatListView(scaffold: true)),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AppTabBar(),
-                    ),
-                  ],
-                ),
-              );
-
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: .light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
-                    child: shot,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+    List<SingleChildWidget> buildProviders() => [
+      RepositoryProvider<AttachmentsRepository>.value(
+        value: MockAttachmentsRepository(),
       ),
-    );
-
-    Widget buildFramelessSubject(DeviceInfo device) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shot = DeviceFrame(
-                device: device,
-                screen: const Stack(
-                  children: [
-                    Positioned.fill(child: ChatListView(scaffold: true)),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AppTabBar(),
-                    ),
-                  ],
-                ),
-              );
-
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: .light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  color: Colors.transparent,
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
-                    child: Center(child: shot),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+      RepositoryProvider<chats_repository.ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
       ),
-    );
-
-    final productShotsMatrix = [
-      ProductShotInfo(
-        hostPlatform: 'macos',
-        targetPlatform: TargetPlatform.iOS,
-      ),
-      ProductShotInfo(
-        hostPlatform: 'macos',
-        targetPlatform: TargetPlatform.macOS,
-      ),
-      ProductShotInfo(
-        hostPlatform: 'linux',
-        targetPlatform: TargetPlatform.android,
-      ),
-      ProductShotInfo(
-        hostPlatform: 'linux',
-        targetPlatform: TargetPlatform.linux,
-      ),
-      ProductShotInfo(
-        hostPlatform: 'windows',
-        targetPlatform: TargetPlatform.windows,
-      ),
+      BlocProvider<NavigationCubit>.value(value: navigationCubit),
+      BlocProvider<UserCubit>.value(value: userCubit),
+      BlocProvider<UsersCubit>.value(value: usersCubit),
+      BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
     ];
+
+    Widget chatListScreen() => const Stack(
+      children: [
+        Positioned.fill(child: ChatListView(scaffold: true)),
+        Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
+      ],
+    );
+
+    Widget buildSubject(ProductShotDevice device) => buildProductShotSubject(
+      providers: buildProviders(),
+      shot: ProductShot(
+        size: _canvasSizeFor(device.platform),
+        backgroundColor: backgroundColor,
+        titleColor: titleColor,
+        subtitleColor: subtitleColor,
+        title: title,
+        subtitle: subtitle,
+        frameColor: frameColor,
+        device: device,
+        child: chatListScreen(),
+      ),
+    );
+
+    Widget buildFramelessSubject(DeviceInfo device) => buildProductShotSubject(
+      providers: buildProviders(),
+      frameless: true,
+      shot: DeviceFrame(device: device, screen: chatListScreen()),
+    );
 
     for (final productShot in productShotsMatrix) {
       final device = productShot.targetPlatform.device;
       final deviceInfo = device.deviceInfo;
-      final identifier = productShot.targetPlatform.identifier;
+      final identifier = device.identifier;
 
       // Build the product shot with marketing
       testProductShot(
         "Chat List (${deviceInfo.name})",
         hostPlatform: productShot.hostPlatform,
-        // physicalSize: productShot.targetPlatform.device.screenSize,
+        physicalSize: _canvasSizeFor(productShot.targetPlatform),
         targetPlatform: productShot.targetPlatform,
         (tester) async {
           await tester.pumpWidget(buildSubject(device));
@@ -257,7 +233,7 @@ void main() {
       testProductShot(
         "Chat List (${productShot.targetPlatform}, ${deviceInfo.name})",
         hostPlatform: productShot.hostPlatform,
-        // physicalSize: iosPhysicalSize,
+        physicalSize: deviceInfo.frameSize,
         targetPlatform: productShot.targetPlatform,
         (tester) async {
           await tester.pumpWidget(buildFramelessSubject(deviceInfo));
@@ -271,70 +247,6 @@ void main() {
         },
       );
     }
-
-    // testProductShot(
-    //   "Chat List (Android)",
-    //   hostPlatform: 'linux',
-    //   physicalSize: androidPhysicalSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/android/metadata/en-US/images/phone-screenshots
-    //       matchesGoldenFile(_golden("chat_list.android.png")),
-    //     );
-    //   },
-    // );
-
-    // -- Product shots without marketing chrome --
-
-    // final iosDeviceInfo = _deviceFrameFor(ProductShotPlatform.ios);
-    // final androidDeviceInfo = _deviceFrameFor(ProductShotPlatform.android);
-    // final macosDeviceInfo = _deviceFrameFor(ProductShotPlatform.macos);
-    // final linuxDeviceInfo = _deviceFrameFor(ProductShotPlatform.linux);
-    // final windowsDeviceInfo = _deviceFrameFor(ProductShotPlatform.windows);
-
-    // testProductShot(
-    //   "Chat List (iOS, ${iosDeviceInfo.name})",
-    //   hostPlatform: 'macos',
-    //   physicalSize: iosDeviceInfo.frameSize,
-    //   targetPlatform: TargetPlatform.iOS,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildFramelessSubject(iosDeviceInfo));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("chat_list", ProductShotPlatform.ios),
-    //       ),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Chat List (Android, ${androidDeviceInfo.name})",
-    //   hostPlatform: 'linux',
-    //   physicalSize: androidDeviceInfo.frameSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildFramelessSubject(androidDeviceInfo));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("chat_list", ProductShotPlatform.android),
-    //       ),
-    //     );
-    //   },
-    // );
   });
 
   group("Private Chat", () {
@@ -396,172 +308,89 @@ void main() {
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
     });
 
-    Widget buildSubject(TargetPlatform platform) =>
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-              BlocProvider<MessageListCubit>.value(value: messageListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                // final shotSize = _productShotSizeFor(platform);
-                final shot = ProductShot(
-                  // size: shotSize,
-                  backgroundColor: backgroundColor,
-                  titleColor: titleColor,
-                  subtitleColor: subtitleColor,
-                  title: title,
-                  subtitle: subtitle,
-                  frameColor: frameColor,
-                  device: platform.device,
-                  child: const ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                );
+    List<SingleChildWidget> buildProviders() => [
+      RepositoryProvider<AttachmentsRepository>.value(
+        value: attachmentsRepository,
+      ),
+      BlocProvider<NavigationCubit>.value(value: navigationCubit),
+      BlocProvider<UserCubit>.value(value: userCubit),
+      BlocProvider<UsersCubit>.value(value: contactsCubit),
+      BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+      BlocProvider<MessageListCubit>.value(value: messageListCubit),
+      BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+    ];
 
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: testLightTheme,
-                  themeMode: ThemeMode.light,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Material(
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
-                      child: shot,
-                    ),
-                  ),
-                );
-              },
+    const chatScreen = ChatScreenView(
+      createMessageCubit: createMockMessageCubit,
+    );
+
+    Widget buildSubject(ProductShotDevice device) => buildProductShotSubject(
+      providers: buildProviders(),
+      shot: ProductShot(
+        size: _canvasSizeFor(device.platform),
+        backgroundColor: backgroundColor,
+        titleColor: titleColor,
+        subtitleColor: subtitleColor,
+        title: title,
+        subtitle: subtitle,
+        frameColor: frameColor,
+        device: device,
+        child: chatScreen,
+      ),
+    );
+
+    Widget buildFramelessSubject(DeviceInfo device) => buildProductShotSubject(
+      providers: buildProviders(),
+      frameless: true,
+      shot: DeviceFrame(device: device, screen: chatScreen),
+    );
+
+    for (final productShot in productShotsMatrix) {
+      final device = productShot.targetPlatform.device;
+      final deviceInfo = device.deviceInfo;
+      final identifier = device.identifier;
+
+      // Build the product shot with marketing
+      testProductShot(
+        "Private Chat (${deviceInfo.name})",
+        hostPlatform: productShot.hostPlatform,
+        physicalSize: _canvasSizeFor(productShot.targetPlatform),
+        targetPlatform: productShot.targetPlatform,
+        (tester) async {
+          await tester.pumpWidget(buildSubject(device));
+          await _precacheImages(tester);
+          await tester.pumpAndSettle();
+
+          await expectLater(
+            find.byType(ProductShot),
+            // Do not change the ios/android file names, as they are
+            // referenced in stores/ios/en-US/screenshots and
+            // stores/android/metadata/en-US/images/phone-screenshots
+            matchesGoldenFile(_golden("private_chat.$identifier.png")),
+          );
+        },
+      );
+
+      // Build the product shot without marketing chrome
+      testProductShot(
+        "Private Chat (${productShot.targetPlatform}, ${deviceInfo.name})",
+        hostPlatform: productShot.hostPlatform,
+        physicalSize: deviceInfo.frameSize,
+        targetPlatform: productShot.targetPlatform,
+        (tester) async {
+          await tester.pumpWidget(buildFramelessSubject(deviceInfo));
+          await _precacheImages(tester);
+          await tester.pumpAndSettle();
+
+          await expectLater(
+            find.byType(DeviceFrame),
+            matchesGoldenFile(
+              _golden("private_chat.$identifier.frameless.png"),
             ),
-          ),
-        );
-
-    Widget buildFramelessSubject(DeviceInfo device) =>
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-              BlocProvider<MessageListCubit>.value(value: messageListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                final shot = DeviceFrame(
-                  device: device,
-                  screen: const ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                );
-
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: testLightTheme,
-                  themeMode: ThemeMode.light,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Material(
-                    color: Colors.transparent,
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
-                      child: Center(child: shot),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-
-    // testProductShot(
-    //   "Private Chat (iOS)",
-    //   hostPlatform: "macos",
-    //   physicalSize: iosPhysicalSize,
-    //   targetPlatform: TargetPlatform.iOS,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/ios/en-US/screenshots
-    //       matchesGoldenFile(_golden("private_chat.ios.png")),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Private Chat (Android)",
-    //   hostPlatform: "linux",
-    //   physicalSize: androidPhysicalSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/android/metadata/en-US/screenshots
-    //       matchesGoldenFile(_golden("private_chat.android.png")),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Private Chat (${_deviceFrameFor(ProductShotPlatform.ios).name})",
-    //   hostPlatform: "macos",
-    //   physicalSize: _deviceFrameFor(ProductShotPlatform.ios).frameSize,
-    //   targetPlatform: TargetPlatform.iOS,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildFramelessSubject(ProductShotPlatform.ios));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("private_chat", ProductShotPlatform.ios),
-    //       ),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Private Chat (${_deviceFrameFor(ProductShotPlatform.android).name})",
-    //   hostPlatform: "linux",
-    //   physicalSize: _deviceFrameFor(ProductShotPlatform.android).frameSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(
-    //       buildFramelessSubject(ProductShotPlatform.android),
-    //     );
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("private_chat", ProductShotPlatform.android),
-    //       ),
-    //     );
-    //   },
-    // );
+          );
+        },
+      );
+    }
   });
 
   group("Group Chat", () {
@@ -623,440 +452,228 @@ void main() {
       ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
     });
 
-    Widget buildSubject(ProductShotDevice device) =>
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-              BlocProvider<MessageListCubit>.value(value: messageListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                final shot = ProductShot(
-                  backgroundColor: backgroundColor,
-                  titleColor: titleColor,
-                  subtitleColor: subtitleColor,
-                  title: title,
-                  subtitle: subtitle,
-                  frameColor: frameColor,
-                  device: device,
-                  child: const ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                );
+    List<SingleChildWidget> buildProviders() => [
+      RepositoryProvider<AttachmentsRepository>.value(
+        value: attachmentsRepository,
+      ),
+      BlocProvider<NavigationCubit>.value(value: navigationCubit),
+      BlocProvider<UserCubit>.value(value: userCubit),
+      BlocProvider<UsersCubit>.value(value: contactsCubit),
+      BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+      BlocProvider<MessageListCubit>.value(value: messageListCubit),
+      BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+    ];
 
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: testLightTheme,
-                  themeMode: ThemeMode.light,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Material(
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
-                      child: shot,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+    const chatScreen = ChatScreenView(
+      createMessageCubit: createMockMessageCubit,
+    );
 
-    Widget buildFramelessSubject(DeviceInfo device) =>
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<NavigationCubit>.value(value: navigationCubit),
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-              BlocProvider<MessageListCubit>.value(value: messageListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                final shot = DeviceFrame(
-                  device: device,
-                  screen: const ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                );
+    Widget buildSubject(ProductShotDevice device) => buildProductShotSubject(
+      providers: buildProviders(),
+      shot: ProductShot(
+        size: _canvasSizeFor(device.platform),
+        backgroundColor: backgroundColor,
+        titleColor: titleColor,
+        subtitleColor: subtitleColor,
+        title: title,
+        subtitle: subtitle,
+        frameColor: frameColor,
+        device: device,
+        child: chatScreen,
+      ),
+    );
 
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: testLightTheme,
-                  themeMode: ThemeMode.light,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  home: Material(
-                    color: Colors.transparent,
-                    child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
-                      child: Center(child: shot),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+    Widget buildFramelessSubject(DeviceInfo device) => buildProductShotSubject(
+      providers: buildProviders(),
+      frameless: true,
+      shot: DeviceFrame(device: device, screen: chatScreen),
+    );
 
-    // testProductShot(
-    //   "Group Chat (iOS)",
-    //   hostPlatform: "macos",
-    //   physicalSize: iosPhysicalSize,
-    //   targetPlatform: TargetPlatform.iOS,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
+    for (final productShot in productShotsMatrix) {
+      final device = productShot.targetPlatform.device;
+      final deviceInfo = device.deviceInfo;
+      final identifier = device.identifier;
 
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/ios/en-US/screenshots
-    //       matchesGoldenFile(_golden("group_chat.ios.png")),
-    //     );
-    //   },
-    // );
+      testProductShot(
+        "Group chat (${deviceInfo.name})",
+        hostPlatform: productShot.hostPlatform,
+        physicalSize: _canvasSizeFor(productShot.targetPlatform),
+        targetPlatform: productShot.targetPlatform,
+        (tester) async {
+          await tester.pumpWidget(buildSubject(device));
+          await _precacheImages(tester);
+          await tester.pumpAndSettle();
 
-    // testProductShot(
-    //   "Group Chat (Android)",
-    //   hostPlatform: "linux",
-    //   physicalSize: androidPhysicalSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/android/metadata/en-US/screenshots
-    //       matchesGoldenFile(_golden("group_chat.android.png")),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Group Chat (${_deviceFrameFor(ProductShotPlatform.ios).name})",
-    //   hostPlatform: "macos",
-    //   physicalSize: _deviceFrameFor(ProductShotPlatform.ios).frameSize,
-    //   targetPlatform: TargetPlatform.iOS,
-    //   (tester) async {
-    //     await tester.pumpWidget(buildFramelessSubject(ProductShotPlatform.ios));
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("group_chat", ProductShotPlatform.ios),
-    //       ),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Group Chat (${_deviceFrameFor(ProductShotPlatform.android).name})",
-    //   hostPlatform: "linux",
-    //   physicalSize: _deviceFrameFor(ProductShotPlatform.android).frameSize,
-    //   targetPlatform: TargetPlatform.android,
-    //   (tester) async {
-    //     await tester.pumpWidget(
-    //       buildFramelessSubject(ProductShotPlatform.android),
-    //     );
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("group_chat", ProductShotPlatform.android),
-    //       ),
-    //     );
-    //   },
-    // );
-  });
-
-  group("macOS Product Shots", () {
-    late MockNavigationCubit navigationCubit;
-    late MockUserCubit userCubit;
-    late MockUsersCubit usersCubit;
-    late MockChatDetailsCubit chatDetailsCubit;
-    late MockMessageListCubit messageListCubit;
-    late MockUserSettingsCubit userSettingsCubit;
-    late MockAttachmentsRepository attachmentsRepository;
-
-    setUp(() async {
-      navigationCubit = MockNavigationCubit();
-      userCubit = MockUserCubit();
-      usersCubit = MockUsersCubit();
-      chatDetailsCubit = MockChatDetailsCubit();
-      messageListCubit = MockMessageListCubit();
-      userSettingsCubit = MockUserSettingsCubit();
-      attachmentsRepository = MockAttachmentsRepository();
-
-      when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-      when(() => usersCubit.state).thenReturn(
-        MockUsersState(profiles: userProfiles, defaultUserId: ownId),
+          await expectLater(
+            find.byType(ProductShot),
+            // Do not change the ios/android file names, as they are
+            // referenced in stores/ios/en-US/screenshots and
+            // stores/android/metadata/en-US/images/phone-screenshots
+            matchesGoldenFile(_golden("group_chat.$identifier.png")),
+          );
+        },
       );
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
-      when(
-        () => chatDetailsCubit.markAsRead(
-          untilMessageId: any(named: "untilMessageId"),
-          untilTimestamp: any(named: "untilTimestamp"),
-        ),
-      ).thenAnswer((_) => Future.value());
-      when(
-        () => chatDetailsCubit.storeDraft(
-          draftMessage: any(named: "draftMessage"),
-          isCommitted: any(named: "isCommitted"),
-        ),
-      ).thenAnswer((_) async => Future.value());
-      when(
-        () => attachmentsRepository.statusStream(
-          attachmentId: any(named: "attachmentId"),
-        ),
-      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
-    });
 
-    Widget buildSubject({
-      required Color backgroundColor,
-      required Color titleColor,
-      required Color subtitleColor,
-      required Color frameColor,
-      required String title,
-      required String subtitle,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shot = ProductShot(
-                // size: macosProductShotSize,
-                backgroundColor: backgroundColor,
-                titleColor: titleColor,
-                subtitleColor: subtitleColor,
-                title: title,
-                subtitle: subtitle,
-                frameColor: frameColor,
-                device: TargetPlatform.macOS.device,
-                child: const HomeScreenDesktopLayout(
-                  chatList: ChatListView(),
-                  chat: ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                ),
-              );
+      // Build the product shot without marketing chrome
+      testProductShot(
+        "Group chat (${productShot.targetPlatform}, ${deviceInfo.name})",
+        hostPlatform: productShot.hostPlatform,
+        physicalSize: deviceInfo.frameSize,
+        targetPlatform: productShot.targetPlatform,
+        (tester) async {
+          await tester.pumpWidget(buildFramelessSubject(deviceInfo));
+          await _precacheImages(tester);
+          await tester.pumpAndSettle();
 
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: ThemeMode.light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
-                    child: shot,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-
-    Widget buildFramelessSubject() => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shot = DeviceFrame(
-                device: TargetPlatform.macOS.device.deviceInfo,
-                screen: const HomeScreenDesktopLayout(
-                  chatList: ChatListView(),
-                  chat: ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                ),
-              );
-
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: ThemeMode.light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  color: Colors.transparent,
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
-                    child: Center(child: shot),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-
-    // testProductShot(
-    //   "Private Chat (macOS)",
-    //   hostPlatform: "macos",
-    //   physicalSize: macosPhysicalSize,
-    //   targetPlatform: TargetPlatform.macOS,
-    //   (tester) async {
-    //     final chat = privateChat;
-    //     when(() => navigationCubit.state).thenReturn(
-    //       NavigationState.home(
-    //         home: HomeNavigationState(chatOpen: true, chatId: chat.id),
-    //       ),
-    //     );
-    //     when(
-    //       () => chatDetailsCubit.state,
-    //     ).thenReturn(ChatDetailsState(chat: chat, members: privateChatMembers));
-    //     messageListCubit.setState(privateChatMessages);
-    //     _stubAttachments(attachmentsRepository, privateChatAttachmentImages);
-
-    //     // The desktop layout always shows the chat list, so this shot doubles
-    //     // as the hero image and carries the lead store copy.
-    //     await tester.pumpWidget(
-    //       buildSubject(
-    //         backgroundColor: Primitive.neutral(NeutralShade.s100),
-    //         titleColor: Primitive.neutral(NeutralShade.s800),
-    //         subtitleColor: Primitive.neutral(NeutralShade.s600),
-    //         frameColor: Primitive.neutral(NeutralShade.s300),
-    //         title: 'Secure messaging for everyone.',
-    //         subtitle: 'Everything in Air is end-to-end encrypted.',
-    //       ),
-    //     );
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/macos/screenshots/en-US
-    //       matchesGoldenFile(_golden("private_chat.macos.png")),
-    //     );
-
-    //     tester.view.physicalSize =
-    //         TargetPlatform.macOS.device.deviceInfo.frameSize;
-    //     await tester.pumpWidget(buildFramelessSubject());
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("private_chat", ProductShotPlatform.macos),
-    //       ),
-    //     );
-    //   },
-    // );
-
-    // testProductShot(
-    //   "Group Chat (macOS)",
-    //   hostPlatform: "macos",
-    //   physicalSize: macosPhysicalSize,
-    //   targetPlatform: TargetPlatform.macOS,
-    //   (tester) async {
-    //     final chat = groupChat;
-    //     when(() => navigationCubit.state).thenReturn(
-    //       NavigationState.home(
-    //         home: HomeNavigationState(chatOpen: true, chatId: chat.id),
-    //       ),
-    //     );
-    //     when(
-    //       () => chatDetailsCubit.state,
-    //     ).thenReturn(ChatDetailsState(chat: chat, members: groupChatMembers));
-    //     messageListCubit.setState(groupChatMessages);
-    //     _stubAttachments(attachmentsRepository, groupChatAttachmentImages);
-
-    //     await tester.pumpWidget(
-    //       buildSubject(
-    //         backgroundColor: Primitive.chromatic(Hue.blue, Shade.s50),
-    //         titleColor: Primitive.chromatic(Hue.blue, Shade.s800),
-    //         subtitleColor: Primitive.chromatic(Hue.blue, Shade.s600),
-    //         frameColor: Primitive.chromatic(Hue.blue, Shade.s300),
-    //         title: 'Create group chats.',
-    //         subtitle: 'Message with multiple people.',
-    //       ),
-    //     );
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(ProductShot),
-    //       // Do not change the file name, as it is referenced in stores/macos/screenshots/en-US
-    //       matchesGoldenFile(_golden("group_chat.macos.png")),
-    //     );
-
-    //     tester.view.physicalSize = _deviceFrameFor(
-    //       ProductShotPlatform.macos,
-    //     ).frameSize;
-    //     await tester.pumpWidget(buildFramelessSubject());
-    //     await _precacheImages(tester);
-    //     await tester.pumpAndSettle();
-
-    //     await expectLater(
-    //       find.byType(DeviceFrame),
-    //       matchesGoldenFile(
-    //         _deviceGolden("group_chat", ProductShotPlatform.macos),
-    //       ),
-    //     );
-    //   },
-    // );
+          await expectLater(
+            find.byType(DeviceFrame),
+            matchesGoldenFile(_golden("group_chat.$identifier.frameless.png")),
+          );
+        },
+      );
+    }
   });
+
+  // group("macOS Product Shots", () {
+  //   late MockNavigationCubit navigationCubit;
+  //   late MockUserCubit userCubit;
+  //   late MockUsersCubit usersCubit;
+  //   late MockChatDetailsCubit chatDetailsCubit;
+  //   late MockMessageListCubit messageListCubit;
+  //   late MockUserSettingsCubit userSettingsCubit;
+  //   late MockAttachmentsRepository attachmentsRepository;
+
+  //   setUp(() async {
+  //     navigationCubit = MockNavigationCubit();
+  //     userCubit = MockUserCubit();
+  //     usersCubit = MockUsersCubit();
+  //     chatDetailsCubit = MockChatDetailsCubit();
+  //     messageListCubit = MockMessageListCubit();
+  //     userSettingsCubit = MockUserSettingsCubit();
+  //     attachmentsRepository = MockAttachmentsRepository();
+
+  //     when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
+  //     when(() => usersCubit.state).thenReturn(
+  //       MockUsersState(profiles: userProfiles, defaultUserId: ownId),
+  //     );
+  //     when(
+  //       () => userSettingsCubit.state,
+  //     ).thenReturn(const UserSettings(experimentalFeatures: false));
+  //     when(
+  //       () => chatDetailsCubit.markAsRead(
+  //         untilMessageId: any(named: "untilMessageId"),
+  //         untilTimestamp: any(named: "untilTimestamp"),
+  //       ),
+  //     ).thenAnswer((_) => Future.value());
+  //     when(
+  //       () => chatDetailsCubit.storeDraft(
+  //         draftMessage: any(named: "draftMessage"),
+  //         isCommitted: any(named: "isCommitted"),
+  //       ),
+  //     ).thenAnswer((_) async => Future.value());
+  //     when(
+  //       () => attachmentsRepository.statusStream(
+  //         attachmentId: any(named: "attachmentId"),
+  //       ),
+  //     ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
+  //   });
+
+  //   List<SingleChildWidget> buildProviders() => [
+  //     RepositoryProvider<AttachmentsRepository>.value(
+  //       value: attachmentsRepository,
+  //     ),
+  //     RepositoryProvider<chats_repository.ChatsRepository>.value(
+  //       value: FakeChatsRepository(chats),
+  //     ),
+  //     BlocProvider<NavigationCubit>.value(value: navigationCubit),
+  //     BlocProvider<UserCubit>.value(value: userCubit),
+  //     BlocProvider<UsersCubit>.value(value: usersCubit),
+  //     BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+  //     BlocProvider<MessageListCubit>.value(value: messageListCubit),
+  //     BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+  //   ];
+
+  //   const desktopScreen = HomeScreenDesktopLayout(
+  //     chatList: ChatListView(),
+  //     chat: ChatScreenView(createMessageCubit: createMockMessageCubit),
+  //   );
+
+  //   Widget buildSubject({
+  //     required Color backgroundColor,
+  //     required Color titleColor,
+  //     required Color subtitleColor,
+  //     required Color frameColor,
+  //     required String title,
+  //     required String subtitle,
+  //   }) => buildProductShotSubject(
+  //     providers: buildProviders(),
+  //     shot: ProductShot(
+  //       backgroundColor: backgroundColor,
+  //       titleColor: titleColor,
+  //       subtitleColor: subtitleColor,
+  //       title: title,
+  //       subtitle: subtitle,
+  //       frameColor: frameColor,
+  //       device: TargetPlatform.macOS.device,
+  //       child: desktopScreen,
+  //     ),
+  //   );
+
+  //   Widget buildFramelessSubject() => buildProductShotSubject(
+  //     providers: buildProviders(),
+  //     frameless: true,
+  //     shot: DeviceFrame(
+  //       device: TargetPlatform.macOS.device.deviceInfo,
+  //       screen: desktopScreen,
+  //     ),
+  //   );
+
+  //   for (final productShot in productShotsMatrix) {
+  //     final device = productShot.targetPlatform.device;
+  //     final deviceInfo = device.deviceInfo;
+  //     final identifier = device.identifier;
+
+  //     testProductShot(
+  //       "Private Chat (${deviceInfo.name})",
+  //       hostPlatform: productShot.hostPlatform,
+  //       // physicalSize: productShot.targetPlatform.device.screenSize,
+  //       targetPlatform: productShot.targetPlatform,
+  //       (tester) async {
+  //         await tester.pumpWidget(buildSubject(device));
+  //         await _precacheImages(tester);
+  //         await tester.pumpAndSettle();
+
+  //         await expectLater(
+  //           find.byType(ProductShot),
+  //           // Do not change the ios/android file names, as they are
+  //           // referenced in stores/ios/en-US/screenshots and
+  //           // stores/android/metadata/en-US/images/phone-screenshots
+  //           matchesGoldenFile(_golden("private_chat.$identifier.png")),
+  //         );
+  //       },
+  //     );
+
+  //     // Build the product shot without marketing chrome
+  //     testProductShot(
+  //       "Private Chat (${productShot.targetPlatform}, ${deviceInfo.name})",
+  //       hostPlatform: productShot.hostPlatform,
+  //       // physicalSize: iosPhysicalSize,
+  //       targetPlatform: productShot.targetPlatform,
+  //       (tester) async {
+  //         await tester.pumpWidget(buildFramelessSubject(deviceInfo));
+  //         await _precacheImages(tester);
+  //         await tester.pumpAndSettle();
+
+  //         await expectLater(
+  //           find.byType(DeviceFrame),
+  //           matchesGoldenFile(
+  //             _golden("private_chat.$identifier.frameless.png"),
+  //           ),
+  //         );
+  //       },
+  //     );
+  //   }
+  // });
 }
 
 /// Stubs each attachment id to its own image, since the mocked repository
@@ -1088,7 +705,7 @@ void testProductShot(
   String description,
   WidgetTesterCallback callback, {
   required String hostPlatform,
-  // required Size physicalSize,
+  required Size physicalSize,
   required TargetPlatform targetPlatform,
 }) async {
   testWidgets(
@@ -1096,7 +713,7 @@ void testProductShot(
     (tester) async {
       debugDisableShadows = false;
 
-      tester.view.physicalSize = targetPlatform.device.screenSize;
+      tester.view.physicalSize = physicalSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();

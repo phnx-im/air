@@ -19,7 +19,7 @@ ThemeData testThemeData(Brightness brightness) {
     textTheme: theme.textTheme.apply(
       fontFamilyFallback: Platform.isMacOS
           ? ['Apple Color Emoji']
-          : ['NotoEmoji'],
+          : ['NotoColorEmoji'],
     ),
   );
 }
