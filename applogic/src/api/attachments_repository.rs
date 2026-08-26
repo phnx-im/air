@@ -97,12 +97,22 @@ impl AttachmentsRepository {
                     }
                 }
             }
-        } else if let Ok(Some(AttachmentStatus::Ready)) =
-            self.store.attachment_status(attachment_id).await
-        {
-            sink.add(UiAttachmentStatus::Completed).ok();
         } else {
-            sink.add(UiAttachmentStatus::Failed).ok();
+            // No task in progress, so report the persisted status directly.
+            let ui_status = match self.store.attachment_status(attachment_id).await {
+                Ok(Some(AttachmentStatus::Ready)) => UiAttachmentStatus::Completed,
+                Ok(Some(AttachmentStatus::NotFound)) => UiAttachmentStatus::NotFound,
+                // Still in flight, a task will pick it up. No failure is
+                // reported while it is uploading or downloading.
+                Ok(Some(
+                    AttachmentStatus::Uploading
+                    | AttachmentStatus::Downloading
+                    | AttachmentStatus::Pending,
+                )) => UiAttachmentStatus::Progress(0),
+                // UploadFailed / DownloadFailed / Unknown / missing row.
+                _ => UiAttachmentStatus::Failed,
+            };
+            sink.add(ui_status).ok();
         }
     }
 
@@ -288,6 +298,19 @@ async fn attachment_downloads_loop(
 
     info!("starting attachments download task");
     while let Some(attachment_id) = local_attachment_ids.next().await {
+        // Attachment `Add` notifications also fire for our own outgoing
+        // attachments, stored with an `Uploading` or `Ready` status. A
+        // download task for those finds no pending record and drops the
+        // progress sender, which reports a spurious `Failed` to the UI.
+        // Only pending (incoming) attachments are downloaded here.
+        match store.attachment_status(attachment_id).await {
+            Ok(Some(AttachmentStatus::Pending)) => {}
+            Ok(_) => continue,
+            Err(error) => {
+                error!(%error, ?attachment_id, "failed to read attachment status; skipping");
+                continue;
+            }
+        }
         let Ok(permit) = download_tasks_semaphore.clone().acquire_owned().await else {
             return;
         };

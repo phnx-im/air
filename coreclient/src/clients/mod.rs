@@ -25,6 +25,7 @@ use aircommon::{
     },
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
+    registration::RegistrationChallenge,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 pub use airprotos::delivery_service::v1::StorageObjectType;
@@ -79,6 +80,8 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use message::MarkChatAsRead;
+
 pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
@@ -99,6 +102,7 @@ mod persistence;
 pub mod process;
 pub(crate) mod push_token_state;
 mod reactions;
+pub mod registration;
 mod remove_users;
 pub(crate) mod safety_code;
 pub mod store;
@@ -154,9 +158,9 @@ impl CoreUser {
         user_id: UserId,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
-        Self::new_impl(user_id, None, db_path, push_token, invitation_code).await
+        Self::new_impl(user_id, None, db_path, push_token, challenge).await
     }
 
     /// Same as [`new`], but allows to override the server URL.
@@ -166,9 +170,9 @@ impl CoreUser {
         server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
-        Self::new_impl(user_id, server_url, db_path, push_token, invitation_code).await
+        Self::new_impl(user_id, server_url, db_path, push_token, challenge).await
     }
 
     async fn new_impl(
@@ -176,7 +180,7 @@ impl CoreUser {
         server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         info!(?user_id, "creating new user");
 
@@ -197,7 +201,7 @@ impl CoreUser {
             air_db,
             client_db,
             global_lock,
-            invitation_code,
+            challenge,
         )
         .await
     }
@@ -211,22 +215,22 @@ impl CoreUser {
         air_db: DbAccess,
         client_db: DbAccess,
         global_lock: GlobalLock,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state = UserCreationState::new(
-            &client_db,
-            &air_db,
-            user_id,
-            client_record_id,
-            push_token,
-            invitation_code,
-        )
-        .await?;
+        let user_creation_state =
+            UserCreationState::new(&client_db, &air_db, user_id, client_record_id, push_token)
+                .await?;
 
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
+            .complete_user_creation(
+                &air_db,
+                &client_db,
+                client_record_id,
+                &api_clients,
+                challenge,
+            )
             .await?;
 
         OwnClientInfo {
@@ -281,8 +285,10 @@ impl CoreUser {
             .await?
             .context("missing user creation state")?;
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
+        // A resumed registration carries no challenge. If the AS step is still
+        // pending and the server wants one, the caller is told to ask again.
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients, None)
             .await?;
 
         ClientRecord::set_default(air_db.write().await?, client_record_id).await?;

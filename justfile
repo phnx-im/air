@@ -52,7 +52,7 @@ check-cargo-deny:
 
 [group('check')]
 check-cargo-machete:
-    cargo machete
+    cargo machete --with-metadata
 
 [group('check')]
 check-dart:
@@ -103,7 +103,7 @@ regenerate-frb:
     rm -Rf lib/core/api lib/core/frb_*.dart lib/core/lib.dart
 
     CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
-        flutter_rust_bridge_codegen generate
+        flutter_rust_bridge_codegen generate --no-web
 
     cd .. && cargo fmt
 

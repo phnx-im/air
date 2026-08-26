@@ -7,7 +7,7 @@ use std::slice;
 use aircoreclient::{
     ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
-        listen_response,
+        MarkChatAsRead, listen_response,
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
@@ -1062,15 +1062,20 @@ async fn qs_stream_processor_partially_processes_messages() {
     let content = MimiContent::simple_markdown_message("Hello from Alice!".to_owned(), [0; 16]);
 
     alice_user
-        .send_message(connection_chat_id, content.clone(), None)
+        .send_message(
+            connection_chat_id,
+            content.clone(),
+            None,
+            MarkChatAsRead::Yes,
+        )
         .await
         .unwrap();
     alice_user
-        .send_message(group_chat_id, content.clone(), None)
+        .send_message(group_chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     alice_user
-        .send_message(connection_chat_id, content, None)
+        .send_message(connection_chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     alice_user.outbound_service().run_once().await;

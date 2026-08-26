@@ -21,10 +21,10 @@ use aircommon::{
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
+use chrono::Utc;
 use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
-use semver::Version;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
@@ -32,6 +32,7 @@ use tracing::error;
 use crate::{
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
+    version::VerifiedClientVersion,
 };
 
 /// Maximum number of key packages per batch to upload in one request.
@@ -61,9 +62,10 @@ impl GrpcQs {
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
-    ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.qs.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+    ) -> Result<VerifiedClientVersion, Status> {
+        self.qs
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())
     }
 }
 
@@ -465,13 +467,15 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        let client_version = self.verify_client_version(
-            init_request
-                .payload
-                .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(init_request.client_metadata.as_ref()),
-        )?;
+        let client_version = self
+            .verify_client_version(
+                init_request
+                    .payload
+                    .as_ref()
+                    .and_then(|p| p.client_metadata.as_ref())
+                    .or(init_request.client_metadata.as_ref()),
+            )?
+            .version;
 
         let payload_bytes = init_request
             .payload

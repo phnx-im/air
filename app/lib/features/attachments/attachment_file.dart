@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/attachments/attachment_file_view.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
-class AttachmentFile extends HookWidget {
+class AttachmentFile extends StatelessWidget {
   const AttachmentFile({
     super.key,
     required this.attachment,
@@ -27,36 +27,16 @@ class AttachmentFile extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
-    return Row(
-      mainAxisSize: .min,
-      spacing: S.s16,
-      children: [
-        _AttachmentFileStatus(
-          attachmentId: attachment.attachmentId,
-          size: attachment.size,
-          isSender: isSender,
-          color: color,
-        ),
-        // Flexible is needed to make the text wrap if the filename is too long
-        Flexible(
-          fit: .loose,
-          child: Column(
-            crossAxisAlignment: .start,
-            children: [
-              Text(
-                attachment.filename,
-                style: typeScale.body.regular.style(color: color),
-              ),
-              Text(
-                loc.bytesToHumanReadable(attachment.size),
-                style: typeScale.body.xs.style(color: color),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return AttachmentFileView(
+      leading: _AttachmentFileStatus(
+        attachmentId: attachment.attachmentId,
+        size: attachment.size,
+        isSender: isSender,
+        color: color,
+      ),
+      filename: attachment.filename,
+      size: attachment.size,
+      color: color,
     );
   }
 }
