@@ -18,6 +18,7 @@ class ProductShotFrame extends StatelessWidget {
     this.borderWidth = 32,
     this.cornerRadius = 80,
     this.frameColor = Colors.black,
+    this.frameless = false,
   });
 
   final Widget child;
@@ -29,6 +30,10 @@ class ProductShotFrame extends StatelessWidget {
   final double borderWidth;
   final double cornerRadius;
   final Color frameColor;
+
+  /// Skips the device bezel (border, corner radius, shadow) and renders just
+  /// the screen content at its native size.
+  final bool frameless;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +49,30 @@ class ProductShotFrame extends StatelessWidget {
       devicePixelRatio: devicePixelRatio,
       systemGestureInsets: EdgeInsets.zero,
     );
+
+    final screen = ClipRRect(
+      borderRadius: BorderRadius.circular(frameless ? 0 : innerRadius),
+      clipBehavior: .antiAlias,
+      child: SizedBox(
+        width: screenSize.width,
+        height: screenSize.height,
+        child: Stack(
+          fit: .expand,
+          children: [
+            MediaQuery(data: mediaQuery, child: child),
+            if (statusBarHeight > 0)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(height: statusBarHeight, child: statusBar),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (frameless) return screen;
 
     return Container(
       decoration: BoxDecoration(
@@ -61,33 +90,7 @@ class ProductShotFrame extends StatelessWidget {
         clipBehavior: .antiAlias,
         child: ColoredBox(
           color: frameColor,
-          child: Padding(
-            padding: EdgeInsets.all(borderWidth),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(innerRadius),
-              clipBehavior: .antiAlias,
-              child: SizedBox(
-                width: screenSize.width,
-                height: screenSize.height,
-                child: Stack(
-                  fit: .expand,
-                  children: [
-                    MediaQuery(data: mediaQuery, child: child),
-                    if (statusBarHeight > 0)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: SizedBox(
-                          height: statusBarHeight,
-                          child: statusBar,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          child: Padding(padding: EdgeInsets.all(borderWidth), child: screen),
         ),
       ),
     );

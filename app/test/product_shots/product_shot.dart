@@ -23,6 +23,7 @@ class ProductShot extends StatelessWidget {
     required this.child,
     required this.frameColor,
     this.device,
+    this.frameless = false,
   });
 
   final Size size;
@@ -34,6 +35,10 @@ class ProductShot extends StatelessWidget {
   final ProductShotDevice? device;
   final Color frameColor;
   final Widget child;
+
+  /// Skips the device bezel around the screen content. See
+  /// [ProductShotFrame.frameless].
+  final bool frameless;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +131,7 @@ class ProductShot extends StatelessWidget {
                         borderWidth: frameStyle.borderWidth,
                         cornerRadius: frameStyle.cornerRadius,
                         frameColor: frameStyle.frameColor,
+                        frameless: frameless,
                         child: child,
                       ),
                     ),

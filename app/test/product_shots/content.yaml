@@ -1,50 +1,55 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Own profile. Avatar files are implicitly `<key>.jpg` under
+# test/assets/images/ for own/contacts (not for chats, whose avatar is a
+# separate photo unrelated to the key).
 own:
   key: sasha
   name: Sasha
-  avatar: sasha.jpg
+
+# Contacts
 contacts:
-  - key: sigrid
+  - key: sigridh
     name: Sigrid H
-    avatar: sigridh.jpg
   - key: deepti
     name: Deepti
-    avatar: deepti.jpg
   - key: jule
     name: Jule
-    avatar: jule.jpg
   - key: frederic
     name: Frederic
-    avatar: frederic.jpg
   - key: amara
     name: Amara
-    avatar: amara.jpg
   - key: jacob
     name: Jacob Brooks
-    avatar: jacob.jpg
   - key: luis
     name: Luis
-    avatar: luis.jpg
   - key: kristijan
     name: Kristijan P
-    avatar: kristijan.jpg
   - key: josefina
     name: Josefina
-    avatar: josefina.jpg
   - key: luca
     name: Luca
-    avatar: luca.jpg
   - key: lukas
     name: Lukas
-    avatar: lukas.jpg
+
+# Which chat is shown in each product shot that needs a full transcript.
+# (chat_list shows every chat below and needs no mapping.)
+shots:
+  private_chat: luis
+  group_chat: roomies
+
+# Chats
 chats:
-  - key: sigrid
+  - key: sigridh
     type: direct
-    contact: sigrid
+    contact: sigridh
     unread: 2
     lastUsed:
       minutes: 0
     lastMessage:
-      sender: sigrid
+      sender: sigridh
       text: Can you make it?
   - key: roomies
     type: group
@@ -153,6 +158,8 @@ chats:
     lastMessage:
       sender: kristijan
       text: That's so great! I started this monthly event a few years ago just for that reason.
+
+# Conversation contents
 transcripts:
   luis:
     - sender: sasha

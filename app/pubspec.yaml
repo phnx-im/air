@@ -74,6 +74,7 @@ dev_dependencies:
   crypto: ^3.0.6
   yaml: ^3.1.2
   build_runner: ^2.10.3
+  device_frame: ^1.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
