@@ -38,7 +38,7 @@ void main() {
     unawaited(
       controller.show(
         context: tester.element(find.byType(Scaffold)),
-        offset: const Offset(0, _maxHeight),
+        offset: Offset.zero,
         suggestions: List.generate(_suggestionCount, (index) => index),
         style: const SuggestionOverlayStyle(
           backgroundColor: Colors.white,

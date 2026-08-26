@@ -86,9 +86,6 @@ class SuggestionOverlayController<T> {
   }
 
   /// Insert or refresh the overlay with the provided suggestions and builder.
-  ///
-  /// [offset] positions the overlay's bottom left corner relative to the
-  /// anchor, so callers place it without knowing how tall it renders.
   Future<void> show({
     required BuildContext context,
     required Offset offset,
@@ -121,19 +118,14 @@ class SuggestionOverlayController<T> {
       _markNeedsBuild();
     }
     _visible = true;
-    // Set the phase before measuring, otherwise the body isn't built yet and
-    // there is nothing to measure. Measuring ahead of the entry animation puts
-    // the corrected offset on screen while the overlay is still faded out,
-    // rather than 100 ms later once it is fully visible.
-    _animationPhase = SuggestionOverlayAnimationPhase.entering;
-    _markNeedsBuild();
-    _scheduleSizeUpdate();
-    _scrollToHighlighted(movingDown: false);
     if (!wasVisible) {
       await _playAnimation(SuggestionOverlayAnimationPhase.entering);
     } else {
+      _animationPhase = SuggestionOverlayAnimationPhase.entering;
       _animationController.value = 1;
     }
+    _scheduleSizeUpdate();
+    _scrollToHighlighted(movingDown: false);
   }
 
   /// Update the overlay anchor offset without rebuilding tiles.
@@ -331,10 +323,6 @@ class _SuggestionOverlay<T> extends StatelessWidget {
       child: CompositedTransformFollower(
         link: controller.anchorLink,
         showWhenUnlinked: false,
-        // Anchoring the bottom left corner lets the follower resolve the
-        // overlay's height at layout time, so the offset never has to carry a
-        // measured height that lags a frame behind the current suggestions.
-        followerAnchor: .bottomLeft,
         offset: controller.offset,
         child: AnimatedBuilder(
           animation: controller.animationController,
@@ -409,20 +397,17 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
             maxHeight: style.maxHeight,
           ),
           child: SingleChildScrollView(
-            child: IntrinsicWidth(
-              child: Column(
-                mainAxisSize: .min,
-                crossAxisAlignment: .stretch,
-                children: List.generate(suggestions.length, (index) {
-                  final item = suggestions[index];
-                  final isHighlighted = index == controller.highlightIndex;
-                  return InkWell(
-                    key: controller.itemKey(index),
-                    onTap: () => controller.selectSuggestion(index),
-                    child: itemBuilder(context, item, isHighlighted),
-                  );
-                }),
-              ),
+            child: Column(
+              mainAxisSize: .min,
+              children: List.generate(suggestions.length, (index) {
+                final item = suggestions[index];
+                final isHighlighted = index == controller.highlightIndex;
+                return InkWell(
+                  key: controller.itemKey(index),
+                  onTap: () => controller.selectSuggestion(index),
+                  child: itemBuilder(context, item, isHighlighted),
+                );
+              }),
             ),
           ),
         ),

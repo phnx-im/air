@@ -29,10 +29,7 @@ class PanelSurface extends InheritedWidget {
   static Color colorOf(BuildContext context) =>
       maybeOf(context) ?? SemanticPalette.of(context).backgroundBase.primary;
 
-  /// The text slots blended onto [colorOf], so each one is fully opaque. Text
-  /// that can hold a color emoji reads its ink here: the emoji would otherwise
-  /// inherit the slot's alpha and end up being transparent. Memoized per
-  /// surface, so a row costs a map lookup rather than four blends.
+  /// The text slots blended onto [colorOf], so each one is fully opaque.
   static TextPalette textOf(BuildContext context) {
     final palette = SemanticPalette.of(context);
     return palette.text.on(maybeOf(context) ?? palette.backgroundBase.primary);
