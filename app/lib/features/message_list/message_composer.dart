@@ -29,6 +29,7 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
@@ -133,6 +134,15 @@ class _MessageComposerState extends State<MessageComposer>
     final pendingShare = _androidShareCubit.state;
     _acceptUnaddressedShare =
         pendingShare != null && pendingShare.chatId == null;
+    final destination = pendingShare?.chatId;
+    if (destination != null) {
+      final chatsRepository = context.read<ChatsRepository>();
+      if (chatsRepository.isLoaded &&
+          chatsRepository.getChat(destination) == null) {
+        _androidShareCubit.unaddress();
+        context.read<NavigationCubit>().openHome();
+      }
+    }
     _stagedShareSubscription = _androidShareCubit.stream.listen(
       (_) => _maybeApplyStagedShare(),
     );
@@ -197,6 +207,14 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
     _acceptUnaddressedShare = false;
+    if (share.droppedAttachments > 0) {
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text(loc.shareScreen_droppedItems(share.droppedAttachments)),
+        ),
+        tone: SnackbarTone.danger,
+      );
+    }
     final text = share.text;
     if (text != null && text.isNotEmpty) {
       _inputController.text = text;

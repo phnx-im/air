@@ -88,6 +88,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
           _appRouter.dismissOverlays();
+          _androidShareCubit.dropPendingShare();
           _navigationCubit.openChat(chatId);
         });
     _sharedIntoChatSubscription = _sharedIntoChatController.stream.listen((

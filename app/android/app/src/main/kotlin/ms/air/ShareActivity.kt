@@ -25,7 +25,7 @@ import java.util.UUID
 class ShareActivity : ComponentActivity() {
     companion object {
         private const val TAG = "ShareActivity"
-        private const val SHARE_CACHE_DIR = "share"
+        const val SHARE_CACHE_DIR = "share"
 
         // Anything beyond is reported as dropped.
         private const val MAX_ATTACHMENTS = 10

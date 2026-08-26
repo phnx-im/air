@@ -4,9 +4,9 @@
 
 //! Share feature
 //!
-//! Backs the share UI hosted by the iOS share extension and the Android
-//! share activity. Loads the default user, exposes the chats to pick from
-//! and sends the shared content into the chosen chats.
+//! Backs the share UI hosted by the iOS share extension. Loads the default
+//! user, exposes the chats to pick from and sends the shared content into the
+//! chosen chats.
 
 use std::{
     collections::HashMap,
@@ -117,9 +117,8 @@ pub struct ShareState {
 /// The cubit backing the share UI
 ///
 /// Unlike the other cubits it is not derived from a [`UserCubitBase`]. The
-/// share UI runs in its own Flutter engine, on iOS even in its own process,
-/// without the full app. The cubit loads the default user itself and does
-/// not listen to the server queues.
+/// share UI runs in its own process, without the full app. The cubit loads
+/// the default user itself and does not listen to the server queues.
 #[frb(opaque)]
 pub struct ShareCubitBase {
     core: CubitCore<ShareState>,
@@ -223,8 +222,8 @@ impl ShareCubitBase {
         let core_user = self.core_user.get().context("user is not loaded")?.clone();
 
         // Capture store notifications of all writes below. They are
-        // persisted at the end, so that the main app (separate process on
-        // iOS, separate engine on Android) can reload its stores.
+        // persisted at the end, so that the main app in its own process can
+        // reload its stores.
         let pending_store_notifications = core_user.pending_db_notifications();
 
         let status = self

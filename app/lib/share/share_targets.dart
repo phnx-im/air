@@ -75,7 +75,7 @@ Future<void> _publishShareTarget(
     return;
   }
   await platform.invokeMethod('publishShareShortcuts', {
-    'targets': _encodeTarget(target),
+    'targets': [_encodeTarget(target)],
     'usedChatId': chatId.uuid.toString(),
   });
   await _removeStaleShareTargets(chatsRepository, target);

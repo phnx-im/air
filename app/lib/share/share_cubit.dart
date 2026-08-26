@@ -42,8 +42,23 @@ class AndroidShareCubit extends Cubit<StagedShare?> {
     return share;
   }
 
+  /// Lets the user pick the destination from the chat list instead.
+  void unaddress() {
+    final share = state;
+    if (share == null || share.chatId == null) {
+      return;
+    }
+    emit(
+      StagedShare(
+        attachments: share.attachments,
+        text: share.text,
+        droppedAttachments: share.droppedAttachments,
+      ),
+    );
+  }
+
   /// Drops the pending share and deletes its extracted files.
-  void cancel() {
+  void dropPendingShare() {
     final share = state;
     emit(null);
     if (share != null) {

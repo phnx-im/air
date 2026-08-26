@@ -97,21 +97,6 @@ impl ChatsDataSource {
             .map(Result::err)
     }
 
-    /// Members of a chat, sorted.
-    pub async fn chat_participants(&self, chat_id: ChatId) -> Vec<UiUserId> {
-        let mut members: Vec<UiUserId> = self
-            .inner
-            .core_user
-            .chat_participants(chat_id)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(From::from)
-            .collect();
-        members.sort_unstable();
-        members
-    }
-
     pub async fn create_group_chat(
         &self,
         group_name: String,

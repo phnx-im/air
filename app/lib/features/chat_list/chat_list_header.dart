@@ -33,7 +33,14 @@ class ChatListHeader extends StatelessWidget {
       tokens: tokens,
       title: sharePending ? loc.homeTab_share : loc.homeTab_chats,
       scrollOffset: scrollOffset,
-      leading: sharePending ? null : _ComposeButton(tokens: tokens),
+      leading: sharePending
+          ? ListHeaderAction(
+              tokens: tokens,
+              icon: AppIconType.x,
+              onAction: (_) =>
+                  context.read<AndroidShareCubit>().dropPendingShare(),
+            )
+          : _ComposeButton(tokens: tokens),
     );
   }
 }

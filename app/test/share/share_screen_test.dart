@@ -12,7 +12,6 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/share/share_payload.dart';
 import 'package:air/share/share_screen.dart';
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -162,19 +161,21 @@ void main() {
       sizeView(tester, phoneViewSize);
       when(() => shareCubit.state).thenReturn(signedOutState);
 
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      try {
-        await tester.pumpWidget(buildSubject());
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('Sign in to Air first to share content.'),
-          findsOneWidget,
-        );
-        expect(find.text('Open Air'), findsNothing);
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
+      expect(
+        find.text('Sign in to Air first to share content.'),
+        findsOneWidget,
+      );
+      // The extension cannot reach the main app, so it offers no way there.
+      expect(nextButtonFinder, findsNothing);
+      expect(sendButtonFinder, findsNothing);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/share_screen_signed_out.png'),
+      );
     });
 
     testWidgets('shows the chat picker and selects chats', (tester) async {

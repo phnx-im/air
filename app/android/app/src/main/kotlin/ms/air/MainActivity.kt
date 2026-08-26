@@ -89,7 +89,12 @@ class MainActivity : FlutterFragmentActivity() {
         }
         // Send the share handoff to Dart directly
         readSharePayload(intent)?.let {
-            channel?.invokeMethod("sharedIntoChat", it)
+            val channel = channel
+            if (channel != null) {
+                channel.invokeMethod("sharedIntoChat", it)
+            } else {
+                pendingInitialShare = it
+            }
         }
     }
 
@@ -104,13 +109,18 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun readSharePayload(intent: Intent): Map<String, Any?>? {
         if (intent.action != SHARE_INTO_CHAT) return null
+        val paths = intent.extras?.getStringArrayList(EXTRAS_SHARE_PATHS_KEY).orEmpty()
+        val mimeTypes = intent.extras?.getStringArrayList(EXTRAS_SHARE_MIME_TYPES_KEY).orEmpty()
+        // The intent is exported, so only accept files extracted by ShareActivity.
+        val shareDir = File(cacheDir, ShareActivity.SHARE_CACHE_DIR).canonicalPath + File.separator
+        val accepted = paths.indices.filter {
+            runCatching { File(paths[it]).canonicalPath }.getOrNull()?.startsWith(shareDir) == true
+        }
         return mapOf(
             // Absent when the user picks the destination from the chat list
             "chatId" to intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY),
-            "paths" to intent.extras?.getStringArrayList(EXTRAS_SHARE_PATHS_KEY)
-                .orEmpty(),
-            "mimeTypes" to intent.extras?.getStringArrayList(EXTRAS_SHARE_MIME_TYPES_KEY)
-                .orEmpty(),
+            "paths" to accepted.map { paths[it] },
+            "mimeTypes" to accepted.map { mimeTypes.getOrNull(it).orEmpty() },
             "text" to intent.extras?.getString(EXTRAS_SHARE_TEXT_KEY),
             "dropped" to (intent.extras?.getInt(EXTRAS_SHARE_DROPPED_KEY, 0) ?: 0),
         )

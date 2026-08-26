@@ -307,6 +307,9 @@ class FakeChatsRepository implements chats_repository.ChatsRepository {
   Stream<UiChatDetails?> watchChat(ChatId id) => Stream.value(_chats[id]);
 
   @override
+  Stream<List<UiUserId>?> watchMembers(ChatId id) => Stream.value(null);
+
+  @override
   Future<void> mute(ChatId id, {required UiChatMuted until}) => Future.value();
 
   @override

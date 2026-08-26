@@ -48,7 +48,7 @@ class ChatListItemCubit extends Cubit<ChatListItemState> {
   final ChatsRepository _repository;
   final ChatId chatId;
   late final StreamSubscription<UiChatDetails?> _sub;
-  late final StreamSubscription<List<UiUserId>?>? _subMembers;
+  StreamSubscription<List<UiUserId>?>? _subMembers;
 
   @override
   Future<void> close() {

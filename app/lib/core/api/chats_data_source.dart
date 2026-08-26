@@ -22,9 +22,6 @@ import 'user_cubit.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatsDataSource>>
 abstract class ChatsDataSource implements RustOpaqueInterface {
-  /// Members of a chat, sorted.
-  Future<List<UiUserId>> chatParticipants({required ChatId chatId});
-
   Future<void> close();
 
   Future<AddUsernameContactError?> createContactChat({

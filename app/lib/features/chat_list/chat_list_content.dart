@@ -565,11 +565,11 @@ class _GroupParticipantNames extends HookWidget {
       (UsersCubit cubit) => [
         for (final userId in members ?? [])
           if (userId != ownClientId) cubit.state.displayName(userId: userId),
-      ],
+      ].join(", "),
     );
 
     return Text(
-      displayNames.join(", "),
+      displayNames,
       style: typeScale.body.s.style(
         color: SemanticPalette.of(context).text.tertiary,
       ),
