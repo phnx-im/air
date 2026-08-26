@@ -76,20 +76,22 @@ fn vc_leaf_extensions() -> Extensions<LeafNode> {
 }
 
 /// Sets up two emulator clients of one virtual client: `provider_a` founds the
-/// emulation group, `provider_b` joins it via welcome, and both register the
-/// same emulation epoch. The emulation group is a plain MLS group, so it runs
-/// on the traditional ciphersuite.
+/// emulation group, `provider_b` joins it via welcome, and both hold the same
+/// newest derivation epoch. The emulation group is a plain MLS group, so it
+/// runs on the traditional ciphersuite. Returns the emulation group's ID and
+/// the shared derivation epoch.
 fn setup_sibling_emulation_epoch(
     ciphersuite: Ciphersuite,
     provider_a: &OpenMlsRustCrypto,
     provider_b: &OpenMlsRustCrypto,
-) -> EpochId {
+) -> (GroupId, EpochId) {
     let emulator_config = MlsGroupCreateConfig::builder()
         .ciphersuite(ciphersuite)
         .wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
         .capabilities(vc_capabilities())
         .with_leaf_node_extensions(vc_leaf_extensions())
         .unwrap()
+        .emulation_group(true)
         .build();
 
     let (credential_a, signer_a) = openmls::prelude::test_utils::new_credential(
@@ -116,34 +118,38 @@ fn setup_sibling_emulation_epoch(
         .add_members(provider_a, &signer_a, &[key_package_b])
         .unwrap();
     emulator_a.merge_pending_commit(provider_a).unwrap();
-    let mut emulator_b = StagedWelcome::new_from_welcome(
+    let emulator_b = StagedWelcome::new_from_welcome(
         provider_b,
         &join_config(),
         welcome.into_welcome().unwrap(),
         Some(emulator_a.export_ratchet_tree().into()),
     )
     .unwrap()
+    .emulation_group(true)
     .into_group(provider_b)
     .unwrap();
 
     let epoch_id = emulator_a
-        .register_vc_emulation_epoch(provider_a.crypto(), provider_a.storage())
+        .newest_vc_derivation_epoch(provider_a.storage())
+        .unwrap()
         .unwrap();
     let sibling_epoch_id = emulator_b
-        .register_vc_emulation_epoch(provider_b.crypto(), provider_b.storage())
+        .newest_vc_derivation_epoch(provider_b.storage())
+        .unwrap()
         .unwrap();
     assert_eq!(
         epoch_id, sibling_epoch_id,
         "siblings must derive the same EpochId"
     );
-    epoch_id
+    (emulator_a.group_id().clone(), epoch_id)
 }
 
 /// One virtual client with two emulator clients: separate providers, one shared
-/// signing identity, one shared emulation epoch.
+/// signing identity, one shared emulation group and derivation epoch.
 struct VirtualClient {
     a: Client<OpenMlsRustCrypto>,
     b: Client<OpenMlsRustCrypto>,
+    emulation_group_id: GroupId,
     epoch_id: EpochId,
 }
 
@@ -151,7 +157,7 @@ fn new_virtual_client(identity: &str, mode: PqtMode) -> VirtualClient {
     let ciphersuite = mode.default_ciphersuite();
     let provider_a = OpenMlsRustCrypto::default();
     let provider_b = OpenMlsRustCrypto::default();
-    let epoch_id =
+    let (emulation_group_id, epoch_id) =
         setup_sibling_emulation_epoch(ciphersuite.t_ciphersuite(), &provider_a, &provider_b);
 
     // Both emulator clients hold the shared signing identity, so either can sign for the shared
@@ -165,6 +171,7 @@ fn new_virtual_client(identity: &str, mode: PqtMode) -> VirtualClient {
     VirtualClient {
         a: Client::with_signer(identity, signer.clone(), provider_a),
         b: Client::with_signer(identity, signer, provider_b),
+        emulation_group_id,
         epoch_id,
     }
 }
@@ -186,7 +193,7 @@ fn create_group(client: &Client<OpenMlsRustCrypto>, mode: PqtMode) -> ApqMlsGrou
 fn create_vc_group(
     client: &Client<OpenMlsRustCrypto>,
     mode: PqtMode,
-    epoch_id: EpochId,
+    emulation_group_id: &GroupId,
 ) -> ApqMlsGroup {
     ApqMlsGroup::builder()
         .set_mode(mode)
@@ -194,7 +201,7 @@ fn create_vc_group(
         .with_capabilities(vc_capabilities())
         .with_leaf_node_extensions(vc_leaf_extensions(), vc_leaf_extensions())
         .unwrap()
-        .vc_emulation(epoch_id)
+        .vc_emulation(emulation_group_id)
         .build(
             &client.provider,
             &client.signer,
@@ -244,7 +251,7 @@ fn verifiable_group_info(message: MlsMessageOut) -> VerifiableGroupInfo {
 /// application PSK proposals in the T commit.
 fn external_vc_join(
     client: &Client<OpenMlsRustCrypto>,
-    epoch_id: &EpochId,
+    emulation_group_id: &GroupId,
     group_info: VerifiableApqGroupInfo,
     ratchet_tree: ApqRatchetTreeIn,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
@@ -257,7 +264,7 @@ fn external_vc_join(
         .with_ratchet_tree(ratchet_tree)
         .with_config(join_config())
         .leaf_node_parameters(leaf_node_parameters.clone(), leaf_node_parameters)
-        .vc_emulation(epoch_id.clone());
+        .vc_emulation(emulation_group_id.clone());
     for proposal in t_psk_proposals {
         builder = builder.add_t_psk_proposal(proposal);
     }
@@ -382,7 +389,7 @@ fn sibling_joins_group_created_by_virtual_client() {
         let alice = new_virtual_client("Alice (VC)", mode);
         let bob = new_client("Bob", mode);
 
-        let mut alice_a_group = create_vc_group(&alice.a, mode, alice.epoch_id.clone());
+        let mut alice_a_group = create_vc_group(&alice.a, mode, &alice.emulation_group_id);
         let (group_info, ratchet_tree) = export_join_info(&alice.a, &alice_a_group);
 
         let mut alice_b_group = ApqMlsGroup::vc_join_at_creation(
@@ -402,7 +409,7 @@ fn sibling_joins_group_created_by_virtual_client() {
         let bundle = alice_b_group
             .commit_builder()
             .propose_adds([bob.generate_key_package(mode.default_ciphersuite())])
-            .vc_emulation(alice.epoch_id.clone())
+            .vc_emulation(alice.emulation_group_id.clone())
             .finalize(&alice.b.provider, &alice.b.signer, |_| true, |_| true)
             .unwrap();
         alice_b_group
@@ -439,7 +446,7 @@ fn sibling_joins_group_via_external_commit_of_virtual_client() {
 
         let (mut alice_a_group, bundle) = external_vc_join(
             &alice.a,
-            &alice.epoch_id,
+            &alice.emulation_group_id,
             group_info,
             ratchet_tree,
             Vec::new(),
@@ -497,7 +504,7 @@ fn sibling_join_resolves_application_psk_of_external_commit() {
 
     let (mut alice_a_group, bundle) = external_vc_join(
         &alice.a,
-        &alice.epoch_id,
+        &alice.emulation_group_id,
         group_info,
         ratchet_tree,
         vec![PreSharedKeyProposal::new(committer_psk_id)],
@@ -526,7 +533,7 @@ fn creation_join_with_foreign_epoch_id_fails() {
     let alice = new_virtual_client("Alice (VC)", mode);
     let foreign = new_virtual_client("Foreign (VC)", mode);
 
-    let alice_a_group = create_vc_group(&alice.a, mode, alice.epoch_id.clone());
+    let alice_a_group = create_vc_group(&alice.a, mode, &alice.emulation_group_id);
     let (group_info, ratchet_tree) = export_join_info(&alice.a, &alice_a_group);
 
     let result = ApqMlsGroup::vc_join_at_creation(
@@ -564,7 +571,7 @@ fn sibling_external_commit_join_with_foreign_epoch_id_fails() {
 
     let (_alice_a_group, bundle) = external_vc_join(
         &alice.a,
-        &alice.epoch_id,
+        &alice.emulation_group_id,
         group_info,
         ratchet_tree,
         Vec::new(),
@@ -600,7 +607,7 @@ fn creation_join_rolls_back_t_half_when_pq_half_fails() {
     let mode = PqtMode::ConfAndAuth;
     let alice = new_virtual_client("Alice (VC)", mode);
 
-    let alice_a_group = create_vc_group(&alice.a, mode, alice.epoch_id.clone());
+    let alice_a_group = create_vc_group(&alice.a, mode, &alice.emulation_group_id);
     let (group_info, ratchet_tree) = export_join_info(&alice.a, &alice_a_group);
 
     // The PQ half is served the T half's ratchet tree. The linkage check only looks at the group
@@ -647,7 +654,7 @@ fn sibling_external_commit_join_rolls_back_pq_half_when_t_half_fails() {
 
     let (_alice_a_group, bundle) = external_vc_join(
         &alice.a,
-        &alice.epoch_id,
+        &alice.emulation_group_id,
         group_info,
         ratchet_tree,
         vec![PreSharedKeyProposal::new(psk_ids[0].clone())],
