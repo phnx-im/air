@@ -65,22 +65,20 @@ class TextPalette {
 
   final Map<int, TextPalette> _opaque = {};
 
-  static const _opaqueCap = 16;
-
   /// All four slots composited onto [background], each fully opaque.
   TextPalette on(Color background) {
     assert(background.a == 1.0, 'background must be opaque: $background');
-    if (_opaque.length >= _opaqueCap) _opaque.clear();
+    assert(
+      _opaque.length < 16,
+      'text palette cache growing too much: are you pushing animated values?',
+    );
     // Keyed on the packed value, which is unique here: the assert above fixes
     // the alpha byte at 0xFF.
-    return _opaque.putIfAbsent(
-      background.toARGB32(),
-      () => TextPalette(
-        primary: primary.on(background),
-        secondary: secondary.on(background),
-        tertiary: tertiary.on(background),
-        quaternary: quaternary.on(background),
-      ),
+    return _opaque[background.toARGB32()] ??= TextPalette(
+      primary: primary.on(background),
+      secondary: secondary.on(background),
+      tertiary: tertiary.on(background),
+      quaternary: quaternary.on(background),
     );
   }
 }
