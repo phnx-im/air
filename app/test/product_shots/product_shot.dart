@@ -14,7 +14,7 @@ import 'product_shot_device.dart';
 class ProductShot extends StatelessWidget {
   const ProductShot({
     super.key,
-    required this.size,
+    // required this.size,
     required this.backgroundColor,
     required this.titleColor,
     required this.subtitleColor,
@@ -22,28 +22,25 @@ class ProductShot extends StatelessWidget {
     required this.subtitle,
     required this.child,
     required this.frameColor,
-    this.device,
-    this.frameless = false,
+    required this.device,
   });
 
-  final Size size;
+  // final Size size;
   final Color backgroundColor;
   final Color titleColor;
   final Color subtitleColor;
   final String title;
   final String subtitle;
-  final ProductShotDevice? device;
+  final ProductShotDevice device;
   final Color frameColor;
   final Widget child;
 
-  /// Skips the device bezel around the screen content. See
-  /// [ProductShotFrame.frameless].
-  final bool frameless;
-
   @override
   Widget build(BuildContext context) {
-    final platform = device?.platform ?? _defaultPlatform();
-    final dev = device ?? ProductShotDevices.forPlatform(platform);
+    // final platform = device.platform;
+    final dev = device;
+    final size = dev.screenSize;
+    // final dev = device ?? ProductShotDevices.forPlatform(platform);
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
     final statusBar = _statusBarFor(dev.platform, statusBarHeight);
@@ -131,7 +128,6 @@ class ProductShot extends StatelessWidget {
                         borderWidth: frameStyle.borderWidth,
                         cornerRadius: frameStyle.cornerRadius,
                         frameColor: frameStyle.frameColor,
-                        frameless: frameless,
                         child: child,
                       ),
                     ),
@@ -204,15 +200,9 @@ class _ShotSubtitle extends StatelessWidget {
   }
 }
 
-ProductShotPlatform _defaultPlatform() {
-  return Platform.isAndroid
-      ? ProductShotPlatform.android
-      : ProductShotPlatform.ios;
-}
-
-_FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
+_FrameStyle _frameStyleFor(TargetPlatform platform, Color frameColor) {
   switch (platform) {
-    case ProductShotPlatform.android:
+    case TargetPlatform.android:
       return _FrameStyle(
         borderWidth: 20,
         cornerRadius: 48,
@@ -220,7 +210,7 @@ _FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
-    case ProductShotPlatform.ios:
+    case TargetPlatform.iOS:
       return _FrameStyle(
         borderWidth: 18,
         cornerRadius: 64,
@@ -228,7 +218,7 @@ _FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
-    case ProductShotPlatform.macos:
+    case TargetPlatform.macOS:
       return _FrameStyle(
         borderWidth: 28,
         cornerRadius: 48,
@@ -236,13 +226,15 @@ _FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
-    case ProductShotPlatform.windows:
-    case ProductShotPlatform.linux:
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
       return _FrameStyle(
         frameColor: frameColor,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
+    default:
+      throw "Unsupported platform";
   }
 }
 
@@ -255,27 +247,31 @@ double _statusBarHeightFor(ProductShotDevice device) {
   }
 
   switch (device.platform) {
-    case ProductShotPlatform.android:
+    case TargetPlatform.android:
       return 40.0;
-    case ProductShotPlatform.ios:
+    case TargetPlatform.iOS:
       return 44.0;
-    case ProductShotPlatform.macos:
-    case ProductShotPlatform.windows:
-    case ProductShotPlatform.linux:
+    case TargetPlatform.macOS:
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
       return 0.0;
+    default:
+      throw "Unsupported platform";
   }
 }
 
-Widget _statusBarFor(ProductShotPlatform platform, double statusBarHeight) {
+Widget _statusBarFor(TargetPlatform platform, double statusBarHeight) {
   switch (platform) {
-    case ProductShotPlatform.android:
+    case TargetPlatform.android:
       return AndroidStatusBar(height: statusBarHeight);
-    case ProductShotPlatform.ios:
+    case TargetPlatform.iOS:
       return IosStatusBar(height: statusBarHeight);
-    case ProductShotPlatform.macos:
-    case ProductShotPlatform.windows:
-    case ProductShotPlatform.linux:
+    case TargetPlatform.macOS:
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
       return const SizedBox.shrink();
+    default:
+      throw "Unsupported platform";
   }
 }
 
