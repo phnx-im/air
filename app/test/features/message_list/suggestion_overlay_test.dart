@@ -17,7 +17,11 @@ void main() {
   late FocusNode focusNode;
 
   // Mounts the overlay with [_suggestionCount] fixed-height rows.
-  Future<void> pumpOverlay(WidgetTester tester) async {
+  Future<void> pumpOverlay(
+    WidgetTester tester, {
+    double maxWidth = 200,
+    double rowWidth = 0,
+  }) async {
     final anchorLink = LayerLink();
     focusNode = FocusNode();
     controller = SuggestionOverlayController<int>(
@@ -44,11 +48,14 @@ void main() {
           backgroundColor: Colors.white,
           borderRadius: BorderRadius.zero,
           elevation: 0,
-          maxWidth: 200,
+          maxWidth: maxWidth,
           maxHeight: _maxHeight,
         ),
-        itemBuilder: (context, item, isHighlighted) =>
-            SizedBox(height: _rowHeight, child: Text('$item')),
+        itemBuilder: (context, item, isHighlighted) => SizedBox(
+          width: rowWidth,
+          height: _rowHeight,
+          child: Text('$item'),
+        ),
         onSelected: (_) {},
       ),
     );
@@ -118,5 +125,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.highlightIndex, 0);
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+  });
+
+  testWidgets('constrains its width to the viewport margins', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 600);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await pumpOverlay(tester, maxWidth: 500, rowWidth: 500);
+
+    expect(
+      controller.overlaySize.width,
+      320 - suggestionOverlayViewportMargin * 2,
+    );
   });
 }

@@ -5,7 +5,11 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/material.dart';
+
+/// Smallest gap kept between a suggestion overlay and the safe area edges.
+const suggestionOverlayViewportMargin = S.s8;
 
 typedef SuggestionOverlayItemBuilder<T> =
     Widget Function(BuildContext context, T item, bool isHighlighted);
@@ -393,6 +397,19 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final itemBuilder = controller.itemBuilder!;
     final suggestions = controller.suggestions;
+    final mediaQuery = MediaQuery.of(context);
+    final availableWidth = max(
+      0.0,
+      mediaQuery.size.width -
+          mediaQuery.viewPadding.horizontal -
+          suggestionOverlayViewportMargin * 2,
+    );
+    final availableHeight = max(
+      0.0,
+      mediaQuery.size.height -
+          mediaQuery.viewPadding.vertical -
+          suggestionOverlayViewportMargin * 2,
+    );
     return Listener(
       onPointerDown: (_) => controller.handlePointerDown(),
       onPointerUp: (_) => controller.handlePointerUp(),
@@ -405,8 +422,8 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
         clipBehavior: .antiAlias,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: style.maxWidth,
-            maxHeight: style.maxHeight,
+            maxWidth: min(style.maxWidth, availableWidth),
+            maxHeight: min(style.maxHeight, availableHeight),
           ),
           child: SingleChildScrollView(
             child: IntrinsicWidth(

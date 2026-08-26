@@ -17,9 +17,6 @@ const _caretGap = S.s24;
 /// Gap between the caret and the overlay's bottom edge.
 const _caretRise = S.s12;
 
-/// Smallest gap kept between the overlay and the safe area edges.
-const _viewportMargin = S.s8;
-
 /// Represents a token in the text field that should be autocompleted.
 class AutocompleteTrigger {
   const AutocompleteTrigger({
@@ -295,11 +292,16 @@ class TextAutocompleteController<T> {
     // Range the overlay's bottom left corner may occupy, in global
     // coordinates. Only the two clamped edges need the measured size, so a
     // stale one can no longer shift an overlay that already fits.
-    final minX = inset.left + _viewportMargin;
-    final minY = inset.top + _viewportMargin + overlaySize.height;
+    final minX = inset.left + suggestionOverlayViewportMargin;
+    final minY =
+        inset.top + suggestionOverlayViewportMargin + overlaySize.height;
     final maxX =
-        screen.width - inset.right - _viewportMargin - overlaySize.width;
-    final maxY = screen.height - inset.bottom - _viewportMargin;
+        screen.width -
+        inset.right -
+        suggestionOverlayViewportMargin -
+        overlaySize.width;
+    final maxY =
+        screen.height - inset.bottom - suggestionOverlayViewportMargin;
 
     // An overlay bigger than the safe area leaves no valid position, so favour
     // the top left corner instead of letting clamp assert on an empty range.
