@@ -4,10 +4,9 @@
 
 use openmls::{
     component::ComponentData,
-    components::vc_derivation_info::EpochId,
     group::{
         CommitMessageBundle, CreateCommitError, ExternalCommitBuilder, ExternalCommitBuilderError,
-        ExternalCommitBuilderFinalizeError, GroupEpoch, LeafNodeLifetimePolicy, MlsGroup,
+        ExternalCommitBuilderFinalizeError, GroupEpoch, GroupId, LeafNodeLifetimePolicy, MlsGroup,
         MlsGroupJoinConfig,
     },
     prelude::{
@@ -57,7 +56,7 @@ pub struct ApqExternalCommitBuilder {
     leaf_node_parameters: Option<(LeafNodeParameters, LeafNodeParameters)>,
     create_group_info: bool,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
-    vc_epoch_id: Option<EpochId>,
+    vc_emulation_group_id: Option<GroupId>,
 }
 
 impl ApqExternalCommitBuilder {
@@ -102,9 +101,10 @@ impl ApqExternalCommitBuilder {
         self
     }
 
-    /// Sets the virtual-client emulation epoch.
-    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
-        self.vc_epoch_id = Some(epoch_id);
+    /// Sets the emulation group whose newest derivation epoch the commit
+    /// derives from.
+    pub fn vc_emulation(mut self, emulation_group_id: GroupId) -> Self {
+        self.vc_emulation_group_id = Some(emulation_group_id);
         self
     }
 
@@ -132,7 +132,7 @@ impl ApqExternalCommitBuilder {
             leaf_node_parameters,
             create_group_info,
             t_psk_proposals,
-            vc_epoch_id,
+            vc_emulation_group_id,
         } = self;
 
         let VerifiableApqGroupInfo {
@@ -186,7 +186,7 @@ impl ApqExternalCommitBuilder {
             component_data.clone(),
             Vec::new(),
             create_group_info,
-            vc_epoch_id.clone(),
+            vc_emulation_group_id.clone(),
             signer.pq_signer(),
         )?;
 
@@ -228,7 +228,7 @@ impl ApqExternalCommitBuilder {
                 component_data,
                 t_psk_proposals,
                 create_group_info,
-                vc_epoch_id,
+                vc_emulation_group_id,
                 signer.t_signer(),
             )
         })();
@@ -263,7 +263,7 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     component_data: ComponentData,
     psk_proposals: Vec<PreSharedKeyProposal>,
     create_group_info: bool,
-    vc_epoch_id: Option<EpochId>,
+    vc_emulation_group_id: Option<GroupId>,
     signer: &impl Signer,
 ) -> Result<(MlsGroup, CommitMessageBundle), ApqExternalCommitBuilderError<Provider::StorageError>>
 {
@@ -280,9 +280,9 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     let vc_builder = external_builder
         .build_group(provider, group_info, credential_with_key)?
         .leaf_node_parameters(leaf_node_parameters);
-    let vc_builder = match vc_epoch_id {
-        Some(epoch_id) => {
-            vc_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?
+    let vc_builder = match &vc_emulation_group_id {
+        Some(group_id) => {
+            vc_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?
         }
         None => vc_builder,
     };

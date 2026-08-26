@@ -15,7 +15,10 @@ use airprotos::client::{component::AirComponent, group::GroupData};
 use crate::{
     chats::GroupDataExt,
     groups::{GroupDataBytes, self_group::SelfGroup},
-    job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
+    job::{
+        chat_operation::DerivationEpoch,
+        pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
+    },
     outbound_service::resync::Resync,
 };
 
@@ -278,6 +281,7 @@ impl CoreUser {
                     chat_id,
                     Some(legacy_group_data),
                     None,
+                    DerivationEpoch::Keep,
                 )
                 .await
             })
@@ -313,6 +317,7 @@ impl CoreUser {
                     chat_id,
                     Some(group_data_bytes),
                     None,
+                    DerivationEpoch::Keep,
                 )
                 .await
             })

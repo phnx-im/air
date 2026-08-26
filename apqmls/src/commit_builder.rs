@@ -3,10 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
-    components::vc_derivation_info::EpochId,
     group::{
         CommitBuilder as MlsGroupCommitBuilder, CommitBuilderStageError, CommitMessageBundle,
-        CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, Initial, MlsGroup,
+        CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, GroupId, Initial, MlsGroup,
         QueuedProposal,
     },
     prelude::{
@@ -117,7 +116,8 @@ struct ConfigValues {
     proposed_adds: Vec<ApqKeyPackage>,
     proposed_removals: Vec<LeafNodeIndex>,
     create_group_info: bool,
-    vc_epoch_id: Option<EpochId>,
+    vc_emulation_group_id: Option<GroupId>,
+    derivation_epoch: bool,
 }
 
 impl ConfigValues {
@@ -130,6 +130,10 @@ impl ConfigValues {
         }
         if let Some(force) = self.force_self_update {
             builder = builder.force_self_update(force);
+        }
+        // Emulation state lives on the classical leg only.
+        if IS_TRADITIONAL && self.derivation_epoch {
+            builder = builder.derivation_epoch(true);
         }
         let leaf_node_parameters = if IS_TRADITIONAL {
             &self.t_leaf_node_parameters
@@ -190,9 +194,18 @@ impl<'a> CommitBuilder<'a> {
         self
     }
 
-    /// Sets the virtual-client emulation epoch.
-    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
-        self.values.vc_epoch_id = Some(epoch_id);
+    /// Sets the emulation group whose newest derivation epoch the commit
+    /// derives from.
+    pub fn vc_emulation(mut self, emulation_group_id: GroupId) -> Self {
+        self.values.vc_emulation_group_id = Some(emulation_group_id);
+        self
+    }
+
+    /// Asks the emulation group to start a new derivation epoch with this
+    /// commit. Only meaningful on the emulation group itself. See
+    /// [`MlsGroupCommitBuilder::derivation_epoch`].
+    pub fn derivation_epoch(mut self, derivation_epoch: bool) -> Self {
+        self.values.derivation_epoch = derivation_epoch;
         self
     }
 
@@ -303,9 +316,9 @@ impl<'a> CommitBuilder<'a> {
             .pq_group
             .commit_builder()
             .pipe(|b| self.values.apply::<false>(b));
-        let pq_builder = match &self.values.vc_epoch_id {
-            Some(epoch_id) => {
-                pq_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+        let pq_builder = match &self.values.vc_emulation_group_id {
+            Some(group_id) => {
+                pq_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?
             }
             None => pq_builder,
         };
@@ -338,9 +351,9 @@ impl<'a> CommitBuilder<'a> {
             .t_group
             .commit_builder()
             .pipe(|b| self.values.apply::<true>(b));
-        let t_builder = match &self.values.vc_epoch_id {
-            Some(epoch_id) => {
-                t_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+        let t_builder = match &self.values.vc_emulation_group_id {
+            Some(group_id) => {
+                t_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?
             }
             None => t_builder,
         };

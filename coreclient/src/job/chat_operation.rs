@@ -39,8 +39,25 @@ enum ChatOperationType {
     },
     Leave,
     Delete,
-    Update(Option<ChatAttributes>),
-    ApqUpdate,
+    Update(Option<ChatAttributes>, DerivationEpoch),
+    ApqUpdate(DerivationEpoch),
+}
+
+/// Whether a self-update commit also opens a new virtual-client derivation
+/// epoch.
+///
+/// Only the emulation group, i.e. the self group, has derivation epochs, and
+/// only its periodic self-update rotates them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DerivationEpoch {
+    Rotate,
+    Keep,
+}
+
+impl DerivationEpoch {
+    pub(crate) fn rotates(self) -> bool {
+        self == Self::Rotate
+    }
 }
 
 pub(crate) struct ChatOperation {
@@ -134,17 +151,21 @@ impl ChatOperation {
         }
     }
 
-    pub(crate) fn update(chat_id: ChatId, chat_attributes: Option<ChatAttributes>) -> Self {
+    pub(crate) fn update(
+        chat_id: ChatId,
+        chat_attributes: Option<ChatAttributes>,
+        derivation_epoch: DerivationEpoch,
+    ) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::Update(chat_attributes),
+            operation: ChatOperationType::Update(chat_attributes, derivation_epoch),
         }
     }
 
-    pub(crate) fn apq_update(chat_id: ChatId) -> Self {
+    pub(crate) fn apq_update(chat_id: ChatId, derivation_epoch: DerivationEpoch) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::ApqUpdate,
+            operation: ChatOperationType::ApqUpdate(derivation_epoch),
         }
     }
 
@@ -200,8 +221,8 @@ impl ChatOperation {
             ChatOperationType::AddClient { .. }
             | ChatOperationType::Leave
             | ChatOperationType::Delete
-            | ChatOperationType::Update(_)
-            | ChatOperationType::ApqUpdate => {}
+            | ChatOperationType::Update(..)
+            | ChatOperationType::ApqUpdate(_) => {}
         }
         Ok(())
     }
@@ -241,10 +262,14 @@ impl ChatOperation {
             } => self.execute_add_client(context, *key_package, device).await,
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
             ChatOperationType::Delete => self.execute_delete(context).await,
-            ChatOperationType::Update(chat_attributes) => {
-                self.execute_update(context, chat_attributes).await
+            ChatOperationType::Update(chat_attributes, derivation_epoch) => {
+                self.execute_update(context, chat_attributes, derivation_epoch)
+                    .await
             }
-            ChatOperationType::ApqUpdate => self.execute_apq_self_update(context).await,
+            ChatOperationType::ApqUpdate(derivation_epoch) => {
+                self.execute_apq_self_update(context, derivation_epoch)
+                    .await
+            }
         }
     }
 
@@ -361,6 +386,7 @@ impl ChatOperation {
         self,
         context: &mut JobContext<'_, '_>,
         chat_attributes: Option<ChatAttributes>,
+        derivation_epoch: DerivationEpoch,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
@@ -451,6 +477,7 @@ impl ChatOperation {
                     self.chat_id,
                     group_data,
                     new_chat_picture,
+                    derivation_epoch,
                 )
                 .await
             })
@@ -462,6 +489,7 @@ impl ChatOperation {
     async fn execute_apq_self_update(
         self,
         context: &mut JobContext<'_, '_>,
+        derivation_epoch: DerivationEpoch,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
@@ -472,6 +500,7 @@ impl ChatOperation {
                     txn,
                     &key_store.signing_key,
                     self.chat_id,
+                    derivation_epoch,
                 )
                 .await
             })

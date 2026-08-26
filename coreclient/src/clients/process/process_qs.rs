@@ -20,10 +20,7 @@ use aircommon::{
     utils::removed_client,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::{
-    group::GroupData,
-    virtual_client::{VirtualClientAction, extract_virtual_client_action},
-};
+use airprotos::client::{group::GroupData, virtual_client::extract_virtual_client_commit_data};
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
@@ -430,7 +427,7 @@ impl CoreUser {
             client: self.signing_key(),
             self_group: own_client_info.self_group_signing_key.as_ref(),
         };
-        let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
@@ -450,17 +447,6 @@ impl CoreUser {
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
             chat.store(&mut *txn).await?;
-
-            // Register the emulation epoch at the epoch we joined into. The
-            // sibling that added us registers at the same epoch when it merges
-            // its Add commit, so both derive the same `EpochId`. Joining does
-            // not go through `Group::merge_pending_commit`, which covers every
-            // later epoch of the self group.
-            let epoch_id = group.register_vc_emulation_epoch(&mut *txn)?;
-            debug!(
-                ?epoch_id,
-                "registered self-group VC emulation epoch on join"
-            );
 
             return Ok(QsMessageOutcome::new_chat(
                 chat.id(),
@@ -1743,11 +1729,10 @@ fn own_commit_key_package_batch(
     ) {
         return Ok(None);
     }
-    let Some(action) = extract_virtual_client_action(processed_message)? else {
+    let Some(commit_data) = extract_virtual_client_commit_data(processed_message)? else {
         return Ok(None);
     };
-    let VirtualClientAction::KeyPackageUpload(upload) = action;
-    Ok(Some(KeyPackageBatchId::from(&upload)))
+    Ok(commit_data.key_package_uploads().next().map(From::from))
 }
 
 #[cfg(test)]
@@ -1763,6 +1748,7 @@ mod tests {
         components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
         prelude::tls_codec::Serialize as _,
     };
+    use openmls_traits::OpenMlsProvider as _;
     use uuid::Uuid;
 
     use crate::{
@@ -1821,7 +1807,15 @@ mod tests {
                 OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
 
                 let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self-group")?;
-                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
+                // Creating the self group registers its initial derivation epoch.
+                let epoch_id = {
+                    let provider = AirOpenMlsProvider::new(txn.as_mut());
+                    self_group
+                        .group()
+                        .mls_group()
+                        .newest_vc_derivation_epoch(provider.storage())?
+                        .context("no derivation epoch in the self-group")?
+                };
                 let leaf_index = self_group.group().mls_group().own_leaf_index();
                 let upload = KeyPackageUpload {
                     epoch_id: epoch_id.clone(),
