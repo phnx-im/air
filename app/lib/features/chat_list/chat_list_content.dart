@@ -30,6 +30,7 @@ import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/share/share_cubit.dart';
+import 'package:air/share/share_targets.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
@@ -265,7 +266,7 @@ class _ChatRow extends StatelessWidget {
   final List<UiUserId>? members;
   final bool isActive;
   final bool hideSeparator;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final void Function(Offset position) onLongPress;
 
   @override
@@ -285,6 +286,13 @@ class _ChatRow extends StatelessWidget {
     final sharePending = context.select(
       (AndroidShareCubit cubit) => cubit.state != null,
     );
+    final canSelectShareDestination =
+        canShareIntoChat(chat) &&
+        switch (chat.chatType) {
+          UiChatType_Group() =>
+            ownId != null && members?.contains(ownId) == true,
+          _ => true,
+        };
 
     final Widget? preview;
     if (isBlocked) {
@@ -318,7 +326,7 @@ class _ChatRow extends StatelessWidget {
           : _TrailingIndicator(ownClientId: ownId),
       isActive: isActive,
       hideSeparator: hideSeparator,
-      onTap: onTap,
+      onTap: !sharePending || canSelectShareDestination ? onTap : null,
       onLongPress: onLongPress,
     );
   }

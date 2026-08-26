@@ -152,8 +152,6 @@ class _MessageComposerState extends State<MessageComposer>
         return;
       }
 
-      _maybeApplyStagedShare();
-
       // always request focus on chat draft loading on desktop
       bool requestFocus = DeviceType.isDesktop;
 
@@ -183,6 +181,8 @@ class _MessageComposerState extends State<MessageComposer>
           requestFocus = true; // open keyboard when switching reply to
         default:
       }
+
+      _maybeApplyStagedShare();
 
       if (requestFocus) {
         _focusNode.requestFocus();
@@ -217,11 +217,17 @@ class _MessageComposerState extends State<MessageComposer>
     }
     final text = share.text;
     if (text != null && text.isNotEmpty) {
-      _inputController.text = text;
+      final currentText = _inputController.text;
+      final separator = currentText.isEmpty || currentText.endsWith('\n')
+          ? ''
+          : '\n';
+      final updatedText = '$currentText$separator$text';
+      _inputController.value = TextEditingValue(
+        text: updatedText,
+        selection: TextSelection.collapsed(offset: updatedText.length),
+      );
     }
     if (share.attachments.isNotEmpty) {
-      // Post-frame: the composer may still be mounting when the share is
-      // applied, and the preview pushes a route.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_stageSharedAttachments(share.attachments, chat.title));
       });

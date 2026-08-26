@@ -79,7 +79,10 @@ void dispatchSharedIntoChat(
       ),
   ];
   final text = arguments['text'] as String?;
-  if (attachments.isEmpty && (text == null || text.isEmpty)) {
+  final droppedAttachments = arguments['dropped'] as int? ?? 0;
+  if (attachments.isEmpty &&
+      (text == null || text.isEmpty) &&
+      droppedAttachments == 0) {
     return;
   }
   sharedIntoChatSink.add(
@@ -87,7 +90,7 @@ void dispatchSharedIntoChat(
       chatId: chatId,
       attachments: attachments,
       text: text,
-      droppedAttachments: arguments['dropped'] as int? ?? 0,
+      droppedAttachments: droppedAttachments,
     ),
   );
 }

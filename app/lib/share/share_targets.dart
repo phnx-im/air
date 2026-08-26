@@ -99,7 +99,7 @@ Future<void> _removeStaleShareTargets(
     }
     final chatId = _parseChatId(id);
     final chat = chatId == null ? null : chatsRepository.getChat(chatId);
-    if (chat == null || !_canShareInto(chat)) {
+    if (chat == null || !canShareIntoChat(chat)) {
       stale.add(id);
     }
   }
@@ -109,7 +109,7 @@ Future<void> _removeStaleShareTargets(
 }
 
 /// Whether the chat still takes shared content.
-bool _canShareInto(UiChatDetails chat) =>
+bool canShareIntoChat(UiChatDetails chat) =>
     chat.status == const UiChatStatus.active() &&
     chat.chatType is! UiChatType_PendingConnection;
 
