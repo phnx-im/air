@@ -715,7 +715,7 @@ async fn missed_commit() {
     let bob_user = &setup.get_user(&bob).user;
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
     let sequence_number = stream
-        .map_while(|message| match message.event {
+        .map_while(|message| match message.ok()?.event {
             Some(listen_response::Event::Message(queue_message)) => {
                 Some(queue_message.sequence_number)
             }
@@ -1085,7 +1085,7 @@ async fn qs_stream_processor_partially_processes_messages() {
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     let mut processor = QsStreamProcessor::new(Some(responder));
 
-    while let Some(message) = stream.next().await {
+    while let Some(Ok(message)) = stream.next().await {
         match processor.process_event(bob_user, message).await {
             QsProcessEventResult::Accumulated => (),
             QsProcessEventResult::Ignored => (),

@@ -12,6 +12,7 @@ pub(crate) mod bucket_key;
 pub mod client_ip;
 pub mod ds;
 pub(crate) mod errors;
+pub(crate) mod listen_session;
 pub mod messages;
 pub(crate) mod pg_listen;
 pub mod qs;
