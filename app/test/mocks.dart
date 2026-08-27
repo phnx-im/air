@@ -282,33 +282,74 @@ class MockShareTargetPublisher extends Mock implements ShareTargetPublisher {}
 
 /// A [chats_repository.ChatsRepository] serving a fixed set of chats.
 ///
-/// [members] are the group members by chat, null for chats not listed.
+/// [members] are the group members by chat, null for chats not listed. A test
+/// drives changes through [load], [upsert] and [remove], which the watch
+/// streams report the way the real repository does.
 class FakeChatsRepository implements chats_repository.ChatsRepository {
-  FakeChatsRepository(List<UiChatDetails> chats, {this._members = const {}})
-    : _order = [for (final chat in chats) chat.id],
-      _chats = {for (final chat in chats) chat.id: chat};
+  FakeChatsRepository(
+    List<UiChatDetails> chats, {
+    Map<ChatId, List<UiUserId>> members = const {},
+    bool loaded = true,
+  }) : _order = [for (final chat in chats) chat.id],
+       _chats = {for (final chat in chats) chat.id: chat},
+       _members = Map.of(members),
+       _isLoaded = loaded;
 
   final List<ChatId> _order;
   final Map<ChatId, UiChatDetails> _chats;
   final Map<ChatId, List<UiUserId>> _members;
+  bool _isLoaded;
+
+  final _chatChanges = StreamController<Set<ChatId>>.broadcast(sync: true);
+  final _orderChanges = StreamController<List<ChatId>>.broadcast(sync: true);
+
+  /// Reports the initial load, for a fake created with `loaded: false`.
+  void load() {
+    _isLoaded = true;
+    _orderChanges.add(_order);
+  }
+
+  /// Adds or replaces [chat].
+  void upsert(UiChatDetails chat) {
+    if (!_chats.containsKey(chat.id)) _order.add(chat.id);
+    _chats[chat.id] = chat;
+    _chatChanges.add({chat.id});
+  }
+
+  void remove(ChatId id) {
+    _order.remove(id);
+    _chats.remove(id);
+    _members.remove(id);
+    _chatChanges.add({id});
+  }
 
   @override
-  bool get isLoaded => true;
+  bool get isLoaded => _isLoaded;
 
   @override
   List<ChatId> get order => _order;
 
   @override
-  Stream<List<ChatId>> watchOrder() => Stream.value(_order);
+  Stream<List<ChatId>> watchOrder() => Stream.multi((controller) {
+    controller.add(_order);
+    final sub = _orderChanges.stream.listen(controller.add);
+    controller.onCancel = sub.cancel;
+  });
 
   @override
   UiChatDetails? getChat(ChatId id) => _chats[id];
 
   @override
-  Stream<Set<ChatId>> watchChanges() => const Stream.empty();
+  Stream<Set<ChatId>> watchChanges() => _chatChanges.stream;
 
   @override
-  Stream<UiChatDetails?> watchChat(ChatId id) => Stream.value(_chats[id]);
+  Stream<UiChatDetails?> watchChat(ChatId id) => Stream.multi((controller) {
+    controller.add(_chats[id]);
+    final sub = _chatChanges.stream
+        .where((ids) => ids.contains(id))
+        .listen((_) => controller.add(_chats[id]));
+    controller.onCancel = sub.cancel;
+  });
 
   @override
   Stream<List<UiUserId>?> watchMembers(ChatId id) => Stream.value(_members[id]);

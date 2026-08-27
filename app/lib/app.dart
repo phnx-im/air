@@ -92,8 +92,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       _onShareHandoff,
     );
 
-    // Fetch potential initial notification or share handoff that launched
-    // the app on Android cold start.
+    // Fetch potential initial notification that launched the app on Android
+    // cold start. The share handoff is consumed in `_loadInitialUser`.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
 
     _backgroundService.start(runImmediately: true);

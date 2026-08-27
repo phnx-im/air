@@ -34,7 +34,7 @@ class ShareActivity : ComponentActivity() {
 
         // Upper bound for copying a single shared stream.
         //
-        // See `max_attachment_size` in StorageSettings in the backend).
+        // See `max_attachment_size` in StorageSettings in the backend.
         private const val MAX_ATTACHMENT_COPY_BYTES = 32L * 1024 * 1024
 
         // Cache entries older than this are leftovers of a killed share or
@@ -148,7 +148,7 @@ class ShareActivity : ComponentActivity() {
     // URI cannot be read.
     private fun copyToCache(uri: Uri): Pair<String, String?>? {
         if (!isForeignContentUri(uri)) {
-            Log.w(TAG, "Dropping shared URI with scheme '${uri.scheme}'")
+            Log.w(TAG, "Dropping shared URI '${uri.scheme}://${uri.authority}'")
             return null
         }
         return try {

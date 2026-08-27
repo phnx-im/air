@@ -50,17 +50,19 @@ void main() {
 
     HomeNavigationState home() => (navigationCubit.state as HomeState).home;
 
-    Widget buildSubject({required ChatId chatId}) =>
-        RepositoryProvider<ChatsRepository>.value(
-          value: FakeChatsRepository([shareable, blocked]),
-          child: BlocProvider<NavigationCubit>.value(
-            value: navigationCubit,
-            child: PendingShareRedirect(
-              chatId: chatId,
-              child: const SizedBox.shrink(),
-            ),
-          ),
-        );
+    Widget buildSubject({
+      required ChatId chatId,
+      FakeChatsRepository? repository,
+    }) => RepositoryProvider<ChatsRepository>.value(
+      value: repository ?? FakeChatsRepository([shareable, blocked]),
+      child: BlocProvider<NavigationCubit>.value(
+        value: navigationCubit,
+        child: PendingShareRedirect(
+          chatId: chatId,
+          child: const SizedBox.shrink(),
+        ),
+      ),
+    );
 
     testWidgets('sends a share addressed to a missing chat to the picker', (
       tester,
@@ -118,6 +120,43 @@ void main() {
 
       expect(home().shareDestinationOpen, isFalse);
       expect(home().chatId, missingId);
+    });
+
+    // On cold start the chat may be on its way rather than gone.
+    testWidgets('waits for the repository to load before judging', (
+      tester,
+    ) async {
+      final repository = FakeChatsRepository([shareable], loaded: false);
+      await navigationCubit.openShare(share, chatId: missingId);
+
+      await tester.pumpWidget(
+        buildSubject(chatId: missingId, repository: repository),
+      );
+      await tester.pumpAndSettle();
+      expect(home().shareDestinationOpen, isFalse);
+
+      repository.load();
+      await tester.pumpAndSettle();
+
+      expect(home().shareDestinationOpen, isTrue);
+      expect(home().pendingShare, share);
+    });
+
+    testWidgets('redirects when the open chat is deleted', (tester) async {
+      final repository = FakeChatsRepository([shareable]);
+      await navigationCubit.openShare(share, chatId: shareable.id);
+
+      await tester.pumpWidget(
+        buildSubject(chatId: shareable.id, repository: repository),
+      );
+      await tester.pumpAndSettle();
+      expect(home().shareDestinationOpen, isFalse);
+
+      repository.remove(shareable.id);
+      await tester.pumpAndSettle();
+
+      expect(home().shareDestinationOpen, isTrue);
+      expect(home().pendingShare, share);
     });
 
     testWidgets('redirects a share that arrives for the open chat', (
