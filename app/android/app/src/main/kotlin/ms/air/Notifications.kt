@@ -207,14 +207,14 @@ class Notifications {
         private val SHORTCUT_CATEGORIES =
             setOf(SHORTCUT_CATEGORY_CONVERSATION, SHORTCUT_CATEGORY_SHARE_TARGET)
 
-        // Shortcut operations decode bitmaps and do binder calls, so they run
-        // off the main thread. A single thread keeps them in call order, which
-        // the Dart side relies on: a clear must not be overtaken by an earlier
-        // publish.
-        private val shortcutExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+        // Shortcut operations and notifications (which push a shortcut too)
+        // decode bitmaps and do binder calls, so they run off the main thread.
+        // A single thread keeps them in call order, which the Dart side relies
+        // on: a clear must not be overtaken by an earlier publish.
+        private val backgroundExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
-        fun runShortcutOp(block: () -> Unit) {
-            shortcutExecutor.execute(block)
+        fun runInBackground(block: () -> Unit) {
+            backgroundExecutor.execute(block)
         }
 
         fun showNotification(context: Context, content: NotificationContent) {

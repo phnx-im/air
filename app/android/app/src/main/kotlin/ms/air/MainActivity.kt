@@ -181,15 +181,16 @@ class MainActivity : FlutterFragmentActivity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Runs a shortcut operation in the background and answers Dart once it
-    // is done. Always answers, so the Dart update chain never stalls.
-    private fun <T> shortcutCall(result: MethodChannel.Result, op: () -> T) {
-        Notifications.runShortcutOp {
+    // Runs a shortcut or notification operation in the background and
+    // answers Dart once it is done. Always answers, so the Dart update chain
+    // never stalls.
+    private fun <T> backgroundCall(result: MethodChannel.Result, op: () -> T) {
+        Notifications.runInBackground {
             val outcome = runCatching(op)
             mainHandler.post {
                 outcome.fold(
                     onSuccess = { result.success(if (it is Unit) null else it) },
-                    onFailure = { result.error("ShortcutError", it.message, null) },
+                    onFailure = { result.error("BackgroundOpError", it.message, null) },
                 )
             }
         }
@@ -259,8 +260,11 @@ class MainActivity : FlutterFragmentActivity() {
                     if (identifier != null && title != null && body != null) {
                         val notification =
                             NotificationContent(identifier, title, body, chatId, conversation)
-                        Notifications.showNotification(this, notification)
-                        result.success(null)
+                        // Decodes avatars and pushes the conversation shortcut,
+                        // so off the main thread and in order with the other
+                        // shortcut operations.
+                        val context = applicationContext
+                        backgroundCall(result) { Notifications.showNotification(context, notification) }
                     } else {
                         result.error(
                             "DeserializeError",
@@ -303,7 +307,7 @@ class MainActivity : FlutterFragmentActivity() {
                         return@setMethodCallHandler
                     }
                     val context = applicationContext
-                    shortcutCall(result) { Notifications.publishShareShortcut(context, target) }
+                    backgroundCall(result) { Notifications.publishShareShortcut(context, target) }
                 }
 
                 "reportShareShortcutUsed" -> {
@@ -313,23 +317,23 @@ class MainActivity : FlutterFragmentActivity() {
                         return@setMethodCallHandler
                     }
                     val context = applicationContext
-                    shortcutCall(result) { Notifications.reportShareShortcutUsed(context, chatId) }
+                    backgroundCall(result) { Notifications.reportShareShortcutUsed(context, chatId) }
                 }
 
                 "clearShareTargets" -> {
                     val context = applicationContext
-                    shortcutCall(result) { Notifications.clearShareShortcuts(context) }
+                    backgroundCall(result) { Notifications.clearShareShortcuts(context) }
                 }
 
                 "getShareShortcutIds" -> {
                     val context = applicationContext
-                    shortcutCall(result) { Notifications.shareShortcutIds(context) }
+                    backgroundCall(result) { Notifications.shareShortcutIds(context) }
                 }
 
                 "removeShareShortcuts" -> {
                     val ids = call.argument<List<String>>("ids").orEmpty()
                     val context = applicationContext
-                    shortcutCall(result) { Notifications.removeShareShortcuts(context, ids) }
+                    backgroundCall(result) { Notifications.removeShareShortcuts(context, ids) }
                 }
 
                 "saveFile" -> {
