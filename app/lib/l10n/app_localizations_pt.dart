@@ -1332,9 +1332,6 @@ class AppLocalizationsPt extends AppLocalizations {
   String get homeTab_profile => 'Você';
 
   @override
-  String get homeTab_share => 'Escolha um chat para compartilhar';
-
-  @override
   String get messageList_newMessages => 'Novas mensagens';
 
   @override
@@ -1359,6 +1356,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define seu tom de pele padrão';
+
+  @override
+  String get shareDestination_title => 'Enviar para…';
 
   @override
   String get shareScreen_title => 'Compartilhar no Air';
@@ -2766,9 +2766,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get homeTab_profile => 'Tu';
 
   @override
-  String get homeTab_share => 'Escolhe um chat para partilhares';
-
-  @override
   String get messageList_newMessages => 'Mensagens novas';
 
   @override
@@ -2793,6 +2790,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define o teu tom de pele predefinido';
+
+  @override
+  String get shareDestination_title => 'Enviar para…';
 
   @override
   String get shareScreen_title => 'Partilhar no Air';

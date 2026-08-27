@@ -1331,9 +1331,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get homeTab_profile => 'Tú';
 
   @override
-  String get homeTab_share => 'Elige un chat para compartir';
-
-  @override
   String get messageList_newMessages => 'Mensajes nuevos';
 
   @override
@@ -1359,6 +1356,9 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get emojiPicker_skinToneHelp =>
       'Define tu tono de piel predeterminado';
+
+  @override
+  String get shareDestination_title => 'Enviar a…';
 
   @override
   String get shareScreen_title => 'Compartir en Air';

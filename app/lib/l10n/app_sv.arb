@@ -376,7 +376,6 @@
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
-  "homeTab_share": "Välj en chatt att dela till",
   "messageList_newMessages": "Nya meddelanden",
   "messageList_reactions_react": "Reagera",
   "messageList_reactions_remove": "Ta bort",
@@ -386,6 +385,7 @@
   "emojiPicker_empty": "Inga emojier hittades",
   "emojiPicker_skinToneHelp": "Anger din standardhudton",
 
+  "shareDestination_title": "Skicka till…",
   "shareScreen_title": "Dela till Air",
   "shareScreen_searchHint": "Sök",
   "shareScreen_recipients": "{count, plural, =1 {Till: {first}} =2 {Till: {first} och {second}} other {Till: {first}, {second} och {third}}}",

@@ -1799,10 +1799,6 @@
   "@homeTab_profile": {
     "description": "Label of the profile tab in the bottom bar and sidebar. Refers to the user themselves."
   },
-  "homeTab_share": "Send to…",
-  "@homeTab_share": {
-    "description": "Banner on the chat list while shared content waits for a destination chat (Android). Tapping a chat stages the content there."
-  },
 
   "messageList_newMessages": "New messages",
   "@messageList_newMessages": {
@@ -1842,6 +1838,11 @@
   "emojiPicker_skinToneHelp": "Sets your default skin tone",
   "@emojiPicker_skinToneHelp": {
     "description": "Explains that picking a skin tone here sets the default for future reactions."
+  },
+
+  "shareDestination_title": "Send to…",
+  "@shareDestination_title": {
+    "description": "Title of the screen that asks which chat shared content should go to (Android). Tapping a chat opens it with the content in the composer."
   },
 
   "shareScreen_title": "Share to Air",

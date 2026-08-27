@@ -8,45 +8,70 @@ import 'dart:io';
 import 'package:air/core/core.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/services.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
-final _log = Logger('StagedShare');
+part 'pending_share.freezed.dart';
 
-/// Content handed over from the Android share activity to be staged in a
-/// chat's composer, exactly like an in-app attachment pick.
+final _log = Logger('PendingShare');
+
+/// Mirrors `ShareActivity.SHARE_CACHE_DIR`.
+const _shareCacheDir = 'share';
+
+/// Content handed over from the Android share activity, waiting for a chat's
+/// composer to take it, exactly like an in-app attachment pick.
 ///
 /// The shared text goes into the composer's input field and each attachment
-/// runs through the regular upload preview. The destination is either the
-/// direct share target the share was launched with, or the chat the user
-/// opens from the chat list, which shows a banner while a share is pending.
-class StagedShare {
-  const StagedShare({
-    this.chatId,
-    this.attachments = const [],
-    this.text,
-    this.droppedAttachments = 0,
-  });
+/// runs through the regular upload preview. Where it goes is navigation
+/// state, not part of this: see `HomeNavigationState.pendingShare`.
+@freezed
+abstract class PendingShare with _$PendingShare {
+  const PendingShare._();
 
-  /// Destination chat, or null when the user picks it from the chat list.
-  final ChatId? chatId;
+  const factory PendingShare({
+    /// Files extracted by the share activity. Whoever holds the share owns
+    /// them: the composer once it stages them, the navigation cubit until
+    /// then.
+    @Default(<UiSharedAttachment>[]) List<UiSharedAttachment> attachments,
 
-  /// Files extracted by the share activity. The main app owns them and
-  /// deletes them after the upload or when the share is dropped.
-  final List<UiSharedAttachment> attachments;
+    /// Text shared when not sharing a file (could also be both).
+    String? text,
 
-  /// Text shared when not sharing a file (could also be both).
-  final String? text;
+    /// Number of shared items the share activity could not hand over.
+    @Default(0) int droppedAttachments,
+  }) = _PendingShare;
 
-  /// Number of shared items the share activity could not hand over.
-  final int droppedAttachments;
+  Future<void> deleteFiles() => deleteShareFiles(attachments);
+}
+
+/// A share and the chat the share activity launched it for, if any.
+typedef ShareHandoff = ({PendingShare share, ChatId? chatId});
+
+/// Best-effort delete of files the share activity extracted.
+///
+/// Each file sits in a directory of its own (`cacheDir/share/<uuid>/`), which
+/// goes with it. A file from anywhere else only loses itself. What is left
+/// behind anyway is swept by the share activity's `deleteStaleCacheDirs`.
+Future<void> deleteShareFiles(Iterable<UiSharedAttachment> attachments) async {
+  for (final attachment in attachments) {
+    final file = File(attachment.path);
+    final dir = file.parent;
+    final ownsDir = p.basename(dir.parent.path) == _shareCacheDir;
+    try {
+      await (ownsDir ? dir.delete(recursive: true) : file.delete());
+    } catch (e) {
+      _log.warning("Failed to delete dropped share file: $e");
+    }
+  }
 }
 
 /// Parses a `sharedIntoChat` payload from the platform and forwards it to
-/// [sharedIntoChatSink]. Invalid payloads are logged and dropped.
+/// [handoffSink]. Invalid payloads are logged and dropped.
 void dispatchSharedIntoChat(
   Map<Object?, Object?> arguments,
-  StreamSink<StagedShare> sharedIntoChatSink,
+  StreamSink<ShareHandoff> handoffSink,
 ) {
   ChatId? chatId;
   final chatIdStr = arguments['chatId'] as String?;
@@ -85,28 +110,26 @@ void dispatchSharedIntoChat(
       droppedAttachments == 0) {
     return;
   }
-  sharedIntoChatSink.add(
-    StagedShare(
-      chatId: chatId,
+  handoffSink.add((
+    share: PendingShare(
       attachments: attachments,
       text: text,
       droppedAttachments: droppedAttachments,
     ),
-  );
+    chatId: chatId,
+  ));
 }
 
 /// Fetches the share handoff that launched the app on Android cold start,
 /// if any.
-Future<void> consumeInitialShare(
-  StreamSink<StagedShare> sharedIntoChatSink,
-) async {
+Future<void> consumeInitialShare(StreamSink<ShareHandoff> handoffSink) async {
   if (!Platform.isAndroid) return;
   try {
     final payload = await platform.invokeMapMethod<Object?, Object?>(
       'getInitialShare',
     );
     if (payload == null) return;
-    dispatchSharedIntoChat(payload, sharedIntoChatSink);
+    dispatchSharedIntoChat(payload, handoffSink);
   } on PlatformException catch (e, stacktrace) {
     _log.severe("Failed to get initial share: '${e.message}'", e, stacktrace);
   }

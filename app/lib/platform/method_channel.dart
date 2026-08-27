@@ -9,7 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
 import 'package:air/core/api/utils.dart' as rust_utils;
 import 'package:air/platform/notifications.dart';
-import 'package:air/share/staged_share.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -19,17 +19,17 @@ final _log = Logger('Platform');
 
 void initMethodChannel(
   StreamSink<ChatId> openedNotificationSink,
-  StreamSink<StagedShare> sharedIntoChatSink,
+  StreamSink<ShareHandoff> shareHandoffSink,
 ) {
   platform.setMethodCallHandler(
-    (call) => _handleMethod(call, openedNotificationSink, sharedIntoChatSink),
+    (call) => _handleMethod(call, openedNotificationSink, shareHandoffSink),
   );
 }
 
 Future<void> _handleMethod(
   MethodCall call,
   StreamSink<ChatId> openedNotificationSink,
-  StreamSink<StagedShare> sharedIntoChatSink,
+  StreamSink<ShareHandoff> shareHandoffSink,
 ) async {
   _log.info('Handling method call: ${call.method}');
   switch (call.method) {
@@ -51,7 +51,7 @@ Future<void> _handleMethod(
     case 'sharedIntoChat':
       dispatchSharedIntoChat(
         call.arguments as Map<Object?, Object?>,
-        sharedIntoChatSink,
+        shareHandoffSink,
       );
       break;
     case 'backgroundTaskExpired':

@@ -22,8 +22,7 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/share/share_cubit.dart';
-import 'package:air/share/staged_share.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -62,10 +61,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
   late final StreamSubscription<ChatId> _openedNotificationSubscription;
-  final StreamController<StagedShare> _sharedIntoChatController =
-      StreamController<StagedShare>();
-  late final StreamSubscription<StagedShare> _sharedIntoChatSubscription;
-  final AndroidShareCubit _androidShareCubit = AndroidShareCubit();
+  final StreamController<ShareHandoff> _shareHandoffController =
+      StreamController<ShareHandoff>();
+  late final StreamSubscription<ShareHandoff> _shareHandoffSubscription;
   final NavigationCubit _navigationCubit = NavigationCubit(
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
@@ -82,38 +80,37 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
     initMethodChannel(
       _openedNotificationController.sink,
-      _sharedIntoChatController.sink,
+      _shareHandoffController.sink,
     );
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
           _appRouter.dismissOverlays();
-          _androidShareCubit.dropPendingShare();
           _navigationCubit.openChat(chatId);
         });
-    _sharedIntoChatSubscription = _sharedIntoChatController.stream.listen((
-      share,
-    ) {
-      // Staged before navigating, so the composer finds the share when the
-      // chat mounts.
-      _androidShareCubit.stage(share);
-      _appRouter.dismissOverlays();
-      final chatId = share.chatId;
-      if (chatId != null) {
-        _navigationCubit.openChat(chatId);
-      } else {
-        // No direct share target chose a destination: the user picks it
-        // from the chat list, which shows a banner while a share pends.
-        _navigationCubit.openHome();
-      }
-    });
+    _shareHandoffSubscription = _shareHandoffController.stream.listen(
+      _onShareHandoff,
+    );
 
     // Fetch potential initial notification or share handoff that launched
     // the app on Android cold start.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
-    unawaited(consumeInitialShare(_sharedIntoChatController.sink));
 
     _backgroundService.start(runImmediately: true);
+  }
+
+  /// Routes content the Android share activity handed over.
+  void _onShareHandoff(ShareHandoff handoff) {
+    if (_coreClient.maybeUser == null ||
+        _navigationCubit.state.isCreatingAccount) {
+      _log.info('Dropping a share handoff: no usable user is loaded');
+      unawaited(handoff.share.deleteFiles());
+      return;
+    }
+    _appRouter.dismissOverlays();
+    unawaited(
+      _navigationCubit.openShare(handoff.share, chatId: handoff.chatId),
+    );
   }
 
   @override
@@ -121,9 +118,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _openedNotificationSubscription.cancel();
     _openedNotificationController.close();
-    _sharedIntoChatSubscription.cancel();
-    _sharedIntoChatController.close();
-    _androidShareCubit.close();
+    _shareHandoffSubscription.cancel();
+    _shareHandoffController.close();
     _backgroundService.stop();
     super.dispose();
   }
@@ -172,19 +168,24 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   }
 
   /// Loads the client record given on the command line, or the default user.
-  void _loadInitialUser() {
+  Future<void> _loadInitialUser() async {
     final clientRecordId = widget.clientRecordId;
-    if (clientRecordId == null) {
-      _coreClient.loadDefaultUser();
-      return;
+    try {
+      if (clientRecordId == null) {
+        await _coreClient.loadDefaultUser();
+      } else {
+        _log.info(
+          "Loading client record from the command line: $clientRecordId",
+        );
+        await _coreClient.loadUser(clientRecordId: clientRecordId);
+      }
+    } catch (error) {
+      _log.severe(
+        "Error loading client record ${clientRecordId ?? 'default'}: $error",
+      );
     }
-    _log.info("Loading client record from the command line: $clientRecordId");
-    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
-      error,
-      stackTrace,
-    ) {
-      _log.severe("Error loading client record $clientRecordId: $error");
-    });
+    // When loading failed: the share is dropped and files are deleted.
+    await consumeInitialShare(_shareHandoffController.sink);
   }
 
   Future<void> _prepareForBackground() async {
@@ -224,14 +225,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       providers: [
         Provider.value(value: _coreClient),
         BlocProvider<NavigationCubit>.value(value: _navigationCubit),
-        BlocProvider<AndroidShareCubit>.value(value: _androidShareCubit),
         BlocProvider<RegistrationCubit>(
           create: (context) => RegistrationCubit(coreClient: _coreClient),
         ),
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
           create: (context) {
-            _loadInitialUser();
+            unawaited(_loadInitialUser());
             return LoadableUserCubit(_coreClient.userStream);
           },
           lazy: false, // immediately try to load the user

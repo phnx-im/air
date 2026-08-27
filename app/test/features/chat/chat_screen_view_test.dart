@@ -24,7 +24,6 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/share/share_cubit.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../../helpers.dart';
@@ -103,7 +102,6 @@ void main() {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
-    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -112,7 +110,6 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
-      androidShareCubit = MockAndroidShareCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -145,7 +142,6 @@ void main() {
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
         BlocProvider<MessageListCubit>.value(value: messageListCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
         RepositoryProvider<ShareTargetPublisher>.value(
           value: MockShareTargetPublisher(),
         ),

@@ -2298,12 +2298,6 @@ abstract class AppLocalizations {
   /// **'You'**
   String get homeTab_profile;
 
-  /// Banner on the chat list while shared content waits for a destination chat (Android). Tapping a chat stages the content there.
-  ///
-  /// In en, this message translates to:
-  /// **'Send to…'**
-  String get homeTab_share;
-
   /// Divider marking where the user's unread messages begin.
   ///
   /// In en, this message translates to:
@@ -2351,6 +2345,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
+
+  /// Title of the screen that asks which chat shared content should go to (Android). Tapping a chat opens it with the content in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to…'**
+  String get shareDestination_title;
 
   /// Title of the screen that receives content shared from another app.
   ///

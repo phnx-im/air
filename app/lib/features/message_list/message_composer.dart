@@ -29,12 +29,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/share/share_cubit.dart';
-import 'package:air/share/staged_share.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/platform/method_channel.dart'
@@ -71,9 +69,8 @@ class _MessageComposerState extends State<MessageComposer>
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
   bool _inputIsEmpty = true;
-  late final AndroidShareCubit _androidShareCubit;
-  StreamSubscription<StagedShare?>? _stagedShareSubscription;
-  bool _acceptUnaddressedShare = false;
+  late final NavigationCubit _navigationCubit;
+  StreamSubscription<NavigationState>? _navigationSubscription;
   String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
@@ -127,23 +124,10 @@ class _MessageComposerState extends State<MessageComposer>
     // 2. In Reply To ID has changed (when user clicks reply on another message)
     UiMimiId? currentInReplyToId;
 
-    // A share without a destination goes to the chat the user opens from
-    // the chat list.
-    _androidShareCubit = context.read<AndroidShareCubit>();
-    final pendingShare = _androidShareCubit.state;
-    _acceptUnaddressedShare =
-        pendingShare != null && pendingShare.chatId == null;
-    final destination = pendingShare?.chatId;
-    if (destination != null) {
-      final chatsRepository = context.read<ChatsRepository>();
-      if (chatsRepository.isLoaded &&
-          chatsRepository.getChat(destination) == null) {
-        _androidShareCubit.unaddress();
-        context.read<NavigationCubit>().openHome();
-      }
-    }
-    _stagedShareSubscription = _androidShareCubit.stream.listen(
-      (_) => _maybeApplyStagedShare(),
+    _navigationCubit = context.read<NavigationCubit>();
+    // A share can arrive for the chat that is already open.
+    _navigationSubscription = _navigationCubit.stream.listen(
+      (_) => _maybeApplyPendingShare(),
     );
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
@@ -181,31 +165,34 @@ class _MessageComposerState extends State<MessageComposer>
         default:
       }
 
-      _maybeApplyStagedShare();
+      _maybeApplyPendingShare();
 
       if (requestFocus) {
         _focusNode.requestFocus();
       }
     });
+
+    // The listener above covers a chat that is still loading, this covers one
+    // the chat repository already had. This is a no-op if it runs twice.
+    _maybeApplyPendingShare();
   }
 
-  /// Stages a share handed over from the Android share activity: the shared
-  /// text goes into the input field and the shared files run through the
-  /// regular attachment upload preview, one after the other, as if picked
-  /// in-app.
-  void _maybeApplyStagedShare() {
+  /// Stages the share navigation is holding for this chat: the shared text
+  /// goes into the input field and the shared files run through the regular
+  /// attachment upload preview, one after the other, as if picked in-app.
+  void _maybeApplyPendingShare() {
     final chat = _chatDetailsCubit.state.chat;
     if (chat == null || !mounted) {
       return;
     }
-    final share = _androidShareCubit.take(
-      chat.id,
-      acceptUnaddressed: _acceptUnaddressedShare,
-    );
-    if (share == null) {
+    final navigationState = _navigationCubit.state;
+    final share = navigationState.pendingShare;
+    // The share is addressed by navigation, not by this widget: it belongs to
+    // whichever chat navigation is pointed at.
+    if (share == null || navigationState.chatId != chat.id) {
       return;
     }
-    _acceptUnaddressedShare = false;
+    _navigationCubit.shareConsumed();
     if (share.droppedAttachments > 0) {
       showSnackBarStandalone(
         (loc) => SnackBar(
@@ -253,13 +240,7 @@ class _MessageComposerState extends State<MessageComposer>
       if (!uploaded) {
         // An uploaded file is deleted by the preview's temp-file handling,
         // a dropped one and the not yet previewed rest are deleted here.
-        for (final dropped in attachments.sublist(index)) {
-          try {
-            await File(dropped.path).delete();
-          } catch (e) {
-            _log.warning("Failed to delete dropped share file: $e");
-          }
-        }
+        await deleteShareFiles(attachments.sublist(index));
         return;
       }
     }
@@ -268,8 +249,6 @@ class _MessageComposerState extends State<MessageComposer>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
-    _stagedShareSubscription?.cancel();
 
     _storeDraftDebouncer.dispose();
 
@@ -283,6 +262,7 @@ class _MessageComposerState extends State<MessageComposer>
     _inputController.dispose();
 
     _draftLoadingSubscription?.cancel();
+    _navigationSubscription?.cancel();
     _focusNode.dispose();
     super.dispose();
   }

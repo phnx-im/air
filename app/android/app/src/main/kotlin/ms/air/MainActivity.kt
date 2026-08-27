@@ -188,7 +188,7 @@ class MainActivity : FlutterFragmentActivity() {
             val outcome = runCatching(op)
             mainHandler.post {
                 outcome.fold(
-                    onSuccess = { result.success(it) },
+                    onSuccess = { result.success(if (it is Unit) null else it) },
                     onFailure = { result.error("ShortcutError", it.message, null) },
                 )
             }

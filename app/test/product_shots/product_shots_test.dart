@@ -18,7 +18,6 @@ import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/share/share_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,14 +74,12 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
-    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
-      androidShareCubit = MockAndroidShareCubit();
 
       when(
         () => navigationCubit.state,
@@ -112,7 +109,6 @@ void main() {
               BlocProvider<UserCubit>.value(value: userCubit),
               BlocProvider<UsersCubit>.value(value: usersCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
               RepositoryProvider<ShareTargetPublisher>.value(
                 value: MockShareTargetPublisher(),
               ),
@@ -216,7 +212,6 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
-    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -226,7 +221,6 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
-      androidShareCubit = MockAndroidShareCubit();
 
       final chat = chats[0];
 
@@ -286,7 +280,6 @@ void main() {
               BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
               RepositoryProvider<ShareTargetPublisher>.value(
                 value: MockShareTargetPublisher(),
               ),
@@ -380,7 +373,6 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
-    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -390,7 +382,6 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
-      androidShareCubit = MockAndroidShareCubit();
 
       final chat = chats[4];
 
@@ -431,7 +422,6 @@ void main() {
               BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-              BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
               RepositoryProvider<ShareTargetPublisher>.value(
                 value: MockShareTargetPublisher(),
               ),
@@ -518,7 +508,6 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
     late MockAttachmentsRepository attachmentsRepository;
-    late MockAndroidShareCubit androidShareCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
@@ -528,7 +517,6 @@ void main() {
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
       attachmentsRepository = MockAttachmentsRepository();
-      androidShareCubit = MockAndroidShareCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
       when(() => usersCubit.state).thenReturn(
@@ -594,7 +582,6 @@ void main() {
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
           RepositoryProvider<ShareTargetPublisher>.value(
             value: MockShareTargetPublisher(),
           ),

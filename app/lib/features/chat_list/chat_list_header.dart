@@ -12,33 +12,32 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
-import 'package:air/share/share_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {
-  const ChatListHeader({super.key, this.scrollOffset});
+  const ChatListHeader({super.key, this.scrollOffset, this.shareMode = false});
 
   /// The list's scroll offset, which reveals the title pill.
   final ValueNotifier<double>? scrollOffset;
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final tokens = ListHeaderTokens.current;
-    final sharePending = context.select(
-      (AndroidShareCubit cubit) => cubit.state != null,
-    );
+
     return ListHeader(
       tokens: tokens,
-      title: sharePending ? loc.homeTab_share : loc.homeTab_chats,
+      title: shareMode ? loc.shareDestination_title : loc.homeTab_chats,
       scrollOffset: scrollOffset,
-      leading: sharePending
+      leading: shareMode
           ? ListHeaderAction(
               tokens: tokens,
               icon: AppIconType.x,
-              onAction: (_) =>
-                  context.read<AndroidShareCubit>().dropPendingShare(),
+              onAction: (_) => context.read<NavigationCubit>().cancelShare(),
             )
           : _ComposeButton(tokens: tokens),
     );

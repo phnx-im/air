@@ -29,7 +29,6 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:air/share/share_cubit.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +51,7 @@ class ChatListContent extends HookWidget {
     this.header = const SizedBox.shrink(),
     this.headerHeight = 0,
     this.onScrollOffset,
+    this.shareMode = false,
   });
 
   /// Pinned over the list, which scrolls behind it. It floats over a full-bleed
@@ -65,15 +65,25 @@ class ChatListContent extends HookWidget {
   /// once rows slide under it.
   final ValueChanged<double>? onScrollOffset;
 
+  /// Whether the list asks which chat to send shared content to (instead of
+  /// navigating to a chat).
+  final bool shareMode;
+
   @override
   Widget build(BuildContext context) {
-    final chatIdsStream = useMemoized(
-      () => context.read<ChatsRepository>().watchOrder(),
-    );
+    final repository = context.read<ChatsRepository>();
+    final chatIdsStream = useMemoized(() => repository.watchOrder());
     final chatIdsSnapshot = useStream(chatIdsStream);
     // Always show the current order
-    final chatIds =
-        chatIdsSnapshot.data ?? context.read<ChatsRepository>().order;
+    final orderedChatIds = chatIdsSnapshot.data ?? repository.order;
+
+    // If a chat turns unshareable while the picker is open it won't vanish.
+    final chatIds = shareMode
+        ? [
+            for (final chatId in orderedChatIds)
+              if (repository.getChat(chatId)?.canShareInto ?? false) chatId,
+          ]
+        : orderedChatIds;
 
     final list = ChatList(
       tokens: ChatListTokens.current,
@@ -89,11 +99,12 @@ class ChatListContent extends HookWidget {
           create: (context) => ChatListItemCubit(
             repository: context.read(),
             chatId: chatId,
-            withMembers: true,
+            withMembers: shareMode,
           ),
           child: _ListTile(
             chatId: chatId,
             nextChatId: isLast ? null : chatIds[index + 1],
+            shareMode: shareMode,
           ),
         );
       },
@@ -108,14 +119,17 @@ class ChatListContent extends HookWidget {
     return Stack(
       children: [
         list,
-        const Positioned.fill(child: _NoChats()),
+        Positioned.fill(child: _NoChats(shareMode: shareMode)),
       ],
     );
   }
 }
 
 class _NoChats extends StatelessWidget {
-  const _NoChats();
+  const _NoChats({required this.shareMode});
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +138,7 @@ class _NoChats extends StatelessWidget {
       alignment: AlignmentDirectional.center,
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
-        loc.chatList_emptyMessage,
+        shareMode ? loc.shareScreen_noChats : loc.chatList_emptyMessage,
         style: TextStyle(color: SemanticPalette.of(context).text.secondary),
       ),
     );
@@ -132,19 +146,26 @@ class _NoChats extends StatelessWidget {
 }
 
 class _ListTile extends StatelessWidget {
-  const _ListTile({required this.chatId, required this.nextChatId});
+  const _ListTile({
+    required this.chatId,
+    required this.nextChatId,
+    required this.shareMode,
+  });
 
   final ChatId chatId;
 
   /// The row below this one, null on the last row.
   final ChatId? nextChatId;
 
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
+
   @override
   Widget build(BuildContext context) {
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isActive = currentChatId == chatId;
+    final isActive = !shareMode && currentChatId == chatId;
 
     // The last row drops its rule so the list does not end on a dangling line.
     // Only the two-pane layout keeps a selection, and there the rules above and
@@ -152,7 +173,7 @@ class _ListTile extends StatelessWidget {
     final hideSeparator =
         nextChatId == null ||
         (!context.breakpoint.isSmall &&
-            (isActive || currentChatId == nextChatId));
+            (isActive || (!shareMode && currentChatId == nextChatId)));
 
     final (chat, members) = context.select(
       (ChatListItemCubit cubit) => (cubit.state.chat, cubit.state.members),
@@ -161,10 +182,16 @@ class _ListTile extends StatelessWidget {
     return _ChatRow(
       chat: chat,
       members: members,
+      shareMode: shareMode,
       isActive: isActive,
       hideSeparator: hideSeparator,
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
-      onLongPress: (position) => _openMuteMenu(context, position),
+      onTap: shareMode
+          ? () => context.read<NavigationCubit>().openShareDestination(chatId)
+          : () => context.read<NavigationCubit>().openChat(chatId),
+      // Disable muting when in sharing mode.
+      onLongPress: shareMode
+          ? null
+          : (position) => _openMuteMenu(context, position),
     );
   }
 
@@ -254,7 +281,8 @@ class _ListTile extends StatelessWidget {
 class _ChatRow extends StatelessWidget {
   const _ChatRow({
     required this.chat,
-    this.members,
+    required this.members,
+    required this.shareMode,
     required this.isActive,
     required this.hideSeparator,
     required this.onTap,
@@ -262,11 +290,15 @@ class _ChatRow extends StatelessWidget {
   });
 
   final UiChatDetails chat;
-  final List<UiUserId>? members;
   final bool isActive;
   final bool hideSeparator;
-  final VoidCallback? onTap;
-  final void Function(Offset position) onLongPress;
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
+  final List<UiUserId>? members;
+
+  final VoidCallback onTap;
+  final void Function(Offset position)? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -281,27 +313,20 @@ class _ChatRow extends StatelessWidget {
     }
 
     final isBlocked = chat.status == const UiChatStatus.blocked();
+    final isGroup = chat.chatType is UiChatType_Group;
 
-    final sharePending = context.select(
-      (AndroidShareCubit cubit) => cubit.state != null,
-    );
-    final canSelectShareDestination =
-        chat.canShareInto &&
-        switch (chat.chatType) {
-          UiChatType_Group() =>
-            ownId != null && members?.contains(ownId) == true,
-          _ => true,
-        };
+    final selectable =
+        !shareMode ||
+        (chat.canShareInto &&
+            (!isGroup || (ownId != null && members?.contains(ownId) == true)));
 
     final Widget? preview;
     if (isBlocked) {
       preview = const _BlockedPreview();
-    } else if (sharePending) {
-      preview = _GroupParticipantNames.maybeBuild(
-        chat: chat,
-        members: members,
-        ownClientId: ownId,
-      );
+    } else if (shareMode) {
+      preview = isGroup
+          ? _ParticipantNames(members: members, ownClientId: ownId)
+          : null;
     } else if (ownId != null) {
       preview = _LastMessage(chat: chat, ownClientId: ownId);
     } else {
@@ -318,15 +343,43 @@ class _ChatRow extends StatelessWidget {
               color: palette.text.tertiary,
             )
           : null,
-      timestamp: sharePending ? null : _LastUpdated(chat: chat),
+      timestamp: shareMode ? null : _LastUpdated(chat: chat),
       preview: preview,
-      trailing: isBlocked || ownId == null || sharePending
+      trailing: isBlocked || ownId == null || shareMode
           ? null
           : _TrailingIndicator(ownClientId: ownId),
       isActive: isActive,
       hideSeparator: hideSeparator,
-      onTap: !sharePending || canSelectShareDestination ? onTap : null,
+      onTap: selectable ? onTap : null,
       onLongPress: onLongPress,
+    );
+  }
+}
+
+/// Group members, comma separated, own name excluded.
+class _ParticipantNames extends StatelessWidget {
+  const _ParticipantNames({required this.members, required this.ownClientId});
+
+  final List<UiUserId>? members;
+  final UiUserId? ownClientId;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayNames = context.select(
+      (UsersCubit cubit) => [
+        for (final userId in members ?? const <UiUserId>[])
+          if (userId != ownClientId) cubit.state.displayName(userId: userId),
+      ].join(", "),
+    );
+
+    return Text(
+      displayNames,
+      style: typeScale.body.s.style(
+        color: SemanticPalette.of(context).text.tertiary,
+      ),
+      maxLines: 2,
+      softWrap: true,
+      overflow: .ellipsis,
     );
   }
 }
@@ -533,52 +586,6 @@ class _LastMessage extends StatelessWidget {
           TextSpan(text: prefix, style: prefixStyle),
           TextSpan(text: suffix, style: previewStyle),
         ],
-      ),
-      maxLines: 2,
-      softWrap: true,
-      overflow: .ellipsis,
-    );
-  }
-}
-
-/// Group members, comma separated, own name excluded. Stands in for
-/// [_LastMessage] while an Android share is pending, so the row reads as a
-/// share destination rather than a conversation.
-class _GroupParticipantNames extends HookWidget {
-  const _GroupParticipantNames({
-    required this.members,
-    required this.ownClientId,
-  });
-
-  final List<UiUserId>? members;
-  final UiUserId? ownClientId;
-
-  /// Returns null unless [chat] is a group chat.
-  static Widget? maybeBuild({
-    required UiChatDetails chat,
-    required List<UiUserId>? members,
-    required UiUserId? ownClientId,
-  }) {
-    debugPrint(members.toString());
-    if (chat.chatType is! UiChatType_Group) {
-      return null;
-    }
-    return _GroupParticipantNames(members: members, ownClientId: ownClientId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final displayNames = context.select(
-      (UsersCubit cubit) => [
-        for (final userId in members ?? [])
-          if (userId != ownClientId) cubit.state.displayName(userId: userId),
-      ].join(", "),
-    );
-
-    return Text(
-      displayNames,
-      style: typeScale.body.s.style(
-        color: SemanticPalette.of(context).text.tertiary,
       ),
       maxLines: 2,
       softWrap: true,

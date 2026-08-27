@@ -17,7 +17,6 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/share/share_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -49,7 +48,6 @@ void main() {
   late MockChatDetailsCubit chatDetailsCubit;
   late MockMessageListCubit messageListCubit;
   late MockUserSettingsCubit userSettingsCubit;
-  late MockAndroidShareCubit androidShareCubit;
   late TextEditingController inputController;
 
   setUpAll(() async {
@@ -65,7 +63,6 @@ void main() {
     chatDetailsCubit = MockChatDetailsCubit();
     messageListCubit = MockMessageListCubit();
     userSettingsCubit = MockUserSettingsCubit();
-    androidShareCubit = MockAndroidShareCubit();
     // The composer owns the controller it is handed and disposes it, so the
     // test must not dispose it a second time.
     inputController = TextEditingController();
@@ -108,7 +105,6 @@ void main() {
       BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
       BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-      BlocProvider<AndroidShareCubit>.value(value: androidShareCubit),
       RepositoryProvider<ShareTargetPublisher>.value(
         value: MockShareTargetPublisher(),
       ),
