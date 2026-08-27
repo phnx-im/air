@@ -27,6 +27,7 @@ use crate::{
         CoreUser,
         api_clients::ApiClients,
         multi_device::{ConnectionContact, HigherLevelGroup},
+        own_client_info::OwnClientInfo,
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
@@ -410,8 +411,12 @@ impl Resync {
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
 
-        let vc_epoch_id = if self.shares_vc_leaf {
-            Some(CoreUser::register_self_group_vc_emulation_epoch(&mut *txn).await?)
+        let vc_group_id = if self.shares_vc_leaf {
+            Some(
+                OwnClientInfo::load_self_group_id(&mut *txn)
+                    .await?
+                    .context("self group not found")?,
+            )
         } else {
             None
         };
@@ -428,7 +433,7 @@ impl Resync {
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
-                vc_epoch_id,
+                vc_group_id,
             )
             .await??;
             Ok((
@@ -451,7 +456,7 @@ impl Resync {
                 self.identity_link_wrapper_key,
                 aad,
                 None, // This is not in response to a connection offer.
-                vc_epoch_id,
+                vc_group_id,
             )
             .await??;
             Ok((

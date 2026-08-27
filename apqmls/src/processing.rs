@@ -579,7 +579,7 @@ fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
     group.resolve_app_data_commit(crypto, message, updates)
 }
 
-fn compute_app_data_updates<'a>(
+pub(crate) fn compute_app_data_updates<'a>(
     mut updater: AppDataDictionaryUpdater<'a>,
     proposals: impl Iterator<Item = &'a AppDataUpdateProposal>,
 ) -> Option<AppDataUpdates> {

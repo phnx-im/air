@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::{component::AirComponent, group::GroupData},
+};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -16,7 +19,7 @@ use crate::{
     groups::Group,
     job::{
         JobError,
-        chat_operation::ChatOperation,
+        chat_operation::{ChatOperation, DerivationEpoch},
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
@@ -515,19 +518,40 @@ impl OutboundServiceContext {
 
         let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
 
+        // The periodic self-update of the emulation group, i.e. the self group,
+        // doubles as the rotation of its derivation epoch. openmls rejects the
+        // marker on any other group.
+        let derivation_epoch = if group.mls_group().is_emulation_group() {
+            DerivationEpoch::Rotate
+        } else {
+            // A self group without a registered derivation epoch loads as a
+            // non-emulation group and cannot register one. An unmarked
+            // self-update would only bounce off the DS, so skip it and leave a
+            // diagnosable trace.
+            if AirComponent::is_self_group_context(group.mls_group().extensions()) {
+                error!(
+                    %chat_id,
+                    "self group has no derivation epoch and cannot register one, \
+                     skipping its self-update"
+                );
+                return Ok(SelfUpdateOutcome::Skipped);
+            }
+            DerivationEpoch::Keep
+        };
+
         let job = if migration_attrs.is_some() {
             // Migration takes precedence over PQ self-update (PQ interval is long, so this is
             // fine).
             info!(%chat_id, "Migrating legacy group data");
-            ChatOperation::update(chat_id, migration_attrs)
+            ChatOperation::update(chat_id, migration_attrs, derivation_epoch)
         } else if pq_due {
             // Both T and PQ are due and no migration is needed, so the joint APQ update covers
             // both.
             info!(%chat_id, "Performing joint APQ self-update");
-            ChatOperation::apq_update(chat_id)
+            ChatOperation::apq_update(chat_id, derivation_epoch)
         } else {
             // Pure T-only update
-            ChatOperation::update(chat_id, None)
+            ChatOperation::update(chat_id, None, derivation_epoch)
         };
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),

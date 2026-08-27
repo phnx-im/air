@@ -554,7 +554,7 @@ abstract class RustLibApi extends BaseApi {
     required UiUsername username,
   });
 
-  Future<InviteUsersError?> crateApiUserCubitUserCubitBaseAddUsersToChat({
+  Future<List<UiUserId>> crateApiUserCubitUserCubitBaseAddUsersToChat({
     required UserCubitBase that,
     required ChatId chatId,
     required List<UiUserId> userIds,
@@ -4730,7 +4730,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<InviteUsersError?> crateApiUserCubitUserCubitBaseAddUsersToChat({
+  Future<List<UiUserId>> crateApiUserCubitUserCubitBaseAddUsersToChat({
     required UserCubitBase that,
     required ChatId chatId,
     required List<UiUserId> userIds,
@@ -4753,7 +4753,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_invite_users_error,
+          decodeSuccessData: sse_decode_list_ui_user_id,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseAddUsersToChatConstMeta,
@@ -9388,12 +9388,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_invite_users_error(raw);
-  }
-
-  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_message_content(raw);
@@ -9905,19 +9899,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return InvitationCodesState(
       codes: dco_decode_list_ui_invitation_code(arr[0]),
     );
-  }
-
-  @protected
-  InviteUsersError dco_decode_invite_users_error(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return InviteUsersError_IncompatibleClient(
-          reason: dco_decode_String(raw[1]),
-        );
-      default:
-        throw Exception("unreachable");
-    }
   }
 
   @protected
@@ -10564,12 +10545,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_image_data(raw);
-  }
-
-  @protected
-  InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_invite_users_error(raw);
   }
 
   @protected
@@ -12883,14 +12858,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  InviteUsersError sse_decode_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_invite_users_error(deserializer));
-  }
-
-  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   ) {
@@ -13491,20 +13458,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_codes = sse_decode_list_ui_invitation_code(deserializer);
     return InvitationCodesState(codes: var_codes);
-  }
-
-  @protected
-  InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_reason = sse_decode_String(deserializer);
-        return InviteUsersError_IncompatibleClient(reason: var_reason);
-      default:
-        throw UnimplementedError('');
-    }
   }
 
   @protected
@@ -14466,19 +14419,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_image_data(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_invite_users_error(deserializer));
     } else {
       return null;
     }
@@ -17294,15 +17234,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_invite_users_error(
-    InviteUsersError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_invite_users_error(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -17872,19 +17803,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_ui_invitation_code(self.codes, serializer);
-  }
-
-  @protected
-  void sse_encode_invite_users_error(
-    InviteUsersError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case InviteUsersError_IncompatibleClient(reason: final reason):
-        sse_encode_i_32(0, serializer);
-        sse_encode_String(reason, serializer);
-    }
   }
 
   @protected
@@ -18765,19 +18683,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_image_data(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_invite_users_error(
-    InviteUsersError? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_invite_users_error(self, serializer);
     }
   }
 
@@ -20779,9 +20684,9 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
 
   /// Adds multiple users to the chat with the given [`ChatId`].
   ///
-  /// If one of the users cannot be added, an error is returned and the chat is not modified,
-  /// that is, other users are *not* added to the chat too.
-  Future<InviteUsersError?> addUsersToChat(
+  /// Users that cannot be added because their client is not compatible
+  /// with the group are left out of the invite and returned.
+  Future<List<UiUserId>> addUsersToChat(
     ChatId chatId,
     List<UiUserId> userIds,
   ) => RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUsersToChat(

@@ -29,7 +29,6 @@ use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
 use chrono::Utc;
-use openmls::components::vc_derivation_info::EpochId;
 use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
@@ -52,8 +51,6 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use crate::db::access::WriteConnection;
-use crate::groups::self_group::SelfGroup;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
     clients::{
@@ -694,18 +691,6 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Register a virtual-clients emulation epoch on the self group.
-    pub(crate) async fn register_self_group_vc_emulation_epoch(
-        mut connection: impl WriteConnection,
-    ) -> anyhow::Result<EpochId> {
-        let mut self_group = SelfGroup::load(&mut connection)
-            .await?
-            .context("self group not found")?;
-        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
-        debug!(?epoch_id, "registered self-group VC emulation epoch");
-        Ok(epoch_id)
-    }
-
     /// Poll our QS queue until the self-group Welcome arrives.
     async fn join_self_group_from_queue(&self) -> anyhow::Result<()> {
         let self_group_id = OwnClientInfo::load_self_group_id(self.db().read().await?)
@@ -743,18 +728,27 @@ impl CoreUser {
         let (mut stream, responder) = self.listen_queue().await?;
         let mut messages: Vec<QueueMessage> = Vec::new();
 
-        while let Some(message) = stream.next().await {
-            match message.event {
-                // Empty event is the sentinel: the queue is drained.
-                Some(listen_response::Event::Empty(_)) => break,
-                Some(listen_response::Event::Message(queue_message)) => {
-                    if let Ok(queue_message) = queue_message.try_into() {
-                        messages.push(queue_message);
+        let drained = loop {
+            match stream.next().await {
+                Some(Ok(message)) => match message.event {
+                    // Empty event is the sentinel: the queue is drained.
+                    Some(listen_response::Event::Empty(_)) => break true,
+                    Some(listen_response::Event::Message(queue_message)) => {
+                        if let Ok(queue_message) = queue_message.try_into() {
+                            messages.push(queue_message);
+                        }
                     }
+                    Some(listen_response::Event::Payload(_)) | None => {}
+                },
+                // Terminal status => stream is over, acks cannot be confirmed
+                Some(Err(error)) => {
+                    warn!(%error, "qs listen stream failed during drain");
+                    break false;
                 }
-                Some(listen_response::Event::Payload(_)) | None => {}
+                // EOF without our half-close (old server) => stream is over
+                None => break false,
             }
-        }
+        };
 
         let num_messages = messages.len();
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
@@ -764,6 +758,10 @@ impl CoreUser {
             if let Some(max_sequence_number) = max_sequence_number {
                 // Acks all messages before max_sequence_number + 1 (exclusive).
                 responder.ack(max_sequence_number + 1).await;
+                if drained {
+                    // half-close the request stream, then wait for the server to apply the ack
+                    responder.close(&mut stream).await;
+                }
             }
         } else {
             error!(

@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
-pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
@@ -281,24 +280,21 @@ impl UserCubitBase {
 
     /// Adds multiple users to the chat with the given [`ChatId`].
     ///
-    /// If one of the users cannot be added, an error is returned and the chat is not modified,
-    /// that is, other users are *not* added to the chat too.
-    //
-    // Note: We use the `Result<Option<_>, _>` return type because FRB does not support generics
-    // and so we cannot propagate the result directly.
+    /// Users that cannot be added because their client is not compatible
+    /// with the group are left out of the invite and returned.
     #[frb(positional)]
     pub async fn add_users_to_chat(
         &self,
         chat_id: ChatId,
         user_ids: Vec<UiUserId>,
-    ) -> anyhow::Result<Option<InviteUsersError>> {
+    ) -> anyhow::Result<Vec<UiUserId>> {
         let user_ids: Vec<_> = user_ids.into_iter().map(From::from).collect();
-        Ok(self
+        let result = self
             .context
             .core_user
             .invite_users(chat_id, &user_ids)
-            .await?
-            .err())
+            .await?;
+        Ok(result.users_not_added.into_iter().map(From::from).collect())
     }
 
     #[frb(positional)]
@@ -625,9 +621,4 @@ impl CubitContext {
                 .await;
         }
     }
-}
-
-#[frb(mirror(InviteUsersError))]
-enum _InviteUsersError {
-    IncompatibleClient { reason: String },
 }

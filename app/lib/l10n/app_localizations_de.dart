@@ -868,11 +868,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Gruppenchat mit dem Namen $chatName konnte nicht erstellt werden, da einer der Kontakte einen inkompatiblen Client hat.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Air-Kontakt hinzufügen';
 
   @override
@@ -1204,6 +1199,44 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Keine Mitglieder';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Einige Personen konnten nicht hinzugefügt werden';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Deine Gruppe $groupName wurde erstellt, aber $memberNames konnten nicht hinzugefügt werden.',
+      one:
+          'Deine Gruppe $groupName wurde erstellt, aber $memberNames konnte nicht hinzugefügt werden.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weitere Personen',
+      one: '$count weitere Person',
+    );
+    return '$memberNames und $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Fertig';
 
   @override
@@ -1322,6 +1355,14 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get memberSelectionList_client_not_supported =>
       'Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.';
+
+  @override
+  String get memberSelectionList_cantBeAddedTitle =>
+      'Können nicht hinzugefügt werden';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Diese Personen können nicht zur Gruppe hinzugefügt werden. Möglicherweise ist ihr Konto nicht mehr aktiv oder ihre App-Version ist zu alt.';
 
   @override
   String get homeTab_chats => 'Chats';

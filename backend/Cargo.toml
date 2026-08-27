@@ -32,7 +32,6 @@ hmac.workspace = true
 metrics.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
-pin-project.workspace = true
 privacypass.workspace = true
 prost.workspace = true
 rand.workspace = true

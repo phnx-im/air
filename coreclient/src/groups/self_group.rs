@@ -19,14 +19,15 @@ use aircommon::{
 use airprotos::client::{
     component::AirComponent,
     group::{EncryptedGroupTitle, GroupData},
-    virtual_client::{VirtualClientAction, extract_virtual_client_action},
+    virtual_client::{
+        VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
+    },
 };
 use anyhow::{Context, bail, ensure};
 use openmls::{
     components::vc_derivation_info::{
-        EpochId, KeyPackageUpload, VC_COMPONENT_ID, process_vc_key_package_upload,
+        KeyPackageUpload, VC_COMPONENT_ID, process_vc_key_package_upload,
     },
-    framing::SafeAadItem,
     group::GroupId,
     prelude::{LeafNodeIndex, ProcessedMessage},
 };
@@ -117,15 +118,6 @@ impl SelfGroup {
         self.group.identity_link_wrapper_key()
     }
 
-    /// Register a virtual-clients emulation epoch for the self group's current
-    /// epoch. See [`Group::register_vc_emulation_epoch`].
-    pub(crate) fn register_vc_emulation_epoch(
-        &mut self,
-        connection: impl WriteConnection,
-    ) -> anyhow::Result<EpochId> {
-        self.group.register_vc_emulation_epoch(connection)
-    }
-
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
     /// SafeAAD.
     ///
@@ -141,9 +133,9 @@ impl SelfGroup {
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
         // SafeAAD hint the DS extracts from the T commit to trigger promotion.
-        let action_bytes =
-            VirtualClientAction::KeyPackageUpload(upload).tls_serialize_detached()?;
-        t_mls_group.set_safe_aad(vec![SafeAadItem::new(VC_COMPONENT_ID, action_bytes)])?;
+        let commit_data =
+            VirtualClientCommitData::new(vec![VirtualClientAction::KeyPackageUpload(upload)])?;
+        t_mls_group.set_safe_aad(vec![commit_data.to_safe_aad_item()?])?;
 
         // Regular AAD tail (required by DS commit validation)
         let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -198,9 +190,9 @@ impl SelfGroup {
             "clients to remove are not in the self group: {client_ids:?}"
         );
 
-        let vc_epoch_id = self
+        let vc_group_id = self
             .group
-            .resolve_vc_emulation_epoch(&mut connection)
+            .resolve_vc_emulation_group(&mut connection)
             .await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
@@ -216,8 +208,8 @@ impl SelfGroup {
                 .force_self_update(true)
                 .propose_removals(remove_indices)
                 .create_group_info(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
@@ -384,47 +376,46 @@ impl Group {
         processed_message: &ProcessedMessage,
         sender_index: LeafNodeIndex,
     ) -> anyhow::Result<()> {
-        let Some(action) = extract_virtual_client_action(processed_message)? else {
+        let Some(commit_data) = extract_virtual_client_commit_data(processed_message)? else {
             return Ok(());
         };
-        let VirtualClientAction::KeyPackageUpload(upload) = action;
 
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
         ensure!(
             own_client_info.self_group_id.as_ref() == Some(self.group_id()),
-            "KeyPackageUpload component outside the self-group"
-        );
-        ensure!(
-            upload.leaf_index == sender_index,
-            "KeyPackageUpload for a leaf other than the sender"
-        );
-        ensure!(
-            upload.leaf_index != self.mls_group().own_leaf_index(),
-            "Sibling KeyPackageUpload from own leaf"
+            "virtual-client component outside the self-group"
         );
 
-        {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            // A passive sibling may not have registered this epoch's
-            // operation tree yet. Registration is idempotent and must happen
-            // at the pre-merge epoch, which is the epoch the upload
-            // references.
-            let epoch_id = self
-                .mls_group_mut()
-                .register_vc_emulation_epoch(provider.crypto(), provider.storage())?;
+        for upload in commit_data.key_package_uploads() {
             ensure!(
-                epoch_id == upload.epoch_id,
-                "KeyPackageUpload references a foreign emulation epoch"
+                upload.leaf_index == sender_index,
+                "KeyPackageUpload for a leaf other than the sender"
             );
-            process_vc_key_package_upload(&provider, &upload)?;
-        }
+            ensure!(
+                upload.leaf_index != self.mls_group().own_leaf_index(),
+                "Sibling KeyPackageUpload from own leaf"
+            );
 
-        // The sibling's batch replaces the served set; track it as live.
-        let (plain_refs, apq_refs) =
-            HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&upload.key_package_info)?;
-        mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
-        mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
-        delete_orphaned_key_packages(&mut *txn).await?;
+            {
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let epoch_id = self
+                    .mls_group()
+                    .newest_vc_derivation_epoch(provider.storage())?
+                    .context("self group has no derivation epoch")?;
+                ensure!(
+                    epoch_id == upload.epoch_id,
+                    "KeyPackageUpload references a foreign emulation epoch"
+                );
+                process_vc_key_package_upload(&provider, upload)?;
+            }
+
+            // The sibling's batch replaces the served set; track it as live.
+            let (plain_refs, apq_refs) =
+                HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&upload.key_package_info)?;
+            mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
+            mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
+            delete_orphaned_key_packages(&mut *txn).await?;
+        }
 
         Ok(())
     }

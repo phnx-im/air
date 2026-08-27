@@ -9210,11 +9210,6 @@ const _: fn() = || {
         let _: bool = InvitationCode.copied;
         let _: chrono::DateTime<chrono::Utc> = InvitationCode.created_at;
     }
-    match None::<crate::api::user_cubit::InviteUsersError>.unwrap() {
-        crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
-            let _: String = reason;
-        }
-    }
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
         let _: uuid::Uuid = MessageId.uuid;
@@ -10798,24 +10793,6 @@ impl SseDecode for crate::api::invitation_codes_cubit::InvitationCodesState {
     }
 }
 
-impl SseDecode for crate::api::user_cubit::InviteUsersError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut tag_ = <i32>::sse_decode(deserializer);
-        match tag_ {
-            0 => {
-                let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::api::user_cubit::InviteUsersError::IncompatibleClient {
-                    reason: var_reason,
-                };
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-
 impl SseDecode for isize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11799,19 +11776,6 @@ impl SseDecode for Option<crate::api::types::ImageData> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::ImageData>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::user_cubit::InviteUsersError> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::user_cubit::InviteUsersError>::sse_decode(
-                deserializer,
-            ));
         } else {
             return None;
         }
@@ -14626,30 +14590,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::invitation_codes_cubit::Invit
 {
     fn into_into_dart(self) -> crate::api::invitation_codes_cubit::InvitationCodesState {
         self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user_cubit::InviteUsersError> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-            crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
-                [0.into_dart(), reason.into_into_dart().into_dart()].into_dart()
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::user_cubit::InviteUsersError>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::user_cubit::InviteUsersError>>
-    for crate::api::user_cubit::InviteUsersError
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::user_cubit::InviteUsersError> {
-        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -17615,21 +17555,6 @@ impl SseEncode for crate::api::invitation_codes_cubit::InvitationCodesState {
     }
 }
 
-impl SseEncode for crate::api::user_cubit::InviteUsersError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        match self {
-            crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
-                <i32>::sse_encode(0, serializer);
-                <String>::sse_encode(reason, serializer);
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-
 impl SseEncode for isize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18432,16 +18357,6 @@ impl SseEncode for Option<crate::api::types::ImageData> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::ImageData>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode for Option<crate::api::user_cubit::InviteUsersError> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::user_cubit::InviteUsersError>::sse_encode(value, serializer);
         }
     }
 }

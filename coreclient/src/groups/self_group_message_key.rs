@@ -40,6 +40,7 @@ use airprotos::client::{
     self_group::{
         AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
+    virtual_client::VirtualClientCommitData,
 };
 use anyhow::{Result, anyhow, ensure};
 use openmls::prelude::{
@@ -241,6 +242,12 @@ impl Group {
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+
+        // Temporary measure, to be removed with the DS-side check it exists
+        // for.
+        let commit_data = VirtualClientCommitData::new(Vec::new())?;
+        t_mls_group.set_safe_aad(vec![commit_data.to_safe_aad_item()?])?;
+
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
             .force_self_update(true)
             .add_t_proposal(proposal)
@@ -299,6 +306,11 @@ impl Group {
 
             let ciphertext = match payload {
                 AppEphemeralPayload::EncryptedSelfGroupMessages(ciphertext) => ciphertext,
+                // Only carried on external commits of higher-level groups.
+                AppEphemeralPayload::GroupBootstrapBlob(_) => {
+                    debug!("Skipping group bootstrap blob in a self-group commit");
+                    continue;
+                }
                 // A payload kind added by a newer client. Nothing to do here.
                 AppEphemeralPayload::Unknown => {
                     debug!("Skipping unknown self-group app-ephemeral payload");

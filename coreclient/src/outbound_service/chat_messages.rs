@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::{Group, handle_group_not_found_on_ds};
 use crate::job::JobError;
-use crate::job::chat_operation::ChatOperation;
+use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
@@ -405,7 +405,10 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
     ) -> Result<CommitOutcome, OutboundServiceError> {
-        match self.execute_job(ChatOperation::update(chat_id, None)).await {
+        match self
+            .execute_job(ChatOperation::update(chat_id, None, DerivationEpoch::Keep))
+            .await
+        {
             Ok(_) => Ok(CommitOutcome::Committed),
             Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
             Err(JobError::NetworkError) => Err(OutboundServiceError::recoverable(anyhow!(

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
@@ -42,7 +43,7 @@ class _ChatListViewState extends State<ChatListView> {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = chatListBackgroundColor(context);
+    final bgColor = PanelSurface.colorOf(context);
     // On a phone the list runs behind the status bar, so the header carries
     // that inset itself and the list reserves the bar's height plus the
     // clearance below it. Read from the same device type the header's tokens

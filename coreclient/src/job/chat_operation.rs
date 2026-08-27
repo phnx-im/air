@@ -28,7 +28,6 @@ use crate::{
 
 #[derive(Debug, Clone)]
 enum ChatOperationType {
-    AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
     /// Removes individual self-group leaves, identified by client id.
     RemoveClients(Vec<Uuid>),
@@ -39,8 +38,25 @@ enum ChatOperationType {
     },
     Leave,
     Delete,
-    Update(Option<ChatAttributes>),
-    ApqUpdate,
+    Update(Option<ChatAttributes>, DerivationEpoch),
+    ApqUpdate(DerivationEpoch),
+}
+
+/// Whether a self-update commit also opens a new virtual-client derivation
+/// epoch.
+///
+/// Only the emulation group, i.e. the self group, has derivation epochs, and
+/// only its periodic self-update rotates them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DerivationEpoch {
+    Rotate,
+    Keep,
+}
+
+impl DerivationEpoch {
+    pub(crate) fn rotates(self) -> bool {
+        self == Self::Rotate
+    }
 }
 
 pub(crate) struct ChatOperation {
@@ -55,6 +71,53 @@ pub(crate) enum ChatOperationError {
     LeafNodeValidation(#[from] LeafNodeValidationError),
     #[error("failed to encrypt user profile key")]
     UserProfileKeyEncryptionError(EncryptionError),
+}
+
+/// Executes any pending operation for the chat, so that a job starts from a
+/// clean group state.
+pub(super) async fn execute_pending_operation(
+    chat_id: ChatId,
+    context: &mut JobContext<'_, '_>,
+) -> Result<(), JobError<ChatOperationError>> {
+    let pending_operation = context
+        .db
+        .write()
+        .await?
+        .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        .await?;
+
+    if let Some(pending_operation) = pending_operation {
+        // We can just propagate any error here, as the this job isn't
+        // persisted and doesn't need to be cleaned up.
+        pending_operation.execute(context).await?;
+    }
+
+    Ok(())
+}
+
+/// Loads the group of the chat with the given id.
+///
+/// Errors if the chat is gone or inactive, since no operation may run on it
+/// then.
+pub(super) async fn load_active_group(
+    db: &mut JobContextDb<'_, '_>,
+    chat_id: ChatId,
+) -> anyhow::Result<Group> {
+    let chat = {
+        let mut connection = db.read().await?;
+        let txn = connection.begin().await?;
+        Chat::load(txn, &chat_id)
+            .await?
+            .ok_or(anyhow!("No chat found for ID {chat_id}"))?
+    };
+
+    if let ChatStatus::Inactive(_) = chat.status() {
+        bail!("Cannot execute operation on inactive chat");
+    }
+
+    Group::load_clean(db.read().await?, chat.group_id())
+        .await?
+        .ok_or_else(|| anyhow!("No group found for chat {chat_id}"))
 }
 
 impl Job for ChatOperation {
@@ -73,32 +136,11 @@ impl Job for ChatOperation {
         &mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
-        // Execute any pending operation for this chat first.
-        let pending_operation = context
-            .db
-            .write()
-            .await?
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
-            .await?;
-
-        if let Some(pending_operation) = pending_operation {
-            // We can just propagate any error here, as the this job isn't
-            // persisted and doesn't need to be cleaned up.
-            pending_operation.execute(context).await?;
-        }
-
-        Ok(())
+        execute_pending_operation(self.chat_id, context).await
     }
 }
 
 impl ChatOperation {
-    pub(crate) fn add_members(chat_id: ChatId, users: Vec<UserId>) -> Self {
-        ChatOperation {
-            chat_id,
-            operation: ChatOperationType::AddMembers(users),
-        }
-    }
-
     pub(crate) fn remove_members(chat_id: ChatId, users: Vec<UserId>) -> Self {
         ChatOperation {
             chat_id,
@@ -134,17 +176,21 @@ impl ChatOperation {
         }
     }
 
-    pub(crate) fn update(chat_id: ChatId, chat_attributes: Option<ChatAttributes>) -> Self {
+    pub(crate) fn update(
+        chat_id: ChatId,
+        chat_attributes: Option<ChatAttributes>,
+        derivation_epoch: DerivationEpoch,
+    ) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::Update(chat_attributes),
+            operation: ChatOperationType::Update(chat_attributes, derivation_epoch),
         }
     }
 
-    pub(crate) fn apq_update(chat_id: ChatId) -> Self {
+    pub(crate) fn apq_update(chat_id: ChatId, derivation_epoch: DerivationEpoch) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::ApqUpdate,
+            operation: ChatOperationType::ApqUpdate(derivation_epoch),
         }
     }
 
@@ -165,27 +211,9 @@ impl ChatOperation {
         &mut self,
         db: &mut JobContextDb<'_, '_>,
     ) -> anyhow::Result<()> {
-        let chat = {
-            let mut connection = db.read().await?;
-            let txn = connection.begin().await?;
-            Chat::load(txn, &self.chat_id)
-                .await?
-                .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?
-        };
-
-        if let ChatStatus::Inactive(_) = chat.status() {
-            bail!("Cannot execute operation on inactive chat");
-        }
-
-        let group = Group::load_clean(db.read().await?, chat.group_id())
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
+        let group = load_active_group(db, self.chat_id).await?;
 
         match &mut self.operation {
-            ChatOperationType::AddMembers(user_ids) => {
-                let members: HashSet<_> = group.members().collect();
-                user_ids.retain(|user_id| !members.contains(user_id));
-            }
             ChatOperationType::RemoveMembers(user_ids) => {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
@@ -200,8 +228,8 @@ impl ChatOperation {
             ChatOperationType::AddClient { .. }
             | ChatOperationType::Leave
             | ChatOperationType::Delete
-            | ChatOperationType::Update(_)
-            | ChatOperationType::ApqUpdate => {}
+            | ChatOperationType::Update(..)
+            | ChatOperationType::ApqUpdate(_) => {}
         }
         Ok(())
     }
@@ -217,12 +245,6 @@ impl ChatOperation {
         self.check_validity_and_refine(&mut context.db).await?;
 
         match self.operation.clone() {
-            ChatOperationType::AddMembers(user_ids) => {
-                if user_ids.is_empty() {
-                    return Ok(Vec::new());
-                }
-                self.execute_add_members(context, user_ids).await
-            }
             ChatOperationType::RemoveMembers(user_ids) => {
                 if user_ids.is_empty() {
                     return Ok(Vec::new());
@@ -241,34 +263,15 @@ impl ChatOperation {
             } => self.execute_add_client(context, *key_package, device).await,
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
             ChatOperationType::Delete => self.execute_delete(context).await,
-            ChatOperationType::Update(chat_attributes) => {
-                self.execute_update(context, chat_attributes).await
+            ChatOperationType::Update(chat_attributes, derivation_epoch) => {
+                self.execute_update(context, chat_attributes, derivation_epoch)
+                    .await
             }
-            ChatOperationType::ApqUpdate => self.execute_apq_self_update(context).await,
+            ChatOperationType::ApqUpdate(derivation_epoch) => {
+                self.execute_apq_self_update(context, derivation_epoch)
+                    .await
+            }
         }
-    }
-
-    async fn execute_add_members(
-        &mut self,
-        context: &mut JobContext<'_, '_>,
-        users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            api_clients,
-            db,
-            key_store,
-            ..
-        } = context;
-        let job = Box::pin(PendingChatOperation::create_add(
-            db.write().await?,
-            api_clients,
-            &key_store.signing_key,
-            self.chat_id,
-            users,
-        ))
-        .await?;
-
-        job.execute(context).await
     }
 
     /// Remove users from the chat
@@ -361,6 +364,7 @@ impl ChatOperation {
         self,
         context: &mut JobContext<'_, '_>,
         chat_attributes: Option<ChatAttributes>,
+        derivation_epoch: DerivationEpoch,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
@@ -451,6 +455,7 @@ impl ChatOperation {
                     self.chat_id,
                     group_data,
                     new_chat_picture,
+                    derivation_epoch,
                 )
                 .await
             })
@@ -462,6 +467,7 @@ impl ChatOperation {
     async fn execute_apq_self_update(
         self,
         context: &mut JobContext<'_, '_>,
+        derivation_epoch: DerivationEpoch,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
@@ -472,6 +478,7 @@ impl ChatOperation {
                     txn,
                     &key_store.signing_key,
                     self.chat_id,
+                    derivation_epoch,
                 )
                 .await
             })
