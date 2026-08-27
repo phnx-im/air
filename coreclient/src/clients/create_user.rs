@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use crate::{
     DisplayName,
     clients::registration::RegistrationError,
@@ -34,6 +36,21 @@ use aircommon::{
 use tracing::debug;
 
 use super::*;
+
+const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const HTTP_TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+
+/// Builds the HTTP client used for object storage transfers.
+///
+/// No read timeout: reqwest applies it as a deadline for the response head
+/// counted from the start of the request, which would cut off large uploads.
+fn build_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .tcp_keepalive(HTTP_TCP_KEEPALIVE)
+        .build()
+        .expect("failed to build HTTP client")
+}
 
 /// State before any network queries
 ///
@@ -408,7 +425,7 @@ impl PersistedUserState {
             qs_client_id,
         } = self.state;
 
-        let http_client = reqwest::Client::new();
+        let http_client = build_http_client();
         let outbound_service = OutboundService::new(
             db.clone(),
             api_clients.clone(),
