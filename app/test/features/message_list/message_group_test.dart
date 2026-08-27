@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_row/message_row.dart';
+import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/message_list/message_cubit.dart';
@@ -383,6 +384,43 @@ void main() {
       final withinGroup = gapAbove(2, below: 1);
       final betweenGroups = gapAbove(3, below: 2);
       expect(withinGroup, lessThan(betweenGroups));
+    });
+    testWidgets('keep the gap where the avatar is taller than the bubble', (
+      tester,
+    ) async {
+      // A one-line bubble is shorter than the avatar on the phone. The
+      // closing row must not grow to the avatar, or its bubble sits lower
+      // than the tight gap inside the group.
+      messageListCubit.setState([
+        _message(
+          1,
+          sender: 2,
+          text: 'there is a tiny problem, what does it mean',
+        ),
+        _message(2, sender: 2, after: const Duration(minutes: 1), text: 'mid'),
+        _message(3, sender: 2, after: const Duration(minutes: 2), text: 'yes'),
+      ]);
+
+      await tester.pumpWidget(buildSubject());
+
+      Rect rectOf(int id, Type type) => tester.getRect(
+        find.descendant(of: rowOf(id), matching: find.byType(type)),
+      );
+
+      final bubble2 = rectOf(2, MessageBubble);
+      final bubble3 = rectOf(3, MessageBubble);
+      final avatar = rectOf(3, UserAvatar);
+      expect(avatar.height, greaterThan(bubble3.height));
+
+      expect(
+        bubble2.top - rectOf(1, MessageBubble).bottom,
+        moreOrLessEquals(MessageRowTokens.messageGap),
+      );
+      expect(
+        bubble3.top - bubble2.bottom,
+        moreOrLessEquals(MessageRowTokens.messageGap),
+      );
+      expect(avatar.bottom, moreOrLessEquals(bubble3.bottom));
     });
   });
 }
