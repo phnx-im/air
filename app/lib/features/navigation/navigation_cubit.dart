@@ -23,7 +23,7 @@ class NavigationCubit extends Cubit<NavigationState> {
   /// The bridge the notification policy is pushed through.
   final NotificationContextBase notificationContext;
 
-  /// Flagged when a shared payload has been handed to over to e.g. the message
+  /// Flagged when a shared payload has been handed over to e.g. the message
   /// composer.
   bool _shareHandedOver = false;
 

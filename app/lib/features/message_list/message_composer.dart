@@ -171,10 +171,6 @@ class _MessageComposerState extends State<MessageComposer>
         _focusNode.requestFocus();
       }
     });
-
-    // The listener above covers a chat that is still loading, this covers one
-    // the chat repository already had. This is a no-op if it runs twice.
-    _maybeApplyPendingShare();
   }
 
   /// Stages the share navigation is holding for this chat: the shared text
@@ -189,7 +185,9 @@ class _MessageComposerState extends State<MessageComposer>
     final share = navigationState.pendingShare;
     // The share is addressed by navigation, not by this widget: it belongs to
     // whichever chat navigation is pointed at.
-    if (share == null || navigationState.chatId != chat.id) {
+    if (share == null ||
+        navigationState.chatId != chat.id ||
+        !chat.canShareInto) {
       return;
     }
     _navigationCubit.shareConsumed();

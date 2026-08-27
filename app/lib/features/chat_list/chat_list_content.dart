@@ -315,10 +315,7 @@ class _ChatRow extends StatelessWidget {
     final isBlocked = chat.status == const UiChatStatus.blocked();
     final isGroup = chat.chatType is UiChatType_Group;
 
-    final selectable =
-        !shareMode ||
-        (chat.canShareInto &&
-            (!isGroup || (ownId != null && members?.contains(ownId) == true)));
+    final selectable = !shareMode || chat.canShareInto;
 
     final Widget? preview;
     if (isBlocked) {
