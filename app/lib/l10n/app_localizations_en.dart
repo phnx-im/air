@@ -850,11 +850,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Couldn\'t create new group chat with name $chatName because one of the contacts has an incompatible client.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Add Air contact';
 
   @override
@@ -1180,6 +1175,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'No members';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Some people couldn\'t be added';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Your group $groupName was created, but $memberNames couldn\'t be added.',
+      one:
+          'Your group $groupName was created, but $memberNames couldn\'t be added.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count others',
+      one: '$count other',
+    );
+    return '$memberNames and $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Done';
 
   @override
@@ -1297,6 +1330,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberSelectionList_client_not_supported =>
       'This contact has an outdated app which needs to be updated.';
+
+  @override
+  String get memberSelectionList_cantBeAddedTitle => 'Can\'t be added';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'These people can\'t be added to the group. This could be because their account is no longer active or because their app version is too old.';
 
   @override
   String get homeTab_chats => 'Chats';

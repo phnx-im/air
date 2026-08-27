@@ -73,25 +73,29 @@ void main() {
       ).thenReturn(MockUsersState(profiles: _profiles));
     });
 
-    Widget buildSubject({required bool isApq}) => MultiBlocProvider(
-      providers: [BlocProvider<UsersCubit>.value(value: usersCubit)],
-      child: Builder(
-        builder: (context) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: Scaffold(
-            body: MemberSelectionList(
-              contacts: _contacts,
-              selectedContacts: const {},
-              query: '',
-              isApq: isApq,
-              onToggle: (_) {},
+    Widget buildSubject({required bool isApq, List<UiContact>? contacts}) =>
+        MultiBlocProvider(
+          providers: [BlocProvider<UsersCubit>.value(value: usersCubit)],
+          child: Builder(
+            builder: (context) => MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Scaffold(
+                body: MemberSelectionList(
+                  contacts: contacts ?? _contacts,
+                  selectedContacts: const {},
+                  query: '',
+                  isApq: isApq,
+                  onToggle: (_) {},
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
+
+    double verticalPositionOf(WidgetTester tester, String text) =>
+        tester.getTopLeft(find.text(text)).dy;
 
     testWidgets('non-APQ chat greys out only contacts missing EGP', (
       tester,
@@ -113,6 +117,54 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/member_selection_list_apq.png'),
       );
+    });
+
+    testWidgets('contacts that can\'t join sit in the section at the bottom', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject(isApq: false));
+
+      final header = verticalPositionOf(tester, "Can't be added");
+
+      expect(
+        verticalPositionOf(tester, 'Alice (all features)'),
+        lessThan(header),
+      );
+      expect(verticalPositionOf(tester, 'Bob (no PQ)'), lessThan(header));
+      expect(verticalPositionOf(tester, 'Eve (no EGP)'), greaterThan(header));
+      expect(
+        verticalPositionOf(tester, 'Charlie (no features)'),
+        greaterThan(header),
+      );
+      expect(
+        find.textContaining('their app version is too old'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('APQ moves the contact missing PQ into the section', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject(isApq: true));
+
+      final header = verticalPositionOf(tester, "Can't be added");
+
+      expect(
+        verticalPositionOf(tester, 'Alice (all features)'),
+        lessThan(header),
+      );
+      expect(verticalPositionOf(tester, 'Bob (no PQ)'), greaterThan(header));
+    });
+
+    testWidgets('the section stays away when every contact can join', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(isApq: false, contacts: [_contacts.first]),
+      );
+
+      expect(find.text("Can't be added"), findsNothing);
+      expect(find.text('Alice (all features)'), findsOneWidget);
     });
   });
 }
