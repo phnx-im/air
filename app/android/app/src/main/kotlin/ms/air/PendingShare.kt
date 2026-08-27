@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 // Handoff slot from ShareActivity to MainActivity in shared memory.
 //
 // MainActivity is exported to the launcher, so any app can start it with
-// arbitrary intents. A payload kept in process memory cannot be forget that
+// arbitrary intents. A payload kept in process memory cannot be forged that
 // way.
 //
 // Relies on both activities sharing one process, so neither may get an
