@@ -4,6 +4,7 @@
 
 package ms.air
 
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -138,9 +139,18 @@ class ShareActivity : ComponentActivity() {
         }
     }
 
+    // Whether the URI is one another app may legitimately share with us.
+    private fun isForeignContentUri(uri: Uri): Boolean =
+        uri.scheme == ContentResolver.SCHEME_CONTENT &&
+            uri.authority?.let { it == packageName || it.startsWith("$packageName.") } == false
+
     // Returns the `(path, mimeType)` entry for the handoff, or null when the
     // URI cannot be read.
     private fun copyToCache(uri: Uri): Pair<String, String?>? {
+        if (!isForeignContentUri(uri)) {
+            Log.w(TAG, "Dropping shared URI with scheme '${uri.scheme}'")
+            return null
+        }
         return try {
             val displayName = queryDisplayName(uri) ?: "shared"
             // The display name is attacker-controlled, so keep only the
