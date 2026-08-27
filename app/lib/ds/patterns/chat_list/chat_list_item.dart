@@ -95,45 +95,52 @@ class ChatListItem extends StatelessWidget {
         background: active ? ColoredBox(color: palette.fill.tertiary) : null,
         child: PanelSurface(
           color: surface,
-          child: fade(
-            Padding(
-              padding: t.containerPadding,
-              child: Row(
-                crossAxisAlignment: .start,
-                children: [
+          child: Padding(
+            padding: t.containerPadding,
+            child: Row(
+              crossAxisAlignment: .start,
+              children: [
+                fade(
                   Padding(
                     padding: ChatListItemTokens.avatarPadding,
                     child: avatar,
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: .start,
-                      children: [
-                        _TitleRow(
-                          tokens: t,
-                          title: title,
-                          titleIcon: titleIcon,
-                          timestamp: timestamp,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      fade(
+                        Column(
+                          crossAxisAlignment: .start,
+                          children: [
+                            _TitleRow(
+                              tokens: t,
+                              title: title,
+                              titleIcon: titleIcon,
+                              timestamp: timestamp,
+                            ),
+                            _PreviewRow(
+                              tokens: t,
+                              preview: preview,
+                              trailing: trailing,
+                            ),
+                          ],
                         ),
-                        _PreviewRow(
-                          tokens: t,
-                          preview: preview,
-                          trailing: trailing,
+                      ),
+                      Padding(
+                        padding: t.separatorPadding,
+                        child: Container(
+                          height: ChatListItemTokens.separatorWidth,
+                          color: hideSeparator
+                              ? const Color(0x00000000)
+                              : palette.separator.secondary,
                         ),
-                        Padding(
-                          padding: t.separatorPadding,
-                          child: Container(
-                            height: ChatListItemTokens.separatorWidth,
-                            color: hideSeparator
-                                ? const Color(0x00000000)
-                                : palette.separator.secondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
