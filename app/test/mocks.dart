@@ -281,13 +281,16 @@ class MockUserSettingsCubit extends MockCubit<UserSettings>
 class MockShareTargetPublisher extends Mock implements ShareTargetPublisher {}
 
 /// A [chats_repository.ChatsRepository] serving a fixed set of chats.
+///
+/// [members] are the group members by chat, null for chats not listed.
 class FakeChatsRepository implements chats_repository.ChatsRepository {
-  FakeChatsRepository(List<UiChatDetails> chats)
+  FakeChatsRepository(List<UiChatDetails> chats, {this._members = const {}})
     : _order = [for (final chat in chats) chat.id],
       _chats = {for (final chat in chats) chat.id: chat};
 
   final List<ChatId> _order;
   final Map<ChatId, UiChatDetails> _chats;
+  final Map<ChatId, List<UiUserId>> _members;
 
   @override
   bool get isLoaded => true;
@@ -299,7 +302,7 @@ class FakeChatsRepository implements chats_repository.ChatsRepository {
   Stream<List<ChatId>> watchOrder() => Stream.value(_order);
 
   @override
-  UiChatDetails getChat(ChatId id) => _chats[id]!;
+  UiChatDetails? getChat(ChatId id) => _chats[id];
 
   @override
   Stream<Set<ChatId>> watchChanges() => const Stream.empty();
@@ -308,7 +311,7 @@ class FakeChatsRepository implements chats_repository.ChatsRepository {
   Stream<UiChatDetails?> watchChat(ChatId id) => Stream.value(_chats[id]);
 
   @override
-  Stream<List<UiUserId>?> watchMembers(ChatId id) => Stream.value(null);
+  Stream<List<UiUserId>?> watchMembers(ChatId id) => Stream.value(_members[id]);
 
   @override
   Future<void> mute(ChatId id, {required UiChatMuted until}) => Future.value();

@@ -65,7 +65,7 @@ class ChatScreen extends StatelessWidget {
           ),
         ),
       ],
-      child: _PendingShareRedirect(
+      child: PendingShareRedirect(
         key: ValueKey("pending-share-redirect-$chatId"),
         chatId: chatId,
         child: const ChatScreenView(),
@@ -76,8 +76,11 @@ class ChatScreen extends StatelessWidget {
 
 /// Sends a pending share back to the destination picker when the chat it is
 /// addressed to cannot take it.
-class _PendingShareRedirect extends StatefulWidget {
-  const _PendingShareRedirect({
+///
+/// Public only so it can be tested apart from [ChatScreen], whose cubits need
+/// the Rust side.
+class PendingShareRedirect extends StatefulWidget {
+  const PendingShareRedirect({
     super.key,
     required this.chatId,
     required this.child,
@@ -87,10 +90,10 @@ class _PendingShareRedirect extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_PendingShareRedirect> createState() => _PendingShareRedirectState();
+  State<PendingShareRedirect> createState() => _PendingShareRedirectState();
 }
 
-class _PendingShareRedirectState extends State<_PendingShareRedirect> {
+class _PendingShareRedirectState extends State<PendingShareRedirect> {
   late final List<StreamSubscription<void>> _subscriptions;
 
   @override
