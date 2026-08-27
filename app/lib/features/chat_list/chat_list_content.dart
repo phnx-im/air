@@ -350,7 +350,8 @@ class _ChatRow extends StatelessWidget {
           : _TrailingIndicator(ownClientId: ownId),
       isActive: isActive,
       hideSeparator: hideSeparator,
-      onTap: selectable ? onTap : null,
+      enabled: selectable,
+      onTap: onTap,
       onLongPress: onLongPress,
     );
   }
