@@ -1385,6 +1385,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
 
   @override
+  String get shareDestination_title => 'Skicka till…';
+
+  @override
   String get shareScreen_title => 'Dela till Air';
 
   @override

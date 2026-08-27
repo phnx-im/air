@@ -391,6 +391,7 @@
   "emojiPicker_empty": "Aucun emoji trouvé",
   "emojiPicker_skinToneHelp": "Définit votre teinte de peau par défaut",
 
+  "shareDestination_title": "Envoyer à…",
   "shareScreen_title": "Partager vers Air",
   "shareScreen_searchHint": "Chercher",
   "shareScreen_recipients": "{count, plural, =1 {À : {first}} =2 {À : {first} et {second}} other {À : {first}, {second} et {third}}}",

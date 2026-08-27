@@ -1397,6 +1397,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
 
   @override
+  String get shareDestination_title => 'Senden an…';
+
+  @override
   String get shareScreen_title => 'Mit Air teilen';
 
   @override

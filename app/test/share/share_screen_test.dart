@@ -21,7 +21,7 @@ import '../helpers.dart';
 
 import 'package:air/share/share_cubit.dart';
 
-class MockShareCubit extends MockCubit<ShareState> implements ShareCubit {}
+class MockShareCubit extends MockCubit<ShareState> implements IOSShareCubit {}
 
 final userProfiles = [
   UiUserProfile(userId: 1.userId(), displayName: 'Alice'),
@@ -121,7 +121,7 @@ void main() {
     debugShowCheckedModeBanner: false,
     theme: testLightTheme,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
-    home: BlocProvider<ShareCubit>.value(
+    home: BlocProvider<IOSShareCubit>.value(
       value: shareCubit,
       child: ShareScreenView(payload: payload),
     ),

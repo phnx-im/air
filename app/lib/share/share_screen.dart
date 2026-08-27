@@ -31,7 +31,7 @@ enum _ShareStep { destinations, compose }
 /// Height of the preview strip, which is a thumbnail tall.
 const double _stripHeight = 72;
 
-/// Root widget of the share UI, creates the [ShareCubit]
+/// Root widget of the share UI, creates the [IOSShareCubit]
 class ShareScreen extends StatelessWidget {
   const ShareScreen({super.key, required this.payload, required this.dbPath});
 
@@ -40,8 +40,8 @@ class ShareScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<ShareCubit>(
-      create: (context) => ShareCubit(dbPath: dbPath),
+    return BlocProvider<IOSShareCubit>(
+      create: (context) => IOSShareCubit(dbPath: dbPath),
       child: ShareScreenView(payload: payload),
     );
   }
@@ -85,7 +85,9 @@ class _ShareScreenViewState extends State<ShareScreenView> {
     if (identifier == null) {
       return;
     }
-    final chatId = context.read<ShareCubit>().chatIdForShareTarget(identifier);
+    final chatId = context.read<IOSShareCubit>().chatIdForShareTarget(
+      identifier,
+    );
     if (chatId == null) {
       return;
     }
@@ -110,7 +112,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
     if (_selectedChatIds.isEmpty) {
       return;
     }
-    final cubit = context.read<ShareCubit>();
+    final cubit = context.read<IOSShareCubit>();
     cubit.resetSendStatus();
     final message = [
       widget.payload.text,
@@ -127,7 +129,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ShareCubit, ShareState>(
+    return BlocConsumer<IOSShareCubit, ShareState>(
       listener: (context, state) {
         _applyPreselection(context, state);
         // A share that lost items keeps the sheet open, so the notice about

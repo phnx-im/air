@@ -33,7 +33,6 @@ use crate::{
         chat_details_cubit::load_chat_details,
         types::{UiChatDetails, UiChatStatus, UiChatType},
         user::User,
-        user_cubit::UserCubitBase,
     },
     util::{Cubit, CubitCore, spawn_from_sync},
 };
@@ -119,6 +118,8 @@ pub struct ShareState {
 /// Unlike the other cubits it is not derived from a [`UserCubitBase`]. The
 /// share UI runs in its own process, without the full app. The cubit loads
 /// the default user itself and does not listen to the server queues.
+///
+/// [`UserCubitBase`]: crate::api::user_cubit::UserCubitBase
 #[frb(opaque)]
 pub struct ShareCubitBase {
     core: CubitCore<ShareState>,
@@ -374,8 +375,8 @@ async fn load_and_emit_state(
 
 /// Loads the chats the user can share into, most recently used first.
 ///
-/// Only active chats are offered. Incoming connection requests must be
-/// accepted in the main app before messages can be sent.
+/// Only active, confirmed chats are offered. Incoming connection
+/// requests must be accepted in the main app before messages can be sent.
 async fn load_share_chats(core_user: &CoreUser) -> Vec<UiChatDetails> {
     let chat_ids = share_chat_ids(core_user).await;
     let mut chats = Vec::with_capacity(chat_ids.len());
@@ -401,56 +402,11 @@ async fn share_chat_ids(core_user: &CoreUser) -> Vec<ChatId> {
 async fn load_share_chat(core_user: &CoreUser, chat_id: &ChatId) -> Option<UiChatDetails> {
     let chat = core_user.chat(chat_id).await?;
     let details = load_chat_details(core_user, chat).await;
-    let is_pending_connection = matches!(details.chat_type, UiChatType::PendingConnection(_));
-    (matches!(details.status, UiChatStatus::Active) && !is_pending_connection).then_some(details)
-}
-
-/// A chat published to the OS as a direct share target
-///
-/// Donated to the share sheet as an `INSendMessageIntent`.
-pub struct UiShareTarget {
-    pub chat_id: ChatId,
-    pub title: String,
-    pub is_group: bool,
-    pub picture: Option<Vec<u8>>,
-}
-
-impl UiShareTarget {
-    #[frb(ignore)]
-    fn from_details(details: UiChatDetails) -> Self {
-        let (title, is_group, picture) = match details.chat_type {
-            UiChatType::Group(attributes) => (
-                attributes.title,
-                true,
-                attributes.picture.map(|image| image.data),
-            ),
-            UiChatType::Connection(profile)
-            | UiChatType::TargetedMessageConnection(profile)
-            | UiChatType::PendingConnection(profile) => (
-                profile.display_name,
-                false,
-                profile.profile_picture.map(|image| image.data),
-            ),
-            UiChatType::HandleConnection(username) => (username.plaintext, false, None),
-        };
-        Self {
-            chat_id: details.id,
-            title,
-            is_group,
-            picture,
-        }
-    }
-}
-
-/// Loads a single chat as a direct share target (e.g. for donating an
-/// intent when the chat is opened).
-pub async fn load_share_target(
-    user_cubit: &UserCubitBase,
-    chat_id: ChatId,
-) -> Option<UiShareTarget> {
-    let core_user = user_cubit.core_user();
-    let details = load_share_chat(core_user, &chat_id).await?;
-    Some(UiShareTarget::from_details(details))
+    let is_confirmed = matches!(
+        details.chat_type,
+        UiChatType::Connection(_) | UiChatType::Group(_)
+    );
+    (matches!(details.status, UiChatStatus::Active) && is_confirmed).then_some(details)
 }
 
 async fn upload_attachment(

@@ -389,6 +389,7 @@
   "emojiPicker_searchHint": "Buscar emoji",
   "emojiPicker_empty": "No se encontró ningún emoji",
   "emojiPicker_skinToneHelp": "Define tu tono de piel predeterminado",
+  "shareDestination_title": "Enviar a…",
   "shareScreen_title": "Compartir en Air",
   "shareScreen_searchHint": "Buscar",
   "shareScreen_recipients": "{count, plural, =1 {Para: {first}} =2 {Para: {first} y {second}} other {Para: {first}, {second} y {third}}}",

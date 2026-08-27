@@ -1371,6 +1371,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get emojiPicker_skinToneHelp => 'Sets your default skin tone';
 
   @override
+  String get shareDestination_title => 'Send to…';
+
+  @override
   String get shareScreen_title => 'Share to Air';
 
   @override

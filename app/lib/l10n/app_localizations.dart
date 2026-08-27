@@ -2383,6 +2383,12 @@ abstract class AppLocalizations {
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
 
+  /// Title of the screen that asks which chat shared content should go to (Android). Tapping a chat opens it with the content in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to…'**
+  String get shareDestination_title;
+
   /// Title of the screen that receives content shared from another app.
   ///
   /// In en, this message translates to:

@@ -11,11 +11,18 @@ plugins {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("androidx.work:work-runtime-ktx:2.11.2")
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    // Push notifications
     implementation(platform("com.google.firebase:firebase-bom:33.6.0"))
     implementation("com.google.firebase:firebase-messaging")
+    // Background work scheduling
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
+    // Used directly by ShareActivity and Notifications
+    implementation("androidx.activity:activity:1.12.4")
+    implementation("androidx.core:core:1.18.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    // Control how long we display the splash screen for
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }
 
 val keystoreProperties = Properties()

@@ -16,6 +16,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -141,6 +142,9 @@ void main() {
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
         BlocProvider<MessageListCubit>.value(value: messageListCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        RepositoryProvider<ShareTargetPublisher>.value(
+          value: MockShareTargetPublisher(),
+        ),
       ],
       child: Builder(
         builder: (context) {
