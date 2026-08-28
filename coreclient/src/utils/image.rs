@@ -135,6 +135,22 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
+fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
+    /// Running blurhash on the full resolution picture is unnecessary (and extremely slow)
+    const BLURHASH_MAX_EDGE: u32 = 64;
+
+    let thumbnail = image
+        .thumbnail(BLURHASH_MAX_EDGE, BLURHASH_MAX_EDGE)
+        .to_rgb8();
+    Ok(blurhash::encode(
+        4,
+        3,
+        BLURHASH_MAX_EDGE,
+        BLURHASH_MAX_EDGE,
+        &thumbnail,
+    )?)
+}
+
 /// Decodes a still image and re-encodes it as a static WebP.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
@@ -152,6 +168,8 @@ fn load_still_image<D: ImageDecoder>(
         image.apply_orientation(orientation);
     }
 
+    let blurhash = compute_blurhash(&image)?;
+
     let image_rgba = image.to_rgba8();
     let (width, height) = image_rgba.dimensions();
 
@@ -159,10 +177,6 @@ fn load_still_image<D: ImageDecoder>(
         .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
         .encode(webpx::Unstoppable)
         .context("WebP encode failed")?;
-
-    // `blurhash::encode` can only fail if the components dimension is out of range
-    // => We should never get an error here.
-    let blurhash = blurhash::encode(4, 3, width, height, &image_rgba)?;
 
     info!(
         from_bytes = file_size,
@@ -191,14 +205,17 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         .next()
         .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
     let first_delay = first.delay();
+
+    // let first_dynamic_image = DynamicImage::ImageRgb8(first.into_buffer());
     let first_buffer = fit_to_max(
         first.into_buffer(),
         MAX_ATTACHMENT_IMAGE_WIDTH,
         MAX_ATTACHMENT_IMAGE_HEIGHT,
     );
     let (width, height) = first_buffer.dimensions();
+    let first_dynamic_image = DynamicImage::ImageRgba8(first_buffer);
 
-    let blurhash = blurhash::encode(4, 3, width, height, first_buffer.as_raw())?;
+    let blurhash = compute_blurhash(&first_dynamic_image)?;
 
     let mut encoder = webpx::AnimationEncoder::with_options(width, height, true, 0)
         .context("WebP encoder init failed")?;
@@ -206,7 +223,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
 
     let mut timestamp_ms: i32 = 0;
     encoder
-        .add_frame_rgba(first_buffer.as_raw(), timestamp_ms)
+        .add_frame_rgba(first_dynamic_image.as_bytes(), timestamp_ms)
         .context("WebP add_frame failed")?;
     timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(first_delay));
 
