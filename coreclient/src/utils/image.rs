@@ -67,9 +67,8 @@ pub(crate) struct ReencodedAttachmentImage {
 /// The iOS share extension runs within a budget of roughly 120 MB shared
 /// with the Flutter engine, which the re-encode of a 12 MP photo only fits
 /// when libwebp trades speed for memory. The main app has no such limit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImageMemoryBudget {
-    #[default]
     Unconstrained,
     Constrained,
 }
@@ -153,8 +152,9 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
 ///
 /// Peak memory matters here (see [`ImageMemoryBudget`]): nothing may hold a
 /// second full-size copy of the decoded image. The pixels go to libwebp as
-/// YUV planes and the RGB buffer is dropped before encoding, since libwebp's
-/// RGB import would keep an ARGB copy alive for the whole encode.
+/// YUV planes (plus an alpha plane where the image has one) and the RGB(A)
+/// buffer is dropped before encoding, since libwebp's RGB(A) import would
+/// keep an ARGB copy alive for the whole encode.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
     file_size: u64,
@@ -181,22 +181,12 @@ fn load_still_image<D: ImageDecoder>(
         .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
         .low_memory(memory_budget == ImageMemoryBudget::Constrained);
 
-    let webp_data = if image.color().has_alpha() {
-        let image_rgba = image.into_rgba8();
-        webpx::Encoder::new_rgba(&image_rgba, width, height)
-            .config(config)
-            .encode(webpx::Unstoppable)
-    } else {
-        let planes = {
-            let image_rgb = image.into_rgb8();
-            YuvPlanes::from_rgb(&image_rgb)?
-            // the RGB buffer is dropped here, before libwebp allocates
-        };
-        webpx::Encoder::new_yuv(planes.as_ref())
-            .config(config)
-            .encode(webpx::Unstoppable)
-    }
-    .context("WebP encode failed")?;
+    // Consumes the image: the RGB(A) buffer is gone before libwebp allocates.
+    let planes = YuvPlanes::from_image(image)?;
+    let webp_data = webpx::Encoder::new_yuv(planes.as_ref())
+        .config(config)
+        .encode(webpx::Unstoppable)
+        .context("WebP encode failed")?;
 
     info!(
         from_bytes = file_size,
@@ -332,32 +322,67 @@ fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
     )?)
 }
 
-/// An image as planar YUV 4:2:0, the layout libwebp encodes from.
+/// An image as planar YUV 4:2:0 with an optional alpha plane, the layout
+/// libwebp encodes from without making a copy of the pixels.
 struct YuvPlanes {
     planes: yuv::YuvPlanarImageMut<'static, u8>,
+    /// One byte per pixel, `None` for an opaque image.
+    alpha: Option<Vec<u8>>,
 }
 
 impl YuvPlanes {
-    /// Converts an RGB image to YUV 4:2:0.
+    /// Converts an image to YUV 4:2:0, consuming it.
     ///
-    /// BT.601 limited range is what libwebp's own RGB import produces, so the
-    /// result matches what libwebp would have computed from the RGB pixels.
-    fn from_rgb(image: &image::RgbImage) -> anyhow::Result<Self> {
+    /// The RGB(A) buffer is dropped before this returns, so the planes are the
+    /// only full-size copy of the image that outlives the conversion: 1.5
+    /// bytes per pixel, plus one for alpha, where libwebp's own import would
+    /// keep 4.
+    ///
+    /// Matrix and range (BT.601, limited) are the ones libwebp's RGB import
+    /// uses. libwebp averages chroma in linear light where this averages the
+    /// encoded samples, a difference that is not visible.
+    fn from_image(image: DynamicImage) -> anyhow::Result<Self> {
         let (width, height) = image.dimensions();
         let mut planes =
             yuv::YuvPlanarImageMut::alloc(width, height, yuv::YuvChromaSubsampling::Yuv420);
-        yuv::rgb_to_yuv420(
-            &mut planes,
-            image.as_raw(),
-            width * 3,
-            yuv::YuvRange::Limited,
-            yuv::YuvStandardMatrix::Bt601,
-            yuv::YuvConversionMode::Balanced,
-        )
-        .context("RGB to YUV conversion failed")?;
-        Ok(Self { planes })
+        let alpha = if image.color().has_alpha() {
+            let image_rgba = image.into_rgba8();
+            yuv::rgba_to_yuv420(
+                &mut planes,
+                image_rgba.as_raw(),
+                width * 4,
+                yuv::YuvRange::Limited,
+                yuv::YuvStandardMatrix::Bt601,
+                yuv::YuvConversionMode::Balanced,
+            )
+            .context("RGBA to YUV conversion failed")?;
+            let alpha = image_rgba
+                .as_raw()
+                .chunks_exact(4)
+                .map(|pixel| pixel[3])
+                .collect();
+            Some(alpha)
+        } else {
+            let image_rgb = image.into_rgb8();
+            yuv::rgb_to_yuv420(
+                &mut planes,
+                image_rgb.as_raw(),
+                width * 3,
+                yuv::YuvRange::Limited,
+                yuv::YuvStandardMatrix::Bt601,
+                yuv::YuvConversionMode::Balanced,
+            )
+            .context("RGB to YUV conversion failed")?;
+            None
+        };
+        Ok(Self { planes, alpha })
     }
 
+    /// Borrows the planes for libwebp.
+    ///
+    /// With an alpha plane, webpx forces `exact` on, so libwebp keeps the
+    /// color of fully transparent pixels instead of flattening it for better
+    /// compression. Such images come out slightly larger for it.
     fn as_ref(&self) -> webpx::YuvPlanesRef<'_> {
         webpx::YuvPlanesRef {
             y: self.planes.y_plane.borrow(),
@@ -366,10 +391,109 @@ impl YuvPlanes {
             u_stride: self.planes.u_stride as usize,
             v: self.planes.v_plane.borrow(),
             v_stride: self.planes.v_stride as usize,
-            a: None,
-            a_stride: 0,
+            a: self.alpha.as_deref(),
+            a_stride: self.planes.width as usize,
             width: self.planes.width,
             height: self.planes.height,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use image::{Rgb, RgbImage, Rgba, RgbaImage};
+
+    use super::*;
+
+    // Odd dimensions, so the chroma planes are not an exact half of the luma
+    // plane and the plane geometry handed to libwebp must round up.
+    const WIDTH: u32 = 33;
+    const HEIGHT: u32 = 17;
+
+    /// Writes the image as PNG, runs it through the attachment pipeline and
+    /// decodes the resulting WebP.
+    fn round_trip(
+        image: DynamicImage,
+        memory_budget: ImageMemoryBudget,
+    ) -> (DynamicImage, ReencodedAttachmentImage) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("image.png");
+        image.save(&path).unwrap();
+        let reencoded = load_attachment_image(&path, memory_budget)
+            .unwrap()
+            .expect("PNG is an image");
+        let decoded =
+            image::load_from_memory_with_format(&reencoded.webp_image, ImageFormat::WebP).unwrap();
+        (decoded, reencoded)
+    }
+
+    /// Asserts that two color channels agree up to lossy compression and 4:2:0
+    /// chroma subsampling of a smooth gradient.
+    fn assert_channels_close(expected: &[u8], actual: &[u8]) {
+        assert_eq!(expected.len(), actual.len());
+        let diffs: Vec<u32> = expected
+            .iter()
+            .zip(actual)
+            .map(|(a, b)| a.abs_diff(*b) as u32)
+            .collect();
+        let max = diffs.iter().max().copied().unwrap_or(0);
+        let mean = diffs.iter().sum::<u32>() as f64 / diffs.len() as f64;
+        assert!(max <= 24, "max channel difference {max} too large");
+        assert!(mean <= 3.0, "mean channel difference {mean} too large");
+    }
+
+    #[test]
+    fn opaque_image_survives_reencode() {
+        let image = RgbImage::from_fn(WIDTH, HEIGHT, |x, y| {
+            Rgb([(x * 7) as u8, (y * 15) as u8, 255 - (x * 7) as u8])
+        });
+
+        for memory_budget in [
+            ImageMemoryBudget::Unconstrained,
+            ImageMemoryBudget::Constrained,
+        ] {
+            let (decoded, reencoded) =
+                round_trip(DynamicImage::ImageRgb8(image.clone()), memory_budget);
+            assert_eq!(reencoded.image_dimensions, (WIDTH, HEIGHT));
+            assert_eq!(decoded.dimensions(), (WIDTH, HEIGHT));
+            assert!(!decoded.color().has_alpha());
+            assert_channels_close(image.as_raw(), decoded.into_rgb8().as_raw());
+        }
+    }
+
+    #[test]
+    fn transparent_image_keeps_alpha_and_color() {
+        let image = RgbaImage::from_fn(WIDTH, HEIGHT, |x, y| {
+            Rgba([
+                (x * 7) as u8,
+                (y * 15) as u8,
+                255 - (x * 7) as u8,
+                (y * 15) as u8,
+            ])
+        });
+
+        for memory_budget in [
+            ImageMemoryBudget::Unconstrained,
+            ImageMemoryBudget::Constrained,
+        ] {
+            let (decoded, reencoded) =
+                round_trip(DynamicImage::ImageRgba8(image.clone()), memory_budget);
+            assert_eq!(reencoded.image_dimensions, (WIDTH, HEIGHT));
+            assert_eq!(decoded.dimensions(), (WIDTH, HEIGHT));
+            assert!(decoded.color().has_alpha());
+            let decoded = decoded.into_rgba8();
+
+            // WebP stores alpha losslessly.
+            let alpha = |raw: &[u8]| raw.iter().skip(3).step_by(4).copied().collect::<Vec<_>>();
+            assert_eq!(alpha(image.as_raw()), alpha(decoded.as_raw()));
+
+            // The color is kept even under fully transparent pixels.
+            let color = |raw: &[u8]| {
+                raw.chunks_exact(4)
+                    .flat_map(|pixel| pixel[..3].iter().copied())
+                    .collect::<Vec<_>>()
+            };
+            assert_channels_close(&color(image.as_raw()), &color(decoded.as_raw()));
         }
     }
 }

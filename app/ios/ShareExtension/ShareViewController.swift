@@ -361,13 +361,13 @@ class ShareViewController: UIViewController {
     }
 
     // Copies a still image into the App Group caches transcoded to JPEG (PNG
-    // where it has alpha), downscaled to `maxImagePixelSize` if larger.
-    // Returns nil where transcoding does not apply: images the Rust side
-    // decodes itself and that are small enough, animations, and files ImageIO
-    // cannot read are left to the plain copy.
+    // where it has alpha), downscaled to `maxImagePixelSize` if larger and
+    // converted to sRGB. Returns nil where transcoding does not apply: sRGB
+    // images the Rust side decodes itself and that are small enough,
+    // animations, and files ImageIO cannot read are left to the plain copy.
     //
-    // ImageIO scales images in streaming fashion, which prevents from running
-    // out of memory in the share extension.
+    // ImageIO scales and converts images in streaming fashion, which prevents
+    // from running out of memory in the share extension.
     private func transcodedImageCopy(_ url: URL, named name: String)
         -> TranscodedImage?
     {
@@ -391,7 +391,25 @@ class ShareViewController: UIViewController {
                 rustDecodableImageTypes.contains { type.conforms(to: $0) }
             } ?? false
         let oversized = max(width, height) > maxImagePixelSize
-        guard oversized || !rustDecodable else {
+        // Camera photos are tagged Display P3. The Rust side ignores color
+        // profiles and the WebP it produces carries none, so wide-gamut pixels
+        // would be shown as sRGB and look washed out. An untagged image is
+        // sRGB by convention. The sRGB profiles in circulation describe
+        // themselves either as "sRGB ..." or by the standard defining them,
+        // IEC 61966-2-1. The check fails safe: an unrecognized profile means
+        // a transcode, which costs some quality but never color accuracy.
+        let profileName = properties[kCGImagePropertyProfileName] as? String
+        let isSRGB =
+            profileName.map { name in
+                name.localizedCaseInsensitiveContains("sRGB")
+                    || name.contains("61966")
+            } ?? true
+        // For an opaque image the transcode is lossy, and the Rust side
+        // re-encodes once more, so a P3 photo that needs no downscale takes a
+        // second generation of (high quality) loss. That is the price of
+        // correct colors; a lossless intermediate would instead cost time and
+        // cache space in the extension for every camera photo.
+        guard oversized || !rustDecodable || !isSRGB else {
             return nil
         }
 
@@ -413,17 +431,18 @@ class ShareViewController: UIViewController {
 
         // JPEG has no alpha channel; a transparent image goes out as PNG.
         let hasAlpha = properties[kCGImagePropertyHasAlpha] as? Bool ?? false
-        let (targetType, targetExtension, mimeType, encodeOptions):
-            (UTType, String, String, [CFString: Any]) =
-                hasAlpha
-                ? (.png, "png", "image/png", [:])
-                : (
-                    .jpeg, "jpg", "image/jpeg",
-                    [
-                        kCGImageDestinationLossyCompressionQuality:
-                            transcodedImageQuality
-                    ]
-                )
+        let targetType: UTType = hasAlpha ? .png : .jpeg
+        let targetExtension = hasAlpha ? "png" : "jpg"
+        let mimeType = hasAlpha ? "image/png" : "image/jpeg"
+        var encodeOptions: [CFString: Any] = [
+            // Converts the pixels to sRGB while writing, without drawing the
+            // image into a second bitmap.
+            kCGImageDestinationOptimizeColorForSharing: true
+        ]
+        if !hasAlpha {
+            encodeOptions[kCGImageDestinationLossyCompressionQuality] =
+                transcodedImageQuality
+        }
 
         guard let shareCacheURL = shareCacheDirectory() else {
             return nil
