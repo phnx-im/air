@@ -60,6 +60,7 @@ pub struct ApqExternalCommitBuilder {
     t_psk_proposals: Vec<PreSharedKeyProposal>,
     t_proposals: Vec<Proposal>,
     vc_emulation_group_id: Option<GroupId>,
+    emulation_group: bool,
 }
 
 impl ApqExternalCommitBuilder {
@@ -120,6 +121,12 @@ impl ApqExternalCommitBuilder {
         self
     }
 
+    /// Rejoin the T group as the emulation group of a virtual client.
+    pub fn emulation_group(mut self, emulation_group: bool) -> Self {
+        self.emulation_group = emulation_group;
+        self
+    }
+
     pub fn create_group_info(mut self, create_group_info: bool) -> Self {
         self.create_group_info = create_group_info;
         self
@@ -147,6 +154,7 @@ impl ApqExternalCommitBuilder {
             t_psk_proposals,
             t_proposals: t_own_proposals,
             vc_emulation_group_id,
+            emulation_group,
         } = self;
 
         let VerifiableApqGroupInfo {
@@ -204,6 +212,7 @@ impl ApqExternalCommitBuilder {
             Vec::new(),
             create_group_info,
             vc_emulation_group_id.clone(),
+            false,
             signer.pq_signer(),
         )?;
 
@@ -247,6 +256,7 @@ impl ApqExternalCommitBuilder {
                 t_own_proposals,
                 create_group_info,
                 vc_emulation_group_id,
+                emulation_group,
                 signer.t_signer(),
             )
         })();
@@ -295,13 +305,15 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     own_proposals: Vec<Proposal>,
     create_group_info: bool,
     vc_emulation_group_id: Option<GroupId>,
+    emulation_group: bool,
     signer: &impl Signer,
 ) -> Result<(MlsGroup, CommitMessageBundle), ApqExternalCommitBuilderError<Provider::StorageError>>
 {
     let mut external_builder = ExternalCommitBuilder::new()
         .with_proposals(proposals)
         .with_config(config)
-        .with_aad(aad);
+        .with_aad(aad)
+        .emulation_group(emulation_group);
     if let Some(tree) = ratchet_tree {
         external_builder = external_builder.with_ratchet_tree(tree);
     }
