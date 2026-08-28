@@ -31,7 +31,7 @@ private let maxAttachmentCopyBytes: UInt64 = 32 * 1024 * 1024
 // Matches the limit the Rust side resizes images to
 // (MAX_ATTACHMENT_IMAGE_WIDTH/HEIGHT in coreclient), preventing OOM
 // issues in the share extension.
-private let maxImagePixelSize = 4096
+private let maxImagePixelSize = 2048
 
 // Matches ATTACHMENT_IMAGE_QUALITY_PERCENT of the Rust re-encode.
 private let downscaledImageQuality = 0.9
