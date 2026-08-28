@@ -1055,7 +1055,13 @@ impl TestBackend {
             .await
             .expect("fatal error")?;
 
-        let message = upload_task.await.unwrap();
+        let message = upload_task.await.map_err(|error| match error {
+            UploadTaskError::Failed { message_id, error } => {
+                panic!("upload task for {message_id:?} failed: {error}")
+            }
+            UploadTaskError::Provision(error) => error,
+        })?;
+
         sender
             .outbound_service()
             .enqueue_chat_message(message.id())

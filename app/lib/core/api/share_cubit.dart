@@ -16,7 +16,7 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'share_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `send_impl`, `send_text_message`, `share_chat_ids`, `upload_attachment`
+// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `provision_error`, `send_impl`, `send_text_message`, `share_chat_ids`, `upload_attachment`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatSendProgress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
