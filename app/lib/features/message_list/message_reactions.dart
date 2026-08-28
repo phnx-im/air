@@ -216,27 +216,32 @@ Future<void> showWhoReactedSheet({
   final isMobile =
       platform == TargetPlatform.android || platform == TargetPlatform.iOS;
   final tokens = ReactionDetailsTokens.current;
-  final entries = _reactorEntries(
-    context,
-    reactions: reactions,
-    ownUserId: ownUserId,
-    avatarSize: tokens.avatarSize,
-    youLabel: loc.messageList_reactions_you,
+
+  // One row per (emoji, reactor), which the profiles don't change.
+  final rowCount = reactions.fold<int>(
+    0,
+    (total, reaction) => total + reaction.users.length,
   );
 
   final barrierColor = SemanticPalette.of(context).function.neutral.scrim;
 
-  Widget viewer(BuildContext viewerContext) => ReactionDetails(
-    tokens: tokens,
-    entries: entries,
-    allLabel: loc.messageList_reactions_all(entries.length),
-    removeLabel: loc.messageList_reactions_remove,
-    initialEmoji: initialEmoji,
-    onRemove: (emoji) {
-      AppHaptics.selection();
-      onRemove(emoji);
-      Navigator.of(viewerContext).maybePop();
-    },
+  final usersCubit = context.read<UsersCubit>();
+  Widget viewer(BuildContext viewerContext) => BlocProvider<UsersCubit>.value(
+    value: usersCubit,
+    child: _ReactorViewer(
+      tokens: tokens,
+      reactions: reactions,
+      ownUserId: ownUserId,
+      initialEmoji: initialEmoji,
+      youLabel: loc.messageList_reactions_you,
+      allLabel: loc.messageList_reactions_all(rowCount),
+      removeLabel: loc.messageList_reactions_remove,
+      onRemove: (emoji) {
+        AppHaptics.selection();
+        onRemove(emoji);
+        Navigator.of(viewerContext).maybePop();
+      },
+    ),
   );
 
   if (isMobile) {
@@ -282,40 +287,83 @@ Future<void> showWhoReactedSheet({
   );
 }
 
-/// One entry per (emoji, reactor), with the profile resolved and the picture
-/// decoded to the size the viewer paints it at.
-List<ReactionDetailEntry> _reactorEntries(
-  BuildContext context, {
-  required List<UiReaction> reactions,
-  required UiUserId ownUserId,
-  required double avatarSize,
-  required String youLabel,
-}) {
-  final usersCubit = context.read<UsersCubit>();
-  final pixels = (avatarSize * MediaQuery.devicePixelRatioOf(context)).round();
+/// The "who reacted" viewer, its rows resolved against the live profiles.
+///
+/// Profiles load lazily, and nothing warms a reactor's: resolving here
+/// is what lets it fill in when the real profile lands.
+class _ReactorViewer extends StatelessWidget {
+  const _ReactorViewer({
+    required this.tokens,
+    required this.reactions,
+    required this.ownUserId,
+    required this.initialEmoji,
+    required this.youLabel,
+    required this.allLabel,
+    required this.removeLabel,
+    required this.onRemove,
+  });
 
-  final entries = <ReactionDetailEntry>[];
-  for (final reaction in reactions) {
-    for (final user in reaction.users) {
-      final profile = usersCubit.state.profile(userId: user);
-      final picture = profile.profilePicture;
-      final mine = user == ownUserId;
-      entries.add(
-        ReactionDetailEntry(
-          displayName: mine ? youLabel : profile.displayName,
-          emoji: reaction.emoji,
-          image: picture != null
-              ? CachedMemoryImage.fromImageData(
-                  picture,
-                  targetWidth: pixels,
-                  targetHeight: pixels,
-                )
-              : null,
-          gradientSeed: profile.userId.uuid.uuid,
-          mine: mine,
-        ),
-      );
-    }
+  final ReactionDetailsTokens tokens;
+  final List<UiReaction> reactions;
+  final UiUserId ownUserId;
+  final String? initialEmoji;
+  final String youLabel;
+  final String allLabel;
+  final String removeLabel;
+  final void Function(String emoji) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final profiles = context.select(
+      (UsersCubit cubit) => {
+        for (final reaction in reactions)
+          for (final user in reaction.users)
+            user: cubit.state.profile(userId: user),
+      },
+    );
+    final pixels = (tokens.avatarSize * MediaQuery.devicePixelRatioOf(context))
+        .round();
+
+    return ReactionDetails(
+      tokens: tokens,
+      entries: [
+        for (final reaction in reactions)
+          for (final user in reaction.users)
+            _entry(
+              profile: profiles[user]!,
+              emoji: reaction.emoji,
+              mine: user == ownUserId,
+              pixels: pixels,
+            ),
+      ],
+      allLabel: allLabel,
+      removeLabel: removeLabel,
+      initialEmoji: initialEmoji,
+      onRemove: onRemove,
+    );
   }
-  return entries;
+
+  /// One entry per (emoji, reactor), the picture decoded to the size the viewer
+  /// paints it at.
+  ReactionDetailEntry _entry({
+    required UiUserProfile profile,
+    required String emoji,
+    required bool mine,
+    required int pixels,
+  }) {
+    final picture = profile.profilePicture;
+    return ReactionDetailEntry(
+      displayName: mine ? youLabel : profile.displayName,
+      emoji: emoji,
+      image: picture != null
+          ? CachedMemoryImage.fromImageData(
+              picture,
+              targetWidth: pixels,
+              targetHeight: pixels,
+            )
+          : null,
+      gradientSeed: profile.userId.uuid.uuid,
+      mine: mine,
+    );
+  }
 }

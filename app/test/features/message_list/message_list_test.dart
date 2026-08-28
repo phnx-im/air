@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/api/markdown.dart';
@@ -12,10 +13,12 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
 import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
+import 'package:air/ds/patterns/reaction_details/reaction_details.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/time/time_labels.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -1784,6 +1787,55 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_who_reacted_sheet.png'),
       );
+    });
+
+    testWidgets('names a reactor whose profile lands after the sheet opens', (
+      tester,
+    ) async {
+      tester.view.physicalSize = highTestSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      // A reactor nothing has asked about yet resolves to a name derived from
+      // the user id, standing in until the profile is loaded.
+      final states = StreamController<UsersState>();
+      addTearDown(states.close);
+      whenListen(
+        contactsCubit,
+        states.stream,
+        initialState: MockUsersState(
+          profiles: [
+            for (final profile in userProfiles)
+              if (profile.userId == 3.userId())
+                UiUserProfile(userId: 3.userId(), displayName: 'Iguana 471')
+              else
+                profile,
+          ],
+        ),
+      );
+
+      final semantics = tester.ensureSemantics();
+      messageListCubit.setState(messages);
+      await tester.pumpWidget(buildSubject());
+      await tester.tap(find.bySemanticsLabel(RegExp('🫪')));
+      semantics.dispose();
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+
+      Finder rowNamed(String name) => find.descendant(
+        of: find.byType(ReactionDetails),
+        matching: find.text(name),
+      );
+
+      expect(rowNamed('Iguana 471'), findsOneWidget);
+      expect(rowNamed('Eve'), findsNothing);
+
+      states.add(MockUsersState(profiles: userProfiles));
+      await tester.pumpAndSettle();
+
+      expect(rowNamed('Eve'), findsOneWidget);
+      expect(rowNamed('Iguana 471'), findsNothing);
     });
 
     testWidgets(
