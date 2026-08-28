@@ -57,6 +57,7 @@ pub use crate::{
     privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
+    utils::image::ImageMemoryBudget,
     utils::{
         image::image_is_animated,
         persistence::{delete_client_database, delete_databases, open_client_db},

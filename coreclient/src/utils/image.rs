@@ -50,6 +50,7 @@ pub(crate) fn resize_profile_image(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>
 const ATTACHMENT_IMAGE_QUALITY_PERCENT: f32 = 90.0;
 const MAX_ATTACHMENT_IMAGE_WIDTH: u32 = 4096;
 const MAX_ATTACHMENT_IMAGE_HEIGHT: u32 = 4096;
+const BLURHASH_THUMBNAIL_SIZE: u32 = 32;
 /// Floor for per-frame durations. Some animated images declare a 0 ms delay
 /// expecting the renderer to clamp it, so we ensure each frame contributes a
 /// non-zero duration to the resulting WebP timeline.
@@ -59,6 +60,18 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) webp_image: Vec<u8>,
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
+}
+
+/// How much memory the re-encode of an attachment image may use.
+///
+/// The iOS share extension runs within a budget of roughly 120 MB shared
+/// with the Flutter engine, which the re-encode of a 12 MP photo only fits
+/// when libwebp trades speed for memory. The main app has no such limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ImageMemoryBudget {
+    #[default]
+    Unconstrained,
+    Constrained,
 }
 
 /// Loads an image and re-encodes it to WEBP format.
@@ -72,6 +85,7 @@ pub(crate) struct ReencodedAttachmentImage {
 ///   re-encoded as animated WebP, preserving per-frame timing.
 pub(crate) fn load_attachment_image(
     path: &Path,
+    memory_budget: ImageMemoryBudget,
 ) -> anyhow::Result<Option<ReencodedAttachmentImage>> {
     let file_size = fs::metadata(path)?.len();
 
@@ -90,7 +104,7 @@ pub(crate) fn load_attachment_image(
             if decoder.has_animation() {
                 load_animated_frames(decoder, file_size, format)?
             } else {
-                load_still_image(decoder, file_size)?
+                load_still_image(decoder, file_size, memory_budget)?
             }
         }
         ImageFormat::Png => {
@@ -99,7 +113,7 @@ pub(crate) fn load_attachment_image(
                 let apng = decoder.apng()?;
                 load_animated_frames(apng, file_size, format)?
             } else {
-                load_still_image(decoder, file_size)?
+                load_still_image(decoder, file_size, memory_budget)?
             }
         }
         _ => {
@@ -109,7 +123,7 @@ pub(crate) fn load_attachment_image(
                 Err(image::ImageError::Unsupported(_)) => return Ok(None),
                 Err(error) => return Err(error.into()),
             };
-            load_still_image(decoder, file_size)?
+            load_still_image(decoder, file_size, memory_budget)?
         }
     };
 
@@ -136,9 +150,15 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
 }
 
 /// Decodes a still image and re-encodes it as a static WebP.
+///
+/// Peak memory matters here (see [`ImageMemoryBudget`]): nothing may hold a
+/// second full-size copy of the decoded image. The pixels go to libwebp as
+/// YUV planes and the RGB buffer is dropped before encoding, since libwebp's
+/// RGB import would keep an ARGB copy alive for the whole encode.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
     file_size: u64,
+    memory_budget: ImageMemoryBudget,
 ) -> anyhow::Result<ReencodedAttachmentImage> {
     let orientation = decoder.orientation().ok();
 
@@ -151,18 +171,32 @@ fn load_still_image<D: ImageDecoder>(
     if let Some(orientation) = orientation {
         image.apply_orientation(orientation);
     }
+    let (width, height) = image.dimensions();
 
-    let image_rgba = image.to_rgba8();
-    let (width, height) = image_rgba.dimensions();
+    let blurhash = compute_blurhash(&image)?;
 
-    let webp_data = webpx::Encoder::new_rgba(&image_rgba, width, height)
+    // `low_memory` makes libwebp emit the bitstream as it goes instead of
+    // buffering the tokens of the whole image, at the cost of encoding speed.
+    let config = webpx::EncoderConfig::default()
         .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
-        .encode(webpx::Unstoppable)
-        .context("WebP encode failed")?;
+        .low_memory(memory_budget == ImageMemoryBudget::Constrained);
 
-    // `blurhash::encode` can only fail if the components dimension is out of range
-    // => We should never get an error here.
-    let blurhash = blurhash::encode(4, 3, width, height, &image_rgba)?;
+    let webp_data = if image.color().has_alpha() {
+        let image_rgba = image.into_rgba8();
+        webpx::Encoder::new_rgba(&image_rgba, width, height)
+            .config(config)
+            .encode(webpx::Unstoppable)
+    } else {
+        let planes = {
+            let image_rgb = image.into_rgb8();
+            YuvPlanes::from_rgb(&image_rgb)?
+            // the RGB buffer is dropped here, before libwebp allocates
+        };
+        webpx::Encoder::new_yuv(planes.as_ref())
+            .config(config)
+            .encode(webpx::Unstoppable)
+    }
+    .context("WebP encode failed")?;
 
     info!(
         from_bytes = file_size,
@@ -280,4 +314,62 @@ fn resize(image: DynamicImage, max_width: u32, max_height: u32) -> DynamicImage 
         return image;
     }
     image.resize(max_width, max_height, image::imageops::FilterType::Lanczos3)
+}
+
+/// Computes the blurhash of an image from a small thumbnail of it.
+fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
+    let thumbnail = image
+        .thumbnail(BLURHASH_THUMBNAIL_SIZE, BLURHASH_THUMBNAIL_SIZE)
+        .into_rgba8();
+    // `blurhash::encode` can only fail if the components dimension is out of range
+    // => We should never get an error here.
+    Ok(blurhash::encode(
+        4,
+        3,
+        thumbnail.width(),
+        thumbnail.height(),
+        &thumbnail,
+    )?)
+}
+
+/// An image as planar YUV 4:2:0, the layout libwebp encodes from.
+struct YuvPlanes {
+    planes: yuv::YuvPlanarImageMut<'static, u8>,
+}
+
+impl YuvPlanes {
+    /// Converts an RGB image to YUV 4:2:0.
+    ///
+    /// BT.601 limited range is what libwebp's own RGB import produces, so the
+    /// result matches what libwebp would have computed from the RGB pixels.
+    fn from_rgb(image: &image::RgbImage) -> anyhow::Result<Self> {
+        let (width, height) = image.dimensions();
+        let mut planes =
+            yuv::YuvPlanarImageMut::alloc(width, height, yuv::YuvChromaSubsampling::Yuv420);
+        yuv::rgb_to_yuv420(
+            &mut planes,
+            image.as_raw(),
+            width * 3,
+            yuv::YuvRange::Limited,
+            yuv::YuvStandardMatrix::Bt601,
+            yuv::YuvConversionMode::Balanced,
+        )
+        .context("RGB to YUV conversion failed")?;
+        Ok(Self { planes })
+    }
+
+    fn as_ref(&self) -> webpx::YuvPlanesRef<'_> {
+        webpx::YuvPlanesRef {
+            y: self.planes.y_plane.borrow(),
+            y_stride: self.planes.y_stride as usize,
+            u: self.planes.u_plane.borrow(),
+            u_stride: self.planes.u_stride as usize,
+            v: self.planes.v_plane.borrow(),
+            v_stride: self.planes.v_stride as usize,
+            a: None,
+            a_stride: 0,
+            width: self.planes.width,
+            height: self.planes.height,
+        }
+    }
 }
