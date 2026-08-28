@@ -333,6 +333,11 @@ impl OutboundServiceContext {
                     return Ok(SendOutcome::Collided);
                 }
 
+                if ds_error.is_wrong_epoch() {
+                    debug!(?message_id, "Message epoch too old: re-enqueuing");
+                    return Ok(SendOutcome::Collided);
+                }
+
                 if ds_error.is_network_error() {
                     return Err(OutboundServiceError::recoverable(ds_error));
                 }

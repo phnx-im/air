@@ -290,7 +290,7 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
     }
 }
 
-fn wrong_epoch_status(msg: String) -> Status {
+pub(crate) fn wrong_epoch_status(msg: String) -> Status {
     Status::with_details(
         Code::InvalidArgument,
         msg,
