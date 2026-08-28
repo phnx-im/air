@@ -291,6 +291,10 @@ message EpochSnapshotResponse {
   // Present iff the group is an APQ group.
   GroupInfo pq_group_info = 4;
   RatchetTree pq_ratchet_tree = 5;
+  // The serialized external commit accepted at this epoch, present iff the
+  // snapshot was written at an external join. A sibling of the joiner applies
+  // it on top of the snapshot state.
+  optional bytes join_commit = 6;
 }
 
 // connection group info
@@ -317,6 +321,10 @@ message JoinConnectionGroupRequest {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage external_commit = 2;
   QsReference qs_client_reference = 3;
+  // Opaque blob, encrypted for the joiner's sibling clients. Set when a
+  // virtual client joins the group, in which case the DS echoes it unread to
+  // all of the joining user's client queues.
+  optional bytes group_bootstrap = 5;
 }
 
 message JoinConnectionGroupResponse {

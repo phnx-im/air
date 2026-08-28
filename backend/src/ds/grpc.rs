@@ -1226,6 +1226,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
 
+        // Echoing the group bootstrap to the joiner's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if request.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
+
         let external_commit: AssistedMessageIn = request
             .external_commit
             .ok_or_missing_field("external_commit")?

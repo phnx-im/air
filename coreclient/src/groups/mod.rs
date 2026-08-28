@@ -11,6 +11,10 @@ pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
+// The acting and sibling sides of multi-client group creation land separately
+// and wire these helpers up.
+#[cfg_attr(not(test), expect(dead_code, reason = "not yet wired up"))]
+pub(crate) mod group_bootstrap;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;

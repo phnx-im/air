@@ -50,3 +50,17 @@ impl RawKey for SelfGroupExporterSecretType {}
 impl KdfKey for SelfGroupExporterSecret {
     const ADDITIONAL_LABEL: &'static str = "SelfGroupExporterSecret";
 }
+
+/// One 32-byte application secret from a virtual client's operation secret tree.
+///
+/// It is later used to derive a
+/// [`crate::crypto::aead::keys::GroupBootstrapKey`].
+#[derive(Debug)]
+pub struct VcApplicationSecretType;
+pub type VcApplicationSecret = Key<VcApplicationSecretType>;
+
+impl RawKey for VcApplicationSecretType {}
+
+impl KdfKey for VcApplicationSecret {
+    const ADDITIONAL_LABEL: &'static str = "VcApplicationSecret";
+}
