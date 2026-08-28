@@ -13,8 +13,9 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
-    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage,
+    ImageMemoryBudget, MarkChatAsRead, MessageId, ProvisionAttachmentError, UploadTaskError,
+    clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -359,6 +360,7 @@ impl ChatDetailsCubitBase {
                 self.context.chat_id,
                 &path,
                 MarkChatAsRead::Yes,
+                ImageMemoryBudget::Unconstrained,
             ))
             .await?
             {

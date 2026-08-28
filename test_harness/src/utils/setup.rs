@@ -1051,7 +1051,12 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let (_local_attachment_id, _progress, upload_task) = sender
-            .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+            .upload_chat_attachment(
+                chat_id,
+                &path,
+                MarkChatAsRead::Yes,
+                ImageMemoryBudget::Unconstrained,
+            )
             .await
             .expect("fatal error")?;
 

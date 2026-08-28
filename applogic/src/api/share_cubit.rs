@@ -16,8 +16,8 @@ use std::{
 
 use aircommon::{OpenMlsRand, RustCrypto};
 use aircoreclient::{
-    AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentProgressEvent, ChatId, ImageMemoryBudget, MarkChatAsRead, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use anyhow::Context as _;
 use flutter_rust_bridge::frb;
@@ -417,14 +417,19 @@ async fn upload_attachment(
 ) -> Result<MessageId, UiShareSendError> {
     let path = PathBuf::from(&attachment.path);
     // Sharing happens without the user looking at the chat, so it must not
-    // mark older messages as read.
-    let provisioned =
-        Box::pin(core_user.upload_chat_attachment(chat_id, &path, MarkChatAsRead::No))
-            .await
-            .map_err(|error| {
-                error!(%error, "Failed to provision shared attachment");
-                UiShareSendError::Other
-            })?;
+    // mark older messages as read. The share extension process has a small
+    // memory budget, so image re-encoding trades speed for memory.
+    let provisioned = Box::pin(core_user.upload_chat_attachment(
+        chat_id,
+        &path,
+        MarkChatAsRead::No,
+        ImageMemoryBudget::Constrained,
+    ))
+    .await
+    .map_err(|error| {
+        error!(%error, "Failed to provision shared attachment");
+        UiShareSendError::Other
+    })?;
 
     let (attachment_id, progress, upload_task) = match provisioned {
         Ok(result) => result,

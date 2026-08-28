@@ -50,7 +50,7 @@ use crate::{
         },
     },
     groups::Group,
-    utils::image::{ReencodedAttachmentImage, load_attachment_image},
+    utils::image::{ImageMemoryBudget, ReencodedAttachmentImage, load_attachment_image},
 };
 
 impl CoreUser {
@@ -106,6 +106,7 @@ impl CoreUser {
         chat_id: ChatId,
         path: &Path,
         mark_as_read: MarkChatAsRead,
+        memory_budget: ImageMemoryBudget,
     ) -> anyhow::Result<
         Result<
             (
@@ -121,7 +122,7 @@ impl CoreUser {
             .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
 
         // load the attachment data
-        let mut attachment = ProcessedAttachment::from_file(path)?;
+        let mut attachment = ProcessedAttachment::from_file(path, memory_budget)?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
         let ProvisionedAttachment {
@@ -393,13 +394,13 @@ struct ProcessedAttachmentImageData {
 }
 
 impl ProcessedAttachment {
-    fn from_file(path: &Path) -> anyhow::Result<Self> {
+    fn from_file(path: &Path, memory_budget: ImageMemoryBudget) -> anyhow::Result<Self> {
         let (content, content_type, image_data): (AttachmentBytes, _, _) =
             if let Some(ReencodedAttachmentImage {
                 webp_image,
                 image_dimensions: (width, height),
                 blurhash,
-            }) = load_attachment_image(path)?
+            }) = load_attachment_image(path, memory_budget)?
             {
                 let image_data = ProcessedAttachmentImageData {
                     blurhash,

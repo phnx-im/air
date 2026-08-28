@@ -29,12 +29,18 @@ private let maxAttachments = 10
 private let maxAttachmentCopyBytes: UInt64 = 32 * 1024 * 1024
 
 // Matches the limit the Rust side resizes images to
-// (MAX_ATTACHMENT_IMAGE_WIDTH/HEIGHT in coreclient), preventing OOM
-// issues in the share extension.
+// (MAX_ATTACHMENT_IMAGE_WIDTH/HEIGHT in coreclient). Larger images are
+// downscaled here, where ImageIO does it in streaming fashion, so the Rust
+// side never decodes more pixels than it would keep. Lower this to trade
+// image quality for memory headroom in the extension.
 private let maxImagePixelSize = 4096
 
 // Matches ATTACHMENT_IMAGE_QUALITY_PERCENT of the Rust re-encode.
-private let downscaledImageQuality = 0.9
+private let transcodedImageQuality = 0.9
+
+// Still images in these formats are copied as they are: the Rust image
+// pipeline decodes them itself. Anything else (like HEIC) is transcoded here.
+private let rustDecodableImageTypes: [UTType] = [.jpeg, .png, .gif, .webP]
 
 // Cache entries older than this are leftovers of a share session that was
 // killed before its cleanup ran. They are removed on the next share.
@@ -309,10 +315,10 @@ class ShareViewController: UIViewController {
             // copy the file into storage owned by the extension.
             let name = self.fileName(for: provider, loadedFrom: url)
             if type.conforms(to: .image),
-                let target = self.downscaledImageCopy(url, named: name)
+                let copy = self.transcodedImageCopy(url, named: name)
             {
                 state.addAttachment(
-                    path: target.path, mimeType: "image/jpeg", at: index)
+                    path: copy.url.path, mimeType: copy.mimeType, at: index)
                 return
             }
             guard let target = self.copyToShareCache(url, named: name)
@@ -354,25 +360,56 @@ class ShareViewController: UIViewController {
         return suggested
     }
 
-    // Copies an oversized still image into the App Group caches downscaled
-    // to `maxImagePixelSize`, transcoded to JPEG. Returns nil where
-    // downscaling does not apply. If the image is small enough, animated, or
-    // not decodable, we leave the plain copy to handle the file.
+    // Copies a still image into the App Group caches transcoded to JPEG (PNG
+    // where it has alpha), downscaled to `maxImagePixelSize` if larger and
+    // converted to sRGB. Returns nil where transcoding does not apply: sRGB
+    // images the Rust side decodes itself and that are small enough,
+    // animations, and files ImageIO cannot read are left to the plain copy.
     //
-    // ImageIO scales images in streaming fashion, which prevents from running
-    // out of memory in the share extension.
-    private func downscaledImageCopy(_ url: URL, named name: String) -> URL? {
+    // ImageIO scales and converts images in streaming fashion, which prevents
+    // from running out of memory in the share extension.
+    private func transcodedImageCopy(_ url: URL, named name: String)
+        -> TranscodedImage?
+    {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-            // A multi-frame image is an animation, which a downscale to a
+            // A multi-frame image is an animation, which a transcode to a
             // single frame would freeze. The Rust side re-encodes it with
             // its frames intact.
             CGImageSourceGetCount(source) == 1,
             let properties = CGImageSourceCopyPropertiesAtIndex(
                 source, 0, nil) as? [CFString: Any],
             let width = properties[kCGImagePropertyPixelWidth] as? Int,
-            let height = properties[kCGImagePropertyPixelHeight] as? Int,
-            max(width, height) > maxImagePixelSize
+            let height = properties[kCGImagePropertyPixelHeight] as? Int
         else {
+            return nil
+        }
+
+        let sourceType = CGImageSourceGetType(source)
+            .flatMap { UTType($0 as String) }
+        let rustDecodable =
+            sourceType.map { type in
+                rustDecodableImageTypes.contains { type.conforms(to: $0) }
+            } ?? false
+        let oversized = max(width, height) > maxImagePixelSize
+        // Camera photos are tagged Display P3. The Rust side ignores color
+        // profiles and the WebP it produces carries none, so wide-gamut pixels
+        // would be shown as sRGB and look washed out. An untagged image is
+        // sRGB by convention. The sRGB profiles in circulation describe
+        // themselves either as "sRGB ..." or by the standard defining them,
+        // IEC 61966-2-1. The check fails safe: an unrecognized profile means
+        // a transcode, which costs some quality but never color accuracy.
+        let profileName = properties[kCGImagePropertyProfileName] as? String
+        let isSRGB =
+            profileName.map { name in
+                name.localizedCaseInsensitiveContains("sRGB")
+                    || name.contains("61966")
+            } ?? true
+        // For an opaque image the transcode is lossy, and the Rust side
+        // re-encodes once more, so a P3 photo that needs no downscale takes a
+        // second generation of (high quality) loss. That is the price of
+        // correct colors; a lossless intermediate would instead cost time and
+        // cache space in the extension for every camera photo.
+        guard oversized || !rustDecodable || !isSRGB else {
             return nil
         }
 
@@ -381,14 +418,30 @@ class ShareViewController: UIViewController {
             // Bakes the EXIF orientation into the pixels, since the
             // orientation tag does not survive the re-encode.
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxImagePixelSize,
+            kCGImageSourceThumbnailMaxPixelSize: min(
+                max(width, height), maxImagePixelSize),
         ]
         guard
-            let scaled = CGImageSourceCreateThumbnailAtIndex(
+            let image = CGImageSourceCreateThumbnailAtIndex(
                 source, 0, options as CFDictionary)
         else {
-            logger.error("Failed to downscale shared image")
+            logger.error("Failed to decode shared image for transcoding")
             return nil
+        }
+
+        // JPEG has no alpha channel; a transparent image goes out as PNG.
+        let hasAlpha = properties[kCGImagePropertyHasAlpha] as? Bool ?? false
+        let targetType: UTType = hasAlpha ? .png : .jpeg
+        let targetExtension = hasAlpha ? "png" : "jpg"
+        let mimeType = hasAlpha ? "image/png" : "image/jpeg"
+        var encodeOptions: [CFString: Any] = [
+            // Converts the pixels to sRGB while writing, without drawing the
+            // image into a second bitmap.
+            kCGImageDestinationOptimizeColorForSharing: true
+        ]
+        if !hasAlpha {
+            encodeOptions[kCGImageDestinationLossyCompressionQuality] =
+                transcodedImageQuality
         }
 
         guard let shareCacheURL = shareCacheDirectory() else {
@@ -397,7 +450,7 @@ class ShareViewController: UIViewController {
         let targetDir = shareCacheURL.appendingPathComponent(
             UUID().uuidString, isDirectory: true)
         let target = targetDir.appendingPathComponent(
-            (name as NSString).deletingPathExtension + ".jpg")
+            (name as NSString).deletingPathExtension + "." + targetExtension)
         do {
             try FileManager.default.createDirectory(
                 at: targetDir, withIntermediateDirectories: true)
@@ -412,21 +465,18 @@ class ShareViewController: UIViewController {
 
         guard
             let destination = CGImageDestinationCreateWithURL(
-                target as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+                target as CFURL, targetType.identifier as CFString, 1, nil)
         else {
             logger.error("Failed to create image destination")
             return nil
         }
-        let encodeOptions: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: downscaledImageQuality
-        ]
         CGImageDestinationAddImage(
-            destination, scaled, encodeOptions as CFDictionary)
+            destination, image, encodeOptions as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            logger.error("Failed to write downscaled shared image")
+            logger.error("Failed to write transcoded shared image")
             return nil
         }
-        return target
+        return TranscodedImage(url: target, mimeType: mimeType)
     }
 
     // Copies the extracted file into the App Group caches, protected like
@@ -526,6 +576,12 @@ class ShareViewController: UIViewController {
         }
         extensionContext?.completeRequest(returningItems: nil)
     }
+}
+
+// A still image re-encoded by the extension, and the MIME type of the result.
+private struct TranscodedImage {
+    let url: URL
+    let mimeType: String
 }
 
 // Turns off the sheet's drag-to-dismiss, so a drag reaches the Flutter view.

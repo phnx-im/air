@@ -134,6 +134,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log",
 url = "2.5.4"
 uuid = "1.16.0"
 webpx = { version = "0.4.0", default-features = false, features = ["encode", "animation", "std"] }
+yuv = "0.8.17"
 xshell = "0.2"
 zeroize = "1.8.2"
 

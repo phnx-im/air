@@ -58,7 +58,7 @@ pub use crate::{
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
     utils::{
-        image::image_is_animated,
+        image::{ImageMemoryBudget, image_is_animated},
         persistence::{delete_client_database, delete_databases, open_client_db},
     },
 };
