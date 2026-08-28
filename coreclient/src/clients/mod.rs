@@ -667,20 +667,13 @@ impl CoreUser {
 
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        self.try_chat_participants(chat_id)
+        Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
             .await
-            .inspect_err(|e| error!(?e, "Error loading chat participants"))
-            .ok()?
-    }
-
-    pub(crate) async fn try_chat_participants(
-        &self,
-        chat_id: ChatId,
-    ) -> Result<Option<HashSet<UserId>>> {
-        let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
-            return Ok(None);
-        };
-        Ok(Some(group.participants()?))
+            .inspect_err(|error| {
+                error!(%error, %chat_id, "Failed to load chat participants");
+            })
+            .ok()
+            .flatten()
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {

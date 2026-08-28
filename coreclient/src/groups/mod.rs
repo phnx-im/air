@@ -441,16 +441,6 @@ impl Group {
         self.room_state
     }
 
-    /// Returns the set of users currently in the room according to
-    /// `room_state`.
-    pub(crate) fn participants(&self) -> Result<HashSet<UserId>> {
-        self.room_state
-            .users()
-            .keys()
-            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
-            .collect()
-    }
-
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
     /// pending commit. Used by clean loaders to refuse to hand out a
     /// `Group` whose MLS state has an in-flight commit, since further
@@ -682,6 +672,7 @@ impl Group {
 
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
+        ensure_room_state_matches_members(&room_state, &mls_group, false)?;
 
         let sender_user_id = verifiable_attribution_info.sender();
         let sender_user_credential =
@@ -901,6 +892,7 @@ impl Group {
         );
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
+        ensure_room_state_matches_members(&room_state, &t_mls_group, false)?;
 
         let sender_user_credential =
             match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
@@ -1206,6 +1198,7 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        ensure_room_state_matches_members(&room_state, &mls_group, true)?;
 
         let group = Self {
             mls_group,
@@ -1369,6 +1362,7 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        ensure_room_state_matches_members(&room_state, &t_group, true)?;
 
         // Store the group, credentials and member profile infos
         let now = TimeStamp::now();
@@ -2758,6 +2752,44 @@ async fn verify_member_credentials(
         verified.push(credential);
     }
     Ok(verified)
+}
+
+/// Ensure that the users of `room_state` are exactly the members of `mls_group`.
+fn ensure_room_state_matches_members(
+    room_state: &VerifiedRoomState,
+    mls_group: &MlsGroup,
+    external_commit: bool,
+) -> anyhow::Result<()> {
+    let mut expected = HashSet::new();
+    for member in mls_group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)?
+            .room_policy_identity()
+            .to_bytes()?;
+        expected.insert(identity);
+    }
+
+    let users = room_state.users();
+    let matches = |expected: &HashSet<Vec<u8>>| {
+        users.len() == expected.len() && users.keys().all(|key| expected.contains(key))
+    };
+    if matches(&expected) {
+        return Ok(());
+    }
+
+    // For external commits we might be missing in the room state, on resync though we are already
+    // listed => accept both sets.
+    if external_commit {
+        let own_leaf = mls_group.own_leaf_node().context("missing own leaf")?;
+        let own_identity = LeafCredential::from_credential(own_leaf.credential())?
+            .room_policy_identity()
+            .to_bytes()?;
+        expected.remove(&own_identity);
+        if matches(&expected) {
+            return Ok(());
+        }
+    }
+
+    bail!("room state users do not match group members");
 }
 
 /// Classify the leaf credentials of all group members for verification.
