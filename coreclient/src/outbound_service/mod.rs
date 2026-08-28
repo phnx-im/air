@@ -242,7 +242,17 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
             };
 
             {
-                let _guard = match global_lock.lock().await {
+                // Another holder (e.g. a push worker in the same process) can keep the lock for a
+                // whole run. The wait must stay cancellable, otherwise `stop()` hangs.
+                let lock_result = tokio::select! {
+                    result = global_lock.lock() => result,
+                    _ = run_token.cancel.cancelled() => {
+                        debug!("cancelled while waiting for global lock");
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                };
+                let _guard = match lock_result {
                     Ok(guard) => guard,
                     Err(error) => {
                         error!(
@@ -529,6 +539,39 @@ mod test {
         timeout(Duration::from_secs(5), service.stop())
             .await
             .expect("stop must not hang when the lock cannot be acquired");
+    }
+
+    #[tokio::test]
+    async fn stop_resolves_while_lock_is_held_elsewhere() {
+        init_test_tracing();
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lockfile");
+
+        let mut other = GlobalLock::from_path(&path).unwrap();
+        let other_guard = other.lock().await.unwrap();
+
+        let context = DelayedCounterContext::default();
+        let service =
+            OutboundService::with_context(context.clone(), GlobalLock::from_path(&path).unwrap());
+
+        let start = service.start();
+        tokio::pin!(start);
+        timeout(Duration::from_millis(200), &mut start)
+            .await
+            .expect_err("start must be parked in the lock wait");
+
+        timeout(Duration::from_secs(5), service.stop())
+            .await
+            .expect("stop must not be parked behind another lock holder");
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        // The background task is still alive and runs once the lock is free.
+        drop(other_guard);
+        timeout(Duration::from_secs(5), service.start())
+            .await
+            .expect("the background task must keep serving requests");
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 
     /// A short wake interval used in tests so the periodic ticker fires quickly.
