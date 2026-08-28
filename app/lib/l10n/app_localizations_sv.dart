@@ -859,11 +859,6 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Kunde inte skapa en ny gruppchatt med namnet $chatName eftersom en av kontakterna har en inkompatibel klient.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Lägg till Air-kontakt';
 
   @override
@@ -1193,6 +1188,44 @@ class AppLocalizationsSv extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Inga medlemmar';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Vissa personer kunde inte läggas till';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Din grupp $groupName skapades, men $memberNames kunde inte läggas till.',
+      one:
+          'Din grupp $groupName skapades, men $memberNames kunde inte läggas till.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count andra personer',
+      one: '$count annan person',
+    );
+    return '$memberNames och $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Klar';
 
   @override
@@ -1313,6 +1346,13 @@ class AppLocalizationsSv extends AppLocalizations {
       'Den här kontakten har en föråldrad app som behöver uppdateras.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle => 'Kan inte läggas till';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'De här personerna kan inte läggas till i gruppen. Det kan bero på att deras konto inte längre är aktivt eller att deras appversion är för gammal.';
+
+  @override
   String get homeTab_chats => 'Chattar';
 
   @override
@@ -1343,6 +1383,9 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
+
+  @override
+  String get shareDestination_title => 'Skicka till…';
 
   @override
   String get shareScreen_title => 'Dela till Air';

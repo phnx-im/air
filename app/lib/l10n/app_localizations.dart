@@ -1512,12 +1512,6 @@ abstract class AppLocalizations {
   /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(String chatName);
 
-  /// Error shown when a group cannot be created because a member runs an app version that is too old.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
-  String newChatDialog_error_incompatibleClient(String chatName);
-
   /// Title of the dialog for adding an Air contact by username.
   ///
   /// In en, this message translates to:
@@ -2070,6 +2064,37 @@ abstract class AppLocalizations {
   /// **'No members'**
   String get groupCreationDetails_emptySelection;
 
+  /// Title of the dialog shown when the group was created but some picked members could not be added.
+  ///
+  /// In en, this message translates to:
+  /// **'Some people couldn\'t be added'**
+  String get groupCreationDetails_membersNotAddedTitle;
+
+  /// Body of that dialog, naming the group and the members that were left out.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {Your group {groupName} was created, but {memberNames} couldn\'t be added.} other {Your group {groupName} was created, but {memberNames} couldn\'t be added.}}'**
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  );
+
+  /// Shortens a long list of left out members to the first few names plus a count of the rest.
+  ///
+  /// In en, this message translates to:
+  /// **'{memberNames} and {count, plural, one {{count} other} other {{count} others}}'**
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  );
+
+  /// Button that dismisses the dialog about members that could not be added.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get groupCreationDetails_membersNotAddedConfirm;
+
   /// Button that confirms the picked members and adds them to the group.
   ///
   /// In en, this message translates to:
@@ -2286,6 +2311,18 @@ abstract class AppLocalizations {
   /// **'This contact has an outdated app which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
 
+  /// Header of the list section holding contacts that cannot be added to the group.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t be added'**
+  String get memberSelectionList_cantBeAddedTitle;
+
+  /// Explains why the contacts under the “Can't be added” header cannot be picked.
+  ///
+  /// In en, this message translates to:
+  /// **'These people can\'t be added to the group. This could be because their account is no longer active or because their app version is too old.'**
+  String get memberSelectionList_cantBeAddedDescription;
+
   /// Label of the chats tab in the bottom bar and sidebar. Use the glossary term for chat.
   ///
   /// In en, this message translates to:
@@ -2345,6 +2382,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
+
+  /// Title of the screen that asks which chat shared content should go to (Android). Tapping a chat opens it with the content in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to…'**
+  String get shareDestination_title;
 
   /// Title of the screen that receives content shared from another app.
   ///

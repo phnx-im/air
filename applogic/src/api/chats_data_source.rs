@@ -22,7 +22,7 @@ use crate::{
     StreamSink,
     api::{
         chat_details_cubit::load_chat_details,
-        types::{UiChatDetails, UiChatMuted, UiUsername},
+        types::{UiChatDetails, UiChatMuted, UiUserId, UiUsername},
         user_cubit::UserCubitBase,
     },
 };
@@ -33,6 +33,7 @@ pub struct ChatsDelta {
     pub removed: HashSet<ChatId>,
     /// Only when ordering of chats changed.
     pub order: Option<Vec<ChatId>>,
+    pub members: HashMap<ChatId, Vec<UiUserId>>,
 }
 
 impl ChatsDelta {
@@ -163,6 +164,7 @@ impl ChatsDataSourceInner {
                 upserted: Vec::new(),
                 removed: HashSet::new(),
                 order: Some(Vec::new()),
+                members: HashMap::default(),
             })?;
             return Ok(LocalState::default());
         }
@@ -178,7 +180,7 @@ impl ChatsDataSourceInner {
                 return Ok(state);
             }
 
-            let upserted = self.load_chats(chunk).await;
+            let (upserted, members) = self.load_chats(chunk).await;
 
             state.order.extend(upserted.iter().map(|chat| chat.id));
             for chat in &upserted {
@@ -189,6 +191,7 @@ impl ChatsDataSourceInner {
                 upserted,
                 removed: HashSet::new(),
                 order: Some(state.order.clone()),
+                members,
             })?;
         }
 
@@ -197,7 +200,7 @@ impl ChatsDataSourceInner {
 
     async fn reload(&self, affected: HashSet<ChatId>, state: &mut LocalState) -> ChatsDelta {
         let chat_ids: Vec<ChatId> = affected.into_iter().collect();
-        let mut upserted = self.load_chats(&chat_ids).await;
+        let (mut upserted, members) = self.load_chats(&chat_ids).await;
 
         let loaded: HashSet<ChatId> = upserted.iter().map(|chat| chat.id).collect();
         let mut removed: HashSet<ChatId> = chat_ids
@@ -254,17 +257,34 @@ impl ChatsDataSourceInner {
             upserted,
             removed,
             order: reordered.then_some(order),
+            members,
         }
     }
 
-    async fn load_chats(&self, chat_ids: &[ChatId]) -> Vec<UiChatDetails> {
+    async fn load_chats(
+        &self,
+        chat_ids: &[ChatId],
+    ) -> (Vec<UiChatDetails>, HashMap<ChatId, Vec<UiUserId>>) {
         let mut chats = Vec::with_capacity(chat_ids.len());
+        let mut members = HashMap::with_capacity(chat_ids.len());
         for chat_id in chat_ids {
             if let Some(chat) = self.core_user.chat(chat_id).await {
-                chats.push(load_chat_details(&self.core_user, chat).await);
+                let chat_details = load_chat_details(&self.core_user, chat).await;
+                chats.push(chat_details);
+
+                let mut chat_members: Vec<_> = self
+                    .core_user
+                    .chat_participants(*chat_id)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(From::from)
+                    .collect();
+                chat_members.sort_unstable();
+                members.insert(*chat_id, chat_members);
             }
         }
-        chats
+        (chats, members)
     }
 }
 

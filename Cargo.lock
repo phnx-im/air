@@ -254,7 +254,6 @@ dependencies = [
  "cbor-diag",
  "chrono",
  "derive_more",
- "displaydoc",
  "enumset",
  "hex",
  "hkdf 0.13.0",

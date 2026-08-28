@@ -37,12 +37,12 @@ async fn create_empty_group() {
     let alice_user = &setup.get_user(&alice).user;
 
     // Inviting an empty user list should be a no-op
-    let messages = alice_user
+    let result = alice_user
         .invite_users(chat_id, &[])
         .await
-        .expect("inviting an empty user list should succeed")
         .expect("inviting an empty user list should succeed");
-    assert!(messages.is_empty());
+    assert!(result.messages.is_empty());
+    assert!(result.users_not_added.is_empty());
 
     let participants = alice_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(participants.len(), 1);
@@ -300,7 +300,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie accepts the invitation.
@@ -315,7 +314,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
@@ -609,7 +607,6 @@ async fn fetch_group_profile_on_invite() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
@@ -736,7 +733,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -803,7 +799,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     let messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(messages).await;
@@ -1549,7 +1544,6 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
         .user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     setup.settle(&[&alice, &charlie, &dave]).await;
 

@@ -14,7 +14,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatListItemState {
 
- UiChatDetails get chat;
+ UiChatDetails get chat;// if members are none, the cubit is not watching them
+ List<UiUserId>? get members;
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +26,16 @@ $ChatListItemStateCopyWith<ChatListItemState> get copyWith => _$ChatListItemStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListItemState&&(identical(other.chat, chat) || other.chat == chat));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListItemState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat);
+int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members));
 
 @override
 String toString() {
-  return 'ChatListItemState(chat: $chat)';
+  return 'ChatListItemState(chat: $chat, members: $members)';
 }
 
 
@@ -45,7 +46,7 @@ abstract mixin class $ChatListItemStateCopyWith<$Res>  {
   factory $ChatListItemStateCopyWith(ChatListItemState value, $Res Function(ChatListItemState) _then) = _$ChatListItemStateCopyWithImpl;
 @useResult
 $Res call({
- UiChatDetails chat
+ UiChatDetails chat, List<UiUserId>? members
 });
 
 
@@ -62,10 +63,11 @@ class _$ChatListItemStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chat = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chat = null,Object? members = freezed,}) {
   return _then(_self.copyWith(
 chat: null == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
-as UiChatDetails,
+as UiChatDetails,members: freezed == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
+as List<UiUserId>?,
   ));
 }
 
@@ -77,10 +79,21 @@ as UiChatDetails,
 
 
 class _ChatListItemState implements ChatListItemState {
-  const _ChatListItemState({required this.chat});
+  const _ChatListItemState({required this.chat, final  List<UiUserId>? members}): _members = members;
   
 
 @override final  UiChatDetails chat;
+// if members are none, the cubit is not watching them
+ final  List<UiUserId>? _members;
+// if members are none, the cubit is not watching them
+@override List<UiUserId>? get members {
+  final value = _members;
+  if (value == null) return null;
+  if (_members is EqualUnmodifiableListView) return _members;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(value);
+}
+
 
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
@@ -92,16 +105,16 @@ _$ChatListItemStateCopyWith<_ChatListItemState> get copyWith => __$ChatListItemS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListItemState&&(identical(other.chat, chat) || other.chat == chat));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListItemState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat);
+int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
 
 @override
 String toString() {
-  return 'ChatListItemState(chat: $chat)';
+  return 'ChatListItemState(chat: $chat, members: $members)';
 }
 
 
@@ -112,7 +125,7 @@ abstract mixin class _$ChatListItemStateCopyWith<$Res> implements $ChatListItemS
   factory _$ChatListItemStateCopyWith(_ChatListItemState value, $Res Function(_ChatListItemState) _then) = __$ChatListItemStateCopyWithImpl;
 @override @useResult
 $Res call({
- UiChatDetails chat
+ UiChatDetails chat, List<UiUserId>? members
 });
 
 
@@ -129,10 +142,11 @@ class __$ChatListItemStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chat = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chat = null,Object? members = freezed,}) {
   return _then(_ChatListItemState(
 chat: null == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
-as UiChatDetails,
+as UiChatDetails,members: freezed == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
+as List<UiUserId>?,
   ));
 }
 

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
@@ -63,9 +65,77 @@ class ChatScreen extends StatelessWidget {
           ),
         ),
       ],
-      child: const ChatScreenView(),
+      child: PendingShareRedirect(
+        key: ValueKey("pending-share-redirect-$chatId"),
+        chatId: chatId,
+        child: const ChatScreenView(),
+      ),
     );
   }
+}
+
+/// Sends a pending share back to the destination picker when the chat it is
+/// addressed to cannot take it.
+///
+/// Public only so it can be tested apart from [ChatScreen], whose cubits need
+/// the Rust side.
+class PendingShareRedirect extends StatefulWidget {
+  const PendingShareRedirect({
+    super.key,
+    required this.chatId,
+    required this.child,
+  });
+
+  final ChatId chatId;
+  final Widget child;
+
+  @override
+  State<PendingShareRedirect> createState() => _PendingShareRedirectState();
+}
+
+class _PendingShareRedirectState extends State<PendingShareRedirect> {
+  late final List<StreamSubscription<void>> _subscriptions;
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = context.read<ChatsRepository>();
+    // The order arrives with the initial load and both repository streams
+    // replay on subscription.
+    _subscriptions = [
+      repository.watchOrder().listen((_) => _check()),
+      repository.watchChat(widget.chatId).listen((_) => _check()),
+      context.read<NavigationCubit>().stream.listen((_) => _check()),
+    ];
+  }
+
+  void _check() {
+    if (!mounted) return;
+    final repository = context.read<ChatsRepository>();
+    final navigationCubit = context.read<NavigationCubit>();
+    final navigationState = navigationCubit.state;
+    final share = navigationState.pendingShare;
+    if (share == null ||
+        navigationState.chatId != widget.chatId ||
+        !repository.isLoaded) {
+      return;
+    }
+    final chat = repository.getChat(widget.chatId);
+    if (chat == null || !chat.canShareInto) {
+      unawaited(navigationCubit.openShare(share));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _EmptyChatPane extends StatelessWidget {

@@ -28,7 +28,6 @@ use crate::{
 
 #[derive(Debug, Clone)]
 enum ChatOperationType {
-    AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
     /// Removes individual self-group leaves, identified by client id.
     RemoveClients(Vec<Uuid>),
@@ -74,6 +73,53 @@ pub(crate) enum ChatOperationError {
     UserProfileKeyEncryptionError(EncryptionError),
 }
 
+/// Executes any pending operation for the chat, so that a job starts from a
+/// clean group state.
+pub(super) async fn execute_pending_operation(
+    chat_id: ChatId,
+    context: &mut JobContext<'_, '_>,
+) -> Result<(), JobError<ChatOperationError>> {
+    let pending_operation = context
+        .db
+        .write()
+        .await?
+        .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        .await?;
+
+    if let Some(pending_operation) = pending_operation {
+        // We can just propagate any error here, as the this job isn't
+        // persisted and doesn't need to be cleaned up.
+        pending_operation.execute(context).await?;
+    }
+
+    Ok(())
+}
+
+/// Loads the group of the chat with the given id.
+///
+/// Errors if the chat is gone or inactive, since no operation may run on it
+/// then.
+pub(super) async fn load_active_group(
+    db: &mut JobContextDb<'_, '_>,
+    chat_id: ChatId,
+) -> anyhow::Result<Group> {
+    let chat = {
+        let mut connection = db.read().await?;
+        let txn = connection.begin().await?;
+        Chat::load(txn, &chat_id)
+            .await?
+            .ok_or(anyhow!("No chat found for ID {chat_id}"))?
+    };
+
+    if let ChatStatus::Inactive(_) = chat.status() {
+        bail!("Cannot execute operation on inactive chat");
+    }
+
+    Group::load_clean(db.read().await?, chat.group_id())
+        .await?
+        .ok_or_else(|| anyhow!("No group found for chat {chat_id}"))
+}
+
 impl Job for ChatOperation {
     type Output = Vec<ChatMessage>;
 
@@ -90,32 +136,11 @@ impl Job for ChatOperation {
         &mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
-        // Execute any pending operation for this chat first.
-        let pending_operation = context
-            .db
-            .write()
-            .await?
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
-            .await?;
-
-        if let Some(pending_operation) = pending_operation {
-            // We can just propagate any error here, as the this job isn't
-            // persisted and doesn't need to be cleaned up.
-            pending_operation.execute(context).await?;
-        }
-
-        Ok(())
+        execute_pending_operation(self.chat_id, context).await
     }
 }
 
 impl ChatOperation {
-    pub(crate) fn add_members(chat_id: ChatId, users: Vec<UserId>) -> Self {
-        ChatOperation {
-            chat_id,
-            operation: ChatOperationType::AddMembers(users),
-        }
-    }
-
     pub(crate) fn remove_members(chat_id: ChatId, users: Vec<UserId>) -> Self {
         ChatOperation {
             chat_id,
@@ -186,27 +211,9 @@ impl ChatOperation {
         &mut self,
         db: &mut JobContextDb<'_, '_>,
     ) -> anyhow::Result<()> {
-        let chat = {
-            let mut connection = db.read().await?;
-            let txn = connection.begin().await?;
-            Chat::load(txn, &self.chat_id)
-                .await?
-                .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?
-        };
-
-        if let ChatStatus::Inactive(_) = chat.status() {
-            bail!("Cannot execute operation on inactive chat");
-        }
-
-        let group = Group::load_clean(db.read().await?, chat.group_id())
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
+        let group = load_active_group(db, self.chat_id).await?;
 
         match &mut self.operation {
-            ChatOperationType::AddMembers(user_ids) => {
-                let members: HashSet<_> = group.members().collect();
-                user_ids.retain(|user_id| !members.contains(user_id));
-            }
             ChatOperationType::RemoveMembers(user_ids) => {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
@@ -238,12 +245,6 @@ impl ChatOperation {
         self.check_validity_and_refine(&mut context.db).await?;
 
         match self.operation.clone() {
-            ChatOperationType::AddMembers(user_ids) => {
-                if user_ids.is_empty() {
-                    return Ok(Vec::new());
-                }
-                self.execute_add_members(context, user_ids).await
-            }
             ChatOperationType::RemoveMembers(user_ids) => {
                 if user_ids.is_empty() {
                     return Ok(Vec::new());
@@ -271,29 +272,6 @@ impl ChatOperation {
                     .await
             }
         }
-    }
-
-    async fn execute_add_members(
-        &mut self,
-        context: &mut JobContext<'_, '_>,
-        users: Vec<UserId>,
-    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            api_clients,
-            db,
-            key_store,
-            ..
-        } = context;
-        let job = Box::pin(PendingChatOperation::create_add(
-            db.write().await?,
-            api_clients,
-            &key_store.signing_key,
-            self.chat_id,
-            users,
-        ))
-        .await?;
-
-        job.execute(context).await
     }
 
     /// Remove users from the chat

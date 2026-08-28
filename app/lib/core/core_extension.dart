@@ -64,6 +64,9 @@ extension UiChatDetailsExtension on UiChatDetails {
   };
 
   bool get isMuted => mutedUntil.isMuted;
+
+  /// Whether the chat takes shared content, i.e. the user can send into it.
+  bool get canShareInto => status == const UiChatStatus.active() && isConfirmed;
 }
 
 extension UiChatMutedExtension on UiChatMuted? {

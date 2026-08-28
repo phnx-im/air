@@ -4,6 +4,7 @@
 
 pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod compatibility;
 pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
@@ -167,6 +168,7 @@ impl PartialCreateGroupParams {
             room_state: self.room_state,
             pq,
             creator_user_credential: None,
+            group_bootstrap: None,
         }
     }
 }

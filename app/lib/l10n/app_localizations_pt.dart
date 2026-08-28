@@ -869,11 +869,6 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Não foi possível criar o chat em grupo $chatName porque um dos contatos tem um cliente incompatível.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle =>
       'Adicionar contato do Air';
 
@@ -1206,6 +1201,44 @@ class AppLocalizationsPt extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Sem membros';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Algumas pessoas não puderam ser adicionadas';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Seu grupo $groupName foi criado, mas $memberNames não puderam ser adicionados.',
+      one:
+          'Seu grupo $groupName foi criado, mas $memberNames não pôde ser adicionado.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'mais $count pessoas',
+      one: 'mais $count pessoa',
+    );
+    return '$memberNames e $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Pronto';
 
   @override
@@ -1326,6 +1359,14 @@ class AppLocalizationsPt extends AppLocalizations {
       'Este contato tem uma versão antiga do app que precisa ser atualizada.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle =>
+      'Não podem ser adicionadas';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Estas pessoas não podem ser adicionadas ao grupo. Pode ser porque a conta delas não está mais ativa ou porque a versão do app delas é muito antiga.';
+
+  @override
   String get homeTab_chats => 'Chats';
 
   @override
@@ -1356,6 +1397,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define seu tom de pele padrão';
+
+  @override
+  String get shareDestination_title => 'Enviar para…';
 
   @override
   String get shareScreen_title => 'Compartilhar no Air';
@@ -2298,11 +2342,6 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Não foi possível criar o chat de grupo $chatName porque um dos contactos tem um cliente incompatível.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle =>
       'Adicionar contacto do Air';
 
@@ -2637,6 +2676,44 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   String get groupCreationDetails_emptySelection => 'Sem membros';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Algumas pessoas não puderam ser adicionadas';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'O teu grupo $groupName foi criado, mas $memberNames não puderam ser adicionados.',
+      one:
+          'O teu grupo $groupName foi criado, mas $memberNames não pôde ser adicionado.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'mais $count pessoas',
+      one: 'mais $count pessoa',
+    );
+    return '$memberNames e $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Concluído';
 
   @override
@@ -2757,6 +2834,14 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
       'Este contacto tem uma versão antiga da aplicação que precisa de ser atualizada.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle =>
+      'Não podem ser adicionadas';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Estas pessoas não podem ser adicionadas ao grupo. Pode ser porque a conta delas já não está ativa ou porque a versão da aplicação delas é demasiado antiga.';
+
+  @override
   String get homeTab_chats => 'Chats';
 
   @override
@@ -2787,6 +2872,9 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get emojiPicker_skinToneHelp => 'Define o teu tom de pele predefinido';
+
+  @override
+  String get shareDestination_title => 'Enviar para…';
 
   @override
   String get shareScreen_title => 'Partilhar no Air';

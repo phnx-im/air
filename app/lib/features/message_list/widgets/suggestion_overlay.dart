@@ -5,7 +5,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:flutter/material.dart';
+
+/// Smallest gap kept between a suggestion overlay and the safe area edges.
+const suggestionOverlayViewportMargin = S.s8;
 
 typedef SuggestionOverlayItemBuilder<T> =
     Widget Function(BuildContext context, T item, bool isHighlighted);
@@ -21,7 +26,7 @@ class SuggestionOverlayStyle {
 
   final Color backgroundColor;
   final BorderRadius borderRadius;
-  final double elevation;
+  final Elevation elevation;
   final double maxWidth;
   final double maxHeight;
 }
@@ -86,6 +91,9 @@ class SuggestionOverlayController<T> {
   }
 
   /// Insert or refresh the overlay with the provided suggestions and builder.
+  ///
+  /// [offset] positions the overlay's bottom left corner relative to the
+  /// anchor, so callers place it without knowing how tall it renders.
   Future<void> show({
     required BuildContext context,
     required Offset offset,
@@ -118,14 +126,19 @@ class SuggestionOverlayController<T> {
       _markNeedsBuild();
     }
     _visible = true;
+    // Set the phase before measuring, otherwise the body isn't built yet and
+    // there is nothing to measure. Measuring ahead of the entry animation puts
+    // the corrected offset on screen while the overlay is still faded out,
+    // rather than 100 ms later once it is fully visible.
+    _animationPhase = SuggestionOverlayAnimationPhase.entering;
+    _markNeedsBuild();
+    _scheduleSizeUpdate();
+    _scrollToHighlighted(movingDown: false);
     if (!wasVisible) {
       await _playAnimation(SuggestionOverlayAnimationPhase.entering);
     } else {
-      _animationPhase = SuggestionOverlayAnimationPhase.entering;
       _animationController.value = 1;
     }
-    _scheduleSizeUpdate();
-    _scrollToHighlighted(movingDown: false);
   }
 
   /// Update the overlay anchor offset without rebuilding tiles.
@@ -323,6 +336,10 @@ class _SuggestionOverlay<T> extends StatelessWidget {
       child: CompositedTransformFollower(
         link: controller.anchorLink,
         showWhenUnlinked: false,
+        // Anchoring the bottom left corner lets the follower resolve the
+        // overlay's height at layout time, so the offset never has to carry a
+        // measured height that lags a frame behind the current suggestions.
+        followerAnchor: .bottomLeft,
         offset: controller.offset,
         child: AnimatedBuilder(
           animation: controller.animationController,
@@ -381,33 +398,55 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final itemBuilder = controller.itemBuilder!;
     final suggestions = controller.suggestions;
+    final mediaQuery = MediaQuery.of(context);
+    final availableWidth = max(
+      0.0,
+      mediaQuery.size.width -
+          mediaQuery.viewPadding.horizontal -
+          suggestionOverlayViewportMargin * 2,
+    );
+    final availableHeight = max(
+      0.0,
+      mediaQuery.size.height -
+          mediaQuery.viewPadding.vertical -
+          suggestionOverlayViewportMargin * 2,
+    );
     return Listener(
       onPointerDown: (_) => controller.handlePointerDown(),
       onPointerUp: (_) => controller.handlePointerUp(),
       onPointerCancel: (_) => controller.handlePointerCancel(),
-      child: Material(
+      child: DecoratedBox(
         key: controller.overlayKey,
-        elevation: style.elevation,
-        color: style.backgroundColor,
-        borderRadius: style.borderRadius,
-        clipBehavior: .antiAlias,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: style.maxWidth,
-            maxHeight: style.maxHeight,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: .min,
-              children: List.generate(suggestions.length, (index) {
-                final item = suggestions[index];
-                final isHighlighted = index == controller.highlightIndex;
-                return InkWell(
-                  key: controller.itemKey(index),
-                  onTap: () => controller.selectSuggestion(index),
-                  child: itemBuilder(context, item, isHighlighted),
-                );
-              }),
+        decoration: BoxDecoration(
+          color: style.backgroundColor,
+          borderRadius: style.borderRadius,
+          boxShadow: Effect.elevation(style.elevation),
+        ),
+        child: Material(
+          type: .transparency,
+          borderRadius: style.borderRadius,
+          clipBehavior: .antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: min(style.maxWidth, availableWidth),
+              maxHeight: min(style.maxHeight, availableHeight),
+            ),
+            child: SingleChildScrollView(
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .stretch,
+                  children: List.generate(suggestions.length, (index) {
+                    final item = suggestions[index];
+                    final isHighlighted = index == controller.highlightIndex;
+                    return InkWell(
+                      key: controller.itemKey(index),
+                      onTap: () => controller.selectSuggestion(index),
+                      child: itemBuilder(context, item, isHighlighted),
+                    );
+                  }),
+                ),
+              ),
             ),
           ),
         ),

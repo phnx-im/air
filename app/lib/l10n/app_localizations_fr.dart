@@ -871,11 +871,6 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Impossible de créer une discussion de groupe avec le nom $chatName car l\'un des contacts a un client incompatible.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Ajouter un contact Air';
 
   @override
@@ -1210,6 +1205,44 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Aucun membre';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Certaines personnes n\'ont pas pu être ajoutées';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Votre groupe $groupName a été créé, mais $memberNames n\'ont pas pu être ajoutés.',
+      one:
+          'Votre groupe $groupName a été créé, mais $memberNames n\'a pas pu être ajouté.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count autres personnes',
+      one: '$count autre personne',
+    );
+    return '$memberNames et $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Terminé';
 
   @override
@@ -1331,6 +1364,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ce contact a une application obsolète qui doit être mise à jour.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle => 'Impossible à ajouter';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Ces personnes ne peuvent pas être ajoutées au groupe. Leur compte n\'est peut-être plus actif ou leur version de l\'application est trop ancienne.';
+
+  @override
   String get homeTab_chats => 'Discussions';
 
   @override
@@ -1362,6 +1402,9 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get emojiPicker_skinToneHelp =>
       'Définit votre teinte de peau par défaut';
+
+  @override
+  String get shareDestination_title => 'Envoyer à…';
 
   @override
   String get shareScreen_title => 'Partager vers Air';

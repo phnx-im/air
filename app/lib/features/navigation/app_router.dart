@@ -14,6 +14,7 @@ import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
+import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_page.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
@@ -236,6 +237,11 @@ extension on HomeNavigationState {
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null)
         ..._chatDetailsPages(openChatId, fullBleed: modalsFullBleed),
+      if (shareDestinationOpen)
+        const MaterialPage(
+          key: ValueKey("share-destination-screen"),
+          child: ChatListView(scaffold: true, shareMode: true),
+        ),
     ];
   }
 
