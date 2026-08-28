@@ -23,6 +23,7 @@ use apqmls::{
     extension::ApqInfo,
     external_commit_builder::{ApqExternalCommitBuilder, ApqExternalCommitBuilderError},
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
+    validation::{validate_apq_session_at_construction, validate_welcome_psk},
 };
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
@@ -828,10 +829,19 @@ impl Group {
 
         // Note: This method has a side-effect of storing PSK in the database. It is important to
         // call it *after* processing the PQ welcome and *before* processing the T welcome.
-        apqmls::welcome::derive_and_store_join_psk(&provider, &mut pq_mls_group, t_ciphersuite)?;
+        let apq_psk_id = apqmls::welcome::derive_and_store_join_psk(
+            &provider,
+            &mut pq_mls_group,
+            t_ciphersuite,
+        )?;
 
         let processed_t_welcome =
             ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, t_welcome)?;
+
+        // The T welcome must import the PSK exported from the PQ session, or the
+        // T session we are about to join carries no PQ contribution.
+        validate_welcome_psk(&processed_t_welcome, &apq_psk_id)
+            .context("T welcome does not import the APQ PSK")?;
 
         // Check if there is already a group with the same ID.
         let t_group_id = processed_t_welcome.unverified_group_info().group_id();
@@ -876,6 +886,14 @@ impl Group {
                 .emulation_group(is_self_group)
                 .into_group(&provider)?
         };
+
+        // The PQ leaf deliberately carries an empty credential, so membership is
+        // compared structurally rather than by credential equality. The signing
+        // key is what binds a member's two leaves together for us.
+        validate_apq_session_at_construction(&t_mls_group, &pq_mls_group, |_, _| true)
+            .context("invalid APQ session")?;
+        verify_pq_signature_keys(&t_mls_group, &pq_mls_group)
+            .context("T and PQ membership is not bound by matching signature keys")?;
 
         // Phase 5: Verify WAI + extract sender
         let verifiable_attribution_info = WelcomeAttributionInfo::decrypt(
@@ -1341,7 +1359,14 @@ impl Group {
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
-        let res = builder.build(&provider, signer, credential_with_key, group_info);
+        // As in the welcome path, the PQ leaf carries an empty credential.
+        let res = builder.build(
+            &provider,
+            signer,
+            credential_with_key,
+            group_info,
+            |_, _| true,
+        );
         let (apq_mls_group, commit_bundle) = match res {
             Ok(built) => built,
             Err(ApqExternalCommitBuilderError::BuildCommit(error)) => {
@@ -1350,6 +1375,11 @@ impl Group {
             Err(error) => return Err(error.into()),
         };
         let (t_group, pq_group) = apq_mls_group.into_groups();
+
+        // As in the welcome path, the signing key is what binds a member's two
+        // leaves together. The builder has already run the structural checks.
+        verify_pq_signature_keys(&t_group, &pq_group)
+            .context("T and PQ membership is not bound by matching signature keys")?;
 
         // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id()).await?;
@@ -3349,6 +3379,41 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+/// Verifies that every leaf holds the same signature key in both legs.
+///
+/// This is the binding between a member's two leaves in our deployment: the PQ
+/// leaf carries an empty credential, so the signing key is the only thing
+/// tying the two together. The draft requires membership to be consistent
+/// across the two sessions without saying how a member is identified, so this
+/// is our policy rather than a protocol rule, which is why it lives here and
+/// not in `apqmls`.
+///
+/// Only usable while both ciphersuites agree on the signature algorithm, which
+/// holds for every ciphersuite pair we deploy. See
+/// [`Group::verify_pq_signature_key_at`] for the per-operation counterpart
+/// applied to incoming commits.
+fn verify_pq_signature_keys(t_group: &MlsGroup, pq_group: &MlsGroup) -> anyhow::Result<()> {
+    ensure!(
+        t_group.ciphersuite().signature_algorithm() == pq_group.ciphersuite().signature_algorithm(),
+        "the two legs must share a signature algorithm to be bound by their signing keys"
+    );
+    let pq_keys: HashMap<_, _> = pq_group
+        .members()
+        .map(|member| (member.index, member.signature_key))
+        .collect();
+    for t_member in t_group.members() {
+        let pq_key = pq_keys
+            .get(&t_member.index)
+            .with_context(|| format!("no PQ leaf at index {:?}", t_member.index))?;
+        ensure!(
+            &t_member.signature_key == pq_key,
+            "T and PQ signature keys at index {:?} do not match",
+            t_member.index
+        );
+    }
+    Ok(())
 }
 
 fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {

@@ -274,6 +274,7 @@ fn external_vc_join(
             &client.signer,
             client.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap()
 }
@@ -420,6 +421,7 @@ fn sibling_joins_group_created_by_virtual_client() {
             &join_config(),
             bundle.into_welcome().unwrap(),
             Some(alice_b_group.export_ratchet_tree().into()),
+            compare_credentials,
         )
         .unwrap();
 

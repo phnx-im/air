@@ -17,7 +17,7 @@ use thiserror::Error;
 
 use crate::{
     ApqMlsGroup,
-    extension::ApqInfo,
+    extension::{ApqInfo, ApqInfoUpdateError},
     messages::{ApqRatchetTreeIn, VerifiableApqGroupInfo},
     processing::compute_app_data_updates,
     psk::{ApqPskError, derive_and_store_psk},
@@ -133,7 +133,6 @@ impl ApqMlsGroup {
                 t_external_commit,
                 epoch_id,
             )
-            .map_err(VcSiblingExternalCommitJoinError::from)
         })();
         let t_group = match t_result {
             Ok(t_group) => t_group,
@@ -156,7 +155,7 @@ fn process_sibling_external_commit<Provider: OpenMlsProvider>(
     ratchet_tree: Option<RatchetTreeIn>,
     external_commit: impl Into<ProtocolMessage>,
     epoch_id: EpochId,
-) -> Result<MlsGroup, VcExternalCommitJoinError<Provider::StorageError>> {
+) -> Result<MlsGroup, VcSiblingExternalCommitJoinError<Provider::StorageError>> {
     let mut builder = MlsGroup::vc_external_commit_join_builder().with_config(join_config.clone());
     if let Some(ratchet_tree) = ratchet_tree {
         builder = builder.with_ratchet_tree(ratchet_tree);
@@ -165,9 +164,9 @@ fn process_sibling_external_commit<Provider: OpenMlsProvider>(
     let updates = compute_app_data_updates(
         staged.app_data_dictionary_updater(),
         staged.app_data_update_proposals(),
-    );
+    )?;
     staged.with_app_data_dictionary_updates(updates);
-    staged.into_group(provider)
+    staged.into_group(provider).map_err(Into::into)
 }
 
 /// Checks that the two group infos describe the two halves of the same APQMLS
@@ -236,6 +235,8 @@ pub enum VcCreationJoinError<StorageError> {
 pub enum VcSiblingExternalCommitJoinError<StorageError> {
     #[error(transparent)]
     Join(#[from] VcExternalCommitJoinError<StorageError>),
+    #[error(transparent)]
+    ApqInfoUpdate(#[from] ApqInfoUpdateError),
     #[error(transparent)]
     Psk(#[from] ApqPskError<StorageError>),
     #[error(transparent)]
