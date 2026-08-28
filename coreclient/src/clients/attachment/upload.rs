@@ -500,6 +500,11 @@ pub enum UploadTaskError {
 struct ProbedAttachment {
     filename: String,
     content_type: String,
+    /// Size of the source file.
+    ///
+    /// The size the message ends up with, once the attachment has been
+    /// processed: unchanged for a file, smaller for a re-encoded image.
+    size: u64,
     /// Dimensions from the header, `None` if this is not an image we re-encode.
     ///
     /// These are the source dimensions. The re-encode caps them at 4096 while
@@ -541,6 +546,7 @@ impl ProbedAttachment {
         Ok(Ok(Self {
             filename,
             content_type,
+            size,
             image_dimensions,
         }))
     }
@@ -569,7 +575,7 @@ impl ProbedAttachment {
             content_type: self.content_type.clone(),
             url: url.to_string(),
             expires: 0,
-            size: 0,
+            size: self.size,
             enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
             key: Vec::new(),
             nonce: Vec::new(),
