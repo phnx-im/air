@@ -27,9 +27,13 @@ abstract final class SnackbarTokens {
     vertical: S.s8,
   );
 
-  /// Caps the pill width so a long label ellipsizes rather than spanning the
+  /// Caps the pill width so a long label wraps rather than spanning the
   /// viewport.
   static const double maxWidth = Measure.m360;
+
+  /// Caps how far the pill grows downwards, so a label no one budgeted for
+  /// ellipsizes rather than climbing the screen.
+  static const int maxLines = 3;
 
   static const Elevation elevation = Elevation.small;
 
