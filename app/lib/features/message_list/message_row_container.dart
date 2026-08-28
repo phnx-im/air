@@ -185,15 +185,23 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
 
     return Container(
       constraints: BoxConstraints(minHeight: reserve),
-      child: SizeTransition(
-        axis: .vertical,
-        sizeFactor: animation,
+      // Not a SizeTransition: that clips to the growing box, and a closing
+      // row's avatar may reach above its bubble, see [MessageRow.avatar].
+      // Scaled about the foot and anchored there, the row fills the box on
+      // its own.
+      child: AnimatedBuilder(
+        animation: animation,
         child: ScaleTransition(
           scale: animation,
           alignment: widget.isSender
               ? Alignment.bottomRight
               : Alignment.bottomLeft,
           child: widget.child,
+        ),
+        builder: (context, child) => Align(
+          alignment: Alignment.bottomCenter,
+          heightFactor: animation.value,
+          child: child,
         ),
       ),
     );
