@@ -427,6 +427,12 @@ impl ChatDetailsCubitBase {
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");
+                // The task was dropped before it could record an outcome, so
+                // the attachment would otherwise be stuck uploading.
+                self.context
+                    .core_user
+                    .fail_interrupted_attachment_upload(attachment_id)
+                    .await?;
             }
         }
         Ok(None)

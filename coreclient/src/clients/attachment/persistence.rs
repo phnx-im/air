@@ -337,6 +337,50 @@ impl AttachmentRecord {
         Ok(())
     }
 
+    /// Moves the attachment to a status, but only while it is still in the
+    /// expected one. Returns whether the row changed.
+    pub(crate) async fn transition_status(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        from: AttachmentStatus,
+        to: AttachmentStatus,
+    ) -> sqlx::Result<bool> {
+        let result = query!(
+            "UPDATE attachment SET status = ? WHERE attachment_id = ? AND status = ?",
+            to,
+            attachment_id,
+            from,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        let changed = result.rows_affected() > 0;
+        if changed {
+            connection.notifier().update(attachment_id);
+        }
+        Ok(changed)
+    }
+
+    /// Puts a failed attachment back into uploading.
+    ///
+    /// `created_at` moves to the start of this attempt, because it is what the
+    /// recovery pass measures staleness against.
+    pub(crate) async fn restart_upload(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        started_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE attachment SET status = ?, created_at = ? WHERE attachment_id = ?",
+            AttachmentStatus::Uploading,
+            started_at,
+            attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        connection.notifier().update(attachment_id);
+        Ok(())
+    }
+
     pub(crate) async fn set_content(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
@@ -767,6 +811,83 @@ pub(crate) mod test {
         let loaded_content =
             AttachmentRecord::load_content(pool.read().await?, non_existent_id).await?;
         assert_eq!(loaded_content, AttachmentContent::None);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn transition_status_only_from_the_expected_status(
+        pool: Pool<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let record = test_attachment_record_with(
+            chat.id(),
+            message.id(),
+            AttachmentStatus::Ready,
+            Utc::now().round_subsecs(6),
+        );
+        record.store(pool.write().await?, Some(b"content")).await?;
+
+        let changed = AttachmentRecord::transition_status(
+            pool.write().await?,
+            record.attachment_id,
+            AttachmentStatus::Uploading,
+            AttachmentStatus::UploadFailed,
+        )
+        .await?;
+        assert!(!changed);
+        let loaded = AttachmentRecord::load(pool.read().await?, record.attachment_id)
+            .await?
+            .unwrap();
+        assert_eq!(loaded.status, AttachmentStatus::Ready);
+
+        let changed = AttachmentRecord::transition_status(
+            pool.write().await?,
+            record.attachment_id,
+            AttachmentStatus::Ready,
+            AttachmentStatus::UploadFailed,
+        )
+        .await?;
+        assert!(changed);
+        let loaded = AttachmentRecord::load(pool.read().await?, record.attachment_id)
+            .await?
+            .unwrap();
+        assert_eq!(loaded.status, AttachmentStatus::UploadFailed);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn restart_upload_moves_created_at(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let created_at = Utc::now().round_subsecs(6) - chrono::Duration::hours(2);
+        let record = test_attachment_record_with(
+            chat.id(),
+            message.id(),
+            AttachmentStatus::UploadFailed,
+            created_at,
+        );
+        record.store(pool.write().await?, Some(b"content")).await?;
+
+        let started_at = Utc::now().round_subsecs(6);
+        AttachmentRecord::restart_upload(pool.write().await?, record.attachment_id, started_at)
+            .await?;
+
+        let loaded = AttachmentRecord::load(pool.read().await?, record.attachment_id)
+            .await?
+            .unwrap();
+        assert_eq!(loaded.status, AttachmentStatus::Uploading);
+        assert_eq!(loaded.created_at, started_at);
 
         Ok(())
     }

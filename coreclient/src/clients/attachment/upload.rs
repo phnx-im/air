@@ -248,8 +248,11 @@ impl CoreUser {
         let filename = attachment_filename(&message).context("Invalid attachment mimi content")?;
         let is_image = probe_attachment_image_bytes(&content)?.is_some();
 
-        // Flip the state back to uploading.
-        self.update_attachment_status(attachment_id, AttachmentStatus::Uploading)
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                AttachmentRecord::restart_upload(&mut *txn, attachment_id, Utc::now()).await?;
+                Ok(())
+            })
             .await?;
 
         let (progress_tx, progress) = AttachmentProgress::new();
@@ -298,10 +301,18 @@ impl CoreUser {
                     Err(UploadTaskError::Provision(error))
                 }
                 Err(error) => {
-                    // The message must not vanish -- `UploadFailed` is what
-                    // turns it into a retry affordance.
                     if let Err(error) = core_user
-                        .update_attachment_status(attachment_id, AttachmentStatus::UploadFailed)
+                        .db()
+                        .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                            AttachmentRecord::update_status(
+                                &mut *txn,
+                                attachment_id,
+                                AttachmentStatus::UploadFailed,
+                            )
+                            .await?;
+                            txn.notifier().update(attachment_id);
+                            Ok(())
+                        })
                         .await
                     {
                         error!(%error, ?attachment_id, "Failed to mark attachment as failed");
@@ -410,18 +421,24 @@ impl CoreUser {
             .await
     }
 
-    /// Marks an attachment to the [`AttachmentStatus`]
+    /// Marks an interrupted upload as failed, so that it can be retried.
     ///
-    /// TODO: We might want to forbid certain invalid transitions here?
-    async fn update_attachment_status(
+    /// The task that would have recorded the outcome was dropped mid-flight
+    /// (the user cancelled), which is why this is done from the outside. An
+    /// upload that finished in the meantime keeps its status.
+    pub async fn fail_interrupted_attachment_upload(
         &self,
-        id: AttachmentId,
-        status: AttachmentStatus,
+        attachment_id: AttachmentId,
     ) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                AttachmentRecord::update_status(&mut *txn, id, status).await?;
-                txn.notifier().update(id);
+                AttachmentRecord::transition_status(
+                    &mut *txn,
+                    attachment_id,
+                    AttachmentStatus::Uploading,
+                    AttachmentStatus::UploadFailed,
+                )
+                .await?;
                 Ok(())
             })
             .await
@@ -439,9 +456,14 @@ impl CoreUser {
         progress_tx.set_total_bytes(ciphertext.len() as u64);
         upload_encrypted_attachment(&http_client, provision_response, progress_tx, ciphertext)
             .await?;
-        self.update_attachment_status(attachment_id, AttachmentStatus::Ready)
-            .await?;
-        Ok(())
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                AttachmentRecord::update_status(&mut *txn, attachment_id, AttachmentStatus::Ready)
+                    .await?;
+                txn.notifier().update(attachment_id);
+                Ok(())
+            })
+            .await
     }
 }
 
