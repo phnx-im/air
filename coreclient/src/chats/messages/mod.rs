@@ -184,6 +184,37 @@ impl ChatMessage {
         }
     }
 
+    /// An unsent message whose content is not final yet.
+    ///
+    /// The Mimi ID is derived from the content, so it can only be calculated
+    /// once the content is known.
+    pub(crate) fn new_provisional_message(
+        sender: UserId,
+        chat_id: ChatId,
+        message_id: MessageId,
+        content: MimiContent,
+    ) -> Self {
+        let message = Message::Content(Box::new(ContentMessage {
+            mimi_id: None,
+            sender,
+            sent: false,
+            content,
+            edited_at: None,
+        }));
+        let timestamped_message = TimestampedMessage {
+            message,
+            timestamp: TimeStamp::now(),
+        };
+        Self {
+            chat_id,
+            message_id,
+            in_reply_to: None,
+            timestamped_message,
+            status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
+        }
+    }
+
     /// Create a `MimiContent` with `NullPart` and `replaces` set to the MIMI ID of
     /// the given message. This is used for message deletions, where the content is
     /// replaced with a NullPart to indicate that the message has been deleted,

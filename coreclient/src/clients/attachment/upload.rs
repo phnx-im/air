@@ -162,7 +162,7 @@ impl CoreUser {
         let message = Box::pin(self.db().with_write_transaction(
             async |txn| -> anyhow::Result<ChatMessage> {
                 let message = self
-                    .send_message_transactional(
+                    .store_provisional_message(
                         &mut *txn,
                         chat_id,
                         message_id,
@@ -364,8 +364,9 @@ impl CoreUser {
             ..Default::default()
         };
 
-        // The Mimi ID is derived from the content, so replacing the content
-        // means recreating the message rather than patching it in place.
+        // The content is final now, so this is where the message gets its Mimi
+        // ID. It was stored without one, which is why nothing can already
+        // reference the ID it is about to get.
         message.set_content_message(ContentMessage::new(
             self.user_id().clone(),
             false,
@@ -783,7 +784,7 @@ async fn upload_encrypted_attachment(
         // as the ciphertext is streamed to the server
         progress_tx.report(0);
         multipart_upload(
-            &http_client,
+            http_client,
             &provision_response.upload_url,
             signed_post_policy,
             ciphertext,
