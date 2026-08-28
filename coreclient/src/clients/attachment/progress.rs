@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+
 use tokio::sync::watch;
 use tokio_stream::{Stream, wrappers::WatchStream};
 
@@ -9,8 +14,7 @@ use tokio_stream::{Stream, wrappers::WatchStream};
 #[derive(Debug, Clone)]
 pub struct AttachmentProgress {
     rx: watch::Receiver<AttachmentProgressEvent>,
-    /// Total number of bytes to transfer, if known upfront (uploads).
-    total_bytes: Option<u64>,
+    total_bytes: Arc<AtomicU64>,
 }
 
 /// Attachment upload or download progress event
@@ -26,23 +30,22 @@ pub enum AttachmentProgressEvent {
 impl AttachmentProgress {
     pub(crate) fn new() -> (AttachmentProgressSender, Self) {
         let (tx, rx) = watch::channel(AttachmentProgressEvent::Init);
+        let total_bytes = Arc::new(AtomicU64::new(0));
         (
-            AttachmentProgressSender { tx: Some(tx) },
-            Self {
-                rx,
-                total_bytes: None,
+            AttachmentProgressSender {
+                tx: Some(tx),
+                total_bytes: total_bytes.clone(),
             },
+            Self { rx, total_bytes },
         )
     }
 
-    pub(crate) fn with_total_bytes(mut self, total_bytes: u64) -> Self {
-        self.total_bytes = Some(total_bytes);
-        self
-    }
-
-    /// Total number of bytes to transfer, if known upfront (uploads).
+    /// Total number of bytes to transfer, if known yet (uploads).
     pub fn total_bytes(&self) -> Option<u64> {
-        self.total_bytes
+        match self.total_bytes.load(Ordering::Relaxed) {
+            0 => None,
+            total => Some(total),
+        }
     }
 
     pub fn is_failed(&self) -> bool {
@@ -56,9 +59,14 @@ impl AttachmentProgress {
 
 pub(crate) struct AttachmentProgressSender {
     tx: Option<watch::Sender<AttachmentProgressEvent>>,
+    total_bytes: Arc<AtomicU64>,
 }
 
 impl AttachmentProgressSender {
+    pub(super) fn set_total_bytes(&self, total_bytes: u64) {
+        self.total_bytes.store(total_bytes, Ordering::Relaxed);
+    }
+
     pub(super) fn report(&self, bytes_loaded: usize) {
         if let Some(tx) = &self.tx {
             let _ignore_closed = tx.send(AttachmentProgressEvent::Progress { bytes_loaded });

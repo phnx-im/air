@@ -438,14 +438,13 @@ async fn upload_attachment(
 
     // Forward the upload progress while the upload task runs. The stream
     // ends with a terminal event when the task finishes.
-    let bytes_total = progress.total_bytes().filter(|total| *total > 0);
     let forward_progress = async {
         let mut events = progress.stream();
         while let Some(event) = events.next().await {
             match event {
                 AttachmentProgressEvent::Init => {}
                 AttachmentProgressEvent::Progress { bytes_loaded } => {
-                    if let Some(bytes_total) = bytes_total {
+                    if let Some(bytes_total) = progress.total_bytes() {
                         report_progress(bytes_loaded as f64 / bytes_total as f64);
                     }
                 }

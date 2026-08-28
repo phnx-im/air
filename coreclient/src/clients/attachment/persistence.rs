@@ -354,6 +354,25 @@ impl AttachmentRecord {
         Ok(())
     }
 
+    /// Replaces the stored content, leaving the status alone.
+    ///
+    /// Used once we're done re-encoding and encrypting an attachment.
+    pub(crate) async fn replace_content(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        bytes: &[u8],
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE attachment SET content = ? WHERE attachment_id = ?",
+            bytes,
+            attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        connection.notifier().update(attachment_id);
+        Ok(())
+    }
+
     pub(crate) async fn load_content(
         mut connection: impl ReadConnection,
         attachment_id: AttachmentId,

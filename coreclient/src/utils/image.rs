@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    fs::{self},
-    io::Cursor,
+    io::{BufRead, Cursor, Seek},
     path::Path,
+    sync::LazyLock,
 };
 
 use anyhow::Context;
@@ -14,8 +14,14 @@ use image::{
     ImageFormat, ImageReader, Rgba,
     codecs::{gif::GifDecoder, png::PngDecoder, webp::WebPDecoder},
     guess_format,
+    metadata::Orientation,
 };
 use tracing::info;
+
+/// Running blurhash on the full resolution picture is unnecessary (and extremely slow)
+const BLURHASH_MAX_EDGE: u32 = 64;
+const BLURHASH_COMPONENTS_X: u32 = 4;
+const BLURHASH_COMPONENTS_Y: u32 = 3;
 
 const MAX_PROFILE_IMAGE_WIDTH: u32 = 256;
 const MAX_PROFILE_IMAGE_HEIGHT: u32 = 256;
@@ -61,21 +67,79 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) blurhash: String,
 }
 
-/// Loads an image and re-encodes it to WEBP format.
-///
-/// If the path is not an image, returns `None`.
-///
-/// This does several things:
-/// - Rotates and flips the image according to the EXIF orientation
-/// - Resizes the image to a maximum width and height of 4096x4096
-/// - Converts the image to WebP. Animated GIFs, animated WebPs, and APNGs are
-///   re-encoded as animated WebP, preserving per-frame timing.
-pub(crate) fn load_attachment_image(
-    path: &Path,
-) -> anyhow::Result<Option<ReencodedAttachmentImage>> {
-    let file_size = fs::metadata(path)?.len();
+/// Reads an image's displayed dimensions from its header, without decoding it.
+pub(crate) fn probe_attachment_image<P: AsRef<Path>>(
+    path: P,
+) -> anyhow::Result<Option<(u32, u32)>> {
+    probe_image_dimensions(ImageReader::open(path)?.with_guessed_format()?)
+}
 
-    let reader = ImageReader::open(path)?.with_guessed_format()?;
+/// [`probe_attachment_image`] for bytes that have already been read.
+pub(crate) fn probe_attachment_image_bytes(bytes: &[u8]) -> anyhow::Result<Option<(u32, u32)>> {
+    probe_image_dimensions(ImageReader::new(Cursor::new(bytes)).with_guessed_format()?)
+}
+
+/// Mirrors [`reencode_image`]'s format dispatch, reading only dimensions.
+fn probe_image_dimensions<R>(reader: ImageReader<R>) -> anyhow::Result<Option<(u32, u32)>>
+where
+    R: BufRead + Seek,
+{
+    let Some(format) = reader.format() else {
+        return Ok(None);
+    };
+
+    let dimensions = match format {
+        ImageFormat::Gif => oriented_dimensions(GifDecoder::new(reader.into_inner())?),
+        ImageFormat::WebP => oriented_dimensions(WebPDecoder::new(reader.into_inner())?),
+        ImageFormat::Png => oriented_dimensions(PngDecoder::new(reader.into_inner())?),
+        _ => match reader.into_decoder() {
+            Ok(decoder) => oriented_dimensions(decoder),
+            // format support not compiled in, upload as a regular file
+            Err(image::ImageError::Unsupported(_)) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        },
+    };
+
+    Ok(Some(dimensions))
+}
+
+/// The dimensions the image is displayed at, with the EXIF orientation.
+fn oriented_dimensions(mut decoder: impl ImageDecoder) -> (u32, u32) {
+    let orientation = decoder.orientation().ok();
+    let (width, height) = decoder.dimensions();
+    match orientation {
+        Some(
+            Orientation::Rotate90
+            | Orientation::Rotate270
+            | Orientation::Rotate90FlipH
+            | Orientation::Rotate270FlipH,
+        ) => (height, width),
+        _ => (width, height),
+    }
+}
+
+/// Re-encodes an image to WEBP format but also:
+/// - Rotates and flips the image according to the EXIF orientation
+/// - Resizes the image to a maximum width and height
+/// - Converts the image to WebP. Animated GIFs, animated WebPs, and APNGs are
+///   re-encoded as animated WebP.
+pub(crate) fn reencode_attachment_image(
+    bytes: Vec<u8>,
+) -> anyhow::Result<ReencodedAttachmentImage> {
+    let file_size = bytes.len() as u64;
+    // `Cursor<Vec<u8>>` rather than a borrow: the animated branch needs a
+    // reader that outlives the frame iterator.
+    let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    reencode_image(reader, file_size)?.context("not a supported image format")
+}
+
+fn reencode_image<R>(
+    reader: ImageReader<R>,
+    file_size: u64,
+) -> anyhow::Result<Option<ReencodedAttachmentImage>>
+where
+    R: BufRead + Seek + 'static,
+{
     let Some(format) = reader.format() else {
         return Ok(None);
     };
@@ -135,20 +199,30 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
+/// Compute the blurhash on a (very) small thumbnail, which produces a very similar result for photos
+/// and runs much faster.
 fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
-    /// Running blurhash on the full resolution picture is unnecessary (and extremely slow)
-    const BLURHASH_MAX_EDGE: u32 = 64;
-
     let thumbnail = image
         .thumbnail(BLURHASH_MAX_EDGE, BLURHASH_MAX_EDGE)
-        .to_rgb8();
+        .to_rgba8();
+    let (width, height) = thumbnail.dimensions();
     Ok(blurhash::encode(
-        4,
-        3,
-        BLURHASH_MAX_EDGE,
-        BLURHASH_MAX_EDGE,
+        BLURHASH_COMPONENTS_X,
+        BLURHASH_COMPONENTS_Y,
+        width,
+        height,
         &thumbnail,
     )?)
+}
+
+/// A flat neutral blurhash, stored until the real one has been computed.
+pub(crate) fn placeholder_blurhash() -> &'static str {
+    static PLACEHOLDER: LazyLock<String> = LazyLock::new(|| {
+        let gray = [0x80, 0x80, 0x80, 0xff];
+        blurhash::encode(BLURHASH_COMPONENTS_X, BLURHASH_COMPONENTS_Y, 1, 1, &gray)
+            .expect("component counts are in range")
+    });
+    &PLACEHOLDER
 }
 
 /// Decodes a still image and re-encodes it as a static WebP.
@@ -206,7 +280,6 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
     let first_delay = first.delay();
 
-    // let first_dynamic_image = DynamicImage::ImageRgb8(first.into_buffer());
     let first_buffer = fit_to_max(
         first.into_buffer(),
         MAX_ATTACHMENT_IMAGE_WIDTH,
