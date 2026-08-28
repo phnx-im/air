@@ -1348,7 +1348,10 @@ impl Group {
             .with_config(mls_group_config)
             .skip_lifetime_validation()
             .leaf_node_parameters(leaf_node_params.clone(), leaf_node_params)
-            .create_group_info(true);
+            .create_group_info(true)
+            // The self group is the emulation group, so rejoining it has to
+            // re-register the derivation epoch the external commit creates.
+            .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)));
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
