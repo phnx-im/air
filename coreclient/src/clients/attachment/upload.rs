@@ -288,7 +288,15 @@ impl CoreUser {
             ))
             .await
             {
-                Ok(message) => Ok(message),
+                Ok(Ok(message)) => Ok(message),
+                Ok(Err(error)) => {
+                    // The server refused the attachment, so no retry can ever
+                    // succeed.
+                    if let Err(error) = core_user.delete_attachment_message(message_id).await {
+                        error!(%error, ?attachment_id, "Failed to remove rejected message");
+                    }
+                    Err(UploadTaskError::Provision(error))
+                }
                 Err(error) => {
                     // The message must not vanish -- `UploadFailed` is what
                     // turns it into a retry affordance.
@@ -298,7 +306,7 @@ impl CoreUser {
                     {
                         error!(%error, ?attachment_id, "Failed to mark attachment as failed");
                     }
-                    Err(UploadTaskError::new(message_id, error))
+                    Err(UploadTaskError::Failed { message_id, error })
                 }
             }
         }
@@ -312,7 +320,7 @@ impl CoreUser {
         is_image: bool,
         filename: String,
         progress_tx: AttachmentProgressSender,
-    ) -> anyhow::Result<ChatMessage> {
+    ) -> anyhow::Result<Result<ChatMessage, ProvisionAttachmentError>> {
         let mut processed = spawn_blocking(move || {
             ProcessedAttachment::from_bytes(original_bytes, is_image, filename)
         })
@@ -338,11 +346,7 @@ impl CoreUser {
             response,
         } = match provisioned {
             Ok(provisioned) => provisioned,
-            Err(ProvisionAttachmentError::TooLarge(detail)) => bail!(
-                "attachment is {} bytes, the server accepts at most {}",
-                detail.actual_size_bytes,
-                detail.max_size_bytes
-            ),
+            Err(error) => return Ok(Err(error)),
         };
 
         let content_bytes = mem::replace(&mut processed.content.bytes, Vec::new().into());
@@ -391,7 +395,18 @@ impl CoreUser {
         self.upload_and_finalize(attachment_id, ciphertext, response, progress_tx)
             .await?;
 
-        Ok(message)
+        Ok(Ok(message))
+    }
+
+    /// Removes a message whose attachment can never be sent.
+    async fn delete_attachment_message(&self, message_id: MessageId) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                // The attachment record is removed by the foreign key cascade.
+                ChatMessage::delete(&mut *txn, message_id).await?;
+                Ok(())
+            })
+            .await
     }
 
     /// Marks an attachment to the [`AttachmentStatus`]
@@ -446,15 +461,15 @@ fn attachment_filename(message: &ChatMessage) -> Option<String> {
 }
 
 #[derive(Debug)]
-pub struct UploadTaskError {
-    pub message_id: MessageId,
-    pub error: anyhow::Error,
-}
-
-impl UploadTaskError {
-    fn new(message_id: MessageId, error: anyhow::Error) -> Self {
-        Self { message_id, error }
-    }
+pub enum UploadTaskError {
+    /// The server refused to provision the attachment. The message has been
+    /// deleted locally, because retrying it can't help.
+    Provision(ProvisionAttachmentError),
+    /// The send failed. The message is still stored, marked as failed.
+    Failed {
+        message_id: MessageId,
+        error: anyhow::Error,
+    },
 }
 
 /// What the header sniff learned about an attachment, before its bytes have been

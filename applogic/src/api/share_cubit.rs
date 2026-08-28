@@ -428,12 +428,7 @@ async fn upload_attachment(
 
     let (attachment_id, progress, upload_task) = match provisioned {
         Ok(result) => result,
-        Err(ProvisionAttachmentError::TooLarge(detail)) => {
-            return Err(UiShareSendError::AttachmentTooLarge {
-                max_size_bytes: detail.max_size_bytes,
-                actual_size_bytes: detail.actual_size_bytes,
-            });
-        }
+        Err(error) => return Err(provision_error(error)),
     };
 
     // Forward the upload progress while the upload task runs. The stream
@@ -468,7 +463,8 @@ async fn upload_attachment(
                 })?;
             Ok(message.id())
         }
-        Err(UploadTaskError { message_id, error }) => {
+        Err(UploadTaskError::Provision(error)) => Err(provision_error(error)),
+        Err(UploadTaskError::Failed { message_id, error }) => {
             error!(%error, ?attachment_id, "Failed to upload shared attachment");
             if let Err(error) = core_user
                 .outbound_service()
@@ -479,6 +475,15 @@ async fn upload_attachment(
             }
             Err(UiShareSendError::Other)
         }
+    }
+}
+
+fn provision_error(error: ProvisionAttachmentError) -> UiShareSendError {
+    match error {
+        ProvisionAttachmentError::TooLarge(detail) => UiShareSendError::AttachmentTooLarge {
+            max_size_bytes: detail.max_size_bytes,
+            actual_size_bytes: detail.actual_size_bytes,
+        },
     }
 }
 
