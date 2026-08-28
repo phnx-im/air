@@ -128,3 +128,20 @@ message WrongEpochDetail {}
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;
 }
+
+message AirFeatures {
+  bool encrypted_group_profiles = 1;
+  bool empty_connection_group_attributes = 2;
+  bool pq_groups = 3;
+}
+
+// A signed byte blob
+//
+// The signature is computed over `payload` exactly as transmitted. Receivers
+// verify before decoding and never re-encode. The containing field documents
+// what the bytes decode to and the signature label. Decoding must be lenient
+// towards unknown fields.
+message SignedPayload {
+  bytes payload = 1;
+  Signature signature = 2;
+}
