@@ -1160,6 +1160,11 @@ impl TestBackend {
         self.create_group_inner(user_id, true).await
     }
 
+    /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
+    pub async fn create_non_apq_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, false).await
+    }
+
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
         self.create_group_inner(user_id, self.apq_groups).await
     }

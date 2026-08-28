@@ -24,6 +24,7 @@ use crate::{
     authentication::{ApqCredentialWithKey, ApqSigner},
     extension::{ApqInfo, PqtMode, ensure_component_support, ensure_extension_support},
     key_package::ensure_ciphersuite_support,
+    validation::{ApqValidationError, validate_ciphersuites},
 };
 
 /// Errors that can occur when creating a new [`ApqMlsGroup`].
@@ -35,6 +36,8 @@ pub enum NewGroupError<StorageError> {
     InvalidExtension(#[from] tls_codec::Error),
     #[error(transparent)]
     LeafNodeValidation(#[from] LeafNodeValidationError),
+    #[error(transparent)]
+    Validation(#[from] ApqValidationError),
 }
 
 impl<StorageError> From<InvalidExtensionError> for NewGroupError<StorageError> {
@@ -135,6 +138,8 @@ impl GroupBuilder {
             PqtMode::ConfOnly => ApqCiphersuite::default_pq_conf(),
             PqtMode::ConfAndAuth => ApqCiphersuite::default_pq_conf_and_auth(),
         });
+
+        validate_ciphersuites(ciphersuite, self.mode)?;
 
         // Add extension to capabilities.
         let capabilities = self

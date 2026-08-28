@@ -148,6 +148,7 @@ impl From<ProcessAssistedMessageError> for GroupOperationError {
                 _ => Self::ProcessingError,
             },
             ProcessAssistedMessageError::AppDataUpdate(_) => Self::ProcessingError,
+            ProcessAssistedMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
         }
     }
 }
@@ -170,6 +171,7 @@ impl From<ProcessApqAssistedMessageError> for GroupOperationError {
                     _ => Self::InvalidMessage,
                 },
                 ApqProcessPublicMessageError::AppDataUpdate(_) => Self::ProcessingError,
+                ApqProcessPublicMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
             },
         }
     }
@@ -283,6 +285,7 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
                 _ => Self::ProcessingError,
             },
             ProcessAssistedMessageError::AppDataUpdate(_) => Self::ProcessingError,
+            ProcessAssistedMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
         }
     }
 }

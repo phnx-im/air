@@ -4,14 +4,10 @@
 
 use apqmls::{
     messages::{ApqGroupInfo, ApqProtocolMessage},
+    processing::compute_app_data_updates,
     public_group::ApqPublicGroupMut,
 };
-use openmls::{
-    component::ComponentData,
-    group::{AppDataDictionaryUpdater, AppDataUpdates, ResolveAppDataCommitError},
-    messages::proposals::{AppDataUpdateOperation, AppDataUpdateProposal},
-    prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable},
-};
+use openmls::prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable};
 
 use crate::group::{apq::ApqGroupRef, errors::ProcessApqAssistedMessageError};
 
@@ -321,35 +317,61 @@ fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
     group: &PublicGroup,
     crypto: &Crypto,
     message: ProcessedMessage,
-) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+) -> Result<ProcessedMessage, ProcessAssistedMessageError> {
     let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
         return Ok(message);
     };
     let updates = compute_app_data_updates(
         group.app_data_dictionary_updater(),
         unresolved.app_data_update_proposals(),
-    );
-    group.resolve_app_data_commit(crypto, message, updates)
+    )?;
+    group
+        .resolve_app_data_commit(crypto, message, updates)
+        .map_err(Into::into)
 }
 
-fn compute_app_data_updates<'a>(
-    mut updater: AppDataDictionaryUpdater<'a>,
-    proposals: impl Iterator<Item = &'a AppDataUpdateProposal>,
-) -> Option<AppDataUpdates> {
-    let mut updated = false;
-    for proposal in proposals {
-        match proposal.operation() {
-            AppDataUpdateOperation::Update(data) => {
-                updater.set(ComponentData::from_parts(
-                    proposal.component_id(),
-                    data.clone(),
-                ));
-            }
-            AppDataUpdateOperation::Remove => {
-                updater.remove(&proposal.component_id());
-            }
+#[cfg(test)]
+mod tests {
+    use apqmls::extension::{APQMLS_COMPONENT_ID, ApqInfo, ApqInfoUpdate, PqtMode};
+    use openmls::{
+        group::{AppDataDictionaryUpdater, GroupEpoch, GroupId},
+        prelude::{AppDataUpdateProposal, Ciphersuite},
+    };
+    use tls_codec::Serialize as _;
+
+    use super::*;
+
+    fn apq_info() -> ApqInfo {
+        ApqInfo {
+            t_session_group_id: GroupId::from_slice(b"t group"),
+            pq_session_group_id: GroupId::from_slice(b"pq group"),
+            mode: PqtMode::ConfOnly,
+            t_cipher_suite: Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+            pq_cipher_suite: Ciphersuite::MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519,
+            t_epoch: GroupEpoch::from(1),
+            pq_epoch: GroupEpoch::from(1),
         }
-        updated = true;
     }
-    updated.then(|| updater.changes()).flatten()
+
+    #[test]
+    fn an_apq_info_update_resolves_to_a_bare_apq_info() {
+        let apq_info = apq_info();
+        let payload = ApqInfoUpdate::FullUpdate(apq_info.clone())
+            .tls_serialize_detached()
+            .unwrap();
+        let proposals = [AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, payload)];
+
+        let changes =
+            compute_app_data_updates(AppDataDictionaryUpdater::new(None), proposals.iter())
+                .unwrap();
+
+        let changes: Vec<_> = changes.into_iter().flatten().collect();
+        assert_eq!(
+            changes,
+            vec![(
+                APQMLS_COMPONENT_ID,
+                Some(apq_info.tls_serialize_detached().unwrap())
+            )]
+        );
+    }
 }
