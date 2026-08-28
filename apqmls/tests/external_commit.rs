@@ -14,6 +14,7 @@ use apqmls::{
     },
     processing::ApqProcessedMessage,
     public_group::ApqPublicGroup,
+    validation::ApqValidationError,
 };
 use openmls::{
     component::ComponentId,
@@ -113,6 +114,7 @@ fn add_members(
                 &join_config(),
                 welcome.clone(),
                 Some(adder_group.export_ratchet_tree().into()),
+                compare_credentials,
             )
             .unwrap()
         })
@@ -167,6 +169,7 @@ fn external_join(
             &client.signer,
             client.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
     assert!(bundle.group_info.is_some());
@@ -423,10 +426,13 @@ fn missing_apq_info() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         );
     assert!(matches!(
         result,
-        Err(ApqExternalCommitBuilderError::MissingApqInfo)
+        Err(ApqExternalCommitBuilderError::Validation(
+            ApqValidationError::MissingApqInfo(_)
+        ))
     ));
 }
 
@@ -526,6 +532,7 @@ fn parked_self_remove_via_with_proposals() {
                 &bob.signer,
                 bob.credential_with_key.clone(),
                 group_info,
+                compare_credentials,
             )
             .unwrap();
 
@@ -632,6 +639,7 @@ fn no_group_info() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
     assert!(bundle.group_info.is_none());
@@ -654,6 +662,7 @@ fn aad_roundtrip() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
 
@@ -689,6 +698,7 @@ fn t_leg_failure_does_not_leave_orphaned_pq_group() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         );
     assert!(result.is_err());
 
@@ -731,6 +741,7 @@ fn app_ephemeral_proposal_in_external_commit() {
             &alice.signer,
             alice.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
 
