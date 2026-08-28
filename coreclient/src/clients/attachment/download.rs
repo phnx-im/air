@@ -85,7 +85,6 @@ impl CoreUser {
         mut progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<()> {
         info!(?attachment_id, "downloading attachment");
-        progress_tx.report(0);
 
         // Load the pending attachment record and update the status to `Downloading`.
         let Some((pending_record, group, remote_attachment_id)) = self
@@ -107,6 +106,9 @@ impl CoreUser {
                     );
                     return Ok(None);
                 };
+                let bytes_total = pending_record.size.try_into()?;
+                progress_tx.report(bytes_total, 0);
+
                 let chat_id = record.chat_id;
                 let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
                     error!(?chat_id, "Group not found");
@@ -286,11 +288,11 @@ impl CoreUser {
             },
         };
 
-        let total_len = size.try_into()?;
-        let mut bytes = Vec::with_capacity(total_len);
+        let bytes_total = size.try_into()?;
+        let mut bytes = Vec::with_capacity(bytes_total);
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
             bytes.extend_from_slice(&chunk);
-            progress_tx.report(bytes.len());
+            progress_tx.report(bytes_total, bytes.len());
         }
 
         // Decrypt the attachment

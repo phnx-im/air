@@ -438,10 +438,11 @@ async fn upload_attachment(
         while let Some(event) = events.next().await {
             match event {
                 AttachmentProgressEvent::Init => {}
-                AttachmentProgressEvent::Progress { bytes_loaded } => {
-                    if let Some(bytes_total) = progress.total_bytes() {
-                        report_progress(bytes_loaded as f64 / bytes_total as f64);
-                    }
+                AttachmentProgressEvent::Progress {
+                    bytes_total,
+                    bytes_loaded,
+                } => {
+                    report_progress(bytes_loaded as f64 / bytes_total as f64);
                 }
                 AttachmentProgressEvent::Completed
                 | AttachmentProgressEvent::Failed

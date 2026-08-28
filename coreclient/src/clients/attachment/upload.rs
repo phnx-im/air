@@ -453,7 +453,7 @@ impl CoreUser {
         progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<()> {
         let http_client = self.http_client();
-        progress_tx.set_total_bytes(ciphertext.len() as u64);
+        // progress_tx.set_total_bytes(ciphertext.len() as u64);
         upload_encrypted_attachment(&http_client, provision_response, progress_tx, ciphertext)
             .await?;
         self.db()
@@ -802,9 +802,6 @@ async fn upload_encrypted_attachment(
     ciphertext: Vec<u8>,
 ) -> anyhow::Result<()> {
     if let Some(signed_post_policy) = provision_response.post_policy {
-        // upload encrypted content via multipart upload, reporting progress
-        // as the ciphertext is streamed to the server
-        progress_tx.report(0);
         multipart_upload(
             http_client,
             &provision_response.upload_url,
@@ -821,6 +818,7 @@ async fn upload_encrypted_attachment(
             request = request.header(header.key, header.value);
         }
 
+        let bytes_total = ciphertext.len();
         let mut uploaded = 0;
         let tx = progress_tx.tx();
         let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
@@ -828,6 +826,7 @@ async fn upload_encrypted_attachment(
                 uploaded += chunk.len();
                 if let Some(tx) = tx.as_ref() {
                     let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                        bytes_total,
                         bytes_loaded: uploaded,
                     });
                 }
@@ -859,6 +858,9 @@ async fn multipart_upload(
     ciphertext: Vec<u8>,
     progress_tx: &AttachmentProgressSender,
 ) -> anyhow::Result<()> {
+    let bytes_total = ciphertext.len();
+    progress_tx.report(ciphertext.len(), 0);
+
     let post_policy = BASE64_STANDARD.decode(&signed_post_policy.base64)?;
     let post_policy: PostPolicy = serde_json::from_slice(&post_policy)?;
 
@@ -891,6 +893,7 @@ async fn multipart_upload(
             uploaded += chunk.len();
             if let Some(tx) = tx.as_ref() {
                 let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                    bytes_total,
                     bytes_loaded: uploaded,
                 });
             }
