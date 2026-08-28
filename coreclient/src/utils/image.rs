@@ -18,7 +18,8 @@ use image::{
 };
 use tracing::info;
 
-/// Running blurhash on the full resolution picture is unnecessary (and extremely slow)
+/// Running blurhash on the full resolution picture is unnecessary (and
+/// extremely slow)
 const BLURHASH_MAX_EDGE: u32 = 64;
 const BLURHASH_COMPONENTS_X: u32 = 4;
 const BLURHASH_COMPONENTS_Y: u32 = 3;
@@ -72,11 +73,6 @@ pub(crate) fn probe_attachment_image<P: AsRef<Path>>(
     path: P,
 ) -> anyhow::Result<Option<(u32, u32)>> {
     probe_image_dimensions(ImageReader::open(path)?.with_guessed_format()?)
-}
-
-/// [`probe_attachment_image`] for bytes that have already been read.
-pub(crate) fn probe_attachment_image_bytes(bytes: &[u8]) -> anyhow::Result<Option<(u32, u32)>> {
-    probe_image_dimensions(ImageReader::new(Cursor::new(bytes)).with_guessed_format()?)
 }
 
 /// Mirrors [`reencode_image`]'s format dispatch, reading only dimensions.
@@ -199,8 +195,8 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
-/// Compute the blurhash on a (very) small thumbnail, which produces a very similar result for photos
-/// and runs much faster.
+/// Compute the blurhash on a (very) small thumbnail, which produces a very
+/// similar result for photos and runs much faster.
 fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
     let thumbnail = image
         .thumbnail(BLURHASH_MAX_EDGE, BLURHASH_MAX_EDGE)

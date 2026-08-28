@@ -15,7 +15,7 @@ use airbackend::{
     version::VersionPolicy,
 };
 use aircommon::{
-    OpenMlsRand, RustCrypto,
+    DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
     registration::RegistrationChallenge,
 };
@@ -220,7 +220,7 @@ impl Default for TestBackendParams {
                 ..Default::default()
             },
             unredeemable_code: None,
-            max_attachment_size: 20 * 1024 * 1024,
+            max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
         }
     }
 }

@@ -385,15 +385,11 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let (progress, upload_task) = match self
+        let (progress, upload_task) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
-            .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
-        };
+            .await?;
         self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await
     }
