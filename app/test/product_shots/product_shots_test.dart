@@ -13,6 +13,7 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
+import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -49,7 +50,7 @@ String _golden(String name) => '$_goldensDir/$name';
 const androidPhysicalSize = Size(2160, 3840);
 const iosPhysicalSize = Size(1290, 2796);
 // One of the sizes accepted by the Mac App Store (16:10 retina).
-const macosPhysicalSize = Size(2880, 1800);
+const laptopPhysicalSize = Size(2880, 1800);
 
 /// The marketing canvas size for a framed product shot, distinct from the
 /// device's own screen resolution (used as-is for the frameless shots).
@@ -64,11 +65,25 @@ Size _canvasSizeFor(TargetPlatform platform) {
     case TargetPlatform.linux:
       // Laptop/desktop devices are landscape, so they share the macOS
       // canvas rather than being squeezed into a portrait phone canvas.
-      return macosPhysicalSize;
+      return laptopPhysicalSize;
     default:
       throw "Unsupported platform";
   }
 }
+
+bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.macOS ||
+  TargetPlatform.windows ||
+  TargetPlatform.linux => true,
+  _ => false,
+};
+
+/// On desktop the real app always shows the chat list beside the open chat,
+/// so the shot needs the split layout instead of just the chat on its own.
+Widget _chatShot(TargetPlatform platform, Widget chat) =>
+    _isDesktopPlatform(platform)
+    ? HomeScreenDesktopLayout(chatList: const ChatListView(), chat: chat)
+    : chat;
 
 class ProductShotInfo {
   const ProductShotInfo({
@@ -209,17 +224,17 @@ void main() {
       shot: DeviceFrame(device: device, screen: chatListScreen()),
     );
 
-    for (final productShot in productShotsMatrix) {
-      final device = productShot.targetPlatform.device;
+    for (final productShotInfo in productShotsMatrix) {
+      final device = productShotInfo.targetPlatform.device;
       final deviceInfo = device.deviceInfo;
       final identifier = device.identifier;
 
       // Build the product shot with marketing
       testProductShot(
         "Chat List (${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: _canvasSizeFor(productShot.targetPlatform),
-        targetPlatform: productShot.targetPlatform,
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
+        physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
         (tester) async {
           await tester.pumpWidget(buildSubject(device));
           await _precacheImages(tester);
@@ -237,10 +252,9 @@ void main() {
 
       // Build the product shot without marketing chrome
       testProductShot(
-        "Chat List (${productShot.targetPlatform}, ${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: deviceInfo.frameSize,
-        targetPlatform: productShot.targetPlatform,
+        "Chat List (${deviceInfo.name})",
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
         (tester) async {
           await tester.pumpWidget(buildFramelessSubject(deviceInfo));
           await _precacheImages(tester);
@@ -318,6 +332,9 @@ void main() {
       RepositoryProvider<AttachmentsRepository>.value(
         value: attachmentsRepository,
       ),
+      RepositoryProvider<chats_repository.ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
+      ),
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: contactsCubit),
@@ -341,27 +358,31 @@ void main() {
         subtitle: subtitle,
         frameColor: frameColor,
         device: device,
-        child: chatScreen,
+        child: _chatShot(device.platform, chatScreen),
       ),
     );
 
-    Widget buildFramelessSubject(DeviceInfo device) => buildProductShotSubject(
-      providers: buildProviders(),
-      frameless: true,
-      shot: DeviceFrame(device: device, screen: chatScreen),
-    );
+    Widget buildFramelessSubject(DeviceInfo device, TargetPlatform platform) =>
+        buildProductShotSubject(
+          providers: buildProviders(),
+          frameless: true,
+          shot: DeviceFrame(
+            device: device,
+            screen: _chatShot(platform, chatScreen),
+          ),
+        );
 
-    for (final productShot in productShotsMatrix) {
-      final device = productShot.targetPlatform.device;
+    for (final productShotInfo in productShotsMatrix) {
+      final device = productShotInfo.targetPlatform.device;
       final deviceInfo = device.deviceInfo;
       final identifier = device.identifier;
 
       // Build the product shot with marketing
       testProductShot(
         "Private Chat (${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: _canvasSizeFor(productShot.targetPlatform),
-        targetPlatform: productShot.targetPlatform,
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
+        physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
         (tester) async {
           await tester.pumpWidget(buildSubject(device));
           await _precacheImages(tester);
@@ -379,12 +400,13 @@ void main() {
 
       // Build the product shot without marketing chrome
       testProductShot(
-        "Private Chat (${productShot.targetPlatform}, ${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: deviceInfo.frameSize,
-        targetPlatform: productShot.targetPlatform,
+        "Private Chat (${productShotInfo.targetPlatform}, ${deviceInfo.name})",
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
         (tester) async {
-          await tester.pumpWidget(buildFramelessSubject(deviceInfo));
+          await tester.pumpWidget(
+            buildFramelessSubject(deviceInfo, productShotInfo.targetPlatform),
+          );
           await _precacheImages(tester);
           await tester.pumpAndSettle();
 
@@ -460,6 +482,9 @@ void main() {
       RepositoryProvider<AttachmentsRepository>.value(
         value: attachmentsRepository,
       ),
+      RepositoryProvider<chats_repository.ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
+      ),
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: contactsCubit),
@@ -483,26 +508,30 @@ void main() {
         subtitle: subtitle,
         frameColor: frameColor,
         device: device,
-        child: chatScreen,
+        child: _chatShot(device.platform, chatScreen),
       ),
     );
 
-    Widget buildFramelessSubject(DeviceInfo device) => buildProductShotSubject(
-      providers: buildProviders(),
-      frameless: true,
-      shot: DeviceFrame(device: device, screen: chatScreen),
-    );
+    Widget buildFramelessSubject(DeviceInfo device, TargetPlatform platform) =>
+        buildProductShotSubject(
+          providers: buildProviders(),
+          frameless: true,
+          shot: DeviceFrame(
+            device: device,
+            screen: _chatShot(platform, chatScreen),
+          ),
+        );
 
-    for (final productShot in productShotsMatrix) {
-      final device = productShot.targetPlatform.device;
+    for (final productShotInfo in productShotsMatrix) {
+      final device = productShotInfo.targetPlatform.device;
       final deviceInfo = device.deviceInfo;
       final identifier = device.identifier;
 
       testProductShot(
         "Group chat (${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: _canvasSizeFor(productShot.targetPlatform),
-        targetPlatform: productShot.targetPlatform,
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
+        physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
         (tester) async {
           await tester.pumpWidget(buildSubject(device));
           await _precacheImages(tester);
@@ -520,12 +549,13 @@ void main() {
 
       // Build the product shot without marketing chrome
       testProductShot(
-        "Group chat (${productShot.targetPlatform}, ${deviceInfo.name})",
-        hostPlatform: productShot.hostPlatform,
-        physicalSize: deviceInfo.frameSize,
-        targetPlatform: productShot.targetPlatform,
+        "Group chat (${deviceInfo.name})",
+        productShotInfo: productShotInfo,
+        deviceInfo: deviceInfo,
         (tester) async {
-          await tester.pumpWidget(buildFramelessSubject(deviceInfo));
+          await tester.pumpWidget(
+            buildFramelessSubject(deviceInfo, productShotInfo.targetPlatform),
+          );
           await _precacheImages(tester);
           await tester.pumpAndSettle();
 
@@ -560,23 +590,19 @@ void _stubAttachments(
   }
 }
 
-/// [hostPlatform] is the OS that records the shot, not the device it depicts:
-/// the iOS shots are recorded on macOS because that is where the San Francisco
-/// system font is available. [targetPlatform] is the depicted platform, which
-/// drives the typescale and the device type independently of the host.
 void testProductShot(
   String description,
   WidgetTesterCallback callback, {
-  required String hostPlatform,
-  required Size physicalSize,
-  required TargetPlatform targetPlatform,
+  required ProductShotInfo productShotInfo,
+  required DeviceInfo deviceInfo,
+  Size? physicalSizeOverride,
 }) async {
   testWidgets(
     description,
     (tester) async {
       debugDisableShadows = false;
 
-      tester.view.physicalSize = physicalSize;
+      tester.view.physicalSize = physicalSizeOverride ?? deviceInfo.frameSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
@@ -589,8 +615,10 @@ void testProductShot(
         debugDisableShadows = true;
       }
     },
-    skip: !_renderAllPlatforms && Platform.operatingSystem != hostPlatform,
-    variant: TargetPlatformVariant.only(targetPlatform),
+    skip:
+        !_renderAllPlatforms &&
+        Platform.operatingSystem != productShotInfo.hostPlatform,
+    variant: TargetPlatformVariant.only(productShotInfo.targetPlatform),
   );
 }
 

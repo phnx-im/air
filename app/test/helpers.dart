@@ -130,6 +130,10 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
 
   String _platformSuffix() {
     switch (debugDefaultTargetPlatformOverride) {
+      // when not overridden, the target platform is the current one.
+      case null:
+        final os = Platform.operatingSystem.toLowerCase();
+        return ".$os";
       case TargetPlatform.android:
         return '.android';
       case TargetPlatform.iOS:
