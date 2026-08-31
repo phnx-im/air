@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -85,7 +86,9 @@ class MessageBubble extends StatelessWidget {
       // Clipped to the bubble's own corners, so full-bleed content needs no
       // radius of its own.
       clipBehavior: decoration == null ? .none : .antiAlias,
-      child: child,
+      child: variant == .filled
+          ? PanelSurface(color: fill, child: child)
+          : child,
     );
 
     return intrinsicWidth ? IntrinsicWidth(child: bubble) : bubble;
