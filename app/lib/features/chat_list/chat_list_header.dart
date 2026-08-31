@@ -16,10 +16,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {
-  const ChatListHeader({super.key, this.scrollOffset});
+  const ChatListHeader({super.key, this.scrollOffset, this.shareMode = false});
 
   /// The list's scroll offset, which reveals the title pill.
   final ValueNotifier<double>? scrollOffset;
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
 
   @override
   Widget build(BuildContext context) {
@@ -28,9 +31,15 @@ class ChatListHeader extends StatelessWidget {
 
     return ListHeader(
       tokens: tokens,
-      title: loc.homeTab_chats,
+      title: shareMode ? loc.shareDestination_title : loc.homeTab_chats,
       scrollOffset: scrollOffset,
-      leading: _ComposeButton(tokens: tokens),
+      leading: shareMode
+          ? ListHeaderAction(
+              tokens: tokens,
+              icon: AppIconType.x,
+              onAction: (_) => context.read<NavigationCubit>().cancelShare(),
+            )
+          : _ComposeButton(tokens: tokens),
     );
   }
 }

@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,7 +18,11 @@ void main() {
   late FocusNode focusNode;
 
   // Mounts the overlay with [_suggestionCount] fixed-height rows.
-  Future<void> pumpOverlay(WidgetTester tester) async {
+  Future<void> pumpOverlay(
+    WidgetTester tester, {
+    double maxWidth = 200,
+    double rowWidth = 0,
+  }) async {
     final anchorLink = LayerLink();
     focusNode = FocusNode();
     controller = SuggestionOverlayController<int>(
@@ -38,17 +43,17 @@ void main() {
     unawaited(
       controller.show(
         context: tester.element(find.byType(Scaffold)),
-        offset: Offset.zero,
+        offset: const Offset(0, _maxHeight),
         suggestions: List.generate(_suggestionCount, (index) => index),
-        style: const SuggestionOverlayStyle(
+        style: SuggestionOverlayStyle(
           backgroundColor: Colors.white,
           borderRadius: BorderRadius.zero,
-          elevation: 0,
-          maxWidth: 200,
+          elevation: Elevation.flat,
+          maxWidth: maxWidth,
           maxHeight: _maxHeight,
         ),
         itemBuilder: (context, item, isHighlighted) =>
-            SizedBox(height: _rowHeight, child: Text('$item')),
+            SizedBox(width: rowWidth, height: _rowHeight, child: Text('$item')),
         onSelected: (_) {},
       ),
     );
@@ -101,7 +106,8 @@ void main() {
   testWidgets('a clamped key press scrolls the highlight back into view', (
     tester,
   ) async {
-    await pumpOverlay(tester);
+    // Rows need a width for the drag below to hit the scroll view.
+    await pumpOverlay(tester, rowWidth: 100);
     final scrollable = find.byType(Scrollable).last;
 
     // Scroll the highlighted first row out of view by hand.
@@ -118,5 +124,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.highlightIndex, 0);
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+  });
+
+  testWidgets('constrains its width to the viewport margins', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 600);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await pumpOverlay(tester, maxWidth: 500, rowWidth: 500);
+
+    expect(
+      controller.overlaySize.width,
+      320 - suggestionOverlayViewportMargin * 2,
+    );
   });
 }

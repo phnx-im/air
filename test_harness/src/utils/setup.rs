@@ -1160,6 +1160,11 @@ impl TestBackend {
         self.create_group_inner(user_id, true).await
     }
 
+    /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
+    pub async fn create_non_apq_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, false).await
+    }
+
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
         self.create_group_inner(user_id, self.apq_groups).await
     }
@@ -1222,12 +1227,17 @@ impl TestBackend {
 
     pub async fn invite_and_settle(&self, inviter: &UserId, chat_id: ChatId, invitees: &[&UserId]) {
         let invitee_ids: Vec<_> = invitees.iter().map(|id| (*id).clone()).collect();
-        self.get_user(inviter)
+        let invite_result = self
+            .get_user(inviter)
             .user
             .invite_users(chat_id, &invitee_ids)
             .await
-            .unwrap()
             .unwrap();
+        assert!(
+            invite_result.users_not_added.is_empty(),
+            "Users unexpectedly not added: {:?}",
+            invite_result.users_not_added
+        );
         let mut to_settle = vec![inviter];
         to_settle.extend_from_slice(invitees);
         self.settle(&to_settle).await;
@@ -1291,14 +1301,19 @@ impl TestBackend {
             .await
             .expect("Error getting group members.");
 
-        let invite_messages = inviter
+        let invite_result = inviter
             .invite_users(
                 chat_id,
                 &invitees.iter().cloned().cloned().collect::<Vec<_>>(),
             )
             .await
-            .expect("Fatal error inviting users")
-            .expect("Specific error inviting users");
+            .expect("Error inviting users");
+        assert!(
+            invite_result.users_not_added.is_empty(),
+            "Users unexpectedly not added: {:?}",
+            invite_result.users_not_added
+        );
+        let invite_messages = invite_result.messages;
 
         let mut expected_messages = HashSet::new();
         for invitee_id in &invitees {

@@ -14,8 +14,11 @@ use airprotos::client::{component::AirComponent, group::GroupData};
 
 use crate::{
     chats::GroupDataExt,
-    groups::{GroupDataBytes, self_group::SelfGroup},
-    job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
+    groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+    job::{
+        chat_operation::DerivationEpoch,
+        pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
+    },
     outbound_service::resync::Resync,
 };
 
@@ -124,6 +127,25 @@ impl CoreUser {
         let t_epoch = group.mls_group().epoch();
         let pq_epoch = group.pq().map(|pq| pq.mls_group.epoch());
         Ok(Some((t_epoch, pq_epoch)))
+    }
+
+    /// Whether the self-group is registered as the emulation group of the
+    /// virtual client, i.e. whether it holds a derivation epoch.
+    pub async fn self_group_has_derivation_epoch(&self) -> anyhow::Result<bool> {
+        let Some(group) = self.self_group().await? else {
+            return Ok(false);
+        };
+        self.db()
+            .with_write_transaction(async |txn| {
+                use openmls_traits::OpenMlsProvider as _;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let epoch_id = group
+                    .group()
+                    .mls_group()
+                    .newest_vc_derivation_epoch(provider.storage())?;
+                anyhow::Ok(epoch_id.is_some())
+            })
+            .await
     }
 
     /// Returns the pending chat operation info for the self-group, if any.
@@ -278,6 +300,7 @@ impl CoreUser {
                     chat_id,
                     Some(legacy_group_data),
                     None,
+                    DerivationEpoch::Keep,
                 )
                 .await
             })
@@ -313,6 +336,7 @@ impl CoreUser {
                     chat_id,
                     Some(group_data_bytes),
                     None,
+                    DerivationEpoch::Keep,
                 )
                 .await
             })

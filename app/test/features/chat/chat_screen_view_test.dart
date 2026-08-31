@@ -16,6 +16,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -141,6 +142,9 @@ void main() {
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
         BlocProvider<MessageListCubit>.value(value: messageListCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        RepositoryProvider<ShareTargetPublisher>.value(
+          value: MockShareTargetPublisher(),
+        ),
       ],
       child: Builder(
         builder: (context) {
@@ -363,6 +367,27 @@ void main() {
         await expectLater(
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/composer_quote.png'),
+        );
+      });
+
+      // State 7: Emoji autocomplete -- the suggestion overlay sits above the
+      // caret, anchored inside the viewport.
+      testWidgets('emoji autocomplete', (tester) async {
+        messageListCubit.setState([
+          _msg(1, 'The user typed a colon shortcode.'),
+          _msg(2, 'Emoji suggestions open above the composer.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), ':smi');
+        // Flush the draft debounce, then let the overlay animate in.
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_emoji_autocomplete.png'),
         );
       });
     });

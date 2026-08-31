@@ -51,7 +51,7 @@ use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request};
+use tonic::{Code, Request, Status};
 use tracing::error;
 use uuid::Uuid;
 
@@ -485,7 +485,7 @@ impl ApiClient {
         signing_key: &UsernameSigningKey,
     ) -> Result<
         (
-            impl Stream<Item = Option<UsernameQueueMessage>> + Send + use<>,
+            impl Stream<Item = Result<Option<UsernameQueueMessage>, Status>> + Send + use<>,
             AsListenUsernameResponder,
         ),
         AsRequestError,
@@ -518,14 +518,7 @@ impl ApiClient {
             .await?
             .into_inner();
 
-        let responses = responses.map_while(move |response| {
-            let response = response
-                .inspect_err(|error| {
-                    error!(%error, "stop username listen stream");
-                })
-                .ok()?;
-            Some(response.message)
-        });
+        let responses = responses.map(|response| response.map(|response| response.message));
 
         let responder = AsListenUsernameResponder { tx: ack_tx };
 
@@ -749,6 +742,19 @@ impl AsListenUsernameResponder {
     /// The server can safely discard the message.
     pub async fn ack(&self, message_id: Uuid) {
         let _ = self.tx.send(message_id).await;
+    }
+
+    /// Half-closes the request stream and waits for the server to confirm that all previously sent
+    /// requests were processed by closing the response stream with OK. For this stream, that means
+    /// all sent acks are durable.
+    ///
+    /// `stream` must be the response stream corresponding to this responder.
+    pub async fn close(
+        self,
+        stream: &mut (impl Stream<Item = Result<Option<UsernameQueueMessage>, Status>> + Unpin),
+    ) {
+        drop(self);
+        crate::await_close_confirmation(stream).await;
     }
 }
 

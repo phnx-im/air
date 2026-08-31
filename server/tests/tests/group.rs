@@ -37,12 +37,12 @@ async fn create_empty_group() {
     let alice_user = &setup.get_user(&alice).user;
 
     // Inviting an empty user list should be a no-op
-    let messages = alice_user
+    let result = alice_user
         .invite_users(chat_id, &[])
         .await
-        .expect("inviting an empty user list should succeed")
         .expect("inviting an empty user list should succeed");
-    assert!(messages.is_empty());
+    assert!(result.messages.is_empty());
+    assert!(result.users_not_added.is_empty());
 
     let participants = alice_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(participants.len(), 1);
@@ -152,17 +152,54 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
-async fn delete_group() {
+#[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
+async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    let delete_group = setup.delete_group(chat_id, &alice);
-    delete_group.await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_non_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group test", skip_all)]
+async fn delete_apq_group() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group by invitee", skip_all)]
+async fn delete_apq_group_by_invitee() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &bob).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -263,7 +300,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie accepts the invitation.
@@ -278,7 +314,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
@@ -572,7 +607,6 @@ async fn fetch_group_profile_on_invite() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
@@ -699,7 +733,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -715,7 +748,7 @@ async fn missed_commit() {
     let bob_user = &setup.get_user(&bob).user;
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
     let sequence_number = stream
-        .map_while(|message| match message.event {
+        .map_while(|message| match message.ok()?.event {
             Some(listen_response::Event::Message(queue_message)) => {
                 Some(queue_message.sequence_number)
             }
@@ -766,7 +799,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     let messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(messages).await;
@@ -1085,7 +1117,7 @@ async fn qs_stream_processor_partially_processes_messages() {
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     let mut processor = QsStreamProcessor::new(Some(responder));
 
-    while let Some(message) = stream.next().await {
+    while let Some(Ok(message)) = stream.next().await {
         match processor.process_event(bob_user, message).await {
             QsProcessEventResult::Accumulated => (),
             QsProcessEventResult::Ignored => (),
@@ -1512,7 +1544,6 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
         .user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     setup.settle(&[&alice, &charlie, &dave]).await;
 

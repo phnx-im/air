@@ -468,7 +468,6 @@ async fn resync() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
@@ -908,7 +907,6 @@ async fn key_package_upload() {
         alice_user
             .invite_users(chat_id, slice::from_ref(&bob))
             .await
-            .unwrap()
             .unwrap();
         let bob_user = &setup.get_user(&bob).user;
         let messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -1373,30 +1371,100 @@ async fn listen_stream_eviction() {
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_a.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_b.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
+    let status = timeout(Duration::from_millis(100), stream_a.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        status.code(),
+        tonic::Code::Aborted,
+        "first stream is evicted"
+    );
     assert!(
         timeout(Duration::from_millis(100), stream_a.next())
             .await
             .unwrap()
             .is_none(),
-        "first stream is not closed"
+        "first stream is closed"
     );
     assert!(
         timeout(Duration::from_millis(100), stream_b.next())
             .await
             .is_err(),
-        "second stream is closed"
+        "second stream is still open"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Listen stream durable acks", skip_all)]
+async fn listen_stream_durable_acks() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("hello bob".to_owned(), [0; 16]),
+            None,
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives the message on the listen stream and acks it.
+    let bob_user = &setup.get_user(&bob).user;
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let sequence_number = match stream.next().await {
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Message(message)),
+        })) => message.sequence_number,
+        event => panic!("expected a queue message, got {event:?}"),
+    };
+    responder.ack(sequence_number + 1).await;
+
+    // Half-close the request stream. The server handles all requests sent
+    // before, then closes the response stream with OK. Observing OK confirms
+    // that the ack is durable.
+    drop(responder);
+    let terminal = timeout(Duration::from_secs(5), async {
+        loop {
+            match stream.next().await {
+                Some(Ok(_)) => continue,
+                Some(Err(status)) => break Some(status),
+                None => break None,
+            }
+        }
+    })
+    .await
+    .expect("stream closes after half-close");
+    assert_matches!(terminal, None, "stream closes with OK");
+
+    // On reconnect, the acked message is not redelivered.
+    let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        })),
+        "acked message is not redelivered"
     );
 }

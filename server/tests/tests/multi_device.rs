@@ -1797,7 +1797,6 @@ async fn multi_device_inherits_connection_chats() {
     new_device
         .invite_users(group_chat_id, std::slice::from_ref(&bob))
         .await
-        .expect("fatal error inviting bob")
         .expect("failed to invite bob");
 
     let qs_messages = bob_device.qs_fetch_messages().await.unwrap();

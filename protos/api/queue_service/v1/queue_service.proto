@@ -39,6 +39,11 @@ service QueueService {
 
   rpc QsEncryptionKey(QsEncryptionKeyRequest) returns (QsEncryptionKeyResponse);
 
+  // When the client half-closes the request stream, the server handles all
+  // requests received before, the closes the response stream with OK.
+  // Observing OK on the client means that all sent acks are durable. On any
+  // other terminal status the last acks are uncofirmed and the corresponding
+  // messages are redelivered on reconnect.
   rpc Listen(stream ListenRequest) returns (stream ListenResponse);
 }
 

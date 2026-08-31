@@ -7,8 +7,13 @@ import 'dart:async';
 import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class ShareCubit implements StateStreamableSource<ShareState> {
-  ShareCubit({required String dbPath}) : _impl = ShareCubitBase(dbPath: dbPath);
+/// Backs the share UI hosted by the iOS share extension, which runs in its
+/// own engine with no user cubit and no navigation. Android takes the other
+/// route: its share activity hands the content to the main app, which carries
+/// it as navigation state.
+class IOSShareCubit implements StateStreamableSource<ShareState> {
+  IOSShareCubit({required String dbPath})
+    : _impl = ShareCubitBase(dbPath: dbPath);
 
   final ShareCubitBase _impl;
 

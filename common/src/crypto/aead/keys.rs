@@ -136,3 +136,23 @@ impl AeadKey for SelfGroupMessageKey {}
 impl KdfDerivable<SelfGroupExporterSecret, Vec<u8>, AEAD_KEY_SIZE> for SelfGroupMessageKey {
     const LABEL: &'static str = "self group message key";
 }
+
+// Group bootstrap key
+
+/// Key that encrypts `GroupBootstrap` payloads, which convey a newly created or
+/// externally joined group to the sibling clients of a virtual client.
+///
+/// It is derived from the [`SelfGroupExporterSecret`] of the self-group epoch
+/// whose registration minted the emulation epoch that derives the creating or
+/// joining leaf. That secret is already scoped to group, epoch and component,
+/// so callers pass an empty `Vec<u8>` as additional info to the derivation.
+#[derive(Debug)]
+pub struct GroupBootstrapKeyType;
+
+pub type GroupBootstrapKey = Key<GroupBootstrapKeyType>;
+
+impl AeadKey for GroupBootstrapKey {}
+
+impl KdfDerivable<SelfGroupExporterSecret, Vec<u8>, AEAD_KEY_SIZE> for GroupBootstrapKey {
+    const LABEL: &'static str = "group bootstrap key";
+}

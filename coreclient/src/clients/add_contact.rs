@@ -199,9 +199,11 @@ impl CoreUser {
                 .await?;
 
             // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = local_partial_contact
-                .create_connection_group_via_targeted_message(&client, self.signing_key())
-                .await?;
+            let chat_id = Box::pin(
+                local_partial_contact
+                    .create_connection_group_via_targeted_message(&client, self.signing_key()),
+            )
+            .await?;
 
             Ok(chat_id)
         }))

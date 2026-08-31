@@ -241,6 +241,7 @@ impl Group {
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
             .force_self_update(true)
             .add_t_proposal(proposal)
@@ -299,6 +300,11 @@ impl Group {
 
             let ciphertext = match payload {
                 AppEphemeralPayload::EncryptedSelfGroupMessages(ciphertext) => ciphertext,
+                // Only carried on external commits of higher-level groups.
+                AppEphemeralPayload::GroupBootstrapBlob(_) => {
+                    debug!("Skipping group bootstrap blob in a self-group commit");
+                    continue;
+                }
                 // A payload kind added by a newer client. Nothing to do here.
                 AppEphemeralPayload::Unknown => {
                     debug!("Skipping unknown self-group app-ephemeral payload");

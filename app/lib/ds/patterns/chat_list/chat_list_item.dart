@@ -25,6 +25,7 @@ class ChatListItem extends StatelessWidget {
     this.trailing,
     this.isActive = false,
     this.hideSeparator = false,
+    this.enabled = true,
     this.onTap,
     this.onLongPress,
   });
@@ -51,6 +52,9 @@ class ChatListItem extends StatelessWidget {
   /// height stays the same either way.
   final bool hideSeparator;
 
+  /// A disabled row fades its content and takes no gesture.
+  final bool enabled;
+
   final VoidCallback? onTap;
 
   /// Reports the global position, so the host can anchor a context menu on it.
@@ -60,10 +64,14 @@ class ChatListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = tokens;
     final palette = SemanticPalette.of(context);
-    final longPress = onLongPress;
+    final longPress = enabled ? onLongPress : null;
     final active = isActive && t.highlightActive;
     final base = PanelSurface.colorOf(context);
     final surface = active ? palette.fill.tertiary.on(base) : base;
+
+    Widget fade(Widget child) => enabled
+        ? child
+        : Opacity(opacity: StateTokens.disabledContent, child: child);
 
     // StateLayer owns the tap and its feedback. The outer detector stays for
     // the position-reporting long press and secondary tap, which StateLayer
@@ -82,6 +90,7 @@ class ChatListItem extends StatelessWidget {
         // The active row already carries its fill, so the hover wash would
         // double up on it.
         selected: active,
+        enabled: enabled,
         onTap: onTap,
         background: active ? ColoredBox(color: palette.fill.tertiary) : null,
         child: PanelSurface(
@@ -91,24 +100,33 @@ class ChatListItem extends StatelessWidget {
             child: Row(
               crossAxisAlignment: .start,
               children: [
-                Padding(
-                  padding: ChatListItemTokens.avatarPadding,
-                  child: avatar,
+                fade(
+                  Padding(
+                    padding: ChatListItemTokens.avatarPadding,
+                    child: avatar,
+                  ),
                 ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: .start,
                     children: [
-                      _TitleRow(
-                        tokens: t,
-                        title: title,
-                        titleIcon: titleIcon,
-                        timestamp: timestamp,
-                      ),
-                      _PreviewRow(
-                        tokens: t,
-                        preview: preview,
-                        trailing: trailing,
+                      fade(
+                        Column(
+                          crossAxisAlignment: .start,
+                          children: [
+                            _TitleRow(
+                              tokens: t,
+                              title: title,
+                              titleIcon: titleIcon,
+                              timestamp: timestamp,
+                            ),
+                            _PreviewRow(
+                              tokens: t,
+                              preview: preview,
+                              trailing: trailing,
+                            ),
+                          ],
+                        ),
                       ),
                       Padding(
                         padding: t.separatorPadding,

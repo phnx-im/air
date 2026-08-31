@@ -4,11 +4,11 @@
 
 /// UI for sharing content into a chat from the system share sheet.
 ///
-/// Hosted by the iOS share extension.
+/// Hosted by the iOS share extension. Android has no UI here: its share
+/// activity hands the content to the main app.
 library;
 
 export 'share_cubit.dart';
 export 'share_main.dart';
 export 'share_payload.dart';
 export 'share_screen.dart';
-export 'share_targets.dart';

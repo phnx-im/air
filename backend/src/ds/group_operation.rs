@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use airprotos::client::virtual_client::extract_virtual_client_action;
+use airprotos::client::virtual_client::extract_virtual_client_commit_data;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{
@@ -797,12 +797,14 @@ impl DsGroupState {
 fn extract_virtual_client_hint(
     processed_message: &ProcessedMessage,
 ) -> Result<Option<QsVirtualClientHint>, GroupOperationError> {
-    extract_virtual_client_action(processed_message)
-        .map_err(|error| {
-            error!(%error, "Failed to extract KeyPackageUpload from safe AAD");
-            GroupOperationError::InvalidMessage
-        })
-        .map(|action| action.map(From::from))
+    let commit_data = extract_virtual_client_commit_data(processed_message).map_err(|error| {
+        error!(%error, "Failed to extract virtual client commit data from safe AAD");
+        GroupOperationError::InvalidMessage
+    })?;
+    Ok(commit_data
+        .as_ref()
+        .and_then(|commit_data| commit_data.key_package_uploads().next())
+        .map(From::from))
 }
 
 pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);

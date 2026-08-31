@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -21,7 +22,7 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/share/share_targets.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
@@ -60,6 +61,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
   late final StreamSubscription<ChatId> _openedNotificationSubscription;
+  final StreamController<ShareHandoff> _shareHandoffController =
+      StreamController<ShareHandoff>();
+  late final StreamSubscription<ShareHandoff> _shareHandoffSubscription;
   final NavigationCubit _navigationCubit = NavigationCubit(
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
@@ -74,19 +78,39 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    initMethodChannel(_openedNotificationController.sink);
+    initMethodChannel(
+      _openedNotificationController.sink,
+      _shareHandoffController.sink,
+    );
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
+    _shareHandoffSubscription = _shareHandoffController.stream.listen(
+      _onShareHandoff,
+    );
 
     // Fetch potential initial notification that launched the app on Android
-    // cold start.
+    // cold start. The share handoff is consumed in `_loadInitialUser`.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
 
     _backgroundService.start(runImmediately: true);
+  }
+
+  /// Routes content the Android share activity handed over.
+  void _onShareHandoff(ShareHandoff handoff) {
+    if (_coreClient.maybeUser == null ||
+        _navigationCubit.state.isCreatingAccount) {
+      _log.info('Dropping a share handoff: no usable user is loaded');
+      unawaited(handoff.share.deleteFiles());
+      return;
+    }
+    _appRouter.dismissOverlays();
+    unawaited(
+      _navigationCubit.openShare(handoff.share, chatId: handoff.chatId),
+    );
   }
 
   @override
@@ -94,6 +118,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _openedNotificationSubscription.cancel();
     _openedNotificationController.close();
+    _shareHandoffSubscription.cancel();
+    _shareHandoffController.close();
     _backgroundService.stop();
     super.dispose();
   }
@@ -142,19 +168,24 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   }
 
   /// Loads the client record given on the command line, or the default user.
-  void _loadInitialUser() {
+  Future<void> _loadInitialUser() async {
     final clientRecordId = widget.clientRecordId;
-    if (clientRecordId == null) {
-      _coreClient.loadDefaultUser();
-      return;
+    try {
+      if (clientRecordId == null) {
+        await _coreClient.loadDefaultUser();
+      } else {
+        _log.info(
+          "Loading client record from the command line: $clientRecordId",
+        );
+        await _coreClient.loadUser(clientRecordId: clientRecordId);
+      }
+    } catch (error) {
+      _log.severe(
+        "Error loading client record ${clientRecordId ?? 'default'}: $error",
+      );
     }
-    _log.info("Loading client record from the command line: $clientRecordId");
-    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
-      error,
-      stackTrace,
-    ) {
-      _log.severe("Error loading client record $clientRecordId: $error");
-    });
+    // When loading failed: the share is dropped and files are deleted.
+    await consumeInitialShare(_shareHandoffController.sink);
   }
 
   Future<void> _prepareForBackground() async {
@@ -200,7 +231,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
           create: (context) {
-            _loadInitialUser();
+            unawaited(_loadInitialUser());
             return LoadableUserCubit(_coreClient.userStream);
           },
           lazy: false, // immediately try to load the user
@@ -332,9 +363,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
-            // The published share targets carry chat names and avatars, so
-            // drop them before the account unloads.
-            unawaited(clearShareTargets());
             userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but
@@ -402,6 +430,14 @@ class LoadableUserCubitProvider extends StatelessWidget {
                       ),
                       dispose: (repository) => unawaited(repository.dispose()),
                       // immediately hydrate chats
+                      lazy: false,
+                    ),
+                    RepositoryProvider<ShareTargetPublisher>(
+                      create: (context) => ShareTargetPublisher(
+                        chatsRepository: context.read<ChatsRepository>(),
+                      ),
+                      dispose: (publisher) => unawaited(publisher.dispose()),
+                      // reconciles leftover OS shortcuts right away
                       lazy: false,
                     ),
                   ],

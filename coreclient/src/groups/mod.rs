@@ -4,6 +4,7 @@
 
 pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod compatibility;
 pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
@@ -22,6 +23,7 @@ use apqmls::{
     extension::ApqInfo,
     external_commit_builder::{ApqExternalCommitBuilder, ApqExternalCommitBuilderError},
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
+    validation::{validate_apq_session_at_construction, validate_welcome_psk},
 };
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
@@ -104,15 +106,16 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
-    db::access::{WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
+    job::chat_operation::DerivationEpoch,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
 };
 
 use openmls::{
     component::ComponentType,
-    components::vc_derivation_info::{EpochId, GenerationId},
+    components::vc_derivation_info::GenerationId,
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
         ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
@@ -165,6 +168,7 @@ impl PartialCreateGroupParams {
             room_state: self.room_state,
             pq,
             creator_user_credential: None,
+            group_bootstrap: None,
         }
     }
 }
@@ -438,16 +442,6 @@ impl Group {
         self.room_state
     }
 
-    /// Returns the set of users currently in the room according to
-    /// `room_state`.
-    pub(crate) fn participants(&self) -> Result<HashSet<UserId>> {
-        self.room_state
-            .users()
-            .keys()
-            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
-            .collect()
-    }
-
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
     /// pending commit. Used by clean loaders to refuse to hand out a
     /// `Group` whose MLS state has an in-flight commit, since further
@@ -679,6 +673,7 @@ impl Group {
 
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
+        ensure_room_state_users_are_members(&room_state, &mls_group)?;
 
         let sender_user_id = verifiable_attribution_info.sender();
         let sender_user_credential =
@@ -825,10 +820,19 @@ impl Group {
 
         // Note: This method has a side-effect of storing PSK in the database. It is important to
         // call it *after* processing the PQ welcome and *before* processing the T welcome.
-        apqmls::welcome::derive_and_store_join_psk(&provider, &mut pq_mls_group, t_ciphersuite)?;
+        let apq_psk_id = apqmls::welcome::derive_and_store_join_psk(
+            &provider,
+            &mut pq_mls_group,
+            t_ciphersuite,
+        )?;
 
         let processed_t_welcome =
             ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, t_welcome)?;
+
+        // The T welcome must import the PSK exported from the PQ session, or the
+        // T session we are about to join carries no PQ contribution.
+        validate_welcome_psk(&processed_t_welcome, &apq_psk_id)
+            .context("T welcome does not import the APQ PSK")?;
 
         // Check if there is already a group with the same ID.
         let t_group_id = processed_t_welcome.unverified_group_info().group_id();
@@ -858,13 +862,29 @@ impl Group {
                 signer,
             )
             .await?;
+
+        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group_id).await?;
+
         let t_mls_group = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             let t_builder = JoinBuilder::new(&provider, processed_t_welcome)
                 .skip_lifetime_validation()
                 .with_ratchet_tree(t_ratchet_tree);
-            t_builder.build()?.into_group(&provider)?
+            // The self group is the emulation group, so joining it registers the
+            // derivation epoch we join into.
+            t_builder
+                .build()?
+                .emulation_group(is_self_group)
+                .into_group(&provider)?
         };
+
+        // The PQ leaf deliberately carries an empty credential, so membership is
+        // compared structurally rather than by credential equality. The signing
+        // key is what binds a member's two leaves together for us.
+        validate_apq_session_at_construction(&t_mls_group, &pq_mls_group, |_, _| true)
+            .context("invalid APQ session")?;
+        verify_pq_signature_keys(&t_mls_group, &pq_mls_group)
+            .context("T and PQ membership is not bound by matching signature keys")?;
 
         // Phase 5: Verify WAI + extract sender
         let verifiable_attribution_info = WelcomeAttributionInfo::decrypt(
@@ -880,10 +900,6 @@ impl Group {
 
         // Phase 6: Construct and persist Group.
         //
-        // Self-group leaves carry a SelfGroupCredential, which has nothing to verify against the
-        // AS. We accept it only inside our own self group.
-        let is_self_group =
-            OwnClientInfo::is_own_self_group(&mut *txn, t_mls_group.group_id()).await?;
         // A group flagged as self-group may only be joined during device linking, i.e. when it is
         // recorded as our own self-group. Conversely, our own self-group must carry the flag,
         // since its self-group credentials are only accepted there.
@@ -894,6 +910,7 @@ impl Group {
         );
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
+        ensure_room_state_users_are_members(&room_state, &t_mls_group)?;
 
         let sender_user_credential =
             match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
@@ -1077,7 +1094,7 @@ impl Group {
         connection_offer_hash: Option<ConnectionOfferHash>,
         // Should be Some if we are joining as an emulator of a virtual client
         // that is already a member.
-        vc_epoch_id: Option<EpochId>,
+        vc_group_id: Option<GroupId>,
     ) -> anyhow::Result<
         Result<
             (Self, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos),
@@ -1131,7 +1148,7 @@ impl Group {
                 None => None,
             };
 
-            let leaf_node_extensions = if vc_epoch_id.is_some() {
+            let leaf_node_extensions = if vc_group_id.is_some() {
                 vc_leaf_node_extensions::<AirComponent>()
             } else {
                 default_leaf_node_extensions::<AirComponent>()
@@ -1159,8 +1176,8 @@ impl Group {
 
             // Must come after `leaf_node_parameters`: the VC leaf configuration
             // is validated against them before an operation secret is spent.
-            if let Some(epoch_id) = vc_epoch_id {
-                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+            if let Some(group_id) = &vc_group_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
             if let Some(psk_proposal) = psk_proposal {
@@ -1199,6 +1216,7 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        ensure_room_state_users_are_members(&room_state, &mls_group)?;
 
         let group = Self {
             mls_group,
@@ -1237,7 +1255,7 @@ impl Group {
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
-        vc_epoch_id: Option<EpochId>,
+        vc_group_id: Option<GroupId>,
     ) -> anyhow::Result<
         Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
     > {
@@ -1308,7 +1326,7 @@ impl Group {
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
-        let leaf_node_extensions = if vc_epoch_id.is_some() {
+        let leaf_node_extensions = if vc_group_id.is_some() {
             vc_leaf_node_extensions::<AirComponent>()
         } else {
             default_leaf_node_extensions::<AirComponent>()
@@ -1330,11 +1348,21 @@ impl Group {
             .with_config(mls_group_config)
             .skip_lifetime_validation()
             .leaf_node_parameters(leaf_node_params.clone(), leaf_node_params)
-            .create_group_info(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+            .create_group_info(true)
+            // The self group is the emulation group, so rejoining it has to
+            // re-register the derivation epoch the external commit creates.
+            .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)));
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
-        let res = builder.build(&provider, signer, credential_with_key, group_info);
+        // As in the welcome path, the PQ leaf carries an empty credential.
+        let res = builder.build(
+            &provider,
+            signer,
+            credential_with_key,
+            group_info,
+            |_, _| true,
+        );
         let (apq_mls_group, commit_bundle) = match res {
             Ok(built) => built,
             Err(ApqExternalCommitBuilderError::BuildCommit(error)) => {
@@ -1343,6 +1371,11 @@ impl Group {
             Err(error) => return Err(error.into()),
         };
         let (t_group, pq_group) = apq_mls_group.into_groups();
+
+        // As in the welcome path, the signing key is what binds a member's two
+        // leaves together. The builder has already run the structural checks.
+        verify_pq_signature_keys(&t_group, &pq_group)
+            .context("T and PQ membership is not bound by matching signature keys")?;
 
         // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id()).await?;
@@ -1362,6 +1395,7 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        ensure_room_state_users_are_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
         let now = TimeStamp::now();
@@ -1438,15 +1472,15 @@ impl Group {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
 
         let (mls_commit, welcome_option, group_info_option) = {
             let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
             let mut builder = self.mls_group.commit_builder().force_self_update(true);
-            if let Some(epoch_id) = vc_epoch_id {
-                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+            if let Some(group_id) = &vc_group_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
             let res = builder
                 .propose_adds(key_packages)
@@ -1564,7 +1598,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -1580,8 +1614,8 @@ impl Group {
         if let Some(proposal) = app_ephemeral {
             builder = builder.add_t_proposal(proposal);
         }
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
         let bundle = match builder.finalize(&provider, signer, |_| true, |_| true) {
             Ok(bundle) => bundle,
@@ -1654,12 +1688,12 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let mut builder = self.mls_group.commit_builder().force_self_update(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+        if let Some(group_id) = &vc_group_id {
+            builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
         }
         let (mls_message, _welcome_option, group_info_option) = builder
             .propose_removals(remove_indices)
@@ -1722,7 +1756,7 @@ impl Group {
         }
         ensure!(members.is_empty(), "Not all members to remove were found");
 
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
@@ -1737,8 +1771,8 @@ impl Group {
                 .force_self_update(true)
                 .propose_removals(remove_indices)
                 .create_group_info(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
@@ -1759,7 +1793,7 @@ impl Group {
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
@@ -1779,8 +1813,8 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let mut builder = self.mls_group.commit_builder().force_self_update(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+        if let Some(group_id) = &vc_group_id {
+            builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
         }
         let (mls_message, _welcome_option, group_info_option) = builder
             .propose_removals(remove_indices)
@@ -1804,7 +1838,7 @@ impl Group {
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let removed_indices = self
@@ -1829,8 +1863,8 @@ impl Group {
             .force_self_update(true)
             .propose_removals(removed_indices)
             .create_group_info(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
         debug_assert!(bundle.welcome.is_none());
@@ -1953,26 +1987,6 @@ impl Group {
         self.pending_diff = None;
         self.send_message_collision_key = None;
         self.clear_commit_failed(&mut *txn).await?;
-
-        // The emulation `EpochId` is derived from this epoch's exporter, so a
-        // self-group epoch change invalidates it. Re-register here: every
-        // emulator client passes through this point when the self group
-        // advances.
-        //
-        // Skipped when the merged commit removed us: a non-member cannot derive
-        // the new epoch's exporter, and it has no further commit to emulate. This
-        // is the path a device takes when a sibling unlinks it.
-        if AirComponent::is_self_group_context(self.mls_group.extensions())
-            && self.mls_group.is_active()
-        {
-            let epoch = self.mls_group.epoch();
-            let epoch_id = self.register_vc_emulation_epoch(&mut *txn)?;
-            debug!(
-                ?epoch_id,
-                ?epoch,
-                "registered self-group VC emulation epoch"
-            );
-        }
 
         // The linked-device list joins metadata with the live self-group
         // members. Notify its self-chat listener whenever a commit changes the
@@ -2152,6 +2166,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
         new_group_data: Option<GroupDataBytes>,
+        derivation_epoch: DerivationEpoch,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2178,7 +2193,7 @@ impl Group {
         // A leaf shared with sibling emulator clients must be replaced with key
         // material derived from the emulation epoch, or the siblings cannot
         // rederive it and drop out of the group.
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut *txn).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut *txn).await?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -2191,9 +2206,10 @@ impl Group {
 
             let mut builder = builder
                 .force_self_update(true)
-                .leaf_node_parameters(leaf_node_parameters);
-            if let Some(epoch_id) = vc_epoch_id {
-                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+                .leaf_node_parameters(leaf_node_parameters)
+                .derivation_epoch(derivation_epoch.rotates());
+            if let Some(group_id) = &vc_group_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
             let (mls_message, _welcome_option, group_info_option) = builder
@@ -2225,6 +2241,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
+        derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -2248,7 +2265,7 @@ impl Group {
             self.own_leaf_capabilities(),
         )?;
 
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut *txn).await?;
+        let vc_group_id = self.resolve_vc_emulation_group(&mut *txn).await?;
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
@@ -2256,9 +2273,10 @@ impl Group {
             apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
                 .force_self_update(true)
                 .leaf_node_parameters(t_leaf_node_parameters, pq_leaf_node_parameters)
+                .derivation_epoch(derivation_epoch.rotates())
                 .create_group_info(true);
-        if let Some(epoch_id) = vc_epoch_id {
-            builder = builder.vc_emulation(epoch_id);
+        if let Some(group_id) = vc_group_id {
+            builder = builder.vc_emulation(group_id);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
@@ -2627,46 +2645,22 @@ impl Group {
             .is_some_and(leaf_node_is_virtual_client)
     }
 
-    /// Register a virtual-clients emulation epoch for this group's current
-    /// epoch, and return its [`EpochId`].
-    ///
-    /// Only meaningful on the self group, which is the emulation group. The
-    /// emulation state lives on the classical leg; the PQ leg has none.
-    ///
-    /// Idempotent per epoch: registration punctures the exporter, so a repeated
-    /// call in the same epoch returns the recorded [`EpochId`] rather than
-    /// deriving a new one.
-    pub(crate) fn register_vc_emulation_epoch(
-        &mut self,
-        mut connection: impl WriteConnection,
-    ) -> Result<EpochId> {
-        let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let (t_group, _) = self.apq_mls_groups_mut()?;
-        t_group
-            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
-            .context("register VC emulation epoch")
-    }
-
-    /// The emulation epoch a commit replacing our leaf has to derive from, or
+    /// The emulation group a commit replacing our leaf has to derive from, or
     /// `None` if this leaf is not shared with sibling emulator clients.
     ///
-    /// The epoch is registered when the self group advances (see
-    /// [`Group::merge_pending_commit`]), so this is expected to be a lookup of
-    /// the epoch every emulator client already recorded, not a fresh
-    /// registration.
-    async fn resolve_vc_emulation_epoch(
+    /// The emulation group is the self group. openmls resolves the concrete
+    /// derivation epoch from it, always taking the newest one.
+    async fn resolve_vc_emulation_group(
         &self,
-        mut connection: impl WriteConnection,
-    ) -> Result<Option<EpochId>> {
+        connection: impl ReadConnection,
+    ) -> Result<Option<GroupId>> {
         if !self.own_leaf_is_virtual_client() {
             return Ok(None);
         }
-        let mut self_group = self_group::SelfGroup::load(&mut connection)
+        let group_id = OwnClientInfo::load_self_group_id(connection)
             .await?
             .context("no self group to derive the emulation epoch from")?;
-        Ok(Some(
-            self_group.register_vc_emulation_epoch(&mut connection)?,
-        ))
+        Ok(Some(group_id))
     }
 
     pub(crate) fn store_connection_offer_psk(
@@ -2791,6 +2785,35 @@ async fn verify_member_credentials(
         verified.push(credential);
     }
     Ok(verified)
+}
+
+/// Ensure that every user of `room_sate` is a member of `mls_group`.
+///
+/// Members missing from the room state are tolerated: the DS does not add external joiners of
+/// connection groups to its room state, clients patch that locally.
+fn ensure_room_state_users_are_members(
+    room_state: &VerifiedRoomState,
+    mls_group: &MlsGroup,
+) -> anyhow::Result<()> {
+    let mut members = HashSet::new();
+    for member in mls_group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)?
+            .room_policy_identity()
+            .to_bytes()?;
+        members.insert(identity);
+    }
+    let users = room_state.users();
+    ensure!(
+        users.keys().all(|identity| members.contains(identity)),
+        "room state lists users which are not group members"
+    );
+    if users.len() < members.len() {
+        warn!(
+            group_id = ?mls_group.group_id(),
+            "room state is missing group members",
+        );
+    }
+    Ok(())
 }
 
 /// Classify the leaf credentials of all group members for verification.
@@ -3382,6 +3405,41 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+/// Verifies that every leaf holds the same signature key in both legs.
+///
+/// This is the binding between a member's two leaves in our deployment: the PQ
+/// leaf carries an empty credential, so the signing key is the only thing
+/// tying the two together. The draft requires membership to be consistent
+/// across the two sessions without saying how a member is identified, so this
+/// is our policy rather than a protocol rule, which is why it lives here and
+/// not in `apqmls`.
+///
+/// Only usable while both ciphersuites agree on the signature algorithm, which
+/// holds for every ciphersuite pair we deploy. See
+/// [`Group::verify_pq_signature_key_at`] for the per-operation counterpart
+/// applied to incoming commits.
+fn verify_pq_signature_keys(t_group: &MlsGroup, pq_group: &MlsGroup) -> anyhow::Result<()> {
+    ensure!(
+        t_group.ciphersuite().signature_algorithm() == pq_group.ciphersuite().signature_algorithm(),
+        "the two legs must share a signature algorithm to be bound by their signing keys"
+    );
+    let pq_keys: HashMap<_, _> = pq_group
+        .members()
+        .map(|member| (member.index, member.signature_key))
+        .collect();
+    for t_member in t_group.members() {
+        let pq_key = pq_keys
+            .get(&t_member.index)
+            .with_context(|| format!("no PQ leaf at index {:?}", t_member.index))?;
+        ensure!(
+            &t_member.signature_key == pq_key,
+            "T and PQ signature keys at index {:?} do not match",
+            t_member.index
+        );
+    }
+    Ok(())
 }
 
 fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {

@@ -14,33 +14,46 @@ part 'chat_list_item_cubit.freezed.dart';
 /// The state of one chat list row.
 @freezed
 sealed class ChatListItemState with _$ChatListItemState {
-  const factory ChatListItemState({required UiChatDetails chat}) =
-      _ChatListItemState;
+  const factory ChatListItemState({
+    required UiChatDetails chat,
+    // if members are none, the cubit is not watching them
+    List<UiUserId>? members,
+  }) = _ChatListItemState;
 }
 
 /// Cubit for a single chat list item.
 ///
 /// Note: This technically duplicates the chat details cubit, but we don't want
-/// to replace the latter everywhere at once, so for now we live the the
+/// to replace the latter everywhere at once, so for now we live with the
 /// duplication.
 class ChatListItemCubit extends Cubit<ChatListItemState> {
-  ChatListItemCubit({required ChatsRepository repository, required this.chatId})
-    : _repository = repository,
-      super(ChatListItemState(chat: repository.getChat(chatId)!)) {
+  ChatListItemCubit({
+    required ChatsRepository repository,
+    required this.chatId,
+    bool withMembers = false,
+  }) : _repository = repository,
+       super(ChatListItemState(chat: repository.getChat(chatId)!)) {
     _sub = _repository.watchChat(chatId).listen((chat) {
       // Null mean the chat is gone. The corresponding row will be disposed, so
       // we don't update the state here.
-      if (chat != null) emit(ChatListItemState(chat: chat));
+      if (chat != null) emit(state.copyWith(chat: chat));
     });
+    if (withMembers) {
+      _subMembers = _repository.watchMembers(chatId).listen((members) {
+        if (members != null) emit(state.copyWith(members: members));
+      });
+    }
   }
 
   final ChatsRepository _repository;
   final ChatId chatId;
   late final StreamSubscription<UiChatDetails?> _sub;
+  StreamSubscription<List<UiUserId>?>? _subMembers;
 
   @override
   Future<void> close() {
     _sub.cancel();
+    _subMembers?.cancel();
     return super.close();
   }
 

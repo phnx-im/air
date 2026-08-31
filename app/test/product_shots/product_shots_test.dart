@@ -13,7 +13,6 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
-import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -45,6 +44,7 @@ const androidPhysicalSize = Size(2160, 3840);
 const iosPhysicalSize = Size(1290, 2796);
 // One of the sizes accepted by the Mac App Store (16:10 retina).
 const macosPhysicalSize = Size(2880, 1800);
+
 /// The marketing canvas size for a framed product shot, distinct from the
 /// device's own screen resolution (used as-is for the frameless shots).
 Size _canvasSizeFor(TargetPlatform platform) {
