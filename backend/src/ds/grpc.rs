@@ -13,8 +13,8 @@ use aircommon::{
     },
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
-        self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        UserProfileKeyUpdateParams,
+        self, GroupBootstrapEcho, GroupOperationParams, JoinConnectionGroupParams,
+        QsQueueMessagePayload, UserProfileKeyUpdateParams,
     },
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
@@ -35,7 +35,8 @@ use mls_assist::{
     group::Group,
     messages::{AssistedMessageIn, SerializedMlsMessage},
     openmls::prelude::{
-        LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender, SignaturePublicKey,
+        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender,
+        SignaturePublicKey,
     },
 };
 use semver::Version;
@@ -57,7 +58,8 @@ use crate::{
 };
 
 use super::{
-    Ds, WELCOME_INFO_EXPIRATION,
+    Ds, EPOCH_SNAPSHOT_EXPIRATION, WELCOME_INFO_EXPIRATION,
+    epoch_snapshot::{DsEpochSnapshot, EpochSnapshotParts},
     group_operation::AddUsersState,
     group_state::{DsGroupState, StorableDsGroupData},
     welcome_info::DsWelcomeInfo,
@@ -293,6 +295,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         group_state
             .write_staged_welcome_infos(txn, group_id, ear_key)
             .await?;
+        group_state
+            .write_staged_epoch_snapshot(txn, group_id, ear_key)
+            .await?;
 
         let encrypted_group_state = group_state.encrypt(ear_key)?;
         group_data.encrypted_group_state = encrypted_group_state;
@@ -356,6 +361,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         .ok();
 
         self.sweep_welcome_info(group_id).await;
+        self.sweep_epoch_snapshots(group_id).await;
     }
 
     /// Best-effort sweep of a group's expired welcome information.
@@ -366,6 +372,29 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 error!(%error, "Failed to clean up expired welcome info");
             })
             .ok();
+    }
+
+    /// Best-effort sweep of a group's expired epoch snapshots.
+    ///
+    /// Snapshots are keyed by the T leg's group id, so only that leg is swept.
+    async fn sweep_epoch_snapshots(&self, group_id: uuid::Uuid) {
+        DsEpochSnapshot::delete_expired(&self.ds.db_pool, group_id, EPOCH_SNAPSHOT_EXPIRATION)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to clean up expired epoch snapshots");
+            })
+            .ok();
+    }
+
+    /// Enqueue the echo of an accepted bootstrap-carrying request to every
+    /// client queue of the acting user.
+    async fn dispatch_group_bootstrap_echo(
+        &self,
+        echo: QsQueueMessagePayload,
+        acting_client: identifiers::QsReference,
+    ) {
+        self.fan_out_message_without_notifications(echo, [acting_client], true)
+            .await;
     }
 
     /// Verifies the given request and applies the necessary changes to the
@@ -671,6 +700,75 @@ struct ApqFanOut<T> {
     value: T,
 }
 
+/// The snapshot they join the group at and the echo.
+struct GroupBootstrapMaterial {
+    epoch: GroupEpoch,
+    snapshot: DsEpochSnapshot,
+    echo: QsQueueMessagePayload,
+}
+
+impl GroupBootstrapMaterial {
+    /// The material for a group a virtual client just created.
+    fn for_creation(
+        group_state: &DsGroupState,
+        group_id: GroupId,
+        pq: Option<(GroupId, &DsGroupState)>,
+        group_bootstrap: Vec<u8>,
+    ) -> Result<Self, Status> {
+        // Only a virtual client has siblings to echo to.
+        if !group_state.leaf_is_virtual_client(LeafNodeIndex::new(0)) {
+            return Err(Status::invalid_argument(
+                "group bootstrap requires a virtual-client creator leaf",
+            ));
+        }
+
+        let (pq_group_id, pq_group_state) = pq.unzip();
+        // The legs share a signature key, but being a virtual client is a leaf
+        // extension, so the check above says nothing about the PQ leaf.
+        if pq_group_state.is_some_and(|pq| !pq.leaf_is_virtual_client(LeafNodeIndex::new(0))) {
+            return Err(Status::invalid_argument(
+                "group bootstrap requires a virtual-client PQ creator leaf",
+            ));
+        }
+
+        let snapshot = match pq_group_state {
+            Some(pq_group_state) => group_state.epoch_snapshot().with_pq_leg(
+                pq_group_state.group().group_info().clone(),
+                pq_group_state.group().export_ratchet_tree(),
+            ),
+            None => group_state.epoch_snapshot(),
+        };
+
+        let epoch = group_state.group().epoch();
+        let echo = QsQueueMessagePayload::group_creation_echo(GroupBootstrapEcho {
+            group_id,
+            pq_group_id,
+            epoch,
+            timestamp: TimeStamp::now(),
+            group_bootstrap,
+        })
+        .tls_failed("group creation echo")?;
+
+        Ok(Self {
+            epoch,
+            snapshot,
+            echo,
+        })
+    }
+
+    async fn store(
+        &self,
+        txn: &mut PgTransaction<'_>,
+        group_id: uuid::Uuid,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(), Status> {
+        self.snapshot
+            .encrypt_and_store(txn, group_id, self.epoch, ear_key)
+            .await?;
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     async fn request_group_id(
@@ -729,12 +827,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-
-        // Echoing the group bootstrap to the creator's other clients lands with
-        // the DS-side part of multi-client group creation.
-        if payload.group_bootstrap.is_some() {
-            return Err(Status::unimplemented("group bootstrap"));
-        }
 
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
@@ -802,7 +894,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .encrypted_user_profile_key
             .ok_or_missing_field("encrypted_user_profile_key")?
             .try_into()?;
-        let creator_client_reference = payload
+        let creator_client_reference: identifiers::QsReference = payload
             .creator_client_reference
             .ok_or_missing_field("creator_client_reference")?
             .try_into()?;
@@ -820,21 +912,48 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             provider,
             group,
             encrypted_user_profile_key,
-            creator_client_reference,
+            creator_client_reference.clone(),
             room_state,
         );
+
+        let bootstrap = payload
+            .group_bootstrap
+            .map(|group_bootstrap| {
+                GroupBootstrapMaterial::for_creation(
+                    &group_state,
+                    qgid.clone().into(),
+                    None,
+                    group_bootstrap,
+                )
+            })
+            .transpose()?;
+
         let encrypted_group_state = group_state.encrypt(&ear_key)?;
 
-        StorableDsGroupData::new_and_store(
-            &self.ds.db_pool,
-            reserved_group_id,
-            encrypted_group_state,
-        )
-        .await
-        .map_err(|error| {
-            error!(%error, "failed to store group state");
-            Status::internal("failed to store group state")
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "failed to start transaction");
+            Status::internal("database error")
         })?;
+        StorableDsGroupData::new_and_store(txn.as_mut(), reserved_group_id, encrypted_group_state)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to store group state");
+                Status::internal("failed to store group state")
+            })?;
+        if let Some(bootstrap) = bootstrap.as_ref() {
+            bootstrap
+                .store(&mut txn, qgid.group_uuid(), &ear_key)
+                .await?;
+        }
+        txn.commit().await.map_err(|error| {
+            error!(%error, "failed to commit transaction");
+            Status::internal("database error")
+        })?;
+
+        if let Some(bootstrap) = bootstrap {
+            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
+                .await;
+        }
 
         Ok(Response::new(CreateGroupResponse {}))
     }
@@ -853,12 +972,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-
-        // Echoing the group bootstrap to the creator's other clients lands with
-        // the DS-side part of multi-client group creation.
-        if payload.group_bootstrap.is_some() {
-            return Err(Status::unimplemented("group bootstrap"));
-        }
 
         // Extract chat related data
         let encrypted_user_profile_key = payload
@@ -942,6 +1055,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         // Check that the t and pq client signature keys match
         Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
 
+        // Both legs live in the snapshot of the T leg's group id
+        let bootstrap = payload
+            .group_bootstrap
+            .map(|group_bootstrap| {
+                GroupBootstrapMaterial::for_creation(
+                    &t_group_state,
+                    t_qgid.clone().into(),
+                    Some((pq_qgid.clone().into(), &pq_group_state)),
+                    group_bootstrap,
+                )
+            })
+            .transpose()?;
+
         // Encrypt and store group state
         let t_reserved_group_id = self
             .ds
@@ -980,10 +1106,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             error!(%error, "failed to store pq group state");
             Status::internal("failed to store pq group state")
         })?;
+        if let Some(bootstrap) = bootstrap.as_ref() {
+            bootstrap
+                .store(&mut txn, t_qgid.group_uuid(), &ear_key)
+                .await?;
+        }
         txn.commit().await.map_err(|error| {
             error!(%error, "failed to commit transaction");
             Status::internal("database error")
         })?;
+
+        if let Some(bootstrap) = bootstrap {
+            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
+                .await;
+        }
 
         Ok(Response::new(CreateApqGroupResponse {}))
     }
@@ -1153,13 +1289,67 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }))
     }
 
-    // Storing snapshots and serving them lands with the DS-side part of
-    // multi-client group creation.
     async fn epoch_snapshot(
         &self,
-        _request: Request<EpochSnapshotRequest>,
+        request: Request<EpochSnapshotRequest>,
     ) -> Result<Response<EpochSnapshotResponse>, Status> {
-        Err(Status::unimplemented("epoch snapshot"))
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let qgid = request.validated_qgid(self.ds.own_domain())?;
+        let ear_key: GroupStateEarKey = request
+            .group_state_ear_key
+            .ok_or_missing_field("group_state_ear_key")?
+            .try_ref_into()?;
+        let epoch = GroupEpoch::from(request.epoch);
+
+        let ciphertext = DsEpochSnapshot::load(
+            &self.ds.db_pool,
+            qgid.group_uuid(),
+            epoch,
+            EPOCH_SNAPSHOT_EXPIRATION,
+        )
+        .await
+        .map_err(|error| {
+            error!(%error, "Failed to load epoch snapshot");
+            Status::internal("Failed to load epoch snapshot")
+        })?
+        .ok_or(NoEpochSnapshotFound)?;
+
+        let snapshot = DsEpochSnapshot::decrypt(&ear_key, &ciphertext, qgid.group_uuid(), epoch)
+            .map_err(|error| {
+                warn!(%error, "Failed to decrypt epoch snapshot");
+                NoEpochSnapshotFound
+            })?;
+
+        let EpochSnapshotParts {
+            group_info,
+            ratchet_tree,
+            room_state,
+            pq,
+            join_commit,
+        } = snapshot.into_parts().ok_or(NoEpochSnapshotFound)?;
+
+        let (pq_group_info, pq_ratchet_tree) = match pq {
+            Some((pq_group_info, pq_ratchet_tree)) => (
+                Some(pq_group_info.try_into().invalid_tls("pq_group_info")?),
+                Some(
+                    pq_ratchet_tree
+                        .try_ref_into()
+                        .invalid_tls("pq_ratchet_tree")?,
+                ),
+            ),
+            None => (None, None),
+        };
+
+        Ok(Response::new(EpochSnapshotResponse {
+            group_info: Some(group_info.try_into().invalid_tls("group_info")?),
+            ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
+            room_state: Some(room_state.try_ref_into().invalid_tls("room_state")?),
+            pq_group_info,
+            pq_ratchet_tree,
+            join_commit,
+        }))
     }
 
     async fn connection_group_info(
@@ -1226,12 +1416,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
 
-        // Echoing the group bootstrap to the joiner's other clients lands with
-        // the DS-side part of multi-client group creation.
-        if request.group_bootstrap.is_some() {
-            return Err(Status::unimplemented("group bootstrap"));
-        }
-
         let external_commit: AssistedMessageIn = request
             .external_commit
             .ok_or_missing_field("external_commit")?
@@ -1242,6 +1426,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
+        let qs_client_reference: identifiers::QsReference = request
+            .qs_client_reference
+            .ok_or_missing_field("qs_client_reference")?
+            .try_into()?;
+        let group_bootstrap = request.group_bootstrap;
 
         let timestamp = self
             .update_group_state_without_verification(
@@ -1256,22 +1445,36 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                     let params = JoinConnectionGroupParams {
                         external_commit,
-                        qs_client_reference: request
-                            .qs_client_reference
-                            .ok_or_missing_field("qs_client_reference")?
-                            .try_into()?,
+                        qs_client_reference: qs_client_reference.clone(),
                     };
 
                     // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
 
-                    let group_message = group_state.join_connection_group(params)?;
+                    let outcome =
+                        group_state.join_connection_group(params, group_bootstrap.is_some())?;
 
                     group_state.proposals.clear();
 
+                    if let Some((group_bootstrap, epoch)) =
+                        group_bootstrap.zip(outcome.snapshot_epoch)
+                    {
+                        let echo = QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
+                            group_id: qgid.clone().into(),
+                            // APQ joins are rejected on this path.
+                            pq_group_id: None,
+                            epoch,
+                            timestamp: TimeStamp::now(),
+                            group_bootstrap,
+                        })
+                        .tls_failed("group join echo")?;
+                        self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
+                            .await;
+                    }
+
                     let timestamp = self
                         .fan_out_message_without_notifications(
-                            group_message,
+                            outcome.message,
                             destination_clients,
                             true,
                         )
@@ -2345,6 +2548,16 @@ impl WithQualifiedGroupId for WelcomeInfoPayload {
     }
 }
 
+impl WithQualifiedGroupId for EpochSnapshotRequest {
+    fn qgid(&self) -> Result<QualifiedGroupId, Status> {
+        self.qgid
+            .as_ref()
+            .ok_or_missing_field("qgid")?
+            .try_ref_into()
+            .map_err(From::from)
+    }
+}
+
 impl WithQualifiedGroupId for UpdateProfileKeyPayload {
     fn qgid(&self) -> Result<QualifiedGroupId, Status> {
         self.group_id
@@ -2653,5 +2866,13 @@ struct NoWelcomeInfoFound;
 impl From<NoWelcomeInfoFound> for Status {
     fn from(_: NoWelcomeInfoFound) -> Self {
         Status::not_found("no welcome info found")
+    }
+}
+
+struct NoEpochSnapshotFound;
+
+impl From<NoEpochSnapshotFound> for Status {
+    fn from(_: NoEpochSnapshotFound) -> Self {
+        Status::not_found("no epoch snapshot found")
     }
 }

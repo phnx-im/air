@@ -1,0 +1,8 @@
+---
+source: backend/src/ds/epoch_snapshot/mod.rs
+expression: diag
+---
+a1           # map(1)
+   06        #   unsigned(6)
+   43        #   bytes(3)
+      010203 #     "\x01\x02\x03"
