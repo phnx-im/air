@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use image::{
     AnimationDecoder, Delay, DynamicImage, GenericImageView, ImageBuffer, ImageDecoder,
     ImageFormat, ImageReader, Rgba,
@@ -26,8 +26,8 @@ const BLURHASH_COMPONENTS_Y: u32 = 3;
 const MAX_PROFILE_IMAGE_WIDTH: u32 = 256;
 const MAX_PROFILE_IMAGE_HEIGHT: u32 = 256;
 
-// const THUMBNAIL_MAX_EDGE: u32 = 1024;
-// const THUMBNAIL_QUALITY_PERCENT: f32 = 80.0;
+const THUMBNAIL_MAX_EDGE: u32 = 1024;
+const THUMBNAIL_QUALITY_PERCENT: f32 = 80.0;
 
 pub(crate) fn resize_profile_image(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut decoder = ImageReader::new(Cursor::new(image_bytes))
@@ -304,4 +304,95 @@ fn resize(image: DynamicImage, max_width: u32, max_height: u32) -> DynamicImage 
         return image;
     }
     image.resize(max_width, max_height, image::imageops::FilterType::Lanczos3)
+}
+
+pub(crate) enum ThumbnailImage {
+    Encoded {
+        /// WebP encoded thumbnail
+        bytes: Vec<u8>,
+        /// Whether the source is animated
+        is_animated: bool,
+    },
+    /// Long edge is already within bounds and the image is *not* animated.
+    OriginalFits,
+}
+
+/// Produces a static thumbnail from an attachment's stored WebP bytes.
+///
+/// Animated sources yield their first frame, and never `OriginalFits`, so the thumbnail path never
+/// hands animated bytes to a static surface.
+pub(crate) fn encode_thumbnail(original: &[u8]) -> anyhow::Result<ThumbnailImage> {
+    let decoder = webpx::Decoder::new(original).context("WebP decode failed")?;
+    let (width, height, has_animation) = {
+        let info = decoder.info();
+        (info.width, info.height, info.has_animation)
+    };
+
+    if has_animation {
+        return encode_animated_thumbnail(original);
+    }
+
+    ensure_within_supported_cap(width, height)?;
+
+    let Some((target_width, target_height)) =
+        thumbnail_dimensions(width, height, THUMBNAIL_MAX_EDGE)
+    else {
+        return Ok(ThumbnailImage::OriginalFits);
+    };
+
+    let (rgba, width, height) = decoder
+        .scale(target_width, target_height)
+        .decode_rgba_raw()
+        .context("WebP scaled decode failed")?;
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(&rgba, width, height)?,
+        is_animated: false,
+    })
+}
+
+fn encode_animated_thumbnail(original: &[u8]) -> anyhow::Result<ThumbnailImage> {
+    let mut decoder = webpx::AnimationDecoder::new(original)?;
+    let (width, height) = {
+        let info = decoder.info();
+        (info.width, info.height)
+    };
+    ensure_within_supported_cap(width, height)?;
+
+    let frame = decoder
+        .next_frame()?
+        .context("animated WebP has no frames")?;
+    let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(frame.width, frame.height, frame.data)
+        .context("frame does not match its buffer size")?;
+    let buffer = fit_to_max(buffer, THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    let (width, height) = buffer.dimensions();
+
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(buffer.as_raw(), width, height)?,
+        is_animated: true,
+    })
+}
+
+fn ensure_within_supported_cap(width: u32, height: u32) -> anyhow::Result<()> {
+    ensure!(
+        width <= MAX_ATTACHMENT_IMAGE_WIDTH && height <= MAX_ATTACHMENT_IMAGE_HEIGHT,
+        "image exceeded the supported size: {width}x{height}",
+    );
+    Ok(())
+}
+
+fn encode_thumbnail_webp(rgba: &[u8], width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
+    webpx::Encoder::new_rgba(rgba, width, height)
+        .quality(THUMBNAIL_QUALITY_PERCENT)
+        .encode(webpx::Unstoppable)
+        .context("WebP encode failed")
+}
+
+fn thumbnail_dimensions(width: u32, height: u32, max_edge: u32) -> Option<(u32, u32)> {
+    let long_edge = width.max(height);
+    if long_edge <= max_edge {
+        return None;
+    }
+    let scale = f64::from(max_edge) / f64::from(long_edge);
+    let edge = |e: u32| ((f64::from(e) * scale).round() as u32).max(1);
+    Some((edge(width), edge(height)))
 }
