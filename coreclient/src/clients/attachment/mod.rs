@@ -10,6 +10,7 @@ pub use content::MimiContentExt;
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
+pub use thumbnail::AttachmentThumbnail;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
@@ -23,6 +24,7 @@ mod download;
 pub(crate) mod persistence;
 mod process;
 pub(crate) mod progress;
+mod thumbnail;
 pub(crate) mod upload;
 
 impl CoreUser {

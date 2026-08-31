@@ -26,6 +26,9 @@ const BLURHASH_COMPONENTS_Y: u32 = 3;
 const MAX_PROFILE_IMAGE_WIDTH: u32 = 256;
 const MAX_PROFILE_IMAGE_HEIGHT: u32 = 256;
 
+// const THUMBNAIL_MAX_EDGE: u32 = 1024;
+// const THUMBNAIL_QUALITY_PERCENT: f32 = 80.0;
+
 pub(crate) fn resize_profile_image(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut decoder = ImageReader::new(Cursor::new(image_bytes))
         .with_guessed_format()?

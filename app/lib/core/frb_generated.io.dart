@@ -432,10 +432,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  FutureOr<void> Function(BigInt)
-  dco_decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(dynamic raw);
-
-  @protected
   Object dco_decode_DartOpaque(dynamic raw);
 
   @protected
@@ -766,6 +762,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
+
+  @protected
+  LoadedImageAttachment dco_decode_box_autoadd_loaded_image_attachment(
+    dynamic raw,
+  );
 
   @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
@@ -1193,6 +1194,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
+
+  @protected
+  LoadedImageAttachment? dco_decode_opt_box_autoadd_loaded_image_attachment(
+    dynamic raw,
+  );
 
   @protected
   MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
@@ -2113,6 +2119,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  LoadedImageAttachment sse_decode_box_autoadd_loaded_image_attachment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   );
@@ -2672,6 +2683,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoadedImageAttachment? sse_decode_opt_box_autoadd_loaded_image_attachment(
     SseDeserializer deserializer,
   );
 
@@ -3352,12 +3368,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
-    FutureOr<void> Function(BigInt) self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_DartOpaque(Object self, SseSerializer serializer);
 
   @protected
@@ -3786,6 +3796,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_invitation_code(
     InvitationCode self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_loaded_image_attachment(
+    LoadedImageAttachment self,
     SseSerializer serializer,
   );
 
@@ -4491,6 +4507,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_loaded_image_attachment(
+    LoadedImageAttachment? self,
     SseSerializer serializer,
   );
 

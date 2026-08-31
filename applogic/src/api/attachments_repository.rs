@@ -6,15 +6,18 @@ use std::{fs, io::Write, sync::Arc};
 
 use aircoreclient::{
     AttachmentContent, AttachmentId, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
+    AttachmentThumbnail,
     clients::CoreUser,
     db::notification::{DbEntityId, DbOperation},
     image_is_animated,
 };
 use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
-use flutter_rust_bridge::{DartFnFuture, frb};
+use flutter_rust_bridge::frb;
 use futures_util::StreamExt;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use indexmap::IndexMap;
+use parking_lot::Mutex;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
@@ -29,26 +32,35 @@ pub(crate) type InProgressMap = Arc<DashMap<AttachmentId, AttachmentTaskHandle>>
 /// * Provides access for loading attachments.
 #[frb(opaque)]
 pub struct AttachmentsRepository {
-    store: CoreUser,
+    core_user: CoreUser,
     cancel: CancellationToken,
     /// Upload or download tasks that are currently in progress
     in_progress: InProgressMap,
+    thumbnail_queue: ThumbnailQueue,
     _cancel: DropGuard,
 }
 
 impl AttachmentsRepository {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
-        let store = user_cubit.core_user().clone();
+        let core_user = user_cubit.core_user().clone();
 
         let cancel = CancellationToken::new();
         let in_progress = InProgressMap::default();
 
-        spawn_attachment_downloads(store.clone(), cancel.clone(), in_progress.clone());
+        let (thumbnail_queue, thumbnail_worker) = ThumbnailQueue::new(core_user.clone());
+        spawn_from_sync(
+            cancel
+                .clone()
+                .run_until_cancelled_owned(thumbnail_worker.run()),
+        );
+
+        spawn_attachment_downloads(core_user.clone(), cancel.clone(), in_progress.clone());
 
         Self {
-            store,
+            core_user,
             in_progress,
+            thumbnail_queue,
             cancel: cancel.clone(),
             _cancel: cancel.drop_guard(),
         }
@@ -99,7 +111,7 @@ impl AttachmentsRepository {
             }
         } else {
             // No task in progress, so report the persisted status directly.
-            let ui_status = match self.store.attachment_status(attachment_id).await {
+            let ui_status = match self.core_user.attachment_status(attachment_id).await {
                 Ok(Some(AttachmentStatus::Ready)) => UiAttachmentStatus::Completed,
                 Ok(Some(AttachmentStatus::NotFound)) => UiAttachmentStatus::NotFound,
                 // Still in flight, a task will pick it up. No failure is
@@ -121,7 +133,7 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<Vec<u8>>> {
-        match self.store.load_attachment(attachment_id).await? {
+        match self.core_user.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(data)
             | AttachmentContent::Uploading(data)
             | AttachmentContent::UploadFailed(data) => Ok(Some(data)),
@@ -133,62 +145,59 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
         retry_download_if_failed: bool,
-        chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<LoadedImageAttachment> {
-        // Remove cancelled handles
-        self.in_progress.retain(|_, handle| !handle.is_cancelled());
-
-        let spawn_download = async move |chunk_event_callback| {
-            let handle = spawn_download_task(
-                &self.store,
-                &self.cancel,
-                None,
-                &self.in_progress,
-                attachment_id,
-            );
-            self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                .await
-        };
-
-        let bytes = match self.store.load_attachment(attachment_id).await? {
-            AttachmentContent::Ready(bytes)
-            | AttachmentContent::Uploading(bytes)
-            | AttachmentContent::UploadFailed(bytes) => bytes,
-            AttachmentContent::Pending => {
-                debug!(?attachment_id, "Attachment is pending; spawn download task");
-                spawn_download(chunk_event_callback).await?
-            }
-            AttachmentContent::DownloadFailed | AttachmentContent::Downloading
-                if retry_download_if_failed =>
-            {
-                debug!(
-                    ?attachment_id,
-                    "Attachment failed to download but a retry was requested; spawn download task"
-                );
-                spawn_download(chunk_event_callback).await?
-            }
-            AttachmentContent::Downloading => {
-                let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
-                if let Some(handle) = handle {
-                    self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                        .await?
-                } else {
-                    match self.store.load_attachment(attachment_id).await? {
-                        AttachmentContent::Ready(bytes) => bytes,
-                        _ => bail!("Attachment download failed"),
-                    }
-                }
-            }
-            AttachmentContent::None => bail!("Attachment not found"),
-            AttachmentContent::DownloadFailed
-            | AttachmentContent::NotFound
-            | AttachmentContent::Unknown => {
-                bail!("Attachment download failed")
-            }
-        };
-
+        let bytes = self
+            .attachment_bytes(attachment_id, retry_download_if_failed)
+            .await?
+            .context("Attachment not found")?;
         let is_animated = image_is_animated(&bytes);
         Ok(LoadedImageAttachment { bytes, is_animated })
+    }
+
+    pub async fn load_thumbnail(
+        &self,
+        attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
+    ) -> anyhow::Result<Option<LoadedImageAttachment>> {
+        match self.core_user.attachment_thumbnail(attachment_id).await? {
+            // Hot path: no original bytes are touched
+            Some(AttachmentThumbnail::Ready { bytes, is_animated }) => {
+                Ok(Some(LoadedImageAttachment { bytes, is_animated }))
+            }
+
+            // Terminal outcomes: serve the original, never regenerate
+            Some(thumbnail) => {
+                let Some(original) = self.load_attachment(attachment_id).await? else {
+                    return Ok(None);
+                };
+                Ok(Some(loaded(thumbnail, original)))
+            }
+
+            None => {
+                // Trigger download if needed
+                if !self
+                    .ensure_attachment_content(attachment_id, retry_download_if_failed)
+                    .await?
+                {
+                    return Ok(None);
+                }
+                Ok(self.thumbnail_queue.request(attachment_id).await)
+            }
+        }
+    }
+
+    async fn attachment_bytes(
+        &self,
+        attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        if !self
+            .ensure_attachment_content(attachment_id, retry_download_if_failed)
+            .await?
+        {
+            return Ok(None);
+        }
+        self.load_attachment(attachment_id).await
     }
 
     pub fn cancel(&self, attachment_id: AttachmentId) {
@@ -216,35 +225,108 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
         handle: AttachmentTaskHandle,
-        chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<bool> {
         debug!(?attachment_id, "Tracking attachment download");
         let mut events_stream = handle.progress.stream();
         while let Some(event) = events_stream.next().await {
             match event {
-                AttachmentProgressEvent::Init => {
-                    chunk_event_callback(0).await;
-                }
-                AttachmentProgressEvent::Progress { bytes_loaded } => {
-                    chunk_event_callback(bytes_loaded.try_into()?).await;
-                }
-                AttachmentProgressEvent::Completed => {
-                    return self
-                        .store
-                        .load_attachment(attachment_id)
-                        .await?
-                        .into_bytes()
-                        .context("Attachment download failed");
-                }
+                AttachmentProgressEvent::Init | AttachmentProgressEvent::Progress { .. } => {}
+                AttachmentProgressEvent::Completed => return Ok(true),
                 AttachmentProgressEvent::Failed => bail!("Attachment download failed"),
-                AttachmentProgressEvent::NotFound => bail!("Attachment not found"),
+                AttachmentProgressEvent::NotFound => return Ok(false),
             }
         }
         bail!("Attachment download aborted")
     }
 
+    /// Ensures the content is on device, downloading it if needed.
+    ///
+    /// `false` means there is nothing to fetch: expired, or no such attachment.
+    async fn ensure_attachment_content(
+        &self,
+        attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
+    ) -> anyhow::Result<bool> {
+        // Remove cancelled handles
+        self.in_progress.retain(|_, handle| !handle.is_cancelled());
+
+        let spawn_download = async move || {
+            let handle = spawn_download_task(
+                &self.core_user,
+                &self.cancel,
+                None,
+                &self.in_progress,
+                attachment_id,
+            );
+            self.track_attachment_download(attachment_id, handle).await
+        };
+
+        match self.core_user.attachment_status(attachment_id).await? {
+            Some(
+                AttachmentStatus::Ready
+                | AttachmentStatus::Uploading
+                | AttachmentStatus::UploadFailed,
+            ) => Ok(true),
+            Some(AttachmentStatus::Pending) => {
+                debug!(?attachment_id, "Attachment is pending; spawn download task");
+                spawn_download().await
+            }
+            Some(AttachmentStatus::DownloadFailed) if retry_download_if_failed => {
+                debug!(
+                    ?attachment_id,
+                    "Attachment failed to download but a retry was requested; spawn download task"
+                );
+                spawn_download().await
+            }
+            // A download can be stuck in this state after a crash
+            Some(AttachmentStatus::Downloading) if retry_download_if_failed => {
+                debug!(
+                    ?attachment_id,
+                    "Retry requested while downloading; spawn or attach to a download task"
+                );
+                spawn_download().await
+            }
+            Some(AttachmentStatus::Downloading) => {
+                match self.in_progress.get(&attachment_id).as_deref().cloned() {
+                    Some(handle) => self.track_attachment_download(attachment_id, handle).await,
+                    // No task tracking it => it may have landed meanwhile
+                    None => match self.core_user.attachment_status(attachment_id).await? {
+                        Some(AttachmentStatus::Ready) => Ok(true),
+                        _ => bail!("Attachment download failed"),
+                    },
+                }
+            }
+            Some(AttachmentStatus::NotFound) | None => Ok(false),
+            Some(AttachmentStatus::DownloadFailed | AttachmentStatus::Unknown) => {
+                bail!("Attachment download failed")
+            }
+        }
+    }
+
     pub(crate) fn in_progress(&self) -> &InProgressMap {
         &self.in_progress
+    }
+}
+
+/// Maps an outcome to what the UI paints.
+///
+/// `original` is the fallback for the outcomes that are not a stored blob, and is unused for
+/// `Ready`.
+fn loaded(thumbnail: AttachmentThumbnail, original: Vec<u8>) -> LoadedImageAttachment {
+    match thumbnail {
+        AttachmentThumbnail::Ready { bytes, is_animated } => {
+            LoadedImageAttachment { bytes, is_animated }
+        }
+        // Never animated: an animated source always stores a first frame.
+        AttachmentThumbnail::OriginalFits => LoadedImageAttachment {
+            bytes: original,
+            is_animated: false,
+        },
+        // The `image` crate could not decode it, so let Flutter try.
+        AttachmentThumbnail::Failed => LoadedImageAttachment {
+            is_animated: image_is_animated(&original),
+            bytes: original,
+        },
     }
 }
 
@@ -406,8 +488,117 @@ pub enum UiAttachmentStatus {
     NotFound,
 }
 
-/// Bytes of an image attachment and an animation classification.
+/// Bytes of an image attachment (thumbnail or original) and an animation classification
+#[derive(Clone)]
 pub struct LoadedImageAttachment {
     pub bytes: Vec<u8>,
     pub is_animated: bool,
+}
+
+type ThumbnailWaiters = Vec<oneshot::Sender<LoadedImageAttachment>>;
+
+/// Pending thumbnail generations, served newest first.
+#[frb(ignore)]
+struct ThumbnailQueue {
+    pending: Arc<Mutex<IndexMap<AttachmentId, ThumbnailWaiters>>>,
+    wake: mpsc::UnboundedSender<()>,
+}
+
+impl ThumbnailQueue {
+    fn new(core_user: CoreUser) -> (Self, ThumbnailWorker) {
+        let (wake_tx, wake) = mpsc::unbounded_channel();
+        let pending = Arc::new(Mutex::new(IndexMap::new()));
+        let worker = ThumbnailWorker {
+            core_user,
+            pending: pending.clone(),
+            wake,
+        };
+        let queue = Self {
+            pending,
+            wake: wake_tx,
+        };
+        (queue, worker)
+    }
+
+    fn request(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> impl Future<Output = Option<LoadedImageAttachment>> {
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut pending = self.pending.lock();
+            let mut waiters = pending.shift_remove(&attachment_id).unwrap_or_default();
+            waiters.push(tx);
+            pending.insert(attachment_id, waiters);
+        }
+        let _ = self.wake.send(());
+        async move { rx.await.ok() }
+    }
+}
+
+#[frb(ignore)]
+struct ThumbnailWorker {
+    core_user: CoreUser,
+    pending: Arc<Mutex<IndexMap<AttachmentId, ThumbnailWaiters>>>,
+    wake: mpsc::UnboundedReceiver<()>,
+}
+
+impl ThumbnailWorker {
+    async fn run(mut self) {
+        while self.wake.recv().await.is_some() {
+            loop {
+                // Don't hold the lock across await points
+                let next = { self.pending.lock().pop() }; // newest first
+                let Some((attachment_id, mut waiters)) = next else {
+                    break;
+                };
+                match self.generate_thumbnail(attachment_id).await {
+                    Ok(Some(loaded)) => {
+                        // Only additional waiters pay the cost of cloning.
+                        let last = waiters.pop();
+                        for tx in waiters {
+                            let _ = tx.send(loaded.clone());
+                        }
+                        if let Some(tx) = last {
+                            let _ = tx.send(loaded);
+                        }
+                    }
+                    // Senders drop => the waiters keep their blurhash
+                    Ok(None) => {}
+                    Err(error) => {
+                        error!(%error, ?attachment_id, "Failed to generate attachment thumbnail");
+                    }
+                }
+            }
+        }
+    }
+
+    async fn generate_thumbnail(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<LoadedImageAttachment>> {
+        match self.core_user.attachment_thumbnail(attachment_id).await? {
+            Some(AttachmentThumbnail::Ready { bytes, is_animated }) => {
+                Ok(Some(LoadedImageAttachment { bytes, is_animated }))
+            }
+            existing => {
+                let original = match self.core_user.load_attachment(attachment_id).await? {
+                    AttachmentContent::Ready(bytes)
+                    | AttachmentContent::Uploading(bytes)
+                    | AttachmentContent::UploadFailed(bytes) => bytes,
+                    // Content went away
+                    _ => return Ok(None),
+                };
+                let thumbnail = match existing {
+                    Some(thumbnail) => thumbnail,
+                    None => {
+                        self.core_user
+                            .generate_attachment_thumbnail(attachment_id, &original)
+                            .await?
+                    }
+                };
+                Ok(Some(loaded(thumbnail, original)))
+            }
+        }
+    }
 }
