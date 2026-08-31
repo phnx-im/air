@@ -14,6 +14,7 @@ import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/text_message_tile.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -88,6 +89,7 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockAttachmentsRepository attachmentsRepository;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockNavigationCubit navigationCubit;
 
     setUp(() {
       userCubit = MockUserCubit();
@@ -96,6 +98,7 @@ void main() {
       messageListCubit = MockMessageListCubit();
       attachmentsRepository = MockAttachmentsRepository();
       userSettingsCubit = MockUserSettingsCubit();
+      navigationCubit = MockNavigationCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(
@@ -108,6 +111,9 @@ void main() {
         ),
       ).thenAnswer((_) async {});
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(const NavigationState.home());
     });
 
     Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
@@ -119,6 +125,7 @@ void main() {
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
         ],
         child: Builder(
           builder: (context) => MaterialApp(
@@ -421,6 +428,20 @@ void main() {
         moreOrLessEquals(MessageRowTokens.messageGap),
       );
       expect(avatar.bottom, moreOrLessEquals(bubble3.bottom));
+    });
+
+    testWidgets('open the sender from the avatar that closes a group', (
+      tester,
+    ) async {
+      // The avatar hangs out of the row's own box, so nothing between the two
+      // may bound the hit test to that box.
+      messageListCubit.setState([_message(1, sender: 2, text: 'yes')]);
+
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.byType(UserAvatar));
+
+      verify(() => navigationCubit.openMemberDetails(2.userId())).called(1);
     });
   });
 }
