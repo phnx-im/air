@@ -139,23 +139,6 @@ impl DsGroupState {
 
         let is_self_group = self.is_self_group();
 
-        // Temporary measure to prevent old clients from derailing self-groups on new clients. Will
-        // be removed shortly.
-        if is_self_group
-            && staged_commit.add_proposals().next().is_none()
-            && staged_commit.remove_proposals().next().is_none()
-        {
-            let commit_data =
-                extract_virtual_client_commit_data(processed_message).map_err(|error| {
-                    error!(%error, "Failed to extract virtual client commit data from safe AAD");
-                    GroupOperationError::InvalidMessage
-                })?;
-            if commit_data.is_none() {
-                warn!("Self-group commit without membership change or commit data");
-                return Err(GroupOperationError::InvalidMessage);
-            }
-        }
-
         // If the commit carries an update path, the sender's new leaf credential must match the
         // group kind.
         if let Some(update_leaf) = staged_commit.update_path_leaf_node() {
