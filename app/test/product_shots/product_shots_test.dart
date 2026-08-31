@@ -38,6 +38,12 @@ const _goldensDir = String.fromEnvironment(
   defaultValue: 'goldens',
 );
 
+/// Override with `--dart-define=FORCE_RENDER_ALL_PLATFORMS=true`
+const _renderAllPlatforms = bool.fromEnvironment(
+  'FORCE_RENDER_ALL_PLATFORMS',
+  defaultValue: false,
+);
+
 String _golden(String name) => '$_goldensDir/$name';
 
 const androidPhysicalSize = Size(2160, 3840);
@@ -242,7 +248,7 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(_golden("chat_list.$identifier.frameless.png")),
+            matchesGoldenFile(_golden("chat_list.$identifier.png")),
           );
         },
       );
@@ -384,9 +390,7 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(
-              _golden("private_chat.$identifier.frameless.png"),
-            ),
+            matchesGoldenFile(_golden("private_chat.$identifier.png")),
           );
         },
       );
@@ -527,153 +531,12 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(_golden("group_chat.$identifier.frameless.png")),
+            matchesGoldenFile(_golden("group_chat.$identifier.png")),
           );
         },
       );
     }
   });
-
-  // group("macOS Product Shots", () {
-  //   late MockNavigationCubit navigationCubit;
-  //   late MockUserCubit userCubit;
-  //   late MockUsersCubit usersCubit;
-  //   late MockChatDetailsCubit chatDetailsCubit;
-  //   late MockMessageListCubit messageListCubit;
-  //   late MockUserSettingsCubit userSettingsCubit;
-  //   late MockAttachmentsRepository attachmentsRepository;
-
-  //   setUp(() async {
-  //     navigationCubit = MockNavigationCubit();
-  //     userCubit = MockUserCubit();
-  //     usersCubit = MockUsersCubit();
-  //     chatDetailsCubit = MockChatDetailsCubit();
-  //     messageListCubit = MockMessageListCubit();
-  //     userSettingsCubit = MockUserSettingsCubit();
-  //     attachmentsRepository = MockAttachmentsRepository();
-
-  //     when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-  //     when(() => usersCubit.state).thenReturn(
-  //       MockUsersState(profiles: userProfiles, defaultUserId: ownId),
-  //     );
-  //     when(
-  //       () => userSettingsCubit.state,
-  //     ).thenReturn(const UserSettings(experimentalFeatures: false));
-  //     when(
-  //       () => chatDetailsCubit.markAsRead(
-  //         untilMessageId: any(named: "untilMessageId"),
-  //         untilTimestamp: any(named: "untilTimestamp"),
-  //       ),
-  //     ).thenAnswer((_) => Future.value());
-  //     when(
-  //       () => chatDetailsCubit.storeDraft(
-  //         draftMessage: any(named: "draftMessage"),
-  //         isCommitted: any(named: "isCommitted"),
-  //       ),
-  //     ).thenAnswer((_) async => Future.value());
-  //     when(
-  //       () => attachmentsRepository.statusStream(
-  //         attachmentId: any(named: "attachmentId"),
-  //       ),
-  //     ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
-  //   });
-
-  //   List<SingleChildWidget> buildProviders() => [
-  //     RepositoryProvider<AttachmentsRepository>.value(
-  //       value: attachmentsRepository,
-  //     ),
-  //     RepositoryProvider<chats_repository.ChatsRepository>.value(
-  //       value: FakeChatsRepository(chats),
-  //     ),
-  //     BlocProvider<NavigationCubit>.value(value: navigationCubit),
-  //     BlocProvider<UserCubit>.value(value: userCubit),
-  //     BlocProvider<UsersCubit>.value(value: usersCubit),
-  //     BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-  //     BlocProvider<MessageListCubit>.value(value: messageListCubit),
-  //     BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-  //   ];
-
-  //   const desktopScreen = HomeScreenDesktopLayout(
-  //     chatList: ChatListView(),
-  //     chat: ChatScreenView(createMessageCubit: createMockMessageCubit),
-  //   );
-
-  //   Widget buildSubject({
-  //     required Color backgroundColor,
-  //     required Color titleColor,
-  //     required Color subtitleColor,
-  //     required Color frameColor,
-  //     required String title,
-  //     required String subtitle,
-  //   }) => buildProductShotSubject(
-  //     providers: buildProviders(),
-  //     shot: ProductShot(
-  //       backgroundColor: backgroundColor,
-  //       titleColor: titleColor,
-  //       subtitleColor: subtitleColor,
-  //       title: title,
-  //       subtitle: subtitle,
-  //       frameColor: frameColor,
-  //       device: TargetPlatform.macOS.device,
-  //       child: desktopScreen,
-  //     ),
-  //   );
-
-  //   Widget buildFramelessSubject() => buildProductShotSubject(
-  //     providers: buildProviders(),
-  //     frameless: true,
-  //     shot: DeviceFrame(
-  //       device: TargetPlatform.macOS.device.deviceInfo,
-  //       screen: desktopScreen,
-  //     ),
-  //   );
-
-  //   for (final productShot in productShotsMatrix) {
-  //     final device = productShot.targetPlatform.device;
-  //     final deviceInfo = device.deviceInfo;
-  //     final identifier = device.identifier;
-
-  //     testProductShot(
-  //       "Private Chat (${deviceInfo.name})",
-  //       hostPlatform: productShot.hostPlatform,
-  //       // physicalSize: productShot.targetPlatform.device.screenSize,
-  //       targetPlatform: productShot.targetPlatform,
-  //       (tester) async {
-  //         await tester.pumpWidget(buildSubject(device));
-  //         await _precacheImages(tester);
-  //         await tester.pumpAndSettle();
-
-  //         await expectLater(
-  //           find.byType(ProductShot),
-  //           // Do not change the ios/android file names, as they are
-  //           // referenced in stores/ios/en-US/screenshots and
-  //           // stores/android/metadata/en-US/images/phone-screenshots
-  //           matchesGoldenFile(_golden("private_chat.$identifier.png")),
-  //         );
-  //       },
-  //     );
-
-  //     // Build the product shot without marketing chrome
-  //     testProductShot(
-  //       "Private Chat (${productShot.targetPlatform}, ${deviceInfo.name})",
-  //       hostPlatform: productShot.hostPlatform,
-  //       // physicalSize: iosPhysicalSize,
-  //       targetPlatform: productShot.targetPlatform,
-  //       (tester) async {
-  //         await tester.pumpWidget(buildFramelessSubject(deviceInfo));
-  //         await _precacheImages(tester);
-  //         await tester.pumpAndSettle();
-
-  //         await expectLater(
-  //           find.byType(DeviceFrame),
-  //           matchesGoldenFile(
-  //             _golden("private_chat.$identifier.frameless.png"),
-  //           ),
-  //         );
-  //       },
-  //     );
-  //   }
-  // });
 }
 
 /// Stubs each attachment id to its own image, since the mocked repository
@@ -726,7 +589,7 @@ void testProductShot(
         debugDisableShadows = true;
       }
     },
-    skip: Platform.operatingSystem != hostPlatform,
+    skip: !_renderAllPlatforms && Platform.operatingSystem != hostPlatform,
     variant: TargetPlatformVariant.only(targetPlatform),
   );
 }

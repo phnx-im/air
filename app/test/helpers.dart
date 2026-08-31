@@ -129,12 +129,20 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
   final double threshold;
 
   String _platformSuffix() {
-    if (Platform.isMacOS) return '.macos';
-    if (Platform.isWindows) return '.windows';
-    if (Platform.isLinux) return '.linux';
-    if (Platform.isAndroid) return '.android';
-    if (Platform.isIOS) return '.ios';
-    return '';
+    switch (debugDefaultTargetPlatformOverride) {
+      case TargetPlatform.android:
+        return '.android';
+      case TargetPlatform.iOS:
+        return '.ios';
+      case TargetPlatform.linux:
+        return '.linux';
+      case TargetPlatform.macOS:
+        return '.macos';
+      case TargetPlatform.windows:
+        return '.windows';
+      default:
+        return '';
+    }
   }
 
   @override
