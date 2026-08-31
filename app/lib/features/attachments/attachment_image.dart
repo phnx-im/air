@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:air/features/attachments/attachment_image_provider.dart';
+import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
@@ -29,7 +29,7 @@ const int _maxAutoLoops = 3;
 ///
 /// Depending on whether the image is animated, it is rendered differently::
 ///
-/// - **Static**: rendered via [Image] + [AttachmentImageProvider], so frames
+/// - **Static**: rendered via [Image] + [AttachmentThumbnailProvider], so frames
 ///   live in Flutter's shared `imageCache`. Tap forwards to [onTap] (image
 ///   viewer) along with the provider painted here, so the viewer opens on a
 ///   decode it already has. The bytes loaded for classification are discarded;
@@ -105,20 +105,26 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final id = widget.attachment.attachmentId;
     try {
       if (!mounted) return;
-      final loaded = await context
-          .read<AttachmentsRepository>()
-          .loadImageAttachment(
-            attachmentId: id,
-            retryDownloadIfFailed: retryDownloadIfFailed,
-            chunkEventCallback: (_) {},
-          );
+      final repository = context.read<AttachmentsRepository>();
+      final thumbnail = await repository.loadThumbnail(
+        attachmentId: id,
+        retryDownloadIfFailed: retryDownloadIfFailed,
+      );
       if (!mounted) return;
-      _animationFlagCache[id] = loaded.isAnimated;
-      if (!loaded.isAnimated) {
+      if (thumbnail == null) return;
+      _animationFlagCache[id] = thumbnail.isAnimated;
+      if (!thumbnail.isAnimated) {
         setState(() => _isAnimated = false);
         return;
       }
-      _bytes = loaded.bytes;
+
+      // The image is animated => thumbnail is just the first frame => fetch the original
+      final original = await repository.loadImageAttachment(
+        attachmentId: id,
+        retryDownloadIfFailed: retryDownloadIfFailed,
+      );
+      if (!mounted) return;
+      _bytes = original.bytes;
       if (_isAnimated == null) {
         setState(() => _isAnimated = true);
       }
@@ -267,6 +273,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
         image: thumbnail,
         fit: widget.fit,
         alignment: Alignment.center,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
       );
     } else if (_currentFrame != null) {
       foreground = RawImage(
@@ -308,8 +315,8 @@ class _AttachmentImageState extends State<AttachmentImage> {
   ImageProvider _thumbnail(BuildContext context, BoxConstraints constraints) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     return ResizeImage(
-      AttachmentImageProvider(
-        attachment: widget.attachment,
+      AttachmentThumbnailProvider(
+        attachmentId: widget.attachment.attachmentId,
         attachmentsRepository: context.read<AttachmentsRepository>(),
       ),
       // The box we lay out in comes from the sender-declared metadata, which

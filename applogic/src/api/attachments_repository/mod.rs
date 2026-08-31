@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod thumbnail_queue;
+
 use std::{fs, io::Write, sync::Arc};
 
 use aircoreclient::{
@@ -15,13 +17,13 @@ use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
 use flutter_rust_bridge::frb;
 use futures_util::StreamExt;
-use indexmap::IndexMap;
-use parking_lot::Mutex;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error, info};
 
 use crate::{StreamSink, api::user_cubit::UserCubitBase, util::spawn_from_sync};
+
+use thumbnail_queue::ThumbnailQueue;
 
 pub(crate) type InProgressMap = Arc<DashMap<AttachmentId, AttachmentTaskHandle>>;
 
@@ -49,11 +51,7 @@ impl AttachmentsRepository {
         let in_progress = InProgressMap::default();
 
         let (thumbnail_queue, thumbnail_worker) = ThumbnailQueue::new(core_user.clone());
-        spawn_from_sync(
-            cancel
-                .clone()
-                .run_until_cancelled_owned(thumbnail_worker.run()),
-        );
+        spawn_from_sync(cancel.clone().run_until_cancelled_owned(thumbnail_worker));
 
         spawn_attachment_downloads(core_user.clone(), cancel.clone(), in_progress.clone());
 
@@ -493,112 +491,4 @@ pub enum UiAttachmentStatus {
 pub struct LoadedImageAttachment {
     pub bytes: Vec<u8>,
     pub is_animated: bool,
-}
-
-type ThumbnailWaiters = Vec<oneshot::Sender<LoadedImageAttachment>>;
-
-/// Pending thumbnail generations, served newest first.
-#[frb(ignore)]
-struct ThumbnailQueue {
-    pending: Arc<Mutex<IndexMap<AttachmentId, ThumbnailWaiters>>>,
-    wake: mpsc::UnboundedSender<()>,
-}
-
-impl ThumbnailQueue {
-    fn new(core_user: CoreUser) -> (Self, ThumbnailWorker) {
-        let (wake_tx, wake) = mpsc::unbounded_channel();
-        let pending = Arc::new(Mutex::new(IndexMap::new()));
-        let worker = ThumbnailWorker {
-            core_user,
-            pending: pending.clone(),
-            wake,
-        };
-        let queue = Self {
-            pending,
-            wake: wake_tx,
-        };
-        (queue, worker)
-    }
-
-    fn request(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> impl Future<Output = Option<LoadedImageAttachment>> {
-        let (tx, rx) = oneshot::channel();
-        {
-            let mut pending = self.pending.lock();
-            let mut waiters = pending.shift_remove(&attachment_id).unwrap_or_default();
-            waiters.push(tx);
-            pending.insert(attachment_id, waiters);
-        }
-        let _ = self.wake.send(());
-        async move { rx.await.ok() }
-    }
-}
-
-#[frb(ignore)]
-struct ThumbnailWorker {
-    core_user: CoreUser,
-    pending: Arc<Mutex<IndexMap<AttachmentId, ThumbnailWaiters>>>,
-    wake: mpsc::UnboundedReceiver<()>,
-}
-
-impl ThumbnailWorker {
-    async fn run(mut self) {
-        while self.wake.recv().await.is_some() {
-            loop {
-                // Don't hold the lock across await points
-                let next = { self.pending.lock().pop() }; // newest first
-                let Some((attachment_id, mut waiters)) = next else {
-                    break;
-                };
-                match self.generate_thumbnail(attachment_id).await {
-                    Ok(Some(loaded)) => {
-                        // Only additional waiters pay the cost of cloning.
-                        let last = waiters.pop();
-                        for tx in waiters {
-                            let _ = tx.send(loaded.clone());
-                        }
-                        if let Some(tx) = last {
-                            let _ = tx.send(loaded);
-                        }
-                    }
-                    // Senders drop => the waiters keep their blurhash
-                    Ok(None) => {}
-                    Err(error) => {
-                        error!(%error, ?attachment_id, "Failed to generate attachment thumbnail");
-                    }
-                }
-            }
-        }
-    }
-
-    async fn generate_thumbnail(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> anyhow::Result<Option<LoadedImageAttachment>> {
-        match self.core_user.attachment_thumbnail(attachment_id).await? {
-            Some(AttachmentThumbnail::Ready { bytes, is_animated }) => {
-                Ok(Some(LoadedImageAttachment { bytes, is_animated }))
-            }
-            existing => {
-                let original = match self.core_user.load_attachment(attachment_id).await? {
-                    AttachmentContent::Ready(bytes)
-                    | AttachmentContent::Uploading(bytes)
-                    | AttachmentContent::UploadFailed(bytes) => bytes,
-                    // Content went away
-                    _ => return Ok(None),
-                };
-                let thumbnail = match existing {
-                    Some(thumbnail) => thumbnail,
-                    None => {
-                        self.core_user
-                            .generate_attachment_thumbnail(attachment_id, &original)
-                            .await?
-                    }
-                };
-                Ok(Some(loaded(thumbnail, original)))
-            }
-        }
-    }
 }

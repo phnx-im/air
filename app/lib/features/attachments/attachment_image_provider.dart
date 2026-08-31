@@ -52,14 +52,6 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
       loaded = await attachmentsRepository.loadImageAttachment(
         attachmentId: key.attachmentId,
         retryDownloadIfFailed: false,
-        chunkEventCallback: (cumulativeBytesLoaded) {
-          chunkEvents.add(
-            ImageChunkEvent(
-              cumulativeBytesLoaded: cumulativeBytesLoaded.toInt(),
-              expectedTotalBytes: key.size,
-            ),
-          );
-        },
       );
     } catch (e) {
       scheduleMicrotask(() {
