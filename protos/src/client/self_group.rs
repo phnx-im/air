@@ -5,8 +5,8 @@
 //! Wire format for data synchronized across a user's own clients through the
 //! self-group.
 //!
-//! Settings updates and Privacy Pass token seeds travel as `AppEphemeral`
-//! proposals with component id
+//! Settings updates, Privacy Pass token seeds and blocked-contact updates
+//! travel as `AppEphemeral` proposals with component id
 //! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
 //! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
 //! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. That payload
@@ -25,7 +25,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use super::group_bootstrap::GroupBootstrapBlob;
+use super::group_bootstrap::{GroupBootstrapBlob, PeerUserId};
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -85,6 +85,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 /// SelfGroupMessage = {
 ///   1: SettingsUpdate                ; tagged union; unknown tags are skipped
 ///   2: TokenSeed
+///   3: BlockedContactsUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -93,6 +94,8 @@ pub enum SelfGroupMessage {
     SettingsUpdate(SettingsUpdate),
     #[tag(2)]
     TokenSeed(TokenSeed),
+    #[tag(3)]
+    BlockedContactsUpdate(BlockedContactsUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
@@ -235,6 +238,99 @@ pub struct SettingsUpdate {
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
 }
+
+/// The contacts whose blocked state the sender just changed. This is a diff and
+/// not a snapshot.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// BlockedContactsUpdate = {
+///   ? contacts: [* BlockedContactEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct BlockedContactsUpdate {
+    /// Unordered, at most one entry per user id.
+    #[tag(1)]
+    pub contacts: Vec<BlockedContactEntry>,
+}
+
+/// The new blocked state of one contact.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// BlockedContactEntry = {
+///   user_id: PeerUserId .tag 1,
+///   state: BlockedContactState .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct BlockedContactEntry {
+    #[tag(1)]
+    pub user_id: PeerUserId,
+    /// [`BlockedContactState::Unknown`] when the sender left the state out or
+    /// used a state this client does not know. Ignored on receive.
+    #[tag(2)]
+    pub state: BlockedContactState,
+}
+
+/// The state a [`BlockedContactEntry`] puts a contact into.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// BlockedContactState = {
+///   1: ContactBlocked //
+///   2: ContactUnblocked
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum BlockedContactState {
+    #[tag(1)]
+    Blocked(ContactBlocked),
+    #[tag(2)]
+    Unblocked(ContactUnblocked),
+    /// A state this client does not understand. The whole entry is ignored on
+    /// receive.
+    #[default]
+    #[unknown]
+    Unknown,
+}
+
+/// The contact is blocked.
+///
+/// `blocked_at` comes from the blocking device's own clock. A receiver stores it
+/// as-is, so the block shows the same time on every device.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactBlocked = {
+///   blocked_at: uint .tag 1,      ; unix epoch seconds (UTC)
+///   last_display_name: tstr .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactBlocked {
+    #[tag(1)]
+    pub blocked_at: u64,
+    /// The display name the blocking device last saw. Labels the contact in the
+    /// blocked list without keeping the rest of its profile.
+    #[tag(2)]
+    pub last_display_name: String,
+}
+
+/// The contact is not blocked.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactUnblocked = {}
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactUnblocked {}
 
 #[cfg(test)]
 mod test {
@@ -497,15 +593,136 @@ mod test {
         );
     }
 
+    // 1c. `BlockedContactsUpdate` encode/decode and forward compatibility.
+
+    fn sample_peer_user_id(n: u128) -> PeerUserId {
+        PeerUserId {
+            uuid: Uuid::from_u128(n),
+            domain: "example.com".to_owned(),
+        }
+    }
+
+    fn sample_blocked_contacts_update() -> BlockedContactsUpdate {
+        BlockedContactsUpdate {
+            contacts: vec![
+                BlockedContactEntry {
+                    user_id: sample_peer_user_id(1),
+                    state: BlockedContactState::Blocked(ContactBlocked {
+                        blocked_at: 1_767_225_600,
+                        last_display_name: "Alice".to_owned(),
+                    }),
+                },
+                BlockedContactEntry {
+                    user_id: sample_peer_user_id(2),
+                    state: BlockedContactState::Unblocked(ContactUnblocked {}),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn blocked_contacts_update_roundtrip() {
+        let update = sample_blocked_contacts_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: BlockedContactsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn blocked_contacts_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_blocked_contacts_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn blocked_contacts_update_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::BlockedContactsUpdate(
+            sample_blocked_contacts_update(),
+        )]);
+        let key = message_key_from([11u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    #[test]
+    fn blocked_contacts_update_is_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageNoBlocking {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(2)]
+            TokenSeed(TokenSeed),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: None,
+        };
+        let newer = vec![
+            SelfGroupMessage::BlockedContactsUpdate(sample_blocked_contacts_update()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageNoBlocking> =
+            PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageNoBlocking::Unknown,
+                SelfGroupMessageNoBlocking::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    /// A state added after this client shipped decodes to `Unknown`, so the
+    /// receiver drops the one entry instead of the whole update.
+    #[test]
+    fn blocked_contact_entry_with_unknown_state_decodes_to_unknown() {
+        #[derive(Debug, Clone, Default, PartialEq, SerializeTaggedUnion)]
+        enum BlockedContactStateV2 {
+            #[tag(99)]
+            Muted(u64),
+            #[default]
+            #[unknown]
+            Unknown,
+        }
+
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct BlockedContactEntryV2 {
+            #[tag(1)]
+            user_id: PeerUserId,
+            #[tag(2)]
+            state: BlockedContactStateV2,
+        }
+
+        let newer = BlockedContactEntryV2 {
+            user_id: sample_peer_user_id(1),
+            state: BlockedContactStateV2::Muted(7),
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: BlockedContactEntry = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.user_id, sample_peer_user_id(1));
+        assert_eq!(decoded.state, BlockedContactState::Unknown);
+    }
+
     // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
     //    `Unknown`.
 
     /// A "newer" message enum with a variant unknown to [`SelfGroupMessage`].
+    ///
+    /// The tag is far out of range so that a later message kind does not claim
+    /// it and turn this into a known variant.
     #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
     enum SelfGroupMessageV2 {
         #[tag(1)]
         SettingsUpdate(SettingsUpdate),
-        #[tag(3)]
+        #[tag(99)]
         Something(u64),
         #[unknown]
         Unknown,
