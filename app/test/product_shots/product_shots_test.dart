@@ -262,7 +262,7 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(_golden("chat_list.$identifier.png")),
+            matchesGoldenFile(_golden("chat_list.$identifier.frameless.png")),
           );
         },
       );
@@ -412,7 +412,9 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(_golden("private_chat.$identifier.png")),
+            matchesGoldenFile(
+              _golden("private_chat.$identifier.frameless.png"),
+            ),
           );
         },
       );
@@ -527,6 +529,7 @@ void main() {
       final deviceInfo = device.deviceInfo;
       final identifier = device.identifier;
 
+      // Build the product shot with marketing
       testProductShot(
         "Group chat (${deviceInfo.name})",
         productShotInfo: productShotInfo,
@@ -561,7 +564,7 @@ void main() {
 
           await expectLater(
             find.byType(DeviceFrame),
-            matchesGoldenFile(_golden("group_chat.$identifier.png")),
+            matchesGoldenFile(_golden("group_chat.$identifier.frameless.png")),
           );
         },
       );
