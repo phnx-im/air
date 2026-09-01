@@ -249,9 +249,9 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
       messageListCubit.setState(fredMessages);
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
       ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
@@ -530,9 +530,9 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
       ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(

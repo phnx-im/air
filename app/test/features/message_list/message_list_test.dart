@@ -1321,9 +1321,9 @@ void main() {
 
       messageListCubit.setState(attachmentMessages);
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.isAttachmentAnimated(
           attachmentId: any(named: 'attachmentId'),
-          retryDownloadIfFailed: false,
+          retryDownloadIfFailed: any(named: 'retryDownloadIfFailed'),
         ),
       ).thenAnswer((_) async => Future.any([]));
       when(
