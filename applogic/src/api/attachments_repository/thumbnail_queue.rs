@@ -105,7 +105,7 @@ impl ThumbnailWorker {
                 let original = match self.core_user.load_attachment(attachment_id).await? {
                     AttachmentContent::Ready(bytes)
                     | AttachmentContent::Uploading(bytes)
-                    | AttachmentContent::UploadFailed(bytes) => bytes,
+                    | AttachmentContent::UploadFailed(bytes) => Arc::new(bytes),
                     // Content went away
                     _ => return Ok(None),
                 };
@@ -113,10 +113,11 @@ impl ThumbnailWorker {
                     Some(thumbnail) => thumbnail,
                     None => {
                         self.core_user
-                            .generate_attachment_thumbnail(attachment_id, &original)
+                            .generate_attachment_thumbnail(attachment_id, original.clone())
                             .await?
                     }
                 };
+                let original = Arc::unwrap_or_clone(original);
                 Ok(Some(loaded(thumbnail, original)))
             }
         }

@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                state AS \"state: _\",\n                content,\n                is_animated\n            FROM attachment_thumbnail\n            WHERE attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "state: _",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_thumbnail",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "content",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_thumbnail",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 2,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment_thumbnail",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "85d53140592c2ef3ec1a128a48a7e78c0f461ec1ec48fbbf84295636c8934ef1"
+}
