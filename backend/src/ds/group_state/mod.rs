@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -17,6 +17,7 @@ use aircommon::{
     identifiers::{QsReference, SealedClientReference},
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
+    utils::removed_client,
 };
 use airprotos::client::component::AirComponent;
 use apqmls::extension::ApqInfo;
@@ -33,7 +34,7 @@ use mls_assist::{
 use sqlx::{PgExecutor, PgTransaction};
 use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::error;
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -177,6 +178,12 @@ impl DsGroupState {
     /// so the recorded profile keys are the ones a joiner at that epoch needs.
     pub(super) fn stage_welcome_info(&mut self, retained: Option<RetainedWelcomeInfo>) {
         let Some(retained) = retained else { return };
+        // Add members to room state that may be missing due to a (now fixed) bug.
+        add_missing_members_to_room_state(
+            &mut self.room_state,
+            &self.group,
+            self.provider.storage(),
+        );
         let (epoch, info) = DsWelcomeInfo::new(
             retained,
             self.current_member_profiles().collect(),
@@ -533,7 +540,7 @@ impl DecodedDsGroupState {
             state.member_profiles.into_iter().collect();
         let provider = MlsAssistRustCrypto::from(storage);
 
-        let room_state = PersistenceCodec::from_slice(state.room_state.as_slice())
+        let mut room_state = PersistenceCodec::from_slice(state.room_state.as_slice())
             .inspect_err(|error| {
                 error!(%error, "Failed to load room state. Falling back to default room state.");
             })
@@ -544,6 +551,8 @@ impl DecodedDsGroupState {
             }).ok()
             })
             .unwrap_or_else(|| fallback_room_state(group.members()));
+
+        add_missing_members_to_room_state(&mut room_state, &group, provider.storage());
 
         let mut legacy_past_member_profiles: BTreeMap<_, _> =
             self.legacy_past_member_profiles.into_iter().collect();
@@ -605,6 +614,108 @@ pub(super) fn leaf_credential_matches_flag(
     is_self_group: bool,
 ) -> bool {
     matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
+}
+
+/// Give the regular role to every group member the room state does not list.
+///
+/// The DS used to not record the external joiner of a connection group in its
+/// room state, so a connection group created before that fix misses its joiner.
+/// The clients have applied the changes on their own in the past, so only the
+/// DS needs this fix.
+///
+/// Leaves with a queued remove or self-remove proposal are left out. The DS
+/// applies the role change of a self-remove when the proposal arrives, so the
+/// room state legitimately drops such a member before the commit that evicts
+/// them.
+fn add_missing_members_to_room_state(
+    room_state: &mut VerifiedRoomState,
+    group: &Group,
+    storage: &CborMlsAssistStorage,
+) {
+    let mut missing = Vec::new();
+    for member in group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)
+            .ok()
+            .and_then(|credential| credential.room_policy_identity().to_bytes().ok());
+        let Some(identity) = identity else {
+            debug!(
+                index = %member.index,
+                "Leaf without a room policy identity, not reconciling the room state",
+            );
+            return;
+        };
+        if !room_state.users().contains_key(&identity) {
+            missing.push((member.index, identity));
+        }
+    }
+    if missing.is_empty() {
+        return;
+    }
+
+    let queued_removes: HashSet<_> = match group.queued_proposals(storage) {
+        Ok(proposals) => proposals.iter().filter_map(removed_client).collect(),
+        Err(error) => {
+            error!(%error, "Failed to load queued proposals, not reconciling the room state");
+            return;
+        }
+    };
+    let missing: Vec<_> = missing
+        .into_iter()
+        .filter(|(index, _)| !queued_removes.contains(index))
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+
+    // A room state that lists nobody cannot admit anyone. Every user it had has
+    // left while the tree kept members it never recorded, so we rebuild it from
+    // those members.
+    if room_state.users().is_empty() {
+        warn!(
+            count = missing.len(),
+            "Rebuilding a room state that lists no members"
+        );
+        let identities: Vec<_> = missing.into_iter().map(|(_, id)| id).collect();
+        let stand_in = identities[0].clone();
+        let mut rebuilt = VerifiedRoomState::fallback_room(identities);
+        if let Err(error) = rebuilt.apply_regular_proposals(
+            &stand_in,
+            &[MimiProposal::ChangeRole {
+                target: stand_in.clone(),
+                role: RoleIndex::Regular,
+            }],
+        ) {
+            error!(%error, "Failed to demote the stand-in owner");
+        }
+        *room_state = rebuilt;
+        return;
+    }
+
+    for (index, target) in missing {
+        let proposal = [MimiProposal::ChangeRole {
+            target,
+            role: RoleIndex::Regular,
+        }];
+        // Act as any member the policy lets invite. The room owner is the one
+        // that admitted every other member, but it may have left the room since.
+        let Some(sender) = room_state
+            .users()
+            .keys()
+            .find(|sender| {
+                room_state
+                    .can_apply_regular_proposals(sender, &proposal)
+                    .is_ok()
+            })
+            .cloned()
+        else {
+            error!(%index, "No member can admit the missing member, leaving the room state as is");
+            continue;
+        };
+        match room_state.apply_regular_proposals(&sender, &proposal) {
+            Ok(()) => warn!(%index, "Added a missing member to the room state"),
+            Err(error) => error!(%error, %index, "Failed to add a missing member"),
+        }
+    }
 }
 
 fn fallback_room_state(

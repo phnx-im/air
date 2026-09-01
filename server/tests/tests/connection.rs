@@ -643,3 +643,25 @@ async fn erase_connection_group_data_mixed_feature_support() {
         "Mixed feature support test should not produce messages for Bob"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "DS records the connection group joiner", skip_all)]
+async fn ds_room_state_contains_connection_group_joiner() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let users = setup
+        .get_user(&bob)
+        .user
+        .ds_room_state_users(chat_id)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        users,
+        [alice, bob].into_iter().collect(),
+        "the DS room state should list both users of the connection group"
+    );
+}

@@ -6,7 +6,9 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
+use aircommon::{
+    codec::PersistenceCodec, credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
@@ -218,6 +220,35 @@ impl CoreUser {
             .ok()
             .flatten()
             .map(|group| group.members().collect())
+    }
+
+    /// The users the DS lists in the room state it serves to an external joiner
+    /// of this chat's group.
+    pub async fn ds_room_state_users(&self, chat_id: ChatId) -> anyhow::Result<HashSet<UserId>> {
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+        let qgid: QualifiedGroupId = group.group_id().try_into()?;
+        let external_commit_info = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(
+                group.group_id().clone(),
+                group.pq_group_id(),
+                group.group_state_ear_key(),
+            )
+            .await?;
+        external_commit_info
+            .room_state
+            .users()
+            .keys()
+            .map(|identity| match RoomPolicyIdentity::from_bytes(identity)? {
+                RoomPolicyIdentity::User(user_id) => Ok(user_id),
+                RoomPolicyIdentity::Client(client_id) => Err(anyhow::anyhow!(
+                    "unexpected client identity {client_id} in the room state"
+                )),
+            })
+            .collect()
     }
 
     /// Enqueues a resync with a fabricated group_id that does not exist on the
