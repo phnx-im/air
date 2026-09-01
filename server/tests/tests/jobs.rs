@@ -226,6 +226,55 @@ async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, 
     (setup, alice, bob, charlie, chat_id)
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn apq_self_remove_is_committed_on_both_legs() {
+    let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
+    let bob_user = &setup.get_user(&bob).user;
+
+    let charlie_user = &setup.get_user(&charlie).user;
+    charlie_user.leave_chat(chat_id).await.unwrap();
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Charlie's self-remove proposal without errors: {:?}",
+        result.errors
+    );
+
+    let before = bob_user.chat_debug_info(chat_id).await.unwrap();
+    let pq_before = before.pq.clone().expect("APQ group must have a PQ group");
+    assert_eq!(
+        before.pending_proposals, 1,
+        "T leg should hold Charlie's self-remove"
+    );
+    assert_eq!(
+        pq_before.pending_proposals, 1,
+        "PQ leg should hold Charlie's self-remove"
+    );
+
+    bob_user.update_key(chat_id).await.unwrap();
+
+    let after = bob_user.chat_debug_info(chat_id).await.unwrap();
+    let pq_after = after.pq.clone().expect("APQ group must have a PQ group");
+    assert_eq!(after.pending_proposals, 0, "T self-remove not committed");
+    assert_eq!(
+        pq_after.pending_proposals, 0,
+        "PQ self-remove not committed"
+    );
+    // A T-only update would have left the PQ epoch where it was.
+    assert!(
+        pq_after.epoch > pq_before.epoch,
+        "PQ leg must advance with the self-remove, got {} -> {}",
+        pq_before.epoch,
+        pq_after.epoch
+    );
+
+    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert!(!participants.contains(&charlie));
+    assert!(participants.contains(&alice));
+}
+
 // Make sure that the rosters of T and PQ groups in an APQ group remain
 // identical in the context of pending commits.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -452,4 +501,43 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
         pending_after.is_none(),
         "pending leave should be deleted once another member commits our self-remove"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    alice_user.leave_chat(chat_id).await.unwrap();
+
+    // Bob leaves the proposal sitting in his queue, so his commit cannot carry
+    // it.
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("DS should reject a commit that ignores the pending self-remove");
+
+    let pending_after = bob_user.pending_chat_operation_info(chat_id).await.unwrap();
+    assert!(
+        pending_after.is_none(),
+        "rejected operation should be cleaned up, not parked"
+    );
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's self-remove proposal without errors: {:?}",
+        result.errors
+    );
+
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect("commit carrying the self-remove should be accepted");
+
+    let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(chat_participants.len(), 1);
+    assert!(!chat_participants.contains(&alice));
 }

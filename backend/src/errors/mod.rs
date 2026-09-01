@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::common::v1::{
-    DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, WrongEpochDetail,
+    DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail,
+    WrongEpochDetail,
     status_details::{self, Detail},
 };
 use apqmls::processing::ApqProcessPublicMessageError;
@@ -23,6 +24,8 @@ use tonic::{Code, Status};
 use tracing::error;
 
 use aircommon::codec::PersistenceCodec;
+
+use crate::ds::group_state::SelfRemoveCheckError;
 
 pub(crate) mod auth_service;
 pub(crate) mod qs;
@@ -133,10 +136,23 @@ pub(crate) enum GroupOperationError {
     /// Incomplete Welcome message.
     #[error("Incomplete Welcome message.")]
     IncompleteWelcome,
+    /// The commit does not remove every leaf with a pending self-remove
+    /// proposal.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    UncommittedSelfRemove,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
     #[error("Max devices exceeded")]
     MaxDevicesExceeded { max_devices: u32 },
+}
+
+impl From<SelfRemoveCheckError> for GroupOperationError {
+    fn from(error: SelfRemoveCheckError) -> Self {
+        match error {
+            SelfRemoveCheckError::ProposalStore => Self::ProcessingError,
+            SelfRemoveCheckError::Uncommitted => Self::UncommittedSelfRemove,
+        }
+    }
 }
 
 impl From<ProcessAssistedMessageError> for GroupOperationError {
@@ -194,6 +210,7 @@ impl From<GroupOperationError> for Status {
                 Status::invalid_argument(msg)
             }
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
+            GroupOperationError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
             GroupOperationError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
@@ -291,6 +308,22 @@ fn wrong_epoch_status(msg: String) -> Status {
     )
 }
 
+/// The commit was rejected for leaving a self-remove proposal uncommitted.
+fn uncommitted_self_remove_status(msg: String) -> Status {
+    Status::with_details(
+        Code::InvalidArgument,
+        msg,
+        StatusDetails {
+            code: StatusDetailsCode::UncommittedSelfRemove.into(),
+            detail: Some(Detail::UncommittedSelfRemove(
+                UncommittedSelfRemoveDetail {},
+            )),
+        }
+        .encode_to_vec()
+        .into(),
+    )
+}
+
 impl From<ClientSelfRemovalError> for Status {
     fn from(e: ClientSelfRemovalError) -> Self {
         let msg = e.to_string();
@@ -315,8 +348,21 @@ pub(crate) enum ResyncClientError {
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
+    /// The commit does not remove every leaf with a pending self-remove
+    /// proposal.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    UncommittedSelfRemove,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
+}
+
+impl From<SelfRemoveCheckError> for ResyncClientError {
+    fn from(error: SelfRemoveCheckError) -> Self {
+        match error {
+            SelfRemoveCheckError::ProposalStore => Self::ProcessingError,
+            SelfRemoveCheckError::Uncommitted => Self::UncommittedSelfRemove,
+        }
+    }
 }
 
 impl From<ResyncClientError> for Status {
@@ -325,6 +371,7 @@ impl From<ResyncClientError> for Status {
         match e {
             ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
             ResyncClientError::ProcessingError => Status::internal(msg),
+            ResyncClientError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
             ResyncClientError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
