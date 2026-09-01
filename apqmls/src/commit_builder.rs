@@ -9,8 +9,8 @@ use openmls::{
         QueuedProposal,
     },
     prelude::{
-        InvalidExtensionError, LeafNodeIndex, LeafNodeParameters, PreSharedKeyProposal, Proposal,
-        ProposalType,
+        Extensions, GroupContext, InvalidExtensionError, LeafNodeIndex, LeafNodeParameters,
+        PreSharedKeyProposal, Proposal, ProposalType,
     },
     storage::OpenMlsProvider,
 };
@@ -118,6 +118,7 @@ struct ConfigValues {
     create_group_info: bool,
     vc_emulation_group_id: Option<GroupId>,
     derivation_epoch: bool,
+    t_group_context_extensions: Option<Extensions<GroupContext>>,
 }
 
 impl ConfigValues {
@@ -221,6 +222,15 @@ impl<'a> CommitBuilder<'a> {
             return self;
         }
         self.values.t_proposals.push(t_proposal);
+        self
+    }
+
+    /// Proposes the given group context extensions on the classical leg.
+    pub fn propose_t_group_context_extensions(
+        mut self,
+        extensions: Extensions<GroupContext>,
+    ) -> Self {
+        self.values.t_group_context_extensions = Some(extensions);
         self
     }
 
@@ -352,6 +362,11 @@ impl<'a> CommitBuilder<'a> {
             .t_group
             .commit_builder()
             .pipe(|b| self.values.apply::<true>(b));
+        // The group context extensions live on the classical leg only.
+        let t_builder = match self.values.t_group_context_extensions.clone() {
+            Some(extensions) => t_builder.propose_group_context_extensions(extensions)?,
+            None => t_builder,
+        };
         let t_builder = match &self.values.vc_emulation_group_id {
             Some(group_id) => {
                 t_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?

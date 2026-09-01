@@ -153,6 +153,8 @@ pub(crate) enum JobError<E> {
     Blocked,
     #[error("Not found")]
     NotFound,
+    #[error("Stale commit: {0}")]
+    Stale(anyhow::Error),
     #[error(transparent)]
     Fatal(#[from] anyhow::Error),
 }

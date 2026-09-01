@@ -418,7 +418,7 @@ impl OutboundServiceContext {
             Err(JobError::NotFound) => Err(OutboundServiceError::fatal(anyhow!(
                 "Chat not found while committing pending proposals"
             ))),
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
+            Err(error @ (JobError::Domain(_) | JobError::Fatal(_) | JobError::Stale(_))) => {
                 Err(OutboundServiceError::fatal(error))
             }
         }

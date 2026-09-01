@@ -17,6 +17,7 @@ use aircommon::{
     identifiers::{QsReference, SealedClientReference},
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
+    utils::removed_clients,
 };
 use airprotos::client::component::AirComponent;
 use apqmls::extension::ApqInfo;
@@ -26,7 +27,7 @@ use mls_assist::{
     group::{Group, RetainedWelcomeInfo},
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
+        prelude::{GroupEpoch, LeafNodeIndex, Proposal, Sender, StagedCommit},
     },
     provider_traits::MlsAssistProvider,
 };
@@ -297,6 +298,43 @@ impl DsGroupState {
         !self.is_self_group()
     }
 
+    /// The leaves that sent a self-remove proposal the DS has accepted but not
+    /// seen committed yet.
+    fn pending_self_remove_leaves(&self) -> Result<Vec<LeafNodeIndex>, ProposalStoreError> {
+        let proposals = self
+            .group()
+            .queued_proposals(self.provider.storage())
+            .map_err(|error| {
+                error!(%error, "Failed to read the proposal store");
+                ProposalStoreError
+            })?;
+        Ok(proposals
+            .iter()
+            .filter_map(|proposal| match (proposal.proposal(), proposal.sender()) {
+                (Proposal::SelfRemove, Sender::Member(leaf_index)) => Some(*leaf_index),
+                _ => None,
+            })
+            .collect())
+    }
+
+    /// The next commit after a self-remove proposal has to remove the proposing
+    /// leaf, otherwise a group could keep a leaving member in indefinitely by
+    /// committing around its proposal.
+    ///
+    /// Returns the leaves with a pending self-remove that `staged_commit`
+    /// leaves in the group.
+    pub(super) fn uncommitted_self_removes(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> Result<Vec<LeafNodeIndex>, ProposalStoreError> {
+        let removed = removed_clients(staged_commit);
+        Ok(self
+            .pending_self_remove_leaves()?
+            .into_iter()
+            .filter(|leaf_index| !removed.contains(leaf_index))
+            .collect())
+    }
+
     /// The self-group flag in the group context's [`AirComponent`] is fixed at
     /// group creation. Returns `true` if merging `staged_commit` keeps it
     /// unchanged.
@@ -337,6 +375,12 @@ impl DsGroupState {
             .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
     }
 }
+
+/// The proposal store could not be read, so the DS cannot tell whether a commit
+/// leaves a self-remove behind.
+#[derive(Debug, Error)]
+#[error("Failed to read the proposal store")]
+pub(super) struct ProposalStoreError;
 
 #[derive(Debug, Error)]
 pub(super) enum DsGroupStateEncryptionError {

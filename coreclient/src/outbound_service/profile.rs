@@ -119,6 +119,7 @@ impl OutboundServiceContext {
             Err(
                 error @ (JobError::Blocked
                 | JobError::Fatal(_)
+                | JobError::Stale(_)
                 | JobError::NotFound
                 | JobError::Domain(_)),
             ) => {

@@ -296,6 +296,26 @@ impl Job for PendingChatOperation {
                     .ok();
                 fatal_error
             }
+            stale_error @ Err(JobError::Stale(_)) => {
+                // Same cleanup as a fatal error, but the we still want to do
+                // the commit.
+                context
+                    .db
+                    .write()
+                    .await?
+                    .with_transaction(async |txn| -> anyhow::Result<()> {
+                        let group = self.group.group_mut();
+                        group.discard_pending_commit(&mut *txn).await?;
+                        Self::delete(txn, self.group.group_id()).await?;
+                        Ok(())
+                    })
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to delete stale pending chat operation");
+                    })
+                    .ok();
+                stale_error
+            }
             res => res,
         }
     }
@@ -699,6 +719,17 @@ impl PendingChatOperation {
             }
 
             Err(JobError::Blocked)
+        } else if error.is_uncommitted_self_remove() {
+            // A member proposed its own removal and the DS requires the next
+            // commit to carry it. Our commit was staged before we saw the
+            // proposal, so we can't just re-send it.
+            info!(
+                group_id = ?self.group.group_id(),
+                "DS rejected the commit for leaving a self-remove proposal uncommitted"
+            );
+            Ok(JobError::Stale(anyhow!(
+                "DS rejected the commit: it left a pending self-remove uncommitted"
+            )))
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
             // If we get a network error (which means we don't know whether the request has been
             // processed by the DS), we want to try again until we've either succeeded or reached a
@@ -813,7 +844,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, derivation_epoch)
+            .apq_update(txn, &signer, None, derivation_epoch)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
@@ -996,15 +1027,23 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-        let params = group
-            .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
-            .await?;
 
-        let job = Self::new(
-            group,
-            OperationType::other_with_picture(params, new_chat_picture),
-        );
+        // If there is a pending proposal, we have to do a full APQ update.
+        let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
+            let params = group
+                .group_mut()
+                .apq_update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
+                .await?;
+            OperationType::apq_other_with_picture(params, new_chat_picture)
+        } else {
+            let params = group
+                .group_mut()
+                .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
+                .await?;
+            OperationType::other_with_picture(params, new_chat_picture)
+        };
+
+        let job = Self::new(group, operation_type);
         job.store(txn).await?;
 
         Ok(job)
@@ -1761,14 +1800,20 @@ mod tests {
     };
     use airprotos::{
         client::component::AirComponent,
-        common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
+        common::v1::{
+            StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail, WrongEpochDetail,
+            status_details::Detail,
+        },
     };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        ChatAttributes,
+        clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
+        db::access::DbAccess,
+        groups::GroupDataBytes,
+        utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1780,6 +1825,20 @@ mod tests {
             detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
         };
         DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch"))
+    }
+
+    /// A DS error that reports a commit which left a self-remove proposal
+    /// uncommitted.
+    fn uncommitted_self_remove_error() -> DsRequestError {
+        let details = StatusDetails {
+            code: StatusDetailsCode::UncommittedSelfRemove.into(),
+            detail: Some(Detail::UncommittedSelfRemove(
+                UncommittedSelfRemoveDetail {},
+            )),
+        };
+        DsRequestError::Tonic(
+            details.to_status(tonic::Code::InvalidArgument, "uncommitted self remove"),
+        )
     }
 
     /// Builds a single-member APQ self-group with a pending settings-update
@@ -1879,6 +1938,51 @@ mod tests {
             reloaded.status,
             PendingChatOperationStatus::WaitingForQueueResponse
         ));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn uncommitted_self_remove_keeps_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
+
+        // Record the local change the staged commit is carrying, so there is an
+        // intent a rollback could destroy.
+        pool.write()
+            .await?
+            .with_transaction(async |txn| {
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await
+            })
+            .await?;
+        assert!(
+            SettingChanges::load(pool.read().await?).await?.is_some(),
+            "test setup should leave a pending setting change"
+        );
+
+        let result = pending
+            .handle_error(pool.write().await?, uncommitted_self_remove_error())
+            .await;
+
+        assert_matches!(result, Ok(JobError::Stale(_)));
+
+        let group_id = pending.group.group_id().clone();
+        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+            .await?
+            .expect("operation is only deleted by the caller's cleanup");
+        assert!(matches!(
+            reloaded.status,
+            PendingChatOperationStatus::ReadyToRetry
+        ));
+
+        assert!(SettingChanges::load(pool.read().await?).await?.is_some());
+        pool.write()
+            .await?
+            .with_transaction(async |txn| pending.roll_back_self_group_intent(txn).await)
+            .await?;
+        assert!(
+            SettingChanges::load(pool.read().await?).await?.is_none(),
+            "the fatal path would have dropped the setting change"
+        );
 
         Ok(())
     }

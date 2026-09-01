@@ -133,6 +133,20 @@ impl DsRequestError {
         }
     }
 
+    /// The DS rejected our commit because it left a self-remove proposal
+    /// pending.
+    pub fn is_uncommitted_self_remove(&self) -> bool {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::InvalidArgument
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::UncommittedSelfRemove = details.code()
+        {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Returns true if the error is likely due to a network issue and we can't
     /// be sure whether the server received the request.
     pub fn is_network_error(&self) -> bool {

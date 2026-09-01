@@ -1630,9 +1630,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
+                // The delete commit is never merged, so the proposal store
+                // keeps whatever is parked in it. Clearing the mirror here
+                // would stop handing those proposals out while the next
+                // commit still has to carry them.
                 let group_message = group_state.delete_group(commit)?;
-
-                group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(
@@ -1684,15 +1686,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(t_sender_index)
                     .collect();
 
+                // See `delete_group`: the delete commit is never merged, so the
+                // mirror stays as it is.
                 let serialized_apq_message = DsGroupState::delete_apq_group(
                     t_group_state,
                     pq_group_state,
                     t_message,
                     pq_message,
                 )?;
-
-                t_group_state.proposals.clear();
-                pq_group_state.proposals.clear();
 
                 let timestamp = TimeStamp::now();
                 let apq_payload =

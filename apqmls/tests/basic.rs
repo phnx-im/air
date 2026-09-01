@@ -8,9 +8,9 @@ use apqmls::{
 use openmls::{
     group::{GroupId, MlsGroup, MlsGroupJoinConfig},
     prelude::{
-        Capabilities, Credential, Extension, ExtensionType, Extensions, LeafNodeIndex,
-        LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
-        UnknownExtension,
+        Capabilities, Credential, Extension, ExtensionType, Extensions, GroupContext,
+        LeafNodeIndex, LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
+        RequiredCapabilitiesExtension, UnknownExtension,
     },
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -298,5 +298,131 @@ fn t_only_update() {
         };
 
         update_group_helper(joined_group);
+    }
+}
+
+/// A group context extensions proposal on the classical leg only.
+///
+/// The application stores its own state in the T group context, so an APQ
+/// commit that carries it must leave the PQ context alone and both members must
+/// still converge.
+#[test]
+fn commit_with_t_group_context_extensions() {
+    const APP_EXTENSION_TYPE: u16 = 0xff01;
+
+    fn app_capabilities() -> Capabilities {
+        Capabilities::new(
+            None,
+            None,
+            Some(&[ExtensionType::Unknown(APP_EXTENSION_TYPE)]),
+            None,
+            None,
+        )
+    }
+
+    /// The group context extensions the app wants, built the way the client
+    /// builds them: from the current ones, so required capabilities survive.
+    fn app_extensions(group: &MlsGroup, data: &[u8]) -> Extensions<GroupContext> {
+        let mut extensions = group.extensions().clone();
+        extensions
+            .add_or_replace(Extension::Unknown(
+                APP_EXTENSION_TYPE,
+                UnknownExtension(data.to_vec()),
+            ))
+            .unwrap();
+        extensions
+    }
+
+    fn app_data(group: &MlsGroup) -> Option<&[u8]> {
+        group
+            .extensions()
+            .unknown(APP_EXTENSION_TYPE)
+            .map(|ext| ext.0.as_slice())
+    }
+
+    for mode in TEST_MODE {
+        let ciphersuite = mode.default_ciphersuite();
+        let alice = Client::new("Alice", ciphersuite.into(), OpenMlsRustCrypto::default());
+        let bob = Client::new("Bob", ciphersuite.into(), OpenMlsRustCrypto::default());
+
+        let mut alice_group = ApqMlsGroup::builder()
+            .with_group_ids(
+                GroupId::random(alice.provider.rand()),
+                GroupId::from_slice(b"test_pq_group"),
+            )
+            .set_mode(mode)
+            .with_capabilities(app_capabilities())
+            .with_group_context_extensions(
+                Extensions::from_vec(vec![Extension::RequiredCapabilities(
+                    RequiredCapabilitiesExtension::new(
+                        &[ExtensionType::Unknown(APP_EXTENSION_TYPE)],
+                        &[],
+                        &[],
+                    ),
+                )])
+                .unwrap(),
+                Extensions::default(),
+            )
+            .unwrap()
+            .build(
+                &alice.provider,
+                &alice.signer,
+                alice.credential_with_key.clone(),
+            )
+            .unwrap();
+
+        let key_package =
+            bob.generate_key_package_with_capabilities(ciphersuite, app_capabilities());
+        let commit_bundle = alice_group
+            .commit_builder()
+            .propose_adds([key_package])
+            .finalize(&alice.provider, &alice.signer, |_| true, |_| true)
+            .unwrap();
+        alice_group.merge_pending_commit(&alice.provider).unwrap();
+        let ratchet_tree = alice_group.export_ratchet_tree();
+        let mut bob_group = ApqMlsGroup::new_from_welcome(
+            &bob.provider,
+            &MlsGroupJoinConfig::default(),
+            commit_bundle.into_welcome().unwrap(),
+            Some(ratchet_tree.into()),
+            compare_credentials,
+        )
+        .unwrap();
+
+        assert_eq!(app_data(&alice_group.t_group), None);
+
+        // A joint self-update that also carries the application's state.
+        let extensions = app_extensions(&alice_group.t_group, b"title");
+        let commit_bundle = alice_group
+            .commit_builder()
+            .force_self_update(true)
+            .propose_t_group_context_extensions(extensions)
+            .finalize(&alice.provider, &alice.signer, |_| true, |_| true)
+            .unwrap();
+        alice_group.merge_pending_commit(&alice.provider).unwrap();
+
+        assert_eq!(app_data(&alice_group.t_group), Some(b"title".as_slice()));
+        assert_eq!(
+            app_data(alice_group.pq_group()),
+            None,
+            "the PQ context must be left alone"
+        );
+
+        // Bob converges on both legs.
+        let message_in = ApqMlsMessageIn::try_from(commit_bundle.commit).unwrap();
+        let protocol_message = message_in.into_protocol_message().unwrap();
+        let processed_message = bob_group
+            .process_message(&bob.provider, protocol_message, compare_credentials)
+            .unwrap();
+        bob_group
+            .merge_staged_commit(
+                &bob.provider,
+                processed_message.into_staged_commit().unwrap(),
+            )
+            .unwrap();
+
+        assert_eq!(app_data(&bob_group.t_group), Some(b"title".as_slice()));
+        assert_eq!(app_data(bob_group.pq_group()), None);
+        assert_groups_eq(&mut alice_group, &mut bob_group);
     }
 }

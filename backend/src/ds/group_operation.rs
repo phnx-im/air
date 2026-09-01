@@ -16,7 +16,7 @@ use mls_assist::{
         group::StagedCommit,
         prelude::{
             Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessage,
-            ProcessedMessageContent, Sender,
+            ProcessedMessageContent, Proposal, Sender,
         },
     },
     openmls_rust_crypto::OpenMlsRustCrypto,
@@ -124,14 +124,25 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        // A member that proposed its own removal relies on the next committer
+        // to carry the proposal, so a commit must not leave one behind.
+        let uncommitted = self
+            .uncommitted_self_removes(staged_commit)
+            .map_err(|_| GroupOperationError::ProcessingError)?;
+        if !uncommitted.is_empty() {
+            warn!(?uncommitted, "Commit leaves pending self-removes behind");
+            return Err(GroupOperationError::UncommittedSelfRemove);
+        }
+
         // A traditional commit on an APQ group can only be a PARTIAL
-        // self-update. Membership changes must go through the APQ endpoint so
-        // that both legs stay in sync. External commits are caught by the
-        // remove proposal they must carry.
+        // self-update. Membership changes (including self-removes) must go
+        // through the APQ endpoint so that both legs stay in sync. External
+        // commits are caught by the remove proposal they must carry.
         if pq_group_state.is_none()
             && self.is_apq()
             && (staged_commit.add_proposals().next().is_some()
-                || staged_commit.remove_proposals().next().is_some())
+                || staged_commit.remove_proposals().next().is_some()
+                || covers_self_remove(staged_commit))
         {
             warn!("Traditional membership change on an APQ group");
             return Err(GroupOperationError::ApqMembershipChange);
@@ -430,6 +441,14 @@ impl DsGroupState {
             if !pq_group_state.self_group_flag_unchanged(pq_staged_commit) {
                 warn!("PQ commit would toggle the self-group flag");
                 return Err(GroupOperationError::InvalidMessage);
+            }
+            // See the T leg. Self-removes need to be committed on both legs.
+            let uncommitted = pq_group_state
+                .uncommitted_self_removes(pq_staged_commit)
+                .map_err(|_| GroupOperationError::ProcessingError)?;
+            if !uncommitted.is_empty() {
+                warn!(?uncommitted, "PQ commit leaves pending self-removes behind");
+                return Err(GroupOperationError::UncommittedSelfRemove);
             }
             let pq_sender_index = match processed_assisted_message
                 .processed_message
@@ -791,6 +810,13 @@ impl DsGroupState {
         };
         Ok(response)
     }
+}
+
+/// Whether the commit covers a self-remove proposal, by reference or inline.
+fn covers_self_remove(staged_commit: &StagedCommit) -> bool {
+    staged_commit
+        .queued_proposals()
+        .any(|proposal| matches!(proposal.proposal(), Proposal::SelfRemove))
 }
 
 /// Extract the virtual client hint if present from the Safe AAD part of the message.
