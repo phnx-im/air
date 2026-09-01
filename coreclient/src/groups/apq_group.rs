@@ -10,7 +10,7 @@ use aircommon::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
         default_group_context_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_sender_ratchet_configuration,
-        self_group_leaf_node_capabilities,
+        self_group_leaf_node_capabilities, vc_leaf_node_extensions,
     },
     time::TimeStamp,
 };
@@ -50,6 +50,11 @@ impl PqGroup {
 }
 
 impl Group {
+    /// `vc_group_id` names the emulation group when the creator acts as a
+    /// virtual client. Both halves then derive their creator leaf and epoch-0
+    /// secret from that group's newest derivation epoch. It is mutually
+    /// exclusive with creating the group as an emulation group itself, which is
+    /// what the self group does.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_apq_group(
         mut connection: impl WriteConnection,
@@ -61,6 +66,7 @@ impl Group {
         group_data_bytes: GroupDataBytes,
         safe_aad_components: Option<Vec<ComponentId>>,
         air_component: AirComponent,
+        vc_group_id: Option<&GroupId>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -101,7 +107,7 @@ impl Group {
             LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
         };
 
-        let (t_group, pq_group) = ApqMlsGroup::builder()
+        let mut builder = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(capabilities)
@@ -111,7 +117,16 @@ impl Group {
             // The self group is the emulation group of the virtual client, so its
             // initial epoch already has to be a derivation epoch.
             .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
+        if let Some(vc_group_id) = vc_group_id {
+            // Both leaves carry the virtual-client marker, as they do on the
+            // external-commit join path.
+            let leaf_extensions = vc_leaf_node_extensions::<AirComponent>();
+            builder = builder
+                .with_leaf_node_extensions(leaf_extensions.clone(), leaf_extensions)?
+                .vc_emulation(vc_group_id);
+        }
+        let (t_group, pq_group) = builder
             .build(&provider, signer, apq_credential_with_key)?
             .into_groups();
 

@@ -255,7 +255,7 @@ pub enum ConnectionContext {
     TargetedInitiator(TargetedInitiatorContext),
     #[tag(3)]
     Accept(AcceptContext),
-    /// A context kind this client does not understand. Ignored on receive.
+    /// A context kind this client does not understand. Rejected on receive.
     #[unknown]
     Unknown,
 }

@@ -558,6 +558,7 @@ mod derivation_tests {
             GroupDataBytes::from(b"test-group-data".to_vec()),
             None,
             air_component,
+            None,
         )?;
         Ok(group)
     }

@@ -1824,6 +1824,7 @@ mod tests {
                     GroupDataBytes::from(b"test-group-data".to_vec()),
                     None,
                     AirComponent::default_for_self_group(),
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let mut group = VerifiedGroup::new_for_test(group);
@@ -1974,6 +1975,7 @@ mod tests {
                     GroupDataBytes::from(b"test-group-data".to_vec()),
                     None,
                     AirComponent::default_for_self_group(),
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -2058,6 +2060,7 @@ mod tests {
                     GroupDataBytes::from(b"test-group-data".to_vec()),
                     Some(vec![VC_COMPONENT_ID]),
                     AirComponent::default_for_self_group(),
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
 
@@ -2255,6 +2258,7 @@ mod tests {
             identity_link_wrapper_key,
             group_id.clone(),
             group_data_bytes,
+            None,
         )?;
         group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);

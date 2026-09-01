@@ -11,15 +11,13 @@ pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
-// The acting and sibling sides of multi-client group creation land separately
-// and wire these helpers up.
-#[cfg_attr(not(test), expect(dead_code, reason = "not yet wired up"))]
 pub(crate) mod group_bootstrap;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
+pub(crate) mod vc_sibling_join;
 
 use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSigner},
@@ -507,6 +505,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
+        vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let group_state_ear_key = GroupStateEarKey::random()?;
@@ -526,14 +525,23 @@ impl Group {
             signature_key: signer.credential().verifying_key().clone().into(),
         };
 
-        let mls_group = MlsGroup::builder()
+        let leaf_node_extensions = if vc_group_id.is_some() {
+            vc_leaf_node_extensions::<AirComponent>()
+        } else {
+            default_leaf_node_extensions::<AirComponent>()
+        };
+        let mut builder = MlsGroup::builder()
             .with_group_id(group_id.clone())
             .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions)
-            .with_leaf_node_extensions(default_leaf_node_extensions::<AirComponent>())?
+            .with_leaf_node_extensions(leaf_node_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
+        if let Some(vc_group_id) = vc_group_id {
+            builder = builder.vc_emulation(vc_group_id);
+        }
+        let mls_group = builder
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
@@ -1138,19 +1146,16 @@ impl Group {
         let (mls_group, commit, group_info, encrypted_profile_keys_fallback) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
-            let psk_proposal = match connection_offer_hash {
-                Some(co_hash) => {
-                    let psk_value = co_hash.into_bytes();
-                    let psk_id = PreSharedKeyId::new(
+            let psk_proposal = connection_offer_hash
+                .map(|co_hash| {
+                    store_connection_offer_psk(
+                        &provider,
                         verifiable_group_info.ciphersuite(),
-                        provider.rand(),
-                        Psk::External(ExternalPsk::new(psk_value.to_vec())),
-                    )?;
-                    psk_id.store(&provider, &psk_value)?;
-                    Some(PreSharedKeyProposal::new(psk_id))
-                }
-                None => None,
-            };
+                        co_hash,
+                    )
+                    .map(PreSharedKeyProposal::new)
+                })
+                .transpose()?;
 
             let leaf_node_extensions = if vc_group_id.is_some() {
                 vc_leaf_node_extensions::<AirComponent>()
@@ -2673,15 +2678,11 @@ impl Group {
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let psk_value = connection_offer_hash.into_bytes();
-        PreSharedKeyId::new(
+        store_connection_offer_psk(
+            &provider,
             self.mls_group().ciphersuite(),
-            provider.rand(),
-            Psk::External(ExternalPsk::new(
-                connection_offer_hash.into_bytes().to_vec(),
-            )),
-        )?
-        .store(&provider, &psk_value)?;
+            connection_offer_hash,
+        )?;
         Ok(())
     }
 
@@ -2789,6 +2790,23 @@ async fn verify_member_credentials(
         verified.push(credential);
     }
     Ok(verified)
+}
+
+/// Stores the connection-offer PSK, so a commit referencing it can be created
+/// or processed. Returns the id the commit's PSK proposal must carry.
+fn store_connection_offer_psk(
+    provider: &AirOpenMlsProvider<'_>,
+    ciphersuite: openmls::prelude::Ciphersuite,
+    connection_offer_hash: ConnectionOfferHash,
+) -> Result<PreSharedKeyId> {
+    let psk_value = connection_offer_hash.into_bytes();
+    let psk_id = PreSharedKeyId::new(
+        ciphersuite,
+        provider.rand(),
+        Psk::External(ExternalPsk::new(psk_value.to_vec())),
+    )?;
+    psk_id.store(provider, &psk_value)?;
+    Ok(psk_id)
 }
 
 /// Ensure that every user of `room_sate` is a member of `mls_group`.
@@ -3227,6 +3245,7 @@ mod handle_group_not_found_tests {
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
+            None,
         )?;
         group.store(&mut connection).await?;
 
