@@ -5,7 +5,9 @@
 use aircommon::identifiers::UserId;
 use chrono::{DateTime, Utc};
 
-use crate::{clients::CoreUser, user_profiles::display_name::BaseDisplayName};
+use crate::{clients::CoreUser, user_profiles::display_name::DisplayName};
+
+pub(crate) mod pending;
 
 impl CoreUser {
     pub async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
@@ -25,14 +27,13 @@ impl CoreUser {
 
 pub(crate) struct BlockedContact {
     user_id: UserId,
-    last_display_name: BaseDisplayName<true>,
+    last_display_name: DisplayName,
     blocked_at: DateTime<Utc>,
 }
 
 #[cfg(test)]
 impl BlockedContact {
     pub(crate) fn new(user_id: UserId) -> Self {
-        use crate::user_profiles::display_name::DisplayName;
         Self {
             last_display_name: DisplayName::from_user_id(&user_id),
             user_id,
@@ -56,6 +57,7 @@ mod persistence {
     use super::*;
 
     impl BlockedContact {
+        /// Stores the block, overwriting an existing one for the same user.
         pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let uuid = self.user_id.uuid();
             let domain = self.user_id.domain();
@@ -65,7 +67,10 @@ mod persistence {
                     user_domain,
                     last_display_name,
                     blocked_at
-                ) VALUES (?1, ?2, ?3, ?4)",
+                ) VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT (user_uuid, user_domain) DO UPDATE SET
+                    last_display_name = excluded.last_display_name,
+                    blocked_at = excluded.blocked_at",
                 uuid,
                 domain,
                 self.last_display_name,

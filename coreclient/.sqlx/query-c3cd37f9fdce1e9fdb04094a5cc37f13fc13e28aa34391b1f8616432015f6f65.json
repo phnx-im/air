@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM blocked_contact_change",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "c3cd37f9fdce1e9fdb04094a5cc37f13fc13e28aa34391b1f8616432015f6f65"
+}

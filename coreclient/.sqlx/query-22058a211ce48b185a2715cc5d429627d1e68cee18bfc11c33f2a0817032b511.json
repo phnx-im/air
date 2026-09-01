@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    blocked_at AS \"blocked_at: _\",\n                    last_display_name AS \"last_display_name: _\",\n                    previous_blocked_at AS \"previous_blocked_at: _\",\n                    previous_last_display_name AS \"previous_last_display_name: _\"\n                FROM blocked_contact_change\n                ORDER BY user_uuid, user_domain",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "user_domain"
+          }
+        }
+      },
+      {
+        "name": "blocked_at: _",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "blocked_at"
+          }
+        }
+      },
+      {
+        "name": "last_display_name: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "last_display_name"
+          }
+        }
+      },
+      {
+        "name": "previous_blocked_at: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "previous_blocked_at"
+          }
+        }
+      },
+      {
+        "name": "previous_last_display_name: _",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact_change",
+            "name": "previous_last_display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "22058a211ce48b185a2715cc5d429627d1e68cee18bfc11c33f2a0817032b511"
+}
