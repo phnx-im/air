@@ -561,7 +561,7 @@ impl OutboundServiceContext {
             // The operation is no longer applicable to this chat, so we skip
             // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
+            Err(error @ (JobError::Domain(_) | JobError::Fatal(_) | JobError::Stale(_))) => {
                 Err(OutboundServiceError::fatal(error))
             }
         }

@@ -446,6 +446,18 @@ impl Group {
     /// pending commit. Used by clean loaders to refuse to hand out a
     /// `Group` whose MLS state has an in-flight commit, since further
     /// staging on top of one is a logic error.
+    /// Whether either leg holds a proposal that has not been committed yet.
+    ///
+    /// A pending proposal has to be carried by the next commit, so on an APQ
+    /// group it forces the commit onto the joint path.
+    pub(crate) fn has_pending_proposals(&self) -> bool {
+        self.mls_group.pending_proposals().next().is_some()
+            || self
+                .pq
+                .as_ref()
+                .is_some_and(|pq| pq.mls_group.pending_proposals().next().is_some())
+    }
+
     pub(crate) fn ensure_clean(&self) -> Result<()> {
         ensure!(
             self.mls_group.pending_commit().is_none(),
@@ -2241,6 +2253,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
+        new_group_data: Option<GroupDataBytes>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2248,6 +2261,16 @@ impl Group {
         }))
         .tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
+
+        let group_context_extensions = new_group_data
+            .map(|gd| -> Result<_> {
+                let group_data_extension =
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
+                let mut exts = self.mls_group().extensions().clone();
+                exts.add_or_replace(group_data_extension)?;
+                Ok(exts)
+            })
+            .transpose()?;
 
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2277,6 +2300,9 @@ impl Group {
                 .create_group_info(true);
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
+        }
+        if let Some(extensions) = group_context_extensions {
+            builder = builder.propose_t_group_context_extensions(extensions);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 

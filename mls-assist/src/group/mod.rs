@@ -11,7 +11,7 @@ use errors::StorageError;
 use openmls::{
     error::LibraryError,
     framing::PrivateMessageIn,
-    group::{GroupId, MergeCommitError},
+    group::{GroupId, MergeCommitError, QueuedProposal},
     prelude::{
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
@@ -222,6 +222,19 @@ impl Group {
         staged_commit: &StagedCommit,
     ) -> Result<LeafNodeIndex, LibraryError> {
         self.public_group.ext_commit_sender_index(staged_commit)
+    }
+
+    /// The proposals that were accepted into the proposal store but have not
+    /// been committed yet.
+    pub fn queued_proposals<StorageProvider: MlsAssistStorageProvider>(
+        &self,
+        provider: &StorageProvider,
+    ) -> Result<Vec<QueuedProposal>, StorageError<StorageProvider>> {
+        let proposals = self.public_group.queued_proposals(provider)?;
+        Ok(proposals
+            .into_iter()
+            .map(|(_, proposal)| proposal)
+            .collect())
     }
 }
 

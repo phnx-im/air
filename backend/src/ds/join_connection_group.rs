@@ -6,6 +6,7 @@ use aircommon::{
     credentials::LeafCredential,
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
     time::TimeStamp,
+    utils::removed_clients,
 };
 use mls_assist::{
     group::ProcessedAssistedMessage, messages::SerializedMlsMessage,
@@ -47,8 +48,10 @@ impl DsGroupState {
                 return Err(JoinConnectionGroupError::InvalidMessage);
             };
 
-        // The external commit joining the client into the group should contain only the path.
-        if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+        // The external commit joining the client into the group should contain only the path,
+        // plus any self-remove proposal the joiner had to pick up. Returns the leaves that the
+        // commit removes, so their profiles can be dropped once it is accepted.
+        let removed = if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
             processed_message.content()
         {
             if staged_commit.add_proposals().count() > 0
@@ -60,6 +63,15 @@ impl DsGroupState {
             if !self.self_group_flag_unchanged(staged_commit) {
                 tracing::warn!("Commit would toggle the self-group flag");
                 return Err(JoinConnectionGroupError::InvalidMessage);
+            }
+            // The connection group info handed the joiner the pending
+            // self-remove proposals, so its commit has to carry them.
+            let uncommitted = self
+                .uncommitted_self_removes(staged_commit)
+                .map_err(|_| JoinConnectionGroupError::ProcessingError)?;
+            if !uncommitted.is_empty() {
+                tracing::warn!(?uncommitted, "Commit leaves pending self-removes behind");
+                return Err(JoinConnectionGroupError::UncommittedSelfRemove);
             }
             // A connection group is never a self-group, and its joiner's leaf must carry a user
             // credential.
@@ -76,6 +88,7 @@ impl DsGroupState {
                 tracing::warn!("Connection group joiner must carry a user credential");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            removed_clients(staged_commit)
         } else {
             tracing::warn!("Invalid message: External commit contained unexpected proposals.");
             return Err(JoinConnectionGroupError::InvalidMessage);
@@ -107,6 +120,9 @@ impl DsGroupState {
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
         )?;
+
+        // A self-remove the joiner carried takes its sender's leaf with it.
+        self.remove_profiles(removed);
 
         // Let's figure out the leaf index of the new member.
         let sender = if let Some(sender) = self.group().members().find_map(|m| {

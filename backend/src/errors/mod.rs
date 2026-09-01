@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::common::v1::{
-    StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
+    StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail, WrongEpochDetail,
+    status_details::Detail,
 };
 use apqmls::processing::ApqProcessPublicMessageError;
 use displaydoc::Display;
@@ -129,6 +130,10 @@ pub(crate) enum GroupOperationError {
     /// Incomplete Welcome message.
     #[error("Incomplete Welcome message.")]
     IncompleteWelcome,
+    /// The commit does not remove every leaf with a pending self-remove
+    /// proposal.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    UncommittedSelfRemove,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
@@ -188,6 +193,7 @@ impl From<GroupOperationError> for Status {
                 Status::invalid_argument(msg)
             }
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
+            GroupOperationError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
             GroupOperationError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
@@ -209,6 +215,10 @@ pub(crate) enum JoinConnectionGroupError {
     /// Not a connection group.
     #[error("Not a connection group")]
     NotAConnectionGroup,
+    /// The commit does not remove every leaf with a pending self-remove
+    /// proposal.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    UncommittedSelfRemove,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
@@ -220,6 +230,7 @@ impl From<JoinConnectionGroupError> for Status {
             JoinConnectionGroupError::InvalidMessage
             | JoinConnectionGroupError::NotAConnectionGroup => Status::invalid_argument(msg),
             JoinConnectionGroupError::ProcessingError => Status::internal(msg),
+            JoinConnectionGroupError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
             JoinConnectionGroupError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
@@ -303,6 +314,28 @@ fn wrong_epoch_status(msg: String) -> Status {
     )
 }
 
+/// The commit was rejected for leaving a self-remove proposal uncommitted.
+///
+/// The detail tells the committer that its view is stale rather than its
+/// message malformed, so it can drop the commit, process its queue and commit
+/// again. Which leaves are affected is logged where the rejection is raised:
+/// the committer cannot act on leaf indices, it needs the proposal messages
+/// waiting in its queue.
+fn uncommitted_self_remove_status(msg: String) -> Status {
+    Status::with_details(
+        Code::InvalidArgument,
+        msg,
+        StatusDetails {
+            code: StatusDetailsCode::UncommittedSelfRemove.into(),
+            detail: Some(Detail::UncommittedSelfRemove(
+                UncommittedSelfRemoveDetail {},
+            )),
+        }
+        .encode_to_vec()
+        .into(),
+    )
+}
+
 impl From<ClientSelfRemovalError> for Status {
     fn from(e: ClientSelfRemovalError) -> Self {
         let msg = e.to_string();
@@ -327,6 +360,10 @@ pub(crate) enum ResyncClientError {
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
+    /// The commit does not remove every leaf with a pending self-remove
+    /// proposal.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    UncommittedSelfRemove,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
@@ -337,6 +374,7 @@ impl From<ResyncClientError> for Status {
         match e {
             ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
             ResyncClientError::ProcessingError => Status::internal(msg),
+            ResyncClientError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
             ResyncClientError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)

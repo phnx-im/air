@@ -108,6 +108,16 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
+        // The external commit info handed the resyncing client the pending
+        // self-remove proposals, so its commit has to carry them.
+        let uncommitted = self
+            .uncommitted_self_removes(staged_commit_message)
+            .map_err(|_| ResyncClientError::ProcessingError)?;
+        if !uncommitted.is_empty() {
+            error!(?uncommitted, "Commit leaves pending self-removes behind");
+            return Err(ResyncClientError::UncommittedSelfRemove);
+        }
+
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
             return Err(ResyncClientError::InvalidMessage);
@@ -242,6 +252,25 @@ impl DsGroupState {
         {
             error!("Commit would toggle the self-group flag");
             return Err(ResyncClientError::InvalidMessage);
+        }
+
+        // See the T-only variant. Both legs park their own copy of a
+        // self-remove proposal, so both have to see it committed.
+        for (leg, group_state, staged_commit) in [
+            ("T", &*t_group_state, t_staged_commit),
+            ("PQ", &*pq_group_state, pq_staged_commit),
+        ] {
+            let uncommitted = group_state
+                .uncommitted_self_removes(staged_commit)
+                .map_err(|_| ResyncClientError::ProcessingError)?;
+            if !uncommitted.is_empty() {
+                error!(
+                    leg,
+                    ?uncommitted,
+                    "Commit leaves pending self-removes behind"
+                );
+                return Err(ResyncClientError::UncommittedSelfRemove);
+            }
         }
 
         let (Sender::NewMemberCommit, Sender::NewMemberCommit) =

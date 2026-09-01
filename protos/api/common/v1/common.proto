@@ -91,6 +91,7 @@ message StatusDetails {
     WrongEpochDetail wrong_epoch = 4;
     TokenQuotaExceededDetail token_quota_exceeded = 5;
     GenerationCollisionDetail generation_collision = 6;
+    UncommittedSelfRemoveDetail uncommitted_self_remove = 7;
   }
 }
 
@@ -106,6 +107,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_TOKEN_QUOTA_EXCEEDED = 5;
   // Another previous message was already sent in this generation
   STATUS_DETAILS_CODE_GENERATION_COLLISION = 6;
+  // The commit left a self-remove proposal pending on the DS uncommitted
+  STATUS_DETAILS_CODE_UNCOMMITTED_SELF_REMOVE = 7;
 }
 
 message VersionUnsupportedDetail {
@@ -124,6 +127,8 @@ message TokenQuotaExceededDetail {
 }
 
 message WrongEpochDetail {}
+
+message UncommittedSelfRemoveDetail {}
 
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;
