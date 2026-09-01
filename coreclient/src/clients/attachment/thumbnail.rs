@@ -162,3 +162,131 @@ mod persistence {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use chrono::Utc;
+    use sqlx::{Pool, Sqlite, query};
+
+    use crate::{
+        MessageId,
+        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        clients::attachment::{AttachmentRecord, persistence::test::test_attachment_record},
+        db::access::DbAccess,
+    };
+
+    use super::{persistence::load_thumbnail, *};
+
+    async fn store_test_attachment(pool: &DbAccess) -> anyhow::Result<(AttachmentId, MessageId)> {
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let record = test_attachment_record(chat.id(), message.id());
+        record.store(pool.write().await?, None).await?;
+        Ok((record.attachment_id, message.id()))
+    }
+
+    #[sqlx::test]
+    async fn thumbnail_store_and_load(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let (attachment_id, _) = store_test_attachment(&pool).await?;
+
+        // Not yet generated
+        assert!(
+            load_thumbnail(pool.read().await?, attachment_id)
+                .await?
+                .is_none()
+        );
+
+        store_thumbnail(
+            pool.write().await?,
+            attachment_id,
+            &AttachmentThumbnail::Failed,
+        )
+        .await?;
+        assert!(matches!(
+            load_thumbnail(pool.read().await?, attachment_id).await?,
+            Some(AttachmentThumbnail::Failed)
+        ));
+
+        // Overwrites the previous state
+        let bytes = b"thumbnail".to_vec();
+        store_thumbnail(
+            pool.write().await?,
+            attachment_id,
+            &AttachmentThumbnail::Ready {
+                bytes: bytes.clone(),
+            },
+        )
+        .await?;
+        match load_thumbnail(pool.read().await?, attachment_id).await? {
+            Some(AttachmentThumbnail::Ready { bytes: loaded }) => assert_eq!(loaded, bytes),
+            _ => panic!("expected a ready thumbnail"),
+        }
+
+        // Overwriting with a stateless outcome clears the content
+        store_thumbnail(
+            pool.write().await?,
+            attachment_id,
+            &AttachmentThumbnail::OriginalFits,
+        )
+        .await?;
+        assert!(matches!(
+            load_thumbnail(pool.read().await?, attachment_id).await?,
+            Some(AttachmentThumbnail::OriginalFits)
+        ));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn thumbnail_ready_without_content_reads_as_absent(
+        pool: Pool<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let (attachment_id, _) = store_test_attachment(&pool).await?;
+
+        let created_at = Utc::now();
+        query(
+            "INSERT INTO attachment_thumbnail (attachment_id, state, created_at) VALUES (?, 1, ?)",
+        )
+        .bind(attachment_id)
+        .bind(created_at)
+        .execute(pool.write().await?.as_mut())
+        .await?;
+
+        assert!(
+            load_thumbnail(pool.read().await?, attachment_id)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn thumbnail_deleted_with_attachment(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let (attachment_id, message_id) = store_test_attachment(&pool).await?;
+
+        store_thumbnail(
+            pool.write().await?,
+            attachment_id,
+            &AttachmentThumbnail::Ready {
+                bytes: b"thumbnail".to_vec(),
+            },
+        )
+        .await?;
+
+        AttachmentRecord::delete_by_message_id(pool.write().await?, message_id).await?;
+
+        assert!(
+            load_thumbnail(pool.read().await?, attachment_id)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
+    }
+}

@@ -430,3 +430,100 @@ fn thumbnail_dimensions(width: u32, height: u32, max_edge: u32) -> Option<(u32, 
     let edge = |e: u32| ((f64::from(e) * scale).round() as u32).max(1);
     Some((edge(width), edge(height)))
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn encode_static_webp(width: u32, height: u32) -> Vec<u8> {
+        let rgba = vec![127u8; (width * height * 4) as usize];
+        webpx::Encoder::new_rgba(&rgba, width, height)
+            .quality(80.0)
+            .encode(webpx::Unstoppable)
+            .unwrap()
+    }
+
+    fn encode_animated_webp(width: u32, height: u32, frames: u32) -> Vec<u8> {
+        let mut encoder = webpx::AnimationEncoder::with_options(width, height, true, 0).unwrap();
+        encoder.set_quality(80.0);
+        let mut timestamp_ms = 0;
+        for frame in 0..frames {
+            // Frames must differ, otherwise they are merged and a single-frame
+            // animation is assembled as a still image.
+            let rgba = vec![(frame * 60) as u8; (width * height * 4) as usize];
+            encoder.add_frame_rgba(&rgba, timestamp_ms).unwrap();
+            timestamp_ms += 100;
+        }
+        encoder.finish(timestamp_ms).unwrap()
+    }
+
+    fn decoded_info(bytes: &[u8]) -> (u32, u32, bool) {
+        let decoder = webpx::Decoder::new(bytes).unwrap();
+        let info = decoder.info();
+        (info.width, info.height, info.has_animation)
+    }
+
+    #[test]
+    fn thumbnail_dimensions_scales_long_edge() {
+        assert_eq!(thumbnail_dimensions(1024, 1024, 1024), None);
+        assert_eq!(thumbnail_dimensions(500, 300, 1024), None);
+        assert_eq!(thumbnail_dimensions(2048, 1024, 1024), Some((1024, 512)));
+        assert_eq!(thumbnail_dimensions(1000, 4000, 1024), Some((256, 1024)));
+        // The short edge never rounds down to zero
+        assert_eq!(thumbnail_dimensions(10000, 1, 1024), Some((1024, 1)));
+    }
+
+    #[test]
+    fn thumbnail_of_large_still_image_is_downscaled() {
+        let original = encode_static_webp(2048, 1024);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(!is_animated);
+        assert_eq!(decoded_info(&bytes), (1024, 512, false));
+    }
+
+    #[test]
+    fn thumbnail_of_small_still_image_is_the_original() {
+        let original = encode_static_webp(800, 600);
+        assert!(matches!(
+            encode_thumbnail(&original).unwrap(),
+            ThumbnailImage::OriginalFits
+        ));
+    }
+
+    #[test]
+    fn thumbnail_of_animated_image_is_a_static_frame() {
+        // Small animated images are re-encoded and never serve the original.
+        let original = encode_animated_webp(200, 100, 3);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(is_animated);
+        assert_eq!(decoded_info(&bytes), (200, 100, false));
+    }
+
+    #[test]
+    fn thumbnail_of_large_animated_image_is_downscaled() {
+        let original = encode_animated_webp(2048, 512, 2);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(is_animated);
+        assert_eq!(decoded_info(&bytes), (1024, 256, false));
+    }
+
+    #[test]
+    fn thumbnail_of_undecodable_bytes_fails() {
+        assert!(encode_thumbnail(b"not a webp").is_err());
+    }
+
+    #[test]
+    fn thumbnail_of_oversized_image_fails() {
+        let original = encode_static_webp(MAX_ATTACHMENT_IMAGE_WIDTH + 1, 8);
+        assert!(encode_thumbnail(&original).is_err());
+    }
+}

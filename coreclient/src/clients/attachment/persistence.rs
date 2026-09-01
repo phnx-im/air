@@ -891,6 +891,57 @@ pub(crate) mod test {
     }
 
     #[sqlx::test]
+    async fn set_content_for_missing_attachment_is_noop(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let attachment_id = AttachmentId::random();
+        AttachmentRecord::set_content(pool.write().await?, attachment_id, b"content", false)
+            .await?;
+
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
+        assert_eq!(loaded_content, AttachmentContent::None);
+
+        // No orphaned content row is left behind
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 0);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn set_is_animated_classifies_only_once(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let mut record = test_attachment_record(chat.id(), message.id());
+        record.is_animated = None;
+        record.store(pool.write().await?, None).await?;
+
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, None);
+
+        AttachmentRecord::set_is_animated(pool.write().await?, record.attachment_id, true).await?;
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, Some(true));
+
+        // A second classification does not overwrite the first
+        AttachmentRecord::set_is_animated(pool.write().await?, record.attachment_id, false).await?;
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, Some(true));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn load_all_pending_attachments(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
 
@@ -1098,13 +1149,17 @@ pub(crate) mod test {
         message.store(pool.write().await?).await?;
         let record = test_attachment_record(chat.id(), message.id());
 
-        // Store the attachment
-        record.store(pool.write().await?, None).await?;
+        // Store the attachment with content
+        record.store(pool.write().await?, Some(b"content")).await?;
 
-        // Verify attachment exists
+        // Verify attachment and its content row exist
         let loaded_record =
             AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(loaded_record.is_some());
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 1);
 
         // Delete the message - FK cascade should delete the attachment
         ChatMessage::delete(pool.write().await?, message.id()).await?;
@@ -1116,6 +1171,12 @@ pub(crate) mod test {
             loaded_record.is_none(),
             "Attachment should be deleted by FK cascade when message is deleted"
         );
+
+        // The content row cascades with the attachment
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 0);
 
         Ok(())
     }
