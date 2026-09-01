@@ -141,7 +141,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
       );
       if (gen != _playGeneration || !mounted) return;
 
-      final buffer = await ui.ImmutableBuffer.fromUint8List(original.bytes);
+      final buffer = await ui.ImmutableBuffer.fromUint8List(original);
       if (gen != _playGeneration || !mounted) {
         buffer.dispose();
         return;

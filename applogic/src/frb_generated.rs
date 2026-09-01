@@ -11233,18 +11233,6 @@ impl SseDecode for Vec<crate::api::types::UiUsername> {
     }
 }
 
-impl SseDecode for crate::api::attachments_repository::LoadedImageAttachment {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_bytes = <Vec<u8>>::sse_decode(deserializer);
-        let mut var_isAnimated = <bool>::sse_decode(deserializer);
-        return crate::api::attachments_repository::LoadedImageAttachment {
-            bytes: var_bytes,
-            is_animated: var_isAnimated,
-        };
-    }
-}
-
 impl SseDecode for crate::api::logging::LogEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11795,21 +11783,6 @@ impl SseDecode for Option<crate::api::types::ImageData> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::ImageData>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::attachments_repository::LoadedImageAttachment> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <crate::api::attachments_repository::LoadedImageAttachment>::sse_decode(
-                    deserializer,
-                ),
-            );
         } else {
             return None;
         }
@@ -14671,27 +14644,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::linked_devices_cubit::LinkedD
     for crate::api::linked_devices_cubit::LinkedDevicesState
 {
     fn into_into_dart(self) -> crate::api::linked_devices_cubit::LinkedDevicesState {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::attachments_repository::LoadedImageAttachment {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.bytes.into_into_dart().into_dart(),
-            self.is_animated.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::attachments_repository::LoadedImageAttachment
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::attachments_repository::LoadedImageAttachment>
-    for crate::api::attachments_repository::LoadedImageAttachment
-{
-    fn into_into_dart(self) -> crate::api::attachments_repository::LoadedImageAttachment {
         self
     }
 }
@@ -17925,14 +17877,6 @@ impl SseEncode for Vec<crate::api::types::UiUsername> {
     }
 }
 
-impl SseEncode for crate::api::attachments_repository::LoadedImageAttachment {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<u8>>::sse_encode(self.bytes, serializer);
-        <bool>::sse_encode(self.is_animated, serializer);
-    }
-}
-
 impl SseEncode for crate::api::logging::LogEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18393,18 +18337,6 @@ impl SseEncode for Option<crate::api::types::ImageData> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::ImageData>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode for Option<crate::api::attachments_repository::LoadedImageAttachment> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::attachments_repository::LoadedImageAttachment>::sse_encode(
-                value, serializer,
-            );
         }
     }
 }

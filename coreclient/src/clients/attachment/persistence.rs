@@ -44,6 +44,7 @@ pub(crate) struct AttachmentRecord {
     pub(super) message_id: MessageId,
     pub(super) content_type: String,
     pub(super) status: AttachmentStatus,
+    pub(super) is_animated: Option<bool>,
     pub(super) created_at: DateTime<Utc>,
 }
 
@@ -197,8 +198,9 @@ impl AttachmentRecord {
                 content_type,
                 content,
                 status,
-                created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                created_at,
+                is_animated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
             self.remote_attachment_id,
             self.chat_id,
@@ -207,6 +209,7 @@ impl AttachmentRecord {
             content,
             self.status,
             self.created_at,
+            self.is_animated,
         )
         .execute(connection.as_mut())
         .await?;
@@ -243,7 +246,8 @@ impl AttachmentRecord {
                     message_id AS "message_id: _",
                     content_type AS "content_type: _",
                     status AS "status: _",
-                    created_at AS "created_at: _"
+                    created_at AS "created_at: _",
+                    is_animated
                 FROM attachment
                 WHERE attachment_id = ?"#,
             attachment_id
@@ -263,6 +267,38 @@ impl AttachmentRecord {
         )
         .fetch_optional(connection.as_mut())
         .await
+    }
+
+    pub(crate) async fn is_animated(
+        mut connection: impl ReadConnection,
+        attachment_id: AttachmentId,
+    ) -> sqlx::Result<Option<bool>> {
+        query_scalar!(
+            "SELECT is_animated
+            FROM attachment
+            WHERE attachment_id = ?",
+            attachment_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(|value| value.flatten())
+    }
+
+    pub(crate) async fn set_is_animated(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        is_animated: bool,
+    ) -> sqlx::Result<()> {
+        // Only updated if not yet classified => make it idempotent
+        query!(
+            "UPDATE attachment SET is_animated = ?
+            WHERE attachment_id = ? AND is_animated IS NULL",
+            is_animated,
+            attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
     }
 
     /// Loads own messages whose attachments are all uploaded but which are
@@ -341,11 +377,17 @@ impl AttachmentRecord {
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         bytes: &[u8],
+        is_animated: bool,
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachment SET status = ?, content = ? WHERE attachment_id = ?",
+            "UPDATE attachment SET
+                status = ?,
+                content = ?,
+                is_animated = ?
+            WHERE attachment_id = ?",
             AttachmentStatus::Ready,
             bytes,
+            is_animated,
             attachment_id,
         )
         .execute(connection.as_mut())
@@ -639,6 +681,7 @@ pub(crate) mod test {
             message_id,
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
+            is_animated: Some(false),
             created_at: Utc::now().round_subsecs(6),
         }
     }
@@ -720,7 +763,8 @@ pub(crate) mod test {
 
         // 3. Set the content, which should move the status to Ready
         let content = b"some_image_content".to_vec();
-        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content).await?;
+        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content, true)
+            .await?;
 
         // Verify content and status
         let loaded_content =
@@ -914,6 +958,7 @@ pub(crate) mod test {
             message_id: message.id(),
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
+            is_animated: Some(false),
             created_at,
         };
 

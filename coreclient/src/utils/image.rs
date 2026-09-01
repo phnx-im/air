@@ -68,6 +68,7 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) webp_image: Vec<u8>,
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
+    pub(crate) is_animated: bool,
 }
 
 /// Loads an image and re-encodes it to WEBP format.
@@ -197,6 +198,7 @@ fn load_still_image<D: ImageDecoder>(
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
+        is_animated: false,
     })
 }
 
@@ -267,6 +269,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
+        is_animated: true,
     })
 }
 

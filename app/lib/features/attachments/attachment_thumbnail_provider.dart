@@ -41,9 +41,9 @@ class AttachmentThumbnailProvider extends ImageProvider<AttachmentId> {
     AttachmentId key,
     ImageDecoderCallback decode,
   ) async {
-    final LoadedImageAttachment? loaded;
+    final Uint8List? bytes;
     try {
-      loaded = await attachmentsRepository.loadThumbnail(
+      bytes = await attachmentsRepository.loadThumbnail(
         attachmentId: key,
         retryDownloadIfFailed: true,
       );
@@ -51,11 +51,11 @@ class AttachmentThumbnailProvider extends ImageProvider<AttachmentId> {
       _evict(key);
       rethrow;
     }
-    if (loaded == null) {
+    if (bytes == null) {
       _evict(key);
       throw StateError('No thumbnail for $key');
     }
-    final buffer = await ui.ImmutableBuffer.fromUint8List(loaded.bytes);
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     return decode(buffer);
   }
 

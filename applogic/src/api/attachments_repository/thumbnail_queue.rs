@@ -11,9 +11,9 @@ use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
 use tracing::error;
 
-use super::{LoadedImageAttachment, loaded};
+use super::loaded;
 
-type ThumbnailWaiters = Vec<oneshot::Sender<LoadedImageAttachment>>;
+type ThumbnailWaiters = Vec<oneshot::Sender<Vec<u8>>>;
 
 /// Pending thumbnail generations, served newest first.
 pub(super) struct ThumbnailQueue {
@@ -40,7 +40,7 @@ impl ThumbnailQueue {
     pub(super) fn request(
         &self,
         attachment_id: AttachmentId,
-    ) -> impl Future<Output = Option<LoadedImageAttachment>> {
+    ) -> impl Future<Output = Option<Vec<u8>>> {
         let (tx, rx) = oneshot::channel();
         {
             let mut pending = self.pending.lock();
@@ -96,11 +96,9 @@ impl ThumbnailWorker {
     async fn generate_thumbnail(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<Option<LoadedImageAttachment>> {
+    ) -> anyhow::Result<Option<Vec<u8>>> {
         match self.core_user.attachment_thumbnail(attachment_id).await? {
-            Some(AttachmentThumbnail::Ready { bytes, is_animated }) => {
-                Ok(Some(LoadedImageAttachment { bytes, is_animated }))
-            }
+            Some(AttachmentThumbnail::Ready { bytes }) => Ok(Some(bytes)),
             existing => {
                 let original = match self.core_user.load_attachment(attachment_id).await? {
                     AttachmentContent::Ready(bytes)

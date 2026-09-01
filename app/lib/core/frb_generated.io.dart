@@ -764,11 +764,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
 
   @protected
-  LoadedImageAttachment dco_decode_box_autoadd_loaded_image_attachment(
-    dynamic raw,
-  );
-
-  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
 
   @protected
@@ -1059,9 +1054,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiUsername> dco_decode_list_ui_username(dynamic raw);
 
   @protected
-  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
-
-  @protected
   LogEntry dco_decode_log_entry(dynamic raw);
 
   @protected
@@ -1194,11 +1186,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
-
-  @protected
-  LoadedImageAttachment? dco_decode_opt_box_autoadd_loaded_image_attachment(
-    dynamic raw,
-  );
 
   @protected
   MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
@@ -2119,11 +2106,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  LoadedImageAttachment sse_decode_box_autoadd_loaded_image_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   );
@@ -2512,11 +2494,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
 
   @protected
-  LoadedImageAttachment sse_decode_loaded_image_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   LogEntry sse_decode_log_entry(SseDeserializer deserializer);
 
   @protected
@@ -2683,11 +2660,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ImageData? sse_decode_opt_box_autoadd_image_data(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LoadedImageAttachment? sse_decode_opt_box_autoadd_loaded_image_attachment(
     SseDeserializer deserializer,
   );
 
@@ -3800,12 +3772,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -4298,12 +4264,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_log_entry(LogEntry self, SseSerializer serializer);
 
   @protected
@@ -4507,12 +4467,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_image_data(
     ImageData? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_loaded_image_attachment(
-    LoadedImageAttachment? self,
     SseSerializer serializer,
   );
 

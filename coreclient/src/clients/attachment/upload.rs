@@ -146,6 +146,7 @@ impl CoreUser {
         let remote_attachment_id = metadata.remote_attachment_id;
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
+        let is_animated = attachment.image_data.as_ref().map(|data| data.is_animated);
 
         let content = MimiContent {
             nested_part: NestedPart::MultiPart {
@@ -181,6 +182,7 @@ impl CoreUser {
                     message_id,
                     content_type: content_type.to_owned(),
                     status: AttachmentStatus::Uploading,
+                    is_animated,
                     created_at: Utc::now(),
                 };
                 record.store(txn, Some(content_bytes.as_slice())).await?;
@@ -390,6 +392,7 @@ struct ProcessedAttachmentImageData {
     blurhash: String,
     width: u32,
     height: u32,
+    is_animated: bool,
 }
 
 impl ProcessedAttachment {
@@ -399,12 +402,14 @@ impl ProcessedAttachment {
                 webp_image,
                 image_dimensions: (width, height),
                 blurhash,
+                is_animated,
             }) = load_attachment_image(path)?
             {
                 let image_data = ProcessedAttachmentImageData {
                     blurhash,
                     width,
                     height,
+                    is_animated,
                 };
                 (webp_image.into(), "image/webp", Some(image_data))
             } else {

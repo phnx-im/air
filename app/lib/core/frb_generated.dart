@@ -123,14 +123,14 @@ abstract class RustLibApi extends BaseApi {
     required AttachmentId attachmentId,
   });
 
-  Future<LoadedImageAttachment>
+  Future<Uint8List>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,
   });
 
-  Future<LoadedImageAttachment?>
+  Future<Uint8List?>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadThumbnail({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
@@ -1243,7 +1243,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<LoadedImageAttachment>
+  Future<Uint8List>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
@@ -1267,7 +1267,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_loaded_image_attachment,
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -1286,7 +1286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<LoadedImageAttachment?>
+  Future<Uint8List?>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadThumbnail({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
@@ -1310,7 +1310,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_loaded_image_attachment,
+          decodeSuccessData: sse_decode_opt_list_prim_u_8_strict,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -9430,14 +9430,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  LoadedImageAttachment dco_decode_box_autoadd_loaded_image_attachment(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_loaded_image_attachment(raw);
-  }
-
-  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_message_content(raw);
@@ -10178,18 +10170,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return LoadedImageAttachment(
-      bytes: dco_decode_list_prim_u_8_strict(arr[0]),
-      isAnimated: dco_decode_bool(arr[1]),
-    );
-  }
-
-  @protected
   LogEntry dco_decode_log_entry(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -10595,16 +10575,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_image_data(raw);
-  }
-
-  @protected
-  LoadedImageAttachment? dco_decode_opt_box_autoadd_loaded_image_attachment(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_loaded_image_attachment(raw);
   }
 
   @protected
@@ -12918,14 +12888,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  LoadedImageAttachment sse_decode_box_autoadd_loaded_image_attachment(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_loaded_image_attachment(deserializer));
-  }
-
-  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   ) {
@@ -13944,16 +13906,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  LoadedImageAttachment sse_decode_loaded_image_attachment(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
-    var var_isAnimated = sse_decode_bool(deserializer);
-    return LoadedImageAttachment(bytes: var_bytes, isAnimated: var_isAnimated);
-  }
-
-  @protected
   LogEntry sse_decode_log_entry(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_time = sse_decode_Chrono_Utc(deserializer);
@@ -14487,19 +14439,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_image_data(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  LoadedImageAttachment? sse_decode_opt_box_autoadd_loaded_image_attachment(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_loaded_image_attachment(deserializer));
     } else {
       return null;
     }
@@ -17303,15 +17242,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_loaded_image_attachment(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -18260,16 +18190,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_prim_u_8_strict(self.bytes, serializer);
-    sse_encode_bool(self.isAnimated, serializer);
-  }
-
-  @protected
   void sse_encode_log_entry(LogEntry self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_Chrono_Utc(self.time, serializer);
@@ -18761,19 +18681,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_image_data(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_loaded_image_attachment(
-    LoadedImageAttachment? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_loaded_image_attachment(self, serializer);
     }
   }
 
@@ -19900,8 +19807,8 @@ class AttachmentsRepositoryImpl extends RustOpaque
 
   /// Returns whether the attachment is animated.
   ///
-  /// The data is loaded from the thumbnail metadata. If the thumbnail is not yet generated, it is
-  /// regenerated, and then the data is returned.
+  /// The data is loaded from the attachment metadata. If attachment is not yet available, it is
+  /// downloaded.
   Future<bool?> isAttachmentAnimated({
     required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,
@@ -19920,7 +19827,7 @@ class AttachmentsRepositoryImpl extends RustOpaque
             attachmentId: attachmentId,
           );
 
-  Future<LoadedImageAttachment> loadImageAttachment({
+  Future<Uint8List> loadImageAttachment({
     required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,
   }) => RustLib.instance.api
@@ -19933,7 +19840,7 @@ class AttachmentsRepositoryImpl extends RustOpaque
   /// Load thumbnail for the database
   ///
   /// If the thumbnail is not yet generated, it is regenerated, and then the data is returned.
-  Future<LoadedImageAttachment?> loadThumbnail({
+  Future<Uint8List?> loadThumbnail({
     required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,
   }) => RustLib.instance.api

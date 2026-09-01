@@ -11,7 +11,6 @@ use aircoreclient::{
     AttachmentThumbnail,
     clients::CoreUser,
     db::notification::{DbEntityId, DbOperation},
-    image_is_animated,
 };
 use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
@@ -128,31 +127,28 @@ impl AttachmentsRepository {
 
     /// Returns whether the attachment is animated.
     ///
-    /// The data is loaded from the thumbnail metadata. If the thumbnail is not yet generated, it is
-    /// regenerated, and then the data is returned.
+    /// The data is loaded from the attachment metadata. If attachment is not yet available, it is
+    /// downloaded.
     #[instrument(level = "debug", skip(self))]
     pub async fn is_attachment_animated(
         &self,
         attachment_id: AttachmentId,
         retry_download_if_failed: bool,
     ) -> anyhow::Result<Option<bool>> {
-        if let Some(metadata) = self
-            .core_user
-            .attachment_thumbnail_metadata(attachment_id)
-            .await?
-        {
-            return Ok(Some(metadata.is_animated));
+        if let Some(value) = self.core_user.attachment_is_animated(attachment_id).await? {
+            return Ok(Some(value));
         }
 
-        // Fallback to regenerate the thumbnail
+        // Fallback triggers download if needed
         if !self
             .ensure_attachment_content(attachment_id, retry_download_if_failed)
             .await?
         {
             return Ok(None);
         }
-        let thumbnail = self.thumbnail_queue.request(attachment_id).await;
-        Ok(thumbnail.map(|t| t.is_animated))
+
+        // Download just completed => read the value again
+        self.core_user.attachment_is_animated(attachment_id).await
     }
 
     /// Load attachment's data from database
@@ -174,13 +170,10 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
         retry_download_if_failed: bool,
-    ) -> anyhow::Result<LoadedImageAttachment> {
-        let bytes = self
-            .attachment_bytes(attachment_id, retry_download_if_failed)
+    ) -> anyhow::Result<Vec<u8>> {
+        self.attachment_bytes(attachment_id, retry_download_if_failed)
             .await?
-            .context("Attachment not found")?;
-        let is_animated = image_is_animated(&bytes);
-        Ok(LoadedImageAttachment { bytes, is_animated })
+            .context("Attachment not found")
     }
 
     /// Load thumbnail for the database
@@ -191,13 +184,10 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
         retry_download_if_failed: bool,
-    ) -> anyhow::Result<Option<LoadedImageAttachment>> {
+    ) -> anyhow::Result<Option<Vec<u8>>> {
         match self.core_user.attachment_thumbnail(attachment_id).await? {
             // Hot path: no original bytes are touched
-            Some(AttachmentThumbnail::Ready { bytes, is_animated }) => {
-                Ok(Some(LoadedImageAttachment { bytes, is_animated }))
-            }
-
+            Some(AttachmentThumbnail::Ready { bytes }) => Ok(Some(bytes)),
             // Terminal outcomes: serve the original, never regenerate
             Some(thumbnail) => {
                 let Some(original) = self.load_attachment(attachment_id).await? else {
@@ -205,7 +195,6 @@ impl AttachmentsRepository {
                 };
                 Ok(Some(loaded(thumbnail, original)))
             }
-
             None => {
                 // Trigger download if needed
                 if !self
@@ -345,21 +334,13 @@ impl AttachmentsRepository {
 ///
 /// `original` is the fallback for the outcomes that are not a stored blob, and is unused for
 /// `Ready`.
-fn loaded(thumbnail: AttachmentThumbnail, original: Vec<u8>) -> LoadedImageAttachment {
+fn loaded(thumbnail: AttachmentThumbnail, original: Vec<u8>) -> Vec<u8> {
     match thumbnail {
-        AttachmentThumbnail::Ready { bytes, is_animated } => {
-            LoadedImageAttachment { bytes, is_animated }
-        }
+        AttachmentThumbnail::Ready { bytes } => bytes,
         // Never animated: an animated source always stores a first frame.
-        AttachmentThumbnail::OriginalFits => LoadedImageAttachment {
-            bytes: original,
-            is_animated: false,
-        },
+        AttachmentThumbnail::OriginalFits => original,
         // The `image` crate could not decode it, so let Flutter try.
-        AttachmentThumbnail::Failed { is_animated } => LoadedImageAttachment {
-            bytes: original,
-            is_animated,
-        },
+        AttachmentThumbnail::Failed => original,
     }
 }
 
@@ -519,11 +500,4 @@ pub enum UiAttachmentStatus {
     Failed,
     /// Not found on the server
     NotFound,
-}
-
-/// Bytes of an image attachment (thumbnail or original) and an animation classification
-#[derive(Clone)]
-pub struct LoadedImageAttachment {
-    pub bytes: Vec<u8>,
-    pub is_animated: bool,
 }

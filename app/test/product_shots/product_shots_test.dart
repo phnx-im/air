@@ -253,14 +253,7 @@ void main() {
           attachmentId: any(named: "attachmentId"),
           retryDownloadIfFailed: false,
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -541,14 +534,7 @@ void main() {
           attachmentId: any(named: "attachmentId"),
           retryDownloadIfFailed: false,
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),

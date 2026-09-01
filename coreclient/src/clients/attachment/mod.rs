@@ -16,7 +16,7 @@ pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId, clients::CoreUser};
+use crate::{ChatId, MessageId, clients::CoreUser, image_is_animated};
 
 mod aead;
 mod content;
@@ -44,6 +44,34 @@ impl CoreUser {
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<AttachmentStatus>> {
         Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
+    }
+
+    /// Returns whether the attachment is an animated image.
+    ///
+    /// In case the value is unknown, it is classified and backfilled. This path is only needed for
+    /// legacy attachments. Attachments are classified on upload and download.
+    pub async fn attachment_is_animated(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<bool>> {
+        if let Some(value) =
+            AttachmentRecord::is_animated(self.db().read().await?, attachment_id).await?
+        {
+            return Ok(Some(value));
+        }
+
+        // Unknown value => classify and backfill
+        let is_animated =
+            match AttachmentRecord::load_content(self.db().read().await?, attachment_id).await? {
+                AttachmentContent::Ready(bytes)
+                | AttachmentContent::Uploading(bytes)
+                | AttachmentContent::UploadFailed(bytes) => image_is_animated(bytes.as_slice()),
+                _ => return Ok(None),
+            };
+        AttachmentRecord::set_is_animated(self.db().write().await?, attachment_id, is_animated)
+            .await?;
+
+        Ok(Some(is_animated))
     }
 
     /// Returns the attachment IDs for the given message IDs.
