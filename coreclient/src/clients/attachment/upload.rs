@@ -39,8 +39,8 @@ use tokio_util::io::ReaderStream;
 use url::Url;
 
 use crate::{
-    AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentThumbnail,
-    AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
+    AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
+    AttachmentThumbnail, AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
