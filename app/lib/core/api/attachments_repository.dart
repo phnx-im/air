@@ -22,6 +22,15 @@ part 'attachments_repository.freezed.dart';
 abstract class AttachmentsRepository implements RustOpaqueInterface {
   Future<void> cancel({required AttachmentId attachmentId});
 
+  /// Returns whether the attachment is animated.
+  ///
+  /// The data is loaded from the thumbnail metadata. If the thumbnail is not yet generated, it is
+  /// regenerated, and then the data is returned.
+  Future<bool?> isAttachmentAnimated({
+    required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
+  });
+
   /// Load attachment's data from database
   Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
@@ -30,6 +39,9 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
     required bool retryDownloadIfFailed,
   });
 
+  /// Load thumbnail for the database
+  ///
+  /// If the thumbnail is not yet generated, it is regenerated, and then the data is returned.
   Future<LoadedImageAttachment?> loadThumbnail({
     required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,

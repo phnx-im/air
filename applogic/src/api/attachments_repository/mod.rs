@@ -19,7 +19,7 @@ use flutter_rust_bridge::frb;
 use futures_util::StreamExt;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::{CancellationToken, DropGuard};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument};
 
 use crate::{StreamSink, api::user_cubit::UserCubitBase, util::spawn_from_sync};
 
@@ -126,7 +126,37 @@ impl AttachmentsRepository {
         }
     }
 
+    /// Returns whether the attachment is animated.
+    ///
+    /// The data is loaded from the thumbnail metadata. If the thumbnail is not yet generated, it is
+    /// regenerated, and then the data is returned.
+    #[instrument(level = "debug", skip(self))]
+    pub async fn is_attachment_animated(
+        &self,
+        attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
+    ) -> anyhow::Result<Option<bool>> {
+        if let Some(metadata) = self
+            .core_user
+            .attachment_thumbnail_metadata(attachment_id)
+            .await?
+        {
+            return Ok(Some(metadata.is_animated));
+        }
+
+        // Fallback to regenerate the thumbnail
+        if !self
+            .ensure_attachment_content(attachment_id, retry_download_if_failed)
+            .await?
+        {
+            return Ok(None);
+        }
+        let thumbnail = self.thumbnail_queue.request(attachment_id).await;
+        Ok(thumbnail.map(|t| t.is_animated))
+    }
+
     /// Load attachment's data from database
+    #[instrument(level = "debug", skip(self))]
     pub async fn load_attachment(
         &self,
         attachment_id: AttachmentId,
@@ -139,6 +169,7 @@ impl AttachmentsRepository {
         }
     }
 
+    #[instrument(level = "debug", skip(self))]
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
@@ -152,6 +183,10 @@ impl AttachmentsRepository {
         Ok(LoadedImageAttachment { bytes, is_animated })
     }
 
+    /// Load thumbnail for the database
+    ///
+    /// If the thumbnail is not yet generated, it is regenerated, and then the data is returned.
+    #[instrument(level = "debug", skip(self))]
     pub async fn load_thumbnail(
         &self,
         attachment_id: AttachmentId,
@@ -321,9 +356,9 @@ fn loaded(thumbnail: AttachmentThumbnail, original: Vec<u8>) -> LoadedImageAttac
             is_animated: false,
         },
         // The `image` crate could not decode it, so let Flutter try.
-        AttachmentThumbnail::Failed => LoadedImageAttachment {
-            is_animated: image_is_animated(&original),
+        AttachmentThumbnail::Failed { is_animated } => LoadedImageAttachment {
             bytes: original,
+            is_animated,
         },
     }
 }

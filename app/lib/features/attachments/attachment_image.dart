@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
@@ -32,16 +31,17 @@ const int _maxAutoLoops = 3;
 /// - **Static**: rendered via [Image] + [AttachmentThumbnailProvider], so frames
 ///   live in Flutter's shared `imageCache`. Tap forwards to [onTap] (image
 ///   viewer) along with the provider painted here, so the viewer opens on a
-///   decode it already has. The bytes loaded for classification are discarded;
-///   the provider re-fetches them on first decode and the framework holds the
-///   result from then on.
+///   decode it already has. Classification only asks for the animated flag;
+///   the provider is the sole reader of the thumbnail bytes and the framework
+///   holds the decode from then on.
 ///
-/// - **Animated**: a fresh codec is instantiated per mount and frames are
-///   driven by a [Timer]. Autoplays up to [_maxAutoLoops] then freezes on the
-///   last frame. Tapping toggles playback (running → freeze on current frame;
-///   stopped → replay from the start). [onTap] is unused as animated
-///   attachments intercept the gesture. Frames are not cached; each mount
-///   drives its own per-widget animation state.
+/// - **Animated**: the original bytes are read from the database and a fresh
+///   codec is instantiated per mount (and per replay); frames are driven by a
+///   [Timer]. Autoplays up to [_maxAutoLoops] then freezes on the last frame.
+///   Tapping toggles playback (running → freeze on current frame; stopped →
+///   replay from the start). [onTap] is unused as animated attachments
+///   intercept the gesture. Neither bytes nor frames are held in widget state
+///   beyond the current frame; each mount drives its own animation.
 class AttachmentImage extends StatefulWidget {
   const AttachmentImage({
     super.key,
@@ -69,7 +69,6 @@ class _AttachmentImageState extends State<AttachmentImage> {
   /// Per-session memo of the animated-vs-static classification.
   static final Map<AttachmentId, bool> _animationFlagCache = {};
 
-  Uint8List? _bytes;
   ui.Codec? _codec;
   ui.Image? _currentFrame;
   Timer? _frameTimer;
@@ -97,49 +96,37 @@ class _AttachmentImageState extends State<AttachmentImage> {
     if (cached == true) {
       _isAnimated = true;
     }
-    unawaited(_load());
+    unawaited(_classify());
   }
 
-  /// Loads the encoded bytes and (if not already memoized) classifies them.
-  Future<void> _load({bool retryDownloadIfFailed = false}) async {
+  /// Classifies the attachment as animated or static, downloading it and
+  /// generating its thumbnail if needed, and starts playback when animated.
+  Future<void> _classify({bool retryDownloadIfFailed = false}) async {
     final id = widget.attachment.attachmentId;
     try {
       if (!mounted) return;
       final repository = context.read<AttachmentsRepository>();
-      final thumbnail = await repository.loadThumbnail(
+      final isAnimated = await repository.isAttachmentAnimated(
         attachmentId: id,
         retryDownloadIfFailed: retryDownloadIfFailed,
       );
-      if (!mounted) return;
-      if (thumbnail == null) return;
-      _animationFlagCache[id] = thumbnail.isAnimated;
-      if (!thumbnail.isAnimated) {
-        setState(() => _isAnimated = false);
-        return;
+      if (!mounted || isAnimated == null) return;
+      _animationFlagCache[id] = isAnimated;
+      setState(() => _isAnimated = isAnimated);
+      if (isAnimated) {
+        await _instantiateAndPlay();
       }
-
-      // The image is animated => thumbnail is just the first frame => fetch the original
-      final original = await repository.loadImageAttachment(
-        attachmentId: id,
-        retryDownloadIfFailed: retryDownloadIfFailed,
-      );
-      if (!mounted) return;
-      _bytes = original.bytes;
-      if (_isAnimated == null) {
-        setState(() => _isAnimated = true);
-      }
-      await _instantiateAndPlay();
     } catch (e, st) {
-      _log.severe('Failed to load attachment', e, st);
+      _log.severe('Failed to classify attachment', e, st);
       if (mounted) setState(() => _error = e);
     }
   }
 
-  /// Instantiates a fresh codec from the held bytes and renders the first
+  /// Instantiates a fresh codec from the loaded bytes and renders the first
   /// frame, then schedules the rest of the animation.
   Future<void> _instantiateAndPlay({bool userInitiated = false}) async {
-    final bytes = _bytes;
-    if (bytes == null) return;
+    if (!mounted) return;
+    final repository = context.read<AttachmentsRepository>();
     final gen = ++_playGeneration;
 
     _frameTimer?.cancel();
@@ -148,7 +135,13 @@ class _AttachmentImageState extends State<AttachmentImage> {
     _codec = null;
 
     try {
-      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final original = await repository.loadImageAttachment(
+        attachmentId: widget.attachment.attachmentId,
+        retryDownloadIfFailed: false,
+      );
+      if (gen != _playGeneration || !mounted) return;
+
+      final buffer = await ui.ImmutableBuffer.fromUint8List(original.bytes);
       if (gen != _playGeneration || !mounted) {
         buffer.dispose();
         return;
@@ -304,7 +297,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
           size: widget.attachment.size,
           isSender: widget.isSender,
           isAnimationPaused: isAnimationPaused,
-          onTapDownload: () => _load(retryDownloadIfFailed: true),
+          onTapDownload: () => _classify(retryDownloadIfFailed: true),
         ),
       ],
     );
