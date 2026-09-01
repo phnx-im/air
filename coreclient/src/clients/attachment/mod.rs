@@ -74,35 +74,53 @@ impl CoreUser {
         Ok(Some(is_animated))
     }
 
-    /// Returns the attachment IDs for the given message IDs.
+    /// Returns the attachment infos for the given message ID.
     ///
-    /// IDs are ordered by the position in the mimi content.
-    pub async fn attachment_ids_for_message(&self, message_id: MessageId) -> Vec<AttachmentId> {
+    /// Infos are ordered by the position in the mimi content.
+    pub async fn attachment_infos_for_message(&self, message_id: MessageId) -> Vec<AttachmentInfo> {
         let Ok(read) = self.db().read().await else {
             return Default::default();
         };
-        AttachmentRecord::load_ids_by_message_id(read, message_id)
+        AttachmentRecord::load_infos_by_message_id(read, message_id)
             .await
             .unwrap_or_default()
     }
 
-    /// Returns the attachment IDs for the given contiguous range of messages.
+    /// Returns the attachment infos for the given contiguous range of messages.
     ///
     /// The upper bound is inclusive.
     ///
-    /// IDs are ordered by the position in the mimi content for each message.
-    pub async fn attachment_ids_in_range_inclusive(
+    /// Infos are ordered by the position in the mimi content for each message.
+    pub async fn attachment_infos_in_range_inclusive(
         &self,
         chat_id: ChatId,
         from: (DateTime<Utc>, MessageId),
         to: (DateTime<Utc>, MessageId),
-    ) -> HashMap<MessageId, Vec<AttachmentId>> {
+    ) -> HashMap<MessageId, Vec<AttachmentInfo>> {
         let Ok(read) = self.db().read().await else {
             return Default::default();
         };
-        AttachmentRecord::load_ids_by_in_range_inclusive(read, chat_id, from, to)
+        AttachmentRecord::load_infos_in_range_inclusive(read, chat_id, from, to)
             .await
             .unwrap_or_default()
+    }
+}
+
+/// Local attachment ID together with locally derived facts about the
+/// attachment.
+#[derive(Debug, Clone, Copy)]
+pub struct AttachmentInfo {
+    pub attachment_id: AttachmentId,
+    /// Whether the attachment is an animated image, if already classified
+    pub is_animated: Option<bool>,
+}
+
+impl From<AttachmentId> for AttachmentInfo {
+    fn from(attachment_id: AttachmentId) -> Self {
+        Self {
+            attachment_id,
+            is_animated: None,
+        }
     }
 }
 

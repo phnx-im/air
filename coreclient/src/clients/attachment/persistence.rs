@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     AttachmentId, ChatId, MessageId,
+    clients::attachment::AttachmentInfo,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -478,15 +479,48 @@ impl AttachmentRecord {
         .await
     }
 
-    pub(crate) async fn load_ids_by_in_range_inclusive(
+    /// Load all attachment infos for a given message.
+    ///
+    /// Infos are ordered by the position in the mimi content.
+    pub(crate) async fn load_infos_by_message_id(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<AttachmentInfo>> {
+        struct Row {
+            attachment_id: AttachmentId,
+            is_animated: Option<bool>,
+        }
+        let rows = query_as!(
+            Row,
+            r#"SELECT
+                attachment_id AS "attachment_id: _",
+                is_animated
+            FROM attachment
+            WHERE message_id = ?
+            ORDER BY rowid"#,
+            message_id
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| AttachmentInfo {
+                attachment_id: row.attachment_id,
+                is_animated: row.is_animated,
+            })
+            .collect())
+    }
+
+    pub(crate) async fn load_infos_in_range_inclusive(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),
         mut to: (DateTime<Utc>, MessageId),
-    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentId>>> {
+    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentInfo>>> {
         struct Row {
             message_id: MessageId,
             attachment_id: AttachmentId,
+            is_animated: Option<bool>,
         }
 
         // Normalize the range
@@ -499,7 +533,8 @@ impl AttachmentRecord {
             r#"
             SELECT
                 a.message_id AS "message_id: _",
-                a.attachment_id AS "attachment_id: _"
+                a.attachment_id AS "attachment_id: _",
+                a.is_animated
             FROM attachment a
             JOIN message m USING (message_id)
             WHERE m.chat_id = ?
@@ -516,19 +551,23 @@ impl AttachmentRecord {
         .fetch_all(connection.as_mut())
         .await?;
 
-        let mut attachment_ids: HashMap<MessageId, Vec<AttachmentId>> = HashMap::new();
+        let mut attachment_infos: HashMap<MessageId, Vec<AttachmentInfo>> = HashMap::new();
         for Row {
             message_id,
             attachment_id,
+            is_animated,
         } in rows
         {
-            attachment_ids
+            attachment_infos
                 .entry(message_id)
                 .or_default()
-                .push(attachment_id);
+                .push(AttachmentInfo {
+                    attachment_id,
+                    is_animated,
+                });
         }
 
-        Ok(attachment_ids)
+        Ok(attachment_infos)
     }
 }
 
