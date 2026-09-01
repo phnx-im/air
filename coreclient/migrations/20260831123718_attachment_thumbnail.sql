@@ -1,22 +1,4 @@
--- Move the attachment content blob into a dedicated 1:1 table.
---
--- This makes reading from the attachment table cheaper.
-CREATE TABLE attachment_content (
-    attachment_id BLOB NOT NULL PRIMARY KEY,
-    content BLOB NOT NULL,
-    FOREIGN KEY (attachment_id) REFERENCES attachment (attachment_id) ON DELETE CASCADE
-);
-
-INSERT INTO
-    attachment_content (attachment_id, content)
-SELECT
-    attachment_id,
-    content
-FROM
-    attachment
-WHERE
-    content IS NOT NULL;
-
+-- The content was moved into attachment_content by the previous migration.
 ALTER TABLE attachment
 DROP COLUMN content;
 

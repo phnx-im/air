@@ -26,7 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
-    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
+    clients::{
+        attachment::persistence::move_attachment_content_to_side_table,
+        own_client_info::OwnClientInfo, store::ClientRecord,
+    },
     db::{
         access::{DbAccess, WriteConnection},
         notification::DbNotificationsSender,
@@ -274,6 +277,7 @@ pub async fn open_client_db(
 enum RustMigration {
     OwnClientIdBackfill = 20260817150000,
     StaleDeletedMessagesPurge = 20260817150100,
+    AttachmentContentMove = 20260831123717,
 }
 
 impl RustMigration {
@@ -281,6 +285,7 @@ impl RustMigration {
         match version {
             20260817150000 => Some(Self::OwnClientIdBackfill),
             20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            20260831123717 => Some(Self::AttachmentContentMove),
             _ => None,
         }
     }
@@ -290,6 +295,9 @@ impl RustMigration {
         match self {
             RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
             RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+            RustMigration::AttachmentContentMove => {
+                move_attachment_content_to_side_table(write).await?
+            }
         }
         Ok(())
     }

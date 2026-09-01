@@ -184,6 +184,38 @@ impl<'r> Decode<'r, Sqlite> for AttachmentStatus {
     }
 }
 
+/// Moves attachment content blobs into the `attachment_content` table.
+///
+/// Code migration paired with the migration creating the table. Runs in small
+/// batches so that pages freed by clearing a blob are reused by the next
+/// batch's inserts and the database file does not grow. Uses unchecked
+/// queries: the source column does not exist in the final schema.
+pub(crate) async fn move_attachment_content_to_side_table(
+    mut connection: impl WriteConnection,
+) -> sqlx::Result<()> {
+    loop {
+        sqlx::query(
+            "INSERT INTO attachment_content (attachment_id, content)
+            SELECT attachment_id, content FROM attachment
+            WHERE content IS NOT NULL
+            LIMIT 16",
+        )
+        .execute(connection.as_mut())
+        .await?;
+        let cleared = sqlx::query(
+            "UPDATE attachment SET content = NULL
+            WHERE content IS NOT NULL
+            AND attachment_id IN (SELECT attachment_id FROM attachment_content)",
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        if cleared == 0 {
+            return Ok(());
+        }
+    }
+}
+
 impl AttachmentRecord {
     pub(crate) async fn store(
         &self,
