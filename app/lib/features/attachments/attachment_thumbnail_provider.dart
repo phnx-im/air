@@ -45,7 +45,7 @@ class AttachmentThumbnailProvider extends ImageProvider<AttachmentId> {
     try {
       bytes = await attachmentsRepository.loadThumbnail(
         attachmentId: key,
-        retryDownloadIfFailed: true,
+        retryDownloadIfFailed: false,
       );
     } catch (_) {
       _evict(key);
