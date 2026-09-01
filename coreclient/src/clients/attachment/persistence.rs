@@ -197,23 +197,30 @@ impl AttachmentRecord {
                 chat_id,
                 message_id,
                 content_type,
-                content,
                 status,
                 created_at,
                 is_animated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
             self.remote_attachment_id,
             self.chat_id,
             self.message_id,
             self.content_type,
-            content,
             self.status,
             self.created_at,
             self.is_animated,
         )
         .execute(connection.as_mut())
         .await?;
+        if let Some(content) = content {
+            query!(
+                "INSERT INTO attachment_content (attachment_id, content) VALUES (?, ?)",
+                self.attachment_id,
+                content,
+            )
+            .execute(connection.as_mut())
+            .await?;
+        }
         connection.notifier().add(self.attachment_id);
         Ok(())
     }
@@ -380,16 +387,31 @@ impl AttachmentRecord {
         bytes: &[u8],
         is_animated: bool,
     ) -> sqlx::Result<()> {
-        query!(
+        let updated = query!(
             "UPDATE attachment SET
                 status = ?,
-                content = ?,
                 is_animated = ?
             WHERE attachment_id = ?",
             AttachmentStatus::Ready,
-            bytes,
             is_animated,
             attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        // Skip the content if the attachment is gone (deleted mid-download)
+        if updated == 0 {
+            return Ok(());
+        }
+        query!(
+            "INSERT INTO attachment_content (
+                attachment_id,
+                content
+            ) VALUES (?, ?)
+            ON CONFLICT (attachment_id) DO UPDATE
+            SET content = excluded.content",
+            attachment_id,
+            bytes,
         )
         .execute(connection.as_mut())
         .await?;
@@ -408,10 +430,11 @@ impl AttachmentRecord {
         let record = query_as!(
             SqlParts,
             r#"SELECT
-                content,
-                status AS "status: _"
-            FROM attachment
-            WHERE attachment_id = ?"#,
+                ac.content,
+                a.status AS "status: _"
+            FROM attachment a
+            LEFT JOIN attachment_content ac USING (attachment_id)
+            WHERE a.attachment_id = ?"#,
             attachment_id
         )
         .fetch_optional(connection.as_mut())
