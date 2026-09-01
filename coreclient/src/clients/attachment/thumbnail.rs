@@ -13,7 +13,8 @@ use crate::{
     utils::image::{ThumbnailImage, encode_thumbnail},
 };
 
-use persistence::{load_thumbnail, store_thumbnail};
+use persistence::load_thumbnail;
+pub(super) use persistence::store_thumbnail;
 
 /// A locally generated thumbnail of an image attachment
 pub enum AttachmentThumbnail {
@@ -96,7 +97,7 @@ mod persistence {
         Failed = 3,
     }
 
-    pub(super) async fn store_thumbnail(
+    pub(crate) async fn store_thumbnail(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         thumbnail: &AttachmentThumbnail,

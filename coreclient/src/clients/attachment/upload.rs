@@ -39,14 +39,15 @@ use tokio_util::io::ReaderStream;
 use url::Url;
 
 use crate::{
-    AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl,
-    Chat, ChatId, ChatMessage, MessageId,
+    AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentThumbnail,
+    AttachmentUrl, Chat, ChatId, ChatMessage, MessageId,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
             progress::{AttachmentProgress, AttachmentProgressSender},
+            thumbnail::store_thumbnail,
         },
     },
     groups::Group,
@@ -147,6 +148,13 @@ impl CoreUser {
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
         let is_animated = attachment.image_data.as_ref().map(|data| data.is_animated);
+        let thumbnail = attachment
+            .image_data
+            .as_mut()
+            .map(|data| match data.thumbnail.take() {
+                Some(bytes) => AttachmentThumbnail::Ready { bytes },
+                None => AttachmentThumbnail::OriginalFits,
+            });
 
         let content = MimiContent {
             nested_part: NestedPart::MultiPart {
@@ -185,7 +193,16 @@ impl CoreUser {
                     is_animated,
                     created_at: Utc::now(),
                 };
-                record.store(txn, Some(content_bytes.as_slice())).await?;
+                record
+                    .store(&mut *txn, Some(content_bytes.as_slice()))
+                    .await?;
+
+                // The image is already decoded on upload, so the thumbnail is
+                // generated eagerly and the echo bubble renders from it
+                // immediately.
+                if let Some(thumbnail) = &thumbnail {
+                    store_thumbnail(&mut *txn, attachment_id, thumbnail).await?;
+                }
 
                 Ok(message)
             },
@@ -393,6 +410,8 @@ struct ProcessedAttachmentImageData {
     width: u32,
     height: u32,
     is_animated: bool,
+    /// WebP encoded thumbnail, or `None` if the original fits as thumbnail
+    thumbnail: Option<Vec<u8>>,
 }
 
 impl ProcessedAttachment {
@@ -403,6 +422,7 @@ impl ProcessedAttachment {
                 image_dimensions: (width, height),
                 blurhash,
                 is_animated,
+                thumbnail,
             }) = load_attachment_image(path)?
             {
                 let image_data = ProcessedAttachmentImageData {
@@ -410,6 +430,7 @@ impl ProcessedAttachment {
                     width,
                     height,
                     is_animated,
+                    thumbnail,
                 };
                 (webp_image.into(), "image/webp", Some(image_data))
             } else {

@@ -69,6 +69,9 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
     pub(crate) is_animated: bool,
+    /// WebP encoded thumbnail, or `None` if the original fits as thumbnail.
+    /// Always set for animated sources (static first frame).
+    pub(crate) thumbnail: Option<Vec<u8>>,
 }
 
 /// Loads an image and re-encodes it to WEBP format.
@@ -188,6 +191,20 @@ fn load_still_image<D: ImageDecoder>(
         .encode(webpx::Unstoppable)
         .context("WebP encode failed")?;
 
+    let thumbnail = if width.max(height) <= THUMBNAIL_MAX_EDGE {
+        None
+    } else {
+        let thumbnail = image
+            .resize(
+                THUMBNAIL_MAX_EDGE,
+                THUMBNAIL_MAX_EDGE,
+                image::imageops::FilterType::Lanczos3,
+            )
+            .into_rgba8();
+        let (width, height) = thumbnail.dimensions();
+        Some(encode_thumbnail_webp(thumbnail.as_raw(), width, height)?)
+    };
+
     info!(
         from_bytes = file_size,
         to_bytes = webp_data.len(),
@@ -199,6 +216,7 @@ fn load_still_image<D: ImageDecoder>(
         image_dimensions: (width, height),
         blurhash,
         is_animated: false,
+        thumbnail,
     })
 }
 
@@ -258,6 +276,18 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         .finish(timestamp_ms)
         .context("WebP finalize failed")?;
 
+    // Animated sources always store a static first-frame thumbnail, so the
+    // thumbnail path never hands animated bytes to a static surface.
+    let thumbnail = {
+        let buffer = fit_to_max(
+            first_dynamic_image.into_rgba8(),
+            THUMBNAIL_MAX_EDGE,
+            THUMBNAIL_MAX_EDGE,
+        );
+        let (width, height) = buffer.dimensions();
+        encode_thumbnail_webp(buffer.as_raw(), width, height)?
+    };
+
     info!(
         from_bytes = file_size,
         to_bytes = webp_data.len(),
@@ -270,6 +300,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         image_dimensions: (width, height),
         blurhash,
         is_animated: true,
+        thumbnail: Some(thumbnail),
     })
 }
 
