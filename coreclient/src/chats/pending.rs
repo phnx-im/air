@@ -13,7 +13,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::{Context, bail, ensure};
-use mimi_room_policy::RoleIndex;
 use openmls::treesync::errors::LeafNodeValidationError;
 use tls_codec::DeserializeBytes;
 use tracing::{instrument, warn};
@@ -139,6 +138,7 @@ impl CoreUser {
                         .clone(),
                     aad,
                     connection_offer_hash,
+                    Some(&sender_user_id),
                     // TODO(gabriel): joining a connection group is currently never a virtual-client
                     // onboarding: we are not a member of the group yet.
                     None,
@@ -178,12 +178,6 @@ impl CoreUser {
 
                 // Fetch and store user profile
                 Self::schedule_fetch_user_profile(&mut *txn, contact_profile_info).await?;
-
-                group.room_state_change_role(
-                    &sender_user_id,
-                    self.user_id(),
-                    RoleIndex::Regular,
-                )?;
 
                 let now = TimeStamp::now();
                 group.store_update(&mut *txn, Some(now), Some(now)).await?;

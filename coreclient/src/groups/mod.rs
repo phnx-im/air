@@ -673,7 +673,7 @@ impl Group {
 
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
-        ensure_room_state_users_are_members(&room_state, &mls_group)?;
+        ensure_room_state_matches_members(&room_state, &mls_group)?;
 
         let sender_user_id = verifiable_attribution_info.sender();
         let sender_user_credential =
@@ -910,7 +910,7 @@ impl Group {
         );
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
-        ensure_room_state_users_are_members(&room_state, &t_mls_group)?;
+        ensure_room_state_matches_members(&room_state, &t_mls_group)?;
 
         let sender_user_credential =
             match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
@@ -1092,6 +1092,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
+        // Should be Some if we are joining a connection group: the sole member of
+        // that group, whose invitation admits us to its room state.
+        inviter: Option<&UserId>,
         // Should be Some if we are joining as an emulator of a virtual client
         // that is already a member.
         vc_group_id: Option<GroupId>,
@@ -1111,7 +1114,7 @@ impl Group {
             ratchet_tree_in,
             encrypted_user_profile_keys,
             indexed_encrypted_user_profile_keys,
-            room_state,
+            mut room_state,
             proposals,
             pq,
         } = external_commit_info;
@@ -1216,7 +1219,10 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
-        ensure_room_state_users_are_members(&room_state, &mls_group)?;
+        if let Some(inviter) = inviter {
+            add_joiner_to_room_state(&mut room_state, inviter, signer.credential().user_id())?;
+        }
+        ensure_room_state_matches_members(&room_state, &mls_group)?;
 
         let group = Self {
             mls_group,
@@ -1395,7 +1401,7 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
-        ensure_room_state_users_are_members(&room_state, &t_group)?;
+        ensure_room_state_matches_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
         let now = TimeStamp::now();
@@ -2787,11 +2793,29 @@ async fn verify_member_credentials(
     Ok(verified)
 }
 
-/// Ensure that every user of `room_sate` is a member of `mls_group`.
+/// Record the role change that admits us to a connection group.
 ///
-/// Members missing from the room state are tolerated: the DS does not add external joiners of
-/// connection groups to its room state, clients patch that locally.
-fn ensure_room_state_users_are_members(
+/// The room state the DS serves us predates our join, so it does not list us
+/// yet.
+fn add_joiner_to_room_state(
+    room_state: &mut VerifiedRoomState,
+    inviter: &UserId,
+    joiner: &UserId,
+) -> anyhow::Result<()> {
+    let sender = RoomPolicyIdentity::User(inviter.clone()).to_bytes()?;
+    let target = RoomPolicyIdentity::User(joiner.clone()).to_bytes()?;
+    room_state.apply_regular_proposals(
+        &sender,
+        &[MimiProposal::ChangeRole {
+            target,
+            role: RoleIndex::Regular,
+        }],
+    )?;
+    Ok(())
+}
+
+/// Ensure that `room_state` lists exactly the members of `mls_group`.
+fn ensure_room_state_matches_members(
     room_state: &VerifiedRoomState,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<()> {
@@ -2802,17 +2826,16 @@ fn ensure_room_state_users_are_members(
             .to_bytes()?;
         members.insert(identity);
     }
-    let users = room_state.users();
+
+    let users: HashSet<_> = room_state.users().keys().cloned().collect();
     ensure!(
-        users.keys().all(|identity| members.contains(identity)),
+        users.is_subset(&members),
         "room state lists users which are not group members"
     );
-    if users.len() < members.len() {
-        warn!(
-            group_id = ?mls_group.group_id(),
-            "room state is missing group members",
-        );
-    }
+    ensure!(
+        members.is_subset(&users),
+        "room state is missing group members"
+    );
     Ok(())
 }
 

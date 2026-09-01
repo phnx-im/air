@@ -7,6 +7,7 @@ use aircommon::{
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
     time::TimeStamp,
 };
+use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage, messages::SerializedMlsMessage,
     openmls::prelude::ProcessedMessageContent, provider_traits::MlsAssistProvider,
@@ -48,7 +49,7 @@ impl DsGroupState {
             };
 
         // The external commit joining the client into the group should contain only the path.
-        if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+        let joiner_credential = if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
             processed_message.content()
         {
             if staged_commit.add_proposals().count() > 0
@@ -76,6 +77,7 @@ impl DsGroupState {
                 tracing::warn!("Connection group joiner must carry a user credential");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            joiner_credential
         } else {
             tracing::warn!("Invalid message: External commit contained unexpected proposals.");
             return Err(JoinConnectionGroupError::InvalidMessage);
@@ -94,10 +96,25 @@ impl DsGroupState {
             return Err(JoinConnectionGroupError::InvalidMessage);
         };
 
-        // Check if the group indeed only has one user (prior to the new one joining).
-        if self.member_profiles.len() > 1 {
+        // Check that the group indeed has exactly one member (prior to the new one joining). That
+        // member is the inviter.
+        let member_indices: Vec<_> = self.member_profiles.keys().copied().collect();
+        let [inviter_index] = member_indices[..] else {
             return Err(JoinConnectionGroupError::NotAConnectionGroup);
-        }
+        };
+
+        // The inviter created the room state before it knew the joiner's user id, so the joiner is
+        // not in it yet. Record the joiner as if the inviter had added them. Both clients apply
+        // the same change locally.
+        let inviter = self
+            .leaf_credential(inviter_index)
+            .ok_or(JoinConnectionGroupError::InvalidMessage)?;
+        self.room_state_change_role(
+            &inviter.room_policy_identity(),
+            &joiner_credential.room_policy_identity(),
+            RoleIndex::Regular,
+        )
+        .ok_or(JoinConnectionGroupError::InvalidMessage)?;
 
         // Get the sender's credential s.t. we can identify them later.
         let sender_credential = processed_message.credential().clone();
