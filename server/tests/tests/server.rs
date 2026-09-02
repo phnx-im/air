@@ -41,7 +41,7 @@ use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
 use semver::Version;
 use tokio::time::{sleep, timeout};
-use tokio_stream::StreamExt;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
@@ -1327,6 +1327,18 @@ async fn unsupported_client_version() {
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }
 
+/// Consumes the version status the server sends first on every listen stream.
+async fn skip_version_status(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) {
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(_)),
+        }))
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Version status on listen queue", skip_all)]
 async fn listen_queue_version_status() {
@@ -1427,6 +1439,7 @@ async fn listen_stream_eviction() {
 
     // QS events stream is evicted when another stream is opened
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_a).await;
     assert_matches!(
         stream_a.next().await,
         Some(Ok(ListenResponse {
@@ -1435,6 +1448,7 @@ async fn listen_stream_eviction() {
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_b).await;
     assert_matches!(
         stream_b.next().await,
         Some(Ok(ListenResponse {
@@ -1491,6 +1505,7 @@ async fn listen_stream_durable_acks() {
     // Bob receives the message on the listen stream and acks it.
     let bob_user = &setup.get_user(&bob).user;
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
     let sequence_number = match stream.next().await {
         Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Message(message)),
@@ -1518,6 +1533,7 @@ async fn listen_stream_durable_acks() {
 
     // On reconnect, the acked message is not redelivered.
     let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
     assert_matches!(
         stream.next().await,
         Some(Ok(ListenResponse {
