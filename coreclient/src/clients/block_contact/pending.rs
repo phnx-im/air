@@ -14,17 +14,13 @@
 //! changes, so two devices changing different contacts do not cancel each
 //! other.
 
-// The pending changes have no callers yet. The receive path and the send path
-// land in the next stages.
-#![allow(dead_code)]
-
 use aircommon::identifiers::UserId;
 use airprotos::client::{
     group_bootstrap::PeerUserId,
     self_group::{BlockedContactEntry, BlockedContactState, ContactBlocked, ContactUnblocked},
 };
 use chrono::{DateTime, Utc};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
@@ -61,6 +57,49 @@ impl BlockedState {
             Self::Unblocked => BlockedContactState::Unblocked(ContactUnblocked {}),
         }
     }
+
+    /// The state of an incoming entry.
+    ///
+    /// `None` for an entry this client cannot make sense of. For example, a
+    /// state a newer sibling knows and we do not, a timestamp outside the
+    /// representable range, or a display name that does not validate.
+    fn from_entry_state(state: &BlockedContactState) -> Option<Self> {
+        match state {
+            BlockedContactState::Blocked(ContactBlocked {
+                blocked_at,
+                last_display_name,
+            }) => {
+                let Some(blocked_at) = i64::try_from(*blocked_at)
+                    .ok()
+                    .and_then(|seconds| DateTime::from_timestamp(seconds, 0))
+                else {
+                    warn!(
+                        %blocked_at,
+                        "Skipping a blocked-contact entry with an out-of-range timestamp"
+                    );
+                    return None;
+                };
+                let last_display_name = last_display_name
+                    .parse()
+                    .inspect_err(|error| {
+                        warn!(
+                            %error,
+                            "Skipping a blocked-contact entry with an invalid display name"
+                        );
+                    })
+                    .ok()?;
+                Some(Self::Blocked {
+                    blocked_at,
+                    last_display_name,
+                })
+            }
+            BlockedContactState::Unblocked(ContactUnblocked {}) => Some(Self::Unblocked),
+            BlockedContactState::Unknown => {
+                debug!("Skipping a blocked-contact entry with an unknown state");
+                None
+            }
+        }
+    }
 }
 
 /// One contact's not-yet-synchronized blocked-state change.
@@ -76,6 +115,8 @@ pub(crate) struct PendingBlockedContactChange {
 
 impl PendingBlockedContactChange {
     /// Records a local blocked-state change.
+    // Called by the send path, which lands in the next stage.
+    #[allow(dead_code)]
     pub(crate) async fn record(
         txn: &mut WriteDbTransaction<'_>,
         user_id: &UserId,
@@ -136,6 +177,8 @@ impl PendingBlockedContactChange {
 
     /// Rolls the touched contacts back to the state stored before their first
     /// touch and clears the pending changes. Used when a send fails terminally.
+    // Called by the send path, which lands in the next stage.
+    #[allow(dead_code)]
     pub(crate) async fn roll_back_and_clear(txn: &mut WriteDbTransaction<'_>) -> sqlx::Result<()> {
         for pending in Self::load_all(&mut *txn).await? {
             let current = BlockedState::load(&mut *txn, &pending.user_id).await?;
@@ -149,6 +192,8 @@ impl PendingBlockedContactChange {
 
     /// Loads the pending changes as the entries a commit carries, sorted by
     /// user id so the encoding is canonical.
+    // Called by the send path, which lands in the next stage.
+    #[allow(dead_code)]
     pub(crate) async fn load_entries(
         connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<BlockedContactEntry>> {
@@ -161,6 +206,29 @@ impl PendingBlockedContactChange {
             })
             .collect())
     }
+}
+
+/// Applies the entries of a sibling's accepted blocked-contacts update.
+///
+/// Entries apply in order, so the last entry for a contact wins. An entry
+/// this client cannot make sense of is skipped, see
+/// [`BlockedState::from_entry_state`] and [`parse_peer_user_id`]. Skipped
+/// entries still count as covered, so the caller hands the full list to
+/// [`PendingBlockedContactChange::remove_covered`] either way.
+pub(crate) async fn apply_blocked_contacts_update(
+    txn: &mut WriteDbTransaction<'_>,
+    entries: &[BlockedContactEntry],
+) -> sqlx::Result<()> {
+    for entry in entries {
+        let Some(user_id) = parse_peer_user_id(&entry.user_id) else {
+            continue;
+        };
+        let Some(state) = BlockedState::from_entry_state(&entry.state) else {
+            continue;
+        };
+        state.apply(&mut *txn, &user_id).await?;
+    }
+    Ok(())
 }
 
 /// Parses a user id off the wire, skipping ids that are not well-formed.
@@ -229,7 +297,7 @@ mod persistence {
 
     impl BlockedState {
         /// Reads the stored blocked state of a contact.
-        pub(super) async fn load(
+        pub(crate) async fn load(
             mut connection: impl ReadConnection,
             user_id: &UserId,
         ) -> sqlx::Result<Self> {
@@ -262,7 +330,7 @@ mod persistence {
 
         /// Writes this state to `blocked_contact`, emitting the same per-user
         /// change notification the local block and unblock paths emit.
-        pub(super) async fn apply(
+        pub(crate) async fn apply(
             &self,
             connection: impl WriteConnection,
             user_id: &UserId,
