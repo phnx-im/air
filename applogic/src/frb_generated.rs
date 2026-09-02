@@ -55,7 +55,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -137990403;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1410455381;
 
 // Section: executor
 
@@ -4674,54 +4674,6 @@ fn wire__crate__api__user_cubit__UiUser_account_unlinked_impl(
         },
     )
 }
-fn wire__crate__api__user_cubit__UiUser_unsupported_version_impl(
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "UiUser_unsupported_version",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            transform_result_sse::<_, ()>((move || {
-                let mut api_that_guard = None;
-                let decode_indices_ =
-                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                            &api_that, 0, false,
-                        ),
-                    ]);
-                for i in decode_indices_ {
-                    match i {
-                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                        _ => unreachable!(),
-                    }
-                }
-                let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::user_cubit::UiUser::unsupported_version(&*api_that_guard),
-                )?;
-                Ok(output_ok)
-            })())
-        },
-    )
-}
 fn wire__crate__api__user_cubit__UiUser_user_id_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4812,6 +4764,54 @@ fn wire__crate__api__user_cubit__UiUser_usernames_impl(
                 let output_ok = Result::<_, ()>::Ok(crate::api::user_cubit::UiUser::usernames(
                     &*api_that_guard,
                 ))?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__user_cubit__UiUser_version_status_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UiUser_version_status",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Result::<_, ()>::Ok(
+                    crate::api::user_cubit::UiUser::version_status(&*api_that_guard),
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -13132,6 +13132,28 @@ impl SseDecode for usize {
     }
 }
 
+impl SseDecode for crate::api::user_cubit::VersionStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::api::user_cubit::VersionStatus::Supported;
+            }
+            1 => {
+                return crate::api::user_cubit::VersionStatus::Unsupported;
+            }
+            2 => {
+                let mut var_field0 = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+                return crate::api::user_cubit::VersionStatus::ExpiresAt(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -13438,13 +13460,9 @@ fn pde_ffi_dispatcher_sync_impl(
         91 => {
             wire__crate__api__user_cubit__UiUser_account_unlinked_impl(ptr, rust_vec_len, data_len)
         }
-        92 => wire__crate__api__user_cubit__UiUser_unsupported_version_impl(
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        93 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__user_cubit__UiUser_usernames_impl(ptr, rust_vec_len, data_len),
+        92 => wire__crate__api__user_cubit__UiUser_user_id_impl(ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__user_cubit__UiUser_usernames_impl(ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__user_cubit__UiUser_version_status_impl(ptr, rust_vec_len, data_len),
         107 => {
             wire__crate__api__user_cubit__UserCubitBase_is_closed_impl(ptr, rust_vec_len, data_len)
         }
@@ -16357,6 +16375,32 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::UsernameVal
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::types::UsernameValidationError> {
         self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::user_cubit::VersionStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::user_cubit::VersionStatus::Supported => [0.into_dart()].into_dart(),
+            crate::api::user_cubit::VersionStatus::Unsupported => [1.into_dart()].into_dart(),
+            crate::api::user_cubit::VersionStatus::ExpiresAt(field0) => {
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::user_cubit::VersionStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::user_cubit::VersionStatus>
+    for crate::api::user_cubit::VersionStatus
+{
+    fn into_into_dart(self) -> crate::api::user_cubit::VersionStatus {
+        self
     }
 }
 
@@ -19459,6 +19503,27 @@ impl SseEncode for usize {
             .cursor
             .write_u64::<NativeEndian>(self as _)
             .unwrap();
+    }
+}
+
+impl SseEncode for crate::api::user_cubit::VersionStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::user_cubit::VersionStatus::Supported => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::api::user_cubit::VersionStatus::Unsupported => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::api::user_cubit::VersionStatus::ExpiresAt(field0) => {
+                <i32>::sse_encode(2, serializer);
+                <chrono::DateTime<chrono::Utc>>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 

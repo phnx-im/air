@@ -569,8 +569,9 @@ impl CoreUser {
                         messages.push(queue_message);
                     }
                 }
-                Some(listen_response::Event::Payload(_)) => {}
-                None => {}
+                Some(listen_response::Event::Payload(_))
+                | Some(listen_response::Event::VersionStatus(_))
+                | None => {}
             }
         }
 

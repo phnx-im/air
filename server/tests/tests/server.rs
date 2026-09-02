@@ -34,7 +34,7 @@ use airprotos::{
     auth_service::v1::auth_service_server,
     common::v1::{StatusDetails, StatusDetailsCode},
     delivery_service::v1::delivery_service_server,
-    queue_service::v1::queue_service_server,
+    queue_service::v1::{VersionStatus, queue_service_server},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::{DateTime, Utc};
@@ -1325,6 +1325,64 @@ async fn unsupported_client_version() {
 
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Version status on listen queue", skip_all)]
+async fn listen_queue_version_status() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the version status, then the queue-empty sentinel follows.
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(VersionStatus {
+                expires_at: None,
+            })),
+        }))
+    );
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Expiring version status on listen queue", skip_all)]
+async fn listen_queue_version_status_expiring() {
+    let expires_on = Utc::now() + chrono::Duration::days(10);
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on,
+        }]),
+        ..Default::default()
+    })
+    .await;
+
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the upcoming expiry, then the queue-empty sentinel follows.
+    let response = stream.next().await.unwrap().unwrap();
+    let Some(listen_response::Event::VersionStatus(status)) = response.event else {
+        panic!("expected version status, got {response:?}");
+    };
+    assert_eq!(status.expires_at.unwrap().seconds, expires_on.timestamp());
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
