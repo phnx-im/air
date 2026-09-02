@@ -118,7 +118,7 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
 
     async fn handle_event(&mut self, event: ListenResponse) -> bool {
         // Update the version status communicated by the server. Note that the server can also clear
-        // the state.
+        // the status.
         if let ListenResponse {
             event:
                 Some(listen_response::Event::VersionStatus(queue_service::v1::VersionStatus {
