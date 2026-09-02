@@ -68,12 +68,12 @@ class _ComposeButton extends StatelessWidget {
         items: [
           MenuItem(
             label: loc.chatList_newContact,
-            leading: const AppIcon.user(size: 16),
+            icon: AppIconType.user,
             onPressed: () => _newContact(buttonContext),
           ),
           MenuItem(
             label: loc.chatList_newGroup,
-            leading: const AppIcon.users(size: 16),
+            icon: AppIconType.users,
             onPressed: () => _newGroup(buttonContext),
           ),
         ],

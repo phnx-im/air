@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -23,17 +24,16 @@ enum HoverLift {
 /// One interaction layer every interactive component shares, so they all
 /// hover, press and focus the same way:
 ///
-///   * hover -- white wash at [StateTokens.hoverOverlay], plus an optional
+///   * hover -- wash in the theme's hover role, plus an optional
 ///     pointer lift to [StateTokens.hoverScale].
 ///   * pressed -- black wash at [StateTokens.pressedOverlay]. Touch dips to
 ///     [StateTokens.pressedScale], a pointer settles back to 1.0.
-///   * focused -- keyboard-only focus ring in `function.link` at
+///   * focused -- keyboard-only focus ring in the primary accent at
 ///     [StateTokens.focusRingWidth].
 ///
-/// The wash flips direction to stay visible: a near-white surface can't get
-/// brighter so it darkens on hover, a near-black one can't get darker so it
-/// lightens on press. The host passes us the [surface] and we handle the
-/// rest. The feedback shape ([hover] / [pressScale]) follows the device, a
+/// The press wash flips direction to stay visible: a near-black surface can't
+/// get darker so it lightens on press. The host passes us the [surface] and
+/// we handle the rest. The feedback shape ([hover] / [pressScale]) follows the device, a
 /// host only names it to deviate.
 class StateLayer extends StatefulWidget {
   const StateLayer({
@@ -125,28 +125,38 @@ class _StateLayerState extends State<StateLayer> {
     final hovered = widget.enabled && hover && !widget.selected && _hovered;
     final pressed = widget.enabled && widget.press && _pressed;
 
-    // Blend the (maybe translucent) surface onto the page base before reading
-    // luminance. Hover and press are separate layers that each animate only
-    // their own alpha, so the color never lerps through some in-between hue.
+    // Hover and press are separate layers that each animate only their own
+    // alpha, so the color never lerps through some in-between hue.
     final white = palette.function.neutral.white;
     final black = palette.function.neutral.black;
-    final luminance = Color.alphaBlend(
-      widget.surface,
-      palette.backgroundBase.primary,
-    ).computeLuminance();
-    final hoverDarkens = luminance >= StateTokens.lightSurfaceCeiling;
-    final pressDarkens = luminance > StateTokens.darkSurfaceFloor;
-    final hoverWash = hoverDarkens ? black : white;
-    final pressWash = pressDarkens ? black : white;
+    // Hover is the theme's hover role. An opaque one fills the surface and
+    // the content switches to its ink, like Noctalia. A translucent one is a
+    // wash and the content keeps its colors. Both stay up through a press, the
+    // press wash lands on top of them.
+    final hoverFill = palette.accentBrand.hover;
+    final solidHover = hoverFill.a == 1.0;
+    final hoverWash = hoverFill.withValues(alpha: 1.0);
+    final hoverAlpha = hovered ? hoverFill.a : Alpha.a0;
+    final inked = hovered && solidHover;
 
-    // The hover lift scales with luminance: light surfaces lift toward white,
-    // dark or saturated ones only gently so they don't blow out. Near-white
-    // darkens gently instead. Press always uses its full alpha.
-    final hoverAlpha = (hovered && !pressed)
-        ? (hoverDarkens
-              ? StateTokens.hoverDarkenOverlay
-              : StateTokens.hoverOverlay * luminance)
-        : Alpha.a0;
+    // The press wash is neutral and flips direction to stay visible on what
+    // is actually showing: the hover fill while hovered, else the surface
+    // blended onto the page base.
+    final visible = Color.alphaBlend(
+      hovered ? hoverFill : widget.surface,
+      palette.backgroundBase.primary,
+    );
+    final pressDarkens =
+        visible.computeLuminance() > StateTokens.darkSurfaceFloor;
+    final pressWash = pressDarkens ? black : white;
+    // Always present, so hovering does not remount the content. At rest it
+    // mirrors the surface around us.
+    final contentSurface = inked
+        ? hoverFill
+        : PanelSurface.maybeOf(context) ?? palette.backgroundBase.primary;
+    final contentInk = inked
+        ? palette.accentBrand.onHover
+        : PanelSurface.inkOf(context);
     final pressAlpha = pressed ? StateTokens.pressedOverlay : Alpha.a0;
 
     // Touch dips on press, a pointer lifts on hover and settles back on click.
@@ -219,14 +229,18 @@ class _StateLayerState extends State<StateLayer> {
                   ),
                 ),
               ),
-              widget.child,
+              PanelSurface(
+                color: contentSurface,
+                ink: contentInk,
+                child: widget.child,
+              ),
               if (_focused)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: palette.function.link,
+                          color: palette.accentBrand.primary,
                           width: StateTokens.focusRingWidth,
                         ),
                         borderRadius: radius,

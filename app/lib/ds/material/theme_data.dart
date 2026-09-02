@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:air/ds/foundations/color_theme.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
@@ -11,17 +12,19 @@ import 'package:air/ds/material/text_theme.dart';
 ThemeData darkTheme = themeData(.dark);
 ThemeData lightTheme = themeData(.light);
 
-ThemeData themeData(Brightness brightness) {
+ThemeData themeData(Brightness brightness, {ColorTheme? theme}) {
+  final palettes = ThemePalettes.from(theme ?? defaultColorTheme);
   final palette = switch (brightness) {
-    .dark => darkSemanticPalette,
-    .light => lightSemanticPalette,
+    .dark => palettes.dark,
+    .light => palettes.light,
   };
 
   final base = ThemeData(
+    extensions: [palettes],
     colorScheme: ColorScheme(
       brightness: brightness,
-      primary: palette.text.primary,
-      onPrimary: palette.backgroundBase.primary,
+      primary: palette.accentBrand.primary,
+      onPrimary: palette.accentBrand.onPrimary,
       secondary: palette.text.secondary,
       onSecondary: palette.backgroundBase.primary,
       surface: palette.backgroundBase.primary,
@@ -44,7 +47,8 @@ ThemeData themeData(Brightness brightness) {
     highlightColor: Colors.transparent,
     hoverColor: Colors.transparent,
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: palette.function.link,
+      cursorColor: palette.accentBrand.primary,
+      selectionColor: palette.accentBrand.primary.withValues(alpha: 0.4),
     ),
     pageTransitionsTheme: PageTransitionsTheme(
       // We want a scrim for iOS and macOS to visually separate the new page

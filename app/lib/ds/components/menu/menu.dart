@@ -5,6 +5,7 @@
 import 'dart:math' as math;
 
 import 'package:air/ds/components/menu/menu_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
@@ -271,21 +272,35 @@ class _MenuRow extends StatelessWidget {
       selected: filled,
       background: DecoratedBox(
         decoration: BoxDecoration(
-          color: filled ? palette.fill.tertiary : null,
+          color: filled ? palette.accentBrand.hover : null,
           borderRadius: BorderRadius.circular(MenuTokens.itemRadius),
         ),
       ),
-      child: Padding(padding: MenuTokens.itemPadding, child: _content(palette)),
+      child: Padding(
+        padding: MenuTokens.itemPadding,
+        // Built under the state layer, so a hovered row hands the content its
+        // ink.
+        child: Builder(
+          builder: (context) => _content(context, palette, filled: filled),
+        ),
+      ),
     );
   }
 
-  Widget _content(SemanticPalette palette) {
+  Widget _content(
+    BuildContext context,
+    SemanticPalette palette, {
+    required bool filled,
+  }) {
     final content = item.content;
     if (content != null) return content;
 
+    final ink = PanelSurface.inkOf(context);
     final color = item.destructive
-        ? palette.function.danger
-        : palette.text.primary;
+        ? ink ?? palette.function.danger
+        : filled
+        ? palette.accentBrand.onHover
+        : ink ?? palette.text.primary;
     final trailing = this.trailing ?? item.trailing;
     final icon = item.icon;
     final leading =

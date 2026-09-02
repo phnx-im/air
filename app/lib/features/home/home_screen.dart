@@ -110,16 +110,12 @@ class HomeScreenDesktopLayout extends StatelessWidget {
     );
     final onChats = activeTab == HomeTab.chats;
 
-    // Panels carry a translucent fill over the window. Nothing blurs behind
-    // them, so the panes paint the composite instead: identical pixels, and a
-    // color that gradients and blended text can actually match.
-    final panelSurface = Color.alphaBlend(
-      palette.fill.tertiary,
-      palette.backgroundBase.quinary,
-    );
+    // Window and content pane sit on the surface, the rail and the list
+    // panel on the variant, one group. It is outlined like a Noctalia panel.
+    final panelSurface = palette.roles.surfaceVariant;
 
     return Scaffold(
-      backgroundColor: palette.backgroundBase.quinary,
+      backgroundColor: palette.roles.surface,
       // Left inset only. The vertical inset belongs to the group below: put it
       // here and it also pushes the content pane down, which runs to the
       // window's top and bottom edge.
@@ -134,15 +130,27 @@ class HomeScreenDesktopLayout extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_groupRadius),
             ),
+            // Drawn over the panes, otherwise they cover it and only the
+            // anti-aliased corners of the outline show through.
+            foregroundDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(_groupRadius),
+              border: Border.all(
+                color: palette.roles.outline,
+                width: StrokeWidth.px1,
+              ),
+            ),
             // Stretched so a pane that shrink-wraps its content (a short menu,
             // say) still paints its surface over the whole group height.
             child: Row(
               crossAxisAlignment: .stretch,
               children: [
                 const AppSidebar(),
-                // A hairline of window color separates the rail from the
-                // list without drawing a divider.
-                const SizedBox(width: StrokeWidth.px1),
+                // Rail and list share a surface, so a hairline in the group's
+                // outline color keeps them apart.
+                ColoredBox(
+                  color: palette.roles.outline,
+                  child: const SizedBox(width: StrokeWidth.px1),
+                ),
                 PanelSurface(
                   color: panelSurface,
                   child: SizedBox(
@@ -156,7 +164,7 @@ class HomeScreenDesktopLayout extends StatelessWidget {
           // The content pane has no fill of its own: it runs full-bleed on the
           // window, so what it paints on is the window color.
           content: PanelSurface(
-            color: palette.backgroundBase.quinary,
+            color: palette.roles.surface,
             child: onChats ? chat : const YouDetailPane(),
           ),
         ),

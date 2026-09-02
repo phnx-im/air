@@ -42,7 +42,7 @@ class AppSidebar extends StatelessWidget {
               HomeTab.profile => loc.homeTab_profile,
             },
             onTap: () => context.read<NavigationCubit>().switchTab(tab),
-            glyph: (color) => switch (tab) {
+            glyph: (color, {required active}) => switch (tab) {
               HomeTab.chats => AppIcon.messageCircle(
                 size: NavRailTokens.iconSize,
                 color: color,

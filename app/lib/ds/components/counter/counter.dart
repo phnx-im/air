@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/counter/counter_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
@@ -23,6 +24,13 @@ class Counter extends StatelessWidget {
     }
 
     final palette = SemanticPalette.of(context);
+    // On an accent-filled surface the pill would vanish into it, so it
+    // inverts: the surface's ink as fill, the surface as label.
+    final ink = PanelSurface.inkOf(context);
+    final fill = ink ?? CounterTokens.fill(palette);
+    final labelColor = ink == null
+        ? CounterTokens.label(palette)
+        : PanelSurface.colorOf(context);
     // Counts are unbounded, so past three digits the pill would keep growing
     // into the space the preview text needs.
     final label = count <= 100 ? '$count' : '100+';
@@ -33,13 +41,13 @@ class Counter extends StatelessWidget {
       padding: CounterTokens.padding,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: CounterTokens.fill(palette),
+        color: fill,
         borderRadius: BorderRadius.circular(CounterTokens.radius),
       ),
       child: Text(
         label,
         style: typeScale.body.mini.style(
-          color: CounterTokens.label(palette),
+          color: labelColor,
           weight: Weight.emphasized,
           tight: true,
         ),

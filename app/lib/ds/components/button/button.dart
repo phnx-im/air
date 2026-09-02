@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/components/button/button_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart' show CircularProgressIndicator;
@@ -65,32 +66,44 @@ class Button extends StatelessWidget {
           borderRadius: BorderRadius.circular(tokens.radius),
         ),
       ),
-      child: Container(
-        height: tokens.height,
-        padding: tokens.padding,
-        child: Row(
-          mainAxisAlignment: alignment,
-          children: [
-            if (state == ButtonState.pending)
-              SizedBox.square(
-                dimension: tokens.iconSize,
-                child: CircularProgressIndicator(
-                  color: colors.label,
-                  strokeWidth: ButtonTokens.spinnerWidth,
-                ),
-              )
-            else ...[
-              if (icon != null) ...[
-                icon!(Size.square(tokens.iconSize), colors.glyph),
-                const SizedBox(width: ButtonTokens.iconLabelGap),
+      // Built under the state layer, so a hovered button hands its content
+      // the hover ink.
+      child: Builder(
+        builder: (context) {
+          final ink = PanelSurface.inkOf(context);
+          final labelColor = ink ?? colors.label;
+          final glyphColor = ink ?? colors.glyph;
+          return Container(
+            height: tokens.height,
+            padding: tokens.padding,
+            child: Row(
+              mainAxisAlignment: alignment,
+              children: [
+                if (state == ButtonState.pending)
+                  SizedBox.square(
+                    dimension: tokens.iconSize,
+                    child: CircularProgressIndicator(
+                      color: labelColor,
+                      strokeWidth: ButtonTokens.spinnerWidth,
+                    ),
+                  )
+                else ...[
+                  if (icon != null) ...[
+                    icon!(Size.square(tokens.iconSize), glyphColor),
+                    const SizedBox(width: ButtonTokens.iconLabelGap),
+                  ],
+                  Text(
+                    label,
+                    style: size.labelToken.style(
+                      color: labelColor,
+                      tight: true,
+                    ),
+                  ),
+                ],
               ],
-              Text(
-                label,
-                style: size.labelToken.style(color: colors.label, tight: true),
-              ),
-            ],
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
 

@@ -61,7 +61,7 @@ class ImageViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: darkSemanticPalette.function.neutral.black,
+      backgroundColor: SemanticPalette.darkOf(context).function.neutral.black,
       body: FullscreenImage(
         tokens: FullscreenImageTokens.current,
         items: [

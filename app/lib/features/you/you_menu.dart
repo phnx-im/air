@@ -175,9 +175,10 @@ class _MenuRow extends StatelessWidget {
     final radius = filled ? CornerRadius.px0 : CornerRadius.px12;
     final fill = switch ((filled, selected)) {
       (true, _) => palette.backgroundBase.secondary,
-      (false, true) => palette.backgroundBase.quinary,
+      (false, true) => palette.accentBrand.primary,
       (false, false) => null,
     };
+    final ink = selected && !filled ? palette.accentBrand.onPrimary : null;
 
     return StateLayer(
       onTap: onTap,
@@ -189,6 +190,9 @@ class _MenuRow extends StatelessWidget {
           PanelSurface.maybeOf(context) ??
           palette.backgroundBase.primary,
       pressScale: false,
+      // The selected row carries the primary fill, so the hover must not
+      // paint over it.
+      selected: selected && !filled,
       background: fill != null
           ? DecoratedBox(
               decoration: BoxDecoration(
@@ -197,29 +201,43 @@ class _MenuRow extends StatelessWidget {
               ),
             )
           : null,
-      child: SizedBox(
-        height: _rowHeight,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: S.s12),
-          child: Row(
-            children: [
-              AppIcon(type: icon, size: S.s20, color: palette.text.secondary),
-              const SizedBox(width: S.s12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: .ellipsis,
-                  style: typeScale.body.regular.style(
-                    color: palette.text.primary,
+      // Built under the state layer, so a hovered row hands the content its
+      // ink.
+      child: Builder(
+        builder: (context) {
+          final rowInk = ink ?? PanelSurface.inkOf(context);
+          return SizedBox(
+            height: _rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: S.s12),
+              child: Row(
+                children: [
+                  AppIcon(
+                    type: icon,
+                    size: S.s20,
+                    color: rowInk ?? palette.text.secondary,
                   ),
-                ),
+                  const SizedBox(width: S.s12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: .ellipsis,
+                      style: typeScale.body.regular.style(
+                        color: rowInk ?? palette.text.primary,
+                      ),
+                    ),
+                  ),
+                  if (chevron)
+                    AppIcon.chevronRight(
+                      size: S.s16,
+                      color: rowInk ?? palette.text.tertiary,
+                    ),
+                ],
               ),
-              if (chevron)
-                AppIcon.chevronRight(size: S.s16, color: palette.text.tertiary),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

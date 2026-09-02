@@ -3,16 +3,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:air/ds/foundations/color_theme.dart';
 import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/role_palettes.dart';
+import 'package:air/ds/foundations/roles.dart';
 
+/// The accent roles as fills with their ink, plus [quaternary], a container
+/// tinted by the primary. [hover] is the fill a pointer hover or a lit row
+/// takes, [hoverTint] the same hover as a translucent wash for a surface whose
+/// content keeps its own colors.
 class AccentBrand {
   final Color primary, secondary, tertiary, quaternary;
+  final Color onPrimary, onSecondary, onTertiary;
+  final Color hover, onHover, hoverTint;
 
   const AccentBrand({
     required this.primary,
     required this.secondary,
     required this.tertiary,
     required this.quaternary,
+    required this.onPrimary,
+    required this.onSecondary,
+    required this.onTertiary,
+    required this.hover,
+    required this.onHover,
+    required this.hoverTint,
   });
 }
 
@@ -177,261 +192,27 @@ class MessagePalette {
 /// content moving behind it.
 const double _materialFillAlpha = 0.5;
 
-/// A primitive cell plus the alpha applied to it. Aliases point at these
-/// rather than at finished colors, so a slot records which primitive it names
-/// and not just the value that falls out of it.
-sealed class TonedRef {
-  final double opacity;
+/// Alpha of an accent over a surface where it acts as a container tint.
+/// Noctalia's cards and pills use 0.15 to 0.18.
+const double _containerTintAlpha = 0.18;
 
-  const TonedRef(this.opacity);
+/// Alpha of an opaque hover role used as a wash.
+const double _hoverWashAlpha = 0.4;
 
-  Color resolve() {
-    final base = switch (this) {
-      NeutralRef(:final shade) => Primitive.neutral(shade),
-      ChromaticRef(:final hue, :final shade) => Primitive.chromatic(hue, shade),
-    };
-    return opacity == 1.0 ? base : base.withValues(alpha: opacity);
-  }
-}
+/// Alpha of an accent over the surface for a message bubble. Higher than a
+/// card tint, so the two sides separate from each other and from the surface.
+const double _bubbleTintAlpha = 0.35;
 
-/// Neutral carries its own shade axis, so it needs a ref of its own.
-final class NeutralRef extends TonedRef {
-  final NeutralShade shade;
-
-  const NeutralRef(this.shade, [super.opacity = 1.0]);
-}
-
-final class ChromaticRef extends TonedRef {
-  final Hue hue;
-  final Shade shade;
-
-  const ChromaticRef(this.hue, this.shade, [super.opacity = 1.0]);
-}
-
-/// The light and dark value behind one semantic slot. Keeping both modes in
-/// one place is what stops the two themes from drifting apart.
-class SemanticAlias {
-  final TonedRef light, dark;
-
-  const SemanticAlias({required this.light, required this.dark});
-
-  Color resolve(Brightness brightness) =>
-      (brightness == .dark ? dark : light).resolve();
-}
-
-/// Typed reference to one slot in the semantic palette. Adding a case here
-/// forces [SemanticColorAlias.alias] to define its light/dark pair.
-enum SemanticColor {
-  accentBrandPrimary,
-  accentBrandSecondary,
-  accentBrandTertiary,
-  accentBrandQuaternary,
-  backgroundBasePrimary,
-  backgroundBaseSecondary,
-  backgroundBaseTertiary,
-  backgroundBaseQuaternary,
-  backgroundBaseQuinary,
-  backgroundElevatedPrimary,
-  backgroundElevatedSecondary,
-  backgroundElevatedTertiary,
-  backgroundElevatedQuaternary,
-  backgroundElevatedQuinary,
-  backgroundMaterialPrimary,
-  backgroundMaterialSecondary,
-  backgroundMaterialTertiary,
-  backgroundMaterialQuaternary,
-  textPrimary,
-  textSecondary,
-  textTertiary,
-  textQuaternary,
-  separatorPrimary,
-  separatorSecondary,
-  fillPrimary,
-  fillSecondary,
-  fillTertiary,
-  functionNeutralWhite,
-  functionNeutralBlack,
-  functionNeutralToggleWhite,
-  functionNeutralToggleBlack,
-  functionNeutralScrim,
-  functionNeutralScrimDark,
-  functionLinkPrimary,
-  functionDangerPrimary,
-  functionSuccessPrimary,
-  functionSuccessSecondary,
-  functionWarningPrimary,
-  functionWarningSecondary,
-}
-
-extension SemanticColorAlias on SemanticColor {
-  /// Canonical light/dark pair for this slot. The resolved bundles derive
-  /// from here, so a primitive swap reaches every slot that names it.
-  SemanticAlias get alias => switch (this) {
-    SemanticColor.accentBrandPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s1000),
-      dark: NeutralRef(NeutralShade.s0),
-    ),
-    SemanticColor.accentBrandSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s700),
-      dark: NeutralRef(NeutralShade.s300),
-    ),
-    SemanticColor.accentBrandTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s400),
-      dark: NeutralRef(NeutralShade.s600),
-    ),
-    SemanticColor.accentBrandQuaternary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s150),
-      dark: NeutralRef(NeutralShade.s850),
-    ),
-    SemanticColor.backgroundBasePrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s1000),
-    ),
-    SemanticColor.backgroundBaseSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s100),
-      dark: NeutralRef(NeutralShade.s900),
-    ),
-    SemanticColor.backgroundBaseTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s1000),
-    ),
-    SemanticColor.backgroundBaseQuaternary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s150),
-      dark: NeutralRef(NeutralShade.s850),
-    ),
-    SemanticColor.backgroundBaseQuinary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s900),
-    ),
-    SemanticColor.backgroundElevatedPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s850),
-    ),
-    SemanticColor.backgroundElevatedSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s100),
-      dark: NeutralRef(NeutralShade.s800),
-    ),
-    SemanticColor.backgroundElevatedTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s700),
-    ),
-    SemanticColor.backgroundElevatedQuaternary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s150),
-      dark: NeutralRef(NeutralShade.s600),
-    ),
-    SemanticColor.backgroundElevatedQuinary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s100),
-      dark: NeutralRef(NeutralShade.s900),
-    ),
-    SemanticColor.backgroundMaterialPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0, _materialFillAlpha),
-      dark: NeutralRef(NeutralShade.s1000, _materialFillAlpha),
-    ),
-    SemanticColor.backgroundMaterialSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s50, _materialFillAlpha),
-      dark: NeutralRef(NeutralShade.s950, _materialFillAlpha),
-    ),
-    SemanticColor.backgroundMaterialTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0, _materialFillAlpha),
-      dark: NeutralRef(NeutralShade.s900, _materialFillAlpha),
-    ),
-    SemanticColor.backgroundMaterialQuaternary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s100, _materialFillAlpha),
-      dark: NeutralRef(NeutralShade.s900, _materialFillAlpha),
-    ),
-    SemanticColor.textPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.94),
-      dark: NeutralRef(NeutralShade.s0, 0.94),
-    ),
-    SemanticColor.textSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.85),
-      dark: NeutralRef(NeutralShade.s0, 0.85),
-    ),
-    SemanticColor.textTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.60),
-      dark: NeutralRef(NeutralShade.s0, 0.60),
-    ),
-    SemanticColor.textQuaternary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.40),
-      dark: NeutralRef(NeutralShade.s0, 0.40),
-    ),
-    SemanticColor.separatorPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.20),
-      dark: NeutralRef(NeutralShade.s0, 0.30),
-    ),
-    SemanticColor.separatorSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.10),
-      dark: NeutralRef(NeutralShade.s0, 0.20),
-    ),
-    SemanticColor.fillPrimary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.15),
-      dark: NeutralRef(NeutralShade.s0, 0.20),
-    ),
-    SemanticColor.fillSecondary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.10),
-      dark: NeutralRef(NeutralShade.s0, 0.15),
-    ),
-    SemanticColor.fillTertiary => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s900, 0.05),
-      dark: NeutralRef(NeutralShade.s0, 0.10),
-    ),
-    // White and black stay put across modes: they are ink for a surface whose
-    // color is fixed, such as avatar initials or lightbox glass. The
-    // mode-following counterparts are toggleWhite and toggleBlack.
-    SemanticColor.functionNeutralWhite => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s0),
-    ),
-    SemanticColor.functionNeutralBlack => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s1000),
-      dark: NeutralRef(NeutralShade.s1000),
-    ),
-    SemanticColor.functionNeutralToggleWhite => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s0),
-      dark: NeutralRef(NeutralShade.s1000),
-    ),
-    SemanticColor.functionNeutralToggleBlack => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s1000),
-      dark: NeutralRef(NeutralShade.s0),
-    ),
-    SemanticColor.functionNeutralScrim => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s1000, 0.20),
-      dark: NeutralRef(NeutralShade.s1000, 0.80),
-    ),
-    SemanticColor.functionNeutralScrimDark => const SemanticAlias(
-      light: NeutralRef(NeutralShade.s1000, 0.90),
-      dark: NeutralRef(NeutralShade.s1000, 0.90),
-    ),
-    SemanticColor.functionLinkPrimary => const SemanticAlias(
-      light: ChromaticRef(Hue.blue, Shade.s400),
-      dark: ChromaticRef(Hue.blue, Shade.s500),
-    ),
-    SemanticColor.functionDangerPrimary => const SemanticAlias(
-      light: ChromaticRef(Hue.red, Shade.s400),
-      dark: ChromaticRef(Hue.red, Shade.s400),
-    ),
-    SemanticColor.functionSuccessPrimary => const SemanticAlias(
-      light: ChromaticRef(Hue.green, Shade.s400),
-      dark: ChromaticRef(Hue.green, Shade.s500),
-    ),
-    SemanticColor.functionSuccessSecondary => const SemanticAlias(
-      light: ChromaticRef(Hue.green, Shade.s100),
-      dark: ChromaticRef(Hue.green, Shade.s900),
-    ),
-    SemanticColor.functionWarningPrimary => const SemanticAlias(
-      light: ChromaticRef(Hue.yellow, Shade.s400),
-      dark: ChromaticRef(Hue.yellow, Shade.s500),
-    ),
-    SemanticColor.functionWarningSecondary => const SemanticAlias(
-      light: ChromaticRef(Hue.yellow, Shade.s100),
-      dark: ChromaticRef(Hue.yellow, Shade.s900),
-    ),
-  };
-
-  Color resolve(Brightness brightness) => alias.resolve(brightness);
-}
-
+/// The semantic slots the app paints with, derived from a [RolePalette]. The
+/// roles are the design, the slots are how the code has been reading them.
 class SemanticPalette {
+  /// The roles this palette derives from. Components that follow Noctalia's
+  /// element to role map bind here directly.
+  final RolePalette roles;
+
+  /// The ramps of the theme, for components that pick their own shades such
+  /// as avatar gradients.
+  final PrimitivePalette primitives;
   final AccentBrand accentBrand;
   final BackgroundBase backgroundBase;
   final BackgroundElevated backgroundElevated;
@@ -443,6 +224,8 @@ class SemanticPalette {
   final MessagePalette message;
 
   const SemanticPalette({
+    required this.roles,
+    required this.primitives,
     required this.accentBrand,
     required this.backgroundBase,
     required this.backgroundElevated,
@@ -454,110 +237,171 @@ class SemanticPalette {
     required this.message,
   });
 
-  factory SemanticPalette.from(Brightness brightness) {
-    Color r(SemanticColor slot) => slot.resolve(brightness);
+  factory SemanticPalette.from(
+    RolePalette r, [
+    PrimitivePalette primitives = flexokiPrimitives,
+  ]) {
+    final dark = r.isDark;
+    const white = Color(0xFFFFFFFF);
+    const black = Color(0xFF000000);
+    Color onSurfaceAt(double alpha) => r.onSurface.withValues(alpha: alpha);
+    Color material(Color surface) =>
+        surface.withValues(alpha: _materialFillAlpha);
+    // A translucent hover is already a wash. An opaque one is thinned for
+    // surfaces that keep their own ink.
+    final hoverTint = r.hover.a < 1.0
+        ? r.hover
+        : r.hover.withValues(alpha: _hoverWashAlpha);
+
     return SemanticPalette(
+      roles: r,
+      primitives: primitives,
       accentBrand: AccentBrand(
-        primary: r(SemanticColor.accentBrandPrimary),
-        secondary: r(SemanticColor.accentBrandSecondary),
-        tertiary: r(SemanticColor.accentBrandTertiary),
-        quaternary: r(SemanticColor.accentBrandQuaternary),
+        primary: r.primary,
+        onPrimary: r.onPrimary,
+        secondary: r.secondary,
+        onSecondary: r.onSecondary,
+        tertiary: r.tertiary,
+        onTertiary: r.onTertiary,
+        quaternary: r.primary
+            .withValues(alpha: _containerTintAlpha)
+            .on(r.surface),
+        hover: r.hover,
+        onHover: r.onHover,
+        hoverTint: hoverTint,
       ),
       backgroundBase: BackgroundBase(
-        primary: r(SemanticColor.backgroundBasePrimary),
-        secondary: r(SemanticColor.backgroundBaseSecondary),
-        tertiary: r(SemanticColor.backgroundBaseTertiary),
-        quaternary: r(SemanticColor.backgroundBaseQuaternary),
-        quinary: r(SemanticColor.backgroundBaseQuinary),
+        primary: r.surface,
+        secondary: r.surfaceContainerLow,
+        tertiary: r.surface,
+        quaternary: r.surfaceVariant,
+        quinary: r.surfaceContainerLow,
       ),
       backgroundElevated: BackgroundElevated(
-        primary: r(SemanticColor.backgroundElevatedPrimary),
-        secondary: r(SemanticColor.backgroundElevatedSecondary),
-        tertiary: r(SemanticColor.backgroundElevatedTertiary),
-        quaternary: r(SemanticColor.backgroundElevatedQuaternary),
-        quinary: r(SemanticColor.backgroundElevatedQuinary),
+        primary: r.surfaceVariant,
+        secondary: r.surfaceContainerHigh,
+        tertiary: r.surfaceContainerHighest,
+        quaternary: r.surfaceBright,
+        quinary: r.surfaceContainerLow,
       ),
       backgroundMaterial: BackgroundMaterial(
-        primary: r(SemanticColor.backgroundMaterialPrimary),
-        secondary: r(SemanticColor.backgroundMaterialSecondary),
-        tertiary: r(SemanticColor.backgroundMaterialTertiary),
-        quaternary: r(SemanticColor.backgroundMaterialQuaternary),
+        primary: material(r.surface),
+        secondary: material(r.surfaceContainerLowest),
+        tertiary: material(r.surfaceContainerLow),
+        quaternary: material(r.surfaceContainerLow),
       ),
       text: TextPalette(
-        primary: r(SemanticColor.textPrimary),
-        secondary: r(SemanticColor.textSecondary),
-        tertiary: r(SemanticColor.textTertiary),
-        quaternary: r(SemanticColor.textQuaternary),
+        primary: r.onSurface,
+        secondary: onSurfaceAt(0.85),
+        tertiary: r.onSurfaceVariant,
+        quaternary: r.onSurfaceVariant.withValues(alpha: 0.6),
       ),
       separator: SeparatorPalette(
-        primary: r(SemanticColor.separatorPrimary),
-        secondary: r(SemanticColor.separatorSecondary),
+        primary: r.outline,
+        secondary: r.outlineVariant,
       ),
       fill: FillPalette(
-        primary: r(SemanticColor.fillPrimary),
-        secondary: r(SemanticColor.fillSecondary),
-        tertiary: r(SemanticColor.fillTertiary),
+        primary: onSurfaceAt(0.20),
+        secondary: onSurfaceAt(0.15),
+        tertiary: onSurfaceAt(0.10),
       ),
       function: FunctionPalette(
         neutral: FunctionNeutral(
-          white: r(SemanticColor.functionNeutralWhite),
-          black: r(SemanticColor.functionNeutralBlack),
-          toggleWhite: r(SemanticColor.functionNeutralToggleWhite),
-          toggleBlack: r(SemanticColor.functionNeutralToggleBlack),
-          scrim: r(SemanticColor.functionNeutralScrim),
-          scrimDark: r(SemanticColor.functionNeutralScrimDark),
+          white: white,
+          black: black,
+          toggleWhite: dark ? black : white,
+          toggleBlack: dark ? white : black,
+          scrim: black.withValues(alpha: dark ? 0.80 : 0.20),
+          scrimDark: black.withValues(alpha: 0.90),
         ),
-        link: r(SemanticColor.functionLinkPrimary),
-        danger: r(SemanticColor.functionDangerPrimary),
+        link: r.primary,
+        danger: r.error,
+        // Noctalia has no success or warning role. These come from the
+        // theme's green and yellow ramps.
         success: FunctionSuccess(
-          primary: r(SemanticColor.functionSuccessPrimary),
-          secondary: r(SemanticColor.functionSuccessSecondary),
+          primary: primitives.chromatic(
+            Hue.green,
+            dark ? Shade.s500 : Shade.s400,
+          ),
+          secondary: primitives.chromatic(
+            Hue.green,
+            dark ? Shade.s900 : Shade.s100,
+          ),
         ),
         warning: FunctionWarning(
-          primary: r(SemanticColor.functionWarningPrimary),
-          secondary: r(SemanticColor.functionWarningSecondary),
+          primary: primitives.chromatic(
+            Hue.yellow,
+            dark ? Shade.s500 : Shade.s400,
+          ),
+          secondary: primitives.chromatic(
+            Hue.yellow,
+            dark ? Shade.s900 : Shade.s100,
+          ),
         ),
       ),
-      message: brightness == .dark ? _darkMessagePalette : _lightMessagePalette,
+      // Noctalia has no message roles. Both sides take an accent as a tint
+      // over the surface: yours the primary, the other side's the secondary.
+      message: MessagePalette(
+        selfBackground: r.primary
+            .withValues(alpha: _bubbleTintAlpha)
+            .on(r.surface),
+        otherBackground: r.secondary
+            .withValues(alpha: _bubbleTintAlpha)
+            .on(r.surface),
+        selfText: r.onSurface,
+        otherText: r.onSurface,
+        selfListPrefix: r.onSurfaceVariant,
+        otherListPrefix: r.onSurfaceVariant,
+        selfTableBorder: r.outline,
+        otherTableBorder: r.outline,
+        selfCheckboxCheck: r.onSurface,
+        otherCheckboxCheck: r.onSurface,
+      ),
     );
   }
 
+  /// The palette for the ambient theme. Under a `MaterialApp` this follows
+  /// the active color theme and brightness, elsewhere the default theme and
+  /// the platform brightness.
   static SemanticPalette of(BuildContext context) {
-    return MediaQuery.platformBrightnessOf(context) == .dark
-        ? darkSemanticPalette
-        : lightSemanticPalette;
+    final theme = Theme.of(context);
+    final palettes = theme.extension<ThemePalettes>();
+    if (palettes == null) {
+      return MediaQuery.platformBrightnessOf(context) == .dark
+          ? darkSemanticPalette
+          : lightSemanticPalette;
+    }
+    return theme.brightness == .dark ? palettes.dark : palettes.light;
   }
+
+  /// The active color theme's dark palette regardless of brightness, for
+  /// surfaces that are always dark such as the image viewer.
+  static SemanticPalette darkOf(BuildContext context) =>
+      Theme.of(context).extension<ThemePalettes>()?.dark ?? darkSemanticPalette;
 }
 
-final SemanticPalette lightSemanticPalette = SemanticPalette.from(.light);
+/// Both palettes of one color theme, carried on `ThemeData` so that
+/// [SemanticPalette.of] follows the user's theme choice.
+class ThemePalettes extends ThemeExtension<ThemePalettes> {
+  final SemanticPalette light, dark;
 
-final SemanticPalette darkSemanticPalette = SemanticPalette.from(.dark);
+  const ThemePalettes({required this.light, required this.dark});
 
-/// Message-bubble colors are the one bundle without aliases: they are an
-/// Air-specific extension that the reference DS carries in its message-bubble
-/// pattern tokens rather than in the semantic palette.
-final MessagePalette _lightMessagePalette = MessagePalette(
-  selfBackground: Primitive.neutral(NeutralShade.s150),
-  otherBackground: Primitive.neutral(NeutralShade.s100),
-  selfText: Primitive.neutral(NeutralShade.s1000),
-  otherText: Primitive.neutral(NeutralShade.s1000),
-  selfListPrefix: Primitive.neutral(NeutralShade.s800),
-  otherListPrefix: Primitive.neutral(NeutralShade.s800),
-  selfTableBorder: Primitive.neutral(NeutralShade.s300),
-  otherTableBorder: Primitive.neutral(NeutralShade.s300),
-  selfCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
-  otherCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
-);
+  ThemePalettes.from(ColorTheme theme)
+    : light = SemanticPalette.from(theme.light, theme.primitives),
+      dark = SemanticPalette.from(theme.dark, theme.primitives);
 
-final MessagePalette _darkMessagePalette = MessagePalette(
-  selfBackground: Primitive.neutral(NeutralShade.s800),
-  otherBackground: Primitive.neutral(NeutralShade.s850),
-  selfText: Primitive.neutral(NeutralShade.s0),
-  otherText: Primitive.neutral(NeutralShade.s0),
-  selfListPrefix: Primitive.neutral(NeutralShade.s200),
-  otherListPrefix: Primitive.neutral(NeutralShade.s200),
-  selfTableBorder: Primitive.neutral(NeutralShade.s800),
-  otherTableBorder: Primitive.neutral(NeutralShade.s800),
-  selfCheckboxCheck: Primitive.neutral(NeutralShade.s0),
-  otherCheckboxCheck: Primitive.neutral(NeutralShade.s0),
-);
+  @override
+  ThemePalettes copyWith({SemanticPalette? light, SemanticPalette? dark}) =>
+      ThemePalettes(light: light ?? this.light, dark: dark ?? this.dark);
+
+  /// Palettes are not interpolated, a theme switch snaps halfway through the
+  /// theme animation.
+  @override
+  ThemePalettes lerp(ThemePalettes? other, double t) =>
+      other == null || t < 0.5 ? this : other;
+}
+
+final SemanticPalette lightSemanticPalette = SemanticPalette.from(airLight);
+
+final SemanticPalette darkSemanticPalette = SemanticPalette.from(airDark);

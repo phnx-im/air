@@ -39,9 +39,7 @@ class Toggle extends StatelessWidget {
     final interactive = enabled && onChanged != null;
     final duration = Effect.duration(ToggleTokens.motion);
 
-    final track = value
-        ? palette.function.neutral.toggleBlack
-        : palette.fill.tertiary;
+    final track = value ? palette.accentBrand.primary : palette.fill.tertiary;
     final thumbLeft = value
         ? tokens.trackWidth - tokens.thumbSize - ToggleTokens.thumbPadding
         : ToggleTokens.thumbPadding;
@@ -72,7 +70,9 @@ class Toggle extends StatelessWidget {
                     width: tokens.thumbSize,
                     height: tokens.thumbSize,
                     decoration: BoxDecoration(
-                      color: palette.function.neutral.toggleWhite,
+                      color: value
+                          ? palette.accentBrand.onPrimary
+                          : palette.function.neutral.toggleWhite,
                       shape: .circle,
                     ),
                   ),

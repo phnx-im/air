@@ -5,6 +5,7 @@
 import 'package:air/ds/components/nav_item/nav_item.dart';
 import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
 import 'package:air/ds/components/nav_rail/nav_rail_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
@@ -17,8 +18,9 @@ class NavRailItem {
 
   /// Built with the foreground color of the cell's state, so an icon paints
   /// itself active or inactive without the host resolving the palette. A glyph
-  /// that carries its own colors, such as an avatar, ignores it.
-  final Widget Function(Color color) glyph;
+  /// that carries its own colors, such as an avatar, uses [active] to set
+  /// itself off from the pill instead.
+  final Widget Function(Color color, {required bool active}) glyph;
 
   final VoidCallback? onTap;
 }
@@ -49,7 +51,7 @@ class NavRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final surface = palette.fill.tertiary;
+    final surface = palette.roles.surfaceVariant;
     final topInset =
         NavRailTokens.paddingTop +
         (reserveWindowControls ? NavRailTokens.windowControlsInset : 0.0);
@@ -62,11 +64,13 @@ class NavRail extends StatelessWidget {
       padding: EdgeInsets.zero,
       surface: surface,
       activeLabelStyle: typeScale.body.mini.style(
-        color: palette.text.secondary,
+        color: palette.accentBrand.onPrimary,
         weight: Weight.emphasized,
       ),
+      // Inactive cells are plain on-surface ink, like Noctalia's tabs. Only
+      // the active pill and the hover fill recolor them.
       inactiveLabelStyle: typeScale.body.mini.style(
-        color: palette.text.tertiary,
+        color: palette.text.primary,
       ),
     );
 
@@ -85,7 +89,7 @@ class NavRail extends StatelessWidget {
             height: NavRailTokens.itemSize,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: palette.backgroundBase.quinary,
+                color: palette.accentBrand.primary,
                 borderRadius: BorderRadius.circular(NavRailTokens.itemRadius),
               ),
             ),
@@ -100,10 +104,15 @@ class NavRail extends StatelessWidget {
                   active: index == activeIndex,
                   label: item.label,
                   onTap: item.onTap,
-                  glyph: item.glyph(
-                    index == activeIndex
-                        ? palette.text.secondary
-                        : palette.text.tertiary,
+                  // Built under the cell, so a hovered cell hands the glyph
+                  // its ink.
+                  glyph: Builder(
+                    builder: (context) => item.glyph(
+                      index == activeIndex
+                          ? palette.accentBrand.onPrimary
+                          : PanelSurface.inkOf(context) ?? palette.text.primary,
+                      active: index == activeIndex,
+                    ),
                   ),
                 ),
               ],

@@ -5,6 +5,7 @@
 import 'dart:ui' show ImageFilter, MaskFilter;
 
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -91,12 +92,19 @@ class ButtonIcon extends StatelessWidget {
     final boxShadow = shadows ?? ButtonIconTokens.shadows(variant);
     final glyphColor = iconColor ?? palette.text.primary;
 
+    // Built under the state layer, so a hovered button hands the glyph the
+    // hover ink, whatever color it rests in. A custom widget keeps its own.
     final glyph =
         iconWidget ??
-        AppIcon(
-          type: icon!,
-          size: iconSize ?? ButtonIconSize.glyphFor(size),
-          color: glyphColor.withValues(alpha: glyphColor.a * glyphFade),
+        Builder(
+          builder: (context) {
+            final color = PanelSurface.inkOf(context) ?? glyphColor;
+            return AppIcon(
+              type: icon!,
+              size: iconSize ?? ButtonIconSize.glyphFor(size),
+              color: color.withValues(alpha: color.a * glyphFade),
+            );
+          },
         );
 
     Widget circle = SizedBox.square(

@@ -16,6 +16,7 @@ import 'package:air/ds/components/list_group/list_group_tokens.dart';
 import 'package:air/ds/components/list_row/list_row.dart';
 import 'package:air/ds/components/list_row/list_row_tokens.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -151,7 +152,7 @@ class DeveloperCaption extends StatelessWidget {
         text.toUpperCase(),
         style: typeScale.body.xs.style(
           weight: Weight.emphasized,
-          color: SemanticPalette.of(context).text.tertiary,
+          color: SemanticPalette.of(context).accentBrand.secondary,
         ),
       ),
     );
@@ -271,15 +272,16 @@ class DeveloperDangerRow extends StatelessWidget {
       tokens: ListRowTokens.current,
       label: label,
       sublabel: sublabel,
-      labelStyle: typeScale.body.regular.style(
-        color: palette.function.danger,
-        tight: true,
-      ),
+      destructive: true,
       separator: false,
-      trailing: AppIcon(
-        type: icon,
-        size: developerRowIconSize,
-        color: palette.function.danger,
+      // Built under the row's state layer, so a hovered row hands the icon
+      // its ink.
+      trailing: Builder(
+        builder: (context) => AppIcon(
+          type: icon,
+          size: developerRowIconSize,
+          color: PanelSurface.inkOf(context) ?? palette.function.danger,
+        ),
       ),
       onTap: () => showDialog(
         context: context,

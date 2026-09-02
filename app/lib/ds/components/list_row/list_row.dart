@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/list_row/list_row_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
@@ -26,6 +27,7 @@ class ListRow extends StatelessWidget {
     this.radius,
     this.separator = true,
     this.labelStyle,
+    this.destructive = false,
     this.labelMaxLines = 1,
     this.onTap,
     this.enabled = true,
@@ -53,6 +55,11 @@ class ListRow extends StatelessWidget {
   /// Label style override, for a row whose label carries its own weight or
   /// color. Defaults to body regular in `text.primary`.
   final TextStyle? labelStyle;
+
+  /// A destructive row draws its label in the error role at rest. Like every
+  /// row it takes the hover ink while hovered. Ignored when [labelStyle] is
+  /// given.
+  final bool destructive;
 
   /// Lines the label takes before it ellipsizes. Null lets it wrap as far as it
   /// needs, for a row carrying a paragraph rather than a name.
@@ -86,52 +93,61 @@ class ListRow extends StatelessWidget {
       null => null,
     };
 
-    final content = Container(
-      constraints: BoxConstraints(minHeight: tokens.height),
-      padding: ListRowTokens.padding,
-      child: Row(
-        children: [
-          if (leading != null) ...[
-            leading!,
-            const SizedBox(width: ListRowTokens.leadingGap),
-          ],
-          Expanded(
-            child: Column(
-              mainAxisSize: .min,
-              crossAxisAlignment: .start,
-              children: [
-                Text(
-                  label,
-                  style:
-                      labelStyle ??
-                      typeScale.body.regular.style(
-                        color: palette.text.primary,
-                        tight: true,
-                      ),
-                  maxLines: labelMaxLines,
-                  overflow: labelMaxLines == null ? .clip : .ellipsis,
-                ),
-                if (sublabel != null) ...[
-                  const SizedBox(height: ListRowTokens.sublabelGap),
-                  Text(
-                    sublabel!,
-                    style: typeScale.body.s.style(
-                      color: palette.text.tertiary,
-                      tight: true,
-                    ),
-                    maxLines: 1,
-                    overflow: .ellipsis,
-                  ),
-                ],
+    // Built under the state layer, so a hovered row hands the text its ink.
+    final content = Builder(
+      builder: (context) {
+        final text = PanelSurface.textOf(context);
+        final labelColor = destructive
+            ? PanelSurface.inkOf(context) ?? palette.function.danger
+            : text.primary;
+        return Container(
+          constraints: BoxConstraints(minHeight: tokens.height),
+          padding: ListRowTokens.padding,
+          child: Row(
+            children: [
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: ListRowTokens.leadingGap),
               ],
-            ),
+              Expanded(
+                child: Column(
+                  mainAxisSize: .min,
+                  crossAxisAlignment: .start,
+                  children: [
+                    Text(
+                      label,
+                      style:
+                          labelStyle ??
+                          typeScale.body.regular.style(
+                            color: labelColor,
+                            tight: true,
+                          ),
+                      maxLines: labelMaxLines,
+                      overflow: labelMaxLines == null ? .clip : .ellipsis,
+                    ),
+                    if (sublabel != null) ...[
+                      const SizedBox(height: ListRowTokens.sublabelGap),
+                      Text(
+                        sublabel!,
+                        style: typeScale.body.s.style(
+                          color: text.tertiary,
+                          tight: true,
+                        ),
+                        maxLines: 1,
+                        overflow: .ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: ListRowTokens.trailingGap),
+                trailing!,
+              ],
+            ],
           ),
-          if (trailing != null) ...[
-            const SizedBox(width: ListRowTokens.trailingGap),
-            trailing!,
-          ],
-        ],
-      ),
+        );
+      },
     );
 
     if (onTap == null) {

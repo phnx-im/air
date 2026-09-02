@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/developer_unlock.dart';
@@ -190,18 +192,18 @@ class _UsernamesSection extends StatelessWidget {
                 children: [
                   Text(username.plaintext),
                   const Spacer(),
-                  InkWell(
-                    onTap: () {
+                  ButtonIcon(
+                    variant: ButtonIconVariant.plain,
+                    icon: AppIconType.trash,
+                    size: ButtonIconSize.s32,
+                    iconColor: palette.function.danger,
+                    onPressed: () {
                       showDialog(
                         context: context,
                         builder: (context) =>
                             RemoveUsernameDialog(username: username),
                       );
                     },
-                    child: AppIcon.trash(
-                      size: S.s24,
-                      color: palette.function.danger,
-                    ),
                   ),
                 ],
               ),

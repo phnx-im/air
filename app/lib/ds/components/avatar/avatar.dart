@@ -51,7 +51,9 @@ class Avatar extends StatelessWidget {
     final circle = DecoratedBox(
       decoration: BoxDecoration(
         shape: .circle,
-        gradient: image == null ? AvatarTokens.gradientFor(gradientSeed) : null,
+        gradient: image == null
+            ? AvatarTokens.gradientFor(gradientSeed, palette.primitives)
+            : null,
         color: image == null ? null : palette.text.quaternary,
         image: image == null
             ? null

@@ -10,6 +10,7 @@ import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/developer/change_user_modal.dart';
+import 'package:air/features/developer/color_theme_picker.dart';
 import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/developer/logs_screen.dart';
 import 'package:air/features/developer/user_debug_info.dart';
@@ -165,7 +166,32 @@ class _SettingsCard extends StatelessWidget {
           onChanged: (value) => settings.setExperimentalFeatures(value: value),
         ),
         const _InterfaceScaleRow(),
+        const _ColorThemeRow(),
       ],
+    );
+  }
+}
+
+/// Swaps the primitive ramps under the whole interface. Prototype, not
+/// persisted.
+class _ColorThemeRow extends StatelessWidget {
+  const _ColorThemeRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
+      child: Row(
+        children: [
+          Text(
+            'Color theme',
+            style: typeScale.body.regular.style(color: palette.text.primary),
+          ),
+          const Spacer(),
+          const ColorThemePicker(),
+        ],
+      ),
     );
   }
 }
@@ -224,7 +250,7 @@ class _InterfaceScaleRow extends HookWidget {
             max: 300,
             divisions: ((300 - 50) / 10).truncate(),
             value: percent.value,
-            activeColor: palette.text.secondary,
+            activeColor: palette.accentBrand.primary,
             onChanged: (value) => percent.value = value,
             onChangeEnd: submit,
           ),

@@ -5,6 +5,8 @@
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
@@ -208,12 +210,12 @@ class _SingleDevice extends StatelessWidget {
           // The own device is never unlinkable from here: a device is unlinked
           // from one of its siblings.
           if (!device.isThisDevice)
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => _unlinkDevice(context, name),
-                child: AppIcon.trash(color: palette.function.danger, size: 24),
-              ),
+            ButtonIcon(
+              variant: ButtonIconVariant.plain,
+              icon: AppIconType.trash,
+              size: ButtonIconSize.s32,
+              iconColor: palette.function.danger,
+              onPressed: () => _unlinkDevice(context, name),
             ),
         ],
       ),

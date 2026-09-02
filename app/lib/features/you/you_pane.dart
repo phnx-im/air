@@ -41,7 +41,6 @@ class YouDetailPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
     // The pane has no list of its own to fall back to, so it always shows a
     // section.
     final section =
@@ -54,8 +53,8 @@ class YouDetailPane extends StatelessWidget {
         YouSection.profile;
 
     // The pane sits on the window rather than on a panel, so its fades land on
-    // the window color.
-    final background = palette.backgroundBase.quinary;
+    // the window color the shell publishes.
+    final background = PanelSurface.colorOf(context);
 
     return BlocProvider(
       create: (context) =>

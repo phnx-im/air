@@ -260,7 +260,7 @@ class _FullscreenImageState extends State<FullscreenImage> {
     final t = widget.tokens;
     // A permanent dark takeover: the chrome reads against the backdrop rather
     // than the app's surface, so it takes the dark palette in either theme.
-    final palette = darkSemanticPalette;
+    final palette = SemanticPalette.darkOf(context);
 
     final dragging = _canDrag;
     final backdropOpacity = dragging
@@ -507,7 +507,7 @@ class _Picture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = darkSemanticPalette;
+    final palette = SemanticPalette.darkOf(context);
     final placeholder = item.placeholder;
 
     return Stack(
@@ -616,7 +616,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final white = darkSemanticPalette.function.neutral.white;
+    final white = SemanticPalette.darkOf(context).function.neutral.white;
     final share = onShare;
     final close = _button(AppIconType.x, white, onClose);
 
@@ -702,14 +702,24 @@ class _NavArrows extends StatelessWidget {
               padding: const EdgeInsets.only(
                 left: FullscreenImageTokens.navEdgePadding,
               ),
-              child: _arrow(AppIconType.chevronLeft, canGoBack, onBack),
+              child: _arrow(
+                context,
+                AppIconType.chevronLeft,
+                canGoBack,
+                onBack,
+              ),
             ),
             const Spacer(),
             Padding(
               padding: const EdgeInsets.only(
                 right: FullscreenImageTokens.navEdgePadding,
               ),
-              child: _arrow(AppIconType.chevronRight, canGoForward, onForward),
+              child: _arrow(
+                context,
+                AppIconType.chevronRight,
+                canGoForward,
+                onForward,
+              ),
             ),
           ],
         ),
@@ -720,20 +730,24 @@ class _NavArrows extends StatelessWidget {
   /// An arrow at the end of the run reads spent twice over: the fade takes it
   /// off the picture, and the missing handler leaves [ButtonIcon] disabled, so
   /// it neither invites a press nor swallows one.
-  Widget _arrow(AppIconType icon, bool enabled, VoidCallback onPressed) =>
-      AnimatedOpacity(
-        duration: Effect.duration(FullscreenImageTokens.navFadeMotion),
-        curve: Effect.easeOutQuart,
-        opacity: enabled ? FullscreenImageTokens.navIdleOpacity : 0,
-        child: ButtonIcon(
-          variant: FullscreenImageTokens.buttonVariant,
-          size: FullscreenImageTokens.navButtonSize,
-          icon: icon,
-          iconSize: FullscreenImageTokens.navIconSize,
-          iconColor: darkSemanticPalette.function.neutral.white,
-          onPressed: enabled ? onPressed : null,
-        ),
-      );
+  Widget _arrow(
+    BuildContext context,
+    AppIconType icon,
+    bool enabled,
+    VoidCallback onPressed,
+  ) => AnimatedOpacity(
+    duration: Effect.duration(FullscreenImageTokens.navFadeMotion),
+    curve: Effect.easeOutQuart,
+    opacity: enabled ? FullscreenImageTokens.navIdleOpacity : 0,
+    child: ButtonIcon(
+      variant: FullscreenImageTokens.buttonVariant,
+      size: FullscreenImageTokens.navButtonSize,
+      icon: icon,
+      iconSize: FullscreenImageTokens.navIconSize,
+      iconColor: SemanticPalette.darkOf(context).function.neutral.white,
+      onPressed: enabled ? onPressed : null,
+    ),
+  );
 }
 
 /// How far into the run of pictures we are.
@@ -765,7 +779,9 @@ class _Counter extends StatelessWidget {
         child: Center(
           child: Text(
             '${index + 1} / $count',
-            style: _counterType.style(color: darkSemanticPalette.text.primary),
+            style: _counterType.style(
+              color: SemanticPalette.darkOf(context).text.primary,
+            ),
           ),
         ),
       ),

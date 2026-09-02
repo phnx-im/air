@@ -67,7 +67,10 @@ class ChatListItem extends StatelessWidget {
     final longPress = enabled ? onLongPress : null;
     final active = isActive && t.highlightActive;
     final base = PanelSurface.colorOf(context);
-    final surface = active ? palette.fill.tertiary.on(base) : base;
+    // The selected row takes the primary fill and its ink, the same way the
+    // active cell of the nav rail does.
+    final surface = active ? palette.accentBrand.primary : base;
+    final ink = active ? palette.accentBrand.onPrimary : null;
 
     Widget fade(Widget child) => enabled
         ? child
@@ -92,58 +95,109 @@ class ChatListItem extends StatelessWidget {
         selected: active,
         enabled: enabled,
         onTap: onTap,
-        background: active ? ColoredBox(color: palette.fill.tertiary) : null,
-        child: PanelSurface(
-          color: surface,
-          child: Padding(
-            padding: t.containerPadding,
-            child: Row(
+        background: active ? ColoredBox(color: surface) : null,
+        // The selected row publishes its own fill and ink. Otherwise the state
+        // layer's surface passes through, so a hovered row flips its ink.
+        child: Builder(
+          builder: (context) => PanelSurface(
+            color: active ? surface : PanelSurface.maybeOf(context) ?? base,
+            ink: ink ?? PanelSurface.inkOf(context),
+            child: _RowContent(
+              tokens: t,
+              active: active,
+              ink: ink,
+              hideSeparator: hideSeparator,
+              avatar: avatar,
+              title: title,
+              titleIcon: titleIcon,
+              timestamp: timestamp,
+              preview: preview,
+              trailing: trailing,
+              fade: fade,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RowContent extends StatelessWidget {
+  const _RowContent({
+    required this.tokens,
+    required this.active,
+    required this.ink,
+    required this.hideSeparator,
+    required this.avatar,
+    required this.title,
+    required this.titleIcon,
+    required this.timestamp,
+    required this.preview,
+    required this.trailing,
+    required this.fade,
+  });
+
+  final ChatListItemTokens tokens;
+  final bool active;
+  final Color? ink;
+  final bool hideSeparator;
+  final Widget avatar;
+  final String title;
+  final Widget? titleIcon;
+  final Widget? timestamp;
+  final Widget? preview;
+  final Widget? trailing;
+  final Widget Function(Widget child) fade;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tokens;
+    final palette = SemanticPalette.of(context);
+    // The ink of whatever fills the row: the selection's, or the hover's.
+    final rowInk = ink ?? PanelSurface.inkOf(context);
+    return Padding(
+      padding: t.containerPadding,
+      child: Row(
+        crossAxisAlignment: .start,
+        children: [
+          fade(
+            Padding(padding: ChatListItemTokens.avatarPadding, child: avatar),
+          ),
+          Expanded(
+            child: Column(
               crossAxisAlignment: .start,
               children: [
                 fade(
-                  Padding(
-                    padding: ChatListItemTokens.avatarPadding,
-                    child: avatar,
-                  ),
-                ),
-                Expanded(
-                  child: Column(
+                  Column(
                     crossAxisAlignment: .start,
                     children: [
-                      fade(
-                        Column(
-                          crossAxisAlignment: .start,
-                          children: [
-                            _TitleRow(
-                              tokens: t,
-                              title: title,
-                              titleIcon: titleIcon,
-                              timestamp: timestamp,
-                            ),
-                            _PreviewRow(
-                              tokens: t,
-                              preview: preview,
-                              trailing: trailing,
-                            ),
-                          ],
-                        ),
+                      _TitleRow(
+                        tokens: t,
+                        title: title,
+                        titleIcon: titleIcon,
+                        timestamp: timestamp,
                       ),
-                      Padding(
-                        padding: t.separatorPadding,
-                        child: Container(
-                          height: ChatListItemTokens.separatorWidth,
-                          color: hideSeparator
-                              ? const Color(0x00000000)
-                              : palette.separator.secondary,
-                        ),
+                      _PreviewRow(
+                        tokens: t,
+                        preview: preview,
+                        trailing: trailing,
                       ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: t.separatorPadding,
+                  child: Container(
+                    height: ChatListItemTokens.separatorWidth,
+                    color: hideSeparator || rowInk != null
+                        ? const Color(0x00000000)
+                        : palette.separator.secondary,
                   ),
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

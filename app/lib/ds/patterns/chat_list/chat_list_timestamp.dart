@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
@@ -24,7 +25,7 @@ class ChatListTimestamp extends StatelessWidget {
       // Tabular figures hold the stamp's width steady, so a minute count
       // ticking up never reflows the title beside it.
       style: typeScale.body.mini
-          .style(color: SemanticPalette.of(context).text.tertiary)
+          .style(color: PanelSurface.textOf(context).tertiary)
           .copyWith(
             height: 1.0,
             fontFeatures: const [FontFeature.tabularFigures()],

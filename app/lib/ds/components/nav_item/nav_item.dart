@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:flutter/widgets.dart';
 
@@ -55,13 +56,22 @@ class NavItem extends StatelessWidget {
             children: [
               glyph,
               SizedBox(height: tokens.labelGap),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: .ellipsis,
-                style: active
-                    ? tokens.activeLabelStyle
-                    : tokens.inactiveLabelStyle,
+              // Built under the state layer, so a hovered cell hands the
+              // label its ink.
+              Builder(
+                builder: (context) => Text(
+                  label,
+                  maxLines: 1,
+                  overflow: .ellipsis,
+                  style: active
+                      ? tokens.activeLabelStyle
+                      : switch (PanelSurface.inkOf(context)) {
+                          final ink? => tokens.inactiveLabelStyle.copyWith(
+                            color: ink,
+                          ),
+                          null => tokens.inactiveLabelStyle,
+                        },
+                ),
               ),
             ],
           ),

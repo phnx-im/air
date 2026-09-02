@@ -17,6 +17,7 @@ import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
+import 'package:air/features/developer/color_theme_cubit.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -240,6 +241,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           create: (context) => UserSettingsCubit(),
         ),
         BlocProvider<AppLocaleCubit>(create: (context) => AppLocaleCubit()),
+        BlocProvider<ColorThemeCubit>(create: (context) => ColorThemeCubit()),
       ],
       child: InterfaceScale(
         // SDTFScope exposes date & time formatting system preferences
@@ -256,6 +258,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 );
                 // Prefer the persisted user locale over the in-memory one.
                 final locale = localeFromTag(userLocaleCode) ?? appLocale;
+                final colorTheme = context.watch<ColorThemeCubit>().state;
 
                 return MaterialApp.router(
                   scrollBehavior: const AppScrollBehavior(),
@@ -270,8 +273,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                   ),
                   locale: locale,
                   debugShowCheckedModeBanner: false,
-                  theme: lightTheme,
-                  darkTheme: darkTheme,
+                  theme: themeData(.light, theme: colorTheme),
+                  darkTheme: themeData(.dark, theme: colorTheme),
                   routerConfig: _appRouter,
                   builder: (context, router) => LoadableUserCubitProvider(
                     appStateController: _appStateController,

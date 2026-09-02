@@ -6,6 +6,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/nav_item/nav_item.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
 import 'package:air/features/navigation/tab_bar_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -36,9 +37,8 @@ class AppTabBar extends StatelessWidget {
     final activeIndex = tabs.indexOf(activeTab);
     final background = palette.backgroundElevated.secondary;
 
-    // The bar marks the active tab with the sliding pill alone, so the label
-    // keeps a single style in either state.
-    final labelStyle = typeScale.body.mini.style(color: palette.text.tertiary);
+    // The active tab sits on the primary pill and takes its ink, the others
+    // are plain on-surface ink, like the rail.
     final navTokens = NavItemTokens(
       boxWidth: TabBarTokens.tabWidth,
       boxHeight: TabBarTokens.height,
@@ -46,8 +46,13 @@ class AppTabBar extends StatelessWidget {
       labelGap: TabBarTokens.labelGap,
       padding: TabBarTokens.tabPadding,
       surface: background,
-      activeLabelStyle: labelStyle,
-      inactiveLabelStyle: labelStyle,
+      activeLabelStyle: typeScale.body.mini.style(
+        color: palette.accentBrand.onPrimary,
+        weight: Weight.emphasized,
+      ),
+      inactiveLabelStyle: typeScale.body.mini.style(
+        color: palette.text.primary,
+      ),
     );
 
     // Tabs are laid out by hand rather than in a Row: [TabBarTokens.tabGap] is
@@ -113,7 +118,7 @@ class AppTabBar extends StatelessWidget {
                             TabBarTokens.activePillInset * 2,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: palette.backgroundElevated.tertiary,
+                            color: palette.accentBrand.primary,
                             borderRadius: BorderRadius.circular(
                               TabBarTokens.pillRadius,
                             ),
@@ -158,8 +163,16 @@ class _TabBarItem extends StatelessWidget {
       glyph: SizedBox(
         width: TabBarTokens.avatarSize,
         height: TabBarTokens.avatarSize,
-        child: Center(
-          child: _TabIcon(tab: tab, color: palette.text.tertiary),
+        // Built under the cell, so a hovered cell hands the icon its ink.
+        child: Builder(
+          builder: (context) => Center(
+            child: _TabIcon(
+              tab: tab,
+              color: active
+                  ? palette.accentBrand.onPrimary
+                  : PanelSurface.inkOf(context) ?? palette.text.primary,
+            ),
+          ),
         ),
       ),
     );

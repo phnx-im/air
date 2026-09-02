@@ -152,7 +152,10 @@ void main() {
             activeIndex: 0,
             reserveWindowControls: true,
             items: [
-              NavRailItem(label: 'Chats', glyph: (_) => const SizedBox()),
+              NavRailItem(
+                label: 'Chats',
+                glyph: (_, {required active}) => const SizedBox(),
+              ),
             ],
           ),
         ),

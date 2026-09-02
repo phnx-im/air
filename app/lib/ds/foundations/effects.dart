@@ -113,9 +113,8 @@ const Map<Elevation, List<List<num>>> _elevationLayers = {
 const double _shadowAlphaFloor = 0.01;
 
 Map<Elevation, List<BoxShadow>> _resolveShadows() {
-  // Black is mode-invariant by design (see its alias), so either brightness
-  // resolves the same cell.
-  final tint = SemanticColor.functionNeutralBlack.resolve(.light);
+  // Shadows stay pure black across modes and color themes.
+  const tint = Color(0xFF000000);
   final r = (tint.r * 255).round();
   final g = (tint.g * 255).round();
   final b = (tint.b * 255).round();

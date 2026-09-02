@@ -94,7 +94,7 @@ class SectionHeader extends StatelessWidget {
         text,
         style: typeScale.body.regular.style(
           weight: Weight.emphasized,
-          color: SemanticPalette.of(context).text.secondary,
+          color: SemanticPalette.of(context).accentBrand.secondary,
         ),
       ),
     );

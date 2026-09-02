@@ -36,7 +36,7 @@ class AttachmentUploadView extends HookWidget {
     );
     final isImage = useFuture(isImageFut);
 
-    final palette = darkSemanticPalette;
+    final palette = SemanticPalette.darkOf(context);
 
     return Scaffold(
       backgroundColor: palette.function.neutral.black,
@@ -98,8 +98,9 @@ class AttachmentUploadView extends HookWidget {
                 left: 0,
                 right: 0,
                 child: Container(
-                  color: darkSemanticPalette.backgroundElevated.primary
-                      .withValues(alpha: 0.7),
+                  color: SemanticPalette.darkOf(
+                    context,
+                  ).backgroundElevated.primary.withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
                     clipBehavior: .none,
@@ -113,8 +114,9 @@ class AttachmentUploadView extends HookWidget {
                         child: AppBarXButton(
                           onPressed: () => Navigator.of(context).maybePop(),
                           foregroundColor: palette.text.primary,
-                          backgroundColor:
-                              darkSemanticPalette.backgroundBase.secondary,
+                          backgroundColor: SemanticPalette.darkOf(
+                            context,
+                          ).backgroundBase.secondary,
                         ),
                       ),
                     ],

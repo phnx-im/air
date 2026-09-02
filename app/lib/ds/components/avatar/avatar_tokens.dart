@@ -7,8 +7,8 @@ import 'package:flutter/widgets.dart';
 
 /// Geometry for an avatar, plus the one palette a component owns outright.
 ///
-/// The fallback gradients are a fixed decorative scale rather than a themeable
-/// semantic, so they read primitives directly and stay put in either theme.
+/// The fallback gradients are a decorative scale rather than a semantic, so
+/// they read primitives directly and stay put in either brightness.
 abstract final class AvatarTokens {
   /// Initial-letter size as a fraction of the circle's diameter. Call sites
   /// size avatars anywhere from a tab-bar glyph to a profile header, so the
@@ -20,26 +20,21 @@ abstract final class AvatarTokens {
 
   static double letterSize(double diameter) => diameter * letterRatio;
 
-  /// The fallback gradient [seed] hashes onto.
-  static LinearGradient gradientFor(String? seed) => LinearGradient(
-    colors: _hueGradients[_hueIndex(seed)],
-    begin: gradientBegin,
-    end: gradientEnd,
-  );
+  /// The fallback gradient [seed] hashes onto, in the hues of [primitives].
+  static LinearGradient gradientFor(String? seed, PrimitivePalette primitives) {
+    final hue = Hue.values[_hueIndex(seed)];
+    return LinearGradient(
+      colors: [
+        primitives.chromatic(hue, _startShade),
+        primitives.chromatic(hue, _endShade),
+      ],
+      begin: gradientBegin,
+      end: gradientEnd,
+    );
+  }
 
   static const Shade _startShade = Shade.s300;
   static const Shade _endShade = Shade.s700;
-
-  /// One gradient per chromatic hue, in palette order. That order is
-  /// load-bearing: [_hueIndex] indexes into this list, so adding a hue to
-  /// [Hue] re-colors existing avatars.
-  static final List<List<Color>> _hueGradients = [
-    for (final hue in Hue.values)
-      [
-        Primitive.chromatic(hue, _startShade),
-        Primitive.chromatic(hue, _endShade),
-      ],
-  ];
 
   static int _hueIndex(String? seed) {
     if (seed == null) {
@@ -51,6 +46,6 @@ abstract final class AvatarTokens {
       hash = ((hash << 5) + hash) + codeUnit;
       hash &= 0xFFFFFFFF;
     }
-    return hash % _hueGradients.length;
+    return hash % Hue.values.length;
   }
 }

@@ -26,11 +26,9 @@ class CounterTokens {
 
   /// The pill inverts against the surface it sits on, so the count reads at a
   /// glance in a list of otherwise quiet rows.
-  static Color fill(SemanticPalette palette) =>
-      palette.function.neutral.toggleBlack;
+  static Color fill(SemanticPalette palette) => palette.accentBrand.primary;
 
-  static Color label(SemanticPalette palette) =>
-      palette.function.neutral.toggleWhite;
+  static Color label(SemanticPalette palette) => palette.accentBrand.onPrimary;
 
   static const CounterTokens phone = CounterTokens(
     height: S.s24,

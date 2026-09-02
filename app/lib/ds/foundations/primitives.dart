@@ -43,9 +43,15 @@ enum NeutralShade {
   s1000,
 }
 
-/// The primitive palette.
-abstract final class Primitive {
-  static Color neutral(NeutralShade shade) {
+/// One complete set of primitive ramps. A color theme is a different instance
+/// of this, the semantic layer stays the same.
+class PrimitivePalette {
+  const PrimitivePalette({required this._neutral, required this._chromatic});
+
+  final Map<NeutralShade, Color> _neutral;
+  final Map<(Hue, Shade), Color> _chromatic;
+
+  Color neutral(NeutralShade shade) {
     final color = _neutral[shade];
     if (color == null) {
       throw StateError('Neutral palette is missing ${shade.name}');
@@ -53,13 +59,28 @@ abstract final class Primitive {
     return color;
   }
 
-  static Color chromatic(Hue hue, Shade shade) {
+  Color chromatic(Hue hue, Shade shade) {
     final color = _chromatic[(hue, shade)];
     if (color == null) {
       throw StateError('Palette is missing ${hue.name}/${shade.name}');
     }
     return color;
   }
+}
+
+/// The default palette, the Flexoki values.
+const PrimitivePalette flexokiPrimitives = PrimitivePalette(
+  neutral: _neutral,
+  chromatic: _chromatic,
+);
+
+/// The default primitive palette. Theme-aware code resolves through
+/// `SemanticPalette` instead.
+abstract final class Primitive {
+  static Color neutral(NeutralShade shade) => flexokiPrimitives.neutral(shade);
+
+  static Color chromatic(Hue hue, Shade shade) =>
+      flexokiPrimitives.chromatic(hue, shade);
 }
 
 const Map<NeutralShade, Color> _neutral = {
