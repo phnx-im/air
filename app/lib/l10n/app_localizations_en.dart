@@ -1299,7 +1299,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+      'Open the App Store on iOS or Google Play on Android, then update Air.';
 
   @override
   String get appOutdatedScreen_action => 'Update';

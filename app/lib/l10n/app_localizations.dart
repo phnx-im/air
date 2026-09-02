@@ -2251,10 +2251,10 @@ abstract class AppLocalizations {
   /// **'Update to keep using Air'**
   String get appOutdatedScreen_message;
 
-  /// Names the store to update from on each mobile platform. TestFlight and Google Play are product names.
+  /// Names the store to update from on each mobile platform. App Store and Google Play are product names.
   ///
   /// In en, this message translates to:
-  /// **'Open TestFlight on iOS or Google Play on Android, then update Air.'**
+  /// **'Open the App Store on iOS or Google Play on Android, then update Air.'**
   String get appOutdatedScreen_description;
 
   /// Button that opens the store so the user can update.

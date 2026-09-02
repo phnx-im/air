@@ -4,13 +4,12 @@
 
 use std::sync::Arc;
 
-use aircommon::time::TimeStamp;
 use aircoreclient::clients::{
     ListenResponse, listen_response,
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use airprotos::queue_service;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
@@ -127,11 +126,13 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 })),
         } = &event
         {
-            let expires_at = expires_at.map(|t| TimeStamp::from(t).into());
+            // Whole seconds: the dismissed expiry is persisted as such and has to compare equal to
+            // the announced one afterwards.
+            let expires_at = expires_at.and_then(|t| DateTime::from_timestamp(t.seconds, 0));
             self.cubit_context.state_tx.send_modify(|state| {
                 let inner = Arc::make_mut(&mut state.inner);
                 inner.version_status = match expires_at {
-                    Some(expires_at) if expires_at < Utc::now() => {
+                    Some(expires_at) if Utc::now() < expires_at => {
                         VersionStatus::ExpiresAt(expires_at)
                     }
                     Some(_) => VersionStatus::Unsupported,

@@ -1773,9 +1773,9 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
+  "appOutdatedScreen_description": "Open the App Store on iOS or Google Play on Android, then update Air.",
   "@appOutdatedScreen_description": {
-    "description": "Names the store to update from on each mobile platform. TestFlight and Google Play are product names."
+    "description": "Names the store to update from on each mobile platform. App Store and Google Play are product names."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {

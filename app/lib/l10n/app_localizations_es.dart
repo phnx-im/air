@@ -1325,7 +1325,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Abre TestFlight en iOS o Google Play en Android y actualiza Air.';
+      'Abre App Store en iOS o Google Play en Android y actualiza Air.';
 
   @override
   String get appOutdatedScreen_action => 'Actualizar';

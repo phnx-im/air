@@ -367,7 +367,7 @@
   "deleteAccountScreen_deleteAccountError": "Algo deu errado do nosso lado. Espere um momento e tente de novo.",
   "appOutdatedScreen_title": "Atualização necessária",
   "appOutdatedScreen_message": "Atualize para continuar usando o Air",
-  "appOutdatedScreen_description": "Abra o TestFlight no iOS ou o Google Play no Android e atualize o Air.",
+  "appOutdatedScreen_description": "Abra a App Store no iOS ou o Google Play no Android e atualize o Air.",
   "appOutdatedScreen_action": "Atualizar",
   "versionExpiryBanner_message": "Atualize o Air até {date} para continuar usando",
   "versionExpiryBanner_dismiss": "Fechar",

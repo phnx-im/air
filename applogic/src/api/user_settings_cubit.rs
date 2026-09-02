@@ -10,6 +10,7 @@ use aircoreclient::{
     db::notification::{DbEntityId, DbNotification},
 };
 use anyhow::{anyhow, bail};
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
@@ -43,6 +44,9 @@ pub struct UserSettings {
     /// Index into the client `EmojiSkinTone` enum (0 = default/none).
     #[frb(default = 0)]
     pub default_emoji_skin_tone: u8,
+    /// The version expiry announced by the server that the user dismissed the
+    /// update banner for. A different announced expiry shows the banner again.
+    pub dismissed_version_expiry: Option<DateTime<Utc>>,
 }
 
 impl Default for UserSettings {
@@ -57,6 +61,7 @@ impl Default for UserSettings {
             developer_mode: false,
             experimental_features: false,
             default_emoji_skin_tone: 0,
+            dismissed_version_expiry: None,
         }
     }
 }
@@ -73,6 +78,7 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
+    let dismissed_version_expiry = core_user.user_setting().await;
 
     let defaults = UserSettings::default();
     UserSettings {
@@ -94,6 +100,8 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
             defaults.default_emoji_skin_tone,
             |DefaultEmojiSkinToneSetting(value)| value,
         ),
+        dismissed_version_expiry: dismissed_version_expiry
+            .map(|DismissedVersionExpirySetting(value)| value),
     }
 }
 
@@ -256,6 +264,19 @@ impl UserSettingsCubitBase {
         Ok(())
     }
 
+    pub async fn set_dismissed_version_expiry(&self, value: DateTime<Utc>) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().dismissed_version_expiry == Some(value) {
+            return Ok(());
+        }
+        self.core_user
+            .set_user_setting(&DismissedVersionExpirySetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.dismissed_version_expiry = Some(value));
+        Ok(())
+    }
+
     pub(crate) fn subscribe(&self) -> watch::Receiver<UserSettings> {
         self.core.state_tx().subscribe()
     }
@@ -332,6 +353,28 @@ impl UserSetting for DefaultEmojiSkinToneSetting {
             [byte] => Ok(Self(*byte)),
             _ => bail!("invalid default_emoji_skin_tone bytes"),
         }
+    }
+}
+
+/// Device-local, since the banner is dismissed on the device in hand.
+///
+/// Stored in whole seconds, like the announced expiry it is compared against.
+struct DismissedVersionExpirySetting(DateTime<Utc>);
+
+impl UserSetting for DismissedVersionExpirySetting {
+    const KEY: &'static str = "dismissed_version_expiry";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(self.0.timestamp().to_be_bytes().to_vec())
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        let bytes: [u8; 8] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid dismissed_version_expiry bytes"))?;
+        DateTime::from_timestamp(i64::from_be_bytes(bytes), 0)
+            .map(Self)
+            .ok_or_else(|| anyhow!("dismissed_version_expiry out of range"))
     }
 }
 
