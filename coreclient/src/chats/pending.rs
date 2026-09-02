@@ -4,20 +4,17 @@
 
 use aircommon::{
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, Username},
+    identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
-        connection_package::{ConnectionPackage, ConnectionPackageHash},
+        connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
 };
-use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
-use anyhow::{Context, bail, ensure};
-use mimi_room_policy::RoleIndex;
-use openmls::treesync::errors::LeafNodeValidationError;
+use anyhow::{Context, bail};
 use tls_codec::DeserializeBytes;
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::{
     Chat, ChatId, ChatType, PartialContact, SystemMessage, TargetedMessageContact,
@@ -27,10 +24,10 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
     contacts::UsernameContact,
-    db::access::WriteConnection,
-    groups::{Group, group_bootstrap::secret_bytes, self_group::SelfGroup},
-    key_stores::indexed_keys::StorableIndexedKey,
-    usernames::connection_packages::StorableConnectionPackage,
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    groups::Group,
+    key_stores::MemoryUserKeyStore,
+    outbound_service::connection_accepts::ConnectionAccept,
 };
 
 pub(crate) struct PendingConnectionInfo {
@@ -43,250 +40,131 @@ pub(crate) struct PendingConnectionInfo {
 }
 
 impl CoreUser {
+    /// Queues accepting a contact request.
+    ///
+    /// The accept itself runs in the outbound service, which retries until the
+    /// join lands on the DS (see `outbound_service::connection_accepts`). The
+    /// queued job persists across restarts. Accepting a request whose earlier
+    /// accept failed permanently re-arms the job.
     #[instrument(skip(self), err)]
-    pub async fn accept_contact_request(
-        &self,
-        chat_id: ChatId,
-    ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {
-        // Load needed data
-        let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
-            self.db()
-                .with_read_transaction(async |txn| {
-                    let chat: Chat = Chat::load(&mut *txn, &chat_id)
-                        .await?
-                        .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-                    let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
-                        bail!("Chat is not a pending connection");
-                    };
-                    let pending_connection_info = PendingConnectionInfo::load(&mut *txn, chat_id)
-                        .await?
-                        .with_context(|| {
-                            format!("No pending connection info found for chat: {chat_id}")
-                        })?;
-                    let own_user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
-                    let sender_user_id = sender_user_id.clone();
-
-                    // Look up partial contact:
-                    // - UsernameContact: by chat_id since multiple senders can target the same username
-                    // - TargetedMessageContact: by user_id (its natural key)
-                    let partial_contact = if pending_connection_info.handle.is_some() {
-                        UsernameContact::load_by_chat_id(&mut *txn, chat_id)
-                            .await?
-                            .map(PartialContact::Username)
-                    } else {
-                        TargetedMessageContact::load(txn, &sender_user_id)
-                            .await?
-                            .map(PartialContact::TargetedMessage)
-                    };
-
-                    let partial_contact = partial_contact
-                        .with_context(|| format!("No partial contact found for chat: {chat_id}"))?;
-
-                    Ok((
-                        chat,
-                        sender_user_id,
-                        pending_connection_info,
-                        partial_contact,
-                        own_user_profile_key,
-                    ))
-                })
-                .await?;
-
-        let PendingConnectionInfo {
-            chat_id: _,
-            created_at: _,
-            connection_info,
-            handle,
-            connection_offer_hash,
-            connection_package_hash,
-        } = pending_connection_info;
-
-        // Prepare group
-        let (aad, qgid) = self.prepare_group(&connection_info, &own_user_profile_key)?;
-
-        // Fetch external commit info
-        let eci = self
-            .api_clients()
-            .get(qgid.owning_domain())?
-            .ds_connection_group_info(
-                connection_info.connection_group_id.clone(),
-                &connection_info.connection_group_ear_key,
-            )
-            .await?;
-
-        // Create a new group by joining it (if group already exists, it will be replaced)
-        let result = Box::pin(self.db().with_write_transaction(
-            async |txn| -> anyhow::Result<Result<_, _>> {
-                if Group::load_with_chat_id(&mut *txn, chat_id)
-                    .await?
-                    .is_some()
-                {
-                    warn!(%chat_id, "Group for pending chat already exists");
-                    Group::delete_from_db(txn, chat.group_id()).await?;
-                    if let Some(hash) = connection_offer_hash {
-                        Group::delete_connection_offer_psk(&mut *txn, hash)?;
-                    }
-                }
-
-                let self_group = SelfGroup::load(&mut *txn).await?;
-                let vc_group_id = self_group.as_ref().map(|group| group.group_id().clone());
-
-                // Join group
-                let res = Group::join_group_externally(
-                    txn,
-                    self.api_clients(),
-                    eci,
-                    self.signing_key(),
-                    connection_info.connection_group_ear_key.clone(),
-                    connection_info
-                        .connection_group_identity_link_wrapper_key
-                        .clone(),
-                    aad,
-                    connection_offer_hash,
-                    vc_group_id,
-                )
-                .await?;
-                let (mut group, commit, group_info, mut member_profile_info) = match res {
-                    Ok(value) => value,
-                    Err(error) => return Ok(Err(error)),
-                };
-
-                // Verify that the group has only one other member and that it's
-                // the sender of the CEP.
-                let members: Vec<_> = group.members().collect();
-
-                ensure!(
-                    members.len() == 2,
-                    "Connection group has more than two members: {:?}",
-                    members
-                );
-
-                ensure!(
-                    members.contains(self.user_id()) && members.contains(&sender_user_id),
-                    "Connection group has unexpected members: {:?}",
-                    members
-                );
-
-                // There should be only one user profile
-                let contact_profile_info = member_profile_info
-                    .members
-                    .pop()
-                    .context("No user profile returned when joining connection group")?;
-
-                debug_assert!(
-                    member_profile_info.members.is_empty(),
-                    "More than one user profile returned when joining connection group"
-                );
-
-                // Fetch and store user profile
-                Self::schedule_fetch_user_profile(&mut *txn, contact_profile_info).await?;
-
-                group.room_state_change_role(
-                    &sender_user_id,
-                    self.user_id(),
-                    RoleIndex::Regular,
-                )?;
-
-                let now = TimeStamp::now();
-                group.store_update(&mut *txn, Some(now), Some(now)).await?;
-
-                if let Some(hash) = connection_package_hash {
-                    // Delete the connection package if it's not last resort
-                    let is_last_resort =
-                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            &mut *txn, &hash,
-                        )
-                        .await?
-                        .unwrap_or(false);
-                    if !is_last_resort {
-                        ConnectionPackage::delete(&mut *txn, &hash)
-                            .await
-                            .context("Failed to delete connection package")?;
-                    }
-                }
-
-                let group_bootstrap = match &self_group {
-                    Some(self_group) => {
-                        let friendship_package = &connection_info.friendship_package;
-                        let connection = ConnectionContext::Accept(AcceptContext {
-                            user_id: Some(sender_user_id.clone().into()),
-                            friendship_token: Some(friendship_package.friendship_token.clone()),
-                            wai_ear_key: Some(secret_bytes(&friendship_package.wai_ear_key)),
-                            user_profile_base_secret: Some(secret_bytes(
-                                &friendship_package.user_profile_base_secret,
-                            )),
-                            connection_offer_hash,
-                        });
-                        Some(self_group.seal_group_bootstrap_param(
-                            txn,
-                            &group,
-                            GroupBootstrapCarrier::JoinEcho,
-                            Some(connection),
-                        )?)
-                    }
-                    None => None,
-                };
-
-                Ok(Ok((commit, group_info, group_bootstrap)))
-            },
-        ))
-        .await?;
-
-        // Propagate the error to the caller if it is a leaf node validation error.
-        let (commit, group_info, group_bootstrap) = match result {
-            Ok(value) => value,
-            Err(error) => return Ok(Err(error.into())),
-        };
-
-        // Send confirmation to DS
-        let qs_client_reference = self.create_own_client_reference();
-        self.api_clients()
-            .get(qgid.owning_domain())?
-            .ds_join_connection_group(
-                commit,
-                group_info,
-                qs_client_reference,
-                &connection_info.connection_group_ear_key,
-                group_bootstrap,
-            )
-            .await?;
-
-        // Mark the chat as an accepted connection and mark partial contact as complete, also
-        // remove the pending connection info.
+    pub async fn accept_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
-                    .await?;
+                let chat: Chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
+                    bail!("Chat is not a pending connection");
+                };
+                let pending_connection_info = PendingConnectionInfo::load(&mut *txn, chat_id)
+                    .await?
+                    .with_context(|| {
+                        format!("No pending connection info found for chat: {chat_id}")
+                    })?;
 
-                let accepted_message = TimestampedMessage::system_message(
-                    SystemMessage::AcceptedConnectionRequest {
-                        contact: sender_user_id.clone(),
-                        user_handle: handle,
-                    },
-                    TimeStamp::now(),
-                );
-                Self::store_new_messages(&mut *txn, chat_id, vec![accepted_message]).await?;
+                // Fail early when the partial contact is gone. The accept job
+                // needs it to finalize.
+                let sender_user_id = sender_user_id.clone();
+                Self::load_partial_contact(
+                    &mut *txn,
+                    chat_id,
+                    &pending_connection_info,
+                    &sender_user_id,
+                )
+                .await?;
 
-                partial_contact
-                    .mark_as_complete(
-                        &mut *txn,
-                        sender_user_id,
-                        connection_info.friendship_package,
-                    )
-                    .await?;
-                PendingConnectionInfo::delete(&mut *txn, chat_id).await?;
-                if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(txn, hash)?;
-                }
+                ConnectionAccept::enqueue(txn, chat_id).await?;
                 Ok(())
             })
             .await?;
 
-        Ok(Ok(()))
+        self.outbound_service().notify_connection_accepts();
+
+        Ok(())
     }
 
-    fn prepare_group(
-        &self,
+    /// Completes an accepted connection after the DS accepted our external
+    /// join.
+    pub(crate) async fn finalize_accepted_connection(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+        timestamp: TimeStamp,
+    ) -> anyhow::Result<()> {
+        // Remove the queue row even when the pending info is already gone.
+        // The accept may have been finished by another path, e.g. the join
+        // echo, and a leftover row would keep the accept marked as pending.
+        ConnectionAccept::remove(&mut *txn, chat_id).await?;
+
+        let Some(pending_connection_info) = PendingConnectionInfo::load(&mut *txn, chat_id).await?
+        else {
+            return Ok(());
+        };
+        let chat = Chat::load(&mut *txn, &chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
+            bail!("Chat is not a pending connection");
+        };
+        let sender_user_id = sender_user_id.clone();
+
+        let partial_contact = Self::load_partial_contact(
+            &mut *txn,
+            chat_id,
+            &pending_connection_info,
+            &sender_user_id,
+        )
+        .await?;
+
+        chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
+            .await?;
+
+        let accepted_message = TimestampedMessage::system_message(
+            SystemMessage::AcceptedConnectionRequest {
+                contact: sender_user_id.clone(),
+                user_handle: pending_connection_info.handle,
+            },
+            timestamp,
+        );
+        Self::store_new_messages(&mut *txn, chat_id, vec![accepted_message]).await?;
+
+        partial_contact
+            .mark_as_complete(
+                &mut *txn,
+                sender_user_id,
+                pending_connection_info.connection_info.friendship_package,
+            )
+            .await?;
+        PendingConnectionInfo::delete(&mut *txn, chat_id).await?;
+        if let Some(hash) = pending_connection_info.connection_offer_hash {
+            Group::delete_connection_offer_psk(txn, hash)?;
+        }
+        Ok(())
+    }
+
+    /// Load the partial contact behind a pending connection:
+    /// - UsernameContact: by chat_id since multiple senders can target the same username
+    /// - TargetedMessageContact: by user_id
+    pub(crate) async fn load_partial_contact(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+        pending_connection_info: &PendingConnectionInfo,
+        sender_user_id: &UserId,
+    ) -> anyhow::Result<PartialContact> {
+        let partial_contact = if pending_connection_info.handle.is_some() {
+            UsernameContact::load_by_chat_id(&mut connection, chat_id)
+                .await?
+                .map(PartialContact::Username)
+        } else {
+            TargetedMessageContact::load(&mut connection, sender_user_id)
+                .await?
+                .map(PartialContact::TargetedMessage)
+        };
+        partial_contact.with_context(|| format!("No partial contact found for chat: {chat_id}"))
+    }
+
+    pub(crate) fn prepare_group(
+        key_store: &MemoryUserKeyStore,
+        user_id: &UserId,
         connection_info: &ConnectionInfo,
         own_user_profile_key: &UserProfileKey,
     ) -> anyhow::Result<(AadMessage, QualifiedGroupId)> {
@@ -296,12 +174,12 @@ impl CoreUser {
 
         let encrypted_user_profile_key = own_user_profile_key.encrypt(
             &connection_info.connection_group_identity_link_wrapper_key,
-            self.user_id(),
+            user_id,
         )?;
 
         let encrypted_friendship_package = FriendshipPackage {
-            friendship_token: self.key_store().friendship_token.clone(),
-            wai_ear_key: self.key_store().wai_ear_key.clone(),
+            friendship_token: key_store.friendship_token.clone(),
+            wai_ear_key: key_store.wai_ear_key.clone(),
             user_profile_base_secret: own_user_profile_key.base_secret().clone(),
         }
         .encrypt(&connection_info.friendship_package_ear_key)?;
@@ -387,17 +265,114 @@ mod persistence {
     }
 }
 
-/// Errors that can occur when accepting a contact request.
-#[derive(Debug, thiserror::Error)]
-pub enum AcceptContactRequestError {
-    #[error("Incompatible client: {reason}")]
-    IncompatibleClient { reason: String },
-}
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        crypto::{
+            aead::keys::{
+                FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey,
+                WelcomeAttributionInfoEarKey,
+            },
+            indexed_aead::keys::UserProfileBaseSecret,
+        },
+        messages::FriendshipToken,
+    };
+    use openmls::group::GroupId;
+    use sqlx::SqlitePool;
 
-impl From<LeafNodeValidationError> for AcceptContactRequestError {
-    fn from(error: LeafNodeValidationError) -> Self {
-        Self::IncompatibleClient {
-            reason: error.to_string(),
+    use crate::{ChatMessage, Contact, chats::persistence::tests::test_chat, db::access::DbAccess};
+
+    use super::*;
+
+    fn test_connection_info() -> ConnectionInfo {
+        ConnectionInfo {
+            connection_group_id: GroupId::from_slice(&[0; 32]),
+            connection_group_ear_key: GroupStateEarKey::random().unwrap(),
+            connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey::random().unwrap(),
+            friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
+            friendship_package: FriendshipPackage {
+                friendship_token: FriendshipToken::random().unwrap(),
+                wai_ear_key: WelcomeAttributionInfoEarKey::random().unwrap(),
+                user_profile_base_secret: UserProfileBaseSecret::random().unwrap(),
+            },
         }
+    }
+
+    #[sqlx::test]
+    async fn finalize_accepted_connection_is_idempotent(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let sender_user_id = UserId::random("localhost".parse().unwrap());
+        let mut chat = test_chat();
+        chat.chat_type = ChatType::PendingConnection(sender_user_id.clone());
+        chat.store(&mut txn).await?;
+
+        TargetedMessageContact::new(
+            sender_user_id.clone(),
+            chat.id(),
+            FriendshipPackageEarKey::random()?,
+        )
+        .upsert(&mut txn)
+        .await?;
+
+        PendingConnectionInfo {
+            chat_id: chat.id(),
+            created_at: TimeStamp::now(),
+            connection_info: test_connection_info(),
+            handle: None,
+            connection_offer_hash: None,
+            connection_package_hash: None,
+        }
+        .store(&mut txn)
+        .await?;
+
+        ConnectionAccept::enqueue(&mut txn, chat.id()).await?;
+
+        CoreUser::finalize_accepted_connection(&mut txn, chat.id(), TimeStamp::now()).await?;
+
+        let finalized = Chat::load(&mut txn, &chat.id()).await?.unwrap();
+        assert_eq!(
+            finalized.chat_type(),
+            &ChatType::Connection(sender_user_id.clone())
+        );
+        assert!(
+            PendingConnectionInfo::load(&mut txn, chat.id())
+                .await?
+                .is_none()
+        );
+        assert!(
+            ConnectionAccept::status(&mut txn, chat.id())
+                .await?
+                .is_none()
+        );
+        assert!(
+            TargetedMessageContact::load(&mut txn, &sender_user_id)
+                .await?
+                .is_none()
+        );
+        let contact = Contact::load(&mut txn, &sender_user_id).await?.unwrap();
+        assert_eq!(contact.chat_id, chat.id());
+        let messages = ChatMessage::load_multiple(&mut txn, chat.id(), 10).await?;
+        assert_eq!(messages.len(), 1);
+
+        // The response and echo paths race. Whoever comes second is a no-op.
+        CoreUser::finalize_accepted_connection(&mut txn, chat.id(), TimeStamp::now()).await?;
+
+        let messages = ChatMessage::load_multiple(&mut txn, chat.id(), 10).await?;
+        assert_eq!(messages.len(), 1);
+
+        // A leftover queue row is removed even when the pending info is
+        // already gone.
+        ConnectionAccept::enqueue(&mut txn, chat.id()).await?;
+        CoreUser::finalize_accepted_connection(&mut txn, chat.id(), TimeStamp::now()).await?;
+        assert!(
+            ConnectionAccept::status(&mut txn, chat.id())
+                .await?
+                .is_none()
+        );
+
+        Ok(())
     }
 }

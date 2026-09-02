@@ -27,7 +27,6 @@ pub use crate::{
             MessageId, SystemMessage,
         },
         notification_rebuild::ChatNotificationEntry,
-        pending::AcceptContactRequestError,
         reactions::LastReaction,
     },
     clients::{
@@ -54,6 +53,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
+    outbound_service::connection_accepts::ConnectionAcceptStatus,
     privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,

@@ -5,11 +5,22 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use airapiclient::{ApiClient, ApiClientInitError};
 use aircommon::identifiers::Fqdn;
 use url::Url;
+
+/// Delays between DS reads that follow up on a DS echo.
+///
+/// An echo may reach a client before the DS transaction that persists the
+/// echoed operation commits, so a miss on the first read is expected.
+pub(crate) const DS_ECHO_RETRY_DELAYS: [Duration; 3] = [
+    Duration::from_millis(200),
+    Duration::from_millis(500),
+    Duration::from_millis(1500),
+];
 
 #[derive(Debug, Clone)]
 pub(crate) struct ApiClients {

@@ -575,12 +575,10 @@ impl TestBackend {
             responder.ack(message_id.into()).await;
         }
 
-        // Users accepts the connection request
-        user2
-            .accept_contact_request(chat.id())
-            .await
-            .unwrap()
-            .unwrap();
+        // Users accepts the connection request. The accept is queued and
+        // performed by the outbound service.
+        user2.accept_contact_request(chat.id()).await.unwrap();
+        user2.outbound_service().run_once().await;
         let mut user2_contacts_after = user2.contacts().await.unwrap();
         info!("User 2 contacts after: {:?}", user2_contacts_after);
         let user2_username_contacts_before = user2.username_contacts().await.unwrap();

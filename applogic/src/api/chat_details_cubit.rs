@@ -8,7 +8,7 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
-    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    AppDataDebugInfo, ConnectionAcceptStatus, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
     RequiredDebugCapabilities,
 };
@@ -665,16 +665,13 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(
-        &self,
-    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
+    /// Queues accepting the contact request behind this chat.
+    ///
+    /// The accept runs in the background and retries until it goes through.
+    /// Its progress is reported via [`UiChatDetails::connection_accept`].
+    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
-        Ok(self
-            .context
-            .core_user
-            .accept_contact_request(chat_id)
-            .await?
-            .err())
+        self.context.core_user.accept_contact_request(chat_id).await
     }
 
     /// Mute notifications for this chat until the given datetime.
@@ -867,6 +864,11 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
 
     let pending_commit_failed = core_user.chat_is_pending(&group_id).await.unwrap_or(false);
 
+    let connection_accept = core_user
+        .connection_accept_status(chat.id)
+        .await
+        .unwrap_or_default();
+
     UiChatDetails {
         id: chat.id,
         status: chat.status.into(),
@@ -881,6 +883,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         is_apq,
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
+        connection_accept,
     }
 }
 
@@ -915,9 +918,10 @@ pub enum UploadAttachmentError {
     },
 }
 
-#[frb(mirror(AcceptContactRequestError))]
-pub enum _AcceptContactRequestError {
-    IncompatibleClient { reason: String },
+#[frb(mirror(ConnectionAcceptStatus))]
+pub enum _ConnectionAcceptStatus {
+    Pending,
+    Failed { reason: String },
 }
 
 #[frb(mirror(GroupDebugInfo))]

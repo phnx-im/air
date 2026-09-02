@@ -8,8 +8,9 @@
 //! The DS echoes the group bootstrap blob of an accepted creation or join to
 //! all of the acting user's client queues. This module turns such an echo into
 //! the same local state the acting client built.
-
-use std::time::Duration;
+//!
+//! The echo of a join also reaches the acting client itself. There it serves
+//! as the durable confirmation that the DS accepted the join.
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -28,9 +29,13 @@ use tokio::time::sleep;
 use tracing::{debug, warn};
 
 use crate::{
-    Chat, ChatMessage, ChatStatus, Contact, PartialContact, SystemMessage, TargetedMessageContact,
+    Chat, ChatMessage, ChatStatus, ChatType, Contact, PartialContact, SystemMessage,
+    TargetedMessageContact,
     chats::PendingConnectionInfo,
-    clients::{CoreUser, api_clients::ApiClients},
+    clients::{
+        CoreUser,
+        api_clients::{ApiClients, DS_ECHO_RETRY_DELAYS},
+    },
     contacts::UsernameContact,
     db::access::WriteDbTransaction,
     groups::{
@@ -39,17 +44,10 @@ use crate::{
         group_bootstrap::{BootstrapConnection, GroupBootstrapContents},
         self_group::SelfGroup,
     },
+    outbound_service::connection_accepts::ConnectionAccept,
 };
 
 use super::process_qs::QsMessageOutcome;
-
-/// A join echo may reach the sibling before the DS transaction that writes the
-/// snapshot commits, so a not-found on the first attempt is expected.
-const SNAPSHOT_FETCH_RETRY_DELAYS: [Duration; 3] = [
-    Duration::from_millis(200),
-    Duration::from_millis(500),
-    Duration::from_millis(1500),
-];
 
 impl CoreUser {
     pub(super) async fn handle_group_bootstrap_echo(
@@ -59,9 +57,24 @@ impl CoreUser {
         carrier: GroupBootstrapCarrier,
         ds_timestamp: TimeStamp,
     ) -> Result<QsMessageOutcome> {
-        // A duplicate echo must not reinstall the group.
+        // A group we already have means we are the acting client, or the echo
+        // is a duplicate. Either way it must not be reinstalled.
         if Group::load(&mut *txn, &echo.group_id).await?.is_some() {
-            debug!(group_id = ?echo.group_id, "Group bootstrap for a group we already have");
+            return match carrier {
+                GroupBootstrapCarrier::CreationEcho => {
+                    debug!(group_id = ?echo.group_id, "Group bootstrap for a group we already have");
+                    Ok(QsMessageOutcome::empty())
+                }
+                GroupBootstrapCarrier::JoinEcho => {
+                    Box::pin(self.confirm_own_join_echo(txn, &echo)).await
+                }
+            };
+        }
+
+        // A join without a bootstrap is still echoed as the acting client's
+        // confirmation, but carries nothing for siblings.
+        if echo.group_bootstrap.is_empty() {
+            debug!(group_id = ?echo.group_id, "Group bootstrap echo without a bootstrap");
             return Ok(QsMessageOutcome::empty());
         }
 
@@ -125,6 +138,29 @@ impl CoreUser {
                 .await?
             }
         }
+
+        Ok(QsMessageOutcome::empty())
+    }
+
+    /// Handles our own join echo.
+    async fn confirm_own_join_echo(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        echo: &GroupBootstrapEcho,
+    ) -> Result<QsMessageOutcome> {
+        let Some(chat) = Chat::load_by_group_id(&mut *txn, &echo.group_id).await? else {
+            debug!(group_id = ?echo.group_id, "Join echo for a group without a chat");
+            return Ok(QsMessageOutcome::empty());
+        };
+        let ChatType::PendingConnection(_) = chat.chat_type() else {
+            // The connection was already established and this is a duplicate
+            // confirmation.
+            debug!(group_id = ?echo.group_id, "Join echo for an already confirmed join");
+            return Ok(QsMessageOutcome::empty());
+        };
+
+        ConnectionAccept::enqueue(&mut *txn, chat.id()).await?;
+        self.outbound_service().notify_connection_accepts();
 
         Ok(QsMessageOutcome::empty())
     }
@@ -361,7 +397,7 @@ async fn fetch_epoch_snapshot(
         match result {
             Ok(snapshot) => return Ok(snapshot),
             Err(error) => {
-                let Some(delay) = SNAPSHOT_FETCH_RETRY_DELAYS.get(attempt) else {
+                let Some(delay) = DS_ECHO_RETRY_DELAYS.get(attempt) else {
                     return Err(error).context("failed to fetch the epoch snapshot");
                 };
                 warn!(%error, "Failed to fetch the epoch snapshot; retrying");

@@ -57,7 +57,39 @@ class ContactRequestDialog extends HookWidget {
     final loc = AppLocalizations.of(context);
     final tokens = ContactRequestCardTokens.current;
 
-    final isAccepting = useState(false);
+    // The accept runs as a persistent background job. The button stays
+    // disabled as long as the job is pending. A permanently failed job
+    // re-enables it: accepting again re-arms the job.
+    final acceptStatus = context.select(
+      (ChatDetailsCubit c) => c.state.chat?.connectionAccept,
+    );
+    final tapped = useState(false);
+    final isAccepting =
+        tapped.value || acceptStatus is ConnectionAcceptStatus_Pending;
+
+    final failedReason = switch (acceptStatus) {
+      ConnectionAcceptStatus_Failed(:final reason) => reason,
+      _ => null,
+    };
+    useEffect(() {
+      if (acceptStatus != null) {
+        // The job state took over from the local tap feedback.
+        tapped.value = false;
+      }
+      if (failedReason != null) {
+        // The effect runs during build, but showing a banner rebuilds the
+        // messenger, so defer it to after the frame.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Logger.detached(
+            "ContactRequestDialog",
+          ).severe("Failed to accept contact request: $failedReason");
+          showErrorBannerStandalone(
+            (loc) => loc.contactRequestDialog_error_fatal,
+          );
+        });
+      }
+      return null;
+    }, [acceptStatus]);
 
     final subtitle = switch (source) {
       _TargetedMessageContactRequest(:final originChatTitle) =>
@@ -86,9 +118,9 @@ class ContactRequestDialog extends HookWidget {
       pictureRevealLabel: loc.contactRequestDialog_avatarHint,
       acceptLabel: loc.contactRequestDialog_confirm,
       dismissLabel: loc.contactRequestDialog_cancel,
-      onAccept: () => _accept(context, isAccepting),
+      onAccept: () => _accept(context, tapped),
       onDismiss: () => context.read<NavigationCubit>().closeChat(),
-      isAccepting: isAccepting.value,
+      isAccepting: isAccepting,
     );
   }
 
@@ -108,30 +140,18 @@ class ContactRequestDialog extends HookWidget {
     );
   }
 
-  void _accept(BuildContext context, ValueNotifier<bool> isAccepting) async {
-    isAccepting.value = true;
+  void _accept(BuildContext context, ValueNotifier<bool> tapped) async {
+    tapped.value = true;
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     try {
-      switch (await chatDetailsCubit.acceptContactRequest()) {
-        case null:
-          break; // No error
-        case AcceptContactRequestError_IncompatibleClient(:final reason):
-          Logger.detached("ContactRequestDialog").severe(
-            "Failed to accept contact request due to incompatible client: $reason",
-          );
-          showErrorBannerStandalone(
-            (loc) => loc.contactRequestDialog_error_incompatibleClient,
-          );
-          break;
-      }
+      await chatDetailsCubit.acceptContactRequest();
     } catch (e, stackTrace) {
       Logger.detached(
         "ContactRequestDialog",
       ).severe("Failed to accept contact request: $e", e, stackTrace);
       showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
-    } finally {
-      isAccepting.value = false;
+      tapped.value = false;
     }
   }
 }

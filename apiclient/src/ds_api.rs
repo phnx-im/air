@@ -159,6 +159,21 @@ impl DsRequestError {
             false
         }
     }
+
+    /// Returns true if the server understood the request and rejected it.
+    pub fn is_definitive_rejection(&self) -> bool {
+        if let Self::Tonic(status) = self {
+            matches!(
+                status.code(),
+                Code::InvalidArgument
+                    | Code::FailedPrecondition
+                    | Code::NotFound
+                    | Code::PermissionDenied
+            )
+        } else {
+            false
+        }
+    }
 }
 
 pub enum DsAttachmentTarget<'a> {

@@ -64,17 +64,18 @@ fn validate_join_proposals(staged_commit: &StagedCommit) -> Result<(), JoinConne
 
 pub(super) struct JoinConnectionGroupOutcome {
     pub(super) message: SerializedMlsMessage,
-    /// The epoch of the staged snapshot, present iff the join carried a group
-    /// bootstrap.
-    pub(super) snapshot_epoch: Option<GroupEpoch>,
+    /// The epoch the group was at before the commit. A snapshot is staged at
+    /// this epoch iff the join carried a group bootstrap.
+    pub(super) pre_commit_epoch: GroupEpoch,
 }
 
 impl DsGroupState {
     /// Accept an external commit joining a connection group.
     ///
-    /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
-    /// echo of the operation, so the joining leaf must be a virtual-client leaf
-    /// and the pre-commit state is staged as an epoch snapshot for them.
+    /// With `bootstrap_requested`, the echo of the operation carries a group
+    /// bootstrap for the joiner's sibling emulator clients, so the joining
+    /// leaf must be a virtual-client leaf and the pre-commit state is staged
+    /// as an epoch snapshot for them.
     pub(super) fn join_connection_group(
         &mut self,
         params: JoinConnectionGroupParams,
@@ -163,8 +164,8 @@ impl DsGroupState {
 
         // The siblings apply the commit on top of the state the joiner used, so
         // capture it before the commit is accepted.
-        let staged_snapshot =
-            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
+        let pre_commit_epoch = self.group().epoch();
+        let staged_snapshot = bootstrap_requested.then(|| self.epoch_snapshot());
 
         // Finalize processing.
         let retained_welcome_info = self.group.accept_processed_message(
@@ -200,14 +201,13 @@ impl DsGroupState {
         // Finally, we create the message for distribution.
         let message = processed_assisted_message_plus.serialized_mls_message;
 
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
-            self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
-            epoch
-        });
+        if let Some(snapshot) = staged_snapshot {
+            self.stage_epoch_snapshot(pre_commit_epoch, snapshot.with_join_commit(&message));
+        }
 
         Ok(JoinConnectionGroupOutcome {
             message,
-            snapshot_epoch,
+            pre_commit_epoch,
         })
     }
 }

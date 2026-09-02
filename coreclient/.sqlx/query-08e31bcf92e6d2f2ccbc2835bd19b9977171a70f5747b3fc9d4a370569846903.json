@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE connection_accept_queue\n                SET locked_by = ?1\n                WHERE chat_id = (\n                    SELECT chat_id\n                    FROM connection_accept_queue\n                    WHERE failed_reason IS NULL\n                        AND (locked_by IS NULL OR locked_by != ?1)\n                    LIMIT 1\n                )\n                RETURNING chat_id AS \"chat_id: ChatId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "connection_accept_queue",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "08e31bcf92e6d2f2ccbc2835bd19b9977171a70f5747b3fc9d4a370569846903"
+}

@@ -141,7 +141,7 @@ abstract class RustLibApi extends BaseApi {
     required AttachmentId attachmentId,
   });
 
-  Future<AcceptContactRequestError?>
+  Future<void>
   crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest({
     required ChatDetailsCubitBase that,
   });
@@ -1368,7 +1368,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<AcceptContactRequestError?>
+  Future<void>
   crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest({
     required ChatDetailsCubitBase that,
   }) {
@@ -1388,8 +1388,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_opt_box_autoadd_accept_contact_request_error,
+          decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -9113,21 +9112,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError dco_decode_accept_contact_request_error(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return AcceptContactRequestError_IncompatibleClient(
-          reason: dco_decode_String(raw[1]),
-        );
-      default:
-        throw Exception("unreachable");
-    }
-  }
-
-  @protected
   AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AddUsernameContactError.values[raw as int];
@@ -9284,14 +9268,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_accept_contact_request_error(raw);
-  }
-
-  @protected
   AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
     dynamic raw,
   ) {
@@ -9339,6 +9315,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChatId dco_decode_box_autoadd_chat_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_chat_id(raw);
+  }
+
+  @protected
+  ConnectionAcceptStatus dco_decode_box_autoadd_connection_accept_status(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_connection_accept_status(raw);
   }
 
   @protected
@@ -9648,6 +9632,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       order: dco_decode_opt_list_chat_id(arr[2]),
       members: dco_decode_Map_chat_id_list_ui_user_id_None(arr[3]),
     );
+  }
+
+  @protected
+  ConnectionAcceptStatus dco_decode_connection_accept_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return ConnectionAcceptStatus_Pending();
+      case 1:
+        return ConnectionAcceptStatus_Failed(reason: dco_decode_String(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -10449,15 +10446,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError?
-  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_accept_contact_request_error(raw);
-  }
-
-  @protected
   AddUsernameContactError?
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -10496,6 +10484,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChatId? dco_decode_opt_box_autoadd_chat_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_chat_id(raw);
+  }
+
+  @protected
+  ConnectionAcceptStatus? dco_decode_opt_box_autoadd_connection_accept_status(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_connection_accept_status(raw);
   }
 
   @protected
@@ -11009,8 +11007,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
@@ -11023,6 +11021,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isApq: dco_decode_bool(arr[8]),
       mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[9]),
       pendingCommitFailed: dco_decode_bool(arr[10]),
+      connectionAccept: dco_decode_opt_box_autoadd_connection_accept_status(
+        arr[11],
+      ),
     );
   }
 
@@ -12563,22 +12564,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError sse_decode_accept_contact_request_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_reason = sse_decode_String(deserializer);
-        return AcceptContactRequestError_IncompatibleClient(reason: var_reason);
-      default:
-        throw UnimplementedError('');
-    }
-  }
-
-  @protected
   AddUsernameContactError sse_decode_add_username_contact_error(
     SseDeserializer deserializer,
   ) {
@@ -12736,14 +12721,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_accept_contact_request_error(deserializer));
-  }
-
-  @protected
   AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   ) {
@@ -12801,6 +12778,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChatId sse_decode_box_autoadd_chat_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_chat_id(deserializer));
+  }
+
+  @protected
+  ConnectionAcceptStatus sse_decode_box_autoadd_connection_accept_status(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_connection_accept_status(deserializer));
   }
 
   @protected
@@ -13164,6 +13149,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       order: var_order,
       members: var_members,
     );
+  }
+
+  @protected
+  ConnectionAcceptStatus sse_decode_connection_accept_status(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return ConnectionAcceptStatus_Pending();
+      case 1:
+        var var_reason = sse_decode_String(deserializer);
+        return ConnectionAcceptStatus_Failed(reason: var_reason);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -14251,22 +14254,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AcceptContactRequestError?
-  sse_decode_opt_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_accept_contact_request_error(
-        deserializer,
-      ));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   AddUsernameContactError?
   sse_decode_opt_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
@@ -14336,6 +14323,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_chat_id(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ConnectionAcceptStatus? sse_decode_opt_box_autoadd_connection_accept_status(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_connection_accept_status(deserializer));
     } else {
       return null;
     }
@@ -15057,6 +15057,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_isApq = sse_decode_bool(deserializer);
     var var_mutedUntil = sse_decode_opt_box_autoadd_ui_chat_muted(deserializer);
     var var_pendingCommitFailed = sse_decode_bool(deserializer);
+    var var_connectionAccept =
+        sse_decode_opt_box_autoadd_connection_accept_status(deserializer);
     return UiChatDetails(
       id: var_id,
       status: var_status,
@@ -15069,6 +15071,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isApq: var_isApq,
       mutedUntil: var_mutedUntil,
       pendingCommitFailed: var_pendingCommitFailed,
+      connectionAccept: var_connectionAccept,
     );
   }
 
@@ -16941,19 +16944,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case AcceptContactRequestError_IncompatibleClient(reason: final reason):
-        sse_encode_i_32(0, serializer);
-        sse_encode_String(reason, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_add_username_contact_error(
     AddUsernameContactError self,
     SseSerializer serializer,
@@ -17099,15 +17089,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_accept_contact_request_error(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_add_username_contact_error(
     AddUsernameContactError self,
     SseSerializer serializer,
@@ -17171,6 +17152,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_chat_id(ChatId self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_chat_id(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_connection_accept_status(
+    ConnectionAcceptStatus self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_connection_accept_status(self, serializer);
   }
 
   @protected
@@ -17574,6 +17564,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_Set_chat_id_None(self.removed, serializer);
     sse_encode_opt_list_chat_id(self.order, serializer);
     sse_encode_Map_chat_id_list_ui_user_id_None(self.members, serializer);
+  }
+
+  @protected
+  void sse_encode_connection_accept_status(
+    ConnectionAcceptStatus self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case ConnectionAcceptStatus_Pending():
+        sse_encode_i_32(0, serializer);
+      case ConnectionAcceptStatus_Failed(reason: final reason):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(reason, serializer);
+    }
   }
 
   @protected
@@ -18521,19 +18526,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_accept_contact_request_error(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_box_autoadd_add_username_contact_error(
     AddUsernameContactError? self,
     SseSerializer serializer,
@@ -18605,6 +18597,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_chat_id(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_connection_accept_status(
+    ConnectionAcceptStatus? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_connection_accept_status(self, serializer);
     }
   }
 
@@ -19276,6 +19281,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.isApq, serializer);
     sse_encode_opt_box_autoadd_ui_chat_muted(self.mutedUntil, serializer);
     sse_encode_bool(self.pendingCommitFailed, serializer);
+    sse_encode_opt_box_autoadd_connection_accept_status(
+      self.connectionAccept,
+      serializer,
+    );
   }
 
   @protected
@@ -19874,9 +19883,11 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
         .rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr,
   );
 
-  Future<AcceptContactRequestError?> acceptContactRequest() => RustLib
-      .instance
-      .api
+  /// Queues accepting the contact request behind this chat.
+  ///
+  /// The accept runs in the background and retries until it goes through.
+  /// Its progress is reported via [`UiChatDetails::connection_accept`].
+  Future<void> acceptContactRequest() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseAcceptContactRequest(
         that: this,
       );

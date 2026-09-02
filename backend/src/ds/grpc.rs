@@ -1456,21 +1456,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                     group_state.proposals.clear();
 
-                    if let Some((group_bootstrap, epoch)) =
-                        group_bootstrap.zip(outcome.snapshot_epoch)
-                    {
-                        let echo = QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
-                            group_id: qgid.clone().into(),
-                            // APQ joins are rejected on this path.
-                            pq_group_id: None,
-                            epoch,
-                            timestamp: TimeStamp::now(),
-                            group_bootstrap,
-                        })
-                        .tls_failed("group join echo")?;
-                        self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
-                            .await;
-                    }
+                    // In addition to bootstrapping siblings, the echo confirms
+                    // the accepted join to the acting client when the response
+                    // below is lost.
+                    let echo = QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
+                        group_id: qgid.clone().into(),
+                        // APQ joins are rejected on this path.
+                        pq_group_id: None,
+                        epoch: outcome.pre_commit_epoch,
+                        timestamp: TimeStamp::now(),
+                        group_bootstrap: group_bootstrap.unwrap_or_default(),
+                    })
+                    .tls_failed("group join echo")?;
+                    self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
+                        .await;
 
                     let timestamp = self
                         .fan_out_message_without_notifications(

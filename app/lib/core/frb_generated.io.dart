@@ -659,11 +659,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
-  AcceptContactRequestError dco_decode_accept_contact_request_error(
-    dynamic raw,
-  );
-
-  @protected
   AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
 
   @protected
@@ -712,11 +707,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
-  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
-    dynamic raw,
-  );
-
-  @protected
   AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
     dynamic raw,
   );
@@ -741,6 +731,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId dco_decode_box_autoadd_chat_id(dynamic raw);
+
+  @protected
+  ConnectionAcceptStatus dco_decode_box_autoadd_connection_accept_status(
+    dynamic raw,
+  );
 
   @protected
   ConversationNotification dco_decode_box_autoadd_conversation_notification(
@@ -893,6 +888,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatsDelta dco_decode_chats_delta(dynamic raw);
+
+  @protected
+  ConnectionAcceptStatus dco_decode_connection_accept_status(dynamic raw);
 
   @protected
   ConversationMessage dco_decode_conversation_message(dynamic raw);
@@ -1149,10 +1147,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
-  AcceptContactRequestError?
-  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
-
-  @protected
   AddUsernameContactError?
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
@@ -1170,6 +1164,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId? dco_decode_opt_box_autoadd_chat_id(dynamic raw);
+
+  @protected
+  ConnectionAcceptStatus? dco_decode_opt_box_autoadd_connection_accept_status(
+    dynamic raw,
+  );
 
   @protected
   ConversationNotification?
@@ -1986,11 +1985,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
 
   @protected
-  AcceptContactRequestError sse_decode_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AddUsernameContactError sse_decode_add_username_contact_error(
     SseDeserializer deserializer,
   );
@@ -2041,11 +2035,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
-  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
   );
@@ -2078,6 +2067,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId sse_decode_box_autoadd_chat_id(SseDeserializer deserializer);
+
+  @protected
+  ConnectionAcceptStatus sse_decode_box_autoadd_connection_accept_status(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ConversationNotification sse_decode_box_autoadd_conversation_notification(
@@ -2290,6 +2284,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatsDelta sse_decode_chats_delta(SseDeserializer deserializer);
+
+  @protected
+  ConnectionAcceptStatus sse_decode_connection_accept_status(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ConversationMessage sse_decode_conversation_message(
@@ -2612,12 +2611,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
-  AcceptContactRequestError?
-  sse_decode_opt_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AddUsernameContactError?
   sse_decode_opt_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
@@ -2643,6 +2636,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId? sse_decode_opt_box_autoadd_chat_id(SseDeserializer deserializer);
+
+  @protected
+  ConnectionAcceptStatus? sse_decode_opt_box_autoadd_connection_accept_status(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ConversationNotification?
@@ -3634,12 +3632,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
-  void sse_encode_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_add_username_contact_error(
     AddUsernameContactError self,
     SseSerializer serializer,
@@ -3703,12 +3695,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_add_username_contact_error(
     AddUsernameContactError self,
     SseSerializer serializer,
@@ -3749,6 +3735,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_chat_id(ChatId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_connection_accept_status(
+    ConnectionAcceptStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_conversation_notification(
@@ -4010,6 +4002,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_chats_delta(ChatsDelta self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_connection_accept_status(
+    ConnectionAcceptStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_conversation_message(
@@ -4423,12 +4421,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_add_username_contact_error(
     AddUsernameContactError? self,
     SseSerializer serializer,
@@ -4458,6 +4450,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_chat_id(
     ChatId? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_connection_accept_status(
+    ConnectionAcceptStatus? self,
     SseSerializer serializer,
   );
 
