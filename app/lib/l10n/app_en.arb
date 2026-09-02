@@ -1773,13 +1773,22 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_description": "Open TestFlight on iOS or Google Play on Android, then update Air.",
+  "appOutdatedScreen_description": "Open the App Store on iOS or Google Play on Android, then update Air.",
   "@appOutdatedScreen_description": {
-    "description": "Names the store to update from on each mobile platform. TestFlight and Google Play are product names."
+    "description": "Names the store to update from on each mobile platform. App Store and Google Play are product names."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {
     "description": "Button that opens the store so the user can update."
+  },
+  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
+  "@versionExpiryBanner_message": {
+    "description": "Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
   },
 
   "contactRequestDialog_title": "Contact request",

@@ -33,14 +33,14 @@ use airprotos::{
     auth_service::v1::auth_service_server,
     common::v1::{StatusDetails, StatusDetailsCode},
     delivery_service::v1::delivery_service_server,
-    queue_service::v1::queue_service_server,
+    queue_service::v1::{VersionStatus, queue_service_server},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
 use semver::Version;
 use tokio::time::{sleep, timeout};
-use tokio_stream::StreamExt;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
@@ -1326,6 +1326,76 @@ async fn unsupported_client_version() {
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 }
 
+/// Consumes the version status the server sends first on every listen stream.
+async fn skip_version_status(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) {
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(_)),
+        }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Version status on listen queue", skip_all)]
+async fn listen_queue_version_status() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the version status, then the queue-empty sentinel follows.
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(VersionStatus {
+                expires_at: None,
+            })),
+        }))
+    );
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Expiring version status on listen queue", skip_all)]
+async fn listen_queue_version_status_expiring() {
+    let expires_on = Utc::now() + chrono::Duration::days(10);
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on,
+        }]),
+        ..Default::default()
+    })
+    .await;
+
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the upcoming expiry, then the queue-empty sentinel follows.
+    let response = stream.next().await.unwrap().unwrap();
+    let Some(listen_response::Event::VersionStatus(status)) = response.event else {
+        panic!("expected version status, got {response:?}");
+    };
+    assert_eq!(status.expires_at.unwrap().seconds, expires_on.timestamp());
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Listen stream eviction", skip_all)]
 async fn listen_stream_eviction() {
@@ -1368,6 +1438,7 @@ async fn listen_stream_eviction() {
 
     // QS events stream is evicted when another stream is opened
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_a).await;
     assert_matches!(
         stream_a.next().await,
         Some(Ok(ListenResponse {
@@ -1376,6 +1447,7 @@ async fn listen_stream_eviction() {
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_b).await;
     assert_matches!(
         stream_b.next().await,
         Some(Ok(ListenResponse {
@@ -1432,6 +1504,7 @@ async fn listen_stream_durable_acks() {
     // Bob receives the message on the listen stream and acks it.
     let bob_user = &setup.get_user(&bob).user;
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
     let sequence_number = match stream.next().await {
         Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Message(message)),
@@ -1459,6 +1532,7 @@ async fn listen_stream_durable_acks() {
 
     // On reconnect, the acked message is not redelivered.
     let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
     assert_matches!(
         stream.next().await,
         Some(Ok(ListenResponse {
