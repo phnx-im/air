@@ -64,7 +64,7 @@ class NavRail extends StatelessWidget {
       padding: EdgeInsets.zero,
       surface: surface,
       activeLabelStyle: typeScale.body.mini.style(
-        color: palette.accentBrand.onPrimary,
+        color: palette.accentBrand.onNavSelection,
         weight: Weight.emphasized,
       ),
       // Inactive cells are plain on-surface ink, like Noctalia's tabs. Only
@@ -89,7 +89,7 @@ class NavRail extends StatelessWidget {
             height: NavRailTokens.itemSize,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: palette.accentBrand.primary,
+                color: palette.accentBrand.navSelection,
                 borderRadius: BorderRadius.circular(NavRailTokens.itemRadius),
               ),
             ),
@@ -109,7 +109,7 @@ class NavRail extends StatelessWidget {
                   glyph: Builder(
                     builder: (context) => item.glyph(
                       index == activeIndex
-                          ? palette.accentBrand.onPrimary
+                          ? palette.accentBrand.onNavSelection
                           : PanelSurface.inkOf(context) ?? palette.text.primary,
                       active: index == activeIndex,
                     ),

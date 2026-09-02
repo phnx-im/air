@@ -11,11 +11,14 @@ import 'package:air/ds/foundations/roles.dart';
 /// The accent roles as fills with their ink, plus [quaternary], a container
 /// tinted by the primary. [hover] is the fill a pointer hover or a lit row
 /// takes, [hoverTint] the same hover as a translucent wash for a surface whose
-/// content keeps its own colors.
+/// content keeps its own colors. [selection] is the fill of the selected
+/// list row, [navSelection] of the selected navigation cell.
 class AccentBrand {
   final Color primary, secondary, tertiary, quaternary;
   final Color onPrimary, onSecondary, onTertiary;
   final Color hover, onHover, hoverTint;
+  final Color selection, onSelection;
+  final Color navSelection, onNavSelection;
 
   const AccentBrand({
     required this.primary,
@@ -28,6 +31,10 @@ class AccentBrand {
     required this.hover,
     required this.onHover,
     required this.hoverTint,
+    required this.selection,
+    required this.onSelection,
+    required this.navSelection,
+    required this.onNavSelection,
   });
 }
 
@@ -201,7 +208,7 @@ const double _hoverWashAlpha = 0.4;
 
 /// Alpha of an accent over the surface for a message bubble. Higher than a
 /// card tint, so the two sides separate from each other and from the surface.
-const double _bubbleTintAlpha = 0.35;
+const double _bubbleTintAlpha = 0.45;
 
 /// The semantic slots the app paints with, derived from a [RolePalette]. The
 /// roles are the design, the slots are how the code has been reading them.
@@ -269,6 +276,10 @@ class SemanticPalette {
         hover: r.hover,
         onHover: r.onHover,
         hoverTint: hoverTint,
+        selection: r.selection,
+        onSelection: r.onSelection,
+        navSelection: r.navSelection,
+        onNavSelection: r.onNavSelection,
       ),
       backgroundBase: BackgroundBase(
         primary: r.surface,
@@ -339,15 +350,16 @@ class SemanticPalette {
           ),
         ),
       ),
-      // Noctalia has no message roles. Both sides take an accent as a tint
-      // over the surface: yours the primary, the other side's the secondary.
+      // Noctalia has no message roles. Unless the theme pins them, both sides
+      // take an accent as a tint over the surface: yours the primary, the
+      // other side's the secondary.
       message: MessagePalette(
-        selfBackground: r.primary
-            .withValues(alpha: _bubbleTintAlpha)
-            .on(r.surface),
-        otherBackground: r.secondary
-            .withValues(alpha: _bubbleTintAlpha)
-            .on(r.surface),
+        selfBackground:
+            r.bubbleSelf ??
+            r.primary.withValues(alpha: _bubbleTintAlpha).on(r.surface),
+        otherBackground:
+            r.bubbleOther ??
+            r.secondary.withValues(alpha: _bubbleTintAlpha).on(r.surface),
         selfText: r.onSurface,
         otherText: r.onSurface,
         selfListPrefix: r.onSurfaceVariant,

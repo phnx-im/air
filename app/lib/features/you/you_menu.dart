@@ -175,10 +175,10 @@ class _MenuRow extends StatelessWidget {
     final radius = filled ? CornerRadius.px0 : CornerRadius.px12;
     final fill = switch ((filled, selected)) {
       (true, _) => palette.backgroundBase.secondary,
-      (false, true) => palette.accentBrand.primary,
+      (false, true) => palette.accentBrand.navSelection,
       (false, false) => null,
     };
-    final ink = selected && !filled ? palette.accentBrand.onPrimary : null;
+    final ink = selected && !filled ? palette.accentBrand.onNavSelection : null;
 
     return StateLayer(
       onTap: onTap,

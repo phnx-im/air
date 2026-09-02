@@ -390,7 +390,9 @@ const RolePalette tokyoNightLight = RolePalette(
 );
 
 /// The default theme: Air's neutral design read as roles. The accents are
-/// white on dark and black on light, the surface tiers are the grey ramp.
+/// white on dark and black on light. The surfaces are the desktop shell's
+/// original greys: the window color as [RolePalette.surface] and the panel
+/// fill as [RolePalette.surfaceVariant].
 const RolePalette airDark = RolePalette(
   primary: Color(0xFFFFFFFF),
   onPrimary: Color(0xFF000000),
@@ -400,14 +402,24 @@ const RolePalette airDark = RolePalette(
   onTertiary: Color(0xFF000000),
   error: Color(0xFFD14D41),
   onError: Color(0xFFFFFFFF),
-  surface: Color(0xFF000000),
+  surface: Color(0xFF1F1E1E),
   onSurface: Color(0xFFFFFFFF),
-  surfaceVariant: Color(0xFF3C3B3B),
+  surfaceVariant: Color(0xFF353535),
   onSurfaceVariant: Color(0xFF999999),
   outline: Color(0xFF4D4D4D),
   shadow: Color(0xFF000000),
-  hover: Color(0x1AFFFFFF),
+  // Hover and row selection are washes over whatever they sit on: a faint
+  // lift for hover, a clear one for selection. A selected tab recedes to the
+  // window color instead.
+  hover: Color(0x05FFFFFF),
   onHover: Color(0xFFFFFFFF),
+  selection: Color(0x1AFFFFFF),
+  onSelection: Color(0xFFFFFFFF),
+  navSelection: Color(0xFF1F1E1E),
+  onNavSelection: Color(0xFFFFFFFF),
+  // Neutral bubbles, the other side's a step above the surface and yours two.
+  bubbleSelf: Color(0xFF5A5857),
+  bubbleOther: Color(0xFF3C3B3B),
 );
 
 const RolePalette airLight = RolePalette(
@@ -419,7 +431,7 @@ const RolePalette airLight = RolePalette(
   onTertiary: Color(0xFF000000),
   error: Color(0xFFD14D41),
   onError: Color(0xFFFFFFFF),
-  surface: Color(0xFFFFFFFF),
+  surface: Color(0xFFF3F3F3),
   onSurface: Color(0xFF1F1E1E),
   surfaceVariant: Color(0xFFE7E7E6),
   onSurfaceVariant: Color(0xFF787878),
@@ -427,4 +439,10 @@ const RolePalette airLight = RolePalette(
   shadow: Color(0xFF000000),
   hover: Color(0x0D1F1E1E),
   onHover: Color(0xFF1F1E1E),
+  selection: Color(0x1A1F1E1E),
+  onSelection: Color(0xFF1F1E1E),
+  navSelection: Color(0xFFF3F3F3),
+  onNavSelection: Color(0xFF1F1E1E),
+  bubbleSelf: Color(0xFFE7E7E6),
+  bubbleOther: Color(0xFFF3F3F3),
 );

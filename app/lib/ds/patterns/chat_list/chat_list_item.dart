@@ -69,8 +69,9 @@ class ChatListItem extends StatelessWidget {
     final base = PanelSurface.colorOf(context);
     // The selected row takes the primary fill and its ink, the same way the
     // active cell of the nav rail does.
-    final surface = active ? palette.accentBrand.primary : base;
-    final ink = active ? palette.accentBrand.onPrimary : null;
+    // Composited, since a theme's selection may be a wash.
+    final surface = active ? palette.accentBrand.selection.on(base) : base;
+    final ink = active ? palette.accentBrand.onSelection : null;
 
     Widget fade(Widget child) => enabled
         ? child

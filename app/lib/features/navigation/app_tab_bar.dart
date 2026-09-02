@@ -47,7 +47,7 @@ class AppTabBar extends StatelessWidget {
       padding: TabBarTokens.tabPadding,
       surface: background,
       activeLabelStyle: typeScale.body.mini.style(
-        color: palette.accentBrand.onPrimary,
+        color: palette.accentBrand.onNavSelection,
         weight: Weight.emphasized,
       ),
       inactiveLabelStyle: typeScale.body.mini.style(
@@ -118,7 +118,7 @@ class AppTabBar extends StatelessWidget {
                             TabBarTokens.activePillInset * 2,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: palette.accentBrand.primary,
+                            color: palette.accentBrand.navSelection,
                             borderRadius: BorderRadius.circular(
                               TabBarTokens.pillRadius,
                             ),
@@ -169,7 +169,7 @@ class _TabBarItem extends StatelessWidget {
             child: _TabIcon(
               tab: tab,
               color: active
-                  ? palette.accentBrand.onPrimary
+                  ? palette.accentBrand.onNavSelection
                   : PanelSurface.inkOf(context) ?? palette.text.primary,
             ),
           ),

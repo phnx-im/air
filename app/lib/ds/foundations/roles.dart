@@ -12,6 +12,13 @@ import 'package:flutter/painting.dart';
 /// and calls to action. [secondary] is the accent for headings and badges.
 /// [tertiary] is a third accent, rarely used as ink. [hover] is the fill a
 /// pointer hover or a lit row takes. Each fill has its ink as `on*`.
+///
+/// [selection] and [navSelection] are the roles Noctalia does not have: the
+/// fill of the selected list row, and of the selected navigation cell (rail,
+/// tab bar, you menu). Noctalia paints both in [primary], and so does every
+/// palette copied from it. A neutral theme needs them apart from [primary],
+/// since a grey that reads as selection makes a toggle unreadable, and Air's
+/// design lifts a selected row but recesses a selected tab.
 class RolePalette {
   const RolePalette({
     required this.primary,
@@ -30,6 +37,12 @@ class RolePalette {
     required this.shadow,
     required this.hover,
     required this.onHover,
+    this._selection,
+    this._onSelection,
+    this._navSelection,
+    this._onNavSelection,
+    this.bubbleSelf,
+    this.bubbleOther,
   });
 
   final Color primary, onPrimary;
@@ -43,6 +56,23 @@ class RolePalette {
   /// May be translucent. A translucent hover is a wash over whatever it sits
   /// on, an opaque one is a fill in its own right.
   final Color hover, onHover;
+
+  final Color? _selection, _onSelection, _navSelection, _onNavSelection;
+
+  /// Fill of a selected list row. [primary] unless the theme says otherwise.
+  /// Like [hover] it may be translucent, a wash over the surface it sits on.
+  Color get selection => _selection ?? primary;
+  Color get onSelection => _onSelection ?? onPrimary;
+
+  /// Fill of the selected navigation cell. [selection] unless the theme says
+  /// otherwise.
+  Color get navSelection => _navSelection ?? selection;
+  Color get onNavSelection => _onNavSelection ?? onSelection;
+
+  /// Message bubble fills, yours and the other side's. Null derives them as
+  /// tints of [primary] and [secondary] over [surface]. A theme pins them
+  /// where its bubbles are not accent-tinted, like Air's neutral greys.
+  final Color? bubbleSelf, bubbleOther;
 
   bool get isDark => surface.computeLuminance() < 0.5;
 
