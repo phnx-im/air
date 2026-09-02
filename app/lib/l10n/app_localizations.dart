@@ -2263,6 +2263,18 @@ abstract class AppLocalizations {
   /// **'Update'**
   String get appOutdatedScreen_action;
 
+  /// Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Air by {date} to keep using it'**
+  String versionExpiryBanner_message(String date);
+
+  /// Tooltip of the close button on the update banner. Hides the banner until the next app start.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get versionExpiryBanner_dismiss;
+
   /// Title of the dialog showing an incoming contact request.
   ///
   /// In en, this message translates to:

@@ -1332,6 +1332,14 @@ class AppLocalizationsPt extends AppLocalizations {
   String get appOutdatedScreen_action => 'Atualizar';
 
   @override
+  String versionExpiryBanner_message(String date) {
+    return 'Atualize o Air até $date para continuar usando';
+  }
+
+  @override
+  String get versionExpiryBanner_dismiss => 'Fechar';
+
+  @override
   String get contactRequestDialog_title => 'Solicitação de contato';
 
   @override
@@ -2805,6 +2813,14 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get appOutdatedScreen_action => 'Atualizar';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Atualiza o Air até $date para continuares a usá-lo';
+  }
+
+  @override
+  String get versionExpiryBanner_dismiss => 'Fechar';
 
   @override
   String get contactRequestDialog_title => 'Pedido de contacto';

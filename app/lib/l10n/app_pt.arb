@@ -369,6 +369,8 @@
   "appOutdatedScreen_message": "Atualize para continuar usando o Air",
   "appOutdatedScreen_description": "Abra o TestFlight no iOS ou o Google Play no Android e atualize o Air.",
   "appOutdatedScreen_action": "Atualizar",
+  "versionExpiryBanner_message": "Atualize o Air até {date} para continuar usando",
+  "versionExpiryBanner_dismiss": "Fechar",
   "contactRequestDialog_title": "Solicitação de contato",
   "contactRequestDialog_avatarHint": "Toque para ver a foto",
   "contactRequestDialog_cancel": "Depois",

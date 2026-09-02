@@ -1336,6 +1336,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appOutdatedScreen_action => 'Mettre à jour';
 
   @override
+  String versionExpiryBanner_message(String date) {
+    return 'Mettez Air à jour avant le $date pour continuer à l\'utiliser';
+  }
+
+  @override
+  String get versionExpiryBanner_dismiss => 'Fermer';
+
+  @override
   String get contactRequestDialog_title => 'Demande de contact';
 
   @override

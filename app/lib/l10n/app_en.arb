@@ -1781,6 +1781,19 @@
   "@appOutdatedScreen_action": {
     "description": "Button that opens the store so the user can update."
   },
+  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
+  "@versionExpiryBanner_message": {
+    "description": "Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "versionExpiryBanner_dismiss": "Dismiss",
+  "@versionExpiryBanner_dismiss": {
+    "description": "Tooltip of the close button on the update banner. Hides the banner until the next app start."
+  },
 
   "contactRequestDialog_title": "Contact request",
   "@contactRequestDialog_title": {

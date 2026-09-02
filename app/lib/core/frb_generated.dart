@@ -93,7 +93,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -137990403;
+  int get rustContentHash => 1410455381;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -537,11 +537,11 @@ abstract class RustLibApi extends BaseApi {
 
   bool crateApiUserCubitUiUserAccountUnlinked({required UiUser that});
 
-  bool crateApiUserCubitUiUserUnsupportedVersion({required UiUser that});
-
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that});
 
   List<UiUsername> crateApiUserCubitUiUserUsernames({required UiUser that});
+
+  VersionStatus crateApiUserCubitUiUserVersionStatus({required UiUser that});
 
   Future<ChatId> crateApiUserCubitUserCubitBaseAddContactFromGroup({
     required UserCubitBase that,
@@ -4570,35 +4570,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  bool crateApiUserCubitUiUserUnsupportedVersion({required UiUser that}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-            that,
-            serializer,
-          );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiUserCubitUiUserUnsupportedVersionConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiUserCubitUiUserUnsupportedVersionConstMeta =>
-      const TaskConstMeta(
-        debugName: "UiUser_unsupported_version",
-        argNames: ["that"],
-      );
-
-  @override
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that}) {
     return handler.executeSync(
       SyncTask(
@@ -4608,7 +4579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ui_user_id,
@@ -4634,7 +4605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_ui_username,
@@ -4649,6 +4620,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiUserCubitUiUserUsernamesConstMeta =>
       const TaskConstMeta(debugName: "UiUser_usernames", argNames: ["that"]);
+
+  @override
+  VersionStatus crateApiUserCubitUiUserVersionStatus({required UiUser that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_version_status,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiUserCubitUiUserVersionStatusConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserCubitUiUserVersionStatusConstMeta =>
+      const TaskConstMeta(
+        debugName: "UiUser_version_status",
+        argNames: ["that"],
+      );
 
   @override
   Future<ChatId> crateApiUserCubitUserCubitBaseAddContactFromGroup({
@@ -11555,6 +11555,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  VersionStatus dco_decode_version_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return VersionStatus_Supported();
+      case 1:
+        return VersionStatus_Unsupported();
+      case 2:
+        return VersionStatus_ExpiresAt(dco_decode_Chrono_Utc(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -15641,6 +15656,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
+  VersionStatus sse_decode_version_status(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return VersionStatus_Supported();
+      case 1:
+        return VersionStatus_Unsupported();
+      case 2:
+        var var_field0 = sse_decode_Chrono_Utc(deserializer);
+        return VersionStatus_ExpiresAt(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -19769,6 +19802,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
+
+  @protected
+  void sse_encode_version_status(VersionStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case VersionStatus_Supported():
+        sse_encode_i_32(0, serializer);
+      case VersionStatus_Unsupported():
+        sse_encode_i_32(1, serializer);
+      case VersionStatus_ExpiresAt(field0: final field0):
+        sse_encode_i_32(2, serializer);
+        sse_encode_Chrono_Utc(field0, serializer);
+    }
+  }
 }
 
 @sealed
@@ -20638,14 +20685,15 @@ class UiUserImpl extends RustOpaque implements UiUser {
   bool get accountUnlinked =>
       RustLib.instance.api.crateApiUserCubitUiUserAccountUnlinked(that: this);
 
-  bool get unsupportedVersion => RustLib.instance.api
-      .crateApiUserCubitUiUserUnsupportedVersion(that: this);
-
   UiUserId get userId =>
       RustLib.instance.api.crateApiUserCubitUiUserUserId(that: this);
 
   List<UiUsername> get usernames =>
       RustLib.instance.api.crateApiUserCubitUiUserUsernames(that: this);
+
+  /// Return the status of the client version communicated by the server.
+  VersionStatus get versionStatus =>
+      RustLib.instance.api.crateApiUserCubitUiUserVersionStatus(that: this);
 }
 
 @sealed
