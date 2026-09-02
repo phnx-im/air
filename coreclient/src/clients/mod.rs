@@ -28,6 +28,7 @@ use aircommon::{
     registration::RegistrationChallenge,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+use airprotos::common::v1::Version;
 pub use airprotos::delivery_service::v1::StorageObjectType;
 pub use airprotos::queue_service::v1::{ListenResponse, QueueEventPayload, listen_response};
 use anyhow::{Context, Result, anyhow, ensure};
@@ -336,6 +337,10 @@ impl CoreUser {
             .as_delete_user(self.user_id().clone(), &self.inner.key_store.signing_key)
             .await?;
         Ok(())
+    }
+
+    pub fn version() -> &'static Version {
+        ApiClient::version()
     }
 
     pub(crate) fn db(&self) -> &DbAccess {
