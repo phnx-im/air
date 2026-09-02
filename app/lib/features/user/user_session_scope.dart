@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
@@ -72,6 +73,14 @@ class UserSessionScope extends StatelessWidget {
                       ),
                       dispose: (repository) => unawaited(repository.dispose()),
                       // immediately hydrate chats
+                      lazy: false,
+                    ),
+                    RepositoryProvider<ShareTargetPublisher>(
+                      create: (context) => ShareTargetPublisher(
+                        chatsRepository: context.read<ChatsRepository>(),
+                      ),
+                      dispose: (publisher) => unawaited(publisher.dispose()),
+                      // reconciles leftover OS shortcuts right away
                       lazy: false,
                     ),
                   ],

@@ -10,10 +10,11 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
+import 'registration.dart';
 import 'types.dart';
 part 'user.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `from_core_user`, `load_ui_record`
+// These functions are ignored because they are not marked as `pub`: `from_core_user`, `into_create_user_error`, `load_ui_record`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
@@ -51,20 +52,23 @@ abstract class User implements RustOpaqueInterface {
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
   /// Creates a new user with a generated `uuid` at the domain `domain`.
+  ///
+  /// The challenge is carried only when the server asked for one. Sending one
+  /// it did not ask for would spend it for nothing.
   static Future<User> newInstance({
     required String domain,
     required String path,
     PlatformPushToken? pushToken,
     required String displayName,
     Uint8List? profilePicture,
-    required String invitationCode,
+    RegistrationChallenge? challenge,
   }) => RustLib.instance.api.crateApiUserUserNew(
     domain: domain,
     path: path,
     pushToken: pushToken,
     displayName: displayName,
     profilePicture: profilePicture,
-    invitationCode: invitationCode,
+    challenge: challenge,
   );
 
   /// Stop background work gracefully and wait for completion.

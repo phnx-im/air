@@ -2,70 +2,166 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::{cmp::Ordering, sync::Arc};
+
 use airprotos::common::v1::{
     ClientMetadata, StatusDetails, StatusDetailsCode, VersionUnsupportedDetail,
     status_details::Detail,
 };
+use chrono::{DateTime, Utc};
 use prost::Message;
-use semver::{Version, VersionReq};
+use semver::Version;
 use tonic::{Code, Status};
-use tracing::{error, warn};
+use tracing::error;
 
-/// Verifies that the client version matches the given version requirement.
+use crate::settings::VersionExpiration;
+
+/// Cheaply-cloneable version policy
 ///
-/// If the version requirement is not set, this function returns `Ok(None)`, otherwise, on success,
-/// it returns the client version.
-///
-/// If version requirement does not match, this function returns a [`Status`] with
-/// [`Code::FailedPrecondition`] and [`StatusDetailsCode::VersionUnsupported`].
-pub(crate) fn verify_client_version(
-    client_version_req: Option<&VersionReq>,
-    client_metadata: Option<&ClientMetadata>,
-) -> Result<Option<Version>, Status> {
-    let Some(client_version_req) = client_version_req else {
-        // parse client version, but don't fail
-        let client_version = client_metadata.and_then(|metadata| {
-            let version = metadata.version.clone()?;
-            version.try_into().ok()
-        });
-        return Ok(client_version);
-    };
+/// `Default` implementation constructs an empty policy.
+#[derive(Debug, Clone, Default)]
+pub struct VersionPolicy {
+    // Invariant: sorted by (`older_than`, `expires_on`), `expires_on` non-decreasing
+    expirations: Arc<[VersionExpiration]>,
+}
 
-    let Some(client_metadata) = client_metadata else {
-        warn!("missing client metadata");
-        return Err(failed_version_precondition(
-            "missing required client version",
-            None,
-            client_version_req,
-        ));
-    };
-    let client_version = client_metadata.version.clone().ok_or_else(|| {
-        failed_version_precondition("missing client version", None, client_version_req)
-    })?;
-    let client_version: semver::Version = client_version.try_into().map_err(|error| {
-        error!(%error, "invalid client version");
-        failed_version_precondition("invalid client version", None, client_version_req)
-    })?;
+enum VersionStatus {
+    /// Version has no expiration
+    Ok,
+    /// Version will expire at the given future date.
+    ExpiresAt(DateTime<Utc>),
+    /// Version is expired
+    Expired,
+}
 
-    if client_version_req.matches(&client_version) {
-        Ok(Some(client_version))
-    } else {
-        warn!(
-            %client_version,
-            %client_version_req, "client version does not match required version"
-        );
-        Err(failed_version_precondition(
-            "client version does not match required version",
-            Some(&client_version),
-            client_version_req,
-        ))
+impl VersionExpiration {
+    fn expired_at(&self, now: DateTime<Utc>) -> VersionStatus {
+        if self.expires_on < now {
+            VersionStatus::Expired
+        } else {
+            VersionStatus::ExpiresAt(self.expires_on)
+        }
     }
+}
+
+/// A version that passed [`VersionPolicy::verify_client_version`].
+#[derive(Debug)]
+pub(crate) struct VerifiedClientVersion {
+    pub(crate) version: Option<Version>,
+    /// Set if the version expires in the future
+    // TODO: Will be communicated back to client over QS listen stream
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) expires_at: Option<DateTime<Utc>>,
+}
+
+impl VersionPolicy {
+    pub fn new(mut expirations: Vec<VersionExpiration>) -> Self {
+        expirations.sort_unstable();
+        // A version below one entry is also below every later one, so the effective expiry is the
+        // minimum over the remaining entries. Normalizing here keeps a hand-edited postponement
+        // from letting an older client outlive a newer one.
+        let mut min_expires_on = DateTime::<Utc>::MAX_UTC;
+        for expiration in expirations.iter_mut().rev() {
+            min_expires_on = min_expires_on.min(expiration.expires_on);
+            expiration.expires_on = min_expires_on;
+        }
+        Self {
+            expirations: expirations.into(),
+        }
+    }
+
+    fn evaluate(&self, version: &Version, now: DateTime<Utc>) -> VersionStatus {
+        // Find the first expiration whose older_than is strictly greater than the version.
+        let pos = self
+            .expirations
+            .partition_point(|e| release_cmp(&e.older_than, version) != Ordering::Greater);
+        match self.expirations.get(pos) {
+            Some(expiration) => expiration.expired_at(now),
+            None => VersionStatus::Ok,
+        }
+    }
+
+    /// Minimum supported version at `now`, the largest `older_than` version among already expired
+    /// versions.
+    ///
+    /// `None` if nothing has expired yet.
+    pub fn min_supported(&self, now: DateTime<Utc>) -> Option<&Version> {
+        self.expirations
+            .iter()
+            .rfind(|expiration| matches!(expiration.expired_at(now), VersionStatus::Expired))
+            .map(|expiration| &expiration.older_than)
+    }
+
+    /// Verifies the client version against this policy at `now`.
+    ///
+    /// On success, returns the client version, if the metadata carried a valid one, together with
+    /// its upcoming expiry, if any.
+    ///
+    /// If the version is expired, or is missing while some version has already expired, this
+    /// function returns a [`Status`] with [`Code::FailedPrecondition`] and
+    /// [`StatusDetailsCode::VersionUnsupported`].
+    pub(crate) fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+        now: DateTime<Utc>,
+    ) -> Result<VerifiedClientVersion, Status> {
+        let min_supported = self.min_supported(now);
+
+        let version = client_metadata.and_then(|metadata| {
+            Version::try_from(metadata.version.clone()?)
+                .inspect_err(|error| {
+                    error!(%error, "invalid client version");
+                })
+                .ok()
+        });
+        let Some(version) = version else {
+            // A client without a valid version cannot prove it is recent enough. Reject it once
+            // some version has expired.
+            if let Some(min_supported) = min_supported {
+                return Err(failed_version_precondition(
+                    "missing required client version",
+                    None,
+                    min_supported,
+                ));
+            } else {
+                return Ok(VerifiedClientVersion {
+                    version: None,
+                    expires_at: None,
+                });
+            }
+        };
+
+        match self.evaluate(&version, now) {
+            VersionStatus::Ok => Ok(VerifiedClientVersion {
+                version: Some(version),
+                expires_at: None,
+            }),
+            VersionStatus::ExpiresAt(at) => Ok(VerifiedClientVersion {
+                version: Some(version),
+                expires_at: Some(at),
+            }),
+            VersionStatus::Expired => {
+                let min_supported = min_supported
+                    .expect("logic error: expired version implies a min_supported version");
+                Err(failed_version_precondition(
+                    "client version is expired",
+                    Some(&version),
+                    min_supported,
+                ))
+            }
+        }
+    }
+}
+
+/// Compares two versions (major, minor, patch) ignoring pre-release and build metadata.
+fn release_cmp(a: &Version, b: &Version) -> Ordering {
+    (a.major, a.minor, a.patch).cmp(&(b.major, b.minor, b.patch))
 }
 
 fn failed_version_precondition(
     message: impl Into<String>,
     client_version: Option<&Version>,
-    client_version_req: &VersionReq,
+    min_supported: &Version,
 ) -> Status {
     Status::with_details(
         Code::FailedPrecondition,
@@ -74,7 +170,7 @@ fn failed_version_precondition(
             code: StatusDetailsCode::VersionUnsupported.into(),
             detail: Some(Detail::VersionUnsupported(VersionUnsupportedDetail {
                 client_version: client_version.map(|v| v.to_string()),
-                client_version_requirement: client_version_req.to_string(),
+                client_version_requirement: format!(">={min_supported}"),
             })),
         }
         .encode_to_vec()
@@ -84,22 +180,41 @@ fn failed_version_precondition(
 
 #[cfg(test)]
 mod tests {
-    use airprotos::common::v1::Version;
+    use airprotos::common::v1::Version as VersionProto;
 
     use super::*;
 
     fn mock_client_metadata(major: u64, minor: u64, patch: u64) -> ClientMetadata {
-        let version_struct = Version {
-            major,
-            minor,
-            patch,
-            pre: Default::default(),
-            build_number: 0,
-            commit_hash: Default::default(),
-        };
         ClientMetadata {
-            version: Some(version_struct),
+            version: Some(VersionProto {
+                major,
+                minor,
+                patch,
+                pre: Default::default(),
+                build_number: 0,
+                commit_hash: Default::default(),
+            }),
         }
+    }
+
+    fn now() -> DateTime<Utc> {
+        "2026-07-15T12:00:00Z".parse().unwrap()
+    }
+
+    fn date(s: &str) -> DateTime<Utc> {
+        format!("{s}T00:00:00Z").parse().unwrap()
+    }
+
+    fn policy(entries: &[(&str, &str)]) -> VersionPolicy {
+        VersionPolicy::new(
+            entries
+                .iter()
+                .map(|(older_than, expires_on)| VersionExpiration {
+                    older_than: Version::parse(older_than).unwrap(),
+                    expires_on: date(expires_on),
+                })
+                .collect(),
+        )
     }
 
     fn check_version_unsupported_status(status: &Status) -> bool {
@@ -112,97 +227,172 @@ mod tests {
     }
 
     #[test]
-    fn test_no_version_requirement() {
-        let req = None;
+    fn empty_policy_allows_all() {
+        let policy = VersionPolicy::new(Vec::new());
+
         let metadata = mock_client_metadata(1, 2, 3);
-        let result = verify_client_version(req, Some(&metadata));
-        assert!(result.is_ok(), "Should succeed when no requirement is set");
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap();
+        assert_eq!(verified.version, Some(Version::new(1, 2, 3)));
+        assert_eq!(verified.expires_at, None);
+
+        let verified = policy.verify_client_version(None, now()).unwrap();
+        assert_eq!(verified.version, None);
+        assert_eq!(verified.expires_at, None);
     }
 
     #[test]
-    fn test_version_match() {
-        let req = Some(&VersionReq::parse(">=1.0.0, <2.0.0").unwrap());
-        let metadata = mock_client_metadata(1, 5, 0);
-        let result = verify_client_version(req, Some(&metadata));
+    fn version_equal_to_older_than_is_supported() {
+        // older_than is exclusive
+        let policy = policy(&[("0.19.0", "2026-07-14")]);
+        let metadata = mock_client_metadata(0, 19, 0);
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .expect("0.19.0 is not older than 0.19.0");
+        assert_eq!(verified.expires_at, None);
+    }
+
+    #[test]
+    fn expired_version_is_blocked() {
+        let policy = policy(&[("0.19.0", "2026-07-14")]);
+        let metadata = mock_client_metadata(0, 18, 2);
+        let status = policy
+            .verify_client_version(Some(&metadata), now())
+            .expect_err("0.18.2 expired a day ago");
         assert!(
-            result.is_ok(),
-            "Should succeed when version matches requirement"
+            check_version_unsupported_status(&status),
+            "Status details must indicate VersionUnsupported"
         );
+        assert!(status.message().contains("expired"));
     }
 
     #[test]
-    fn test_prerelease_version_match() {
-        let req = Some(&VersionReq::parse(">=1.4.0, <2.0.0, 1.5.0-dev").unwrap());
+    fn expiry_time_boundary() {
+        // a version expires strictly after expires_on
+        let policy = policy(&[("0.19.0", "2026-07-15")]);
+        let metadata = mock_client_metadata(0, 18, 0);
+
+        let at_expiry = date("2026-07-15");
+        let verified = policy
+            .verify_client_version(Some(&metadata), at_expiry)
+            .expect("not yet expired at the expiry time itself");
+        assert_eq!(verified.expires_at, Some(at_expiry));
+
+        let after_expiry = at_expiry + chrono::Duration::seconds(1);
+        let result = policy.verify_client_version(Some(&metadata), after_expiry);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn soon_expiring_version_reports_date() {
+        let policy = policy(&[("0.20.0", "2026-07-25")]);
+        let metadata = mock_client_metadata(0, 19, 0);
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap();
+        assert_eq!(verified.expires_at, Some(date("2026-07-25")));
+    }
+
+    #[test]
+    fn nearest_entry_governs() {
+        let policy = policy(&[("0.19.0", "2026-07-20"), ("0.20.0", "2026-07-25")]);
+
+        let metadata = mock_client_metadata(0, 18, 0);
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap();
+        assert_eq!(verified.expires_at, Some(date("2026-07-20")));
+
+        let metadata = mock_client_metadata(0, 19, 5);
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap();
+        assert_eq!(verified.expires_at, Some(date("2026-07-25")));
+
+        // equal to the first entry's older_than, so governed by the second
+        let metadata = mock_client_metadata(0, 19, 0);
+        let verified = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap();
+        assert_eq!(verified.expires_at, Some(date("2026-07-25")));
+    }
+
+    #[test]
+    fn postponed_entry_does_not_outlive_a_later_one() {
+        // 0.19.0 was postponed by hand past 0.20.0's expiry
+        let policy = policy(&[("0.19.0", "2026-09-15"), ("0.20.0", "2026-09-01")]);
+        let now = date("2026-09-05");
+
+        assert_eq!(policy.min_supported(now), Some(&Version::new(0, 20, 0)));
+
+        let metadata = mock_client_metadata(0, 18, 0);
+        policy
+            .verify_client_version(Some(&metadata), now)
+            .expect_err("0.18.0 must not outlive 0.19.5");
+
+        let metadata = mock_client_metadata(0, 19, 5);
+        policy
+            .verify_client_version(Some(&metadata), now)
+            .expect_err("0.19.5 expired on 2026-09-01");
+    }
+
+    #[test]
+    fn prerelease_counts_as_its_release() {
+        let policy = policy(&[("0.20.0", "2026-07-14")]);
         let metadata = ClientMetadata {
-            version: Some(Version {
-                major: 1,
-                minor: 5,
+            version: Some(VersionProto {
+                major: 0,
+                minor: 20,
                 patch: 0,
                 pre: "dev".to_owned(),
                 build_number: 69,
                 commit_hash: vec![0xf3, 0x22, 0x68, 0x79],
             }),
         };
-        let result = verify_client_version(req, Some(&metadata));
-        assert!(
-            result.is_ok(),
-            "Should succeed when version matches requirement"
-        );
+        let result = policy.verify_client_version(Some(&metadata), now());
+        assert!(result.is_ok(), "0.20.0-dev must count as 0.20.0");
     }
 
     #[test]
-    fn test_version_mismatch() {
-        let req = Some(&VersionReq::parse("=1.x.x").unwrap());
-        let metadata = mock_client_metadata(2, 0, 0);
-        let result = verify_client_version(req, Some(&metadata));
+    fn missing_version_is_blocked_only_after_first_expiry() {
+        let no_version = ClientMetadata { version: None };
 
+        // nothing expired yet
+        let lenient = policy(&[("0.20.0", "2026-07-25")]);
+        assert!(lenient.verify_client_version(None, now()).is_ok());
         assert!(
-            result.is_err(),
-            "Should fail when version mismatches requirement"
+            lenient
+                .verify_client_version(Some(&no_version), now())
+                .is_ok()
         );
-        let status = result.unwrap_err();
-        assert!(
-            check_version_unsupported_status(&status),
-            "Status details must indicate VersionUnsupported"
-        );
-        assert_eq!(status.code(), Code::FailedPrecondition);
-        assert!(status.message().contains("does not match required version"));
+
+        // something expired
+        let strict = policy(&[("0.20.0", "2026-07-14")]);
+        let status = strict
+            .verify_client_version(None, now())
+            .expect_err("missing metadata cannot prove a recent version");
+        assert!(check_version_unsupported_status(&status));
+        assert!(status.message().contains("missing"));
+
+        let status = strict
+            .verify_client_version(Some(&no_version), now())
+            .expect_err("missing version cannot prove a recent version");
+        assert!(check_version_unsupported_status(&status));
     }
 
     #[test]
-    fn test_missing_client_metadata() {
-        let req = Some(&VersionReq::parse(">=1.0.0").unwrap());
-        let metadata = None;
-        let result = verify_client_version(req, metadata);
-
-        assert!(
-            result.is_err(),
-            "Should fail when client metadata is missing"
-        );
-        let status = result.unwrap_err();
-        assert!(
-            check_version_unsupported_status(&status),
-            "Status details must indicate VersionUnsupported"
-        );
-        assert_eq!(status.code(), Code::FailedPrecondition);
-        assert!(status.message().contains("missing required client version"));
-    }
-
-    #[test]
-    fn test_missing_client_version_field() {
-        let req = Some(&VersionReq::parse(">=1.0.0").unwrap());
-        let metadata = ClientMetadata {
-            version: None, // The Protobuf optional field is missing
+    fn error_details_report_min_supported() {
+        let policy = policy(&[("0.19.0", "2026-06-15"), ("0.20.0", "2026-07-14")]);
+        let metadata = mock_client_metadata(0, 18, 0);
+        let status = policy
+            .verify_client_version(Some(&metadata), now())
+            .unwrap_err();
+        let details = StatusDetails::from_status(&status).unwrap();
+        let Some(Detail::VersionUnsupported(detail)) = details.detail else {
+            panic!("expected VersionUnsupported detail");
         };
-        let result = verify_client_version(req, Some(&metadata));
-
-        assert!(
-            result.is_err(),
-            "Should fail when client version field is missing"
-        );
-        let status = result.unwrap_err();
-        // The implementation uses Status::failed_precondition which doesn't include the custom details
-        assert_eq!(status.code(), Code::FailedPrecondition);
-        assert!(status.message().contains("missing client version"));
+        assert_eq!(detail.client_version.as_deref(), Some("0.18.0"));
+        assert_eq!(detail.client_version_requirement, ">=0.20.0");
     }
 }

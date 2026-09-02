@@ -39,9 +39,11 @@ pub mod key_package;
 mod merging;
 pub mod messages;
 pub mod processing;
-mod psk;
+pub mod psk;
 pub mod public_group;
 mod secret;
+pub mod validation;
+pub mod vc_join;
 pub mod welcome;
 
 /// The combined ciphersuite of a [`ApqMlsGroup`].
@@ -62,7 +64,7 @@ impl ApqCiphersuite {
     pub const fn default_pq_conf_and_auth() -> Self {
         Self {
             t_ciphersuite: Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
-            pq_ciphersuite: Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA512_MLDSA87,
+            pq_ciphersuite: Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87,
         }
     }
 

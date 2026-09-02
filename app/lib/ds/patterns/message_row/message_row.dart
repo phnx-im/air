@@ -39,9 +39,10 @@ class MessageRow extends StatelessWidget {
 
   /// The sender's avatar, on the row of a group that shows one. It sits at the
   /// foot of its column, level with the bottom of the bubble beside it, so a
-  /// group hands it to the row that closes it. We take it as a widget to keep
-  /// the row free of app data, and it owns its own tap: [onTapSender] only
-  /// covers the name.
+  /// group hands it to the row that closes it. Where it is taller than the
+  /// bubble it overflows upwards rather than pushing the bubble down: the
+  /// column above it is empty. We take it as a widget to keep the row free of
+  /// app data, and it owns its own tap: [onTapSender] only covers the name.
   final Widget? avatar;
 
   /// Keep the avatar column even when [avatar] is null. Group chats reserve it
@@ -81,16 +82,22 @@ class MessageRow extends StatelessWidget {
             // The message reports the bubble's bottom edge as its baseline,
             // see [MessageBand]. Aligning on it rather than on the row's end
             // keeps the avatar level with the bubble however much the message
-            // hangs below it (reaction chips, the stamp under the bubble).
+            // hangs below it (reaction chips, the stamp under the bubble). The
+            // avatar hangs off its own baseline, see [_HangingAvatar], so the
+            // bubble alone sets how far the row reaches above it.
             crossAxisAlignment: .baseline,
             textBaseline: .alphabetic,
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
-                SizedBox(
-                  width: tokens.avatarSize,
-                  child: avatar != null ? _BottomBaseline(child: avatar) : null,
-                ),
+                avatar != null
+                    ? _HangingAvatar(
+                        child: SizedBox(
+                          width: tokens.avatarSize,
+                          child: avatar,
+                        ),
+                      )
+                    : SizedBox(width: tokens.avatarSize),
                 const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
@@ -114,25 +121,55 @@ class MessageRow extends StatelessWidget {
   }
 }
 
-/// Gives the avatar a baseline at its bottom edge, which is what the row
-/// aligns with the baseline the message reports at the bubble's bottom edge.
-class _BottomBaseline extends SingleChildRenderObjectWidget {
-  const _BottomBaseline({required Widget child}) : super(child: child);
+/// Hangs the avatar above a zero-height box whose baseline is its bottom
+/// edge.
+///
+/// A baseline-aligned row is as tall as its tallest child above the baseline.
+/// Reporting the avatar's full height there would push a bubble shorter than
+/// the avatar down by the difference, which shows as a wider gap above the
+/// last message of a group. With no height of its own the avatar still lands
+/// with its foot on the bubble's bottom edge, and where it is taller than the
+/// bubble it overflows into the empty column above.
+class _HangingAvatar extends SingleChildRenderObjectWidget {
+  const _HangingAvatar({required Widget child}) : super(child: child);
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderBottomBaseline();
+      _RenderHangingAvatar();
 }
 
-class _RenderBottomBaseline extends RenderProxyBox {
+class _RenderHangingAvatar extends RenderShiftedBox {
+  _RenderHangingAvatar() : super(null);
+
   @override
-  double? computeDistanceToActualBaseline(TextBaseline baseline) => size.height;
+  void performLayout() {
+    final child = this.child!;
+    child.layout(constraints.loosen(), parentUsesSize: true);
+    (child.parentData! as BoxParentData).offset = Offset(0, -child.size.height);
+    size = constraints.constrain(Size(child.size.width, 0));
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(
+    Size(child!.getDryLayout(constraints.loosen()).width, 0),
+  );
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => 0;
 
   @override
   double? computeDryBaseline(
     BoxConstraints constraints,
     TextBaseline baseline,
-  ) => child?.getDryLayout(constraints).height ?? constraints.smallest.height;
+  ) => 0;
+
+  // The avatar lies outside the empty box, so the bounds check that
+  // [RenderBox.hitTest] runs before asking the child would drop every tap.
+  // The row above still runs its own, so the sliver of avatar that out-tops
+  // the bubble stays untappable -- a couple of pixels off a one-line bubble.
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      hitTestChildren(result, position: position);
 }
 
 /// The sender's name, kept out of the selection so drag-selecting a

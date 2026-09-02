@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, io};
+use std::fmt;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -31,8 +31,8 @@ use aircommon::{
             GetUserProfileParams, MergeUserProfileParamsTbs, RegisterUserParamsIn,
             StageUserProfileParamsTbs,
         },
+        push_token::{PushToken, PushTokenOperator},
     },
-    utils::CancellableStream,
 };
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
@@ -42,18 +42,20 @@ use prost::Message;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tokio_stream::{StreamExt, wrappers::ReceiverStream};
-use tonic::{Code, Request, Response, Status, Streaming, async_trait};
+use tokio_stream::StreamExt;
+use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, warn};
 
 use crate::{
     auth_service::{
-        client_api::privacy_pass::TokenBatchIssuance,
+        client_api::{privacy_pass::TokenBatchIssuance, user::RegistrationOutcome},
         invitation_code_record::{CODES_PER_DAY, InvitationCodeRecord},
+        registration_gate::GateDecision,
         usernames::ConnectUsernameProtocol,
     },
+    client_ip::ClientIp,
     errors::auth_service::RedeemTokenError,
-    util::{find_cause, select_until_first_ends},
+    listen_session::{ListenRequestHandler, spawn_listen_session},
 };
 
 use super::{
@@ -142,50 +144,35 @@ impl GrpcAs {
         })
     }
 
-    async fn process_listen_username_requests_task(
-        queues: UsernameQueues,
-        mut requests: Streaming<ListenUsernameRequest>,
-        responses_tx: mpsc::Sender<Status>,
-    ) {
-        while let Some(request) = requests.next().await {
-            if let Err(error) = Self::process_listen_username_request(&queues, request).await {
-                if let Code::Unknown = error.code()
-                    && let Some(h2_error) = find_cause::<h2::Error>(&error)
-                    && let Some(io_error) = h2_error.get_io()
-                    && io_error.kind() == io::ErrorKind::BrokenPipe
-                {
-                    // Client closed connection => not an error
-                    continue;
-                } else {
-                    // We report the error to the client, but don't stop processing requests.
-                    error!(%error, "error processing listen handle request");
-                    let _ = responses_tx.send(error).await;
-                }
-            }
-        }
-    }
-
-    async fn process_listen_username_request(
-        queues: &UsernameQueues,
-        request: Result<ListenUsernameRequest, Status>,
-    ) -> Result<(), Status> {
-        let request = request?;
-        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
-            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
-        };
-        let Some(message_id) = ack_request.message_id else {
-            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
-        };
-        queues.ack(message_id.into()).await?;
-        Ok(())
-    }
-
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.inner.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+        let verified = self
+            .inner
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())?;
+        Ok(verified.version)
+    }
+
+    /// The challenge kinds this server verifies, on the wire.
+    fn challenge_types(&self) -> Vec<i32> {
+        self.inner
+            .accepted_challenges()
+            .into_iter()
+            .map(|kind| ChallengeType::from(kind).into())
+            .collect()
+    }
+
+    /// Turns a registration down for carrying no challenge the gate accepts.
+    fn challenge_required(&self) -> RegisterUserResponse {
+        RegisterUserResponse {
+            outcome: Some(register_user_response::Outcome::ChallengeRequired(
+                ChallengeRequired {
+                    accepted_challenges: self.challenge_types(),
+                },
+            )),
+        }
     }
 }
 
@@ -319,39 +306,29 @@ impl auth_service_server::AuthService for GrpcAs {
         &self,
         request: Request<RegisterUserRequest>,
     ) -> Result<Response<RegisterUserResponse>, Status> {
+        use register_user_response::Outcome;
+
+        let client_ip = request.extensions().get::<ClientIp>().copied();
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
 
-        let code_record = if self.inner.invitation_only {
-            let code = request
-                .invitation_code
-                .ok_or_missing_field("invitation_code")?;
+        let decision = self
+            .inner
+            .registration_gate()
+            .admit(&self.inner.db_pool, client_ip)
+            .await;
+        report_gate_reason(decision);
 
-            if !InvitationCodeRecord::validate_code(&code.code) {
-                return Err(Status::invalid_argument("invalid invitation code"));
-            }
-            let code_record = if self.inner.is_unredeemable_code(&code.code) {
-                warn!("used secret unredeemable code to register account");
-                Some(InvitationCodeRecord {
-                    code: code.code,
-                    redeemed: false,
-                })
-            } else {
-                InvitationCodeRecord::load(&self.inner.db_pool, &code.code)
-                    .await
-                    .map_err(|error| {
-                        error!(%error, "failed to load invitation code");
-                        Status::internal("database error")
-                    })?
-                    .filter(|r| !r.redeemed)
+        // A response the gate did not ask for is left unspent.
+        let challenge = if decision.challenge_required() {
+            let Some(challenge) = self.inner.select_challenge(&request) else {
+                return Ok(Response::new(self.challenge_required()));
             };
-            let Some(code_record) = code_record else {
-                return Err(Status::invalid_argument("invalid invitation code"));
-            };
-            Some(code_record)
+            Some(challenge)
         } else {
             None
         };
+        let gated = challenge.is_some();
 
         let params = RegisterUserParamsIn {
             client_payload: request
@@ -363,12 +340,73 @@ impl auth_service_server::AuthService for GrpcAs {
                 .ok_or_missing_field("encrypted_user_profile")?
                 .try_into()?,
         };
-        let response = self
+        let outcome = self
             .inner
-            .as_init_user_registration(params, code_record)
+            .as_init_user_registration(params, challenge)
             .await?;
+
+        let outcome = match outcome {
+            RegistrationOutcome::Registered(response) => {
+                counter!("air_registrations_total", "gated" => gated.to_string()).increment(1);
+                Outcome::UserCredential(response.user_credential.into())
+            }
+            RegistrationOutcome::ChallengeRejected => {
+                Outcome::ChallengeRejected(ChallengeRejected {})
+            }
+        };
+
         Ok(Response::new(RegisterUserResponse {
-            user_credential: Some(response.user_credential.into()),
+            outcome: Some(outcome),
+        }))
+    }
+
+    async fn get_registration_info(
+        &self,
+        request: Request<GetRegistrationInfoRequest>,
+    ) -> Result<Response<GetRegistrationInfoResponse>, Status> {
+        let client_ip = request.extensions().get::<ClientIp>().copied();
+
+        // Presence is required, but the version is not enforced: this endpoint
+        // has to answer any client, and enforcement happens at RegisterUser.
+        request
+            .get_ref()
+            .client_metadata
+            .as_ref()
+            .ok_or_missing_field("client_metadata")?;
+
+        let decision = self
+            .inner
+            .registration_gate()
+            .decide(&self.inner.db_pool, client_ip)
+            .await;
+
+        Ok(Response::new(GetRegistrationInfoResponse {
+            challenge_required: decision.challenge_required(),
+            accepted_challenges: self.challenge_types(),
+        }))
+    }
+
+    async fn create_admission_session(
+        &self,
+        request: Request<CreateAdmissionSessionRequest>,
+    ) -> Result<Response<CreateAdmissionSessionResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let operator = match request.platform() {
+            PushPlatform::Apple => PushTokenOperator::Apple,
+            PushPlatform::Google => PushTokenOperator::Google,
+            PushPlatform::Unspecified => {
+                return Err(Status::invalid_argument("unknown push platform"));
+            }
+        };
+        let push_token = PushToken::new(operator, request.push_token);
+
+        let session = self.inner.create_admission_session(push_token).await?;
+
+        Ok(Response::new(CreateAdmissionSessionResponse {
+            session_id: Some(session.session_id.into()),
+            lifetime_seconds: u32::try_from(session.lifetime.num_seconds()).unwrap_or(u32::MAX),
         }))
     }
 
@@ -751,26 +789,45 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
 
         let messages = self.inner.username_queues.listen(hash).await?;
+        let messages = messages.map(|message| ListenUsernameResponse { message });
 
-        const REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
-        let (requests_responses_tx, requests_responses_rx) =
-            mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
-
-        tokio::spawn(self.inner.stop.clone().run_until_cancelled_owned(
-            Self::process_listen_username_requests_task(
-                self.inner.username_queues.clone(),
-                requests,
-                requests_responses_tx,
-            ),
-        ));
-
-        let responses = select_until_first_ends(
-            CancellableStream::new(messages, self.inner.stop.clone())
-                .map(|message| Ok(ListenUsernameResponse { message })),
-            ReceiverStream::new(requests_responses_rx).map(Err),
+        let handler = UsernameSessionHandler {
+            queues: self.inner.username_queues.clone(),
+        };
+        let responses = spawn_listen_session(
+            requests,
+            messages,
+            self.inner.stop.clone(),
+            handler,
+            "username",
         );
+        Ok(Response::new(responses))
+    }
+}
 
-        Ok(Response::new(Box::pin(responses)))
+struct UsernameSessionHandler {
+    queues: UsernameQueues,
+}
+
+impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
+    async fn handle(&mut self, request: ListenUsernameRequest) -> Result<(), Status> {
+        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
+            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
+        };
+        let Some(message_id) = ack_request.message_id else {
+            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
+        };
+        self.queues.ack(message_id.into()).await?;
+        Ok(())
+    }
+}
+
+/// Publishes why the registration gate closed for this request. Whether the
+/// decision is enforced is up to the caller.
+fn report_gate_reason(decision: GateDecision) {
+    if let GateDecision::ChallengeRequired(reason) = decision {
+        counter!("air_registration_challenge_required_total", "reason" => reason.as_str())
+            .increment(1);
     }
 }
 
@@ -874,6 +931,8 @@ impl WithUsernameHash for InitListenUsernameRequest {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
     use airprotos::{
         auth_service::v1::{
             GetInvitationCodesRequest, OperationType,
@@ -900,9 +959,10 @@ mod tests {
             privacy_pass::load_batched_token_keys,
             user_record::persistence::tests::store_random_user_record,
         },
+        settings::{RegistrationPolicy, RegistrationSettings},
     };
 
-    use super::GrpcAs;
+    use super::*;
 
     /// Creates an AuthService (which bootstraps the VOPRF keys) and returns the
     /// public key used for `GetInviteCode` tokens.
@@ -910,7 +970,7 @@ mod tests {
         let service = AuthService::initialize(
             pool.clone(),
             "example.com".parse()?,
-            None,
+            Default::default(),
             CancellationToken::new(),
         )
         .await?;
@@ -1064,6 +1124,97 @@ mod tests {
 
         let codes = get_invitation_codes(&grpc_as, Vec::new()).await?;
         assert!(codes.is_empty());
+
+        Ok(())
+    }
+
+    async fn registration_info(
+        pool: &PgPool,
+        policy: RegistrationPolicy,
+        client_ip: Option<ClientIp>,
+    ) -> anyhow::Result<GetRegistrationInfoResponse> {
+        let (mut service, _public_key) = setup(pool).await?;
+        service.set_registration_settings(RegistrationSettings {
+            policy,
+            ..Default::default()
+        });
+        let grpc_as = GrpcAs::new(service);
+
+        let mut request = Request::new(GetRegistrationInfoRequest {
+            client_metadata: Some(ClientMetadata::default()),
+        });
+        if let Some(client_ip) = client_ip {
+            request.extensions_mut().insert(client_ip);
+        }
+
+        let response = grpc_as.get_registration_info(request).await?;
+        Ok(response.into_inner())
+    }
+
+    fn some_client_ip() -> Option<ClientIp> {
+        Some(ClientIp::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1))))
+    }
+
+    #[sqlx::test]
+    async fn registration_info_reports_an_open_gate(pool: PgPool) -> anyhow::Result<()> {
+        let info = registration_info(&pool, RegistrationPolicy::Open, some_client_ip()).await?;
+
+        assert!(!info.challenge_required);
+        assert_eq!(
+            info.accepted_challenges,
+            vec![i32::from(ChallengeType::InvitationCode)]
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn registration_info_reports_a_closed_gate(pool: PgPool) -> anyhow::Result<()> {
+        let info = registration_info(&pool, RegistrationPolicy::Required, some_client_ip()).await?;
+
+        assert!(info.challenge_required);
+
+        Ok(())
+    }
+
+    /// Nothing has registered yet, so the adaptive gate is still open.
+    #[sqlx::test]
+    async fn registration_info_reports_an_untripped_adaptive_gate(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let info = registration_info(&pool, RegistrationPolicy::Adaptive, some_client_ip()).await?;
+
+        assert!(!info.challenge_required);
+
+        Ok(())
+    }
+
+    /// Without an address the per-address threshold cannot apply, so the
+    /// adaptive gate reports closed.
+    #[sqlx::test]
+    async fn registration_info_without_an_address_reports_closed(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let info = registration_info(&pool, RegistrationPolicy::Adaptive, None).await?;
+
+        assert!(info.challenge_required);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn registration_info_without_client_metadata_is_rejected(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let (service, _public_key) = setup(&pool).await?;
+        let grpc_as = GrpcAs::new(service);
+
+        let status = grpc_as
+            .get_registration_info(Request::new(GetRegistrationInfoRequest::default()))
+            .await
+            .expect_err("missing client metadata should be rejected");
+
+        assert_eq!(status.code(), Code::InvalidArgument);
 
         Ok(())
     }

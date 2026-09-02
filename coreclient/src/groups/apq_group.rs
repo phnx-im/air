@@ -108,6 +108,9 @@ impl Group {
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
+            // The self group is the emulation group of the virtual client, so its
+            // initial epoch already has to be a derivation epoch.
+            .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .build(&provider, signer, apq_credential_with_key)?
             .into_groups();

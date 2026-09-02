@@ -551,12 +551,15 @@ impl ChatMessage {
 
     /// Load the first unread content message in a chat after `last_read`.
     ///
-    /// Only considers messages with a sender (excludes system/event messages).
+    /// Only considers messages with a sender (excludes system/event
+    /// messages) and skips own messages.
     pub(crate) async fn first_unread_message(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
         last_read: TimeStamp,
+        own_user: &UserId,
     ) -> sqlx::Result<Option<ChatMessage>> {
+        let (own_user_uuid, own_user_domain) = own_user.clone().into_parts();
         query_as!(
             SqlChatMessage,
             r#"SELECT
@@ -578,10 +581,13 @@ impl ChatMessage {
             WHERE chat_id = ?1
                 AND timestamp > ?2
                 AND sender_user_uuid IS NOT NULL
+                AND (sender_user_uuid != ?3 OR sender_user_domain != ?4)
             ORDER BY timestamp ASC, message_id ASC
             LIMIT 1"#,
             chat_id,
             last_read,
+            own_user_uuid,
+            own_user_domain,
         )
         .fetch_optional(connection.as_mut())
         .await?
@@ -1696,11 +1702,14 @@ pub(crate) mod tests {
             m.store(&mut txn).await?;
         }
 
+        let own_user = UserId::random("localhost".parse().unwrap());
+
         // last_read at t=25 -> first unread is t=30
         let first = ChatMessage::first_unread_message(
             &mut txn,
             chat.id(),
             TimeStamp::from(25_000_000_000_i64),
+            &own_user,
         )
         .await?;
         assert_eq!(first.as_ref().map(|m| m.id()), Some(msgs[2].id()));
@@ -1710,6 +1719,19 @@ pub(crate) mod tests {
             &mut txn,
             chat.id(),
             TimeStamp::from(50_000_000_000_i64),
+            &own_user,
+        )
+        .await?;
+        assert!(first.is_none());
+
+        // Own messages are never unread. All messages were sent by
+        // TEST_SENDER, so excluding that sender leaves nothing unread.
+        let sender = msgs[2].message().sender().unwrap().clone();
+        let first = ChatMessage::first_unread_message(
+            &mut txn,
+            chat.id(),
+            TimeStamp::from(25_000_000_000_i64),
+            &sender,
         )
         .await?;
         assert!(first.is_none());

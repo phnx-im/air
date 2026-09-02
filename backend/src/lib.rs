@@ -8,8 +8,11 @@
 
 pub mod air_service;
 pub mod auth_service;
+pub(crate) mod bucket_key;
+pub mod client_ip;
 pub mod ds;
 pub(crate) mod errors;
+pub(crate) mod listen_session;
 pub mod messages;
 pub(crate) mod pg_listen;
 pub mod qs;
@@ -17,6 +20,7 @@ pub mod rate_limiter;
 pub mod relay_service;
 pub mod settings;
 pub(crate) mod util;
-pub(crate) mod version;
+pub mod version;
+pub(crate) mod window_counter;
 
 pub use mls_assist::messages::{AssistedGroupInfo, AssistedMessageOut};

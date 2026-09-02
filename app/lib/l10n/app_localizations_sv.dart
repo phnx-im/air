@@ -167,7 +167,7 @@ class AppLocalizationsSv extends AppLocalizations {
       'Välj en chatt för att börja skicka meddelanden';
 
   @override
-  String get removeUserDialog_title => 'Ta bort användare';
+  String get removeUserDialog_title => 'Ta bort medlem';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -175,7 +175,7 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Ta bort användare';
+  String get removeUserDialog_removeUser => 'Ta bort medlem';
 
   @override
   String get removeUserButton_text => 'Ta bort';
@@ -370,6 +370,13 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Uppdatering krävs';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air för att fortsätta.';
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override
@@ -399,6 +406,10 @@ class AppLocalizationsSv extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Lägg till ett visningsnamn med minst ett tecken';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Den här servern kräver nu en inbjudningskod. Ange en för att fortsätta.';
 
   @override
   String signUpScreen_error_register(String error) {
@@ -848,11 +859,6 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Kunde inte skapa en ny gruppchatt med namnet $chatName eftersom en av kontakterna har en inkompatibel klient.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Lägg till Air-kontakt';
 
   @override
@@ -1182,6 +1188,44 @@ class AppLocalizationsSv extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Inga medlemmar';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Vissa personer kunde inte läggas till';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Din grupp $groupName skapades, men $memberNames kunde inte läggas till.',
+      one:
+          'Din grupp $groupName skapades, men $memberNames kunde inte läggas till.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count andra personer',
+      one: '$count annan person',
+    );
+    return '$memberNames och $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Klar';
 
   @override
@@ -1302,6 +1346,13 @@ class AppLocalizationsSv extends AppLocalizations {
       'Den här kontakten har en föråldrad app som behöver uppdateras.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle => 'Kan inte läggas till';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'De här personerna kan inte läggas till i gruppen. Det kan bero på att deras konto inte längre är aktivt eller att deras appversion är för gammal.';
+
+  @override
   String get homeTab_chats => 'Chattar';
 
   @override
@@ -1332,4 +1383,86 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Anger din standardhudton';
+
+  @override
+  String get shareDestination_title => 'Skicka till…';
+
+  @override
+  String get shareScreen_title => 'Dela till Air';
+
+  @override
+  String get shareScreen_searchHint => 'Sök';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Till: $first, $second och $third',
+      two: 'Till: $first och $second',
+      one: 'Till: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'Till: $first, $second och $rest till';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Lägg till ett meddelande';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Logga in i Air först för att dela innehåll.';
+
+  @override
+  String get shareScreen_noChats => 'Inga chattar hittades.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Laddar upp $current av $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Skickar…';
+
+  @override
+  String get shareScreen_queued =>
+      'Det gick inte att skicka just nu. Ditt meddelande är sparat och skickas nästa gång du öppnar Air.';
+
+  @override
+  String get shareScreen_done => 'Klar';
+
+  @override
+  String get shareScreen_sendFailed => 'Det gick inte att skicka. Försök igen.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'För många filer. Du kan dela upp till $max filer åt gången.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count objekt kunde inte delas.',
+      one: '$count objekt kunde inte delas.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Det här innehållet kunde inte delas till Air.';
+
+  @override
+  String get shareScreen_close => 'Stäng';
 }

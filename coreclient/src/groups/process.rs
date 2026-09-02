@@ -160,12 +160,12 @@ impl Group {
                     return Ok(ProcessMessageResult::ResyncRequired);
                 }
                 Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingEmulationEpochState
+                    error @ VirtualClientsError::MissingDerivationEpochState
                     | error @ VirtualClientsError::MissingOperationTree
                     | error @ VirtualClientsError::OperationGenerationConsumed
                     | error @ VirtualClientsError::OperationGenerationTooDistant,
                 ))) => {
-                    // The commit was not built against a virtual client emulation epoch we hold.
+                    // The commit was not built against a virtual client derivation epoch we hold.
                     // Only a resync can get us back onto the same shared leaf.
                     //
                     // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
@@ -883,7 +883,7 @@ impl Group {
             }
             Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
                 StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingEmulationEpochState
+                    error @ VirtualClientsError::MissingDerivationEpochState
                     | error @ VirtualClientsError::MissingOperationTree
                     | error @ VirtualClientsError::OperationGenerationConsumed
                     | error @ VirtualClientsError::OperationGenerationTooDistant,

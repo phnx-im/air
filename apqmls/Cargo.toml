@@ -10,6 +10,9 @@ version = "0.21.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
+[features]
+test-utils = []
+
 [dependencies]
 openmls.workspace = true
 openmls_basic_credential.workspace = true
@@ -20,8 +23,6 @@ thiserror.workspace = true
 tls_codec.workspace = true
 
 [dev-dependencies]
-# `test-utils` exposes `MlsGroup::export_group_context` for the group context tests
+apqmls = { path = ".", features = ["test-utils"] }
 openmls = { workspace = true, features = ["test-utils"] }
-openmls_memory_storage.workspace = true
 openmls_rust_crypto.workspace = true
-openmls_sqlite_storage.workspace = true

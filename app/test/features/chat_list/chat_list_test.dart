@@ -46,8 +46,10 @@ void main() {
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
+      Map<ChatId, List<UiUserId>> members = const {},
+      bool shareMode = false,
     }) => RepositoryProvider<ChatsRepository>.value(
-      value: FakeChatsRepository(chats),
+      value: FakeChatsRepository(chats, members: members),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -62,13 +64,50 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: const Scaffold(body: ChatListView()),
+                home: shareMode
+                    ? const ChatListView(scaffold: true, shareMode: true)
+                    : const Scaffold(body: ChatListView()),
               );
             },
           ),
         ),
       ),
     );
+
+    // The picker offers only chats the reader can send into: the connection
+    // request and the blocked contact fall out, and a group the reader is not
+    // a member of stays listed but disabled. Rows show group members instead
+    // of the last message, and no timestamp.
+    testWidgets('renders the share destination picker', (tester) async {
+      final contact = chats[0];
+      final request = chats[1];
+      final group = chats[2];
+      final otherGroup = chats[3];
+      final blocked = chats[4];
+      final muted = chats[5];
+
+      await tester.pumpWidget(
+        buildSubject(
+          chats: [contact, request, group, otherGroup, blocked, muted],
+          members: {
+            group.id: [1.userId(), 2.userId(), 4.userId()],
+            otherGroup.id: [2.userId(), 3.userId()],
+          },
+          shareMode: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bob, Charlie'), findsOne);
+      expect(find.text('Bob, Eve'), findsOne);
+      expect(find.text('eve_03'), findsNothing);
+      expect(find.text('Charlie'), findsNothing);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_share_destination.png'),
+      );
+    });
 
     testWidgets('renders correctly when there are no chats', (tester) async {
       await tester.pumpWidget(buildSubject(chats: []));

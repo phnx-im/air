@@ -197,7 +197,10 @@ mixin _$HomeNavigationState {
  bool get chatOpen; ChatId? get chatId; HomeTab get activeTab;/// The open section of the profile tab. `null` is the section list, for
 /// which the two-pane layout substitutes [YouSection.profile].
  YouSection? get youSection;/// The chat details drill-down, bottom level first. Empty means closed.
- List<ChatDetailsPage> get chatDetails; bool get createGroupOpen;
+ List<ChatDetailsPage> get chatDetails; bool get createGroupOpen;/// Content the Android share activity handed over, waiting for the open
+/// chat's composer to take it. Never set on iOS or desktop.
+ PendingShare? get pendingShare;/// The destination picker, shown when the share named no chat.
+ bool get shareDestinationOpen;
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -208,16 +211,16 @@ $HomeNavigationStateCopyWith<HomeNavigationState> get copyWith => _$HomeNavigati
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.activeTab, activeTab) || other.activeTab == activeTab)&&(identical(other.youSection, youSection) || other.youSection == youSection)&&const DeepCollectionEquality().equals(other.chatDetails, chatDetails)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.activeTab, activeTab) || other.activeTab == activeTab)&&(identical(other.youSection, youSection) || other.youSection == youSection)&&const DeepCollectionEquality().equals(other.chatDetails, chatDetails)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen)&&(identical(other.pendingShare, pendingShare) || other.pendingShare == pendingShare)&&(identical(other.shareDestinationOpen, shareDestinationOpen) || other.shareDestinationOpen == shareDestinationOpen));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatOpen,chatId,activeTab,youSection,const DeepCollectionEquality().hash(chatDetails),createGroupOpen);
+int get hashCode => Object.hash(runtimeType,chatOpen,chatId,activeTab,youSection,const DeepCollectionEquality().hash(chatDetails),createGroupOpen,pendingShare,shareDestinationOpen);
 
 @override
 String toString() {
-  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, activeTab: $activeTab, youSection: $youSection, chatDetails: $chatDetails, createGroupOpen: $createGroupOpen)';
+  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, activeTab: $activeTab, youSection: $youSection, chatDetails: $chatDetails, createGroupOpen: $createGroupOpen, pendingShare: $pendingShare, shareDestinationOpen: $shareDestinationOpen)';
 }
 
 
@@ -228,11 +231,11 @@ abstract mixin class $HomeNavigationStateCopyWith<$Res>  {
   factory $HomeNavigationStateCopyWith(HomeNavigationState value, $Res Function(HomeNavigationState) _then) = _$HomeNavigationStateCopyWithImpl;
 @useResult
 $Res call({
- bool chatOpen, ChatId? chatId, HomeTab activeTab, YouSection? youSection, List<ChatDetailsPage> chatDetails, bool createGroupOpen
+ bool chatOpen, ChatId? chatId, HomeTab activeTab, YouSection? youSection, List<ChatDetailsPage> chatDetails, bool createGroupOpen, PendingShare? pendingShare, bool shareDestinationOpen
 });
 
 
-
+$PendingShareCopyWith<$Res>? get pendingShare;
 
 }
 /// @nodoc
@@ -245,7 +248,7 @@ class _$HomeNavigationStateCopyWithImpl<$Res>
 
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? activeTab = null,Object? youSection = freezed,Object? chatDetails = null,Object? createGroupOpen = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? activeTab = null,Object? youSection = freezed,Object? chatDetails = null,Object? createGroupOpen = null,Object? pendingShare = freezed,Object? shareDestinationOpen = null,}) {
   return _then(_self.copyWith(
 chatOpen: null == chatOpen ? _self.chatOpen : chatOpen // ignore: cast_nullable_to_non_nullable
 as bool,chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -253,10 +256,24 @@ as ChatId?,activeTab: null == activeTab ? _self.activeTab : activeTab // ignore:
 as HomeTab,youSection: freezed == youSection ? _self.youSection : youSection // ignore: cast_nullable_to_non_nullable
 as YouSection?,chatDetails: null == chatDetails ? _self.chatDetails : chatDetails // ignore: cast_nullable_to_non_nullable
 as List<ChatDetailsPage>,createGroupOpen: null == createGroupOpen ? _self.createGroupOpen : createGroupOpen // ignore: cast_nullable_to_non_nullable
+as bool,pendingShare: freezed == pendingShare ? _self.pendingShare : pendingShare // ignore: cast_nullable_to_non_nullable
+as PendingShare?,shareDestinationOpen: null == shareDestinationOpen ? _self.shareDestinationOpen : shareDestinationOpen // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
+/// Create a copy of HomeNavigationState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PendingShareCopyWith<$Res>? get pendingShare {
+    if (_self.pendingShare == null) {
+    return null;
+  }
 
+  return $PendingShareCopyWith<$Res>(_self.pendingShare!, (value) {
+    return _then(_self.copyWith(pendingShare: value));
+  });
+}
 }
 
 
@@ -265,7 +282,7 @@ as bool,
 
 
 class _HomeNavigationState implements HomeNavigationState {
-  const _HomeNavigationState({this.chatOpen = false, this.chatId, this.activeTab = HomeTab.chats, this.youSection, final  List<ChatDetailsPage> chatDetails = const <ChatDetailsPage>[], this.createGroupOpen = false}): _chatDetails = chatDetails;
+  const _HomeNavigationState({this.chatOpen = false, this.chatId, this.activeTab = HomeTab.chats, this.youSection, final  List<ChatDetailsPage> chatDetails = const <ChatDetailsPage>[], this.createGroupOpen = false, this.pendingShare, this.shareDestinationOpen = false}): _chatDetails = chatDetails;
   
 
 /// Whether a chat is open, independently of [chatId]: a chat can close
@@ -286,6 +303,11 @@ class _HomeNavigationState implements HomeNavigationState {
 }
 
 @override@JsonKey() final  bool createGroupOpen;
+/// Content the Android share activity handed over, waiting for the open
+/// chat's composer to take it. Never set on iOS or desktop.
+@override final  PendingShare? pendingShare;
+/// The destination picker, shown when the share named no chat.
+@override@JsonKey() final  bool shareDestinationOpen;
 
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
@@ -297,16 +319,16 @@ _$HomeNavigationStateCopyWith<_HomeNavigationState> get copyWith => __$HomeNavig
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.activeTab, activeTab) || other.activeTab == activeTab)&&(identical(other.youSection, youSection) || other.youSection == youSection)&&const DeepCollectionEquality().equals(other._chatDetails, _chatDetails)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _HomeNavigationState&&(identical(other.chatOpen, chatOpen) || other.chatOpen == chatOpen)&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.activeTab, activeTab) || other.activeTab == activeTab)&&(identical(other.youSection, youSection) || other.youSection == youSection)&&const DeepCollectionEquality().equals(other._chatDetails, _chatDetails)&&(identical(other.createGroupOpen, createGroupOpen) || other.createGroupOpen == createGroupOpen)&&(identical(other.pendingShare, pendingShare) || other.pendingShare == pendingShare)&&(identical(other.shareDestinationOpen, shareDestinationOpen) || other.shareDestinationOpen == shareDestinationOpen));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatOpen,chatId,activeTab,youSection,const DeepCollectionEquality().hash(_chatDetails),createGroupOpen);
+int get hashCode => Object.hash(runtimeType,chatOpen,chatId,activeTab,youSection,const DeepCollectionEquality().hash(_chatDetails),createGroupOpen,pendingShare,shareDestinationOpen);
 
 @override
 String toString() {
-  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, activeTab: $activeTab, youSection: $youSection, chatDetails: $chatDetails, createGroupOpen: $createGroupOpen)';
+  return 'HomeNavigationState(chatOpen: $chatOpen, chatId: $chatId, activeTab: $activeTab, youSection: $youSection, chatDetails: $chatDetails, createGroupOpen: $createGroupOpen, pendingShare: $pendingShare, shareDestinationOpen: $shareDestinationOpen)';
 }
 
 
@@ -317,11 +339,11 @@ abstract mixin class _$HomeNavigationStateCopyWith<$Res> implements $HomeNavigat
   factory _$HomeNavigationStateCopyWith(_HomeNavigationState value, $Res Function(_HomeNavigationState) _then) = __$HomeNavigationStateCopyWithImpl;
 @override @useResult
 $Res call({
- bool chatOpen, ChatId? chatId, HomeTab activeTab, YouSection? youSection, List<ChatDetailsPage> chatDetails, bool createGroupOpen
+ bool chatOpen, ChatId? chatId, HomeTab activeTab, YouSection? youSection, List<ChatDetailsPage> chatDetails, bool createGroupOpen, PendingShare? pendingShare, bool shareDestinationOpen
 });
 
 
-
+@override $PendingShareCopyWith<$Res>? get pendingShare;
 
 }
 /// @nodoc
@@ -334,7 +356,7 @@ class __$HomeNavigationStateCopyWithImpl<$Res>
 
 /// Create a copy of HomeNavigationState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? activeTab = null,Object? youSection = freezed,Object? chatDetails = null,Object? createGroupOpen = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chatOpen = null,Object? chatId = freezed,Object? activeTab = null,Object? youSection = freezed,Object? chatDetails = null,Object? createGroupOpen = null,Object? pendingShare = freezed,Object? shareDestinationOpen = null,}) {
   return _then(_HomeNavigationState(
 chatOpen: null == chatOpen ? _self.chatOpen : chatOpen // ignore: cast_nullable_to_non_nullable
 as bool,chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
@@ -342,11 +364,25 @@ as ChatId?,activeTab: null == activeTab ? _self.activeTab : activeTab // ignore:
 as HomeTab,youSection: freezed == youSection ? _self.youSection : youSection // ignore: cast_nullable_to_non_nullable
 as YouSection?,chatDetails: null == chatDetails ? _self._chatDetails : chatDetails // ignore: cast_nullable_to_non_nullable
 as List<ChatDetailsPage>,createGroupOpen: null == createGroupOpen ? _self.createGroupOpen : createGroupOpen // ignore: cast_nullable_to_non_nullable
+as bool,pendingShare: freezed == pendingShare ? _self.pendingShare : pendingShare // ignore: cast_nullable_to_non_nullable
+as PendingShare?,shareDestinationOpen: null == shareDestinationOpen ? _self.shareDestinationOpen : shareDestinationOpen // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
 
+/// Create a copy of HomeNavigationState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PendingShareCopyWith<$Res>? get pendingShare {
+    if (_self.pendingShare == null) {
+    return null;
+  }
 
+  return $PendingShareCopyWith<$Res>(_self.pendingShare!, (value) {
+    return _then(_self.copyWith(pendingShare: value));
+  });
+}
 }
 
 /// @nodoc

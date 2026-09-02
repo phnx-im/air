@@ -44,8 +44,8 @@ class Snackbar extends StatelessWidget {
           padding: SnackbarTokens.padding,
           child: Text(
             label,
-            maxLines: 1,
-            softWrap: false,
+            softWrap: true,
+            maxLines: SnackbarTokens.maxLines,
             overflow: .ellipsis,
             // Both fills are saturated in either brightness, so the label
             // takes the mode-invariant white rather than a toggling one.

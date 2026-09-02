@@ -168,7 +168,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen';
 
   @override
-  String get removeUserDialog_title => 'Benutzer entfernen';
+  String get removeUserDialog_title => 'Mitglied entfernen';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -176,7 +176,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Benutzer entfernen';
+  String get removeUserDialog_removeUser => 'Mitglied entfernen';
 
   @override
   String get removeUserButton_text => 'Entfernen';
@@ -375,6 +375,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header =>
+      'Aktualisierung erforderlich';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air, um fortzufahren.';
+
+  @override
   String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override
@@ -403,6 +411,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Füge einen Anzeigenamen mit mindestens einem Zeichen hinzu';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Dieser Server verlangt jetzt einen Einladungscode. Gib einen ein, um fortzufahren.';
 
   @override
   String signUpScreen_error_register(String error) {
@@ -856,11 +868,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Gruppenchat mit dem Namen $chatName konnte nicht erstellt werden, da einer der Kontakte einen inkompatiblen Client hat.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Air-Kontakt hinzufügen';
 
   @override
@@ -1192,6 +1199,44 @@ class AppLocalizationsDe extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Keine Mitglieder';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Einige Personen konnten nicht hinzugefügt werden';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Deine Gruppe $groupName wurde erstellt, aber $memberNames konnten nicht hinzugefügt werden.',
+      one:
+          'Deine Gruppe $groupName wurde erstellt, aber $memberNames konnte nicht hinzugefügt werden.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weitere Personen',
+      one: '$count weitere Person',
+    );
+    return '$memberNames und $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Fertig';
 
   @override
@@ -1312,6 +1357,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle =>
+      'Können nicht hinzugefügt werden';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Diese Personen können nicht zur Gruppe hinzugefügt werden. Möglicherweise ist ihr Konto nicht mehr aktiv oder ihre App-Version ist zu alt.';
+
+  @override
   String get homeTab_chats => 'Chats';
 
   @override
@@ -1342,4 +1395,87 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
+
+  @override
+  String get shareDestination_title => 'Senden an…';
+
+  @override
+  String get shareScreen_title => 'Mit Air teilen';
+
+  @override
+  String get shareScreen_searchHint => 'Suchen';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'An: $first, $second und $third',
+      two: 'An: $first und $second',
+      one: 'An: $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'An: $first, $second und $rest weitere';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Nachricht hinzufügen';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Melde dich zuerst in Air an, um Inhalte zu teilen.';
+
+  @override
+  String get shareScreen_noChats => 'Keine Chats gefunden.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Lade $current von $total hoch…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Wird gesendet…';
+
+  @override
+  String get shareScreen_queued =>
+      'Senden gerade nicht möglich. Deine Nachricht ist gespeichert und wird gesendet, wenn du Air das nächste Mal öffnest.';
+
+  @override
+  String get shareScreen_done => 'Fertig';
+
+  @override
+  String get shareScreen_sendFailed =>
+      'Senden fehlgeschlagen. Versuche es erneut.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Zu viele Dateien. Du kannst bis zu $max Dateien auf einmal teilen.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Elemente konnten nicht geteilt werden.',
+      one: '$count Element konnte nicht geteilt werden.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Dieser Inhalt konnte nicht mit Air geteilt werden.';
+
+  @override
+  String get shareScreen_close => 'Schließen';
 }

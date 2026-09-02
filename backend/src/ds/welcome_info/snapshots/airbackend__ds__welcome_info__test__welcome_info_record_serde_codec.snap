@@ -1,0 +1,31 @@
+---
+source: backend/src/ds/welcome_info/mod.rs
+expression: diag
+---
+a2                                              # map(2)
+   02                                           #   unsigned(2)
+   81                                           #   array(1)
+      a1                                        #     map(1)
+         65                                     #       text(5)
+            76616c7565                          #         "value"
+         a1                                     #       map(1)
+            63                                  #         text(3)
+               766563                           #           "vec"
+            83                                  #         array(3)
+               01                               #           unsigned(1)
+               02                               #           unsigned(2)
+               03                               #           unsigned(3)
+   03                                           #   unsigned(3)
+   81                                           #   array(1)
+      82                                        #     array(2)
+         01                                     #       unsigned(1)
+         a2                                     #       map(2)
+            6a                                  #         text(10)
+               63697068657274657874             #           "ciphertext"
+            58 20                               #         bytes(32)
+               01010101010101010101010101010101 #           "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"
+               01010101010101010101010101010101 #           "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"
+            65                                  #         text(5)
+               6e6f6e6365                       #           "nonce"
+            4c                                  #         bytes(12)
+               010101010101010101010101         #           "\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"

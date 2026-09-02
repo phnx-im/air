@@ -297,6 +297,7 @@ class ModalPane extends StatefulWidget {
     super.key,
     required this.title,
     this.onDismiss,
+    this.dismissIcon = AppIconType.arrowLeft,
     this.onBack,
     this.trailing,
     this.scrollable = true,
@@ -311,6 +312,12 @@ class ModalPane extends StatefulWidget {
   ///
   /// Falls back to [ModalPageActions.onDismiss].
   final VoidCallback? onDismiss;
+
+  /// Glyph the dismiss takes where it lands in the leading slot of a
+  /// full-screen page, which is the way out of the screen it was pushed onto.
+  /// A surface the platform presents as a sheet of its own has no screen
+  /// behind it to go back to, so it takes the `x`.
+  final AppIconType dismissIcon;
 
   /// Returns to the level the modal drilled down from. Always the leading
   /// action, outranking [onDismiss] there.
@@ -420,9 +427,9 @@ class _ModalPaneState extends State<ModalPane> {
       tokens: DialogHeaderTokens.of(context),
       title: widget.title,
       onLeading: onBack ?? (dismissLeads ? onDismiss : null),
-      leadingIcon: onBack != null || fullBleed
+      leadingIcon: onBack != null
           ? AppIconType.arrowLeft
-          : AppIconType.x,
+          : (fullBleed ? widget.dismissIcon : AppIconType.x),
       onTrailing: dismissTrails ? onDismiss : null,
       trailing: widget.trailing,
     );

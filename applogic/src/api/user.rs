@@ -26,7 +26,16 @@ use flutter_rust_bridge::frb;
 use tracing::error;
 use uuid::Uuid;
 
-use super::types::{UiClientRecord, UiUserId, UiUserProfile};
+use super::{
+    registration::{CreateUserError, RegistrationChallenge},
+    types::{UiClientRecord, UiUserId, UiUserProfile},
+};
+
+fn into_create_user_error(error: impl std::fmt::Display) -> CreateUserError {
+    CreateUserError::Other {
+        message: error.to_string(),
+    }
+}
 
 /// Platform specific push token
 pub enum PlatformPushToken {
@@ -60,28 +69,27 @@ impl User {
     }
 
     /// Creates a new user with a generated `uuid` at the domain `domain`.
+    ///
+    /// The challenge is carried only when the server asked for one. Sending one
+    /// it did not ask for would spend it for nothing.
     pub async fn new(
         domain: String,
         path: String,
         push_token: Option<PlatformPushToken>,
         display_name: String,
         profile_picture: Option<Vec<u8>>,
-        invitation_code: String,
-    ) -> Result<User> {
-        let domain: Fqdn = domain.parse()?;
+        challenge: Option<RegistrationChallenge>,
+    ) -> Result<User, CreateUserError> {
+        let domain: Fqdn = domain.parse().map_err(into_create_user_error)?;
         let user_id = UserId::new(Uuid::new_v4(), domain);
 
-        let user = CoreUser::new(
-            user_id,
-            &path,
-            push_token.map(|p| p.into()),
-            invitation_code,
-        )
-        .await?;
+        let user = CoreUser::new(user_id, &path, push_token.map(|p| p.into()), challenge)
+            .await
+            .map_err(CreateUserError::from_anyhow)?;
 
         let user_profile = UserProfile {
             user_id: user.user_id().clone(),
-            display_name: display_name.parse()?,
+            display_name: display_name.parse().map_err(into_create_user_error)?,
             profile_picture: profile_picture.map(Asset::Value),
         };
 

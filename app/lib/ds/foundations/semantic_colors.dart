@@ -56,12 +56,39 @@ class BackgroundMaterial {
 class TextPalette {
   final Color primary, secondary, tertiary, quaternary;
 
-  const TextPalette({
+  TextPalette({
     required this.primary,
     required this.secondary,
     required this.tertiary,
     required this.quaternary,
   });
+
+  final Map<int, TextPalette> _opaque = {};
+
+  /// All four slots composited onto [background], each fully opaque.
+  TextPalette on(Color background) {
+    assert(background.a == 1.0, 'background must be opaque: $background');
+    assert(
+      _opaque.length < 16,
+      'text palette cache growing too much: are you pushing animated values?',
+    );
+    // Keyed on the packed value, which is unique here: the assert above fixes
+    // the alpha byte at 0xFF.
+    return _opaque[background.toARGB32()] ??= TextPalette(
+      primary: primary.on(background),
+      secondary: secondary.on(background),
+      tertiary: tertiary.on(background),
+      quaternary: quaternary.on(background),
+    );
+  }
+}
+
+extension OpaqueOn on Color {
+  /// This color composited onto [background], fully opaque.
+  Color on(Color background) {
+    assert(background.a == 1.0, 'background must be opaque: $background');
+    return Color.alphaBlend(this, background);
+  }
 }
 
 class SeparatorPalette {

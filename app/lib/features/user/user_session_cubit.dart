@@ -8,7 +8,7 @@ import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/widgets.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -93,12 +93,14 @@ class UserSessionCubit extends Cubit<UserSessionState> {
   }
 
   Future<void> _syncLocale() async {
-    final userLocaleCode = _userSettingsCubit.state.locale;
+    final userLocale = localeFromTag(_userSettingsCubit.state.locale);
     final appLocale = _appLocaleCubit.state;
-    if (userLocaleCode != null) {
-      _appLocaleCubit.setLocale(Locale(userLocaleCode));
+    if (userLocale != null) {
+      // Sync UI locale with persisted user preference.
+      _appLocaleCubit.setLocale(userLocale);
     } else if (appLocale != null) {
-      await _userSettingsCubit.setLocale(value: appLocale.languageCode);
+      // Persist pre-user selection once the user exists.
+      await _userSettingsCubit.setLocale(value: localeToTag(appLocale));
     }
   }
 }

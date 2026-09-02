@@ -25,6 +25,7 @@ use aircommon::{
     },
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
+    registration::RegistrationChallenge,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 pub use airprotos::delivery_service::v1::StorageObjectType;
@@ -41,6 +42,7 @@ use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
+use tonic::Status;
 use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
@@ -78,6 +80,8 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use message::MarkChatAsRead;
+
 pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
@@ -98,6 +102,7 @@ mod persistence;
 pub mod process;
 pub(crate) mod push_token_state;
 mod reactions;
+pub mod registration;
 mod remove_users;
 pub(crate) mod safety_code;
 pub mod store;
@@ -153,9 +158,9 @@ impl CoreUser {
         user_id: UserId,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
-        Self::new_impl(user_id, None, db_path, push_token, invitation_code).await
+        Self::new_impl(user_id, None, db_path, push_token, challenge).await
     }
 
     /// Same as [`new`], but allows to override the server URL.
@@ -165,9 +170,9 @@ impl CoreUser {
         server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
-        Self::new_impl(user_id, server_url, db_path, push_token, invitation_code).await
+        Self::new_impl(user_id, server_url, db_path, push_token, challenge).await
     }
 
     async fn new_impl(
@@ -175,7 +180,7 @@ impl CoreUser {
         server_url: Option<Url>,
         db_path: &str,
         push_token: Option<PushToken>,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         info!(?user_id, "creating new user");
 
@@ -196,7 +201,7 @@ impl CoreUser {
             air_db,
             client_db,
             global_lock,
-            invitation_code,
+            challenge,
         )
         .await
     }
@@ -210,22 +215,22 @@ impl CoreUser {
         air_db: DbAccess,
         client_db: DbAccess,
         global_lock: GlobalLock,
-        invitation_code: String,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state = UserCreationState::new(
-            &client_db,
-            &air_db,
-            user_id,
-            client_record_id,
-            push_token,
-            invitation_code,
-        )
-        .await?;
+        let user_creation_state =
+            UserCreationState::new(&client_db, &air_db, user_id, client_record_id, push_token)
+                .await?;
 
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
+            .complete_user_creation(
+                &air_db,
+                &client_db,
+                client_record_id,
+                &api_clients,
+                challenge,
+            )
             .await?;
 
         OwnClientInfo {
@@ -280,8 +285,10 @@ impl CoreUser {
             .await?
             .context("missing user creation state")?;
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
+        // A resumed registration carries no challenge. If the AS step is still
+        // pending and the server wants one, the caller is told to ask again.
         let final_state = user_creation_state
-            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients)
+            .complete_user_creation(&air_db, &client_db, client_record_id, &api_clients, None)
             .await?;
 
         ClientRecord::set_default(air_db.write().await?, client_record_id).await?;
@@ -460,33 +467,28 @@ impl CoreUser {
     ///
     /// Returns the list of [`ChatId`]s of any newly created chats.
     pub async fn fetch_and_process_username_messages(&self) -> Result<Vec<ChatId>> {
-        let records = self.username_records().await?;
-        let api_client = self.api_client()?;
         let mut chat_ids = Vec::new();
-        for record in records {
-            let (mut stream, responder) = api_client
-                .as_listen_username(record.hash, &record.signing_key)
-                .await?;
-            while let Some(Some(message)) = stream.next().await {
-                let Some(message_id) = message.message_id else {
-                    error!("no message id in username queue message");
-                    continue;
-                };
-                match self
-                    .process_username_queue_message(record.username.clone(), message)
-                    .await
-                {
-                    Ok(chat_id) => {
-                        chat_ids.push(chat_id);
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to process username queue message");
-                    }
+        Self::drain_username_messages(self, async |record, responder, message| {
+            let Some(message_id) = message.message_id else {
+                error!("no message id in username queue message");
+                return false;
+            };
+            match self
+                .process_username_queue_message(record.username.clone(), message)
+                .await
+            {
+                Ok(chat_id) => {
+                    chat_ids.push(chat_id);
                 }
-                // ack the message independently of the result of processing the message
-                responder.ack(message_id.into()).await;
+                Err(error) => {
+                    error!(%error, "failed to process username queue message");
+                }
             }
-        }
+            // ack the message independently of the result of processing the message
+            responder.ack(message_id.into()).await;
+            true
+        })
+        .await?;
         Ok(chat_ids)
     }
 
@@ -494,24 +496,62 @@ impl CoreUser {
     ///
     /// Used in integration tests
     pub async fn fetch_username_messages(&self) -> Result<Vec<UsernameQueueMessage>> {
+        let mut messages = Vec::new();
+        Self::drain_username_messages(self, async |_record, responder, message| {
+            let Some(message_id) = message.message_id else {
+                error!("no message id in username queue message");
+                return false;
+            };
+            // ack the message independently of the result of processing the message
+            responder.ack(message_id.into()).await;
+            messages.push(message);
+            true
+        })
+        .await?;
+        Ok(messages)
+    }
+
+    async fn drain_username_messages(
+        &self,
+        mut on_message: impl AsyncFnMut(
+            &UsernameRecord,
+            &AsListenUsernameResponder,
+            UsernameQueueMessage,
+        ) -> bool,
+    ) -> Result<()> {
         let records = self.username_records().await?;
         let api_client = self.api_client()?;
-        let mut messages = Vec::new();
+
         for record in records {
+            let mut acked_anything = false;
             let (mut stream, responder) = api_client
                 .as_listen_username(record.hash, &record.signing_key)
                 .await?;
-            while let Some(Some(message)) = stream.next().await {
-                let Some(message_id) = message.message_id else {
-                    error!("no message id in username queue message");
-                    continue;
-                };
-                // ack the message independently of the result of processing the message
-                responder.ack(message_id.into()).await;
-                messages.push(message);
+            let drained = loop {
+                match stream.next().await {
+                    // Incoming message
+                    Some(Ok(Some(message))) => {
+                        if on_message(&record, &responder, message).await {
+                            acked_anything = true;
+                        }
+                    }
+                    // Queue empty marker => drain done, confirm acks below
+                    Some(Ok(None)) => break true,
+                    // Terminal status => stream is over, ack not confirmed
+                    Some(Err(error)) => {
+                        warn!(%error, "username listen stream failed during drain");
+                        break false;
+                    }
+                    // EOF without our half-close (old server) => stream is over
+                    None => break false,
+                }
+            };
+            if drained && acked_anything {
+                // half-close the request stream, then wait for the server to apply all acks
+                responder.close(&mut stream).await;
             }
         }
-        Ok(messages)
+        Ok(())
     }
 
     /// Fetches all messages from the QS queue.
@@ -521,7 +561,7 @@ impl CoreUser {
         let (mut stream, _responder) = self.listen_queue().await?;
         let mut messages: Vec<QueueMessage> = Vec::new();
 
-        while let Some(message) = stream.next().await {
+        while let Some(Ok(message)) = stream.next().await {
             match message.event {
                 Some(listen_response::Event::Empty(_)) => break,
                 Some(listen_response::Event::Message(queue_message)) => {
@@ -627,20 +667,13 @@ impl CoreUser {
 
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        self.try_chat_participants(chat_id)
+        Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
             .await
-            .inspect_err(|e| error!(?e, "Error loading chat participants"))
-            .ok()?
-    }
-
-    pub(crate) async fn try_chat_participants(
-        &self,
-        chat_id: ChatId,
-    ) -> Result<Option<HashSet<UserId>>> {
-        let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
-            return Ok(None);
-        };
-        Ok(Some(group.participants()?))
+            .inspect_err(|error| {
+                error!(%error, %chat_id, "Failed to load chat participants");
+            })
+            .ok()
+            .flatten()
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
@@ -658,9 +691,9 @@ impl CoreUser {
 
     pub async fn listen_queue(
         &self,
-    ) -> std::result::Result<
+    ) -> Result<
         (
-            impl Stream<Item = ListenResponse> + use<>,
+            impl Stream<Item = Result<ListenResponse, Status>> + use<>,
             QsListenResponder,
         ),
         ListenQueueError,
@@ -686,7 +719,7 @@ impl CoreUser {
     pub async fn listen_username(
         &self,
         username_record: &UsernameRecord,
-    ) -> std::result::Result<
+    ) -> Result<
         (
             impl Stream<Item = Option<UsernameQueueMessage>> + Send + 'static,
             AsListenUsernameResponder,
@@ -698,7 +731,14 @@ impl CoreUser {
             .as_listen_username(username_record.hash, &username_record.signing_key)
             .await
         {
-            Ok(ok) => Ok(ok),
+            Ok((stream, responder)) => Ok((
+                stream.map_while(|result| {
+                    result
+                        .inspect_err(|error| error!(%error, "username listen stream failed"))
+                        .ok()
+                }),
+                responder,
+            )),
             Err(error) => {
                 // We remove the username locally if it is not found
                 if error.is_not_found() {

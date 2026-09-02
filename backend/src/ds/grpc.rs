@@ -14,7 +14,7 @@ use aircommon::{
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
         self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        UserProfileKeyUpdateParams, WelcomeInfoParams,
+        UserProfileKeyUpdateParams,
     },
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
@@ -29,12 +29,14 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
-use chrono::TimeDelta;
+use chrono::{TimeDelta, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     group::Group,
     messages::{AssistedMessageIn, SerializedMlsMessage},
-    openmls::prelude::{LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender},
+    openmls::prelude::{
+        LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender, SignaturePublicKey,
+    },
 };
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
@@ -55,9 +57,10 @@ use crate::{
 };
 
 use super::{
-    Ds,
+    Ds, WELCOME_INFO_EXPIRATION,
     group_operation::AddUsersState,
     group_state::{DsGroupState, StorableDsGroupData},
+    welcome_info::DsWelcomeInfo,
 };
 
 pub struct GrpcDs<Qep: QsConnector, As: AsConnector> {
@@ -123,6 +126,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         //    return Err(LoadGroupStateError::Expired);
         //}
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
+
         Ok((group_data, group_state))
     }
 
@@ -281,15 +285,22 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         &self,
         txn: &mut PgTransaction<'_>,
         mut group_data: StorableDsGroupData<true>,
-        group_state: DsGroupState,
+        mut group_state: DsGroupState,
         ear_key: &GroupStateEarKey,
     ) -> Result<(), Status> {
+        let group_id = group_data.group_uuid();
+
+        group_state
+            .write_staged_welcome_infos(txn, group_id, ear_key)
+            .await?;
+
         let encrypted_group_state = group_state.encrypt(ear_key)?;
         group_data.encrypted_group_state = encrypted_group_state;
         group_data.update(txn).await.map_err(|error| {
             error!(%error, "Failed to update group state");
             Status::internal("Failed to update group state")
         })?;
+
         Ok(())
     }
 
@@ -311,6 +322,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let value = f(&mut group_state, &mut group_data).await?;
         let new_epoch = group_state.group().epoch().as_u64();
+        // These callers never reach a new epoch a Welcome could refer to, so
+        // the outbox only ever carries migrated legacy entries.
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
             .await?;
 
@@ -319,10 +332,20 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             Status::internal("Failed to commit transaction")
         })?;
 
-        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
+        self.cleanup_after_commit(qgid.group_uuid(), new_epoch)
+            .await;
+
+        Ok(value)
+    }
+
+    /// Best-effort cleanup of the per-epoch tables of a group.
+    ///
+    /// Called after the transaction is committed, so failures here are
+    /// non-fatal: the next commit sweeps again.
+    async fn cleanup_after_commit(&self, group_id: uuid::Uuid, new_epoch: u64) {
         super::collision_tags::delete_old(
             &self.ds.db_pool,
-            qgid.group_uuid(),
+            group_id,
             new_epoch,
             MAX_PAST_EPOCHS as u64,
         )
@@ -332,7 +355,17 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         })
         .ok();
 
-        Ok(value)
+        self.sweep_welcome_info(group_id).await;
+    }
+
+    /// Best-effort sweep of a group's expired welcome information.
+    async fn sweep_welcome_info(&self, group_id: uuid::Uuid) {
+        DsWelcomeInfo::delete_expired(&self.ds.db_pool, group_id, WELCOME_INFO_EXPIRATION)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to clean up expired welcome info");
+            })
+            .ok();
     }
 
     /// Verifies the given request and applies the necessary changes to the
@@ -388,16 +421,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             Status::internal("Failed to commit transaction")
         })?;
 
-        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
-        super::collision_tags::delete_old(
-            &self.ds.db_pool,
-            qgid.group_uuid(),
-            new_epoch,
-            MAX_PAST_EPOCHS as u64,
-        )
-        .await
-        .inspect_err(|error| error!(%error, "Failed to clean up old collision tags"))
-        .ok();
+        self.cleanup_after_commit(qgid.group_uuid(), new_epoch)
+            .await;
 
         Ok(value)
     }
@@ -540,18 +565,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             };
         }
 
-        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
-        super::collision_tags::delete_old(
-            &self.ds.db_pool,
-            t_qgid.group_uuid(),
-            t_new_epoch,
-            MAX_PAST_EPOCHS as u64,
-        )
-        .await
-        .inspect_err(|error| {
-            error!(%error, "Failed to clean up old collision tags");
-        })
-        .ok();
+        self.cleanup_after_commit(t_qgid.group_uuid(), t_new_epoch)
+            .await;
+        self.sweep_welcome_info(pq_qgid.group_uuid()).await;
 
         Ok(value)
     }
@@ -560,8 +576,11 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
-        let client_version_req = self.ds.client_version_req.as_ref();
-        crate::version::verify_client_version(client_version_req, client_metadata)
+        let verified = self
+            .ds
+            .version_policy
+            .verify_client_version(client_metadata, Utc::now())?;
+        Ok(verified.version)
     }
 }
 
@@ -710,6 +729,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
+
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
 
@@ -827,6 +853,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .as_ref()
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Echoing the group bootstrap to the creator's other clients lands with
+        // the DS-side part of multi-client group creation.
+        if payload.group_bootstrap.is_some() {
+            return Err(Status::unimplemented("group bootstrap"));
+        }
 
         // Extract chat related data
         let encrypted_user_profile_key = payload
@@ -976,24 +1008,50 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-        let (_, mut group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
-            .await
-            .map_err(to_status)?;
-
         let welcome_epoch = payload.epoch.ok_or_missing_field("epoch")?.into();
-        let welcome_info_params = WelcomeInfoParams {
-            sender: sender.clone(),
-            epoch: welcome_epoch,
-            group_id: qgid.into(),
-        };
-        let profiles_at_epoch = group_state.member_profiles_at(welcome_epoch);
-        let room_state_at_epoch = group_state.room_state_at(welcome_epoch);
-        let ratchet_tree = group_state
-            .welcome_info(welcome_info_params)
-            .ok_or(NoWelcomeInfoFound)?;
+        let joiner = SignaturePublicKey::from(sender);
 
-        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles_at_epoch
+        let encrypted_record =
+            DsWelcomeInfo::load(&self.ds.db_pool, qgid.group_uuid(), welcome_epoch)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to load welcome info");
+                    Status::internal("Failed to load welcome info")
+                })?;
+
+        // Both the wrong key and a joiner this epoch never added look the same
+        // from the outside, so the endpoint does not report whether the row is
+        // there.
+        let ds_welcome_info = match encrypted_record {
+            Some(ciphertext) => {
+                DsWelcomeInfo::decrypt(&ear_key, &ciphertext, qgid.group_uuid(), welcome_epoch)
+                    .map_err(|error| {
+                        warn!(%error, "Failed to decrypt welcome info");
+                        NoWelcomeInfoFound
+                    })?
+            }
+            // A Welcome issued before the move to `ds_welcome_info`. Remove with
+            // the rest of the legacy path.
+            None => {
+                let (_, group_state) = self
+                    .load_group_state_immutable(&qgid, &ear_key)
+                    .await
+                    .map_err(to_status)?;
+                group_state
+                    .legacy_welcome_info(welcome_epoch)
+                    .ok_or(NoWelcomeInfoFound)?
+            }
+        };
+
+        if !ds_welcome_info.is_authorized(&joiner) {
+            return Err(NoWelcomeInfoFound.into());
+        }
+        let (ratchet_tree, profiles, room_state) =
+            ds_welcome_info.into_parts().ok_or(NoWelcomeInfoFound)?;
+
+        let ratchet_tree = ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?;
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) = profiles
             .into_iter()
             .fold((Vec::new(), Vec::new()), |(mut a, mut b), (index, key)| {
                 a.push(key.clone().into());
@@ -1005,10 +1063,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             });
 
         Ok(Response::new(WelcomeInfoResponse {
-            ratchet_tree: Some(ratchet_tree.try_ref_into().invalid_tls("ratchet_tree")?),
+            ratchet_tree: Some(ratchet_tree),
             encrypted_user_profile_keys,
             room_state: Some(
-                room_state_at_epoch
+                room_state
                     .unverified()
                     .try_ref_into()
                     .invalid_tls("room_state")?,
@@ -1093,6 +1151,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .map(|info| info.proposals.into_iter().map(From::from).collect())
                 .unwrap_or_default(),
         }))
+    }
+
+    // Storing snapshots and serving them lands with the DS-side part of
+    // multi-client group creation.
+    async fn epoch_snapshot(
+        &self,
+        _request: Request<EpochSnapshotRequest>,
+    ) -> Result<Response<EpochSnapshotResponse>, Status> {
+        Err(Status::unimplemented("epoch snapshot"))
     }
 
     async fn connection_group_info(
@@ -1617,15 +1684,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(t_sender_index)
                     .collect();
 
-                let pq_serialized = pq_group_state.delete_pq_group(pq_message)?;
-                let t_serialized = t_group_state.delete_group(t_message)?;
+                let serialized_apq_message = DsGroupState::delete_apq_group(
+                    t_group_state,
+                    pq_group_state,
+                    t_message,
+                    pq_message,
+                )?;
 
                 t_group_state.proposals.clear();
                 pq_group_state.proposals.clear();
 
                 let timestamp = TimeStamp::now();
-                let serialized_apq_message =
-                    SerializedMlsMessage::combine_apq(t_serialized, pq_serialized);
                 let apq_payload =
                     QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
 

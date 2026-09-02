@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
@@ -13,9 +14,16 @@ import 'package:flutter/material.dart';
 const _scrollbarBottomInset = S.s64;
 
 class ChatListView extends StatefulWidget {
-  const ChatListView({super.key, this.scaffold = false});
+  const ChatListView({
+    super.key,
+    this.scaffold = false,
+    this.shareMode = false,
+  });
 
   final bool scaffold;
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
 
   @override
   State<ChatListView> createState() => _ChatListViewState();
@@ -35,7 +43,7 @@ class _ChatListViewState extends State<ChatListView> {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = chatListBackgroundColor(context);
+    final bgColor = PanelSurface.colorOf(context);
     // On a phone the list runs behind the status bar, so the header carries
     // that inset itself and the list reserves the bar's height plus the
     // clearance below it. Read from the same device type the header's tokens
@@ -49,9 +57,14 @@ class _ChatListViewState extends State<ChatListView> {
       trackTop: headerHeight,
       trackBottom: _scrollbarBottomInset,
       child: ChatListContent(
-        header: _Header(scrollOffset: _scrollOffset, topInset: safeTop),
+        header: _Header(
+          scrollOffset: _scrollOffset,
+          topInset: safeTop,
+          shareMode: widget.shareMode,
+        ),
         headerHeight: headerHeight,
         onScrollOffset: (offset) => _scrollOffset.value = offset,
+        shareMode: widget.shareMode,
       ),
     );
     return widget.scaffold
@@ -75,7 +88,11 @@ class _ChatListViewState extends State<ChatListView> {
 
 /// The header, rebuilt on scroll on its own so the list behind it is not.
 class _Header extends StatelessWidget {
-  const _Header({required this.scrollOffset, required this.topInset});
+  const _Header({
+    required this.scrollOffset,
+    required this.topInset,
+    required this.shareMode,
+  });
 
   final ValueNotifier<double>? scrollOffset;
 
@@ -83,11 +100,14 @@ class _Header extends StatelessWidget {
   /// rely on a SafeArea to clear the notch.
   final double topInset;
 
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(top: topInset),
-      child: ChatListHeader(scrollOffset: scrollOffset),
+      child: ChatListHeader(scrollOffset: scrollOffset, shareMode: shareMode),
     );
   }
 }

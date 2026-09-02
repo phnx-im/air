@@ -2,16 +2,22 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
+import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../helpers.dart';
 import '../../mocks.dart';
@@ -20,17 +26,56 @@ import '../../mocks.dart';
 /// past it.
 const _validCode = 'ABCD2345';
 
+/// A server that admits anyone without a challenge.
+const _openRegistration = RegistrationInfo(
+  challengeRequired: false,
+  acceptedChallenges: [ChallengeKind.invitationCode],
+);
+
+/// A server that gates registration behind something this build cannot answer.
+const _unsupportedRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [],
+);
+
+/// A gated server that takes either an admission session or a code.
+const _gatedRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [
+    ChallengeKind.invitationCode,
+    ChallengeKind.admissionSession,
+  ],
+);
+
+/// A gated server that takes nothing but an admission session.
+const _sessionOnlyRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [ChallengeKind.admissionSession],
+);
+
+AdmissionSession _admissionSession() => AdmissionSession(
+  sessionId: UuidValue.fromString('7f4a4d4c-0000-4000-8000-000000000001'),
+  challenge: 'a1b2c3',
+);
+
 void main() {
   group('AccountCreationFlow', () {
     late MockRegistrationCubit registrationCubit;
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
+    late MockUserSessionCubit userSessionCubit;
 
     setUp(() {
       registrationCubit = MockRegistrationCubit();
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
+      userSessionCubit = MockUserSessionCubit();
 
+      // No user until the account is created between the profile and username
+      // steps. Tests that reach the created-account state override this.
+      when(
+        () => userSessionCubit.state,
+      ).thenReturn(const UserSessionState(loggedOut: true));
       when(() => navigationCubit.state).thenReturn(
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
@@ -49,6 +94,7 @@ void main() {
         BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
         BlocProvider<UserCubit>.value(value: userCubit),
+        BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
       ],
       child: Builder(
         builder: (context) => MaterialApp(
@@ -185,6 +231,40 @@ void main() {
       );
     });
 
+    testWidgets('a rebuild after account creation resumes on the username', (
+      tester,
+    ) async {
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: _validCode,
+          displayName: 'Ellie',
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+      await submit(tester, 'Join Air');
+      await submit(tester, 'Create');
+      expect(find.text('Add a username'), findsOneWidget);
+
+      // Creating the account loads the user, which in the app swaps the intro
+      // subtree for the logged-in one and tears down this flow. Mimic that:
+      // drop the widget entirely, mark the user loaded, then build a brand-new
+      // flow.
+      when(
+        () => userSessionCubit.state,
+      ).thenReturn(UserSessionState(user: MockUser()));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      // The rebuilt flow must resume on the username step. Without reading the
+      // loaded user, the fresh state drops back to the first (invite code)
+      // step.
+      expect(find.text('Add a username'), findsOneWidget);
+      expect(find.text('Enter invite code'), findsNothing);
+    });
+
     testWidgets('skipping the username enters the app', (tester) async {
       when(() => registrationCubit.state).thenReturn(
         const RegistrationState(
@@ -214,5 +294,183 @@ void main() {
         matchesGoldenFile('goldens/account_creation_code_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    group('open registration', () {
+      setUp(() {
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(
+            displayName: 'Ellie',
+            registrationInfo: _openRegistration,
+          ),
+        );
+      });
+
+      testWidgets('opens on the profile', (tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Enter invite code'), findsNothing);
+      });
+
+      testWidgets('the profile step has nothing to go back to', (tester) async {
+        // Nothing typed, so the dismiss guard has nothing to ask about.
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(registrationInfo: _openRegistration),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(DialogHeaderAction));
+        await tester.pumpAndSettle();
+
+        verify(() => navigationCubit.pop()).called(1);
+      });
+
+      testWidgets('signs up with no code and reaches the username', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        await submit(tester, 'Create');
+
+        verify(() => registrationCubit.signUp()).called(1);
+        verifyNever(() => registrationCubit.submitInvitationCode());
+        expect(find.text('Add a username'), findsOneWidget);
+      });
+
+      testWidgets('a gate that closes mid-flow reroutes to the code', (
+        tester,
+      ) async {
+        when(() => registrationCubit.signUp()).thenAnswer((_) async {
+          // The cubit records the requirement before returning, which is what
+          // puts the step into the flow.
+          when(() => registrationCubit.state).thenReturn(
+            const RegistrationState(
+              displayName: 'Ellie',
+              registrationInfo: RegistrationInfo(
+                challengeRequired: true,
+                acceptedChallenges: [ChallengeKind.invitationCode],
+              ),
+            ),
+          );
+          return const SignUpError(code: .challengeRequired);
+        });
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        await submit(tester, 'Create');
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+      });
+    });
+
+    group('admission session', () {
+      testWidgets('a session in hand skips the code step', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          RegistrationState(
+            displayName: 'Ellie',
+            registrationInfo: _gatedRegistration,
+            admissionSession: _admissionSession(),
+            admissionExpiresAt: DateTime.now().toUtc().add(
+              const Duration(minutes: 5),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Enter invite code'), findsNothing);
+      });
+
+      testWidgets('an expired session falls back to the code', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          RegistrationState(
+            invitationCode: _validCode,
+            registrationInfo: _gatedRegistration,
+            admissionSession: _admissionSession(),
+            admissionExpiresAt: DateTime.now().toUtc().subtract(
+              const Duration(seconds: 1),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+      });
+
+      testWidgets('no session falls back to the code', (tester) async {
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(registrationInfo: _gatedRegistration),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+      });
+
+      /// Asking for a code the server ignores would be the wrong dead end.
+      testWidgets('a server that takes nothing else is a dead end', (
+        tester,
+      ) async {
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(registrationInfo: _sessionOnlyRegistration),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Update required'), findsOneWidget);
+      });
+    });
+
+    testWidgets('an unanswerable challenge is a dead end', (tester) async {
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(registrationInfo: _unsupportedRegistration),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Update required'), findsOneWidget);
+      // Nothing on the step carries the flow forward.
+      expect(find.text('Join Air'), findsNothing);
+      expect(find.text('Create'), findsNothing);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/account_creation_unsupported.png'),
+      );
+    });
+
+    testWidgets('a dead end clears once the server opens up', (tester) async {
+      final states = StreamController<RegistrationState>();
+      addTearDown(states.close);
+      whenListen(
+        registrationCubit,
+        states.stream,
+        initialState: const RegistrationState(
+          registrationInfo: _unsupportedRegistration,
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+      expect(find.text('Update required'), findsOneWidget);
+
+      states.add(const RegistrationState(registrationInfo: _openRegistration));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Update required'), findsNothing);
+      expect(find.text('Create your profile'), findsOneWidget);
+    });
   });
 }

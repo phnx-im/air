@@ -15,11 +15,13 @@ import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_session_scope.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/platform/app_lifecycle_handler.dart';
 import 'package:air/platform/background_service.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/platform/notifications.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +55,9 @@ class _AppState extends State<App> {
   final StreamController<ChatId> _openedNotificationController =
       StreamController<ChatId>();
   late final StreamSubscription<ChatId> _openedNotificationSubscription;
+  final StreamController<ShareHandoff> _shareHandoffController =
+      StreamController<ShareHandoff>();
+  late final StreamSubscription<ShareHandoff> _shareHandoffSubscription;
   final NavigationCubit _navigationCubit = NavigationCubit(
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
@@ -66,19 +71,39 @@ class _AppState extends State<App> {
     super.initState();
     _lifecycleHandler.start();
 
-    initMethodChannel(_openedNotificationController.sink);
+    initMethodChannel(
+      _openedNotificationController.sink,
+      _shareHandoffController.sink,
+    );
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
+    _shareHandoffSubscription = _shareHandoffController.stream.listen(
+      _onShareHandoff,
+    );
 
     // Fetch potential initial notification that launched the app on Android
-    // cold start.
+    // cold start. The share handoff is consumed in `_loadInitialUser`.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
 
     _backgroundService.start(runImmediately: true);
+  }
+
+  /// Routes content the Android share activity handed over.
+  void _onShareHandoff(ShareHandoff handoff) {
+    if (_coreClient.maybeUser == null ||
+        _navigationCubit.state.isCreatingAccount) {
+      _log.info('Dropping a share handoff: no usable user is loaded');
+      unawaited(handoff.share.deleteFiles());
+      return;
+    }
+    _appRouter.dismissOverlays();
+    unawaited(
+      _navigationCubit.openShare(handoff.share, chatId: handoff.chatId),
+    );
   }
 
   @override
@@ -86,6 +111,8 @@ class _AppState extends State<App> {
     _lifecycleHandler.stop();
     _openedNotificationSubscription.cancel();
     _openedNotificationController.close();
+    _shareHandoffSubscription.cancel();
+    _shareHandoffController.close();
     _backgroundService.stop();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
@@ -93,19 +120,24 @@ class _AppState extends State<App> {
   }
 
   /// Loads the client record given on the command line, or the default user.
-  void _loadInitialUser() {
+  Future<void> _loadInitialUser() async {
     final clientRecordId = widget.clientRecordId;
-    if (clientRecordId == null) {
-      _coreClient.loadDefaultUser();
-      return;
+    try {
+      if (clientRecordId == null) {
+        await _coreClient.loadDefaultUser();
+      } else {
+        _log.info(
+          "Loading client record from the command line: $clientRecordId",
+        );
+        await _coreClient.loadUser(clientRecordId: clientRecordId);
+      }
+    } catch (error) {
+      _log.severe(
+        "Error loading client record ${clientRecordId ?? 'default'}: $error",
+      );
     }
-    _log.info("Loading client record from the command line: $clientRecordId");
-    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
-      error,
-      stackTrace,
-    ) {
-      _log.severe("Error loading client record $clientRecordId: $error");
-    });
+    // When loading failed: the share is dropped and files are deleted.
+    await consumeInitialShare(_shareHandoffController.sink);
   }
 
   @override
@@ -121,7 +153,7 @@ class _AppState extends State<App> {
         ),
         BlocProvider<UserSessionCubit>(
           create: (_) {
-            _loadInitialUser();
+            unawaited(_loadInitialUser());
             return UserSessionCubit(
               coreClient: _coreClient,
               navigationCubit: _navigationCubit,
@@ -145,10 +177,8 @@ class _AppState extends State<App> {
                 final appLocale = context.select(
                   (AppLocaleCubit cubit) => cubit.state,
                 );
-                // Prefer persisted user locale; fall back to in-memory selection.
-                final locale = userLocaleCode != null
-                    ? Locale(userLocaleCode)
-                    : appLocale;
+                // Prefer the persisted user locale over the in-memory one.
+                final locale = localeFromTag(userLocaleCode) ?? appLocale;
 
                 return MaterialApp.router(
                   scrollBehavior: const AppScrollBehavior(),

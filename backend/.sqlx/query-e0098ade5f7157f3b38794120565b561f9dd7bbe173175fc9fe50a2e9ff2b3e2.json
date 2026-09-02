@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admission_session SET expires_at = now() - INTERVAL '1 second'\n            WHERE session_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0098ade5f7157f3b38794120565b561f9dd7bbe173175fc9fe50a2e9ff2b3e2"
+}

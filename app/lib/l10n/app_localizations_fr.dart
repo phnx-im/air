@@ -170,7 +170,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Sélectionnez une discussion pour commencer à envoyer des messages';
 
   @override
-  String get removeUserDialog_title => 'Retirer l\'utilisateur';
+  String get removeUserDialog_title => 'Retirer le membre';
 
   @override
   String removeUserDialog_content(String displayName) {
@@ -178,7 +178,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get removeUserDialog_removeUser => 'Retirer l\'utilisateur';
+  String get removeUserDialog_removeUser => 'Retirer le membre';
 
   @override
   String get removeUserButton_text => 'Retirer';
@@ -379,6 +379,13 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String get accountCreation_unsupported_header => 'Mise à jour requise';
+
+  @override
+  String get accountCreation_unsupported_body =>
+      'Ce serveur demande quelque chose que cette version d\'Air ne peut pas fournir. Mettez Air à jour pour continuer.';
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
@@ -408,6 +415,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get signUpScreen_error_emptyDisplayName =>
       'Ajoutez un nom d\'affichage d\'au moins un caractère';
+
+  @override
+  String get signUpScreen_error_challengeRequired =>
+      'Ce serveur demande maintenant un code d\'invitation. Saisissez-en un pour continuer.';
 
   @override
   String signUpScreen_error_register(String error) {
@@ -860,11 +871,6 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String newChatDialog_error_incompatibleClient(String chatName) {
-    return 'Impossible de créer une discussion de groupe avec le nom $chatName car l\'un des contacts a un client incompatible.';
-  }
-
-  @override
   String get newConnectionDialog_newConnectionTitle => 'Ajouter un contact Air';
 
   @override
@@ -1199,6 +1205,44 @@ class AppLocalizationsFr extends AppLocalizations {
   String get groupCreationDetails_emptySelection => 'Aucun membre';
 
   @override
+  String get groupCreationDetails_membersNotAddedTitle =>
+      'Certaines personnes n\'ont pas pu être ajoutées';
+
+  @override
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Votre groupe $groupName a été créé, mais $memberNames n\'ont pas pu être ajoutés.',
+      one:
+          'Votre groupe $groupName a été créé, mais $memberNames n\'a pas pu être ajouté.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count autres personnes',
+      one: '$count autre personne',
+    );
+    return '$memberNames et $_temp0';
+  }
+
+  @override
+  String get groupCreationDetails_membersNotAddedConfirm => 'Okay';
+
+  @override
   String get addMembersScreen_done => 'Terminé';
 
   @override
@@ -1320,6 +1364,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ce contact a une application obsolète qui doit être mise à jour.';
 
   @override
+  String get memberSelectionList_cantBeAddedTitle => 'Impossible à ajouter';
+
+  @override
+  String get memberSelectionList_cantBeAddedDescription =>
+      'Ces personnes ne peuvent pas être ajoutées au groupe. Leur compte n\'est peut-être plus actif ou leur version de l\'application est trop ancienne.';
+
+  @override
   String get homeTab_chats => 'Discussions';
 
   @override
@@ -1351,4 +1402,86 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get emojiPicker_skinToneHelp =>
       'Définit votre teinte de peau par défaut';
+
+  @override
+  String get shareDestination_title => 'Envoyer à…';
+
+  @override
+  String get shareScreen_title => 'Partager vers Air';
+
+  @override
+  String get shareScreen_searchHint => 'Chercher';
+
+  @override
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'À : $first, $second et $third',
+      two: 'À : $first et $second',
+      one: 'À : $first',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String shareScreen_recipientsMore(String first, String second, int rest) {
+    return 'À : $first, $second et $rest autres';
+  }
+
+  @override
+  String get shareScreen_captionHint => 'Ajouter un message';
+
+  @override
+  String get shareScreen_signedOutMessage =>
+      'Connectez-vous d\'abord à Air pour partager du contenu.';
+
+  @override
+  String get shareScreen_noChats => 'Aucune discussion trouvée.';
+
+  @override
+  String shareScreen_uploading(int current, int total) {
+    return 'Envoi de $current sur $total…';
+  }
+
+  @override
+  String get shareScreen_sending => 'Envoi en cours…';
+
+  @override
+  String get shareScreen_queued =>
+      'Envoi impossible pour le moment. Votre message est enregistré et sera envoyé à la prochaine ouverture d\'Air.';
+
+  @override
+  String get shareScreen_done => 'Terminé';
+
+  @override
+  String get shareScreen_sendFailed => 'Échec de l\'envoi. Réessayez.';
+
+  @override
+  String shareScreen_tooManyAttachments(int max) {
+    return 'Trop de fichiers. Vous pouvez partager jusqu\'à $max fichiers à la fois.';
+  }
+
+  @override
+  String shareScreen_droppedItems(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count éléments n\'ont pas pu être partagés.',
+      one: '$count élément n\'a pas pu être partagé.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareScreen_nothingToShare =>
+      'Ce contenu n\'a pas pu être partagé vers Air.';
+
+  @override
+  String get shareScreen_close => 'Fermer';
 }

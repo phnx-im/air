@@ -13,7 +13,9 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
+import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_pt.dart';
 import 'app_localizations_sv.dart';
 
 // ignore_for_file: type=lint
@@ -104,7 +106,10 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('de'),
     Locale('en'),
+    Locale('es'),
     Locale('fr'),
+    Locale('pt'),
+    Locale('pt', 'PT'),
     Locale('sv'),
   ];
 
@@ -393,7 +398,7 @@ abstract class AppLocalizations {
   /// Title of the dialog confirming removal of a member from a group.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_title;
 
   /// Body of the remove member dialog, naming the person to be removed.
@@ -405,7 +410,7 @@ abstract class AppLocalizations {
   /// Confirming button of the remove member dialog.
   ///
   /// In en, this message translates to:
-  /// **'Remove user'**
+  /// **'Remove member'**
   String get removeUserDialog_removeUser;
 
   /// Button on a member's profile that starts removing them from the group.
@@ -732,6 +737,18 @@ abstract class AppLocalizations {
   /// **'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}'**
   String invitationCodesScreen_codesClipboardMessage(String codes);
 
+  /// Header of the sign up step shown when the server asks for a kind of sign up check this version of the app cannot answer.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get accountCreation_unsupported_header;
+
+  /// Explains that sign up cannot continue until the app is updated. Shown only when none of the server's accepted challenge kinds are supported, so it must not suggest an invite code.
+  ///
+  /// In en, this message translates to:
+  /// **'This server asks for something this version of Air cannot provide. Update Air to continue.'**
+  String get accountCreation_unsupported_body;
+
   /// Header of the profile step during sign up.
   ///
   /// In en, this message translates to:
@@ -785,6 +802,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a display name of at least one character'**
   String get signUpScreen_error_emptyDisplayName;
+
+  /// Error shown when the server started requiring an invite code while the sign up form was open, and the flow returns to the code step.
+  ///
+  /// In en, this message translates to:
+  /// **'This server now asks for an invite code. Enter one to carry on.'**
+  String get signUpScreen_error_challengeRequired;
 
   /// Error shown when account registration fails. The placeholder carries an untranslated technical message.
   ///
@@ -1363,7 +1386,7 @@ abstract class AppLocalizations {
   /// **'Now'**
   String get timestamp_now;
 
-  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the source.
+  /// Timestamp for a message sent minutes ago, abbreviated to fit next to the message. Keep it as short as the locale's standard minutes abbreviation allows.
   ///
   /// In en, this message translates to:
   /// **'{count}m'**
@@ -1488,12 +1511,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to create new group chat with name {chatName}'**
   String newChatDialog_error(String chatName);
-
-  /// Error shown when a group cannot be created because a member runs an app version that is too old.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t create new group chat with name {chatName} because one of the contacts has an incompatible client.'**
-  String newChatDialog_error_incompatibleClient(String chatName);
 
   /// Title of the dialog for adding an Air contact by username.
   ///
@@ -2047,6 +2064,37 @@ abstract class AppLocalizations {
   /// **'No members'**
   String get groupCreationDetails_emptySelection;
 
+  /// Title of the dialog shown when the group was created but some picked members could not be added.
+  ///
+  /// In en, this message translates to:
+  /// **'Some people couldn\'t be added'**
+  String get groupCreationDetails_membersNotAddedTitle;
+
+  /// Body of that dialog, naming the group and the members that were left out.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {Your group {groupName} was created, but {memberNames} couldn\'t be added.} other {Your group {groupName} was created, but {memberNames} couldn\'t be added.}}'**
+  String groupCreationDetails_membersNotAddedMessage(
+    int count,
+    String groupName,
+    String memberNames,
+  );
+
+  /// Shortens a long list of left out members to the first few names plus a count of the rest.
+  ///
+  /// In en, this message translates to:
+  /// **'{memberNames} and {count, plural, one {{count} other} other {{count} others}}'**
+  String groupCreationDetails_membersNotAddedOthers(
+    String memberNames,
+    int count,
+  );
+
+  /// Button that dismisses the dialog about members that could not be added.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get groupCreationDetails_membersNotAddedConfirm;
+
   /// Button that confirms the picked members and adds them to the group.
   ///
   /// In en, this message translates to:
@@ -2263,6 +2311,18 @@ abstract class AppLocalizations {
   /// **'This contact has an outdated app which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
 
+  /// Header of the list section holding contacts that cannot be added to the group.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t be added'**
+  String get memberSelectionList_cantBeAddedTitle;
+
+  /// Explains why the contacts under the “Can't be added” header cannot be picked.
+  ///
+  /// In en, this message translates to:
+  /// **'These people can\'t be added to the group. This could be because their account is no longer active or because their app version is too old.'**
+  String get memberSelectionList_cantBeAddedDescription;
+
   /// Label of the chats tab in the bottom bar and sidebar. Use the glossary term for chat.
   ///
   /// In en, this message translates to:
@@ -2322,6 +2382,113 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sets your default skin tone'**
   String get emojiPicker_skinToneHelp;
+
+  /// Title of the screen that asks which chat shared content should go to (Android). Tapping a chat opens it with the content in the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Send to…'**
+  String get shareDestination_title;
+
+  /// Title of the screen that receives content shared from another app.
+  ///
+  /// In en, this message translates to:
+  /// **'Share to Air'**
+  String get shareScreen_title;
+
+  /// Placeholder of the chat search field on the share screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get shareScreen_searchHint;
+
+  /// Line above the shared content naming the chats it is sent to. The last arm is reached with exactly three chats, as a longer list uses shareScreen_recipientsMore instead. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {To: {first}} =2 {To: {first} and {second}} other {To: {first}, {second} and {third}}}'**
+  String shareScreen_recipients(
+    int count,
+    String first,
+    String second,
+    String third,
+  );
+
+  /// The same line for more than three chats, naming two of them and counting the rest. The count is always two or more.
+  ///
+  /// In en, this message translates to:
+  /// **'To: {first}, {second} and {rest} more'**
+  String shareScreen_recipientsMore(String first, String second, int rest);
+
+  /// Placeholder of the field for a message sent alongside the shared content.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a message'**
+  String get shareScreen_captionHint;
+
+  /// Shown on the share screen when nobody is signed in yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to Air first to share content.'**
+  String get shareScreen_signedOutMessage;
+
+  /// Shown when the chat search on the share screen matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats found.'**
+  String get shareScreen_noChats;
+
+  /// Progress while the shared files upload, counting the one in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {current} of {total}…'**
+  String shareScreen_uploading(int current, int total);
+
+  /// Progress while the shared content is sent to the chosen chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get shareScreen_sending;
+
+  /// Shown when sharing could not finish and the message waits for the next app start.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send right now. Your message is saved and will be sent when you next open Air.'**
+  String get shareScreen_queued;
+
+  /// Confirmation that the shared content reached the chat.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get shareScreen_done;
+
+  /// Shown when sharing failed and the person can retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send. Try again.'**
+  String get shareScreen_sendFailed;
+
+  /// Shown when more files were shared than one message can carry.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many files. You can share up to {max} files at once.'**
+  String shareScreen_tooManyAttachments(int max);
+
+  /// Notice on the share screen when the system handed over fewer items than were shared. Provide the plural forms your language needs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} item couldn\'t be shared.} other {{count} items couldn\'t be shared.}}'**
+  String shareScreen_droppedItems(int count);
+
+  /// Shown on the share screen when none of the shared items could be read.
+  ///
+  /// In en, this message translates to:
+  /// **'This content couldn\'t be shared to Air.'**
+  String get shareScreen_nothingToShare;
+
+  /// Button that dismisses the share screen after nothing could be shared.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get shareScreen_close;
 }
 
 class _AppLocalizationsDelegate
@@ -2334,22 +2501,44 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'fr', 'sv'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'de',
+    'en',
+    'es',
+    'fr',
+    'pt',
+    'sv',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+country codes are specified.
+  switch (locale.languageCode) {
+    case 'pt':
+      {
+        switch (locale.countryCode) {
+          case 'PT':
+            return AppLocalizationsPtPt();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'de':
       return AppLocalizationsDe();
     case 'en':
       return AppLocalizationsEn();
+    case 'es':
+      return AppLocalizationsEs();
     case 'fr':
       return AppLocalizationsFr();
+    case 'pt':
+      return AppLocalizationsPt();
     case 'sv':
       return AppLocalizationsSv();
   }
