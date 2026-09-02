@@ -14,7 +14,7 @@ use flutter_rust_bridge::frb;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tonic::Code;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     api::{user::User, user_cubit::VersionStatus},
@@ -126,6 +126,7 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 })),
         } = &event
         {
+            debug!(expires_at = ?expires_at, "Received version status");
             // Whole seconds: the dismissed expiry is persisted as such and has to compare equal to
             // the announced one afterwards.
             let expires_at = expires_at.and_then(|t| DateTime::from_timestamp(t.seconds, 0));

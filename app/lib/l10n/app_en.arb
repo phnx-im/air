@@ -1790,10 +1790,6 @@
       }
     }
   },
-  "versionExpiryBanner_dismiss": "Dismiss",
-  "@versionExpiryBanner_dismiss": {
-    "description": "Tooltip of the close button on the update banner. Hides the banner until the next app start."
-  },
 
   "contactRequestDialog_title": "Contact request",
   "@contactRequestDialog_title": {

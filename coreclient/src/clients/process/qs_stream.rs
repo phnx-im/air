@@ -113,11 +113,7 @@ impl QsStreamProcessor {
 
                 result
             }
-            Some(listen_response::Event::VersionStatus(_)) => {
-                // We don't handle version expires events
-                warn!("ignoring QS listen version expires event");
-                QsProcessEventResult::Ignored
-            }
+            Some(listen_response::Event::VersionStatus(_)) => QsProcessEventResult::Ignored,
         }
     }
 }

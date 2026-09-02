@@ -1310,9 +1310,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get versionExpiryBanner_dismiss => 'Dismiss';
-
-  @override
   String get contactRequestDialog_title => 'Contact request';
 
   @override

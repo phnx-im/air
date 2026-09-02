@@ -98,15 +98,12 @@ class VersionExpiryBanner extends StatelessWidget {
                   label: loc.appOutdatedScreen_action,
                 ),
               ],
-              Tooltip(
-                message: loc.versionExpiryBanner_dismiss,
-                child: ButtonIcon(
-                  variant: ButtonIconVariant.plain,
-                  icon: AppIconType.x,
-                  onPressed: () => context
-                      .read<UserSettingsCubit>()
-                      .setDismissedVersionExpiry(value: expiresAt),
-                ),
+              ButtonIcon(
+                variant: ButtonIconVariant.plain,
+                icon: AppIconType.x,
+                onPressed: () => context
+                    .read<UserSettingsCubit>()
+                    .setDismissedVersionExpiry(value: expiresAt),
               ),
             ],
           ),

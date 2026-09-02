@@ -1324,9 +1324,6 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get versionExpiryBanner_dismiss => 'Stäng';
-
-  @override
   String get contactRequestDialog_title => 'Kontaktförfrågan';
 
   @override

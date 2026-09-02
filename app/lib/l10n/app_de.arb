@@ -372,7 +372,6 @@
   "appOutdatedScreen_description": "Öffne den App Store auf iOS oder Google Play auf Android und aktualisiere Air.",
   "appOutdatedScreen_action": "Aktualisieren",
   "versionExpiryBanner_message": "Aktualisiere Air bis zum {date}, um es weiter zu nutzen",
-  "versionExpiryBanner_dismiss": "Ausblenden",
   "contactRequestDialog_title": "Kontaktanfrage",
   "contactRequestDialog_avatarHint": "Tippe, um das Bild anzuzeigen",
   "contactRequestDialog_cancel": "Später",

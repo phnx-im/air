@@ -1341,9 +1341,6 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get versionExpiryBanner_dismiss => 'Fermer';
-
-  @override
   String get contactRequestDialog_title => 'Demande de contact';
 
   @override
