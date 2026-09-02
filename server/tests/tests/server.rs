@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, slice, time::Duration};
+use std::{assert_matches, collections::HashSet, slice, time::Duration};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
 use airbackend::{
@@ -13,7 +13,6 @@ use airbackend::{
     version::VersionPolicy,
 };
 use aircommon::{
-    assert_matches,
     credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
     identifiers::{QsClientId, UserId, Username},
