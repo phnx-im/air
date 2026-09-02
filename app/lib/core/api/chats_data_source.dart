@@ -8,6 +8,7 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import '../lib.dart';
+import 'chat_details_cubit.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';

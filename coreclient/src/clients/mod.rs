@@ -19,11 +19,10 @@ use aircommon::{
     crypto::{
         RatchetDecryptionKey,
         aead::keys::WelcomeAttributionInfoEarKey,
-        hpke::HpkeEncryptable,
         kdf::keys::RatchetSecret,
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
     },
-    identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
+    identifiers::{QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
     registration::RegistrationChallenge,
 };
@@ -629,15 +628,9 @@ impl CoreUser {
     }
 
     pub(crate) fn create_own_client_reference(&self) -> QsReference {
-        let sealed_reference = ClientConfig {
-            client_id: self.inner.qs_client_id,
-            push_token_ear_key: Some(self.inner.key_store.push_token_ear_key.clone()),
-        }
-        .encrypt(&self.inner.key_store.qs_client_id_encryption_key, &[], &[]);
-        QsReference {
-            client_homeserver_domain: self.user_id().domain().clone(),
-            sealed_reference,
-        }
+        self.inner
+            .key_store
+            .create_own_client_reference(&self.inner.qs_client_id)
     }
 
     /// Returns None if there is no chat with the given id.

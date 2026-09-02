@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE connection_accept_queue SET failed_reason = ?2 WHERE chat_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "54cd7ba17de43c0afe7e270fd7dd55122f6eee0691b655ea64d6a6b8531cd2f6"
+}

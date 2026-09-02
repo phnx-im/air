@@ -16,9 +16,10 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
-    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
-    MessageDraft, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType,
+    ConnectionAcceptStatus, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage,
+    InactiveChat, LastReaction, Message, MessageDraft, SystemMessage, TargetedMessageContact,
+    UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -104,6 +105,8 @@ pub struct UiChatDetails {
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
+    /// State of the queued accept of this chat's connection request, if any.
+    pub connection_accept: Option<ConnectionAcceptStatus>,
 }
 
 impl UiChatDetails {

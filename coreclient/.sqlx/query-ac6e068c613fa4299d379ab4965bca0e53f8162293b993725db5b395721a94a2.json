@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT failed_reason FROM connection_accept_queue WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "failed_reason",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "connection_accept_queue",
+            "name": "failed_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ac6e068c613fa4299d379ab4965bca0e53f8162293b993725db5b395721a94a2"
+}

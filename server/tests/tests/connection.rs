@@ -75,12 +75,13 @@ async fn connect_users_via_targeted_message() {
         "Charlie should process Bob's targeted message without errors"
     );
 
-    // Charlie accepts the connection request
+    // Charlie accepts the connection request. The accept is queued and
+    // performed by the outbound service.
     charlie_user
         .accept_contact_request(bob_chat_id)
         .await
-        .unwrap()
         .unwrap();
+    charlie_user.outbound_service().run_once().await;
 
     // Charlie should have two messages in the new chat
     let charlie_chat_id = result.new_connections.pop().unwrap();

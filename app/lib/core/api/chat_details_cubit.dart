@@ -27,7 +27,11 @@ part 'chat_details_cubit.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-  Future<AcceptContactRequestError?> acceptContactRequest();
+  /// Queues accepting the contact request behind this chat.
+  ///
+  /// The accept runs in the background and retries until it goes through.
+  /// Its progress is reported via [`UiChatDetails::connection_accept`].
+  Future<void> acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo();
 
@@ -129,15 +133,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
-@freezed
-sealed class AcceptContactRequestError with _$AcceptContactRequestError {
-  const AcceptContactRequestError._();
-
-  const factory AcceptContactRequestError.incompatibleClient({
-    required String reason,
-  }) = AcceptContactRequestError_IncompatibleClient;
-}
-
 class AppDataDebugInfo {
   final List<String> components;
   final AirComponent? airComponent;
@@ -170,6 +165,16 @@ sealed class ChatDetailsState with _$ChatDetailsState {
   }) = _ChatDetailsState;
   static Future<ChatDetailsState> default_() =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
+}
+
+@freezed
+sealed class ConnectionAcceptStatus with _$ConnectionAcceptStatus {
+  const ConnectionAcceptStatus._();
+
+  const factory ConnectionAcceptStatus.pending() =
+      ConnectionAcceptStatus_Pending;
+  const factory ConnectionAcceptStatus.failed({required String reason}) =
+      ConnectionAcceptStatus_Failed;
 }
 
 class DebugCapabilities {

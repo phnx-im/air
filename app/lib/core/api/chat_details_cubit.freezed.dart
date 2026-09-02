@@ -12,134 +12,6 @@ part of 'chat_details_cubit.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$AcceptContactRequestError {
-
- String get reason;
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$AcceptContactRequestErrorCopyWith<AcceptContactRequestError> get copyWith => _$AcceptContactRequestErrorCopyWithImpl<AcceptContactRequestError>(this as AcceptContactRequestError, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError&&(identical(other.reason, reason) || other.reason == reason));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,reason);
-
-@override
-String toString() {
-  return 'AcceptContactRequestError(reason: $reason)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $AcceptContactRequestErrorCopyWith<$Res>  {
-  factory $AcceptContactRequestErrorCopyWith(AcceptContactRequestError value, $Res Function(AcceptContactRequestError) _then) = _$AcceptContactRequestErrorCopyWithImpl;
-@useResult
-$Res call({
- String reason
-});
-
-
-
-
-}
-/// @nodoc
-class _$AcceptContactRequestErrorCopyWithImpl<$Res>
-    implements $AcceptContactRequestErrorCopyWith<$Res> {
-  _$AcceptContactRequestErrorCopyWithImpl(this._self, this._then);
-
-  final AcceptContactRequestError _self;
-  final $Res Function(AcceptContactRequestError) _then;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? reason = null,}) {
-  return _then(_self.copyWith(
-reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-}
-
-
-
-/// @nodoc
-
-
-class AcceptContactRequestError_IncompatibleClient extends AcceptContactRequestError {
-  const AcceptContactRequestError_IncompatibleClient({required this.reason}): super._();
-  
-
-@override final  String reason;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$AcceptContactRequestError_IncompatibleClientCopyWith<AcceptContactRequestError_IncompatibleClient> get copyWith => _$AcceptContactRequestError_IncompatibleClientCopyWithImpl<AcceptContactRequestError_IncompatibleClient>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError_IncompatibleClient&&(identical(other.reason, reason) || other.reason == reason));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,reason);
-
-@override
-String toString() {
-  return 'AcceptContactRequestError.incompatibleClient(reason: $reason)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $AcceptContactRequestError_IncompatibleClientCopyWith<$Res> implements $AcceptContactRequestErrorCopyWith<$Res> {
-  factory $AcceptContactRequestError_IncompatibleClientCopyWith(AcceptContactRequestError_IncompatibleClient value, $Res Function(AcceptContactRequestError_IncompatibleClient) _then) = _$AcceptContactRequestError_IncompatibleClientCopyWithImpl;
-@override @useResult
-$Res call({
- String reason
-});
-
-
-
-
-}
-/// @nodoc
-class _$AcceptContactRequestError_IncompatibleClientCopyWithImpl<$Res>
-    implements $AcceptContactRequestError_IncompatibleClientCopyWith<$Res> {
-  _$AcceptContactRequestError_IncompatibleClientCopyWithImpl(this._self, this._then);
-
-  final AcceptContactRequestError_IncompatibleClient _self;
-  final $Res Function(AcceptContactRequestError_IncompatibleClient) _then;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
-  return _then(AcceptContactRequestError_IncompatibleClient(
-reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-
-}
-
-/// @nodoc
 mixin _$ChatDetailsState {
 
  UiChatDetails? get chat; List<UiUserId> get members;
@@ -270,6 +142,135 @@ class __$ChatDetailsStateCopyWithImpl<$Res>
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$ConnectionAcceptStatus {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionAcceptStatus);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ConnectionAcceptStatus()';
+}
+
+
+}
+
+/// @nodoc
+class $ConnectionAcceptStatusCopyWith<$Res>  {
+$ConnectionAcceptStatusCopyWith(ConnectionAcceptStatus _, $Res Function(ConnectionAcceptStatus) __);
+}
+
+
+
+/// @nodoc
+
+
+class ConnectionAcceptStatus_Pending extends ConnectionAcceptStatus {
+  const ConnectionAcceptStatus_Pending(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionAcceptStatus_Pending);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'ConnectionAcceptStatus.pending()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class ConnectionAcceptStatus_Failed extends ConnectionAcceptStatus {
+  const ConnectionAcceptStatus_Failed({required this.reason}): super._();
+  
+
+ final  String reason;
+
+/// Create a copy of ConnectionAcceptStatus
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConnectionAcceptStatus_FailedCopyWith<ConnectionAcceptStatus_Failed> get copyWith => _$ConnectionAcceptStatus_FailedCopyWithImpl<ConnectionAcceptStatus_Failed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConnectionAcceptStatus_Failed&&(identical(other.reason, reason) || other.reason == reason));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,reason);
+
+@override
+String toString() {
+  return 'ConnectionAcceptStatus.failed(reason: $reason)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConnectionAcceptStatus_FailedCopyWith<$Res> implements $ConnectionAcceptStatusCopyWith<$Res> {
+  factory $ConnectionAcceptStatus_FailedCopyWith(ConnectionAcceptStatus_Failed value, $Res Function(ConnectionAcceptStatus_Failed) _then) = _$ConnectionAcceptStatus_FailedCopyWithImpl;
+@useResult
+$Res call({
+ String reason
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConnectionAcceptStatus_FailedCopyWithImpl<$Res>
+    implements $ConnectionAcceptStatus_FailedCopyWith<$Res> {
+  _$ConnectionAcceptStatus_FailedCopyWithImpl(this._self, this._then);
+
+  final ConnectionAcceptStatus_Failed _self;
+  final $Res Function(ConnectionAcceptStatus_Failed) _then;
+
+/// Create a copy of ConnectionAcceptStatus
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
+  return _then(ConnectionAcceptStatus_Failed(
+reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

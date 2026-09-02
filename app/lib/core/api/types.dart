@@ -8,6 +8,7 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import '../lib.dart';
+import 'chat_details_cubit.dart';
 import 'markdown.dart';
 import 'message_content.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -151,6 +152,9 @@ class UiChatDetails {
   final UiChatMuted? mutedUntil;
   final bool pendingCommitFailed;
 
+  /// State of the queued accept of this chat's connection request, if any.
+  final ConnectionAcceptStatus? connectionAccept;
+
   const UiChatDetails({
     required this.id,
     required this.status,
@@ -163,6 +167,7 @@ class UiChatDetails {
     required this.isApq,
     this.mutedUntil,
     required this.pendingCommitFailed,
+    this.connectionAccept,
   });
 
   @override
@@ -177,7 +182,8 @@ class UiChatDetails {
       draft.hashCode ^
       isApq.hashCode ^
       mutedUntil.hashCode ^
-      pendingCommitFailed.hashCode;
+      pendingCommitFailed.hashCode ^
+      connectionAccept.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -194,7 +200,8 @@ class UiChatDetails {
           draft == other.draft &&
           isApq == other.isApq &&
           mutedUntil == other.mutedUntil &&
-          pendingCommitFailed == other.pendingCommitFailed;
+          pendingCommitFailed == other.pendingCommitFailed &&
+          connectionAccept == other.connectionAccept;
 }
 
 /// A message in a chat

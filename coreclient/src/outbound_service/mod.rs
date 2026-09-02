@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
+pub(crate) mod connection_accepts;
 mod error;
 mod key_packages;
 mod profile;
@@ -193,6 +194,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to perform a freshly enqueued connection
+    /// accept.
+    pub(crate) fn notify_connection_accepts(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
@@ -315,6 +322,9 @@ impl OutboundServiceContext {
 
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
+        }
+        if let Err(error) = Box::pin(self.perform_queued_connection_accepts(&run_token)).await {
+            error!(%error, "Failed to perform queued connection accepts");
         }
         match Box::pin(self.send_pending_chat_operations(&run_token)).await {
             Err(OutboundServiceRunError::NetworkError) => {

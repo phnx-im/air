@@ -549,11 +549,12 @@ async fn add_contact_and_change_profile() {
         .process_username_queue_message(alice_username_record.username, messages.pop().unwrap())
         .await
         .unwrap();
+    // The accept is queued and performed by the outbound service.
     alice_user
         .accept_contact_request(alice_bob_chat_id)
         .await
-        .unwrap()
         .unwrap();
+    alice_user.outbound_service().run_once().await;
 
     // Send message from Alice to Bob
     alice_user

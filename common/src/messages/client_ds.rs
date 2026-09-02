@@ -162,13 +162,15 @@ pub struct DsCommitResponse {
     pub key_package_batch: Option<KeyPackageBatchId>,
 }
 
-/// Announces a group a virtual client created or externally joined. Meant to
-/// be put into the QS queues of all of the acting user's clients. The message
-/// type distinguishes creation from join.
+/// Announces a group a client created or externally joined. Meant to be put
+/// into the QS queues of all of the acting user's clients. The message type
+/// distinguishes creation from join.
 ///
 /// The DS sends it when it accepts the operation, before any other traffic of
 /// that group reaches those queues. A sibling client uses it to join the group
-/// itself.
+/// itself. The acting client uses its own join echo as the durable
+/// confirmation that the join was accepted, in case the direct response to
+/// the join request was lost.
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 pub struct GroupBootstrapEcho {
     pub group_id: GroupId,
@@ -179,7 +181,8 @@ pub struct GroupBootstrapEcho {
     pub epoch: GroupEpoch,
     pub timestamp: TimeStamp,
     /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`), encrypted for the
-    /// acting client's siblings. The DS echoes it unread.
+    /// acting client's siblings. The DS echoes it unread. Empty when the
+    /// acting client requested no bootstrap.
     pub group_bootstrap: Vec<u8>,
 }
 

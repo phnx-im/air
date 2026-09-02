@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO connection_accept_queue (chat_id) VALUES (?1)\n                ON CONFLICT (chat_id) DO UPDATE SET failed_reason = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "82e54f21767af8feaf9ab1e488b56a37e63cc7ae7decd348cf8cf45dfdfbb758"
+}
