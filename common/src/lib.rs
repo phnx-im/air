@@ -17,7 +17,6 @@ use tls_codec::{
     TlsDeserializeBytes, TlsSerialize, TlsSize,
 };
 
-pub mod assert_matches;
 pub mod codec;
 pub mod credentials;
 pub mod crypto;

@@ -112,6 +112,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
   Future<void> setSidebarWidth({required double value}) =>
       _impl!.setSidebarWidth(value: value);
 
+  Future<void> setDismissedVersionExpiry({required DateTime value}) =>
+      _impl!.setDismissedVersionExpiry(value: value);
+
   Future<void> setSendOnEnter({required bool value}) =>
       _impl!.setSendOnEnter(value: value);
 

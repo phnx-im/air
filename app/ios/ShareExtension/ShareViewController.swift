@@ -31,10 +31,10 @@ private let maxAttachmentCopyBytes: UInt64 = 32 * 1024 * 1024
 // Matches the limit the Rust side resizes images to
 // (MAX_ATTACHMENT_IMAGE_WIDTH/HEIGHT in coreclient), preventing OOM
 // issues in the share extension.
-private let maxImagePixelSize = 4096
+private let maxImagePixelSize = 1024
 
 // Matches ATTACHMENT_IMAGE_QUALITY_PERCENT of the Rust re-encode.
-private let downscaledImageQuality = 0.9
+private let reencodedImageQuality = 0.9
 
 // Cache entries older than this are leftovers of a share session that was
 // killed before its cleanup ran. They are removed on the next share.
@@ -309,7 +309,7 @@ class ShareViewController: UIViewController {
             // copy the file into storage owned by the extension.
             let name = self.fileName(for: provider, loadedFrom: url)
             if type.conforms(to: .image),
-                let target = self.downscaledImageCopy(url, named: name)
+                let target = self.reencodedImageCopy(url, named: name)
             {
                 state.addAttachment(
                     path: target.path, mimeType: "image/jpeg", at: index)
@@ -354,16 +354,21 @@ class ShareViewController: UIViewController {
         return suggested
     }
 
-    // Copies an oversized still image into the App Group caches downscaled
-    // to `maxImagePixelSize`, transcoded to JPEG. Returns nil where
-    // downscaling does not apply. If the image is small enough, animated, or
-    // not decodable, we leave the plain copy to handle the file.
+    // Copies a still image into the App Group caches, scaled to fit
+    // `maxImagePixelSize` and transcoded to JPEG. Returns nil where the
+    // re-encode does not apply: an animated or an undecodable image is left
+    // to the plain copy.
+    //
+    // Every still image takes this path, not only an oversized one. The Rust
+    // side cannot decode HEIC, which is what the Photos app hands over, and
+    // a JPEG that already fits the limit costs its pipeline far less memory
+    // than the original.
     //
     // ImageIO scales images in streaming fashion, which prevents from running
     // out of memory in the share extension.
-    private func downscaledImageCopy(_ url: URL, named name: String) -> URL? {
+    private func reencodedImageCopy(_ url: URL, named name: String) -> URL? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-            // A multi-frame image is an animation, which a downscale to a
+            // A multi-frame image is an animation, which a re-encode to a
             // single frame would freeze. The Rust side re-encodes it with
             // its frames intact.
             CGImageSourceGetCount(source) == 1,
@@ -371,7 +376,7 @@ class ShareViewController: UIViewController {
                 source, 0, nil) as? [CFString: Any],
             let width = properties[kCGImagePropertyPixelWidth] as? Int,
             let height = properties[kCGImagePropertyPixelHeight] as? Int,
-            max(width, height) > maxImagePixelSize
+            max(width, height) > 0
         else {
             return nil
         }
@@ -381,13 +386,16 @@ class ShareViewController: UIViewController {
             // Bakes the EXIF orientation into the pixels, since the
             // orientation tag does not survive the re-encode.
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxImagePixelSize,
+            // Capped at the image's own size, so an image that already fits
+            // is re-encoded rather than blown up.
+            kCGImageSourceThumbnailMaxPixelSize: min(
+                max(width, height), maxImagePixelSize),
         ]
         guard
             let scaled = CGImageSourceCreateThumbnailAtIndex(
                 source, 0, options as CFDictionary)
         else {
-            logger.error("Failed to downscale shared image")
+            logger.error("Failed to decode shared image")
             return nil
         }
 
@@ -418,12 +426,12 @@ class ShareViewController: UIViewController {
             return nil
         }
         let encodeOptions: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: downscaledImageQuality
+            kCGImageDestinationLossyCompressionQuality: reencodedImageQuality
         ]
         CGImageDestinationAddImage(
             destination, scaled, encodeOptions as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {
-            logger.error("Failed to write downscaled shared image")
+            logger.error("Failed to write re-encoded shared image")
             return nil
         }
         return target

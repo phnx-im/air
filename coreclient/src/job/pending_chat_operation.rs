@@ -1749,8 +1749,9 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use aircommon::{
-        assert_matches,
         credentials::{
             keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
             test_utils::create_test_credentials,

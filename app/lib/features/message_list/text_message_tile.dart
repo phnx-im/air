@@ -578,6 +578,17 @@ class _MessageShell extends StatelessWidget {
         enableSelection: enableSelection,
       ),
     );
+    // Mobile: double-tap a message to react. Only wrap the bubble (not the
+    // reaction chips), otherwise it will delay other taps.
+    if (isMobilePlatform && isReplyable) {
+      bubble = GestureDetector(
+        onDoubleTap: () {
+          AppHaptics.confirm();
+          commands.openReactionMenu();
+        },
+        child: bubble,
+      );
+    }
     if (!enableSelection && isReplyable) {
       bubble = SwipeToReplyBubble(
         icon: AppIcon.cornerLeft(
@@ -623,15 +634,6 @@ class _MessageShell extends StatelessWidget {
             child: GestureDetector(
               behavior: .deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
-              // Mobile: double-tap a message to react. On desktop, the
-              // recognizer must not be registered at all, otherwise it wins the
-              // gesture arena and blocks double-click text selection.
-              onDoubleTap: isMobilePlatform && isReplyable
-                  ? () {
-                      AppHaptics.confirm();
-                      commands.openReactionMenu();
-                    }
-                  : null,
               onLongPress: onLongPress,
               child: band,
             ),

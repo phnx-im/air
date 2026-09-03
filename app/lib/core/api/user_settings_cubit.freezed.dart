@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UserSettings {
 
- String? get locale; double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get readReceipts; bool get developerMode; bool get experimentalFeatures; int get defaultEmojiSkinTone;
+ String? get locale; double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get readReceipts; bool get developerMode; bool get experimentalFeatures; int get defaultEmojiSkinTone; DateTime? get dismissedVersionExpiry;
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $UserSettingsCopyWith<UserSettings> get copyWith => _$UserSettingsCopyWithImpl<U
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone);
+int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
 
 @override
 String toString() {
-  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone)';
+  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $UserSettingsCopyWith<$Res>  {
   factory $UserSettingsCopyWith(UserSettings value, $Res Function(UserSettings) _then) = _$UserSettingsCopyWithImpl;
 @useResult
 $Res call({
- String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
 });
 
 
@@ -62,7 +62,7 @@ class _$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
   return _then(_self.copyWith(
 locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
 as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
@@ -72,7 +72,8 @@ as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts /
 as bool,developerMode: null == developerMode ? _self.developerMode : developerMode // ignore: cast_nullable_to_non_nullable
 as bool,experimentalFeatures: null == experimentalFeatures ? _self.experimentalFeatures : experimentalFeatures // ignore: cast_nullable_to_non_nullable
 as bool,defaultEmojiSkinTone: null == defaultEmojiSkinTone ? _self.defaultEmojiSkinTone : defaultEmojiSkinTone // ignore: cast_nullable_to_non_nullable
-as int,
+as int,dismissedVersionExpiry: freezed == dismissedVersionExpiry ? _self.dismissedVersionExpiry : dismissedVersionExpiry // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -84,7 +85,7 @@ as int,
 
 
 class _UserSettings implements UserSettings {
-  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 240.0, this.sendOnEnter = false, this.readReceipts = true, this.developerMode = false, this.experimentalFeatures = false, this.defaultEmojiSkinTone = 0});
+  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 240.0, this.sendOnEnter = false, this.readReceipts = true, this.developerMode = false, this.experimentalFeatures = false, this.defaultEmojiSkinTone = 0, this.dismissedVersionExpiry});
   
 
 @override final  String? locale;
@@ -95,6 +96,7 @@ class _UserSettings implements UserSettings {
 @override@JsonKey() final  bool developerMode;
 @override@JsonKey() final  bool experimentalFeatures;
 @override@JsonKey() final  int defaultEmojiSkinTone;
+@override final  DateTime? dismissedVersionExpiry;
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -106,16 +108,16 @@ _$UserSettingsCopyWith<_UserSettings> get copyWith => __$UserSettingsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone);
+int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
 
 @override
 String toString() {
-  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone)';
+  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
 }
 
 
@@ -126,7 +128,7 @@ abstract mixin class _$UserSettingsCopyWith<$Res> implements $UserSettingsCopyWi
   factory _$UserSettingsCopyWith(_UserSettings value, $Res Function(_UserSettings) _then) = __$UserSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
 });
 
 
@@ -143,7 +145,7 @@ class __$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
   return _then(_UserSettings(
 locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
 as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
@@ -153,7 +155,8 @@ as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts /
 as bool,developerMode: null == developerMode ? _self.developerMode : developerMode // ignore: cast_nullable_to_non_nullable
 as bool,experimentalFeatures: null == experimentalFeatures ? _self.experimentalFeatures : experimentalFeatures // ignore: cast_nullable_to_non_nullable
 as bool,defaultEmojiSkinTone: null == defaultEmojiSkinTone ? _self.defaultEmojiSkinTone : defaultEmojiSkinTone // ignore: cast_nullable_to_non_nullable
-as int,
+as int,dismissedVersionExpiry: freezed == dismissedVersionExpiry ? _self.dismissedVersionExpiry : dismissedVersionExpiry // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 

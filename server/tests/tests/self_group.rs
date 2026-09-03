@@ -40,6 +40,52 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let user_id = setup.add_user().await;
+    let test_user = setup.get_user(&user_id);
+    let user = &test_user.user;
+
+    user.ensure_self_group().await?;
+    assert!(
+        user.self_group_has_derivation_epoch().await?,
+        "creating the self-group registers its initial derivation epoch"
+    );
+    let self_chat_id = user.self_chat_id().await?.expect("no self chat");
+
+    user.enqueue_group_resync(self_chat_id).await?;
+    user.outbound_service().run_once().await;
+    assert!(
+        !user.is_resync_pending(self_chat_id).await?,
+        "resync should have completed"
+    );
+
+    assert!(
+        user.self_group_has_derivation_epoch().await?,
+        "the resync must re-register the self-group's derivation epoch"
+    );
+
+    // The self-group backs virtual-client operations again: a key package
+    // upload stages against its derivation epoch and completes.
+    user.outbound_service()
+        .schedule_key_package_upload(Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+    test_user.fetch_and_process_qs_messages().await;
+    assert!(
+        user.self_group_pending_operation_info().await?.is_none(),
+        "upload cycle should have completed"
+    );
+    let (plain_refs, apq_refs) = user.live_key_package_refs().await?;
+    assert!(
+        !plain_refs.is_empty() && !apq_refs.is_empty(),
+        "the upload after the resync should have published a live batch"
+    );
+
+    Ok(())
+}
+
 /// Key packages uploaded via the self-group only go live after the `DsCommitResponse` carrying
 /// the batch id arrives through the queue.
 #[tokio::test(flavor = "multi_thread")]
