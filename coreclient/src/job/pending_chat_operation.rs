@@ -1626,7 +1626,7 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
-    use airprotos::client::component::AirComponent;
+    use airprotos::client::component::AirFeatures;
 
     use crate::db::access::ReadConnection;
 
@@ -1676,11 +1676,11 @@ pub mod test_utils {
         ///
         /// Use this in tests to simulate an old client that advertises a different set of feature
         /// flags.
-        pub(crate) async fn create_update_with_air_component(
+        pub(crate) async fn create_update_with_features(
             txn: &mut WriteDbTransaction<'_>,
             signer: &UserSigningKey,
             chat_id: ChatId,
-            air_component: AirComponent,
+            features: AirFeatures,
         ) -> anyhow::Result<Self> {
             let chat = Chat::load(&mut *txn, &chat_id)
                 .await?
@@ -1694,7 +1694,7 @@ pub mod test_utils {
                 OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
             let params = group
                 .group_mut()
-                .update_with_air_component(&mut *txn, &signer, air_component)
+                .update_with_features(&mut *txn, &signer, features)
                 .await?;
 
             let job = Self::new(group, OperationType::other(params));
@@ -1760,7 +1760,7 @@ mod tests {
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
     use airprotos::{
-        client::app_data::ClientAppData,
+        client::app_data::{ClientAppData, GroupAppData},
         common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
     };
     use chrono::{Duration, Utc};
@@ -1822,8 +1822,10 @@ mod tests {
                     t_group_id,
                     pq_group_id,
                     GroupDataBytes::from(b"test-group-data".to_vec()),
-                    None,
-                    true,
+                    GroupAppData {
+                        is_self_group: true,
+                        safe_aad_components: None,
+                    },
                 )?;
                 group.store(&mut *txn).await?;
                 let mut group = VerifiedGroup::new_for_test(group);
@@ -1972,8 +1974,10 @@ mod tests {
                     t_group_id.clone(),
                     pq_group_id,
                     GroupDataBytes::from(b"test-group-data".to_vec()),
-                    None,
-                    true,
+                    GroupAppData {
+                        is_self_group: true,
+                        safe_aad_components: None,
+                    },
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -2056,8 +2060,10 @@ mod tests {
                     t_group_id.clone(),
                     pq_group_id,
                     GroupDataBytes::from(b"test-group-data".to_vec()),
-                    Some(vec![VC_COMPONENT_ID]),
-                    true,
+                    GroupAppData {
+                        is_self_group: true,
+                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                    },
                 )?;
                 group.store(&mut *txn).await?;
 

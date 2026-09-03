@@ -556,8 +556,10 @@ mod derivation_tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            None,
-            is_self_group,
+            GroupAppData {
+                is_self_group,
+                safe_aad_components: None,
+            },
         )?;
         Ok(group)
     }

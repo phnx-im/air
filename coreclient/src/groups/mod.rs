@@ -17,6 +17,8 @@ pub(crate) mod process;
 pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
 
+#[cfg(feature = "test_utils")]
+use airprotos::client::component::AirFeatures;
 use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
@@ -77,15 +79,12 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::{
-    app_data::{ClientAppData, GroupAppData, SUPPORTED_COMPONENTS},
-    component::{AIR_COMPONENT_ID, AirComponent},
-};
+use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
 use mimi_content::{MessageStatus, MessageStatusReport, MimiContent, PerMessageStatus};
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
-use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
+use mls_assist::messages::AssistedMessageOut;
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::signatures::Signer;
 use openmls_traits::storage::StorageProvider;
@@ -113,7 +112,6 @@ use crate::{
 };
 
 use openmls::{
-    component::ComponentType,
     components::vc_derivation_info::GenerationId,
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
@@ -469,13 +467,13 @@ impl Group {
         })?;
 
         let leaf_node = self.mls_group.public_group().leaf(member.index)?;
-        ClientAppData::from_extensions(leaf_node.extensions())
+        ClientAppData::from_leaf(leaf_node)
     }
 
     pub(crate) fn members_app_data(&self) -> impl Iterator<Item = Option<ClientAppData>> {
         self.mls_group.members().map(|member| {
             let leaf_node = self.mls_group.public_group().leaf(member.index)?;
-            ClientAppData::from_extensions(leaf_node.extensions())
+            ClientAppData::from_leaf(leaf_node)
         })
     }
 
@@ -2939,11 +2937,11 @@ impl Group {
     /// Creates a self-update commit forcing a specific [`AirComponent`] into the leaf node.
     ///
     /// Useful for simulating old clients that lack certain feature flags.
-    pub(crate) async fn update_with_air_component(
+    pub(crate) async fn update_with_features(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
-        air_component: AirComponent,
+        features: AirFeatures,
     ) -> Result<GroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -2951,10 +2949,10 @@ impl Group {
         .tls_serialize_detached()?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters = Self::forced_air_component_leaf_params(
+        let leaf_node_parameters = Self::forced_features_leaf_params(
             own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
-            air_component,
+            features,
         )?;
 
         self.mls_group.set_aad(aad);
@@ -2983,38 +2981,25 @@ impl Group {
         })
     }
 
-    fn forced_air_component_leaf_params(
+    fn forced_features_leaf_params(
         leaf_node_extensions: &Extensions<LeafNode>,
         capabilities: Capabilities,
-        air_component: AirComponent,
+        features: AirFeatures,
     ) -> anyhow::Result<LeafNodeParameters> {
-        let mut leaf_node_parameters =
-            LeafNodeParameters::builder().with_capabilities(capabilities);
-
         let mut dict = leaf_node_extensions
             .app_data_dictionary()
             .map(|e| e.dictionary().clone())
             .unwrap_or_default();
+        ClientAppData::refresh_features(&mut dict, features);
 
-        // Ensure AppComponents entry is present
-        if dict.get(&ComponentType::AppComponents.into()).is_none() {
-            dict.insert(
-                ComponentType::AppComponents.into(),
-                ComponentsList {
-                    component_ids: SUPPORTED_COMPONENTS.to_vec(),
-                }
-                .tls_serialize_detached()?,
-            );
-        }
-        // Force the given air component, overriding whatever was there before
-        dict.insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
-
-        let mut new_leaf_node_extensions = leaf_node_extensions.clone();
-        new_leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+        let mut leaf_node_extensions = leaf_node_extensions.clone();
+        leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
             AppDataDictionaryExtension::new(dict),
         ))?;
-        leaf_node_parameters = leaf_node_parameters.with_extensions(new_leaf_node_extensions);
-        Ok(leaf_node_parameters.build())
+        Ok(LeafNodeParameters::builder()
+            .with_capabilities(capabilities)
+            .with_extensions(leaf_node_extensions)
+            .build())
     }
 }
 
@@ -3416,15 +3401,15 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 mod tests {
     use aircommon::mls_group_config::default_leaf_node_capabilities;
     use airprotos::client::{
-        app_data::{ClientAppData, SUPPORTED_COMPONENTS},
-        component::AIR_COMPONENT_ID,
+        app_data::ClientAppData,
+        component::{AIR_COMPONENT_ID, AirFeatures},
     };
     use mls_assist::components::ComponentsList;
     use openmls::{
         component::ComponentType,
         prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode},
     };
-    use tls_codec::{DeserializeBytes, Serialize as TlsSerializeTrait};
+    use tls_codec::DeserializeBytes;
 
     use super::Group;
 
@@ -3466,26 +3451,20 @@ mod tests {
         assert!(ids.contains(&AIR_COMPONENT_ID));
     }
 
-    /// AppComponents present with a foreign id -> replaced by the supported components. The list
-    /// is the client's own claim about itself, so nothing foreign survives.
     #[test]
-    fn app_components_are_replaced() {
-        let other_id: u16 = 0x8043;
-        let mut dict = AppDataDictionary::new();
-        dict.insert(
-            ComponentType::AppComponents.into(),
-            ComponentsList {
-                component_ids: vec![other_id],
-            }
-            .tls_serialize_detached()
-            .unwrap(),
-        );
-        let extensions = extensions_with_dict(dict);
+    fn stale_app_data_is_refreshed() {
+        let stale = ClientAppData {
+            features: AirFeatures::default(),
+            virtual_client: false,
+        };
+        let extensions = stale.leaf_node_extensions();
         let params =
             Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
                 .unwrap();
-        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
-        assert_eq!(ids, SUPPORTED_COMPONENTS);
+        assert_eq!(
+            params.extensions(),
+            Some(&ClientAppData::current().leaf_node_extensions())
+        );
     }
 
     /// Up-to-date app data -> extensions in params are unchanged (None)

@@ -30,7 +30,7 @@ use tracing::error;
 use crate::client::component::{AIR_COMPONENT_ID, AirComponent, AirFeatures};
 
 /// List of components supported by this client.
-pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
+const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 
 /// App data a client advertises in its leaf node or key package.
 ///
@@ -78,7 +78,7 @@ impl ClientAppData {
     // Layer 2: the dictionary
 
     /// `None` if the dictionary carries no Air component.
-    pub fn from_dictionary(dict: &AppDataDictionary) -> Option<Self> {
+    fn from_dictionary(dict: &AppDataDictionary) -> Option<Self> {
         let component = air_component(dict)?;
         Some(Self {
             features: component.features,
@@ -95,6 +95,18 @@ impl ClientAppData {
         Self {
             virtual_client: is_virtual_client(dict),
             ..Self::current()
+        }
+        .write_into(dict);
+    }
+
+    /// Same as [`Self::refresh`], but advertises `features` instead of the current ones.
+    ///
+    /// Whether the leaf is operated by a virtual client is preserved. Entries not owned by Air are
+    /// left untouched.
+    pub fn refresh_features(dict: &mut AppDataDictionary, features: AirFeatures) {
+        Self {
+            features,
+            virtual_client: is_virtual_client(dict),
         }
         .write_into(dict);
     }
@@ -116,7 +128,7 @@ impl ClientAppData {
         );
     }
 
-    pub fn to_dictionary(&self) -> AppDataDictionary {
+    fn to_dictionary(&self) -> AppDataDictionary {
         let mut dict = AppDataDictionary::new();
         self.write_into(&mut dict);
         dict
@@ -124,7 +136,11 @@ impl ClientAppData {
 
     // Layer 3 and 4: extension and extensions list.
 
-    pub fn from_extensions<T>(extensions: &Extensions<T>) -> Option<Self> {
+    pub fn from_leaf(leaf: &LeafNode) -> Option<Self> {
+        Self::from_leaf_extensions(leaf.extensions())
+    }
+
+    fn from_leaf_extensions(extensions: &Extensions<LeafNode>) -> Option<Self> {
         Self::from_dictionary(extensions.app_data_dictionary()?.dictionary())
     }
 
@@ -154,7 +170,7 @@ impl ClientAppData {
 impl GroupAppData {
     // Layer 2: the dictionary
 
-    pub fn from_dictionary(dict: &AppDataDictionary) -> Option<Self> {
+    fn from_dictionary(dict: &AppDataDictionary) -> Option<Self> {
         let component = air_component(dict)?;
         let safe_aad_components =
             components_list(dict, ComponentType::SafeAad.into()).map(|list| list.component_ids);
@@ -164,7 +180,7 @@ impl GroupAppData {
         })
     }
 
-    pub fn to_dictionary(&self) -> AppDataDictionary {
+    fn to_dictionary(&self) -> AppDataDictionary {
         let mut component_ids = SUPPORTED_COMPONENTS.to_vec();
         if self.safe_aad_components.is_some() {
             component_ids.push(ComponentType::SafeAad.into());
@@ -191,7 +207,7 @@ impl GroupAppData {
 
     // Layer 3 and 4: extension and extensions list.
 
-    pub fn from_group_context(extensions: &Extensions<GroupContext>) -> Option<Self> {
+    fn from_group_context(extensions: &Extensions<GroupContext>) -> Option<Self> {
         Self::from_dictionary(extensions.app_data_dictionary()?.dictionary())
     }
 
@@ -294,11 +310,11 @@ mod test {
 
         let leaf = ClientAppData::current().leaf_node_extensions();
         assert_eq!(
-            ClientAppData::from_extensions(&leaf),
+            ClientAppData::from_leaf_extensions(&leaf),
             Some(ClientAppData::current())
         );
         assert_eq!(
-            ClientAppData::from_extensions(&Extensions::<LeafNode>::empty()),
+            ClientAppData::from_leaf_extensions(&Extensions::<LeafNode>::empty()),
             None
         );
     }
@@ -379,7 +395,7 @@ mod test {
     #[test]
     fn group_context_dictionary_with_safe_aad() {
         const REQUIRED_SAFE_AAD_COMPONENT_ID: ComponentId = 0x8042;
-        let dictionary = dictionary_of(
+        let dict = dictionary_of(
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
@@ -389,29 +405,29 @@ mod test {
 
         // The SafeAad entry is present as a dictionary key...
         let safe_aad_id = ComponentId::from(ComponentType::SafeAad);
-        assert!(dictionary.contains(&safe_aad_id));
+        assert!(dict.contains(&safe_aad_id));
 
         // ...and its value parses as a `ComponentsList` carrying the given ids
         // (`safe_aad_required_components()` errors on unparsable values).
-        let value = dictionary.get(&safe_aad_id).unwrap();
+        let value = dict.get(&safe_aad_id).unwrap();
         let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
         assert_eq!(list.component_ids, vec![REQUIRED_SAFE_AAD_COMPONENT_ID]);
 
         // The AppComponents entry is present and parseable, too, and advertises the embedded
         // component.
-        let value = dictionary
+        let value = dict
             .get(&ComponentId::from(ComponentType::AppComponents))
             .unwrap();
         let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
         assert!(list.component_ids.contains(&AIR_COMPONENT_ID));
 
         // The component itself is embedded in the dictionary.
-        assert!(dictionary.contains(&AIR_COMPONENT_ID));
+        assert!(dict.contains(&AIR_COMPONENT_ID));
     }
 
     #[test]
     fn group_context_dictionary_without_safe_aad() {
-        let dictionary = dictionary_of(
+        let dict = dictionary_of(
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
@@ -419,12 +435,25 @@ mod test {
             .to_extension(),
         );
 
-        assert!(!dictionary.contains(&ComponentId::from(ComponentType::SafeAad)));
+        assert!(!dict.contains(&ComponentId::from(ComponentType::SafeAad)));
 
-        let value = dictionary
+        let value = dict
             .get(&ComponentId::from(ComponentType::AppComponents))
             .unwrap();
         let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
         assert_eq!(list.component_ids, vec![AIR_COMPONENT_ID]);
+    }
+
+    #[test]
+    fn refresh_replaces_foreign_component_ids() {
+        let mut dict = AppDataDictionary::new();
+        insert_components_list(&mut dict, ComponentType::AppComponents.into(), vec![0x8043]);
+
+        ClientAppData::refresh(&mut dict);
+
+        let ids = components_list(&dict, ComponentType::AppComponents.into())
+            .unwrap()
+            .component_ids;
+        assert_eq!(ids, SUPPORTED_COMPONENTS);
     }
 }

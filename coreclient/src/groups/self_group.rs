@@ -16,6 +16,7 @@ use aircommon::{
     },
 };
 use airprotos::client::{
+    app_data::GroupAppData,
     group::{EncryptedGroupTitle, GroupData},
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
@@ -305,7 +306,10 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let safe_aad_components = Some(vec![VC_COMPONENT_ID]);
+                let client_app_data = GroupAppData {
+                    is_self_group: true,
+                    safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -314,8 +318,7 @@ impl CoreUser {
                     group_id,
                     pq_group_id,
                     group_data_bytes,
-                    safe_aad_components,
-                    true,
+                    client_app_data,
                 )?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use aircommon::time::TimeStamp;
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
-use airprotos::client::component::{AirComponent, AirFeatures};
+use airprotos::client::component::AirFeatures;
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, TimeZone};
 use tokio::task::spawn_blocking;
@@ -503,16 +503,13 @@ async fn erase_connection_group_data_mixed_feature_support() {
 
     // Simulate Bob being an old client: downgrade his leaf node to advertise
     // empty_connection_group_attributes = false.
-    let old_air_component = AirComponent {
-        features: AirFeatures {
-            encrypted_group_profiles: true,
-            empty_connection_group_attributes: false,
-            pq_groups: setup.apq_groups,
-        },
-        is_self_group: false,
+    let old_features = AirFeatures {
+        encrypted_group_profiles: true,
+        empty_connection_group_attributes: false,
+        pq_groups: setup.apq_groups,
     };
     bob_user
-        .set_group_air_component(chat_id, old_air_component)
+        .set_group_features(chat_id, old_features)
         .await
         .unwrap();
 
@@ -577,16 +574,13 @@ async fn erase_connection_group_data_mixed_feature_support() {
     );
 
     // Bob "upgrades": commit a leaf node that sets empty_connection_group_attributes = true.
-    let new_air_component = AirComponent {
-        features: AirFeatures {
-            encrypted_group_profiles: true,
-            empty_connection_group_attributes: true,
-            pq_groups: setup.apq_groups,
-        },
-        is_self_group: false,
+    let new_features = AirFeatures {
+        encrypted_group_profiles: true,
+        empty_connection_group_attributes: true,
+        pq_groups: setup.apq_groups,
     };
     bob_user
-        .set_group_air_component(chat_id, new_air_component)
+        .set_group_features(chat_id, new_features)
         .await
         .unwrap();
 

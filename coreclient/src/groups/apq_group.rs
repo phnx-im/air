@@ -17,7 +17,6 @@ use airprotos::client::app_data::GroupAppData;
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
-    component::ComponentId,
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
@@ -58,8 +57,7 @@ impl Group {
         t_group_id: GroupId,
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
-        safe_aad_components: Option<Vec<ComponentId>>,
-        is_self_group: bool,
+        group_app_data: GroupAppData,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -77,11 +75,7 @@ impl Group {
             required_capabilities,
             // APQ groups automatically add an app data dictionary extension (to required
             // capabilities), so we can safely add it here for all APQ groups.
-            GroupAppData {
-                is_self_group,
-                safe_aad_components,
-            }
-            .to_extension(),
+            group_app_data.to_extension(),
         ])?;
 
         // The leaf signature key is the signer's own key.
