@@ -28,9 +28,10 @@ use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
     clients::{own_client_info::OwnClientInfo, store::ClientRecord},
     db::{
-        access::{DbAccess, WriteConnection},
+        access::{DbAccess, WriteConnection, WriteTransaction},
         notification::DbNotificationsSender,
     },
+    groups::vc_epoch_retention::migrate_vc_derivation_epoch_retention,
     utils::global_lock::GlobalLock,
 };
 
@@ -274,6 +275,7 @@ pub async fn open_client_db(
 enum RustMigration {
     OwnClientIdBackfill = 20260817150000,
     StaleDeletedMessagesPurge = 20260817150100,
+    VcDerivationEpochRetention = 20260902120000,
 }
 
 impl RustMigration {
@@ -281,15 +283,19 @@ impl RustMigration {
         match version {
             20260817150000 => Some(Self::OwnClientIdBackfill),
             20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            20260902120000 => Some(Self::VcDerivationEpochRetention),
             _ => None,
         }
     }
 
     /// Applies the code migration to the database.
-    async fn apply(&self, write: impl WriteConnection) -> anyhow::Result<()> {
+    async fn apply(&self, write: impl WriteTransaction) -> anyhow::Result<()> {
         match self {
             RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
             RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+            RustMigration::VcDerivationEpochRetention => {
+                migrate_vc_derivation_epoch_retention(write).await?
+            }
         }
         Ok(())
     }
@@ -400,13 +406,28 @@ impl From<GroupIdWrapper> for GroupId {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::{QsClientId, QsUserId, UserId};
+    use aircommon::{
+        codec::PersistenceCodec,
+        identifiers::{QsClientId, QsUserId, UserId},
+    };
     use chrono::Utc;
+    #[expect(deprecated, reason = "produces records in the pre-log format")]
+    use openmls::components::vc_derivation_info::RegisteredVcDerivationEpoch;
+    use openmls::{
+        components::vc_derivation_info::{EpochId, VcEmulationBinding},
+        group::GroupEpoch,
+    };
+    use openmls_traits::storage::StorageProvider;
     use tempfile::tempdir;
     use uuid::Uuid;
 
     use super::*;
-    use crate::clients::store::{ClientRecord, ClientRecordState};
+    use serde::Serialize;
+
+    use crate::{
+        clients::store::{ClientRecord, ClientRecordState},
+        groups::openmls_provider::storage_provider::SqliteStorageProvider,
+    };
 
     #[test]
     fn from_version_covers_all_variants() {
@@ -676,6 +697,229 @@ mod tests {
             .fetch_one(db.read().await?.as_mut())
             .await?;
         assert_eq!(client_id, Uuid::nil());
+
+        Ok(())
+    }
+
+    /// Rolls the DB back to the schema before the per-entry tables and seeds
+    /// it the way a client from before the log left it on disk.
+    async fn seed_legacy_vc_state(db: &DbAccess, epochs: &LegacyEpochs) -> anyhow::Result<()> {
+        let mut write = db.write().await?;
+        for statement in [
+            "DELETE FROM _sqlx_migrations WHERE version >= 20260902120000",
+            "DROP TABLE vc_derivation_epoch_log_entry",
+            "DROP TABLE vc_derivation_epoch_legacy_hold",
+            "DROP TABLE vc_emulation_binding",
+            "CREATE TABLE vc_emulation_binding(
+                group_id BLOB NOT NULL,
+                bindings BLOB NOT NULL,
+                PRIMARY KEY (group_id)
+            )",
+            "CREATE TABLE vc_registered_emulation_epoch(
+                group_id BLOB NOT NULL,
+                registration BLOB NOT NULL,
+                PRIMARY KEY (group_id)
+            )",
+        ] {
+            sqlx::query(statement).execute(write.as_mut()).await?;
+        }
+
+        #[expect(deprecated, reason = "produces a record in the pre-log format")]
+        let registration = PersistenceCodec::to_vec(&RegisteredVcDerivationEpoch {
+            group_epoch: GroupEpoch::from(7),
+            epoch_id: epochs.registered.clone(),
+        })?;
+        sqlx::query(
+            "INSERT INTO vc_registered_emulation_epoch(group_id, registration) VALUES (?, ?)",
+        )
+        .bind(PersistenceCodec::to_vec(&emulation_group_id())?)
+        .bind(registration)
+        .execute(write.as_mut())
+        .await?;
+
+        let bindings = LegacyBindingsRecord {
+            bindings: vec![
+                (GroupEpoch::from(3), epochs.bound.clone()),
+                (bound_group_epoch(), epochs.bound.clone()),
+            ],
+        };
+        sqlx::query("INSERT INTO vc_emulation_binding(group_id, bindings) VALUES (?, ?)")
+            .bind(PersistenceCodec::to_vec(&higher_level_group_id())?)
+            .bind(PersistenceCodec::to_vec(&bindings)?)
+            .execute(write.as_mut())
+            .await?;
+
+        sqlx::query(
+            "INSERT INTO vc_retained_key_package_material(key_package_ref, epoch_id, record)
+            VALUES (?, ?, ?)",
+        )
+        .bind(b"key-package-ref".to_vec())
+        .bind(PersistenceCodec::to_vec(&epochs.retained)?)
+        .bind(b"record".to_vec())
+        .execute(write.as_mut())
+        .await?;
+
+        // Per-epoch state for all four, only some of which is still referenced.
+        for epoch in epochs.all() {
+            let epoch = PersistenceCodec::to_vec(epoch)?;
+            sqlx::query(
+                "INSERT INTO vc_emulation_group_secret(epoch_id, secret_type, vc_secret)
+                VALUES (?, 'emulation_epoch_state', ?)",
+            )
+            .bind(epoch.clone())
+            .bind(b"secret".to_vec())
+            .execute(write.as_mut())
+            .await?;
+            sqlx::query("INSERT INTO vc_operation_tree(epoch_id, operation_tree) VALUES (?, ?)")
+                .bind(epoch)
+                .bind(b"tree".to_vec())
+                .execute(write.as_mut())
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Mirrors the layout of the deprecated upstream `VcEmulationBindings`,
+    /// which has no constructor.
+    #[derive(Serialize)]
+    struct LegacyBindingsRecord {
+        bindings: Vec<(GroupEpoch, EpochId)>,
+    }
+
+    /// The derivation epochs a client from before the log has state for, by
+    /// what still references them.
+    struct LegacyEpochs {
+        registered: EpochId,
+        bound: EpochId,
+        retained: EpochId,
+        orphan: EpochId,
+    }
+
+    impl LegacyEpochs {
+        fn new() -> Self {
+            Self {
+                registered: EpochId::new(b"registered".to_vec()),
+                bound: EpochId::new(b"bound".to_vec()),
+                retained: EpochId::new(b"retained".to_vec()),
+                orphan: EpochId::new(b"orphan".to_vec()),
+            }
+        }
+
+        fn all(&self) -> [&EpochId; 4] {
+            [&self.registered, &self.bound, &self.retained, &self.orphan]
+        }
+    }
+
+    fn emulation_group_id() -> GroupId {
+        GroupId::from_slice(b"emulation-group")
+    }
+
+    fn higher_level_group_id() -> GroupId {
+        GroupId::from_slice(b"higher-level-group")
+    }
+
+    fn bound_group_epoch() -> GroupEpoch {
+        GroupEpoch::from(4)
+    }
+
+    async fn epoch_state_exists(db: &DbAccess, epoch: &EpochId) -> anyhow::Result<bool> {
+        let epoch = PersistenceCodec::to_vec(epoch)?;
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM vc_emulation_group_secret WHERE epoch_id = ?
+            )",
+        )
+        .bind(epoch)
+        .fetch_one(db.read().await?.as_mut())
+        .await?;
+        Ok(exists)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn vc_derivation_epoch_retention_migration() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let epochs = LegacyEpochs::new();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        seed_legacy_vc_state(&db, &epochs).await?;
+        db.close().await;
+
+        // Reopening replays the migration and its paired code migration.
+        let db = open_client_db(db_path, client_record_id).await?;
+
+        let logged: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT epoch_id FROM vc_derivation_epoch_log_entry")
+                .fetch_all(db.read().await?.as_mut())
+                .await?;
+        assert_eq!(logged, vec![PersistenceCodec::to_vec(&epochs.registered)?]);
+
+        {
+            let mut write = db.write().await?;
+            let provider = SqliteStorageProvider::new(write.as_mut());
+            let binding: Option<VcEmulationBinding> =
+                provider.vc_emulation_binding(&higher_level_group_id(), &bound_group_epoch())?;
+            let binding = binding.expect("the bound group epoch resolves to its binding");
+            assert_eq!(binding.epoch_id(), &epochs.bound);
+            let bindings: Vec<VcEmulationBinding> =
+                provider.vc_emulation_bindings(&higher_level_group_id())?;
+            assert_eq!(bindings.len(), 2);
+        }
+
+        // The migration must not purge. The epochs predate the log, so a queued
+        // sibling operation can still reference any of them. They age out
+        // through the sweep one retention window after the migration.
+        for epoch in epochs.all() {
+            assert!(
+                epoch_state_exists(&db, epoch).await?,
+                "epoch state must survive the migration"
+            );
+        }
+        // Every epoch outside the converted log is held, also the ones a
+        // binding or retained KeyPackage names today: that reference can go
+        // before the window is over.
+        let mut held: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT epoch_id FROM vc_derivation_epoch_legacy_hold")
+                .fetch_all(db.read().await?.as_mut())
+                .await?;
+        held.sort();
+        let mut expected = vec![
+            PersistenceCodec::to_vec(&epochs.bound)?,
+            PersistenceCodec::to_vec(&epochs.retained)?,
+            PersistenceCodec::to_vec(&epochs.orphan)?,
+        ];
+        expected.sort();
+        assert_eq!(held, expected);
+
+        // Dropping the binding and the retained material inside the window
+        // leaves the hold as the only reference, and the sweep respects it.
+        sqlx::query("DELETE FROM vc_retained_key_package_material")
+            .execute(db.write().await?.as_mut())
+            .await?;
+        {
+            let mut write = db.write().await?;
+            let provider = SqliteStorageProvider::new(write.as_mut());
+            provider.delete_all_vc_emulation_bindings(&higher_level_group_id())?;
+            let swept: Vec<EpochId> = provider.delete_unreferenced_vc_derivation_epoch_states()?;
+            assert!(swept.is_empty());
+        }
+        for epoch in epochs.all() {
+            assert!(
+                epoch_state_exists(&db, epoch).await?,
+                "held epoch state must survive losing its other references"
+            );
+        }
+
+        // The old tables are gone.
+        let legacy_tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master
+            WHERE name IN ('vc_registered_emulation_epoch', 'vc_emulation_binding_record')",
+        )
+        .fetch_all(db.read().await?.as_mut())
+        .await?;
+        assert!(legacy_tables.is_empty());
 
         Ok(())
     }

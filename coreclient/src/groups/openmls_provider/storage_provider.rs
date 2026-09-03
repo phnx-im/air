@@ -4,7 +4,7 @@
 
 use std::{cell::RefCell, future::Future};
 
-use aircommon::codec::PersistenceCodec;
+use aircommon::{codec::PersistenceCodec, time::TimeStamp};
 use openmls_traits::storage::{
     CURRENT_VERSION, Entity, Key, StorageProvider,
     traits::{
@@ -1867,9 +1867,23 @@ impl<'a, VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>>
 
 /// Implements the sweep of
 /// [`StorageProvider::delete_unreferenced_vc_derivation_epoch_states`].
+///
+/// Besides the references the trait names, a row in
+/// `vc_derivation_epoch_legacy_hold` keeps an epoch until its `held_until`
+/// has passed. The retention migration writes these rows for the epoch state
+/// from before the derivation epoch log, see `groups::vc_epoch_retention`.
+/// Expired rows are dropped along the way.
 async fn sweep_unreferenced_vc_derivation_epoch_states<VcEpochId: Entity<CURRENT_VERSION>>(
     executor: &mut SqliteConnection,
 ) -> sqlx::Result<Vec<VcEpochId>> {
+    let now = TimeStamp::now();
+    query!(
+        "DELETE FROM vc_derivation_epoch_legacy_hold WHERE held_until <= ?1",
+        now,
+    )
+    .execute(&mut *executor)
+    .await?;
+
     let unreferenced = sqlx::query_scalar!(
         r#"SELECT epoch_id AS "epoch_id!: Vec<u8>" FROM (
             SELECT epoch_id FROM vc_emulation_group_secret
@@ -1887,6 +1901,10 @@ async fn sweep_unreferenced_vc_derivation_epoch_states<VcEpochId: Entity<CURRENT
         )
         AND NOT EXISTS (
             SELECT 1 FROM vc_retained_key_package_material
+            WHERE epoch_id = candidate.epoch_id
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM vc_derivation_epoch_legacy_hold
             WHERE epoch_id = candidate.epoch_id
         )"#
     )
@@ -1977,6 +1995,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
     use openmls_traits::storage::traits;
     use serde::{Deserialize, Serialize};
 
@@ -2210,6 +2229,58 @@ mod tests {
             provider.retained_key_package_material(&key_package_ref)?;
         assert!(material.is_none());
         assert_eq!(sweep(&provider)?, vec![epoch_id()]);
+
+        Ok(())
+    }
+
+    async fn hold_epoch(
+        connection: &mut SqliteConnection,
+        held_until: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "INSERT INTO vc_derivation_epoch_legacy_hold(epoch_id, held_until)
+            VALUES (?1, ?2)
+            ON CONFLICT(epoch_id) DO UPDATE SET held_until = excluded.held_until",
+        )
+        .bind(PersistenceCodec::to_vec(&epoch_id())?)
+        .bind(TimeStamp::from(held_until))
+        .execute(connection)
+        .await?;
+        Ok(())
+    }
+
+    async fn hold_count(connection: &mut SqliteConnection) -> anyhow::Result<i64> {
+        Ok(
+            sqlx::query_scalar("SELECT COUNT(*) FROM vc_derivation_epoch_legacy_hold")
+                .fetch_one(connection)
+                .await?,
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn keeps_held_epoch_state_until_the_hold_expires() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+
+        {
+            let provider = SqliteStorageProvider::new(connection.as_mut());
+            store_epoch_state(&provider)?;
+        }
+        hold_epoch(connection.as_mut(), Utc::now() + chrono::Duration::days(1)).await?;
+        {
+            let provider = SqliteStorageProvider::new(connection.as_mut());
+            assert!(sweep(&provider)?.is_empty());
+            assert!(epoch_state_is_stored(&provider)?);
+        }
+        assert_eq!(hold_count(connection.as_mut()).await?, 1);
+
+        hold_epoch(connection.as_mut(), Utc::now() - chrono::Duration::days(1)).await?;
+        {
+            let provider = SqliteStorageProvider::new(connection.as_mut());
+            assert_eq!(sweep(&provider)?, vec![epoch_id()]);
+            assert!(!epoch_state_is_stored(&provider)?);
+        }
+        assert_eq!(hold_count(connection.as_mut()).await?, 0);
 
         Ok(())
     }
