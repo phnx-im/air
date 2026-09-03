@@ -46,6 +46,18 @@ final groupChatMembers = _content.members(_groupChatKey);
 final groupChatMessages = _content.transcript(_groupChatKey);
 final groupChatAttachmentImages = _content.attachmentImages(_groupChatKey);
 
+class ImageDataWithSize {
+  ImageDataWithSize({
+    required this.imageData,
+    required this.width,
+    required this.height,
+  });
+
+  final ImageData imageData;
+  final int width;
+  final int height;
+}
+
 /// Loads the persona, contacts, chats, and message transcripts described in
 /// `content.yaml` and turns them into the FRB types the product shot tests
 /// pump into the app's widgets.
@@ -68,7 +80,7 @@ class _Content {
   final Map<String, UiUserProfile> _profiles = {};
   final Map<String, ChatId> _chatIds = {};
   final Map<String, List<UiUserId>> _members = {};
-  final Map<String, ImageData> _images = {};
+  final Map<String, ImageDataWithSize> _images = {};
   final Map<String, AttachmentId> _attachmentIds = {};
   final Map<String, Map<AttachmentId, ImageData>> _attachmentImagesByChat = {};
   final Map<String, UiChatDetails> _chatsByKey = {};
@@ -88,10 +100,8 @@ class _Content {
   ChatId _chatId(String key) =>
       _chatIds.putIfAbsent(key, () => (_nextChatId++).chatId());
 
-  ImageData image(String filename) => _images.putIfAbsent(
-    filename,
-    () => _loadImageSync('$_imagesDir/$filename'),
-  );
+  ImageDataWithSize image(String filename) =>
+      _images.putIfAbsent(filename, () => _loadImage('$_imagesDir/$filename'));
 
   AttachmentId attachmentId(String filename) => _attachmentIds.putIfAbsent(
     filename,
@@ -130,7 +140,7 @@ class _Content {
   UiUserProfile _profile(YamlMap map, {required UiUserId id}) => UiUserProfile(
     userId: id,
     displayName: map['name'] as String,
-    profilePicture: image('${map['key']}.jpg'),
+    profilePicture: image('${map['key']}.jpg').imageData,
   );
 
   List<UiChatDetails> _loadChats() {
@@ -178,7 +188,7 @@ class _Content {
         return UiChatType_Group(
           UiChatAttributes(
             title: map['title'] as String,
-            picture: image(map['avatar'] as String),
+            picture: image(map['avatar'] as String).imageData,
           ),
         );
       default:
@@ -200,7 +210,7 @@ class _Content {
         messages.add(_message(chatId, entry, now));
         final filename = entry['image'] as String?;
         if (filename != null) {
-          attachmentImages[attachmentId(filename)] = image(filename);
+          attachmentImages[attachmentId(filename)] = image(filename).imageData;
         }
       }
       result[chatKey] = messages;
@@ -311,7 +321,7 @@ class _Content {
     ChatId chatId,
     UiUserId senderId,
     String filename,
-    ImageData image,
+    ImageDataWithSize image,
     DateTime timestamp, {
     required AttachmentId attachmentId,
     UiMessageStatus status = UiMessageStatus.sent,
@@ -326,20 +336,18 @@ class _Content {
         sent: true,
         edited: false,
         content: UiMimiContent(
-          plainBody: "",
           topicId: Uint8List(0),
-          content: _simpleMessage(""),
           attachments: [
             UiAttachment(
               attachmentId: attachmentId,
               filename: filename,
               contentType: "image/jpeg",
-              size: image.data.length,
+              size: image.imageData.data.length,
               description: filename,
-              imageMetadata: const UiImageMetadata(
+              imageMetadata: UiImageMetadata(
                 blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
-                width: 1080,
-                height: 1080,
+                width: image.width,
+                height: image.height,
               ),
             ),
           ],
@@ -370,10 +378,43 @@ MessageContent _simpleMessage(String msg) {
   );
 }
 
-ImageData _loadImageSync(String path) {
+ImageDataWithSize _loadImage(String path) {
   final bytes = _getProjectFile(path).readAsBytesSync();
   final hash = sha256.convert(bytes).toString();
-  return ImageData(data: bytes, hash: hash);
+  final (width: width, height: height) = _jpegDimensions(bytes);
+
+  return ImageDataWithSize(
+    imageData: ImageData(data: bytes, hash: hash),
+    width: width,
+    height: height,
+  );
+}
+
+/// Reads width/height straight from the JPEG SOF header.
+({int width, int height}) _jpegDimensions(Uint8List bytes) {
+  const sofMarkers = {
+    0xC0, 0xC1, 0xC2, 0xC3, //
+    0xC5, 0xC6, 0xC7,
+    0xC9, 0xCA, 0xCB,
+    0xCD, 0xCE, 0xCF,
+  };
+
+  var offset = 2; // skip the SOI marker (0xFFD8)
+  while (offset < bytes.length) {
+    final marker = bytes[offset + 1];
+    offset += 2;
+    if (marker == 0xD9) break; // EOI
+    if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
+
+    final length = (bytes[offset] << 8) | bytes[offset + 1];
+    if (sofMarkers.contains(marker)) {
+      final height = (bytes[offset + 3] << 8) | bytes[offset + 4];
+      final width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+      return (width: width, height: height);
+    }
+    offset += length;
+  }
+  throw const FormatException('No SOF marker found');
 }
 
 File _getProjectFile(String path) {

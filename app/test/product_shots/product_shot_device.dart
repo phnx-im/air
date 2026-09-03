@@ -42,7 +42,7 @@ extension ProductShotPlatformExt on TargetPlatform {
           name: 'Windows Laptop',
           screenSize: const Size(1280.0, 800.0),
           deviceInfo: Devices.windows.laptop,
-          pixelRatio: 1.5,
+          pixelRatio: 2.0,
         );
       case TargetPlatform.linux:
         return ProductShotDevice(
@@ -50,7 +50,7 @@ extension ProductShotPlatformExt on TargetPlatform {
           name: 'Linux Laptop',
           screenSize: const Size(1280.0, 800.0),
           deviceInfo: Devices.linux.laptop,
-          pixelRatio: 1.5,
+          pixelRatio: 2.0,
         );
       default:
         throw "Unsupported target platform";

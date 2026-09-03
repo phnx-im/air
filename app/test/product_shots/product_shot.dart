@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -47,11 +46,7 @@ class ProductShot extends StatelessWidget {
     final dev = device;
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
-    final statusBar = _statusBarFor(
-      dev.platform,
-      statusBarHeight,
-      brightness,
-    );
+    final statusBar = _statusBarFor(dev.platform, statusBarHeight, brightness);
     final resolvedSafeArea = EdgeInsets.only(
       left: dev.safeArea.left,
       top: math.max(dev.safeArea.top, statusBarHeight),
