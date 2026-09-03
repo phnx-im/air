@@ -360,7 +360,7 @@ impl CoreUser {
         Ok(Some(GroupData::decode(&bytes)?))
     }
 
-    /// Sends a self-update commit that forces the given [`AirComponent`] into the own leaf node.
+    /// Sends a self-update commit that forces the given [`AirFeatures`] into the own leaf node.
     ///
     /// Use this in tests to simulate an old client that advertises a different set of feature
     /// flags.

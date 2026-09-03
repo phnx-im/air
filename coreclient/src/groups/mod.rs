@@ -3400,27 +3400,12 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 #[cfg(test)]
 mod tests {
     use aircommon::mls_group_config::default_leaf_node_capabilities;
-    use airprotos::client::{
-        app_data::ClientAppData,
-        component::{AIR_COMPONENT_ID, AirFeatures},
+    use airprotos::client::{app_data::ClientAppData, component::AirFeatures};
+    use openmls::prelude::{
+        AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode,
     };
-    use mls_assist::components::ComponentsList;
-    use openmls::{
-        component::ComponentType,
-        prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode},
-    };
-    use tls_codec::DeserializeBytes;
 
     use super::Group;
-
-    fn air_component_ids(params_extensions: &Extensions<LeafNode>) -> Option<Vec<u16>> {
-        params_extensions
-            .app_data_dictionary()?
-            .dictionary()
-            .get(&ComponentType::AppComponents.into())
-            .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
-            .map(|list| list.component_ids)
-    }
 
     fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
         Extensions::from_vec(vec![Extension::AppDataDictionary(
@@ -3429,26 +3414,30 @@ mod tests {
         .expect("valid extensions")
     }
 
-    /// No app data dictionary -> add the default one containing AIR_COMPONENT_ID
+    /// No app data dictionary -> add the current one
     #[test]
     fn no_app_data_dictionary() {
         let extensions = Extensions::empty();
         let params =
             Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
                 .unwrap();
-        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
-        assert!(ids.contains(&AIR_COMPONENT_ID));
+        assert_eq!(
+            params.extensions(),
+            Some(&ClientAppData::current().leaf_node_extensions())
+        );
     }
 
-    /// App data dictionary present but no AppComponents key -> add AppComponents with AIR_COMPONENT_ID
+    /// Empty app data dictionary -> filled with the current one
     #[test]
-    fn app_data_dictionary_without_app_components() {
+    fn empty_app_data_dictionary() {
         let extensions = extensions_with_dict(AppDataDictionary::new());
         let params =
             Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
                 .unwrap();
-        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
-        assert!(ids.contains(&AIR_COMPONENT_ID));
+        assert_eq!(
+            params.extensions(),
+            Some(&ClientAppData::current().leaf_node_extensions())
+        );
     }
 
     #[test]

@@ -1671,7 +1671,7 @@ pub mod test_utils {
     }
 
     impl PendingChatOperation {
-        /// Creates a self-update commit that forces the given [`AirComponent`] into the own leaf
+        /// Creates a self-update commit that forces the given [`AirFeatures`] into the own leaf
         /// node.
         ///
         /// Use this in tests to simulate an old client that advertises a different set of feature

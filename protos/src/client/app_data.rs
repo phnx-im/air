@@ -40,7 +40,7 @@ const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 pub struct ClientAppData {
     /// Features of the client operating the leaf.
     pub features: AirFeatures,
-    /// The leaf is operated by a virtual client
+    /// The leaf is operated by a virtual client.
     ///
     /// Read from the `AppComponents` entry, see `VC_COMPONENT_ID`.
     pub virtual_client: bool,
@@ -49,14 +49,12 @@ pub struct ClientAppData {
 /// App data describing a group, stored in its group context.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupAppData {
-    /// Fixed at creation
+    /// Fixed at creation.
     pub is_self_group: bool,
     /// Components whose SafeAAD is required.
     ///
     /// None if the group does not use SafeAAD.
     pub safe_aad_components: Option<Vec<ComponentId>>,
-    // LATER
-    // pub group_profile: Option<GroupProfileComponent>,
 }
 
 impl ClientAppData {
@@ -100,9 +98,6 @@ impl ClientAppData {
     }
 
     /// Same as [`Self::refresh`], but advertises `features` instead of the current ones.
-    ///
-    /// Whether the leaf is operated by a virtual client is preserved. Entries not owned by Air are
-    /// left untouched.
     pub fn refresh_features(dict: &mut AppDataDictionary, features: AirFeatures) {
         Self {
             features,
@@ -197,7 +192,6 @@ impl GroupAppData {
         insert_air_component(
             &mut dict,
             &AirComponent {
-                // TODO: What is actually the meaning of this feature matrix in the group context?
                 features: AirFeatures::default_leaf_or_key_package_features(),
                 is_self_group: self.is_self_group,
             },
