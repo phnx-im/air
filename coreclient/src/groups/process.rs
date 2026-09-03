@@ -39,6 +39,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::{
     clients::{
         api_clients::ApiClients,
+        block_contact::pending::{PendingBlockedContactChange, apply_blocked_contacts_update},
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -88,6 +89,14 @@ async fn apply_self_group_payload(
         for seed in &payload.token_seeds {
             privacy_pass::apply_incoming_seed(txn, seed).await?;
         }
+    }
+
+    if own_echo {
+        PendingBlockedContactChange::complete_sent(txn, &payload.blocked_contacts).await?;
+    } else {
+        apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
+        // Contacts in a sibling's accepted commit are no longer ours to change.
+        PendingBlockedContactChange::remove_covered(txn, &payload.blocked_contacts).await?;
     }
 
     Ok(())
@@ -1067,14 +1076,60 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::credentials::SelfGroupCredential;
+    use aircommon::{credentials::SelfGroupCredential, identifiers::UserId};
+    use airprotos::client::self_group::{
+        BlockedContactEntry, BlockedContactState, ContactBlocked, ContactUnblocked,
+    };
+    use chrono::DateTime;
     use openmls::prelude::LeafNodeIndex;
+    use sqlx::SqlitePool;
     use uuid::Uuid;
+
+    use crate::{clients::block_contact::pending::BlockedState, db::access::DbAccess};
 
     use super::*;
 
     fn self_group_credential(client_id: u128) -> LeafCredential {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    fn user(n: u128) -> UserId {
+        UserId::new(Uuid::from_u128(n), "localhost".parse().unwrap())
+    }
+
+    fn blocked_state(blocked_at: i64, last_display_name: &str) -> BlockedState {
+        BlockedState::Blocked {
+            blocked_at: DateTime::from_timestamp(blocked_at, 0).unwrap(),
+            last_display_name: last_display_name.parse().unwrap(),
+        }
+    }
+
+    fn blocked_entry(
+        user_id: &UserId,
+        blocked_at: u64,
+        last_display_name: &str,
+    ) -> BlockedContactEntry {
+        BlockedContactEntry {
+            user_id: user_id.clone().into(),
+            state: BlockedContactState::Blocked(ContactBlocked {
+                blocked_at,
+                last_display_name: last_display_name.to_owned(),
+            }),
+        }
+    }
+
+    fn unblocked_entry(user_id: &UserId) -> BlockedContactEntry {
+        BlockedContactEntry {
+            user_id: user_id.clone().into(),
+            state: BlockedContactState::Unblocked(ContactUnblocked {}),
+        }
+    }
+
+    fn blocked_contacts_payload(entries: Vec<BlockedContactEntry>) -> SelfGroupPayload {
+        SelfGroupPayload {
+            blocked_contacts: entries,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -1139,5 +1194,164 @@ mod tests {
                 "unexpected error: {error:#}"
             );
         }
+    }
+
+    #[sqlx::test]
+    async fn sibling_update_blocks_and_unblocks_contacts(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let to_block = user(1);
+        let to_unblock = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            blocked_state(10, "Alice")
+                .apply(&mut *txn, &to_unblock)
+                .await?;
+
+            let payload = blocked_contacts_payload(vec![
+                blocked_entry(&to_block, 1_767_225_600, "Bob"),
+                unblocked_entry(&to_unblock),
+            ]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert_eq!(
+                BlockedState::load(&mut *txn, &to_block).await?,
+                blocked_state(1_767_225_600, "Bob"),
+                "the block must keep the sender's timestamp and display name"
+            );
+            assert_eq!(
+                BlockedState::load(&mut *txn, &to_unblock).await?,
+                BlockedState::Unblocked
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn sibling_update_drops_the_pending_change_it_covers(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let covered = user(1);
+        let untouched = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            PendingBlockedContactChange::record(txn, &covered, blocked_state(10, "Alice")).await?;
+            PendingBlockedContactChange::record(txn, &untouched, blocked_state(20, "Bob")).await?;
+
+            let payload = blocked_contacts_payload(vec![unblocked_entry(&covered)]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert_eq!(
+                BlockedState::load(&mut *txn, &covered).await?,
+                BlockedState::Unblocked,
+                "the sibling's state must win over our pending one"
+            );
+            assert_eq!(
+                PendingBlockedContactChange::load_entries(&mut *txn).await?,
+                vec![blocked_entry(&untouched, 20, "Bob")],
+                "a contact the update does not name must stay pending"
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn own_echo_completes_without_reapplying(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let user = user(1);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            PendingBlockedContactChange::record(txn, &user, blocked_state(10, "Alice")).await?;
+            let sent = PendingBlockedContactChange::load_entries(&mut *txn).await?;
+            // The stored state moved on after the commit went out.
+            blocked_state(30, "Alice B").apply(&mut *txn, &user).await?;
+
+            apply_self_group_payload(txn, &blocked_contacts_payload(sent), true).await?;
+
+            assert_eq!(
+                BlockedState::load(&mut *txn, &user).await?,
+                blocked_state(30, "Alice B"),
+                "an echo must not write the sent values back"
+            );
+            assert!(
+                PendingBlockedContactChange::load_entries(&mut *txn)
+                    .await?
+                    .is_empty(),
+                "the accepted commit must complete the pending change"
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn sibling_update_skips_unusable_entries_but_covers_them(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let unknown_state = user(1);
+        let invalid_name = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            PendingBlockedContactChange::record(txn, &unknown_state, blocked_state(10, "Alice"))
+                .await?;
+            PendingBlockedContactChange::record(txn, &invalid_name, blocked_state(20, "Bob"))
+                .await?;
+
+            let payload = blocked_contacts_payload(vec![
+                BlockedContactEntry {
+                    user_id: unknown_state.clone().into(),
+                    state: BlockedContactState::Unknown,
+                },
+                blocked_entry(&invalid_name, 30, " \n "),
+            ]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert_eq!(
+                BlockedState::load(&mut *txn, &unknown_state).await?,
+                blocked_state(10, "Alice")
+            );
+            assert_eq!(
+                BlockedState::load(&mut *txn, &invalid_name).await?,
+                blocked_state(20, "Bob")
+            );
+            assert!(
+                PendingBlockedContactChange::load_entries(&mut *txn)
+                    .await?
+                    .is_empty()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn the_last_entry_for_a_contact_wins(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let reblocked = user(1);
+        let unblocked = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let payload = blocked_contacts_payload(vec![
+                unblocked_entry(&reblocked),
+                blocked_entry(&unblocked, 40, "Bob"),
+                blocked_entry(&reblocked, 50, "Alice"),
+                unblocked_entry(&unblocked),
+            ]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert_eq!(
+                BlockedState::load(&mut *txn, &reblocked).await?,
+                blocked_state(50, "Alice")
+            );
+            assert_eq!(
+                BlockedState::load(&mut *txn, &unblocked).await?,
+                BlockedState::Unblocked
+            );
+            Ok(())
+        })
+        .await
     }
 }
