@@ -11,6 +11,12 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 import 'user.dart';
 
+/// Version of the app: `{major}.{minor}.{patch}[-dev]+[{build_number}.]{commit_hash}`.
+///
+/// `dev` marks a build from a dirty tree. The build number is omitted when
+/// unset (local builds).
+String appVersion() => RustLib.instance.api.crateApiUtilsAppVersion();
+
 /// Delete all databases of this client.
 Future<void> deleteDatabases({required String dbPath}) =>
     RustLib.instance.api.crateApiUtilsDeleteDatabases(dbPath: dbPath);
