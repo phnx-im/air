@@ -280,7 +280,8 @@ impl SendMessageCollisionKey {
             32,
         )?;
 
-        let kdf = Hkdf::from_prk(&epoch_secret).expect("input is 32 bytes, a valid HKDF PRK");
+        let kdf =
+            Hkdf::from_prk(epoch_secret.as_slice()).expect("input is 32 bytes, a valid HKDF PRK");
         Ok(Self { epoch, kdf })
     }
 

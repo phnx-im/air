@@ -19,8 +19,8 @@ use sqlx::{
 use tokio_stream::StreamExt;
 
 use crate::groups::openmls_provider::{
-    StorableEmulationBindingRef, StorableOperationTreeRef, StorableRegisteredVcEmulationEpochRef,
-    StorableRetainedKeyPackageMaterialRef, StorableVcEpochIdRef, StorableVcSecretRef,
+    StorableEmulationBindingRef, StorableOperationTreeRef, StorableRetainedKeyPackageMaterialRef,
+    StorableVcDerivationEpochLogEntryRef, StorableVcEpochIdRef, StorableVcSecretRef,
     StorableVcSecretType, encryption_key_pairs::StorableEncryptionKeyPairRef,
 };
 
@@ -819,77 +819,128 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn write_vc_emulation_bindings<
+    fn write_vc_emulation_binding<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        VcEmulationBindings: traits::VcEmulationBindings<CURRENT_VERSION>,
+        EpochKey: traits::EpochKey<CURRENT_VERSION>,
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcEmulationBinding: traits::VcEmulationBinding<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-        bindings: &VcEmulationBindings,
+        group_epoch: &EpochKey,
+        epoch_id: &EpochId,
+        binding: &VcEmulationBinding,
     ) -> Result<(), Self::Error> {
-        let storable = StorableEmulationBindingRef(bindings);
+        let storable = StorableEmulationBindingRef(binding);
         let mut connection = self.connection.borrow_mut();
-        let task = storable.store_vc_emulation_bindings(&mut **connection, group_id);
+        let task =
+            storable.store_vc_emulation_binding(&mut **connection, group_id, group_epoch, epoch_id);
+        block_async_in_place(task)
+    }
+
+    fn vc_emulation_binding<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        EpochKey: traits::EpochKey<CURRENT_VERSION>,
+        VcEmulationBinding: traits::VcEmulationBinding<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+        group_epoch: &EpochKey,
+    ) -> Result<Option<VcEmulationBinding>, Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.load_vc_emulation_binding(&mut **connection, group_epoch);
         block_async_in_place(task)
     }
 
     fn vc_emulation_bindings<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        VcEmulationBindings: traits::VcEmulationBindings<CURRENT_VERSION>,
+        VcEmulationBinding: traits::VcEmulationBinding<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-    ) -> Result<Option<VcEmulationBindings>, Self::Error> {
+    ) -> Result<Vec<VcEmulationBinding>, Self::Error> {
         let storable = StorableGroupIdRef(group_id);
         let mut connection = self.connection.borrow_mut();
         let task = storable.load_vc_emulation_bindings(&mut **connection);
         block_async_in_place(task)
     }
 
-    fn delete_vc_emulation_bindings<GroupId: traits::GroupId<CURRENT_VERSION>>(
-        &self,
-        group_id: &GroupId,
-    ) -> Result<(), Self::Error> {
-        let storable = StorableGroupIdRef(group_id);
-        let mut connection = self.connection.borrow_mut();
-        let task = storable.delete_vc_emulation_bindings(&mut **connection);
-        block_async_in_place(task)
-    }
-
-    fn write_registered_vc_derivation_epoch<
+    fn delete_vc_emulation_bindings<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        RegisteredVcDerivationEpoch: traits::RegisteredVcDerivationEpoch<CURRENT_VERSION>,
+        EpochKey: traits::EpochKey<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-        registered: &RegisteredVcDerivationEpoch,
+        group_epochs: &[EpochKey],
     ) -> Result<(), Self::Error> {
-        let storable = StorableRegisteredVcEmulationEpochRef(registered);
+        let storable = StorableGroupIdRef(group_id);
         let mut connection = self.connection.borrow_mut();
-        let task = storable.store_registered_vc_emulation_epoch(&mut **connection, group_id);
+        let task = storable.delete_vc_emulation_bindings(&mut connection, group_epochs);
         block_async_in_place(task)
     }
 
-    fn registered_vc_derivation_epoch<
+    fn delete_all_vc_emulation_bindings<GroupId: traits::GroupId<CURRENT_VERSION>>(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.delete_all_vc_emulation_bindings(&mut **connection);
+        block_async_in_place(task)
+    }
+
+    fn write_vc_derivation_epoch_log_entry<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        RegisteredVcDerivationEpoch: traits::RegisteredVcDerivationEpoch<CURRENT_VERSION>,
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcDerivationEpochLogEntry: traits::VcDerivationEpochLogEntry<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-    ) -> Result<Option<RegisteredVcDerivationEpoch>, Self::Error> {
-        let storable = StorableGroupIdRef(group_id);
+        epoch_id: &EpochId,
+        entry: &VcDerivationEpochLogEntry,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableVcDerivationEpochLogEntryRef(entry);
         let mut connection = self.connection.borrow_mut();
-        let task = storable.load_registered_vc_emulation_epoch(&mut **connection);
+        let task =
+            storable.store_vc_derivation_epoch_log_entry(&mut **connection, group_id, epoch_id);
         block_async_in_place(task)
     }
 
-    fn delete_registered_vc_derivation_epoch<GroupId: traits::GroupId<CURRENT_VERSION>>(
+    fn vc_derivation_epoch_log_entries<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        VcDerivationEpochLogEntry: traits::VcDerivationEpochLogEntry<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<Vec<VcDerivationEpochLogEntry>, Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.load_vc_derivation_epoch_log_entries(&mut **connection);
+        block_async_in_place(task)
+    }
+
+    fn delete_vc_derivation_epoch_log_entries<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+        epoch_ids: &[EpochId],
+    ) -> Result<(), Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.delete_vc_derivation_epoch_log_entries(&mut connection, epoch_ids);
+        block_async_in_place(task)
+    }
+
+    fn delete_vc_derivation_epoch_log<GroupId: traits::GroupId<CURRENT_VERSION>>(
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let storable = StorableGroupIdRef(group_id);
         let mut connection = self.connection.borrow_mut();
-        let task = storable.delete_registered_vc_emulation_epoch(&mut **connection);
+        let task = storable.delete_vc_derivation_epoch_log(&mut **connection);
         block_async_in_place(task)
     }
 
@@ -962,43 +1013,16 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn has_retained_key_package_material_for_epoch<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
-        &self,
-        epoch_id: &EpochId,
-    ) -> Result<bool, Self::Error> {
-        let storable = StorableVcEpochIdRef(epoch_id);
-        let mut connection = self.connection.borrow_mut();
-        let task = storable.has_retained_key_package_material_for_epoch(&mut **connection);
-        block_async_in_place(task)
-    }
-
-    fn delete_vc_derivation_epoch_state_if_unreferenced<
+    fn delete_unreferenced_vc_derivation_epoch_states<
         EpochId: traits::VcEpochId<CURRENT_VERSION>,
     >(
         &self,
-        epoch_id: &EpochId,
-    ) -> Result<bool, Self::Error> {
-        // NB: Call this within a transaction so the liveness
-        // check and the deletions apply atomically and a material stored
-        // concurrently cannot be orphaned.
-        let storable = StorableVcEpochIdRef(epoch_id);
+    ) -> Result<Vec<EpochId>, Self::Error> {
+        // NB: Call this within a transaction so the reference checks and the
+        // deletions apply atomically and a reference stored concurrently
+        // cannot be orphaned.
         let mut connection = self.connection.borrow_mut();
-        let task = async {
-            if storable
-                .has_retained_key_package_material_for_epoch(&mut **connection)
-                .await?
-            {
-                return Ok(false);
-            }
-            storable
-                .delete_vc_emulation_group_secret(
-                    &mut **connection,
-                    StorableVcSecretType::EmulationEpochState,
-                )
-                .await?;
-            storable.delete_vc_operation_tree(&mut **connection).await?;
-            Ok(true)
-        };
+        let task = sweep_unreferenced_vc_derivation_epoch_states(&mut connection);
         block_async_in_place(task)
     }
 
@@ -1497,22 +1521,64 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         Ok(())
     }
 
-    pub(super) async fn load_vc_emulation_bindings<VcEmulationBindings: Entity<CURRENT_VERSION>>(
+    pub(super) async fn load_vc_emulation_binding<
+        EpochKey: Key<CURRENT_VERSION>,
+        VcEmulationBinding: Entity<CURRENT_VERSION>,
+    >(
         &self,
         executor: impl SqliteExecutor<'_>,
-    ) -> sqlx::Result<Option<VcEmulationBindings>> {
-        sqlx::query("SELECT bindings FROM vc_emulation_binding WHERE group_id = ?1")
-            .bind(KeyRefWrapper(self.0))
-            .fetch_optional(executor)
-            .await?
-            .map(|row| {
-                let EntityWrapper(bindings) = row.try_get(0)?;
-                Ok(bindings)
-            })
-            .transpose()
+        group_epoch: &EpochKey,
+    ) -> sqlx::Result<Option<VcEmulationBinding>> {
+        sqlx::query(
+            "SELECT binding FROM vc_emulation_binding
+                WHERE group_id = ?1 AND group_epoch = ?2",
+        )
+        .bind(KeyRefWrapper(self.0))
+        .bind(KeyRefWrapper(group_epoch))
+        .fetch_optional(executor)
+        .await?
+        .map(|row| {
+            let EntityWrapper(binding) = row.try_get(0)?;
+            Ok(binding)
+        })
+        .transpose()
     }
 
-    pub(super) async fn delete_vc_emulation_bindings(
+    pub(super) async fn load_vc_emulation_bindings<VcEmulationBinding: Entity<CURRENT_VERSION>>(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<Vec<VcEmulationBinding>> {
+        sqlx::query("SELECT binding FROM vc_emulation_binding WHERE group_id = ?1")
+            .bind(KeyRefWrapper(self.0))
+            .fetch_all(executor)
+            .await?
+            .into_iter()
+            .map(|row| {
+                let EntityWrapper(binding) = row.try_get(0)?;
+                Ok(binding)
+            })
+            .collect()
+    }
+
+    pub(super) async fn delete_vc_emulation_bindings<EpochKey: Key<CURRENT_VERSION>>(
+        &self,
+        executor: &mut SqliteConnection,
+        group_epochs: &[EpochKey],
+    ) -> sqlx::Result<()> {
+        let group_id = KeyRefWrapper(self.0);
+        for group_epoch in group_epochs {
+            query!(
+                "DELETE FROM vc_emulation_binding WHERE group_id = ?1 AND group_epoch = ?2",
+                group_id,
+                KeyRefWrapper(group_epoch),
+            )
+            .execute(&mut *executor)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn delete_all_vc_emulation_bindings(
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<()> {
@@ -1526,30 +1592,50 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         Ok(())
     }
 
-    pub(super) async fn load_registered_vc_emulation_epoch<
-        RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>,
+    pub(super) async fn load_vc_derivation_epoch_log_entries<
+        VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>,
     >(
         &self,
         executor: impl SqliteExecutor<'_>,
-    ) -> sqlx::Result<Option<RegisteredVcEmulationEpoch>> {
-        sqlx::query("SELECT registration FROM vc_registered_emulation_epoch WHERE group_id = ?1")
+    ) -> sqlx::Result<Vec<VcDerivationEpochLogEntry>> {
+        sqlx::query("SELECT entry FROM vc_derivation_epoch_log_entry WHERE group_id = ?1")
             .bind(KeyRefWrapper(self.0))
-            .fetch_optional(executor)
+            .fetch_all(executor)
             .await?
+            .into_iter()
             .map(|row| {
-                let EntityWrapper(registration) = row.try_get(0)?;
-                Ok(registration)
+                let EntityWrapper(entry) = row.try_get(0)?;
+                Ok(entry)
             })
-            .transpose()
+            .collect()
     }
 
-    pub(super) async fn delete_registered_vc_emulation_epoch(
+    pub(super) async fn delete_vc_derivation_epoch_log_entries<EpochId: Key<CURRENT_VERSION>>(
+        &self,
+        executor: &mut SqliteConnection,
+        epoch_ids: &[EpochId],
+    ) -> sqlx::Result<()> {
+        let group_id = KeyRefWrapper(self.0);
+        for epoch_id in epoch_ids {
+            query!(
+                "DELETE FROM vc_derivation_epoch_log_entry
+                    WHERE group_id = ?1 AND epoch_id = ?2",
+                group_id,
+                KeyRefWrapper(epoch_id),
+            )
+            .execute(&mut *executor)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn delete_vc_derivation_epoch_log(
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<()> {
         let group_id = KeyRefWrapper(self.0);
         query!(
-            "DELETE FROM vc_registered_emulation_epoch WHERE group_id = ?1",
+            "DELETE FROM vc_derivation_epoch_log_entry WHERE group_id = ?1",
             group_id,
         )
         .execute(executor)
@@ -1694,26 +1780,6 @@ impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
         .transpose()
     }
 
-    pub(super) async fn delete_vc_emulation_group_secret(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        secret_type: StorableVcSecretType,
-    ) -> sqlx::Result<()> {
-        let epoch_id = KeyRefWrapper(self.0);
-        query!(
-            "DELETE FROM vc_emulation_group_secret
-                WHERE epoch_id = ?1
-                AND secret_type = ?2
-            ",
-            epoch_id,
-            secret_type,
-        )
-        .execute(executor)
-        .await?;
-
-        Ok(())
-    }
-
     pub(super) async fn load_vc_operation_tree<VcOperationTree: Entity<CURRENT_VERSION>>(
         &self,
         executor: impl SqliteExecutor<'_>,
@@ -1732,82 +1798,114 @@ impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
         })
         .transpose()
     }
+}
 
-    pub(super) async fn delete_vc_operation_tree(
+impl<'a, VcEmulationBinding: Entity<CURRENT_VERSION>>
+    StorableEmulationBindingRef<'a, VcEmulationBinding>
+{
+    pub(super) async fn store_vc_emulation_binding<
+        GroupId: Key<CURRENT_VERSION>,
+        EpochKey: Key<CURRENT_VERSION>,
+        EpochId: Key<CURRENT_VERSION>,
+    >(
         &self,
         executor: impl SqliteExecutor<'_>,
+        group_id: &GroupId,
+        group_epoch: &EpochKey,
+        epoch_id: &EpochId,
     ) -> sqlx::Result<()> {
-        let epoch_id = KeyRefWrapper(self.0);
         query!(
-            "DELETE FROM vc_operation_tree
-                WHERE epoch_id = ?1",
+            "INSERT INTO vc_emulation_binding(group_id, group_epoch, epoch_id, binding)
+            VALUES (?1, ?2, ?3, ?4)
+            ON CONFLICT(group_id, group_epoch) DO UPDATE SET
+                epoch_id = excluded.epoch_id,
+                binding = excluded.binding",
+            KeyRefWrapper(group_id),
+            KeyRefWrapper(group_epoch),
+            KeyRefWrapper(epoch_id),
+            EntityRefWrapper(self.0),
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+}
+
+impl<'a, VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>>
+    StorableVcDerivationEpochLogEntryRef<'a, VcDerivationEpochLogEntry>
+{
+    pub(super) async fn store_vc_derivation_epoch_log_entry<
+        GroupId: Key<CURRENT_VERSION>,
+        EpochId: Key<CURRENT_VERSION>,
+    >(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        group_id: &GroupId,
+        epoch_id: &EpochId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "INSERT INTO vc_derivation_epoch_log_entry(group_id, epoch_id, entry)
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(group_id, epoch_id) DO UPDATE SET
+                entry = excluded.entry",
+            KeyRefWrapper(group_id),
+            KeyRefWrapper(epoch_id),
+            EntityRefWrapper(self.0),
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+}
+
+/// Implements the sweep of
+/// [`StorageProvider::delete_unreferenced_vc_derivation_epoch_states`].
+async fn sweep_unreferenced_vc_derivation_epoch_states<VcEpochId: Entity<CURRENT_VERSION>>(
+    executor: &mut SqliteConnection,
+) -> sqlx::Result<Vec<VcEpochId>> {
+    let unreferenced = sqlx::query_scalar!(
+        r#"SELECT epoch_id AS "epoch_id!: Vec<u8>" FROM (
+            SELECT epoch_id FROM vc_emulation_group_secret
+                WHERE secret_type = 'emulation_epoch_state'
+            UNION
+            SELECT epoch_id FROM vc_operation_tree
+        ) AS candidate
+        WHERE NOT EXISTS (
+            SELECT 1 FROM vc_derivation_epoch_log_entry
+            WHERE epoch_id = candidate.epoch_id
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM vc_emulation_binding
+            WHERE epoch_id = candidate.epoch_id
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM vc_retained_key_package_material
+            WHERE epoch_id = candidate.epoch_id
+        )"#
+    )
+    .fetch_all(&mut *executor)
+    .await?;
+
+    let mut deleted = Vec::with_capacity(unreferenced.len());
+    for epoch_id in unreferenced {
+        query!(
+            "DELETE FROM vc_emulation_group_secret
+                WHERE epoch_id = ?1 AND secret_type = 'emulation_epoch_state'",
             epoch_id,
         )
-        .execute(executor)
+        .execute(&mut *executor)
         .await?;
-        Ok(())
-    }
-
-    pub(super) async fn has_retained_key_package_material_for_epoch(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-    ) -> sqlx::Result<bool> {
-        let exists = sqlx::query(
-            "SELECT EXISTS(
-                SELECT 1 FROM vc_retained_key_package_material
-                WHERE epoch_id = ?1
-            )",
-        )
-        .bind(KeyRefWrapper(self.0))
-        .fetch_one(executor)
-        .await?
-        .try_get::<bool, _>(0)?;
-        Ok(exists)
-    }
-}
-
-impl<'a, VcEmulationBindings: Entity<CURRENT_VERSION>>
-    StorableEmulationBindingRef<'a, VcEmulationBindings>
-{
-    pub(super) async fn store_vc_emulation_bindings<GroupId: Key<CURRENT_VERSION>>(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        group_id: &GroupId,
-    ) -> Result<(), sqlx::Error> {
         query!(
-            "INSERT INTO vc_emulation_binding(group_id, bindings)
-            VALUES (?1, ?2)
-            ON CONFLICT(group_id) DO UPDATE SET
-                bindings = excluded.bindings",
-            KeyRefWrapper(group_id),
-            EntityRefWrapper(self.0)
+            "DELETE FROM vc_operation_tree WHERE epoch_id = ?1",
+            epoch_id
         )
-        .execute(executor)
+        .execute(&mut *executor)
         .await?;
-        Ok(())
+        let epoch_id = PersistenceCodec::from_slice(&epoch_id)
+            .map_err(|error| sqlx::Error::Decode(error.into()))?;
+        deleted.push(epoch_id);
     }
-}
-
-impl<'a, RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>>
-    StorableRegisteredVcEmulationEpochRef<'a, RegisteredVcEmulationEpoch>
-{
-    pub(super) async fn store_registered_vc_emulation_epoch<GroupId: Key<CURRENT_VERSION>>(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        group_id: &GroupId,
-    ) -> Result<(), sqlx::Error> {
-        query!(
-            "INSERT INTO vc_registered_emulation_epoch(group_id, registration)
-            VALUES (?1, ?2)
-            ON CONFLICT(group_id) DO UPDATE SET
-                registration = excluded.registration",
-            KeyRefWrapper(group_id),
-            EntityRefWrapper(self.0)
-        )
-        .execute(executor)
-        .await?;
-        Ok(())
-    }
+    Ok(deleted)
 }
 
 impl<'a, VcOperationTree: Entity<CURRENT_VERSION>> StorableOperationTreeRef<'a, VcOperationTree> {
@@ -1868,4 +1966,219 @@ where
     F: Future,
 {
     tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(task))
+}
+
+#[cfg(test)]
+mod tests {
+    use openmls_traits::storage::traits;
+    use serde::{Deserialize, Serialize};
+
+    use crate::{db::access::DbAccess, utils::persistence::open_db_in_memory};
+
+    use super::*;
+
+    /// Opaque stand-in for the OpenMLS keys, the sweep only compares ids.
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestKey(Vec<u8>);
+
+    impl Key<CURRENT_VERSION> for TestKey {}
+    impl Entity<CURRENT_VERSION> for TestKey {}
+    impl traits::VcEpochId<CURRENT_VERSION> for TestKey {}
+    impl traits::GroupId<CURRENT_VERSION> for TestKey {}
+    impl traits::EpochKey<CURRENT_VERSION> for TestKey {}
+    impl traits::HashReference<CURRENT_VERSION> for TestKey {}
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestEntity(Vec<u8>);
+
+    impl Entity<CURRENT_VERSION> for TestEntity {}
+    impl traits::VcDerivationEpochState<CURRENT_VERSION> for TestEntity {}
+    impl traits::VcOperationTree<CURRENT_VERSION> for TestEntity {}
+    impl traits::VcEmulationBinding<CURRENT_VERSION> for TestEntity {}
+    impl traits::VcDerivationEpochLogEntry<CURRENT_VERSION> for TestEntity {}
+    impl traits::RetainedKeyPackageMaterial<CURRENT_VERSION> for TestEntity {}
+
+    fn epoch_id() -> TestKey {
+        TestKey(b"epoch".to_vec())
+    }
+
+    fn group_id() -> TestKey {
+        TestKey(b"group".to_vec())
+    }
+
+    fn group_epoch(epoch: u8) -> TestKey {
+        TestKey(vec![epoch])
+    }
+
+    fn store_epoch_state(provider: &SqliteStorageProvider<'_>) -> anyhow::Result<()> {
+        provider.write_vc_derivation_epoch_state(&epoch_id(), &TestEntity(b"state".to_vec()))?;
+        provider.write_vc_operation_tree(&epoch_id(), &TestEntity(b"tree".to_vec()))?;
+        Ok(())
+    }
+
+    fn epoch_state_is_stored(provider: &SqliteStorageProvider<'_>) -> anyhow::Result<bool> {
+        let state: Option<TestEntity> = provider.vc_derivation_epoch_state(&epoch_id())?;
+        let tree: Option<TestEntity> = provider.vc_operation_tree(&epoch_id())?;
+        assert_eq!(
+            state.is_some(),
+            tree.is_some(),
+            "state and operation tree are deleted together"
+        );
+        Ok(state.is_some())
+    }
+
+    fn sweep(provider: &SqliteStorageProvider<'_>) -> anyhow::Result<Vec<TestKey>> {
+        Ok(provider.delete_unreferenced_vc_derivation_epoch_states()?)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sweep_deletes_unreferenced_epoch_state() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        store_epoch_state(&provider)?;
+        assert!(epoch_state_is_stored(&provider)?);
+
+        assert_eq!(sweep(&provider)?, vec![epoch_id()]);
+        assert!(!epoch_state_is_stored(&provider)?);
+        // Nothing left to report.
+        assert!(sweep(&provider)?.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn keeps_epoch_state_referenced_by_retained_key_package() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        store_epoch_state(&provider)?;
+        let key_package_ref = TestKey(b"kp".to_vec());
+        provider.write_retained_key_package_material_batch(
+            &epoch_id(),
+            &TestEntity(b"tree".to_vec()),
+            &[(key_package_ref, TestEntity(b"material".to_vec()))],
+        )?;
+
+        assert!(sweep(&provider)?.is_empty());
+        assert!(epoch_state_is_stored(&provider)?);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn keeps_epoch_state_bound_by_a_group() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        store_epoch_state(&provider)?;
+        provider.write_vc_emulation_binding(
+            &group_id(),
+            &group_epoch(3),
+            &epoch_id(),
+            &TestEntity(b"binding".to_vec()),
+        )?;
+        let binding: Option<TestEntity> =
+            provider.vc_emulation_binding(&group_id(), &group_epoch(3))?;
+        assert_eq!(binding, Some(TestEntity(b"binding".to_vec())));
+
+        assert!(sweep(&provider)?.is_empty());
+        assert!(epoch_state_is_stored(&provider)?);
+
+        // Once the group drops the binding, nothing keeps the epoch alive.
+        provider.delete_vc_emulation_bindings(&group_id(), &[group_epoch(3)])?;
+        let bindings: Vec<TestEntity> = provider.vc_emulation_bindings(&group_id())?;
+        assert!(bindings.is_empty());
+        assert_eq!(sweep(&provider)?, vec![epoch_id()]);
+        assert!(!epoch_state_is_stored(&provider)?);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deletes_all_bindings_of_a_group() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        let other_group = TestKey(b"other-group".to_vec());
+        for epoch in [1, 2] {
+            provider.write_vc_emulation_binding(
+                &group_id(),
+                &group_epoch(epoch),
+                &epoch_id(),
+                &TestEntity(vec![epoch]),
+            )?;
+        }
+        provider.write_vc_emulation_binding(
+            &other_group,
+            &group_epoch(1),
+            &epoch_id(),
+            &TestEntity(b"other".to_vec()),
+        )?;
+
+        provider.delete_all_vc_emulation_bindings(&group_id())?;
+
+        let bindings: Vec<TestEntity> = provider.vc_emulation_bindings(&group_id())?;
+        assert!(bindings.is_empty());
+        let bindings: Vec<TestEntity> = provider.vc_emulation_bindings(&other_group)?;
+        assert_eq!(bindings, vec![TestEntity(b"other".to_vec())]);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn keeps_epoch_state_named_by_a_log_entry() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        store_epoch_state(&provider)?;
+        provider.write_vc_derivation_epoch_log_entry(
+            &group_id(),
+            &epoch_id(),
+            &TestEntity(b"entry".to_vec()),
+        )?;
+
+        assert!(sweep(&provider)?.is_empty());
+        assert!(epoch_state_is_stored(&provider)?);
+
+        // Deleting the group's log releases the epoch.
+        provider.delete_vc_derivation_epoch_log(&group_id())?;
+        let entries: Vec<TestEntity> = provider.vc_derivation_epoch_log_entries(&group_id())?;
+        assert!(entries.is_empty());
+        assert_eq!(sweep(&provider)?, vec![epoch_id()]);
+        assert!(!epoch_state_is_stored(&provider)?);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deletes_selected_log_entries() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        let other_epoch = TestKey(b"other".to_vec());
+        provider.write_vc_derivation_epoch_log_entry(
+            &group_id(),
+            &epoch_id(),
+            &TestEntity(b"entry".to_vec()),
+        )?;
+        provider.write_vc_derivation_epoch_log_entry(
+            &group_id(),
+            &other_epoch,
+            &TestEntity(b"other entry".to_vec()),
+        )?;
+
+        provider.delete_vc_derivation_epoch_log_entries(&group_id(), &[other_epoch])?;
+
+        let entries: Vec<TestEntity> = provider.vc_derivation_epoch_log_entries(&group_id())?;
+        assert_eq!(entries, vec![TestEntity(b"entry".to_vec())]);
+
+        Ok(())
+    }
 }
