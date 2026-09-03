@@ -55,9 +55,7 @@ void main() {
     });
 
     testWidgets('holds back onboarding while the user loads', (tester) async {
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(const UserSessionState());
+      when(() => userSessionCubit.state).thenReturn(const UserSessionState());
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
