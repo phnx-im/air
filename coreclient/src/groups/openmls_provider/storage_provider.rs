@@ -723,7 +723,14 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
     ) -> Result<(), Self::Error> {
         let storable = StorableHashRef(hash_ref);
         let mut connection = self.connection.borrow_mut();
-        let task = storable.delete_key_package(&mut **connection);
+        let task = async {
+            // The material a sibling retains to rederive this key package keeps
+            // its derivation epoch alive, so it goes with the key package.
+            storable
+                .delete_retained_key_package_material(&mut **connection)
+                .await?;
+            storable.delete_key_package(&mut **connection).await
+        };
         block_async_in_place(task)
     }
 
@@ -2178,6 +2185,31 @@ mod tests {
 
         let entries: Vec<TestEntity> = provider.vc_derivation_epoch_log_entries(&group_id())?;
         assert_eq!(entries, vec![TestEntity(b"entry".to_vec())]);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn deleting_a_key_package_releases_its_retained_material() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let provider = SqliteStorageProvider::new(connection.as_mut());
+
+        store_epoch_state(&provider)?;
+        let key_package_ref = TestKey(b"kp".to_vec());
+        provider.write_retained_key_package_material_batch(
+            &epoch_id(),
+            &TestEntity(b"tree".to_vec()),
+            &[(TestKey(b"kp".to_vec()), TestEntity(b"material".to_vec()))],
+        )?;
+        assert!(sweep(&provider)?.is_empty());
+
+        provider.delete_key_package(&key_package_ref)?;
+
+        let material: Option<TestEntity> =
+            provider.retained_key_package_material(&key_package_ref)?;
+        assert!(material.is_none());
+        assert_eq!(sweep(&provider)?, vec![epoch_id()]);
 
         Ok(())
     }
