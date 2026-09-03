@@ -195,12 +195,14 @@ pub(crate) async fn spawn_app(
 
     let interceptor = move |request| {
         match interceptor_control_handle.mode() {
-            Mode::DropNextResponse => interceptor_control_handle.set_drop_connection_on_write(),
-            Mode::DropNextRequest => {
+            Mode::DropNextResponse if interceptor_control_handle.take_armed() => {
+                interceptor_control_handle.set_drop_connection_on_write()
+            }
+            Mode::DropNextRequest if interceptor_control_handle.take_armed() => {
                 interceptor_control_handle.set_normal();
                 return Err(Status::unavailable("cancelled for interop test"));
             }
-            Mode::RejectNextRequest => {
+            Mode::RejectNextRequest if interceptor_control_handle.take_armed() => {
                 interceptor_control_handle.set_normal();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }

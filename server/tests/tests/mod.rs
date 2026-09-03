@@ -5,6 +5,7 @@
 mod attachment;
 mod connection;
 mod group;
+mod group_bootstrap;
 mod jobs;
 mod message;
 mod multi_device;

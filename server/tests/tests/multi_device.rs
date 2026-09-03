@@ -21,7 +21,12 @@ use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
 /// `receiver` sees it after fetching + processing its queue.
-async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: ChatId, text: &str) {
+pub(crate) async fn send_and_receive(
+    sender: &CoreUser,
+    devices: &[&CoreUser],
+    chat_id: ChatId,
+    text: &str,
+) {
     // Drain the sender's own queue so it is at the latest epoch.
     let pending = sender.qs_fetch_messages().await.unwrap();
     sender.fully_process_qs_messages(pending).await;
