@@ -11,7 +11,7 @@ use crate::crypto::{
     indexed_aead::keys::{Key, RandomlyGeneratable},
     kdf::{
         KdfDerivable,
-        keys::{RatchetSecret, SelfGroupExporterSecret},
+        keys::{RatchetSecret, SelfGroupExporterSecret, VcApplicationSecret},
     },
 };
 
@@ -142,10 +142,10 @@ impl KdfDerivable<SelfGroupExporterSecret, Vec<u8>, AEAD_KEY_SIZE> for SelfGroup
 /// Key that encrypts `GroupBootstrap` payloads, which convey a newly created or
 /// externally joined group to the sibling clients of a virtual client.
 ///
-/// It is derived from the [`SelfGroupExporterSecret`] of the self-group epoch
-/// whose registration minted the emulation epoch that derives the creating or
-/// joining leaf. That secret is already scoped to group, epoch and component,
-/// so callers pass an empty `Vec<u8>` as additional info to the derivation.
+/// It is derived from a [`VcApplicationSecret`], one application-ratchet
+/// generation of the emulation epoch that also derives the creating or joining
+/// leaf. That secret is already scoped to epoch, sender leaf and generation, so
+/// callers pass an empty `Vec<u8>` as additional info to the derivation.
 #[derive(Debug)]
 pub struct GroupBootstrapKeyType;
 
@@ -153,6 +153,6 @@ pub type GroupBootstrapKey = Key<GroupBootstrapKeyType>;
 
 impl AeadKey for GroupBootstrapKey {}
 
-impl KdfDerivable<SelfGroupExporterSecret, Vec<u8>, AEAD_KEY_SIZE> for GroupBootstrapKey {
+impl KdfDerivable<VcApplicationSecret, Vec<u8>, AEAD_KEY_SIZE> for GroupBootstrapKey {
     const LABEL: &'static str = "group bootstrap key";
 }

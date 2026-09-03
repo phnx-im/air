@@ -265,6 +265,13 @@ impl CoreUser {
                 );
                 Ok(QsMessageOutcome::empty())
             }
+            ExtractedQsQueueMessagePayload::GroupJoinEcho(echo) => {
+                warn!(
+                    group_id = ?echo.group_id,
+                    "group join echo processing not yet implemented"
+                );
+                Ok(QsMessageOutcome::empty())
+            }
         };
 
         debug!(elapsed = ?started.elapsed(), "Processed QS message");
