@@ -229,6 +229,10 @@ fn load_still_image<D: ImageDecoder>(
     let orientation = decoder.orientation().ok();
 
     let image = DynamicImage::from_decoder(decoder)?;
+
+    // TODO: use image crate to resize to thumbnail IF too big
+    // and then surface it in UI
+
     let mut image = resize(
         image,
         MAX_ATTACHMENT_IMAGE_WIDTH,

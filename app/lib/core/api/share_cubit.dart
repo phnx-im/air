@@ -87,6 +87,8 @@ sealed class ShareState with _$ShareState {
 sealed class UiShareSendError with _$UiShareSendError {
   const UiShareSendError._();
 
+  const factory UiShareSendError.decodingError() =
+      UiShareSendError_DecodingError;
   const factory UiShareSendError.attachmentTooLarge({
     required BigInt maxSizeBytes,
     required BigInt actualSizeBytes,

@@ -11386,15 +11386,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
+        return UiShareSendError_DecodingError();
+      case 1:
         return UiShareSendError_AttachmentTooLarge(
           maxSizeBytes: dco_decode_u_64(raw[1]),
           actualSizeBytes: dco_decode_u_64(raw[2]),
         );
-      case 1:
+      case 2:
         return UiShareSendError_TooManyAttachments(
           max: dco_decode_u_32(raw[1]),
         );
-      case 2:
+      case 3:
         return UiShareSendError_Other();
       default:
         throw Exception("unreachable");
@@ -15471,16 +15473,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
+        return UiShareSendError_DecodingError();
+      case 1:
         var var_maxSizeBytes = sse_decode_u_64(deserializer);
         var var_actualSizeBytes = sse_decode_u_64(deserializer);
         return UiShareSendError_AttachmentTooLarge(
           maxSizeBytes: var_maxSizeBytes,
           actualSizeBytes: var_actualSizeBytes,
         );
-      case 1:
+      case 2:
         var var_max = sse_decode_u_32(deserializer);
         return UiShareSendError_TooManyAttachments(max: var_max);
-      case 2:
+      case 3:
         return UiShareSendError_Other();
       default:
         throw UnimplementedError('');
@@ -19645,18 +19649,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
+      case UiShareSendError_DecodingError():
+        sse_encode_i_32(0, serializer);
       case UiShareSendError_AttachmentTooLarge(
         maxSizeBytes: final maxSizeBytes,
         actualSizeBytes: final actualSizeBytes,
       ):
-        sse_encode_i_32(0, serializer);
+        sse_encode_i_32(1, serializer);
         sse_encode_u_64(maxSizeBytes, serializer);
         sse_encode_u_64(actualSizeBytes, serializer);
       case UiShareSendError_TooManyAttachments(max: final max):
-        sse_encode_i_32(1, serializer);
+        sse_encode_i_32(2, serializer);
         sse_encode_u_32(max, serializer);
       case UiShareSendError_Other():
-        sse_encode_i_32(2, serializer);
+        sse_encode_i_32(3, serializer);
     }
   }
 

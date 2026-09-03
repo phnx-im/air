@@ -35,6 +35,7 @@ use reqwest::{Body, multipart};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use tls_codec::VLBytes;
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
@@ -146,9 +147,6 @@ impl CoreUser {
         };
 
         let source_path = path.to_owned();
-        let original_bytes = spawn_blocking(move || std::fs::read(&source_path))
-            .await?
-            .with_context(|| format!("Failed to read file at {}", path.display()))?;
 
         let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
@@ -170,7 +168,7 @@ impl CoreUser {
 
                 // store attachment locally
                 // (must be done after the message is stored locally due to foreign key constraints)
-                let record = AttachmentRecord {
+                AttachmentRecord {
                     attachment_id,
                     remote_attachment_id: None,
                     chat_id,
@@ -178,8 +176,9 @@ impl CoreUser {
                     content_type: probed.content_type.clone(),
                     status: AttachmentStatus::Uploading,
                     created_at: Utc::now(),
-                };
-                record.store(txn, Some(original_bytes.as_slice())).await?;
+                }
+                .store(txn, None)
+                .await?;
 
                 Ok(message)
             },
@@ -256,13 +255,18 @@ impl CoreUser {
         &self,
         attachment_id: AttachmentId,
         message: ChatMessage,
-        original_bytes: Vec<u8>,
+        source_path: PathBuf,
         spec: AttachmentSpec,
         progress_tx: AttachmentProgressSender,
     ) -> impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<> {
         let core_user = self.clone();
         let message_id = message.id();
         async move {
+            // TODO: tokio async I/O
+            let original_bytes: Vec<u8> = spawn_blocking(move || std::fs::read(&source_path))
+                .await?
+                .with_context(|| format!("Failed to read file at {}", source_path.display()))?;
+
             match Box::pin(core_user.send_attachment(
                 attachment_id,
                 message,
@@ -312,7 +316,17 @@ impl CoreUser {
         progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<Result<ChatMessage, ProvisionAttachmentError>> {
         let mut processed =
-            spawn_blocking(move || ProcessedAttachment::from_bytes(original_bytes, spec)).await??;
+            match spawn_blocking(move || ProcessedAttachment::from_bytes(original_bytes, spec))
+                .await?
+            {
+                Ok(processed) => processed,
+                Err(error) => {
+                    error!(%error, "failed to decode attachment to send");
+                    return Ok(Err(ProvisionAttachmentError::DecodingError));
+                }
+            };
+
+        // TODO: store here modified mimi content with updated blurhash?
 
         let chat_id = message.chat_id();
         let group = Group::load_with_chat_id_clean(self.db().read().await?, chat_id)
@@ -352,27 +366,16 @@ impl CoreUser {
             group.group_id(),
         ));
 
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                message.update(&mut *txn).await?;
-                AttachmentRecord::replace_content(
-                    &mut *txn,
-                    attachment_id,
-                    content_bytes.as_slice(),
-                )
-                .await?;
-                AttachmentRecord::update_remote_attachment_id(
-                    &mut *txn,
-                    attachment_id,
-                    remote_attachment_id,
-                )
-                .await?;
-                Ok(())
-            })
-            .await?;
-
-        self.upload_and_finalize(attachment_id, ciphertext, response, progress_tx)
-            .await?;
+        self.upload_and_finalize(
+            attachment_id,
+            &mut message,
+            content_bytes,
+            remote_attachment_id,
+            ciphertext,
+            response,
+            progress_tx,
+        )
+        .await?;
 
         Ok(Ok(message))
     }
@@ -411,10 +414,19 @@ impl CoreUser {
             .await
     }
 
-    /// Uploads the ciphertext and marks the attachment as ready.
+    /// Uploads the ciphertext, then persists the finalized content and marks
+    /// the attachment as ready.
+    ///
+    /// The finalized (re-encoded) content is only written once the upload has
+    /// actually succeeded, so a failed upload leaves the original bytes in
+    /// place for a retry to re-process, instead of re-encoding its own
+    /// already-encoded output.
     async fn upload_and_finalize(
         &self,
         attachment_id: AttachmentId,
+        message: &mut ChatMessage,
+        content_bytes: VLBytes,
+        remote_attachment_id: RemoteAttachmentId,
         ciphertext: Vec<u8>,
         provision_response: ProvisionAttachmentResponse,
         progress_tx: AttachmentProgressSender,
@@ -424,6 +436,19 @@ impl CoreUser {
             .await?;
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                message.update(&mut *txn).await?;
+                AttachmentRecord::replace_content(
+                    &mut *txn,
+                    attachment_id,
+                    content_bytes.as_slice(),
+                )
+                .await?;
+                AttachmentRecord::update_remote_attachment_id(
+                    &mut *txn,
+                    attachment_id,
+                    remote_attachment_id,
+                )
+                .await?;
                 AttachmentRecord::update_status(&mut *txn, attachment_id, AttachmentStatus::Ready)
                     .await?;
                 Ok(())
@@ -494,8 +519,7 @@ impl AttachmentSpec {
 
 #[derive(Debug)]
 pub enum UploadTaskError {
-    /// The server refused to provision the attachment. The message has been
-    /// deleted locally, because retrying it can't help.
+    /// The attachment failed to be decoded or provisioned by the server.
     Provision(ProvisionAttachmentError),
     /// The send failed. The message is still stored, marked as failed.
     Failed {
@@ -745,6 +769,7 @@ impl AttachmentMetadata {
 
 #[derive(Debug)]
 pub enum ProvisionAttachmentError {
+    DecodingError,
     TooLarge(AttachmentTooLargeDetail),
 }
 

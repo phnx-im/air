@@ -206,6 +206,38 @@ $UiShareSendErrorCopyWith(UiShareSendError _, $Res Function(UiShareSendError) __
 /// @nodoc
 
 
+class UiShareSendError_DecodingError extends UiShareSendError {
+  const UiShareSendError_DecodingError(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_DecodingError);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiShareSendError.decodingError()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class UiShareSendError_AttachmentTooLarge extends UiShareSendError {
   const UiShareSendError_AttachmentTooLarge({required this.maxSizeBytes, required this.actualSizeBytes}): super._();
   
