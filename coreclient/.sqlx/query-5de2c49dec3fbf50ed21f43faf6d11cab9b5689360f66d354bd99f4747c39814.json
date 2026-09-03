@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_operation_tree WHERE epoch_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5de2c49dec3fbf50ed21f43faf6d11cab9b5689360f66d354bd99f4747c39814"
+}
