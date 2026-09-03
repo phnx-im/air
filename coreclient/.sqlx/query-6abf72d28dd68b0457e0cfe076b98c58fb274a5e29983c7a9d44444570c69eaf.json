@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO blocked_contact_change (\n                    user_uuid,\n                    user_domain,\n                    blocked_at,\n                    last_display_name,\n                    previous_blocked_at,\n                    previous_last_display_name\n                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)\n                ON CONFLICT (user_uuid, user_domain) DO UPDATE SET\n                    blocked_at = excluded.blocked_at,\n                    last_display_name = excluded.last_display_name,\n                    previous_blocked_at = excluded.previous_blocked_at,\n                    previous_last_display_name = excluded.previous_last_display_name",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "6abf72d28dd68b0457e0cfe076b98c58fb274a5e29983c7a9d44444570c69eaf"
+}

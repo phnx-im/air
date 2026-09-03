@@ -633,10 +633,12 @@ mod tests {
         let db = open_client_db(db_path, client_record_id).await?;
         db.close().await;
 
-        // Roll back past the marker and insert an `own_client_info` row the way an old,
-        // pre-backfill client would have left it on disk: with a nil client id.
+        // Un-record the marker and insert an `own_client_info` row the way an old,
+        // pre-backfill client would have left it on disk: with a nil client id. Only the marker
+        // is un-recorded, so that later migrations are not replayed against a schema they have
+        // already been applied to.
         let db = open_client_db(db_path, client_record_id).await?;
-        sqlx::query("DELETE FROM _sqlx_migrations WHERE version >= ?")
+        sqlx::query("DELETE FROM _sqlx_migrations WHERE version = ?")
             .bind(RustMigration::OwnClientIdBackfill as i64)
             .execute(db.write().await?.as_mut())
             .await?;
