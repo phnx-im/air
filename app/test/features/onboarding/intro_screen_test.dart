@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,21 +17,21 @@ import '../../mocks.dart';
 
 void main() {
   group('IntroScreen', () {
-    late MockLoadableUserCubit loadableUserCubit;
+    late MockUserSessionCubit userSessionCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() {
-      loadableUserCubit = MockLoadableUserCubit();
+      userSessionCubit = MockUserSessionCubit();
       userSettingsCubit = MockUserSettingsCubit();
       when(
-        () => loadableUserCubit.state,
-      ).thenReturn(const LoadableUser.unloaded());
+        () => userSessionCubit.state,
+      ).thenReturn(const UserSessionState(loggedOut: true));
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
     Widget buildSubject() => MultiBlocProvider(
       providers: [
-        BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+        BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         BlocProvider<AppLocaleCubit>(create: (_) => AppLocaleCubit()),
       ],
@@ -55,9 +55,7 @@ void main() {
     });
 
     testWidgets('holds back onboarding while the user loads', (tester) async {
-      when(
-        () => loadableUserCubit.state,
-      ).thenReturn(const LoadableUser.loading());
+      when(() => userSessionCubit.state).thenReturn(const UserSessionState());
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
@@ -69,8 +67,8 @@ void main() {
       tester,
     ) async {
       when(
-        () => loadableUserCubit.state,
-      ).thenReturn(LoadableUser.loaded(MockUser()));
+        () => userSessionCubit.state,
+      ).thenReturn(UserSessionState(user: MockUser()));
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

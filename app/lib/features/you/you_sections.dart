@@ -8,8 +8,8 @@ import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
@@ -404,7 +404,7 @@ class _LanguageSettings extends StatelessWidget {
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
         // Before login there is no user to persist the locale to.
-        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
+        if (context.read<UserSessionCubit>().state.activeUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(

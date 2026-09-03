@@ -14,8 +14,8 @@ import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/cached_memory_image.dart';
@@ -92,11 +92,11 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
     final registration = context.read<RegistrationCubit>().state;
 
     // The account is created between the profile and username steps, which
-    // flips the loadable user to loaded. That swaps the intro subtree for the
-    // logged-in one and rebuilds this flow from scratch, so we need to avoid
-    // dropping back to the first standing step.
+    // opens the user session. That swaps the intro subtree for the logged-in
+    // one and rebuilds this flow from scratch, so we need to avoid dropping
+    // back to the first standing step.
     final userLoaded =
-        context.read<LoadableUserCubit>().state.loadedUser != null;
+        context.read<UserSessionCubit>().state.activeUser != null;
     _step = userLoaded ? _Step.username : _steps(registration).first;
 
     _codeController = TextEditingController(
