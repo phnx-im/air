@@ -207,9 +207,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
           "$groupName (${deviceInfo.name}$variantSuffix)",
           productShotInfo: productShotInfo,
           deviceInfo: deviceInfo,
-          physicalSizeOverride: _canvasSizeFor(
-            productShotInfo.targetPlatform,
-          ),
+          physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
           (tester) async {
             await tester.pumpWidget(
               _buildProductShotSubject(
@@ -261,10 +259,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
                 providers: spec.buildProviders(),
                 frameless: true,
                 brightness: brightness,
-                shot: DeviceFrame(
-                  device: deviceInfo,
-                  screen: spec.buildScreen(productShotInfo.targetPlatform),
-                ),
+                shot: spec.buildScreen(productShotInfo.targetPlatform),
               ),
             );
             await _precacheImages(tester);
@@ -307,13 +302,11 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
     final usersCubit = MockUsersCubit();
     final userSettingsCubit = MockUserSettingsCubit();
 
-    when(
-      () => navigationCubit.state,
-    ).thenReturn(const NavigationState.home());
+    when(() => navigationCubit.state).thenReturn(const NavigationState.home());
     when(() => userCubit.state).thenReturn(MockUiUser(id: 10));
-    when(() => usersCubit.state).thenReturn(
-      MockUsersState(profiles: userProfiles, defaultUserId: ownId),
-    );
+    when(
+      () => usersCubit.state,
+    ).thenReturn(MockUsersState(profiles: userProfiles, defaultUserId: ownId));
     when(
       () => userSettingsCubit.state,
     ).thenReturn(const UserSettings(experimentalFeatures: false));
