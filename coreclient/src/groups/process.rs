@@ -938,8 +938,8 @@ impl Group {
     }
 }
 
-/// Verify that merging `staged_commit` keeps the self-group flag of the group
-/// context's [`AirComponent`] unchanged. The flag is fixed at group creation.
+/// Verify that merging `staged_commit` keeps the self-group flag of the group context's unchanged.
+/// The flag is fixed at group creation.
 fn ensure_self_group_flag_unchanged(
     mls_group: &MlsGroup,
     staged_commit: &StagedCommit,

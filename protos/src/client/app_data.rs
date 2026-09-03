@@ -279,7 +279,7 @@ mod test {
         let _ = ClientAppData::current_virtual_client().leaf_node_extensions();
     }
 
-    /// Default extensions can be extended by must be backwards compatible.
+    /// Default extensions can be extended but must be backwards compatible.
     #[test]
     fn default_extensions_stability() {
         let leaf_node_extensions = ClientAppData::current().leaf_node_extensions();

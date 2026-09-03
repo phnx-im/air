@@ -2934,7 +2934,7 @@ mod test_utils {
 
 #[cfg(feature = "test_utils")]
 impl Group {
-    /// Creates a self-update commit forcing a specific [`AirComponent`] into the leaf node.
+    /// Creates a self-update commit forcing a specific [`AirFeatures`] into the leaf node.
     ///
     /// Useful for simulating old clients that lack certain feature flags.
     pub(crate) async fn update_with_features(
