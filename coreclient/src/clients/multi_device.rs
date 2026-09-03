@@ -19,10 +19,9 @@ use aircommon::crypto::signatures::keys::{QsClientSigningKey, QsUserSigningKey};
 use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
 use aircommon::messages::{FriendshipToken, QueueMessage};
 use aircommon::mls_group_config::{
-    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-    default_leaf_node_extensions, self_group_leaf_node_capabilities,
+    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::{LinkedDevice, SettingsUpdate, TokenSeed};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
@@ -637,7 +636,7 @@ impl CoreUser {
             },
         };
 
-        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
+        let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
         let client_reference = self.create_own_client_reference();
         // TODO: don't use Extension::Unknown
         leaf_node_extensions.add(Extension::Unknown(
@@ -645,7 +644,7 @@ impl CoreUser {
             UnknownExtension(client_reference.tls_serialize_detached()?),
         ))?;
         // add two fields AirComponent Option<QsClientId> and Option<QsUserId>
-        let key_package_extensions = default_key_package_extensions::<AirComponent>();
+        let key_package_extensions = ClientAppData::current().key_package_extensions();
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {

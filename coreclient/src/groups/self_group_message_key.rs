@@ -504,10 +504,10 @@ mod derivation_tests {
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
-        mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
     use airprotos::client::{
-        component::{AIR_COMPONENT_ID, AirComponent},
+        app_data::GroupAppData,
+        component::AIR_COMPONENT_ID,
         self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
@@ -540,19 +540,14 @@ mod derivation_tests {
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,
-    /// the group context carries `AirComponent::default_for_self_group`, which
-    /// is what the accessor's guard checks.
+    /// the group context marks the group as a self group, which is what the
+    /// accessor's guard checks.
     fn create_group(
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
-        let air_component = if is_self_group {
-            AirComponent::default_for_self_group()
-        } else {
-            AirComponent::default_for_leaf_or_key_package()
-        };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
             signer,
@@ -562,7 +557,7 @@ mod derivation_tests {
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
             None,
-            air_component,
+            is_self_group,
         )?;
         Ok(group)
     }
@@ -779,10 +774,13 @@ mod derivation_tests {
         // Extensions that clear the self-group flag by replacing the AIR
         // component in the app data dictionary.
         let mut flipped = group.mls_group().extensions().clone();
-        flipped.add_or_replace(default_group_context_app_data_dictionary_extension(
-            AirComponent::default_for_leaf_or_key_package(),
-            None,
-        ))?;
+        flipped.add_or_replace(
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+            }
+            .to_extension(),
+        )?;
         assert!(!extensions_claim_self_group(&flipped));
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());

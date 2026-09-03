@@ -1,5 +1,5 @@
 ---
-source: protos/src/client/component.rs
+source: protos/src/client/app_data.rs
 expression: diag
 ---
 a1                                               # map(1)

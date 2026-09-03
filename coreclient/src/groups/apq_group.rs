@@ -8,13 +8,12 @@ use aircommon::{
     identifiers::UserId,
     mls_group_config::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
-        default_group_context_app_data_dictionary_extension, default_group_required_extensions,
-        default_leaf_node_capabilities, default_sender_ratchet_configuration,
-        self_group_leaf_node_capabilities,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::GroupAppData;
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
@@ -60,7 +59,7 @@ impl Group {
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
         safe_aad_components: Option<Vec<ComponentId>>,
-        air_component: AirComponent,
+        is_self_group: bool,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -78,7 +77,11 @@ impl Group {
             required_capabilities,
             // APQ groups automatically add an app data dictionary extension (to required
             // capabilities), so we can safely add it here for all APQ groups.
-            default_group_context_app_data_dictionary_extension(air_component, safe_aad_components),
+            GroupAppData {
+                is_self_group,
+                safe_aad_components,
+            }
+            .to_extension(),
         ])?;
 
         // The leaf signature key is the signer's own key.

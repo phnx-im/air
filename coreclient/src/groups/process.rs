@@ -15,7 +15,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
-use airprotos::client::{component::AirComponent, self_group::SettingsUpdate};
+use airprotos::client::{app_data::GroupAppData, self_group::SettingsUpdate};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -945,8 +945,8 @@ fn ensure_self_group_flag_unchanged(
     staged_commit: &StagedCommit,
 ) -> Result<()> {
     ensure!(
-        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
-            == AirComponent::is_self_group_context(mls_group.extensions()),
+        GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+            == GroupAppData::is_self_group_context(mls_group.extensions()),
         "commit would toggle the self-group flag"
     );
     Ok(())

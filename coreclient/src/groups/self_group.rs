@@ -14,10 +14,8 @@ use aircommon::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
-    mls_group_config::AppComponent,
 };
 use airprotos::client::{
-    component::AirComponent,
     group::{EncryptedGroupTitle, GroupData},
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
@@ -317,7 +315,7 @@ impl CoreUser {
                     pq_group_id,
                     group_data_bytes,
                     safe_aad_components,
-                    AirComponent::default_for_self_group(),
+                    true,
                 )?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
