@@ -4,13 +4,17 @@
 
 //! Configuration for MLS groups.
 
+use std::time::Duration;
+
 use apqmls::ApqCiphersuite;
 use mls_assist::{
     components::ComponentsList,
     openmls::{
         component::{ComponentId, ComponentType},
         components::vc_derivation_info::VC_COMPONENT_ID,
-        group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
+        group::{
+            MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, VcDerivationEpochRetentionPolicy,
+        },
         prelude::{
             AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
             CredentialType, Extension, ExtensionType, ExtensionValidator, Extensions,
@@ -47,6 +51,16 @@ pub trait AppComponent {
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
 
+/// How long a superseded derivation epoch of an emulation group is kept, and
+/// so how late an operation of a sibling emulator client prepared against it
+/// can still be processed. Matches the interval of the self-update that
+/// rotates the epoch.
+pub const VC_DERIVATION_EPOCH_RETENTION_WINDOW: Duration = Duration::from_hours(24);
+
+/// Upper bound on the number of derivation epochs an emulation group retains,
+/// in addition to [`VC_DERIVATION_EPOCH_RETENTION_WINDOW`].
+pub const VC_DERIVATION_EPOCH_MAX_COUNT: usize = 50;
+
 /// Determines the out-of-order tolerance for the sender ratchet. See
 /// [`SenderRatchetConfiguration`].
 const OUT_OF_ORDER_TOLERANCE: u32 = 20;
@@ -62,6 +76,9 @@ pub fn default_mls_group_join_config() -> MlsGroupJoinConfig {
     MlsGroupJoinConfig::builder()
         .max_past_epochs(MAX_PAST_EPOCHS)
         .sender_ratchet_configuration(default_sender_ratchet_configuration())
+        // Air prunes derivation epochs on a wall-clock window instead, see
+        // `VC_DERIVATION_EPOCH_RETENTION_WINDOW`.
+        .set_vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
         .wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
         .build()
 }

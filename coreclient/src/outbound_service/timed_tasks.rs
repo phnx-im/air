@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
+use aircommon::{
+    identifiers::USERNAME_REFRESH_THRESHOLD, mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
+};
 use airprotos::{
     auth_service::v1::OperationType,
     client::{component::AirComponent, group::GroupData},
@@ -16,7 +18,8 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatAttributes, ChatId,
     chats::{GroupDataExt, GroupDataProfilePart},
-    groups::Group,
+    db::access::WriteConnection,
+    groups::{Group, vc_epoch_retention::sweep_vc_derivation_epochs},
     job::{
         JobError,
         chat_operation::{ChatOperation, DerivationEpoch},
@@ -430,7 +433,7 @@ impl OutboundServiceContext {
     ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
-        let (group, is_connection, erase_attributes, pq_due) = {
+        let (mut group, is_connection, erase_attributes, pq_due) = {
             let mut read = self
                 .db
                 .read()
@@ -522,6 +525,13 @@ impl OutboundServiceContext {
         // doubles as the rotation of its derivation epoch. openmls rejects the
         // marker on any other group.
         let derivation_epoch = if group.mls_group().is_emulation_group() {
+            // The rotation below leaves the current derivation epoch behind, so
+            // this is also where the epochs that aged out of the retention
+            // window are released. A failure here only leaves state around, so
+            // it must not hold up the self-update.
+            if let Err(error) = self.sweep_derivation_epochs(&mut group).await {
+                warn!(%chat_id, %error, "Failed to sweep derivation epochs of the emulation group");
+            }
             DerivationEpoch::Rotate
         } else {
             // A self group without a registered derivation epoch loads as a
@@ -565,6 +575,16 @@ impl OutboundServiceContext {
                 Err(OutboundServiceError::fatal(error))
             }
         }
+    }
+
+    /// Prunes the derivation epochs of the emulation group that aged out of
+    /// [`VC_DERIVATION_EPOCH_RETENTION_WINDOW`].
+    async fn sweep_derivation_epochs(&self, group: &mut Group) -> anyhow::Result<()> {
+        let mut write = self.db.write().await?;
+        let mut txn = write.begin().await?;
+        sweep_vc_derivation_epochs(&mut txn, group, VC_DERIVATION_EPOCH_RETENTION_WINDOW)?;
+        txn.commit().await?;
+        Ok(())
     }
 }
 
