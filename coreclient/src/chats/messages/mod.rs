@@ -186,8 +186,8 @@ impl ChatMessage {
 
     /// An unsent message whose content is not final yet.
     ///
-    /// The Mimi ID is derived from the content, so it can only be calculated
-    /// once the content is known.
+    /// No Mimi ID is calculated, because it depends on the content and the
+    /// final content is not known yet.
     pub(crate) fn new_provisional_message(
         sender: UserId,
         chat_id: ChatId,

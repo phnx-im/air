@@ -43,7 +43,7 @@ use url::Url;
 
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl,
-    ChatId, ChatMessage, ContentMessage, MessageId,
+    Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
@@ -53,7 +53,6 @@ use crate::{
             progress::{AttachmentProgress, AttachmentProgressSender},
         },
     },
-    db::access::WriteConnection,
     groups::Group,
     utils::image::{
         ReencodedAttachmentImage, placeholder_blurhash, probe_attachment_image,
@@ -135,7 +134,12 @@ impl CoreUser {
             ProvisionAttachmentError,
         >,
     > {
+        if !Chat::exists(self.db().read().await?, &chat_id).await? {
+            anyhow::bail!("group does not exist");
+        }
+
         let probe_path = path.to_owned();
+
         let probed = match spawn_blocking(move || ProbedAttachment::from_path(probe_path)).await?? {
             Ok(probed) => probed,
             Err(error) => return Ok(Err(error)),
@@ -287,7 +291,6 @@ impl CoreUser {
                                 AttachmentStatus::UploadFailed,
                             )
                             .await?;
-                            txn.notifier().update(attachment_id);
                             Ok(())
                         })
                         .await
@@ -396,7 +399,7 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                AttachmentRecord::transition_status(
+                AttachmentRecord::update_status_from(
                     &mut *txn,
                     attachment_id,
                     AttachmentStatus::Uploading,
@@ -423,7 +426,6 @@ impl CoreUser {
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 AttachmentRecord::update_status(&mut *txn, attachment_id, AttachmentStatus::Ready)
                     .await?;
-                txn.notifier().update(attachment_id);
                 Ok(())
             })
             .await

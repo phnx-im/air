@@ -334,12 +334,13 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
+        connection.notifier().update(attachment_id);
         Ok(())
     }
 
     /// Moves the attachment to a status, but only while it is still in the
     /// expected one. Returns whether the row changed.
-    pub(crate) async fn transition_status(
+    pub(crate) async fn update_status_from(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         from: AttachmentStatus,
@@ -833,7 +834,7 @@ pub(crate) mod test {
         );
         record.store(pool.write().await?, Some(b"content")).await?;
 
-        let changed = AttachmentRecord::transition_status(
+        let changed = AttachmentRecord::update_status_from(
             pool.write().await?,
             record.attachment_id,
             AttachmentStatus::Uploading,
@@ -846,7 +847,7 @@ pub(crate) mod test {
             .unwrap();
         assert_eq!(loaded.status, AttachmentStatus::Ready);
 
-        let changed = AttachmentRecord::transition_status(
+        let changed = AttachmentRecord::update_status_from(
             pool.write().await?,
             record.attachment_id,
             AttachmentStatus::Ready,
