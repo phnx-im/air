@@ -118,6 +118,7 @@ class ProductShotInfo {
 Widget _buildProductShotSubject({
   required List<SingleChildWidget> providers,
   required Widget shot,
+  Brightness brightness = Brightness.light,
   bool frameless = false,
 }) => MultiProvider(
   providers: providers,
@@ -126,12 +127,15 @@ Widget _buildProductShotSubject({
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testLightTheme,
-        themeMode: .light,
+        darkTheme: testDarkTheme,
+        themeMode: brightness == Brightness.dark ? .dark : .light,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: Material(
           color: frameless ? Colors.transparent : null,
           child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(platformBrightness: .light),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(platformBrightness: brightness),
             child: frameless ? Center(child: shot) : shot,
           ),
         ),
@@ -140,16 +144,29 @@ Widget _buildProductShotSubject({
   ),
 );
 
+/// The marketing chrome colors for one brightness variant of a product shot.
+class _ShotPalette {
+  const _ShotPalette({
+    required this.backgroundColor,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.frameColor,
+  });
+
+  final Color backgroundColor;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color frameColor;
+}
+
 /// Everything one product shot subject (chat list, a private chat, a group
 /// chat, ...) needs: its marketing copy/colors, the providers backing it, and
 /// the screen to depict for a given target platform.
 class _ProductShotSpec {
   const _ProductShotSpec({
     required this.goldenPrefix,
-    required this.backgroundColor,
-    required this.titleColor,
-    required this.subtitleColor,
-    required this.frameColor,
+    required this.lightPalette,
+    required this.darkPalette,
     required this.title,
     required this.subtitle,
     required this.buildProviders,
@@ -157,10 +174,8 @@ class _ProductShotSpec {
   });
 
   final String goldenPrefix;
-  final Color backgroundColor;
-  final Color titleColor;
-  final Color subtitleColor;
-  final Color frameColor;
+  final _ShotPalette lightPalette;
+  final _ShotPalette darkPalette;
   final String title;
   final String subtitle;
 
@@ -168,6 +183,9 @@ class _ProductShotSpec {
   final List<SingleChildWidget> Function() buildProviders;
 
   final Widget Function(TargetPlatform platform) buildScreen;
+
+  _ShotPalette paletteFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkPalette : lightPalette;
 }
 
 /// Registers the marketing and frameless golden tests for [spec] across
@@ -179,78 +197,108 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
       final deviceInfo = device.deviceInfo;
       final identifier = device.identifier;
 
-      testProductShot(
-        "$groupName (${deviceInfo.name})",
-        productShotInfo: productShotInfo,
-        deviceInfo: deviceInfo,
-        physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
-        (tester) async {
-          await tester.pumpWidget(
-            _buildProductShotSubject(
-              providers: spec.buildProviders(),
-              shot: ProductShot(
-                size: _canvasSizeFor(productShotInfo.targetPlatform),
-                backgroundColor: spec.backgroundColor,
-                titleColor: spec.titleColor,
-                subtitleColor: spec.subtitleColor,
-                title: spec.title,
-                subtitle: spec.subtitle,
-                frameColor: spec.frameColor,
-                device: device,
-                child: spec.buildScreen(productShotInfo.targetPlatform),
-              ),
-            ),
-          );
-          await _precacheImages(tester);
-          await tester.pumpAndSettle();
+      for (final brightness in Brightness.values) {
+        final palette = spec.paletteFor(brightness);
+        final isDark = brightness == Brightness.dark;
+        final variantSuffix = isDark ? ', dark' : '';
+        final goldenSuffix = isDark ? '.dark' : '';
 
-          await expectLater(
-            find.byType(ProductShot),
-            // Do not change the ios/android file names, as they are
-            // referenced in stores/ios/en-US/screenshots and
-            // stores/android/metadata/en-US/images/phone-screenshots
-            matchesGoldenFile(_golden("${spec.goldenPrefix}.$identifier.png")),
-          );
-        },
-      );
+        testProductShot(
+          "$groupName (${deviceInfo.name}$variantSuffix)",
+          productShotInfo: productShotInfo,
+          deviceInfo: deviceInfo,
+          physicalSizeOverride: _canvasSizeFor(
+            productShotInfo.targetPlatform,
+          ),
+          (tester) async {
+            await tester.pumpWidget(
+              _buildProductShotSubject(
+                providers: spec.buildProviders(),
+                brightness: brightness,
+                shot: ProductShot(
+                  size: _canvasSizeFor(productShotInfo.targetPlatform),
+                  backgroundColor: palette.backgroundColor,
+                  titleColor: palette.titleColor,
+                  subtitleColor: palette.subtitleColor,
+                  title: spec.title,
+                  subtitle: spec.subtitle,
+                  frameColor: palette.frameColor,
+                  brightness: brightness,
+                  device: device,
+                  child: spec.buildScreen(productShotInfo.targetPlatform),
+                ),
+              ),
+            );
+            await _precacheImages(tester);
+            await tester.pumpAndSettle();
+
+            await expectLater(
+              find.byType(ProductShot),
+              // Do not change the ios/android light file names, as they are
+              // referenced in stores/ios/en-US/screenshots and
+              // stores/android/metadata/en-US/images/phone-screenshots
+              matchesGoldenFile(
+                _golden("${spec.goldenPrefix}.$identifier$goldenSuffix.png"),
+              ),
+            );
+          },
+        );
+      }
 
       // Build the product shot without marketing chrome
-      testProductShot(
-        "$groupName (${deviceInfo.name}, frameless)",
-        productShotInfo: productShotInfo,
-        deviceInfo: deviceInfo,
-        (tester) async {
-          await tester.pumpWidget(
-            _buildProductShotSubject(
-              providers: spec.buildProviders(),
-              frameless: true,
-              shot: DeviceFrame(
-                device: deviceInfo,
-                screen: spec.buildScreen(productShotInfo.targetPlatform),
-              ),
-            ),
-          );
-          await _precacheImages(tester);
-          await tester.pumpAndSettle();
+      for (final brightness in Brightness.values) {
+        final isDark = brightness == Brightness.dark;
+        final variantSuffix = isDark ? ', dark' : '';
+        final goldenSuffix = isDark ? '.dark' : '';
 
-          await expectLater(
-            find.byType(DeviceFrame),
-            matchesGoldenFile(
-              _golden("${spec.goldenPrefix}.$identifier.frameless.png"),
-            ),
-          );
-        },
-      );
+        testProductShot(
+          "$groupName (${deviceInfo.name}, frameless$variantSuffix)",
+          productShotInfo: productShotInfo,
+          deviceInfo: deviceInfo,
+          (tester) async {
+            await tester.pumpWidget(
+              _buildProductShotSubject(
+                providers: spec.buildProviders(),
+                frameless: true,
+                brightness: brightness,
+                shot: DeviceFrame(
+                  device: deviceInfo,
+                  screen: spec.buildScreen(productShotInfo.targetPlatform),
+                ),
+              ),
+            );
+            await _precacheImages(tester);
+            await tester.pumpAndSettle();
+
+            await expectLater(
+              find.byType(DeviceFrame),
+              matchesGoldenFile(
+                _golden(
+                  "${spec.goldenPrefix}.$identifier$goldenSuffix.frameless.png",
+                ),
+              ),
+            );
+          },
+        );
+      }
     }
   });
 }
 
 _ProductShotSpec _chatListSpec() => _ProductShotSpec(
   goldenPrefix: 'chat_list',
-  backgroundColor: Primitive.neutral(NeutralShade.s100),
-  titleColor: Primitive.neutral(NeutralShade.s800),
-  subtitleColor: Primitive.neutral(NeutralShade.s600),
-  frameColor: Primitive.neutral(NeutralShade.s300),
+  lightPalette: _ShotPalette(
+    backgroundColor: Primitive.neutral(NeutralShade.s100),
+    titleColor: Primitive.neutral(NeutralShade.s800),
+    subtitleColor: Primitive.neutral(NeutralShade.s600),
+    frameColor: Primitive.neutral(NeutralShade.s300),
+  ),
+  darkPalette: _ShotPalette(
+    backgroundColor: Primitive.neutral(NeutralShade.s900),
+    titleColor: Primitive.neutral(NeutralShade.s50),
+    subtitleColor: Primitive.neutral(NeutralShade.s400),
+    frameColor: Primitive.neutral(NeutralShade.s700),
+  ),
   title: 'Secure messaging\nfor everyone.',
   subtitle: 'Everything in Air is\nend-to-end encrypted.',
   buildProviders: () {
@@ -295,10 +343,8 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
 /// depict, so they share this spec and just plug in their own fixtures.
 _ProductShotSpec _chatSpec({
   required String goldenPrefix,
-  required Color backgroundColor,
-  required Color titleColor,
-  required Color subtitleColor,
-  required Color frameColor,
+  required _ShotPalette lightPalette,
+  required _ShotPalette darkPalette,
   required String title,
   required String subtitle,
   required UiChatDetails chat,
@@ -307,10 +353,8 @@ _ProductShotSpec _chatSpec({
   required Map<AttachmentId, ImageData> attachmentImages,
 }) => _ProductShotSpec(
   goldenPrefix: goldenPrefix,
-  backgroundColor: backgroundColor,
-  titleColor: titleColor,
-  subtitleColor: subtitleColor,
-  frameColor: frameColor,
+  lightPalette: lightPalette,
+  darkPalette: darkPalette,
   title: title,
   subtitle: subtitle,
   buildProviders: () {
@@ -376,10 +420,18 @@ _ProductShotSpec _chatSpec({
 
 _ProductShotSpec _privateChatSpec() => _chatSpec(
   goldenPrefix: 'private_chat',
-  backgroundColor: Primitive.chromatic(Hue.orange, Shade.s50),
-  titleColor: Primitive.chromatic(Hue.orange, Shade.s800),
-  subtitleColor: Primitive.chromatic(Hue.orange, Shade.s600),
-  frameColor: Primitive.chromatic(Hue.orange, Shade.s300),
+  lightPalette: _ShotPalette(
+    backgroundColor: Primitive.chromatic(Hue.orange, Shade.s50),
+    titleColor: Primitive.chromatic(Hue.orange, Shade.s800),
+    subtitleColor: Primitive.chromatic(Hue.orange, Shade.s600),
+    frameColor: Primitive.chromatic(Hue.orange, Shade.s300),
+  ),
+  darkPalette: _ShotPalette(
+    backgroundColor: Primitive.chromatic(Hue.orange, Shade.s900),
+    titleColor: Primitive.chromatic(Hue.orange, Shade.s50),
+    subtitleColor: Primitive.chromatic(Hue.orange, Shade.s300),
+    frameColor: Primitive.chromatic(Hue.orange, Shade.s700),
+  ),
   title: 'Connect with friends.',
   subtitle: 'Send messages in private chats.',
   chat: privateChat,
@@ -390,10 +442,18 @@ _ProductShotSpec _privateChatSpec() => _chatSpec(
 
 _ProductShotSpec _groupChatSpec() => _chatSpec(
   goldenPrefix: 'group_chat',
-  backgroundColor: Primitive.chromatic(Hue.blue, Shade.s50),
-  titleColor: Primitive.chromatic(Hue.blue, Shade.s800),
-  subtitleColor: Primitive.chromatic(Hue.blue, Shade.s600),
-  frameColor: Primitive.chromatic(Hue.blue, Shade.s300),
+  lightPalette: _ShotPalette(
+    backgroundColor: Primitive.chromatic(Hue.blue, Shade.s50),
+    titleColor: Primitive.chromatic(Hue.blue, Shade.s800),
+    subtitleColor: Primitive.chromatic(Hue.blue, Shade.s600),
+    frameColor: Primitive.chromatic(Hue.blue, Shade.s300),
+  ),
+  darkPalette: _ShotPalette(
+    backgroundColor: Primitive.chromatic(Hue.blue, Shade.s900),
+    titleColor: Primitive.chromatic(Hue.blue, Shade.s50),
+    subtitleColor: Primitive.chromatic(Hue.blue, Shade.s300),
+    frameColor: Primitive.chromatic(Hue.blue, Shade.s700),
+  ),
   title: 'Create group chats.',
   subtitle: 'Message with multiple people.',
   chat: groupChat,

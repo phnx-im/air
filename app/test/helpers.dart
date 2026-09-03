@@ -29,6 +29,9 @@ ThemeData testThemeData(Brightness brightness) {
 /// pin after this library is first loaded.
 ThemeData get testLightTheme => testThemeData(.light);
 
+/// See [testLightTheme] for why this is a getter rather than a `final`.
+ThemeData get testDarkTheme => testThemeData(.dark);
+
 /// Maps the host OS to the matching desktop [TargetPlatform] so widget goldens
 /// render the same desktop code path the app ships on that OS, keeping the
 /// per-platform golden variants consistent with their host.

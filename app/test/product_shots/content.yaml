@@ -37,7 +37,7 @@ contacts:
 # Which chat is shown in each product shot that needs a full transcript.
 # (chat_list shows every chat below and needs no mapping.)
 shots:
-  private_chat: luis
+  private_chat: jacob
   group_chat: roomies
 
 # Chats
@@ -161,6 +161,298 @@ chats:
 
 # Conversation contents
 transcripts:
+  sigridh:
+    - sender: sigridh
+      text: The new café on Maple is finally open! Walked past this morning and it smells incredible 🥐
+      time:
+        hours: 26
+        minutes: 11
+    - sender: sigridh
+      image: pastry-case.jpg
+      time:
+        hours: 26
+        minutes: 10
+      reactions:
+        - emoji: 😍
+          by:
+            - sasha
+    - sender: sasha
+      text: Oh no. My willpower. Those croissants look dangerous.
+      time:
+        hours: 26
+        minutes: 2
+      status: read
+    - sender: sigridh
+      text: Right? We have to go.
+      time:
+        hours: 26
+    - sender: sasha
+      text: I'm free this weekend!
+      time:
+        hours: 25
+        minutes: 57
+      status: read
+    - sender: sigridh
+      text: We're doing brunch on Saturday, by the way!
+      time:
+        minutes: 4
+    - sender: sigridh
+      text: Can you make it?
+      time:
+        minutes: 2
+  shiftSwaps:
+    - sender: lukas
+      text: Hey, I got invited to go camping this weekend 🏕️ Any chance someone wants to cover my opening shift on Sunday, 7am-3pm?
+      time:
+        hours: 25
+        minutes: 34
+    - sender: jacob
+      text: Yeah, I'll take it. I could use the hours.
+      time:
+        hours: 25
+        minutes: 6
+      reactions:
+        - emoji: 🙏
+          by:
+            - lukas
+    - sender: lukas
+      text: Thank you! I'm at work now, so I'll put it on the calendar.
+      time:
+        hours: 24
+        minutes: 41
+    - sender: jule
+      text: I'm trying to put together a long weekday weekend for myself. Anyone want to swap a close (3pm-9pm) on Tuesday or Friday for an opening on another day? I can work a double on the day I swap to.
+      time:
+        minutes: 48
+    - sender: sasha
+      text: I could trade my Sunday opening for your Friday close!
+      time:
+        minutes: 15
+      status: read
+      reactions:
+        - emoji: ❤️
+          by:
+            - jule
+  amara:
+    - sender: sasha
+      text: What colors are you thinking for the scarf?
+      time:
+        hours: 13
+        minutes: 15
+      status: read
+    - sender: amara
+      text: Deep purples and blues, kind of like the end of a summer sunset.
+      time:
+        hours: 1
+        minutes: 55
+    - sender: amara
+      text: "OK, I think I found the perfect yarn for it: a super cute, soft DK weight wool."
+      time:
+        minutes: 38
+    - sender: amara
+      text: I couldn't pick just one, so I shortlisted a few 😅
+      time:
+        minutes: 37
+    - sender: amara
+      image: yarn-skeins.jpg
+      time:
+        minutes: 36
+    - sender: sasha
+      text: They're gorgeous! That's the end-of-summer sunset.
+      time:
+        minutes: 23
+      status: read
+      reactions:
+        - emoji: ❤️
+          by:
+            - amara
+    - sender: amara
+      text: I'm going to cast on tonight! 🧶
+      time:
+        minutes: 20
+  lukas:
+    - sender: lukas
+      text: Send me that focaccia recipe when you get a minute?
+      time:
+        hours: 26
+        minutes: 1
+    - sender: sasha
+      text: Yes! One sec.
+      time:
+        hours: 13
+        minutes: 6
+      status: read
+    - sender: sasha
+      text: Just sent you the link.
+      time:
+        hours: 13
+        minutes: 1
+      status: read
+    - sender: lukas
+      text: "Update: the dough is rising. I have a good feeling about this 🤞"
+      time:
+        hours: 12
+        minutes: 56
+    - sender: lukas
+      image: focaccia.jpg
+      time:
+        minutes: 42
+      reactions:
+        - emoji: 🤩
+          by:
+            - sasha
+    - sender: lukas
+      text: I'd like to formally thank you for changing my life.
+      time:
+        minutes: 41
+      reactions:
+        - emoji: 😂
+          by:
+            - sasha
+    - sender: sasha
+      text: Whoa, that's gorgeous! Honestly better than mine.
+      time:
+        minutes: 33
+      status: read
+    - sender: lukas
+      text: I'll be in your area later, so I'll drop off a couple pieces at your apartment!
+      time:
+        minutes: 30
+  communityMeals:
+    - sender: sasha
+      text: Park kitchen is confirmed for Sunday! 🎉 Planning on around 60 plates again.
+      time:
+        hours: 50
+        minutes: 55
+      status: read
+    - sender: amara
+      text: Wonderful! I can do the big shopping run Saturday morning if someone helps me carry it all.
+      time:
+        hours: 50
+        minutes: 50
+    - sender: deepti
+      text: I'll come carry! Of course I also can prep.
+      time:
+        hours: 50
+        minutes: 44
+    - sender: sasha
+      text: I'm thinking big pots of dal and rice, plus a veggie slaw so there's something for everyone 🍛
+      time:
+        hours: 50
+        minutes: 38
+      status: read
+    - sender: frederic
+      text: "Here's the plan recap: Amara and Deepti do the shopping, I'll bring the kitchen gear as usual, and we all meet at the park at 10am to prep so we're ready to serve by noon."
+      time:
+        hours: 24
+      reactions:
+        - emoji: 👍
+          by:
+            - sasha
+            - amara
+            - deepti
+  jacob:
+    - sender: jacob
+      text: Hey! I finally downloaded Air so we can chat here.
+      time:
+        hours: 24
+        minutes: 24
+    - sender: sasha
+      text: Yay! 🎉 Thanks for doing that — I'm trying to move all my chats over to Air.
+      time:
+        hours: 24
+        minutes: 23
+      status: read
+    - sender: jacob
+      text: "I've been meaning to ask: why this app specifically?"
+      time:
+        hours: 24
+        minutes: 22
+    - sender: sasha
+      text: A few reasons. It's fully encrypted, they don't keep any metadata, and you don't need a phone number or email to sign up.
+      time:
+        hours: 24
+        minutes: 20
+      status: read
+    - sender: sasha
+      text: And it's open source, so it's not just them saying it's private, anyone can check the code.
+      time:
+        hours: 24
+        minutes: 17
+      status: read
+      reactions:
+        - emoji: 🤯
+          by:
+            - jacob
+    - sender: jacob
+      text: OK, that's legitimately cool. But what's metadata?
+      time:
+        hours: 24
+        minutes: 15
+    - sender: sasha
+      text: It's info like who you're talking to and when. They never see any of it.
+      time:
+        hours: 24
+        minutes: 14
+      status: read
+    - sender: jacob
+      text: Ahh, got it. Cool!
+      time:
+        hours: 24
+        minutes: 13
+    - sender: sasha
+      text: How's the doggo doing?
+      time:
+        hours: 24
+        minutes: 12
+      status: read
+    - sender: jacob
+      image: happy-dog.jpg
+      time:
+        hours: 24
+        minutes: 11
+      reactions:
+        - emoji: ❤️
+          by:
+            - sasha
+    - sender: sasha
+      text: "🐾🥹 Welcome to Air!"
+      time:
+        hours: 24
+        minutes: 10
+      status: delivered
+  neighborhoodCleaning:
+    - sender: kristijan
+      text: "It's time to kick off our monthly neighborhood cleaning day planning! Thanks to everyone who's taking part. As always, this is a great opportunity to form new connections in our neighborhood and make it an even nicer place to live.\n\nAs a reminder, the event is the second Saturday of June, and we'll have a planning meeting this Friday evening at 6pm. We'll use the time to divide up the responsibilities and get to know each other! If you can't make it, I'll send a recap after, including areas we need more help."
+      time:
+        hours: 74
+        minutes: 38
+      reactions:
+        - emoji: ❤️
+          by:
+            - sasha
+            - josefina
+    - sender: sasha
+      text: Thanks for organizing, Kristijan!
+      time:
+        hours: 74
+        minutes: 5
+      status: read
+    - sender: josefina
+      text: I'm so excited! I met so many people from the neighborhood last month 😊
+      time:
+        hours: 73
+        minutes: 51
+    - sender: luca
+      text: I'm not going to make the meeting on Friday because I have to work, but I can help with signage just like last month. I was just at the print shop a few days ago and the rates haven't changed. I was talking to the owner about what we're doing and he might be able to give us a discount. He definitely will want a promo poster in his window!
+      time:
+        hours: 67
+        minutes: 12
+    - sender: kristijan
+      text: Wonderful! We actually have a little more budget for printing than last month. Several local businesses were excited to sponsor it and so if we want to get a little more creative, we can talk at the meeting about where to use those funds!
+      time:
+        hours: 24
+        minutes: 20
   luis:
     - sender: sasha
       text: Wait, so you actually liked the new album?
@@ -311,3 +603,19 @@ transcripts:
       text: 😍😍 You really love those cookies.
       time:
         minutes: 14
+  kristijan:
+    - sender: kristijan
+      text: "Hi Sasha — it was great to meet you the other night, and glad you're joining the Neighborhood cleaning crew! We have a group chat that I just added you to, and I'll send some details there about our next planning meeting.\n\nIf you know anyone else who might want to join and help out, we're probably set on planning but can always use more volunteers for the day of."
+      time:
+        hours: 168
+        minutes: 17
+    - sender: sasha
+      text: I'm really looking forward to it! It's nice to feel like I'm helping make the neighborhood better ✨
+      time:
+        hours: 168
+        minutes: 6
+      status: read
+    - sender: kristijan
+      text: That's so great! I started this monthly event a few years ago just for that reason. It's nice to build community in our little part of the city!
+      time:
+        hours: 168
