@@ -2474,6 +2474,20 @@ impl Group {
         })
     }
 
+    /// Whether the proposal store holds a self-remove proposal from our own leaf.
+    pub(crate) fn has_pending_own_self_remove(&self) -> bool {
+        let own_index = self.mls_group().own_leaf_index();
+        self.mls_group().pending_proposals().any(|p| {
+            if let Proposal::SelfRemove = p.proposal()
+                && let Sender::Member(index) = p.sender()
+            {
+                *index == own_index
+            } else {
+                false
+            }
+        })
+    }
+
     fn staged_commit_removes(
         &self,
         staged_commit: Option<&'_ StagedCommit>,
