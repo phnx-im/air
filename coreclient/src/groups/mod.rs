@@ -16,6 +16,7 @@ pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
+pub(crate) mod vc_epoch_retention;
 
 use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSigner},
@@ -119,6 +120,7 @@ use openmls::{
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
         ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
+        VcDerivationEpochRetentionPolicy,
     },
     prelude::{
         AppDataDictionaryExtension, Capabilities, Credential, CredentialType, CredentialWithKey,
@@ -280,7 +282,8 @@ impl SendMessageCollisionKey {
             32,
         )?;
 
-        let kdf = Hkdf::from_prk(&epoch_secret).expect("input is 32 bytes, a valid HKDF PRK");
+        let kdf =
+            Hkdf::from_prk(epoch_secret.as_slice()).expect("input is 32 bytes, a valid HKDF PRK");
         Ok(Self { epoch, kdf })
     }
 
@@ -529,6 +532,8 @@ impl Group {
             .with_leaf_node_extensions(default_leaf_node_extensions::<AirComponent>())?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
+            // Not an emulation group, but keeps the stored configs uniform.
+            .set_vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;

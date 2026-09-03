@@ -135,6 +135,7 @@ impl Group {
                 AIR_COMPONENT_ID,
             )?;
             let exporter_bytes: [u8; AEAD_KEY_SIZE] = exporter_bytes
+                .as_slice()
                 .try_into()
                 .map_err(|_| anyhow!("unexpected self-group exporter secret length"))?;
             let exporter = SelfGroupExporterSecret::from_bytes(exporter_bytes);

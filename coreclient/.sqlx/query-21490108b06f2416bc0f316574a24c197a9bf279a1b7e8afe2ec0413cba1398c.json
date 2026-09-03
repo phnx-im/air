@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_derivation_epoch_log_entry(group_id, epoch_id, entry)\n            VALUES (?1, ?2, ?3)\n            ON CONFLICT(group_id, epoch_id) DO UPDATE SET\n                entry = excluded.entry",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "21490108b06f2416bc0f316574a24c197a9bf279a1b7e8afe2ec0413cba1398c"
+}

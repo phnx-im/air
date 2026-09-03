@@ -47,14 +47,13 @@ struct StorableVcSecretRef<'a, VcSecret: Entity<CURRENT_VERSION>>(pub &'a VcSecr
 
 struct StorableVcEpochIdRef<'a, VcEpochId: Key<CURRENT_VERSION>>(pub &'a VcEpochId);
 
-struct StorableEmulationBindingRef<'a, VcEmulationBindings: Entity<CURRENT_VERSION>>(
-    pub &'a VcEmulationBindings,
+struct StorableEmulationBindingRef<'a, VcEmulationBinding: Entity<CURRENT_VERSION>>(
+    pub &'a VcEmulationBinding,
 );
 
-struct StorableRegisteredVcEmulationEpochRef<
-    'a,
-    RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>,
->(pub &'a RegisteredVcEmulationEpoch);
+struct StorableVcDerivationEpochLogEntryRef<'a, VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>>(
+    pub &'a VcDerivationEpochLogEntry,
+);
 
 struct StorableOperationTreeRef<'a, VcOperationTree: Entity<CURRENT_VERSION>>(
     pub &'a VcOperationTree,

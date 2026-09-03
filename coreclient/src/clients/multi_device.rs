@@ -213,6 +213,7 @@ fn export_aead_key(
     let key_bytes = group
         .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
         .context("export_secret")?
+        .as_slice()
         .try_into()
         .map_err(|_| anyhow!("invalid key length"))?;
     Ok(MultiDeviceLinkingKey::from_bytes(key_bytes))

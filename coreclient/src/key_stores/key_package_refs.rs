@@ -40,6 +40,20 @@ async fn mark_key_packages_as_live_impl(
     .execute(txn.as_mut())
     .await?;
 
+    // A sibling's key packages are not stored as bundles but as the material
+    // to rederive them, which keeps their derivation epoch alive. It follows
+    // the same lifecycle as the bundles.
+    sqlx::query(AssertSqlSafe(format!(
+        "DELETE FROM vc_retained_key_package_material
+            WHERE key_package_ref IN (
+              SELECT key_package_ref
+              FROM {refs_table}
+              WHERE is_live = 0
+            )"
+    )))
+    .execute(txn.as_mut())
+    .await?;
+
     // Their refs are dead weight now. Delete them explicitly (there is no foreign key
     // cascade).
     sqlx::query(AssertSqlSafe(format!(
@@ -77,17 +91,27 @@ async fn mark_key_packages_as_live_impl(
     Ok(())
 }
 
-/// Delete key packages not referenced in either refs table (usually a no-op).
+/// Delete key packages and retained sibling key package material not
+/// referenced in either refs table (usually a no-op).
 ///
 /// Must only run after *both* the regular and the APQ refs of a batch are
-/// inserted: key package bundles are written to storage at generation time,
-/// before their refs are registered, so an early sweep would delete the not
-/// yet referenced half of the batch.
+/// inserted: key package bundles and retained material are written to storage
+/// when the batch is generated or processed, before their refs are registered,
+/// so an early sweep would delete the not yet referenced half of the batch.
 pub(crate) async fn delete_orphaned_key_packages(
     mut write: impl WriteConnection,
 ) -> anyhow::Result<()> {
     sqlx::query!(
         "DELETE FROM key_package WHERE key_package_ref NOT IN (
+            SELECT key_package_ref FROM key_package_refs
+            UNION
+            SELECT key_package_ref FROM apq_key_package_refs
+        )",
+    )
+    .execute(write.as_mut())
+    .await?;
+    sqlx::query!(
+        "DELETE FROM vc_retained_key_package_material WHERE key_package_ref NOT IN (
             SELECT key_package_ref FROM key_package_refs
             UNION
             SELECT key_package_ref FROM apq_key_package_refs
@@ -105,6 +129,7 @@ mod test {
         identifiers::UserId,
     };
     use openmls::prelude::{CredentialWithKey, KeyPackage, SignaturePublicKey};
+    use openmls_rust_crypto::RustCrypto;
     use openmls_traits::OpenMlsProvider;
     use sqlx::{Row, SqlitePool, query, query_scalar};
     use url::Host;
@@ -203,6 +228,100 @@ mod test {
             .await?;
         assert_eq!(num_refs, 2);
 
+        Ok(())
+    }
+
+    fn key_package_ref(name: &[u8]) -> KeyPackageRef {
+        KeyPackageRef::new(name, CIPHERSUITE, &RustCrypto::default(), b"test").unwrap()
+    }
+
+    async fn insert_ref(pool: &DbAccess, r: &KeyPackageRef, is_live: bool) -> anyhow::Result<()> {
+        query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, ?2)")
+            .bind(KeyRefWrapper(r))
+            .bind(is_live)
+            .execute(pool.write().await?.as_mut())
+            .await?;
+        Ok(())
+    }
+
+    async fn insert_retained_material(pool: &DbAccess, r: &KeyPackageRef) -> anyhow::Result<()> {
+        query(
+            "INSERT INTO vc_retained_key_package_material (key_package_ref, epoch_id, record)
+            VALUES (?1, ?2, ?3)",
+        )
+        .bind(KeyRefWrapper(r))
+        .bind(b"epoch".to_vec())
+        .bind(b"record".to_vec())
+        .execute(pool.write().await?.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    async fn retained_refs(pool: &DbAccess) -> anyhow::Result<Vec<Vec<u8>>> {
+        Ok(query_scalar(
+            "SELECT key_package_ref FROM vc_retained_key_package_material ORDER BY key_package_ref",
+        )
+        .fetch_all(pool.read().await?.as_mut())
+        .await?)
+    }
+
+    async fn mark_live(pool: &DbAccess, r: &KeyPackageRef) -> anyhow::Result<()> {
+        pool.with_write_transaction(async |txn| {
+            mark_key_packages_as_live(txn, std::slice::from_ref(r), false).await
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn stale_retained_material_is_deleted_with_its_refs() -> anyhow::Result<()> {
+        let pool = SqlitePool::connect("sqlite://:memory:").await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
+        let pool = DbAccess::for_tests(pool);
+
+        let live = key_package_ref(b"live");
+        let stale = key_package_ref(b"stale");
+        let new = key_package_ref(b"new");
+        insert_ref(&pool, &live, true).await?;
+        insert_ref(&pool, &stale, false).await?;
+        for r in [&live, &stale, &new] {
+            insert_retained_material(&pool, r).await?;
+        }
+
+        mark_live(&pool, &new).await?;
+        let mut expected = vec![
+            PersistenceCodec::to_vec(&live)?,
+            PersistenceCodec::to_vec(&new)?,
+        ];
+        expected.sort();
+        assert_eq!(retained_refs(&pool).await?, expected);
+
+        // The next replacement takes the material that just went stale.
+        mark_live(&pool, &key_package_ref(b"newer")).await?;
+        assert_eq!(
+            retained_refs(&pool).await?,
+            vec![PersistenceCodec::to_vec(&new)?]
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn orphaned_retained_material_is_deleted() -> anyhow::Result<()> {
+        let pool = SqlitePool::connect("sqlite://:memory:").await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
+        let pool = DbAccess::for_tests(pool);
+
+        let referenced = key_package_ref(b"referenced");
+        insert_ref(&pool, &referenced, true).await?;
+        insert_retained_material(&pool, &referenced).await?;
+        insert_retained_material(&pool, &key_package_ref(b"orphan")).await?;
+
+        delete_orphaned_key_packages(pool.write().await?).await?;
+
+        assert_eq!(
+            retained_refs(&pool).await?,
+            vec![PersistenceCodec::to_vec(&referenced)?]
+        );
         Ok(())
     }
 }

@@ -6,7 +6,7 @@ use openmls::{
     component::ComponentData,
     group::{
         GroupContext, GroupEpoch, GroupId, MlsGroup, MlsGroupBuilder, MlsGroupCreateConfigBuilder,
-        NewGroupError as OpenMlsNewGroupError, WireFormatPolicy,
+        NewGroupError as OpenMlsNewGroupError, VcDerivationEpochRetentionPolicy, WireFormatPolicy,
     },
     prelude::{
         AppDataDictionaryExtension, Capabilities, Extension, ExtensionType, Extensions,
@@ -299,6 +299,21 @@ impl GroupBuilder {
         self.t_config_builder = self.t_config_builder.max_past_epochs(max_past_epochs);
         self.t_group_builder = self.t_group_builder.max_past_epochs(max_past_epochs);
         // pq group is not used for application messages, so we don't set it there
+        self
+    }
+
+    /// Sets the derivation epoch retention policy of the T group, the only one
+    /// that can be an emulation group.
+    pub fn vc_derivation_epoch_retention_policy(
+        mut self,
+        policy: VcDerivationEpochRetentionPolicy,
+    ) -> Self {
+        self.t_config_builder = self
+            .t_config_builder
+            .set_vc_derivation_epoch_retention_policy(policy.clone());
+        self.t_group_builder = self
+            .t_group_builder
+            .set_vc_derivation_epoch_retention_policy(policy);
         self
     }
 
