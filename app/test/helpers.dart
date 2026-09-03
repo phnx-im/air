@@ -16,7 +16,11 @@ import 'package:uuid/uuid.dart';
 ThemeData testThemeData(Brightness brightness) {
   final theme = themeData(brightness);
   return theme.copyWith(
-    textTheme: theme.textTheme.apply(fontFamilyFallback: const ['NotoEmoji']),
+    textTheme: theme.textTheme.apply(
+      fontFamilyFallback: Platform.isMacOS
+          ? ['Apple Color Emoji']
+          : ['NotoColorEmoji'],
+    ),
   );
 }
 
@@ -125,12 +129,24 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
   final double threshold;
 
   String _platformSuffix() {
-    if (Platform.isMacOS) return '.macos';
-    if (Platform.isWindows) return '.windows';
-    if (Platform.isLinux) return '.linux';
-    if (Platform.isAndroid) return '.android';
-    if (Platform.isIOS) return '.ios';
-    return '';
+    switch (debugDefaultTargetPlatformOverride) {
+      // when not overridden, the target platform is the current one.
+      case null:
+        final os = Platform.operatingSystem.toLowerCase();
+        return ".$os";
+      case TargetPlatform.android:
+        return '.android';
+      case TargetPlatform.iOS:
+        return '.ios';
+      case TargetPlatform.linux:
+        return '.linux';
+      case TargetPlatform.macOS:
+        return '.macos';
+      case TargetPlatform.windows:
+        return '.windows';
+      default:
+        return '';
+    }
   }
 
   @override

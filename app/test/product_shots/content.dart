@@ -8,309 +8,349 @@ import 'dart:typed_data';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
 
 const ownIdx = 1;
 final ownId = ownIdx.userId();
 
-final samId = ownId;
-final fredId = 2.userId();
-final jessicaId = 3.userId();
-final daveId = 4.userId();
-final frankId = 5.userId();
-final alexId = 6.userId();
-final ireneId = 7.userId();
-final kamalId = 8.userId();
-
-final samChatId = 1.chatId();
-final fredChatId = 2.chatId();
-final jessicaChatId = 3.chatId();
-final daveChatId = 4.chatId();
-final frankChatId = 5.chatId();
-final alexChatId = 6.chatId();
-final ireneChatId = 7.chatId();
-final kamalChatId = 8.chatId();
-
-final scienceClubId = 10.chatId();
-final gardeningPartyId = 11.chatId();
-final dinnerPartyId = 12.chatId();
-
-final samProfilePicture = _loadImageSync('test/assets/images/sam.jpg');
-final fredProfilePicture = _loadImageSync('test/assets/images/fred.jpg');
-final jessicaProfilePicture = _loadImageSync('test/assets/images/jessica.jpg');
-final daveProfilePicture = _loadImageSync('test/assets/images/dave.jpg');
-final frankProfilePicture = _loadImageSync('test/assets/images/frank.jpg');
-final alexProfilePicture = _loadImageSync('test/assets/images/alex.jpg');
-final ireneProfilePicture = _loadImageSync('test/assets/images/irene.jpg');
-final kamalProfilePicture = _loadImageSync('test/assets/images/kamal.jpg');
-
-final scienceClubProfilePicture = _loadImageSync(
-  'test/assets/images/science-club.jpg',
-);
-final gardeningPartyProfilePicture = _loadImageSync(
-  'test/assets/images/gardening-group.jpg',
-);
-final dinnerPartyProfilePicture = _loadImageSync(
-  'test/assets/images/dinner-party.jpg',
+/// Override with `--dart-define=CONTENT_YAML_PATH=path/to/other.yaml`. May be
+/// absolute (e.g. for a content set that lives outside this repo checkout).
+const _contentYamlPath = String.fromEnvironment(
+  'CONTENT_YAML_PATH',
+  defaultValue: 'test/product_shots/content.yaml',
 );
 
-final jupiterAttachmentImage = _loadImageSync('test/assets/images/jupiter.jpg');
-
-final samProfile = UiUserProfile(
-  userId: samId,
-  displayName: 'Sam',
-  profilePicture: samProfilePicture,
-);
-final fredProfile = UiUserProfile(
-  userId: fredId,
-  displayName: 'Frederic',
-  profilePicture: fredProfilePicture,
-);
-final jessicaProfile = UiUserProfile(
-  userId: jessicaId,
-  displayName: 'Jessica',
-  profilePicture: jessicaProfilePicture,
-);
-final daveProfile = UiUserProfile(
-  userId: daveId,
-  displayName: 'David',
-  profilePicture: daveProfilePicture,
-);
-final frankProfile = UiUserProfile(
-  userId: frankId,
-  displayName: 'Frank',
-  profilePicture: frankProfilePicture,
-);
-final alexProfile = UiUserProfile(
-  userId: alexId,
-  displayName: 'Alex G',
-  profilePicture: alexProfilePicture,
-);
-final ireneProfile = UiUserProfile(
-  userId: ireneId,
-  displayName: 'Irene',
-  profilePicture: ireneProfilePicture,
-);
-final kamalProfile = UiUserProfile(
-  userId: kamalId,
-  displayName: 'Kamal',
-  profilePicture: kamalProfilePicture,
+/// Override with `--dart-define=IMAGES_DIR=path/to/dir`. May be absolute.
+const _imagesDir = String.fromEnvironment(
+  'IMAGES_DIR',
+  defaultValue: 'test/assets/images',
 );
 
-final userProfiles = [
-  samProfile,
-  fredProfile,
-  jessicaProfile,
-  daveProfile,
-  frankProfile,
-  alexProfile,
-  ireneProfile,
-  kamalProfile,
-];
+final _content = _Content.load();
 
-var messageIdx = 1;
+final userProfiles = _content.userProfiles;
+final chats = _content.chats;
 
-final now = DateTime.now();
+final _privateChatKey = _content.shotChatKey('private_chat');
+final privateChat = _content.chat(_privateChatKey);
+final privateChatMembers = [_content.userId(_privateChatKey)];
+final privateChatMessages = _content.transcript(_privateChatKey);
+final privateChatAttachmentImages = _content.attachmentImages(_privateChatKey);
 
-final chats = [
-  // Frederic
-  UiChatDetails(
-    id: fredChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(fredProfile),
-    unreadMessages: 1,
-    lastUsed: now,
-    lastMessage: _lastChatMessage(
-      fredChatId,
-      fredId,
-      'My favorite planet is Jupiter. But I also like Venus a lot.',
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Jessica
-  UiChatDetails(
-    id: jessicaChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(jessicaProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 1)),
-    lastMessage: _lastChatMessage(
-      jessicaChatId,
-      jessicaId,
-      "What's the recipe for that olive oil cake you made? It was so good.",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Science club
-  UiChatDetails(
-    id: scienceClubId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Group(
-      UiChatAttributes(
-        title: 'Science club',
-        picture: scienceClubProfilePicture,
-      ),
-    ),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 10)),
-    lastMessage: _lastChatMessage(
-      scienceClubId,
-      samId,
-      "Riemanian Zeta function is one of the most important mathematical functions in the history of mathematics.",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Dave
-  UiChatDetails(
-    id: daveChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(daveProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 15)),
-    lastMessage: _lastChatMessage(
-      daveChatId,
-      daveId,
-      'I have to tell you all about my weekend...',
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Gardening club
-  UiChatDetails(
-    id: gardeningPartyId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Group(
-      UiChatAttributes(
-        title: 'Gardening club',
-        picture: gardeningPartyProfilePicture,
-      ),
-    ),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 20)),
-    lastMessage: _lastChatMessage(
-      gardeningPartyId,
-      jessicaId,
-      "Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Frank
-  UiChatDetails(
-    id: frankChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(frankProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(minutes: 30)),
-    lastMessage: _lastChatMessage(
-      frankChatId,
-      frankId,
-      'Going to the store. Need anything?',
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Alex
-  UiChatDetails(
-    id: alexChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(alexProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Irene
-  UiChatDetails(
-    id: ireneChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(ireneProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(
-      ireneChatId,
-      ireneId,
-      "The nearest star is Proxima Centauri.",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-  // Dinner party
-  UiChatDetails(
-    id: dinnerPartyId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Group(
-      UiChatAttributes(
-        title: 'Dinner party',
-        picture: dinnerPartyProfilePicture,
-      ),
-    ),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(
-      dinnerPartyId,
-      daveId,
-      "Sorry, I can't join the party. I'm going to the movies already.",
-    ),
-    mutedUntil: null,
-    // make sure nothing shows up for now (experimental feature)
-    pendingCommitFailed: true,
-  ),
-  // Kamal
-  UiChatDetails(
-    id: kamalChatId,
-    status: const UiChatStatus.active(),
-    isApq: false,
-    chatType: UiChatType_Connection(kamalProfile),
-    unreadMessages: 0,
-    lastUsed: now.subtract(const Duration(days: 1)),
-    lastMessage: _lastChatMessage(
-      kamalChatId,
-      ownId,
-      "Hey Kamal, I'm going to the movies with my friends. Want to come with us?",
-    ),
-    mutedUntil: null,
-    pendingCommitFailed: false,
-  ),
-];
+final _groupChatKey = _content.shotChatKey('group_chat');
+final groupChat = _content.chat(_groupChatKey);
+final groupChatMembers = _content.members(_groupChatKey);
+final groupChatMessages = _content.transcript(_groupChatKey);
+final groupChatAttachmentImages = _content.attachmentImages(_groupChatKey);
 
-final chatIds = chats.map((chat) => chat.id).toList();
+/// Loads the persona, contacts, chats, and message transcripts described in
+/// `content.yaml` and turns them into the FRB types the product shot tests
+/// pump into the app's widgets.
+class _Content {
+  _Content._(this._yaml);
 
-UiChatMessage _lastChatMessage(ChatId chatId, UiUserId senderId, String body) =>
-    UiChatMessage(
-      id: (messageIdx++).messageId(),
-      chatId: chatId,
-      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
-      message: UiMessage_Content(
-        UiContentMessage(
-          sender: senderId,
-          sent: true,
-          edited: false,
-          content: UiMimiContent(
-            plainBody: body,
-            topicId: Uint8List(0),
-            content: _simpleMessage(body),
-            attachments: [],
+  factory _Content.load() {
+    final text = _getProjectFile(_contentYamlPath).readAsStringSync();
+    final content = _Content._(loadYaml(text) as YamlMap);
+    // Order matters: chats and transcripts reference user profiles by key.
+    content.userProfiles = content._loadUserProfiles();
+    content.chats = content._loadChats();
+    content._transcripts = content._loadTranscripts();
+    return content;
+  }
+
+  final YamlMap _yaml;
+
+  final Map<String, UiUserId> _userIds = {};
+  final Map<String, UiUserProfile> _profiles = {};
+  final Map<String, ChatId> _chatIds = {};
+  final Map<String, List<UiUserId>> _members = {};
+  final Map<String, ImageData> _images = {};
+  final Map<String, AttachmentId> _attachmentIds = {};
+  final Map<String, Map<AttachmentId, ImageData>> _attachmentImagesByChat = {};
+  final Map<String, UiChatDetails> _chatsByKey = {};
+
+  int _nextUserId = 2;
+  int _nextChatId = 1;
+  int _nextAttachmentId = 1;
+  int _messageIdx = 1;
+
+  late final List<UiUserProfile> userProfiles;
+  late final List<UiChatDetails> chats;
+  late final Map<String, List<UiChatMessage>> _transcripts;
+
+  UiUserId userId(String key) =>
+      _userIds.putIfAbsent(key, () => (_nextUserId++).userId());
+
+  ChatId _chatId(String key) =>
+      _chatIds.putIfAbsent(key, () => (_nextChatId++).chatId());
+
+  ImageData image(String filename) => _images.putIfAbsent(
+    filename,
+    () => _loadImageSync('$_imagesDir/$filename'),
+  );
+
+  AttachmentId attachmentId(String filename) => _attachmentIds.putIfAbsent(
+    filename,
+    () => (_nextAttachmentId++).attachmentId(),
+  );
+
+  List<UiUserId> members(String chatKey) => _members[chatKey]!;
+
+  List<UiChatMessage> transcript(String chatKey) => _transcripts[chatKey]!;
+
+  Map<AttachmentId, ImageData> attachmentImages(String chatKey) =>
+      _attachmentImagesByChat[chatKey] ?? const {};
+
+  UiChatDetails chat(String key) => _chatsByKey[key]!;
+
+  String shotChatKey(String shot) =>
+      (_yaml['shots'] as YamlMap)[shot] as String;
+
+  List<UiUserProfile> _loadUserProfiles() {
+    final own = _yaml['own'] as YamlMap;
+    final ownKey = own['key'] as String;
+    _userIds[ownKey] = ownId;
+    final profiles = [_profile(own, id: ownId)];
+    _profiles[ownKey] = profiles.single;
+
+    for (final contact in _yaml['contacts'] as YamlList) {
+      final map = contact as YamlMap;
+      final key = map['key'] as String;
+      final profile = _profile(map, id: userId(key));
+      _profiles[key] = profile;
+      profiles.add(profile);
+    }
+    return profiles;
+  }
+
+  UiUserProfile _profile(YamlMap map, {required UiUserId id}) => UiUserProfile(
+    userId: id,
+    displayName: map['name'] as String,
+    profilePicture: image('${map['key']}.jpg'),
+  );
+
+  List<UiChatDetails> _loadChats() {
+    final now = DateTime.now();
+    final result = <UiChatDetails>[];
+    for (final entry in _yaml['chats'] as YamlList) {
+      final map = entry as YamlMap;
+      final key = map['key'] as String;
+      final chatId = _chatId(key);
+
+      if (map['members'] != null) {
+        _members[key] = [
+          for (final memberKey in map['members'] as YamlList)
+            userId(memberKey as String),
+        ];
+      }
+
+      final lastMessage = map['lastMessage'] as YamlMap;
+      final chatDetails = UiChatDetails(
+        id: chatId,
+        status: const UiChatStatus.active(),
+        isApq: false,
+        chatType: _chatType(map),
+        unreadMessages: map['unread'] as int,
+        lastUsed: now.subtract(_duration(map['lastUsed'] as YamlMap)),
+        lastMessage: _lastChatMessage(
+          chatId,
+          userId(lastMessage['sender'] as String),
+          lastMessage['text'] as String,
+        ),
+        mutedUntil: null,
+        pendingCommitFailed: false,
+      );
+      _chatsByKey[key] = chatDetails;
+      result.add(chatDetails);
+    }
+    return result;
+  }
+
+  UiChatType _chatType(YamlMap map) {
+    switch (map['type'] as String) {
+      case 'direct':
+        return UiChatType_Connection(_profiles[map['contact']]!);
+      case 'group':
+        return UiChatType_Group(
+          UiChatAttributes(
+            title: map['title'] as String,
+            picture: image(map['avatar'] as String),
           ),
+        );
+      default:
+        throw ArgumentError('Unknown chat type: ${map['type']}');
+    }
+  }
+
+  Map<String, List<UiChatMessage>> _loadTranscripts() {
+    final now = DateTime.now();
+    final transcripts = _yaml['transcripts'] as YamlMap;
+    final result = <String, List<UiChatMessage>>{};
+    for (final rawKey in transcripts.keys) {
+      final chatKey = rawKey as String;
+      final chatId = _chatId(chatKey);
+      final messages = <UiChatMessage>[];
+      final attachmentImages = <AttachmentId, ImageData>{};
+      for (final rawEntry in transcripts[chatKey] as YamlList) {
+        final entry = rawEntry as YamlMap;
+        messages.add(_message(chatId, entry, now));
+        final filename = entry['image'] as String?;
+        if (filename != null) {
+          attachmentImages[attachmentId(filename)] = image(filename);
+        }
+      }
+      result[chatKey] = messages;
+      _attachmentImagesByChat[chatKey] = attachmentImages;
+    }
+    return result;
+  }
+
+  UiChatMessage _message(ChatId chatId, YamlMap map, DateTime now) {
+    final sender = userId(map['sender'] as String);
+    final timestamp = now.subtract(_duration(map['time'] as YamlMap));
+    final status = UiMessageStatus.values.byName(
+      (map['status'] as String?) ?? 'sent',
+    );
+    final reactions = [
+      for (final reaction in (map['reactions'] as YamlList?) ?? const [])
+        _reaction(reaction as YamlMap),
+    ];
+
+    final filename = map['image'] as String?;
+    if (filename != null) {
+      return _imageMessage(
+        chatId,
+        sender,
+        filename,
+        image(filename),
+        timestamp,
+        attachmentId: attachmentId(filename),
+        status: status,
+        reactions: reactions,
+      );
+    }
+    return _textMessage(
+      chatId,
+      sender,
+      map['text'] as String,
+      timestamp,
+      status: status,
+      reactions: reactions,
+    );
+  }
+
+  UiReaction _reaction(YamlMap map) => UiReaction(
+    emoji: map['emoji'] as String,
+    users: [for (final key in map['by'] as YamlList) userId(key as String)],
+  );
+
+  Duration _duration(YamlMap map) => Duration(
+    days: (map['days'] as int?) ?? 0,
+    hours: (map['hours'] as int?) ?? 0,
+    minutes: (map['minutes'] as int?) ?? 0,
+  );
+
+  UiChatMessage _lastChatMessage(
+    ChatId chatId,
+    UiUserId senderId,
+    String body,
+  ) => UiChatMessage(
+    id: (_messageIdx++).messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: senderId,
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: body,
+          topicId: Uint8List(0),
+          content: _simpleMessage(body),
+          attachments: [],
         ),
       ),
-      status: UiMessageStatus.sent,
-      reactions: [],
-    );
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  );
+
+  UiChatMessage _textMessage(
+    ChatId chatId,
+    UiUserId senderId,
+    String body,
+    DateTime timestamp, {
+    UiMessageStatus status = UiMessageStatus.sent,
+    List<UiReaction> reactions = const [],
+  }) => UiChatMessage(
+    id: (_messageIdx++).messageId(),
+    chatId: chatId,
+    timestamp: timestamp,
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: senderId,
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: "",
+          topicId: Uint8List(0),
+          content: _simpleMessage(body),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: status,
+    reactions: reactions,
+  );
+
+  UiChatMessage _imageMessage(
+    ChatId chatId,
+    UiUserId senderId,
+    String filename,
+    ImageData image,
+    DateTime timestamp, {
+    required AttachmentId attachmentId,
+    UiMessageStatus status = UiMessageStatus.sent,
+    List<UiReaction> reactions = const [],
+  }) => UiChatMessage(
+    id: (_messageIdx++).messageId(),
+    chatId: chatId,
+    timestamp: timestamp,
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: senderId,
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: "",
+          topicId: Uint8List(0),
+          content: _simpleMessage(""),
+          attachments: [
+            UiAttachment(
+              attachmentId: attachmentId,
+              filename: filename,
+              contentType: "image/jpeg",
+              size: image.data.length,
+              description: filename,
+              imageMetadata: const UiImageMetadata(
+                blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
+                width: 1080,
+                height: 1080,
+              ),
+            ),
+          ],
+          firstAttachmentType: UiAttachmentType.image,
+        ),
+      ),
+    ),
+    status: status,
+    reactions: reactions,
+  );
+}
 
 MessageContent _simpleMessage(String msg) {
   return MessageContent(
@@ -330,154 +370,6 @@ MessageContent _simpleMessage(String msg) {
   );
 }
 
-final fredMessages = [
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now.subtract(const Duration(minutes: 1)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: ownId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("Hey Frederic, what’s your favorite planet?"),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.read,
-    reactions: [],
-  ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now,
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            "My favorite planet is Jupiter. But I also like Venus a lot.",
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
-  ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: fredChatId,
-    timestamp: now,
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("Isn't it beautiful?"),
-          attachments: [
-            UiAttachment(
-              attachmentId: 1.attachmentId(),
-              filename: "jupiter.jpg",
-              contentType: "image/jpeg",
-              size: jupiterAttachmentImage.data.length,
-              description: "Jupiter",
-              imageMetadata: const UiImageMetadata(
-                blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
-                width: 1080,
-                height: 1080,
-              ),
-            ),
-          ],
-          firstAttachmentType: UiAttachmentType.image,
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
-  ),
-];
-
-final gardeningPartyMembers = [samId, fredId, jessicaId];
-
-final gardeningPartyMessages = [
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 23)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: samId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            'Does anyone know the best time of year to plant carrots?',
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.read,
-    reactions: [],
-  ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 21)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: fredId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage("I don't know, I've never tried it."),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
-  ),
-  UiChatMessage(
-    id: (messageIdx++).messageId(),
-    chatId: gardeningPartyId,
-    timestamp: now.subtract(const Duration(minutes: 20)),
-    message: UiMessage_Content(
-      UiContentMessage(
-        sender: jessicaId,
-        sent: true,
-        edited: false,
-        content: UiMimiContent(
-          plainBody: "",
-          topicId: Uint8List(0),
-          content: _simpleMessage(
-            'Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...',
-          ),
-          attachments: [],
-        ),
-      ),
-    ),
-    status: UiMessageStatus.sent,
-    reactions: [],
-  ),
-];
-
 ImageData _loadImageSync(String path) {
   final bytes = _getProjectFile(path).readAsBytesSync();
   final hash = sha256.convert(bytes).toString();
@@ -485,6 +377,7 @@ ImageData _loadImageSync(String path) {
 }
 
 File _getProjectFile(String path) {
+  if (p.isAbsolute(path)) return File(path);
   var dir = Directory.current;
   while (!dir.listSync().any(
     (entity) => entity.path.endsWith('pubspec.yaml'),

@@ -55,8 +55,24 @@ Future<void> _loadFonts() async {
   final iconLoader = FontLoader("MaterialIcons")..addFont(iconBytes);
   await iconLoader.load();
 
-  // Load test-only fonts from disk (not registered in pubspec.yaml)
-  await _loadFont("NotoEmoji", _readFont("test/fonts/NotoEmoji.ttf"));
+  // Load Apple Emoji on macOS hosts only
+  if (Platform.isMacOS) {
+    final appleColorEmoji = _readSystemFont([
+      '/System/Library/Fonts/Apple Color Emoji.ttc',
+    ]);
+
+    if (appleColorEmoji != null) {
+      await _loadFont("Apple Color Emoji", appleColorEmoji);
+    } else {
+      fail("failed to load Apple Color Emoji on macOS");
+    }
+  } else {
+    // Use Noto Color Emoji anywhere else
+    await _loadFont(
+      "NotoColorEmoji",
+      _readFont("test/fonts/NotoColorEmoji-Regular.ttf"),
+    );
+  }
 
   final monospace =
       _readSystemFont(_systemMonospacePaths) ??

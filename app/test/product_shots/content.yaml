@@ -1,0 +1,313 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Own profile. Avatar files are implicitly `<key>.jpg` under
+# test/assets/images/ for own/contacts (not for chats, whose avatar is a
+# separate photo unrelated to the key).
+own:
+  key: sasha
+  name: Sasha
+
+# Contacts
+contacts:
+  - key: sigridh
+    name: Sigrid H
+  - key: deepti
+    name: Deepti
+  - key: jule
+    name: Jule
+  - key: frederic
+    name: Frederic
+  - key: amara
+    name: Amara
+  - key: jacob
+    name: Jacob Brooks
+  - key: luis
+    name: Luis
+  - key: kristijan
+    name: Kristijan P
+  - key: josefina
+    name: Josefina
+  - key: luca
+    name: Luca
+  - key: lukas
+    name: Lukas
+
+# Which chat is shown in each product shot that needs a full transcript.
+# (chat_list shows every chat below and needs no mapping.)
+shots:
+  private_chat: luis
+  group_chat: roomies
+
+# Chats
+chats:
+  - key: sigridh
+    type: direct
+    contact: sigridh
+    unread: 2
+    lastUsed:
+      minutes: 0
+    lastMessage:
+      sender: sigridh
+      text: Can you make it?
+  - key: roomies
+    type: group
+    title: Roomies
+    avatar: group-roomies.jpg
+    members:
+      - sasha
+      - deepti
+      - jule
+    unread: 1
+    lastUsed:
+      minutes: 5
+    lastMessage:
+      sender: deepti
+      text: 😍😍 You really love those cookies.
+  - key: shiftSwaps
+    type: group
+    title: Shift swaps
+    avatar: group-dinner-club.jpg
+    members:
+      - sasha
+      - lukas
+      - jacob
+      - jule
+    unread: 0
+    lastUsed:
+      minutes: 15
+    lastMessage:
+      sender: sasha
+      text: I could trade my Sunday opening for your Friday close!
+  - key: amara
+    type: direct
+    contact: amara
+    unread: 0
+    lastUsed:
+      minutes: 20
+    lastMessage:
+      sender: amara
+      text: I'm going to cast on tonight!
+  - key: lukas
+    type: direct
+    contact: lukas
+    unread: 0
+    lastUsed:
+      minutes: 30
+    lastMessage:
+      sender: lukas
+      text: I'll be in your area later, so I'll drop off a couple pieces at your apartment!
+  - key: communityMeals
+    type: group
+    title: Community meals crew
+    avatar: group-market-crew.jpg
+    members:
+      - sasha
+      - frederic
+      - amara
+      - deepti
+    unread: 0
+    lastUsed:
+      days: 1
+    lastMessage:
+      sender: frederic
+      text: 'Here''s the plan recap: Amara and Deepti do the shopping, I''ll bring the kitchen gear as usual, and we all meet at the park at 10am to prep so we''re ready to serve by noon.'
+  - key: jacob
+    type: direct
+    contact: jacob
+    unread: 0
+    lastUsed:
+      days: 1
+      minutes: 10
+    lastMessage:
+      sender: sasha
+      text: Welcome to Air!
+  - key: neighborhoodCleaning
+    type: group
+    title: Neighborhood cleaning
+    avatar: neighborhood-cleanup.jpg
+    members:
+      - sasha
+      - kristijan
+      - josefina
+      - luca
+    unread: 0
+    lastUsed:
+      days: 1
+      minutes: 20
+    lastMessage:
+      sender: kristijan
+      text: Wonderful! We actually have a little more budget for printing than last month.
+  - key: luis
+    type: direct
+    contact: luis
+    unread: 0
+    lastUsed:
+      days: 1
+      minutes: 30
+    lastMessage:
+      sender: luis
+      text: Eagle Ridge. You have to come next time, it's so beautiful.
+  - key: kristijan
+    type: direct
+    contact: kristijan
+    unread: 0
+    lastUsed:
+      days: 7
+    lastMessage:
+      sender: kristijan
+      text: That's so great! I started this monthly event a few years ago just for that reason.
+
+# Conversation contents
+transcripts:
+  luis:
+    - sender: sasha
+      text: Wait, so you actually liked the new album?
+      time:
+        hours: 76
+      status: read
+    - sender: luis
+      text: Track 4 is unreal.
+      time:
+        hours: 75
+        minutes: 52
+    - sender: luis
+      text: I think the best thing they've done.
+      time:
+        hours: 75
+        minutes: 51
+    - sender: sasha
+      text: I told you the synths would win you over eventually.
+      time:
+        hours: 75
+        minutes: 50
+      status: read
+    - sender: luis
+      text: Haha, yes, you were right!
+      time:
+        hours: 75
+        minutes: 49
+    - sender: luis
+      text: Heads up, they just announced a show here in November. Want to go?
+      time:
+        hours: 47
+    - sender: sasha
+      text: Obviously. Setting a reminder for the presale right now.
+      time:
+        hours: 46
+        minutes: 58
+      status: read
+      reactions:
+        - emoji: 🤘
+          by:
+            - luis
+    - sender: luis
+      text: Also, I took the album on my hike this morning. The perfect soundtrack 🎧
+      time:
+        hours: 46
+        minutes: 56
+    - sender: luis
+      image: hike-lake-view.jpg
+      time:
+        hours: 46
+        minutes: 55
+    - sender: luis
+      image: hike-dog.jpg
+      time:
+        hours: 46
+        minutes: 54
+    - sender: luis
+      image: hike-pine.jpg
+      time:
+        hours: 46
+        minutes: 53
+      reactions:
+        - emoji: 🤩
+          by:
+            - sasha
+    - sender: sasha
+      text: Okay, that view!! Where is this?
+      time:
+        hours: 46
+        minutes: 49
+      status: read
+    - sender: luis
+      text: Eagle Ridge. You have to come next time, it's so beautiful.
+      time:
+        hours: 46
+        minutes: 46
+  roomies:
+    - sender: deepti
+      text: Did anyone take the trash out last night?
+      time:
+        minutes: 29
+    - sender: jule
+      text: I thought it was your week 😬
+      time:
+        minutes: 27
+    - sender: deepti
+      text: Absolutely not.
+      time:
+        minutes: 27
+    - sender: sasha
+      text: It was Jule's week. I did it last week AND the week before.
+      time:
+        minutes: 24
+      status: read
+    - sender: jule
+      text: I'll do it tonight. Sorry!
+      time:
+        minutes: 23
+    - sender: deepti
+      text: 🫶
+      time:
+        minutes: 23
+    - sender: sasha
+      text: Also, are we doing dinner together on Friday? I was thinking I could make that lentil salad with the pickled cherries again.
+      time:
+        minutes: 21
+      status: read
+      reactions:
+        - emoji: ❤️
+          by:
+            - deepti
+            - jule
+    - sender: jule
+      text: Yes, please!
+      time:
+        minutes: 20
+    - sender: deepti
+      text: 🙌
+      time:
+        minutes: 20
+    - sender: deepti
+      text: Can we invite Jana? She's been having a rough week.
+      time:
+        minutes: 19
+    - sender: sasha
+      text: Obviously! The more the merrier.
+      time:
+        minutes: 18
+      status: read
+    - sender: sasha
+      text: Tell her to bring cookies from the bakery near her place, and she's in 🎪
+      time:
+        minutes: 18
+      status: read
+    - sender: jule
+      text: CHOCOLATE CHIP, PLEASE!!! 🍪🍪🍪 I'm already drooling.
+      time:
+        minutes: 16
+    - sender: jule
+      image: cookies.jpg
+      time:
+        minutes: 15
+      reactions:
+        - emoji: 🤤
+          by:
+            - deepti
+    - sender: deepti
+      text: 😍😍 You really love those cookies.
+      time:
+        minutes: 14
