@@ -37,12 +37,16 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    ds::{WELCOME_INFO_EXPIRATION, welcome_info::WelcomeInfoWriteError},
+    ds::{
+        WELCOME_INFO_EXPIRATION, epoch_snapshot::EpochSnapshotWriteError,
+        welcome_info::WelcomeInfoWriteError,
+    },
     errors::{CborMlsAssistStorage, StorageError},
 };
 
 use super::{
     GROUP_STATE_EXPIRATION, ReservedGroupId,
+    epoch_snapshot::{DsEpochSnapshot, EpochSnapshotOutbox},
     process::ExternalCommitInfo,
     welcome_info::{DsWelcomeInfo, WelcomeInfoOutbox},
 };
@@ -72,6 +76,10 @@ pub(crate) struct DsGroupState {
     /// Transient container for welcome infos (produced on `Add` proposals)
     /// that we need to persist for a later client to fetch.
     welcome_info_outbox: WelcomeInfoOutbox,
+
+    /// Transient container for the epoch snapshot a virtual client's external
+    /// join produced, for its sibling emulator clients to fetch.
+    epoch_snapshot_outbox: EpochSnapshotOutbox,
 }
 
 /// What a joiner needs about one epoch, as V3 stored it.
@@ -108,6 +116,7 @@ impl DsGroupState {
             member_profiles: client_profiles,
             proposals: Vec::new(),
             welcome_info_outbox: WelcomeInfoOutbox::default(),
+            epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
         }
     }
 
@@ -207,6 +216,31 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<(), WelcomeInfoWriteError> {
         let outbox = std::mem::take(&mut self.welcome_info_outbox);
+        outbox.write(txn, group_id, ear_key).await
+    }
+
+    /// The state of this group as of its current epoch, as a sibling emulator
+    /// client of the acting client has to see it.
+    pub(super) fn epoch_snapshot(&self) -> DsEpochSnapshot {
+        DsEpochSnapshot::new(
+            self.group().group_info().clone(),
+            self.group().export_ratchet_tree(),
+            &self.room_state,
+        )
+    }
+
+    /// Stage an epoch snapshot for the epoch it was taken at.
+    pub(super) fn stage_epoch_snapshot(&mut self, epoch: GroupEpoch, snapshot: DsEpochSnapshot) {
+        self.epoch_snapshot_outbox.stage(epoch, snapshot);
+    }
+
+    pub(super) async fn write_staged_epoch_snapshot(
+        &mut self,
+        txn: &mut PgTransaction<'_>,
+        group_id: Uuid,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(), EpochSnapshotWriteError> {
+        let outbox = std::mem::take(&mut self.epoch_snapshot_outbox);
         outbox.write(txn, group_id, ear_key).await
     }
 
@@ -585,6 +619,7 @@ impl DecodedDsGroupState {
             room_state,
             proposals: state.proposals,
             welcome_info_outbox: staged_welcome_info,
+            epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
         })
     }
 }

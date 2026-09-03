@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM\n            ds_epoch_snapshot\n        WHERE\n            group_id = $1 AND created_at < $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "932dba9cec2da03de0a81c476bab626fa84024c231be43d720ea0021afe744fa"
+}

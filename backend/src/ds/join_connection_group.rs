@@ -5,6 +5,7 @@
 use aircommon::{
     credentials::LeafCredential,
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
+    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
 use mls_assist::{
@@ -12,7 +13,7 @@ use mls_assist::{
     messages::SerializedMlsMessage,
     openmls::{
         group::StagedCommit,
-        prelude::{ProcessedMessageContent, Proposal},
+        prelude::{GroupEpoch, ProcessedMessageContent, Proposal},
     },
     provider_traits::MlsAssistProvider,
 };
@@ -61,11 +62,24 @@ fn validate_join_proposals(staged_commit: &StagedCommit) -> Result<(), JoinConne
     Ok(())
 }
 
+pub(super) struct JoinConnectionGroupOutcome {
+    pub(super) message: SerializedMlsMessage,
+    /// The epoch of the staged snapshot, present iff the join carried a group
+    /// bootstrap.
+    pub(super) snapshot_epoch: Option<GroupEpoch>,
+}
+
 impl DsGroupState {
+    /// Accept an external commit joining a connection group.
+    ///
+    /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
+    /// echo of the operation, so the joining leaf must be a virtual-client leaf
+    /// and the pre-commit state is staged as an epoch snapshot for them.
     pub(super) fn join_connection_group(
         &mut self,
         params: JoinConnectionGroupParams,
-    ) -> Result<SerializedMlsMessage, JoinConnectionGroupError> {
+        bootstrap_requested: bool,
+    ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
@@ -116,6 +130,11 @@ impl DsGroupState {
                 tracing::warn!("Connection group joiner must carry a user credential");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            // Only a virtual client has siblings to echo to.
+            if bootstrap_requested && !leaf_node_is_virtual_client(joiner_leaf) {
+                tracing::warn!("Group bootstrap requires a virtual-client joiner leaf");
+                return Err(JoinConnectionGroupError::InvalidMessage);
+            }
         } else {
             tracing::warn!("Invalid message: Commit content is not a staged commit.");
             return Err(JoinConnectionGroupError::InvalidMessage);
@@ -141,6 +160,11 @@ impl DsGroupState {
 
         // Get the sender's credential s.t. we can identify them later.
         let sender_credential = processed_message.credential().clone();
+
+        // The siblings apply the commit on top of the state the joiner used, so
+        // capture it before the commit is accepted.
+        let staged_snapshot =
+            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
 
         // Finalize processing.
         let retained_welcome_info = self.group.accept_processed_message(
@@ -174,7 +198,17 @@ impl DsGroupState {
         self.stage_welcome_info(retained_welcome_info);
 
         // Finally, we create the message for distribution.
-        Ok(processed_assisted_message_plus.serialized_mls_message)
+        let message = processed_assisted_message_plus.serialized_mls_message;
+
+        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+            self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
+            epoch
+        });
+
+        Ok(JoinConnectionGroupOutcome {
+            message,
+            snapshot_epoch,
+        })
     }
 }
 
