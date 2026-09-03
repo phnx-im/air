@@ -9,6 +9,10 @@ use std::process::Command;
 /// Changing this variable forces the metadata to be collected again.
 const REFRESH_ENV: &str = "AIR_REFRESH_BUILD_METADATA";
 
+/// Build number of the app, set by CI to the store build number. Defaults to 0
+/// when unset (local builds).
+const BUILD_NUMBER_ENV: &str = "AIR_BUILD_NUMBER";
+
 /// Used when the git state cannot be determined, e.g. when building from a
 /// source archive.
 const UNKNOWN_COMMIT_HASH: &str = "0000000000000000000000000000000000000000";
@@ -21,17 +25,23 @@ fn main() {
     // build number) to collect it again.
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-env-changed={REFRESH_ENV}");
+    println!("cargo::rerun-if-env-changed={BUILD_NUMBER_ENV}");
 
     let commit_hash = git(&["rev-parse", "HEAD"]).unwrap_or_else(|| UNKNOWN_COMMIT_HASH.to_owned());
     let dirty = git(&["status", "--porcelain"]).is_some_and(|status| !status.is_empty());
-    let commits_since_tag = git(&["describe", "--tags", "--abbrev=0", "HEAD"])
-        .and_then(|tag| git(&["rev-list", "--count", &format!("{tag}..HEAD")]))
-        .and_then(|count| count.parse::<u64>().ok())
+    let build_number = std::env::var(BUILD_NUMBER_ENV)
+        .ok()
+        .filter(|value| !value.is_empty())
+        .map(|value| {
+            value
+                .parse::<u64>()
+                .unwrap_or_else(|_| panic!("{BUILD_NUMBER_ENV} must be an integer, got {value:?}"))
+        })
         .unwrap_or(0);
 
     println!("cargo::rustc-env=AIR_COMMIT_HASH={commit_hash}");
     println!("cargo::rustc-env=AIR_GIT_DIRTY={dirty}");
-    println!("cargo::rustc-env=AIR_COMMITS_SINCE_TAG={commits_since_tag}");
+    println!("cargo::rustc-env=AIR_BUILD_NUMBER={build_number}");
 }
 
 /// Runs `git` with `args` and returns its trimmed stdout, or `None` if git is

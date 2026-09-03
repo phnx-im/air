@@ -61,26 +61,27 @@ Future<T?> _showBottomSheet<T>({
   bool enableDrag = true,
   Color? barrierColor,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<T>(
-    _BottomSheetRoute<T>(
-      barrierDismissible: isDismissible,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      transitionDuration: Effect.duration(BottomSheetTokens.enter),
-      reverseDuration: Effect.duration(BottomSheetTokens.exit),
-      // The page drives every part of the transition off the route animation,
-      // so the route itself hands the child through untouched.
-      transitionBuilder: (context, animation, secondaryAnimation, child) =>
-          child,
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          _BottomSheetModal(
-            animation: animation,
-            builder: builder,
-            enableDrag: enableDrag,
-            contentPadding: contentPadding,
-            scrimColor: barrierColor,
-          ),
+  final focus = SuspendedKeyboardFocus.suspend(context);
+  final route = _BottomSheetRoute<T>(
+    barrierDismissible: isDismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    transitionDuration: Effect.duration(BottomSheetTokens.enter),
+    reverseDuration: Effect.duration(BottomSheetTokens.exit),
+    // The page drives every part of the transition off the route animation,
+    // so the route itself hands the child through untouched.
+    transitionBuilder: (context, animation, secondaryAnimation, child) => child,
+    pageBuilder: (context, animation, secondaryAnimation) => _BottomSheetModal(
+      animation: animation,
+      builder: builder,
+      enableDrag: enableDrag,
+      contentPadding: contentPadding,
+      scrimColor: barrierColor,
     ),
   );
+  // Only once the sheet has slid out, so the keyboard does not push a card
+  // that is still on its way down.
+  unawaited(route.completed.then((_) => focus.restore()));
+  return Navigator.of(context, rootNavigator: true).push<T>(route);
 }
 
 /// A dialog route whose exit is quicker than its entry, which

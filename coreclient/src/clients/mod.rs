@@ -28,6 +28,7 @@ use aircommon::{
     registration::RegistrationChallenge,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+use airprotos::common::v1::Version;
 pub use airprotos::delivery_service::v1::StorageObjectType;
 pub use airprotos::queue_service::v1::{ListenResponse, QueueEventPayload, listen_response};
 use anyhow::{Context, Result, anyhow, ensure};
@@ -338,6 +339,10 @@ impl CoreUser {
         Ok(())
     }
 
+    pub fn version() -> &'static Version {
+        ApiClient::version()
+    }
+
     pub(crate) fn db(&self) -> &DbAccess {
         &self.inner.db
     }
@@ -569,8 +574,9 @@ impl CoreUser {
                         messages.push(queue_message);
                     }
                 }
-                Some(listen_response::Event::Payload(_)) => {}
-                None => {}
+                Some(listen_response::Event::Payload(_))
+                | Some(listen_response::Event::VersionStatus(_))
+                | None => {}
             }
         }
 

@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::io::Cursor;
+use std::{assert_matches, io::Cursor};
 
-use aircommon::assert_matches;
 use aircoreclient::{AttachmentProgressEvent, ProvisionAttachmentError};
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use base64::{Engine, prelude::BASE64_STANDARD};
