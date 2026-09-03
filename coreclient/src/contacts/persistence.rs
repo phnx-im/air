@@ -379,6 +379,15 @@ impl PartialContact {
         }
     }
 
+    pub(crate) async fn delete(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
+        match self {
+            PartialContact::Username(username_contact) => username_contact.delete(connection).await,
+            PartialContact::TargetedMessage(targeted_message_contact) => {
+                targeted_message_contact.delete(connection).await
+            }
+        }
+    }
+
     pub(crate) async fn mark_as_complete(
         self,
         txn: &mut WriteDbTransaction<'_>,

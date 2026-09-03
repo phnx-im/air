@@ -4,6 +4,7 @@
 
 use super::{AsCredentials, Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
 
+pub mod group_bootstrap_echo;
 pub mod process_as;
 pub mod process_qs;
 pub mod qs_stream;

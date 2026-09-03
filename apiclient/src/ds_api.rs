@@ -564,6 +564,9 @@ impl ApiClient {
         group_info: MlsMessageOut,
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
+        // A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for
+        // the joiner's sibling clients.
+        group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         let request = JoinConnectionGroupRequest {
@@ -571,7 +574,7 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             external_commit: Some(external_commit.try_ref_into()?),
             qs_client_reference: Some(qs_client_reference.into()),
-            group_bootstrap: None,
+            group_bootstrap,
         };
         let response = self
             .ds_grpc_client()

@@ -13,6 +13,7 @@ use aircommon::{
 };
 use airprotos::client::component::AirComponent;
 use airprotos::client::group::{EncryptedGroupTitle, GroupData, GroupProfile};
+use airprotos::client::group_bootstrap::GroupBootstrapCarrier;
 use anyhow::Context;
 use tracing::error;
 
@@ -20,7 +21,7 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
     db::access::WriteConnection,
-    groups::Group,
+    groups::{Group, self_group::SelfGroup},
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
 };
@@ -42,7 +43,7 @@ impl Job for CreateChat {
         self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<ChatId, JobError<Self::DomainError>> {
-        self.execute_internal(context).await
+        Box::pin(self.execute_internal(context)).await
     }
 }
 
@@ -137,10 +138,13 @@ impl CreateChat {
 
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.
-        let (group, chat, partial_params, encrypted_user_profile_key) = db
+        let (group, chat, partial_params, encrypted_user_profile_key, group_bootstrap) = db
             .write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
+                let self_group = SelfGroup::load(&mut *txn).await?;
+                let vc_group_id = self_group.as_ref().map(|group| group.group_id());
+
                 let (group, partial_params) = if is_apq {
                     let disable_safe_aad = None;
                     Group::create_apq_group(
@@ -153,6 +157,7 @@ impl CreateChat {
                         group_data_bytes.clone(),
                         disable_safe_aad,
                         AirComponent::default_for_leaf_or_key_package(),
+                        vc_group_id,
                     )?
                 } else {
                     Group::create_group(
@@ -161,6 +166,7 @@ impl CreateChat {
                         identity_link_wrapper_key,
                         group_id,
                         group_data_bytes,
+                        vc_group_id,
                     )?
                 };
 
@@ -172,11 +178,32 @@ impl CreateChat {
 
                 let chat = Chat::new_group_chat(partial_params.group_id.clone(), chat_attributes);
                 chat.store(&mut *txn).await?;
-                Ok((group, chat, partial_params, encrypted_user_profile_key))
+
+                // Group chats carry no connection context. The sibling takes
+                // the chat attributes from the group data extension.
+                let connection = None;
+                let group_bootstrap = match &self_group {
+                    Some(self_group) => Some(self_group.seal_group_bootstrap_param(
+                        txn,
+                        &group,
+                        GroupBootstrapCarrier::CreationEcho,
+                        connection,
+                    )?),
+                    None => None,
+                };
+
+                Ok((
+                    group,
+                    chat,
+                    partial_params,
+                    encrypted_user_profile_key,
+                    group_bootstrap,
+                ))
             })
             .await?;
 
-        let params = partial_params.into_params(client_reference, encrypted_user_profile_key);
+        let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
+        params.group_bootstrap = group_bootstrap;
         if let Err(e) = api_client
             .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
             .await
