@@ -43,7 +43,7 @@ class _ColorThemePickerState extends State<ColorThemePicker> {
           mainAxisSize: .min,
           spacing: S.s8,
           children: [
-            _Swatches(theme: selected),
+            ThemeSwatches(theme: selected),
             Text(
               selected.name,
               style: typeScale.body.regular.style(color: palette.text.primary),
@@ -69,7 +69,7 @@ class _ColorThemePickerState extends State<ColorThemePicker> {
           for (final theme in builtinColorThemes)
             MenuItem(
               label: theme.name,
-              leading: _Swatches(theme: theme),
+              leading: ThemeSwatches(theme: theme),
               selected: theme.id == selected.id,
               onPressed: () => cubit.select(theme),
             ),
@@ -80,8 +80,9 @@ class _ColorThemePickerState extends State<ColorThemePicker> {
 }
 
 /// Four accent dots on the theme's own dark background.
-class _Swatches extends StatelessWidget {
-  const _Swatches({required this.theme});
+/// The theme's four preview dots on its dark background.
+class ThemeSwatches extends StatelessWidget {
+  const ThemeSwatches({super.key, required this.theme});
 
   final ColorTheme theme;
 

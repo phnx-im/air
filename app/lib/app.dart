@@ -18,6 +18,8 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/developer/color_theme_cubit.dart';
+import 'package:air/features/developer/theme_mode_cubit.dart';
+import 'package:air/features/developer/theme_showcase.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -242,6 +244,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         ),
         BlocProvider<AppLocaleCubit>(create: (context) => AppLocaleCubit()),
         BlocProvider<ColorThemeCubit>(create: (context) => ColorThemeCubit()),
+        BlocProvider<ThemeModeCubit>(create: (context) => ThemeModeCubit()),
       ],
       child: InterfaceScale(
         // SDTFScope exposes date & time formatting system preferences
@@ -259,6 +262,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 // Prefer the persisted user locale over the in-memory one.
                 final locale = localeFromTag(userLocaleCode) ?? appLocale;
                 final colorTheme = context.watch<ColorThemeCubit>().state;
+                final themeMode = context.watch<ThemeModeCubit>().state;
 
                 return MaterialApp.router(
                   scrollBehavior: const AppScrollBehavior(),
@@ -275,26 +279,30 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                   debugShowCheckedModeBanner: false,
                   theme: themeData(.light, theme: colorTheme),
                   darkTheme: themeData(.dark, theme: colorTheme),
+                  themeMode: themeMode,
                   routerConfig: _appRouter,
-                  builder: (context, router) => LoadableUserCubitProvider(
-                    appStateController: _appStateController,
-                    child: BlocListener<NavigationCubit, NavigationState>(
-                      // Drop the keyboard focus whenever we navigate, e.g. leaving
-                      // a chat's message composer to open the contact/chat
-                      // details. Otherwise the composer's FocusNode keeps focus
-                      // while sitting under the pushed screens, and on iOS the
-                      // keyboard reappears when a pageless route on top (like the
-                      // safety code screen) is popped, because Flutter restores
-                      // focus to it.
-                      //
-                      // Only touch devices have a software keyboard, and on
-                      // desktop we want the composer to keep its focus, so this
-                      // is scoped to non-desktop. The listener already only fires
-                      // when the navigation state actually changes.
-                      listenWhen: (previous, current) => !DeviceType.isDesktop,
-                      listener: (context, state) =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
-                      child: router!,
+                  builder: (context, router) => ThemeShowcase(
+                    child: LoadableUserCubitProvider(
+                      appStateController: _appStateController,
+                      child: BlocListener<NavigationCubit, NavigationState>(
+                        // Drop the keyboard focus whenever we navigate, e.g. leaving
+                        // a chat's message composer to open the contact/chat
+                        // details. Otherwise the composer's FocusNode keeps focus
+                        // while sitting under the pushed screens, and on iOS the
+                        // keyboard reappears when a pageless route on top (like the
+                        // safety code screen) is popped, because Flutter restores
+                        // focus to it.
+                        //
+                        // Only touch devices have a software keyboard, and on
+                        // desktop we want the composer to keep its focus, so this
+                        // is scoped to non-desktop. The listener already only fires
+                        // when the navigation state actually changes.
+                        listenWhen: (previous, current) =>
+                            !DeviceType.isDesktop,
+                        listener: (context, state) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                        child: router!,
+                      ),
                     ),
                   ),
                 );
