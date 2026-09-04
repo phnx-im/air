@@ -2,9 +2,48 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, PoisonError},
+};
+
 use sqlx::PgPool;
 
 use super::{Allowance, RlKey, StorageProvider};
+
+/// Allowances kept in process memory.
+///
+/// Suitable for a service whose state is in memory anyway, where a restart
+/// resetting the counters costs nothing an attacker could not get by waiting
+/// out the window.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RlMemoryStorage {
+    allowances: Arc<Mutex<HashMap<Vec<u8>, Allowance>>>,
+}
+
+impl RlMemoryStorage {
+    /// Forgets allowances whose window has passed, so the map does not grow
+    /// with every address that ever connected.
+    pub(crate) fn prune(&self) {
+        self.lock().retain(|_, allowance| !allowance.is_stale());
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<Vec<u8>, Allowance>> {
+        self.allowances
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl StorageProvider for RlMemoryStorage {
+    async fn get(&self, key: &RlKey) -> Option<Allowance> {
+        self.lock().get(key.serialize()).cloned()
+    }
+
+    async fn set(&self, key: RlKey, allowance: Allowance) {
+        self.lock().insert(key.serialize().to_owned(), allowance);
+    }
+}
 
 pub(crate) struct RlPostgresStorage {
     pool: PgPool,
