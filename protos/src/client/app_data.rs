@@ -87,8 +87,9 @@ impl ClientAppData {
     /// Refreshes the client app data in an existing leaf dictionary to what this version of the
     /// client advertises.
     ///
-    /// Whether the leaf is operated by a virtual client is preserved. Entries not owned by Air are
-    /// left untouched.
+    /// Only the Air component and the list of app component ids are touched. The former is
+    /// replaced. The latter only gets ids added, never removed, so ids owned by other components
+    /// and the virtual client maker survive.
     pub fn refresh(dict: &mut AppDataDictionary) {
         Self {
             virtual_client: is_virtual_client(dict),
@@ -107,11 +108,20 @@ impl ClientAppData {
     }
 
     fn write_into(&self, dict: &mut AppDataDictionary) {
-        let mut component_ids = SUPPORTED_COMPONENTS.to_vec();
-        if self.virtual_client {
-            component_ids.push(VC_COMPONENT_ID);
+        let app_component_ids = ComponentType::AppComponents.into();
+        let mut component_ids = components_list(dict, app_component_ids)
+            .map(|list| list.component_ids)
+            .unwrap_or_default();
+        let wanted = SUPPORTED_COMPONENTS
+            .iter()
+            .copied()
+            .chain(self.virtual_client.then_some(VC_COMPONENT_ID));
+        for id in wanted {
+            if !component_ids.contains(&id) {
+                component_ids.push(id);
+            }
         }
-        insert_components_list(dict, ComponentType::AppComponents.into(), component_ids);
+        insert_components_list(dict, app_component_ids, component_ids);
         insert_air_component(
             dict,
             &AirComponent {
@@ -438,16 +448,29 @@ mod test {
         assert_eq!(list.component_ids, vec![AIR_COMPONENT_ID]);
     }
 
+    /// Ids owned by other components (e.g. APQ) share the list with Air's. Refreshing must not
+    /// drop them.
     #[test]
-    fn refresh_replaces_foreign_component_ids() {
+    fn refresh_keeps_foreign_component_ids() {
+        const FOREIGN_COMPONENT_ID: ComponentId = 0x8043;
+        let app_components_id: ComponentId = ComponentType::AppComponents.into();
         let mut dict = AppDataDictionary::new();
-        insert_components_list(&mut dict, ComponentType::AppComponents.into(), vec![0x8043]);
-
+        insert_components_list(
+            &mut dict,
+            app_components_id,
+            vec![FOREIGN_COMPONENT_ID, AIR_COMPONENT_ID],
+        );
+        insert_air_component(&mut dict, &AirComponent::default());
         ClientAppData::refresh(&mut dict);
-
-        let ids = components_list(&dict, ComponentType::AppComponents.into())
+        let ids = components_list(&dict, app_components_id)
             .unwrap()
             .component_ids;
-        assert_eq!(ids, SUPPORTED_COMPONENTS);
+        assert!(ids.contains(&FOREIGN_COMPONENT_ID));
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+
+        // Already complete -> nothing changes
+        let before = dict.clone();
+        ClientAppData::refresh(&mut dict);
+        assert_eq!(dict, before);
     }
 }
