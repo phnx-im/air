@@ -85,7 +85,7 @@ dependencies = [
  "mimi-room-policy",
  "mls-assist",
  "semver",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -137,7 +137,7 @@ dependencies = [
  "serde_json",
  "tar",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -187,7 +187,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -209,6 +209,7 @@ dependencies = [
  "argon2",
  "cbor-diag",
  "chrono",
+ "cpace",
  "criterion",
  "digest-io",
  "displaydoc",
@@ -216,6 +217,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hkdf 0.13.0",
+ "hmac 0.13.0",
  "insta",
  "mimi-room-policy",
  "mimi_content",
@@ -230,7 +232,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -281,7 +283,7 @@ dependencies = [
  "sqlx",
  "strum",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -331,7 +333,7 @@ dependencies = [
  "serde_bytes",
  "sha2 0.11.0",
  "strum",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tonic",
  "tonic-prost",
@@ -377,7 +379,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tempfile",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "tokio",
  "tokio-stream",
@@ -566,7 +568,7 @@ dependencies = [
  "openmls_traits",
  "serde",
  "tap",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
 ]
 
@@ -892,7 +894,7 @@ dependencies = [
  "num-traits",
  "pastey 0.1.1",
  "rayon",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "v_frame",
  "y4m",
 ]
@@ -1499,6 +1501,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
 dependencies = [
  "hybrid-array",
+ "zeroize",
 ]
 
 [[package]]
@@ -1630,7 +1633,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1985,6 +1988,19 @@ dependencies = [
  "hax-lib",
  "pastey 0.2.3",
  "rand 0.10.2",
+]
+
+[[package]]
+name = "cpace"
+version = "0.1.0"
+source = "git+https://github.com/phnx-im/cpace?rev=1882fad3b58ffbb27a82c78418826727b72b8bac#1882fad3b58ffbb27a82c78418826727b72b8bac"
+dependencies = [
+ "curve25519-dalek 4.1.3",
+ "rand_core 0.10.1",
+ "sha2 0.11.0",
+ "subtle",
+ "thiserror 2.0.18",
+ "zeroize",
 ]
 
 [[package]]
@@ -2449,6 +2465,7 @@ dependencies = [
  "const-oid 0.10.2",
  "crypto-common 0.2.2",
  "ctutils",
+ "zeroize",
 ]
 
 [[package]]
@@ -4520,7 +4537,7 @@ dependencies = [
  "metrics",
  "metrics-util",
  "quanta",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4563,7 +4580,7 @@ source = "git+https://github.com/phnx-im/mimi-room-policy?rev=603f3e07372119560c
 dependencies = [
  "ciborium",
  "serde",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
 ]
 
@@ -4675,7 +4692,7 @@ dependencies = [
  "openmls_traits",
  "serde",
  "serde_bytes",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
 ]
 
@@ -5085,7 +5102,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "web-time",
  "zeroize",
@@ -5140,7 +5157,7 @@ dependencies = [
  "openmls_traits",
  "serde",
  "serde_json",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5167,7 +5184,7 @@ dependencies = [
  "rand_core 0.10.1",
  "rand_core 0.6.4",
  "sha2 0.11.0",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
 ]
 
@@ -5179,7 +5196,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5656,7 +5673,7 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "subtle",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tls_codec",
  "trait-variant",
  "typenum",
@@ -5977,7 +5994,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "web-time",
@@ -5999,7 +6016,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tinyvec",
  "tracing",
  "web-time",
@@ -6183,7 +6200,7 @@ dependencies = [
  "rand 0.9.5",
  "rand_chacha 0.9.0",
  "simd_helpers",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "v_frame",
  "wasm-bindgen",
 ]
@@ -6270,7 +6287,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "siphasher",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "time",
  "toml 1.1.4+spec-1.1.0",
  "url",
@@ -6852,7 +6869,7 @@ checksum = "0d585997b0ac10be3c5ee635f1bab02d512760d14b7c468801ac8a01d9ae5f1d"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "time",
 ]
 
@@ -6985,7 +7002,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "toml 0.8.23",
@@ -7029,7 +7046,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tokio",
  "url",
 ]
@@ -7057,7 +7074,7 @@ dependencies = [
  "sha1",
  "sha2 0.11.0",
  "sqlx-core",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tracing",
  "uuid",
 ]
@@ -7093,7 +7110,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tracing",
  "uuid",
  "whoami",
@@ -7119,7 +7136,7 @@ dependencies = [
  "percent-encoding",
  "serde",
  "sqlx-core",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tracing",
  "url",
  "uuid",
@@ -7240,7 +7257,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade"
 dependencies = [
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "windows",
  "windows-version",
 ]
@@ -7275,11 +7292,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.20"
+version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
+checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
 dependencies = [
- "thiserror-impl 2.0.20",
+ "thiserror-impl 2.0.18",
 ]
 
 [[package]]
@@ -7295,13 +7312,13 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.20"
+version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
+checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.3",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -7740,7 +7757,7 @@ dependencies = [
  "governor",
  "http 1.5.0",
  "pin-project",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tonic",
  "tower",
  "tracing",
@@ -8724,7 +8741,7 @@ dependencies = [
  "log",
  "os_pipe",
  "rustix",
- "thiserror 2.0.20",
+ "thiserror 2.0.18",
  "tree_magic_mini",
  "wayland-backend",
  "wayland-client",
