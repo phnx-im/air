@@ -9,19 +9,24 @@ use std::{
 
 use sqlx::PgPool;
 
-use super::{Allowance, RlKey, StorageProvider};
+use super::{Allowance, RlConfig, RlKey, StorageProvider};
 
 /// Allowances kept in process memory.
-///
-/// Suitable for a service whose state is in memory anyway, where a restart
-/// resetting the counters costs nothing an attacker could not get by waiting
-/// out the window.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct RlMemoryStorage {
     allowances: Arc<Mutex<HashMap<Vec<u8>, Allowance>>>,
 }
 
 impl RlMemoryStorage {
+    /// Charges one request against `key` and reports whether it is allowed.
+    pub(crate) fn charge(&self, config: &RlConfig, key: &RlKey) -> bool {
+        let mut allowances = self.lock();
+        allowances
+            .entry(key.serialize().to_owned())
+            .or_insert_with(|| Allowance::new(config))
+            .allowed(config)
+    }
+
     /// Forgets allowances whose window has passed, so the map does not grow
     /// with every address that ever connected.
     pub(crate) fn prune(&self) {
@@ -32,16 +37,6 @@ impl RlMemoryStorage {
         self.allowances
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-impl StorageProvider for RlMemoryStorage {
-    async fn get(&self, key: &RlKey) -> Option<Allowance> {
-        self.lock().get(key.serialize()).cloned()
-    }
-
-    async fn set(&self, key: RlKey, allowance: Allowance) {
-        self.lock().insert(key.serialize().to_owned(), allowance);
     }
 }
 
@@ -208,5 +203,70 @@ pub(crate) mod persistence {
 
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeDelta;
+
+    use super::*;
+
+    /// Concurrent requests for one key must not all read the same allowance
+    /// and pass together.
+    #[tokio::test]
+    async fn concurrent_charges_spend_the_allowance_once_each() {
+        const REQUESTS: usize = 20;
+        const LIMIT: u64 = 5;
+
+        let storage = RlMemoryStorage::default();
+        let config = RlConfig {
+            max_requests: LIMIT,
+            time_window: TimeDelta::hours(1),
+        };
+        let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+
+        let mut charges = Vec::with_capacity(REQUESTS);
+        for _ in 0..REQUESTS {
+            let storage = storage.clone();
+            let config = config.clone();
+            let key = key.clone();
+            charges.push(tokio::spawn(async move { storage.charge(&config, &key) }));
+        }
+
+        let mut allowed: u64 = 0;
+        for charge in charges {
+            if charge.await.expect("charge task panicked") {
+                allowed += 1;
+            }
+        }
+        assert_eq!(allowed, LIMIT);
+    }
+
+    #[tokio::test]
+    async fn pruning_forgets_only_stale_allowances() {
+        let storage = RlMemoryStorage::default();
+        let live = RlKey::new(b"test_service", b"live", &[]);
+        let stale = RlKey::new(b"test_service", b"stale", &[]);
+
+        assert!(storage.charge(
+            &RlConfig {
+                max_requests: 1,
+                time_window: TimeDelta::hours(1),
+            },
+            &live
+        ));
+        assert!(storage.charge(
+            &RlConfig {
+                max_requests: 1,
+                time_window: TimeDelta::milliseconds(-1),
+            },
+            &stale
+        ));
+
+        storage.prune();
+        let allowances = storage.lock();
+        assert!(allowances.contains_key(live.serialize()));
+        assert!(!allowances.contains_key(stale.serialize()));
     }
 }
