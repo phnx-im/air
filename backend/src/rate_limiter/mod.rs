@@ -74,7 +74,7 @@ impl Allowance {
         self.valid_until < Utc::now()
     }
 
-    fn allowed(&mut self, config: &RlConfig) -> bool {
+    pub(crate) fn allowed(&mut self, config: &RlConfig) -> bool {
         if self.is_stale() {
             self.reset(config);
         }

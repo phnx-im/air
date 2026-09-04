@@ -27,7 +27,7 @@ use aircommon::crypto::mdl::code::MIN_RENDEZVOUS_DIGITS;
 
 use crate::{
     client_ip::IpBucket,
-    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlMemoryStorage},
+    rate_limiter::{RlConfig, RlKey, provider::RlMemoryStorage},
     settings::RelaySettings,
 };
 
@@ -191,46 +191,39 @@ impl Rs {
     }
 
     /// Whether this address may open another linking session.
-    pub(crate) async fn allow_provision(&self, ip: IpBucket) -> bool {
+    pub(crate) fn allow_provision(&self, ip: IpBucket) -> bool {
         self.allow(
             self.settings.perip,
             RlKey::new(RL_SERVICE, RL_PROVISION, &[b"ip", &ip]),
         )
-        .await
     }
 
-    /// Whether this address and this user may make another link attempt.
-    ///
-    /// Both allowances are charged, the address first, so an attacker cannot
-    /// spread attempts over accounts or over addresses alone.
-    pub(crate) async fn allow_link(&self, ip: IpBucket, qs_user_id: QsUserId) -> bool {
-        let by_ip = self
-            .allow(
-                self.settings.perip,
-                RlKey::new(RL_SERVICE, RL_LINK, &[b"ip", &ip]),
-            )
-            .await;
-        let by_user = self
-            .allow(
-                self.settings.peruser,
-                RlKey::new(
-                    RL_SERVICE,
-                    RL_LINK,
-                    &[b"qs_user", qs_user_id.as_uuid().as_bytes()],
-                ),
-            )
-            .await;
-        by_ip && by_user
+    /// Whether this address may make another link attempt.
+    pub(crate) fn allow_link_from(&self, ip: IpBucket) -> bool {
+        self.allow(
+            self.settings.perip,
+            RlKey::new(RL_SERVICE, RL_LINK, &[b"ip", &ip]),
+        )
     }
 
-    async fn allow(&self, max_requests: u64, key: RlKey) -> bool {
+    /// Whether this user may make another link attempt.
+    pub(crate) fn allow_link_by(&self, qs_user_id: QsUserId) -> bool {
+        self.allow(
+            self.settings.peruser,
+            RlKey::new(
+                RL_SERVICE,
+                RL_LINK,
+                &[b"qs_user", qs_user_id.as_uuid().as_bytes()],
+            ),
+        )
+    }
+
+    fn allow(&self, max_requests: u64, key: RlKey) -> bool {
         let config = RlConfig {
             max_requests,
             time_window: TimeDelta::hours(1),
         };
-        RateLimiter::new(config, self.allowances.clone())
-            .allowed(key)
-            .await
+        self.allowances.charge(&config, &key)
     }
 
     /// Opens a session for a provisioning device.
@@ -592,11 +585,11 @@ mod rate_limit_tests {
     #[tokio::test]
     async fn provisioning_is_capped_per_address() {
         let rs = relay(2, 100);
-        assert!(rs.allow_provision(bucket(1)).await);
-        assert!(rs.allow_provision(bucket(1)).await);
-        assert!(!rs.allow_provision(bucket(1)).await);
+        assert!(rs.allow_provision(bucket(1)));
+        assert!(rs.allow_provision(bucket(1)));
+        assert!(!rs.allow_provision(bucket(1)));
         assert!(
-            rs.allow_provision(bucket(2)).await,
+            rs.allow_provision(bucket(2)),
             "another address has its own allowance"
         );
     }
@@ -605,11 +598,11 @@ mod rate_limit_tests {
     async fn link_attempts_are_capped_per_user() {
         let rs = relay(100, 2);
         let user = QsUserId::random();
-        assert!(rs.allow_link(bucket(1), user).await);
-        assert!(rs.allow_link(bucket(1), user).await);
-        assert!(!rs.allow_link(bucket(2), user).await);
+        assert!(rs.allow_link_by(user));
+        assert!(rs.allow_link_by(user));
+        assert!(!rs.allow_link_by(user));
         assert!(
-            rs.allow_link(bucket(1), QsUserId::random()).await,
+            rs.allow_link_by(QsUserId::random()),
             "another user has its own allowance"
         );
     }
@@ -617,15 +610,34 @@ mod rate_limit_tests {
     #[tokio::test]
     async fn link_attempts_are_capped_per_address() {
         let rs = relay(2, 100);
-        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
-        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
-        assert!(!rs.allow_link(bucket(1), QsUserId::random()).await);
+        assert!(rs.allow_link_from(bucket(1)));
+        assert!(rs.allow_link_from(bucket(1)));
+        assert!(!rs.allow_link_from(bucket(1)));
+        assert!(
+            rs.allow_link_from(bucket(2)),
+            "another address has its own allowance"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_address_charge_does_not_touch_the_user_allowance() {
+        let rs = relay(100, 1);
+        let user = QsUserId::random();
+
+        for _ in 0..10 {
+            assert!(rs.allow_link_from(bucket(1)));
+        }
+
+        assert!(
+            rs.allow_link_by(user),
+            "the user's single attempt must survive unverified requests"
+        );
     }
 
     #[tokio::test]
     async fn the_two_rpcs_do_not_share_an_allowance() {
         let rs = relay(1, 100);
-        assert!(rs.allow_provision(bucket(1)).await);
-        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
+        assert!(rs.allow_provision(bucket(1)));
+        assert!(rs.allow_link_from(bucket(1)));
     }
 }
