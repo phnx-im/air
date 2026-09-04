@@ -89,7 +89,7 @@ impl ClientAppData {
     ///
     /// Only the Air component and the list of app component ids are touched. The former is
     /// replaced. The latter only gets ids added, never removed, so ids owned by other components
-    /// and the virtual client maker survive.
+    /// and the virtual client marker survive.
     pub fn refresh(dict: &mut AppDataDictionary) {
         Self {
             virtual_client: is_virtual_client(dict),
