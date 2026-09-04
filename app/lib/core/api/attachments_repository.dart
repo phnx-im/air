@@ -39,7 +39,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
     required bool retryDownloadIfFailed,
   });
 
-  /// Load thumbnail for the database
+  /// Load thumbnail from the database.
   ///
   /// If the thumbnail is not yet generated, it is regenerated, and then the data is returned.
   Future<Uint8List?> loadThumbnail({
