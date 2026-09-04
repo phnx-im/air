@@ -55,7 +55,7 @@ use crate::{
     },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
-    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
+    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage, too_many_requests},
 };
 
 use super::{
@@ -964,9 +964,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         // Apply the rate-limiting
         if !rl.allowed(rl_key).await {
-            return Err(Status::resource_exhausted(
-                "Too many requests, please try again later",
-            ));
+            return Err(too_many_requests());
         }
 
         // Now we can verify the payload
@@ -1114,9 +1112,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);
         if !rl.allowed(rl_key).await {
-            return Err(Status::resource_exhausted(
-                "Too many requests, please try again later",
-            ));
+            return Err(too_many_requests());
         }
 
         // Now we can verify the payload
