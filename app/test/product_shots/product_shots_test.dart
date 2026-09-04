@@ -179,8 +179,10 @@ class _ProductShotSpec {
   final String title;
   final String subtitle;
 
-  /// Builds fresh mocks/providers for a single test run.
-  final List<SingleChildWidget> Function() buildProviders;
+  /// Builds fresh mocks/providers for a single test run. Takes the platform
+  /// because the desktop shots open a chat the mobile ones do not.
+  final List<SingleChildWidget> Function(TargetPlatform platform)
+  buildProviders;
 
   final Widget Function(TargetPlatform platform) buildScreen;
 
@@ -193,11 +195,13 @@ class _ProductShotSpec {
 void _testProductShots(String groupName, _ProductShotSpec spec) {
   group(groupName, () {
     for (final productShotInfo in _productShotsMatrix) {
-      final device = productShotInfo.targetPlatform.device;
-      final deviceInfo = device.deviceInfo;
-      final identifier = device.identifier;
+      final identifier = productShotInfo.targetPlatform.device().identifier;
 
       for (final brightness in Brightness.values) {
+        final device = productShotInfo.targetPlatform.device(
+          brightness: brightness,
+        );
+        final deviceInfo = device.deviceInfo;
         final palette = spec.paletteFor(brightness);
         final isDark = brightness == Brightness.dark;
         final variantSuffix = isDark ? ', dark' : '';
@@ -211,7 +215,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
           (tester) async {
             await tester.pumpWidget(
               _buildProductShotSubject(
-                providers: spec.buildProviders(),
+                providers: spec.buildProviders(productShotInfo.targetPlatform),
                 brightness: brightness,
                 shot: ProductShot(
                   size: _canvasSizeFor(productShotInfo.targetPlatform),
@@ -245,6 +249,9 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
 
       // Build the product shot without marketing chrome
       for (final brightness in Brightness.values) {
+        final deviceInfo = productShotInfo.targetPlatform
+            .device(brightness: brightness)
+            .deviceInfo;
         final isDark = brightness == Brightness.dark;
         final variantSuffix = isDark ? ', dark' : '';
         final goldenSuffix = isDark ? '.dark' : '';
@@ -256,10 +263,13 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
           (tester) async {
             await tester.pumpWidget(
               _buildProductShotSubject(
-                providers: spec.buildProviders(),
+                providers: spec.buildProviders(productShotInfo.targetPlatform),
                 frameless: true,
                 brightness: brightness,
-                shot: spec.buildScreen(productShotInfo.targetPlatform),
+                shot: DeviceFrame(
+                  device: deviceInfo,
+                  screen: spec.buildScreen(productShotInfo.targetPlatform),
+                ),
               ),
             );
             await _precacheImages(tester);
@@ -296,14 +306,24 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
   ),
   title: 'Secure messaging\nfor everyone.',
   subtitle: 'Everything in Air is\nend-to-end encrypted.',
-  buildProviders: () {
+  buildProviders: (platform) {
+    final isDesktop = _isDesktopPlatform(platform);
     final navigationCubit = MockNavigationCubit();
     final userCubit = MockUserCubit();
     final usersCubit = MockUsersCubit();
     final userSettingsCubit = MockUserSettingsCubit();
+    final attachmentsRepository = MockAttachmentsRepository();
 
-    when(() => navigationCubit.state).thenReturn(const NavigationState.home());
-    when(() => userCubit.state).thenReturn(MockUiUser(id: 10));
+    // Desktop shows a chat beside the list, so point navigation at the one
+    // the shot opens. Mobile has none open, and a selected row would be wrong.
+    when(() => navigationCubit.state).thenReturn(
+      isDesktop
+          ? NavigationState.home(
+              home: HomeNavigationState(chatOpen: true, chatId: privateChat.id),
+            )
+          : const NavigationState.home(),
+    );
+    when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
     when(
       () => usersCubit.state,
     ).thenReturn(MockUsersState(profiles: userProfiles, defaultUserId: ownId));
@@ -313,7 +333,7 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
 
     return [
       RepositoryProvider<AttachmentsRepository>.value(
-        value: MockAttachmentsRepository(),
+        value: attachmentsRepository,
       ),
       RepositoryProvider<chats_repository.ChatsRepository>.value(
         value: FakeChatsRepository(chats),
@@ -322,15 +342,71 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: usersCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      if (isDesktop)
+        ..._openChatProviders(
+          chat: privateChat,
+          members: privateChatMembers,
+          messages: privateChatMessages,
+          attachmentImages: privateChatAttachmentImages,
+          attachmentsRepository: attachmentsRepository,
+        ),
     ];
   },
-  buildScreen: (_) => const Stack(
-    children: [
-      Positioned.fill(child: ChatListView(scaffold: true)),
-      Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
-    ],
-  ),
+  // On desktop the chat list is a pane beside the open chat, not a full screen
+  // with a tab bar, so mirror what the real app builds per platform.
+  buildScreen: (platform) => _isDesktopPlatform(platform)
+      ? _chatShot(
+          platform,
+          const ChatScreenView(createMessageCubit: createMockMessageCubit),
+        )
+      : const Stack(
+          children: [
+            Positioned.fill(child: ChatListView(scaffold: true)),
+            Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
+          ],
+        ),
 );
+
+/// The mocked cubits and attachment stubs an open chat needs, shared by the
+/// chat shots and the desktop chat list shot.
+List<SingleChildWidget> _openChatProviders({
+  required UiChatDetails chat,
+  required List<UiUserId> members,
+  required List<UiChatMessage> messages,
+  required Map<AttachmentId, ImageData> attachmentImages,
+  required MockAttachmentsRepository attachmentsRepository,
+}) {
+  final chatDetailsCubit = MockChatDetailsCubit();
+  final messageListCubit = MockMessageListCubit();
+
+  when(
+    () => chatDetailsCubit.state,
+  ).thenReturn(ChatDetailsState(chat: chat, members: members));
+  when(
+    () => chatDetailsCubit.markAsRead(
+      untilMessageId: any(named: "untilMessageId"),
+      untilTimestamp: any(named: "untilTimestamp"),
+    ),
+  ).thenAnswer((_) => Future.value());
+  when(
+    () => chatDetailsCubit.storeDraft(
+      draftMessage: any(named: "draftMessage"),
+      isCommitted: any(named: "isCommitted"),
+    ),
+  ).thenAnswer((_) async => Future.value());
+  messageListCubit.setState(messages);
+  _stubAttachments(attachmentsRepository, attachmentImages);
+  when(
+    () => attachmentsRepository.statusStream(
+      attachmentId: any(named: "attachmentId"),
+    ),
+  ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
+
+  return [
+    BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+    BlocProvider<MessageListCubit>.value(value: messageListCubit),
+  ];
+}
 
 /// A private chat and a group chat only differ in which conversation they
 /// depict, so they share this spec and just plug in their own fixtures.
@@ -350,12 +426,10 @@ _ProductShotSpec _chatSpec({
   darkPalette: darkPalette,
   title: title,
   subtitle: subtitle,
-  buildProviders: () {
+  buildProviders: (_) {
     final navigationCubit = MockNavigationCubit();
     final userCubit = MockUserCubit();
     final contactsCubit = MockUsersCubit();
-    final chatDetailsCubit = MockChatDetailsCubit();
-    final messageListCubit = MockMessageListCubit();
     final userSettingsCubit = MockUserSettingsCubit();
     final attachmentsRepository = MockAttachmentsRepository();
 
@@ -366,29 +440,7 @@ _ProductShotSpec _chatSpec({
     when(
       () => contactsCubit.state,
     ).thenReturn(MockUsersState(profiles: userProfiles));
-    when(
-      () => chatDetailsCubit.state,
-    ).thenReturn(ChatDetailsState(chat: chat, members: members));
-    when(
-      () => chatDetailsCubit.markAsRead(
-        untilMessageId: any(named: "untilMessageId"),
-        untilTimestamp: any(named: "untilTimestamp"),
-      ),
-    ).thenAnswer((_) => Future.value());
-    when(
-      () => chatDetailsCubit.storeDraft(
-        draftMessage: any(named: "draftMessage"),
-        isCommitted: any(named: "isCommitted"),
-      ),
-    ).thenAnswer((_) async => Future.value());
     when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-    messageListCubit.setState(messages);
-    _stubAttachments(attachmentsRepository, attachmentImages);
-    when(
-      () => attachmentsRepository.statusStream(
-        attachmentId: any(named: "attachmentId"),
-      ),
-    ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
 
     return [
       RepositoryProvider<AttachmentsRepository>.value(
@@ -400,9 +452,14 @@ _ProductShotSpec _chatSpec({
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: contactsCubit),
-      BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-      BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      ..._openChatProviders(
+        chat: chat,
+        members: members,
+        messages: messages,
+        attachmentImages: attachmentImages,
+        attachmentsRepository: attachmentsRepository,
+      ),
     ];
   },
   buildScreen: (platform) => _chatShot(

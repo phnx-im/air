@@ -6,7 +6,7 @@ import 'package:device_frame/device_frame.dart';
 import 'package:flutter/material.dart';
 
 extension ProductShotPlatformExt on TargetPlatform {
-  ProductShotDevice get device {
+  ProductShotDevice device({Brightness brightness = Brightness.light}) {
     switch (this) {
       case TargetPlatform.android:
         return ProductShotDevice(
@@ -29,12 +29,15 @@ extension ProductShotPlatformExt on TargetPlatform {
           statusBarHeight: 36.0,
         );
       case TargetPlatform.macOS:
+        // No window size: the app fills the screen, so the shot shows no
+        // wallpaper around it.
+        final macBookPro = Devices.macOS.macBookPro(brightness: brightness);
         return ProductShotDevice(
           platform: TargetPlatform.macOS,
           name: 'macOS Laptop',
-          screenSize: const Size(1280.0, 832.0),
-          deviceInfo: Devices.macOS.macBookPro,
-          pixelRatio: 2.0,
+          screenSize: macBookPro.screenSize,
+          deviceInfo: macBookPro,
+          pixelRatio: macBookPro.pixelRatio,
         );
       case TargetPlatform.windows:
         return ProductShotDevice(
