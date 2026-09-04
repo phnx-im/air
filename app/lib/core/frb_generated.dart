@@ -11286,7 +11286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return UiImageMetadata(
-      blurhash: dco_decode_String(arr[0]),
+      blurhash: dco_decode_opt_String(arr[0]),
       width: dco_decode_u_32(arr[1]),
       height: dco_decode_u_32(arr[2]),
       isAnimated: dco_decode_opt_box_autoadd_bool(arr[3]),
@@ -11445,15 +11445,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
+        return UiShareSendError_DecodingError();
+      case 1:
         return UiShareSendError_AttachmentTooLarge(
           maxSizeBytes: dco_decode_u_64(raw[1]),
           actualSizeBytes: dco_decode_u_64(raw[2]),
         );
-      case 1:
+      case 2:
         return UiShareSendError_TooManyAttachments(
           max: dco_decode_u_32(raw[1]),
         );
-      case 2:
+      case 3:
         return UiShareSendError_Other();
       default:
         throw Exception("unreachable");
@@ -15344,7 +15346,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_blurhash = sse_decode_String(deserializer);
+    var var_blurhash = sse_decode_opt_String(deserializer);
     var var_width = sse_decode_u_32(deserializer);
     var var_height = sse_decode_u_32(deserializer);
     var var_isAnimated = sse_decode_opt_box_autoadd_bool(deserializer);
@@ -15522,16 +15524,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
+        return UiShareSendError_DecodingError();
+      case 1:
         var var_maxSizeBytes = sse_decode_u_64(deserializer);
         var var_actualSizeBytes = sse_decode_u_64(deserializer);
         return UiShareSendError_AttachmentTooLarge(
           maxSizeBytes: var_maxSizeBytes,
           actualSizeBytes: var_actualSizeBytes,
         );
-      case 1:
+      case 2:
         var var_max = sse_decode_u_32(deserializer);
         return UiShareSendError_TooManyAttachments(max: var_max);
-      case 2:
+      case 3:
         return UiShareSendError_Other();
       default:
         throw UnimplementedError('');
@@ -19524,7 +19528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.blurhash, serializer);
+    sse_encode_opt_String(self.blurhash, serializer);
     sse_encode_u_32(self.width, serializer);
     sse_encode_u_32(self.height, serializer);
     sse_encode_opt_box_autoadd_bool(self.isAnimated, serializer);
@@ -19675,18 +19679,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
+      case UiShareSendError_DecodingError():
+        sse_encode_i_32(0, serializer);
       case UiShareSendError_AttachmentTooLarge(
         maxSizeBytes: final maxSizeBytes,
         actualSizeBytes: final actualSizeBytes,
       ):
-        sse_encode_i_32(0, serializer);
+        sse_encode_i_32(1, serializer);
         sse_encode_u_64(maxSizeBytes, serializer);
         sse_encode_u_64(actualSizeBytes, serializer);
       case UiShareSendError_TooManyAttachments(max: final max):
-        sse_encode_i_32(1, serializer);
+        sse_encode_i_32(2, serializer);
         sse_encode_u_32(max, serializer);
       case UiShareSendError_Other():
-        sse_encode_i_32(2, serializer);
+        sse_encode_i_32(3, serializer);
     }
   }
 

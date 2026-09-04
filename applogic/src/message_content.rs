@@ -163,7 +163,9 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
 
     if let Some(attachment) = &mut attachment {
         match (blurhash, dimensions) {
-            (Some(blurhash), Some((width, height))) => {
+            // The blurhash is missing on an own upload that has not been
+            // processed yet.
+            (blurhash, Some((width, height))) => {
                 attachment.image_metadata = Some(UiImageMetadata {
                     blurhash,
                     width,
@@ -171,9 +173,6 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
                     // Classified locally, filled in at resolve time
                     is_animated: None,
                 })
-            }
-            (None, Some(_)) => {
-                warn!("Invalid image attachment: missing blurhash, but dimensions are present")
             }
             (Some(_), None) => {
                 warn!("Invalid image attachment: missing dimensions, but blurhash is present")

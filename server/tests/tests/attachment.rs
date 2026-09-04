@@ -233,5 +233,8 @@ async fn attachment_too_large() {
             assert_eq!(detail.max_size_bytes, MAX_ATTACHMENT_SIZE);
             assert_eq!(detail.actual_size_bytes, encrypted_size);
         }
+        ProvisionAttachmentError::DecodingError => {
+            panic!("wrong error");
+        }
     }
 }

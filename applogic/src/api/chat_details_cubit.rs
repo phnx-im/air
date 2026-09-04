@@ -366,8 +366,7 @@ impl ChatDetailsCubitBase {
                 Err(error) => return error.into_ui_result(),
             };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await?;
-        Ok(None)
+            .await
     }
 
     pub async fn retry_upload_attachment(
@@ -386,18 +385,13 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let (progress, upload_task) = match self
+        let (progress, upload_task) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
-            .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
-        };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
-        Ok(None)
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
+            .await
     }
 
     async fn upload_attachment_impl(
@@ -405,7 +399,7 @@ impl ChatDetailsCubitBase {
         attachment_id: AttachmentId,
         progress: AttachmentProgress,
         upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
         self.attachment_in_progress.insert(attachment_id, handle);
@@ -417,7 +411,9 @@ impl ChatDetailsCubitBase {
                     .enqueue_chat_message(message.id())
                     .await?;
             }
-            Some(Err(UploadTaskError { message_id, error })) => {
+            // The message is already gone, only the reason is left to report.
+            Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
+            Some(Err(UploadTaskError::Failed { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
                 self.context
                     .core_user
@@ -427,9 +423,15 @@ impl ChatDetailsCubitBase {
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");
+                // The task was dropped before it could record an outcome, so
+                // the attachment would otherwise be stuck uploading.
+                self.context
+                    .core_user
+                    .fail_interrupted_attachment_upload(attachment_id)
+                    .await?;
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Marks the chat as read until the given message id (including).
@@ -903,6 +905,7 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
+            ProvisionAttachmentError::DecodingError => bail!("Failed to decode the attachment"),
         }
     }
 }

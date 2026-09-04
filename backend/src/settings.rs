@@ -7,7 +7,7 @@ use std::{
     path::PathBuf,
 };
 
-use aircommon::registration::ChallengeKind;
+use aircommon::{DEFAULT_MAX_ATTACHMENT_SIZE, registration::ChallengeKind};
 use chrono::{DateTime, Duration, Utc};
 use semver::Version;
 use serde::Deserialize;
@@ -148,7 +148,7 @@ pub struct StorageSettings {
     /// Maximum size of an attachment in bytes
     ///
     /// Default is 20 MiB.
-    #[serde(default = "default_20mib")]
+    #[serde(default = "default_max_attachment_size")]
     pub max_attachment_size: u64,
     /// Enables attachment provisioning for uploads via POST policy
     #[serde(default)]
@@ -427,8 +427,8 @@ fn default_500ms() -> std::time::Duration {
     std::time::Duration::from_millis(500)
 }
 
-fn default_20mib() -> u64 {
-    20 * 1024 * 1024
+fn default_max_attachment_size() -> u64 {
+    DEFAULT_MAX_ATTACHMENT_SIZE
 }
 
 fn default_burst() -> u32 {

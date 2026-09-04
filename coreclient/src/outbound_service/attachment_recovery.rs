@@ -25,7 +25,7 @@ use crate::{
         AttachmentRecord,
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
-    db::access::{DbAccess, WriteConnection},
+    db::access::DbAccess,
     outbound_service::chat_message_queue::ChatMessageQueue,
 };
 
@@ -74,7 +74,6 @@ pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> any
                 AttachmentStatus::UploadFailed,
             )
             .await?;
-            txn.notifier().update(attachment_id);
         }
 
         Ok(())

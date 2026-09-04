@@ -56,6 +56,7 @@ pub struct UiSharedAttachment {
 #[derive(Debug, Clone, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiShareSendError {
+    DecodingError,
     AttachmentTooLarge {
         max_size_bytes: u64,
         actual_size_bytes: u64,
@@ -428,26 +429,21 @@ async fn upload_attachment(
 
     let (attachment_id, progress, upload_task) = match provisioned {
         Ok(result) => result,
-        Err(ProvisionAttachmentError::TooLarge(detail)) => {
-            return Err(UiShareSendError::AttachmentTooLarge {
-                max_size_bytes: detail.max_size_bytes,
-                actual_size_bytes: detail.actual_size_bytes,
-            });
-        }
+        Err(error) => return Err(provision_error(error)),
     };
 
     // Forward the upload progress while the upload task runs. The stream
     // ends with a terminal event when the task finishes.
-    let bytes_total = progress.total_bytes().filter(|total| *total > 0);
     let forward_progress = async {
         let mut events = progress.stream();
         while let Some(event) = events.next().await {
             match event {
                 AttachmentProgressEvent::Init => {}
-                AttachmentProgressEvent::Progress { bytes_loaded } => {
-                    if let Some(bytes_total) = bytes_total {
-                        report_progress(bytes_loaded as f64 / bytes_total as f64);
-                    }
+                AttachmentProgressEvent::Progress {
+                    bytes_total,
+                    bytes_loaded,
+                } => {
+                    report_progress(bytes_loaded as f64 / bytes_total as f64);
                 }
                 AttachmentProgressEvent::Completed
                 | AttachmentProgressEvent::Failed
@@ -469,7 +465,8 @@ async fn upload_attachment(
                 })?;
             Ok(message.id())
         }
-        Err(UploadTaskError { message_id, error }) => {
+        Err(UploadTaskError::Provision(error)) => Err(provision_error(error)),
+        Err(UploadTaskError::Failed { message_id, error }) => {
             error!(%error, ?attachment_id, "Failed to upload shared attachment");
             if let Err(error) = core_user
                 .outbound_service()
@@ -480,6 +477,16 @@ async fn upload_attachment(
             }
             Err(UiShareSendError::Other)
         }
+    }
+}
+
+fn provision_error(error: ProvisionAttachmentError) -> UiShareSendError {
+    match error {
+        ProvisionAttachmentError::TooLarge(detail) => UiShareSendError::AttachmentTooLarge {
+            max_size_bytes: detail.max_size_bytes,
+            actual_size_bytes: detail.actual_size_bytes,
+        },
+        ProvisionAttachmentError::DecodingError => UiShareSendError::DecodingError,
     }
 }
 
