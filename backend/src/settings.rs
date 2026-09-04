@@ -30,6 +30,8 @@ pub struct Settings {
     pub ratelimits: RateLimitsSettings,
     #[serde(default)]
     pub registration: RegistrationSettings,
+    #[serde(default)]
+    pub relay: RelaySettings,
 }
 
 /// Configuration for the application.
@@ -237,6 +239,54 @@ impl Default for RateLimitsSettings {
             burst: 100,
         }
     }
+}
+
+/// Lifetime and reuse policy of a device-linking rendezvous session.
+///
+/// Field names carry no underscores, because environment overrides split on
+/// them (`AIR_RELAY_SESSIONTTL`).
+#[derive(Debug, Deserialize, Clone)]
+pub struct RelaySettings {
+    /// How long a session lives after its rendezvous ID is assigned.
+    #[serde(with = "duration_millis", default = "default_session_ttl")]
+    pub sessionttl: std::time::Duration,
+    /// How long an ended session's rendezvous ID is held back from reuse. A
+    /// user typing a stale code must not consume an unrelated fresh session,
+    /// so this is never shorter than the session lifetime in practice.
+    #[serde(with = "duration_millis", default = "default_id_quarantine")]
+    pub idquarantine: std::time::Duration,
+    /// Sessions one client address may open, and link attempts it may make,
+    /// per hour.
+    #[serde(default = "default_relay_attempts")]
+    pub perip: u64,
+    /// Link attempts one registered user may make per hour. Every attempt
+    /// against a live session consumes it, so this caps what a compromised
+    /// account can guess.
+    #[serde(default = "default_relay_attempts")]
+    pub peruser: u64,
+}
+
+impl Default for RelaySettings {
+    fn default() -> Self {
+        Self {
+            sessionttl: default_session_ttl(),
+            idquarantine: default_id_quarantine(),
+            perip: default_relay_attempts(),
+            peruser: default_relay_attempts(),
+        }
+    }
+}
+
+fn default_session_ttl() -> std::time::Duration {
+    std::time::Duration::from_secs(10 * 60)
+}
+
+fn default_id_quarantine() -> std::time::Duration {
+    std::time::Duration::from_secs(10 * 60)
+}
+
+fn default_relay_attempts() -> u64 {
+    10
 }
 
 /// How registration is gated.
