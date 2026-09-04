@@ -608,10 +608,10 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        let attachment_ids = self
+        let attachment_infos = self
             .context
             .core_user
-            .attachment_ids_for_message(message_id)
+            .attachment_infos_for_message(message_id)
             .await;
 
         // Update draft in state
@@ -640,7 +640,7 @@ impl ChatDetailsCubitBase {
                     message_id,
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
-                        .resolve(&attachment_ids),
+                        .resolve(&attachment_infos),
                 },
             ));
             draft.is_committed = false;
@@ -905,6 +905,7 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
+            ProvisionAttachmentError::DecodingError => bail!("Failed to decode the attachment"),
         }
     }
 }

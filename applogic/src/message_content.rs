@@ -168,6 +168,8 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
                     blurhash,
                     width,
                     height,
+                    // Classified locally, filled in at resolve time
+                    is_animated: None,
                 })
             }
             (None, Some(_)) => {

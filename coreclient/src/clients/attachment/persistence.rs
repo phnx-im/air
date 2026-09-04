@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     AttachmentId, ChatId, MessageId,
+    clients::attachment::AttachmentInfo,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -44,6 +45,7 @@ pub(crate) struct AttachmentRecord {
     pub(super) message_id: MessageId,
     pub(super) content_type: String,
     pub(super) status: AttachmentStatus,
+    pub(super) is_animated: Option<bool>,
     pub(super) created_at: DateTime<Utc>,
 }
 
@@ -182,6 +184,38 @@ impl<'r> Decode<'r, Sqlite> for AttachmentStatus {
     }
 }
 
+/// Moves attachment content blobs into the `attachment_content` table.
+///
+/// Code migration paired with the migration creating the table. Runs in small
+/// batches so that pages freed by clearing a blob are reused by the next
+/// batch's inserts and the database file does not grow. Uses unchecked
+/// queries: the source column does not exist in the final schema.
+pub(crate) async fn move_attachment_content_to_side_table(
+    mut connection: impl WriteConnection,
+) -> sqlx::Result<()> {
+    loop {
+        sqlx::query(
+            "INSERT INTO attachment_content (attachment_id, content)
+            SELECT attachment_id, content FROM attachment
+            WHERE content IS NOT NULL
+            LIMIT 16",
+        )
+        .execute(connection.as_mut())
+        .await?;
+        let cleared = sqlx::query(
+            "UPDATE attachment SET content = NULL
+            WHERE content IS NOT NULL
+            AND attachment_id IN (SELECT attachment_id FROM attachment_content)",
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        if cleared == 0 {
+            return Ok(());
+        }
+    }
+}
+
 impl AttachmentRecord {
     pub(crate) async fn store(
         &self,
@@ -195,21 +229,30 @@ impl AttachmentRecord {
                 chat_id,
                 message_id,
                 content_type,
-                content,
                 status,
-                created_at
+                created_at,
+                is_animated
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
             self.remote_attachment_id,
             self.chat_id,
             self.message_id,
             self.content_type,
-            content,
             self.status,
             self.created_at,
+            self.is_animated,
         )
         .execute(connection.as_mut())
         .await?;
+        if let Some(content) = content {
+            query!(
+                "INSERT INTO attachment_content (attachment_id, content) VALUES (?, ?)",
+                self.attachment_id,
+                content,
+            )
+            .execute(connection.as_mut())
+            .await?;
+        }
         connection.notifier().add(self.attachment_id);
         Ok(())
     }
@@ -243,7 +286,8 @@ impl AttachmentRecord {
                     message_id AS "message_id: _",
                     content_type AS "content_type: _",
                     status AS "status: _",
-                    created_at AS "created_at: _"
+                    created_at AS "created_at: _",
+                    is_animated
                 FROM attachment
                 WHERE attachment_id = ?"#,
             attachment_id
@@ -263,6 +307,38 @@ impl AttachmentRecord {
         )
         .fetch_optional(connection.as_mut())
         .await
+    }
+
+    pub(crate) async fn is_animated(
+        mut connection: impl ReadConnection,
+        attachment_id: AttachmentId,
+    ) -> sqlx::Result<Option<bool>> {
+        query_scalar!(
+            "SELECT is_animated
+            FROM attachment
+            WHERE attachment_id = ?",
+            attachment_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(|value| value.flatten())
+    }
+
+    pub(crate) async fn set_is_animated(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        is_animated: bool,
+    ) -> sqlx::Result<()> {
+        // Only updated if not yet classified => make it idempotent
+        query!(
+            "UPDATE attachment SET is_animated = ?
+            WHERE attachment_id = ? AND is_animated IS NULL",
+            is_animated,
+            attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
     }
 
     /// Loads own messages whose attachments are all uploaded but which are
@@ -386,12 +462,33 @@ impl AttachmentRecord {
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         bytes: &[u8],
+        is_animated: bool,
     ) -> sqlx::Result<()> {
-        query!(
-            "UPDATE attachment SET status = ?, content = ? WHERE attachment_id = ?",
+        let updated = query!(
+            "UPDATE attachment SET
+                status = ?,
+                is_animated = ?
+            WHERE attachment_id = ?",
             AttachmentStatus::Ready,
-            bytes,
+            is_animated,
             attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        // Skip the content if the attachment is gone (deleted mid-download)
+        if updated == 0 {
+            return Ok(());
+        }
+        query!(
+            "INSERT INTO attachment_content (
+                attachment_id,
+                content
+            ) VALUES (?, ?)
+            ON CONFLICT (attachment_id) DO UPDATE
+            SET content = excluded.content",
+            attachment_id,
+            bytes,
         )
         .execute(connection.as_mut())
         .await?;
@@ -399,23 +496,47 @@ impl AttachmentRecord {
         Ok(())
     }
 
-    /// Replaces the stored content, leaving the status alone.
+    /// Stores the processed content of an upload, leaving the status alone.
     ///
-    /// Used once we're done re-encoding and encrypting an attachment.
-    pub(crate) async fn replace_content(
+    /// Written once re-encoding is done, before the upload starts, so a retry
+    /// resumes from it without the original bytes. Returns `false` if the
+    /// attachment is gone (deleted mid-upload); nothing is written then.
+    pub(crate) async fn store_processed_content(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         bytes: &[u8],
-    ) -> sqlx::Result<()> {
-        query!(
-            "UPDATE attachment SET content = ? WHERE attachment_id = ?",
-            bytes,
+        content_type: &str,
+        is_animated: bool,
+    ) -> sqlx::Result<bool> {
+        let updated = query!(
+            "UPDATE attachment SET
+                content_type = ?,
+                is_animated = ?
+            WHERE attachment_id = ?",
+            content_type,
+            is_animated,
             attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        if updated == 0 {
+            return Ok(false);
+        }
+        query!(
+            "INSERT INTO attachment_content (
+                attachment_id,
+                content
+            ) VALUES (?, ?)
+            ON CONFLICT (attachment_id) DO UPDATE
+            SET content = excluded.content",
+            attachment_id,
+            bytes,
         )
         .execute(connection.as_mut())
         .await?;
         connection.notifier().update(attachment_id);
-        Ok(())
+        Ok(true)
     }
 
     pub(crate) async fn load_content(
@@ -429,10 +550,11 @@ impl AttachmentRecord {
         let record = query_as!(
             SqlParts,
             r#"SELECT
-                content,
-                status AS "status: _"
-            FROM attachment
-            WHERE attachment_id = ?"#,
+                ac.content,
+                a.status AS "status: _"
+            FROM attachment a
+            LEFT JOIN attachment_content ac USING (attachment_id)
+            WHERE a.attachment_id = ?"#,
             attachment_id
         )
         .fetch_optional(connection.as_mut())
@@ -500,15 +622,48 @@ impl AttachmentRecord {
         .await
     }
 
-    pub(crate) async fn load_ids_by_in_range_inclusive(
+    /// Load all attachment infos for a given message.
+    ///
+    /// Infos are ordered by the position in the mimi content.
+    pub(crate) async fn load_infos_by_message_id(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<AttachmentInfo>> {
+        struct Row {
+            attachment_id: AttachmentId,
+            is_animated: Option<bool>,
+        }
+        let rows = query_as!(
+            Row,
+            r#"SELECT
+                attachment_id AS "attachment_id: _",
+                is_animated
+            FROM attachment
+            WHERE message_id = ?
+            ORDER BY rowid"#,
+            message_id
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| AttachmentInfo {
+                attachment_id: row.attachment_id,
+                is_animated: row.is_animated,
+            })
+            .collect())
+    }
+
+    pub(crate) async fn load_infos_in_range_inclusive(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),
         mut to: (DateTime<Utc>, MessageId),
-    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentId>>> {
+    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentInfo>>> {
         struct Row {
             message_id: MessageId,
             attachment_id: AttachmentId,
+            is_animated: Option<bool>,
         }
 
         // Normalize the range
@@ -521,7 +676,8 @@ impl AttachmentRecord {
             r#"
             SELECT
                 a.message_id AS "message_id: _",
-                a.attachment_id AS "attachment_id: _"
+                a.attachment_id AS "attachment_id: _",
+                a.is_animated
             FROM attachment a
             JOIN message m USING (message_id)
             WHERE m.chat_id = ?
@@ -538,19 +694,23 @@ impl AttachmentRecord {
         .fetch_all(connection.as_mut())
         .await?;
 
-        let mut attachment_ids: HashMap<MessageId, Vec<AttachmentId>> = HashMap::new();
+        let mut attachment_infos: HashMap<MessageId, Vec<AttachmentInfo>> = HashMap::new();
         for Row {
             message_id,
             attachment_id,
+            is_animated,
         } in rows
         {
-            attachment_ids
+            attachment_infos
                 .entry(message_id)
                 .or_default()
-                .push(attachment_id);
+                .push(AttachmentInfo {
+                    attachment_id,
+                    is_animated,
+                });
         }
 
-        Ok(attachment_ids)
+        Ok(attachment_infos)
     }
 }
 
@@ -703,6 +863,7 @@ pub(crate) mod test {
             message_id,
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
+            is_animated: Some(false),
             created_at: Utc::now().round_subsecs(6),
         }
     }
@@ -784,7 +945,8 @@ pub(crate) mod test {
 
         // 3. Set the content, which should move the status to Ready
         let content = b"some_image_content".to_vec();
-        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content).await?;
+        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content, true)
+            .await?;
 
         // Verify content and status
         let loaded_content =
@@ -889,6 +1051,57 @@ pub(crate) mod test {
             .unwrap();
         assert_eq!(loaded.status, AttachmentStatus::Uploading);
         assert_eq!(loaded.created_at, started_at);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn set_content_for_missing_attachment_is_noop(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let attachment_id = AttachmentId::random();
+        AttachmentRecord::set_content(pool.write().await?, attachment_id, b"content", false)
+            .await?;
+
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
+        assert_eq!(loaded_content, AttachmentContent::None);
+
+        // No orphaned content row is left behind
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 0);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn set_is_animated_classifies_only_once(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let mut record = test_attachment_record(chat.id(), message.id());
+        record.is_animated = None;
+        record.store(pool.write().await?, None).await?;
+
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, None);
+
+        AttachmentRecord::set_is_animated(pool.write().await?, record.attachment_id, true).await?;
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, Some(true));
+
+        // A second classification does not overwrite the first
+        AttachmentRecord::set_is_animated(pool.write().await?, record.attachment_id, false).await?;
+        let is_animated =
+            AttachmentRecord::is_animated(pool.read().await?, record.attachment_id).await?;
+        assert_eq!(is_animated, Some(true));
 
         Ok(())
     }
@@ -1055,6 +1268,7 @@ pub(crate) mod test {
             message_id: message.id(),
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
+            is_animated: Some(false),
             created_at,
         };
 
@@ -1100,13 +1314,17 @@ pub(crate) mod test {
         message.store(pool.write().await?).await?;
         let record = test_attachment_record(chat.id(), message.id());
 
-        // Store the attachment
-        record.store(pool.write().await?, None).await?;
+        // Store the attachment with content
+        record.store(pool.write().await?, Some(b"content")).await?;
 
-        // Verify attachment exists
+        // Verify attachment and its content row exist
         let loaded_record =
             AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(loaded_record.is_some());
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 1);
 
         // Delete the message - FK cascade should delete the attachment
         ChatMessage::delete(pool.write().await?, message.id()).await?;
@@ -1118,6 +1336,12 @@ pub(crate) mod test {
             loaded_record.is_none(),
             "Attachment should be deleted by FK cascade when message is deleted"
         );
+
+        // The content row cascades with the attachment
+        let content_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_content")
+            .fetch_one(pool.read().await?.as_mut())
+            .await?;
+        assert_eq!(content_rows, 0);
 
         Ok(())
     }
