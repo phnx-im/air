@@ -52,6 +52,7 @@ cbor-diag = "0.1.12"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 config = { version = "0.15", default-features = false, features = ["yaml"] }
+cpace = { git = "https://github.com/phnx-im/cpace", rev = "1882fad3b58ffbb27a82c78418826727b72b8bac" }
 criterion = { version = "0.8.2", features = ["html_reports", "async", "async_tokio"] }
 dashmap = "6.1.0"
 derive_more = { version = "2.1.1", features = ["from", "display"] }
@@ -67,7 +68,7 @@ futures-util = "0.3.31"
 h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.13"
-hmac = "0.13"
+hmac = { version = "0.13", features = ["zeroize"] }
 ignore = "0.4"
 # default formats minus avif and exr, which pull in the unmaintained paste
 # crate (RUSTSEC-2024-0436) via ravif and exr
