@@ -6,3 +6,4 @@
 //! wire types live in `airprotos`, the protocol flow in `aircoreclient`.
 
 pub mod code;
+pub mod pake;
