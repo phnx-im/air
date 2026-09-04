@@ -34,6 +34,7 @@ mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
+mod device_links;
 mod error;
 mod key_packages;
 mod profile;
@@ -327,6 +328,9 @@ impl OutboundServiceContext {
 
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
+        }
+        if let Err(error) = Box::pin(self.advance_device_links()).await {
+            error!(%error, "Failed to advance device links");
         }
         match Box::pin(self.send_pending_chat_operations(&run_token)).await {
             Err(OutboundServiceRunError::NetworkError) => {

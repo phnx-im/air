@@ -996,6 +996,15 @@ impl ListenQueueError {
             _ => false,
         }
     }
+
+    /// Whether the QS no longer knows this client, that is, its queue was
+    /// deleted.
+    pub fn is_unknown_client(&self) -> bool {
+        match self {
+            Self::Qs(error) => error.is_unknown_client(),
+            Self::Sqlx(_) | Self::ApiClient(_) => false,
+        }
+    }
 }
 
 /// Error which can occur when listening to a username.

@@ -183,7 +183,7 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
 /// on a wrong-epoch rejection, which waits for the winning commit to arrive
 /// through the queue and delete it), or when the self group carries a pending
 /// commit that no operation row belongs to.
-async fn free_self_group(
+pub(super) async fn free_self_group(
     txn: &mut WriteDbTransaction<'_>,
     self_group_id: &GroupId,
 ) -> anyhow::Result<Option<VerifiedGroup>> {

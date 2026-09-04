@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE device_link\n            SET state = ?1, client_id = ?2, join_request = ?3, expires_at = ?4\n            WHERE link_id = ?5 AND state = ?6",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ec95a80f94f1ee2cebeffe94ba04cc26b7f8b7fb249a7e4bf6a82e856e9d3a17"
+}

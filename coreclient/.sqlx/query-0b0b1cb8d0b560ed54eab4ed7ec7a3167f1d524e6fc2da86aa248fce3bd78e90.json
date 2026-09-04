@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO device_link (link_id, state, queue, expires_at)\n            VALUES (?1, ?2, ?3, ?4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0b0b1cb8d0b560ed54eab4ed7ec7a3167f1d524e6fc2da86aa248fce3bd78e90"
+}

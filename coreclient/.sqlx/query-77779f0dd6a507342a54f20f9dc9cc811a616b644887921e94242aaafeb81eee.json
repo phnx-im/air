@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM device_link WHERE link_id = ?1 AND state = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "77779f0dd6a507342a54f20f9dc9cc811a616b644887921e94242aaafeb81eee"
+}
