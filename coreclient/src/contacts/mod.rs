@@ -146,9 +146,9 @@ impl Contact {
         connection: impl ReadConnection,
     ) -> sqlx::Result<()> {
         if let Some(group) = Group::load_by_connection_user_id(connection, &self.user_id).await?
-            && let Some(air_component) = group.member_air_component(&self.user_id)
+            && let Some(app_data) = group.member_app_data(&self.user_id)
         {
-            self.supported_features = Some(air_component.features);
+            self.supported_features = Some(app_data.features);
         }
         Ok(())
     }

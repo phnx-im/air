@@ -15,10 +15,9 @@ use aircommon::{
         errors::{DecryptionError, EncryptionError},
     },
     identifiers::{QsReference, SealedClientReference},
-    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomState, VerifiedRoomState};
 use mls_assist::{
@@ -285,32 +284,32 @@ impl DsGroupState {
             .map(|(_, client_profile)| client_profile.client_queue_config.clone())
     }
 
-    /// Returns `true` if the group context's [`AirComponent`] marks this group as a
+    /// Returns `true` if the group context's [`GroupAppData`] marks this group as a
     /// self-group. The flag is fixed at group creation.
     pub(crate) fn is_self_group(&self) -> bool {
-        AirComponent::is_self_group_context(self.group().group_info().group_context().extensions())
+        GroupAppData::is_self_group_context(self.group().group_info().group_context().extensions())
     }
 
-    /// If the group context's [`AirComponent`] marks this group
+    /// If the group context's [`GroupAppData`] marks this group
     /// as a virtual-client self-group, disable virtual-client broadcasting.
     pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
         !self.is_self_group()
     }
 
-    /// The self-group flag in the group context's [`AirComponent`] is fixed at
+    /// The self-group flag in the group context's [`GroupAppData`] is fixed at
     /// group creation. Returns `true` if merging `staged_commit` keeps it
     /// unchanged.
     pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
         let current_extensions = self.group().group_info().group_context().extensions();
-        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
-            == AirComponent::is_self_group_context(current_extensions)
+        GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+            == GroupAppData::is_self_group_context(current_extensions)
     }
 
     /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
     pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
         self.group()
             .leaf(leaf_index)
-            .is_some_and(leaf_node_is_virtual_client)
+            .is_some_and(ClientAppData::leaf_is_virtual_client)
     }
 
     /// The queue reference recorded for `leaf_index`, if any.

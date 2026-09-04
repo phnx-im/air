@@ -26,7 +26,7 @@ pub enum AttachmentThumbnail {
     ///
     /// The original is never animated in this case.
     OriginalFits,
-    /// Generation failed, the caller fails back to the original.
+    /// Generation failed, the caller falls back to the original.
     Failed,
 }
 

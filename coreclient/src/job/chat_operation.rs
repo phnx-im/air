@@ -348,14 +348,36 @@ impl ChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
-        let job = db
+        let Some(job) = db
             .write()
             .await?
             .with_transaction(async |txn| {
-                PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
-            })
-            .await?;
+                let mut chat = Chat::load(&mut *txn, &self.chat_id)
+                    .await?
+                    .with_context(|| format!("No chat with id {}", self.chat_id))?;
+                let group = Group::load_clean_verified(&mut *txn, chat.group_id())
+                    .await?
+                    .with_context(|| format!("No group with id {:?}", chat.group_id()))?;
 
+                // Short-circuit if the group has already a pending self-remove proposal from our
+                // own leaf from other virtual client.
+                if group.group().has_pending_own_self_remove() {
+                    if !matches!(chat.status(), ChatStatus::Inactive(_)) {
+                        // A leave system message is already recorded. Just deactivate the chat.
+                        chat.set_status(&mut *txn, ChatStatus::inactive(Vec::new()))
+                            .await?;
+                    }
+                    return Ok(None);
+                }
+
+                PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id)
+                    .await
+                    .map(Some)
+            })
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
         job.execute(context).await
     }
 

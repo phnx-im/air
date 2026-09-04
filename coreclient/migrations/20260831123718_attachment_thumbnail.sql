@@ -1,3 +1,7 @@
+-- SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+--
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+--
 -- The content was moved into attachment_content by the previous migration.
 ALTER TABLE attachment
 DROP COLUMN content;

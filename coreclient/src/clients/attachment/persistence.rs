@@ -194,22 +194,24 @@ pub(crate) async fn move_attachment_content_to_side_table(
     mut connection: impl WriteConnection,
 ) -> sqlx::Result<()> {
     loop {
+        let mut txn = connection.begin().await?;
         sqlx::query(
             "INSERT INTO attachment_content (attachment_id, content)
             SELECT attachment_id, content FROM attachment
             WHERE content IS NOT NULL
             LIMIT 16",
         )
-        .execute(connection.as_mut())
+        .execute(txn.as_mut())
         .await?;
         let cleared = sqlx::query(
             "UPDATE attachment SET content = NULL
             WHERE content IS NOT NULL
             AND attachment_id IN (SELECT attachment_id FROM attachment_content)",
         )
-        .execute(connection.as_mut())
+        .execute(txn.as_mut())
         .await?
         .rows_affected();
+        txn.commit().await?;
         if cleared == 0 {
             return Ok(());
         }
