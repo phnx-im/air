@@ -469,3 +469,93 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 
     Ok(())
 }
+
+/// A linked user is invited into someone else's group after linking. Messages
+/// sent from either of the user's devices must reach the other device.
+#[tokio::test(flavor = "multi_thread")]
+async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
+    use aircoreclient::clients::MarkChatAsRead;
+    use mimi_content::MimiContent;
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    drain_queue(&device_b).await?;
+
+    // Device A publishes a fresh batch via the self-group.
+    {
+        let test_user = setup.get_user(&alice);
+        let user = &test_user.user;
+        user.outbound_service()
+            .schedule_key_package_upload(Utc::now())
+            .await?;
+        user.outbound_service().run_once().await;
+        test_user.fetch_and_process_qs_messages().await;
+        assert!(
+            user.self_group_pending_operation_info().await?.is_none(),
+            "upload cycle should have completed"
+        );
+    }
+    drain_queue(&device_b).await?;
+
+    // Bob invites Alice; device B joins from the same welcome.
+    let chat_id = setup.create_group(&bob).await;
+    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_chats
+            .iter()
+            .any(|new_chat| new_chat.chat_id == chat_id),
+        "the sibling should have joined the group from the welcome"
+    );
+
+    // Device A sends: device B must see the echo.
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device B should receive the message device A sent: processed={} new_messages={} errors={:?}",
+        processed.processed,
+        processed.new_messages.len(),
+        processed.errors,
+    );
+
+    // Device B sends: device A must see the echo.
+    let content = MimiContent::simple_markdown_message("from device b".to_owned(), [9u8; 16]);
+    device_b
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    device_b.outbound_service().run_once().await;
+    let processed = drain_queue(setup.get_user(&alice).user()).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device A should receive the message device B sent: processed={} new_messages={} errors={:?}",
+        processed.processed,
+        processed.new_messages.len(),
+        processed.errors,
+    );
+
+    // Bob sends: both devices see it.
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device B should receive Bob's message"
+    );
+
+    Ok(())
+}
