@@ -11258,7 +11258,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return UiImageMetadata(
-      blurhash: dco_decode_String(arr[0]),
+      blurhash: dco_decode_opt_String(arr[0]),
       width: dco_decode_u_32(arr[1]),
       height: dco_decode_u_32(arr[2]),
       isAnimated: dco_decode_opt_box_autoadd_bool(arr[3]),
@@ -15318,7 +15318,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_blurhash = sse_decode_String(deserializer);
+    var var_blurhash = sse_decode_opt_String(deserializer);
     var var_width = sse_decode_u_32(deserializer);
     var var_height = sse_decode_u_32(deserializer);
     var var_isAnimated = sse_decode_opt_box_autoadd_bool(deserializer);
@@ -19500,7 +19500,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.blurhash, serializer);
+    sse_encode_opt_String(self.blurhash, serializer);
     sse_encode_u_32(self.width, serializer);
     sse_encode_u_32(self.height, serializer);
     sse_encode_opt_box_autoadd_bool(self.isAnimated, serializer);

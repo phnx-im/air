@@ -5,7 +5,6 @@
 use std::{
     io::{BufRead, Cursor, Seek},
     path::Path,
-    sync::LazyLock,
 };
 
 use anyhow::{Context, ensure};
@@ -70,9 +69,6 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
     pub(crate) is_animated: bool,
-    /// WebP encoded thumbnail, or `None` if the original fits as thumbnail.
-    /// Always set for animated sources (static first frame).
-    pub(crate) thumbnail: Option<Vec<u8>>,
 }
 
 /// Reads an image's displayed dimensions from its header, without decoding it.
@@ -183,6 +179,81 @@ where
     Ok(Some(result))
 }
 
+/// Makes a thumbnail from an image source file, decoding only what it needs:
+/// an animated source only its first frame.
+///
+/// Mirrors [`reencode_image`]'s format dispatch. Used before an upload's
+/// message is stored, so the message renders real pixels from its first
+/// frame while the re-encode still runs.
+pub(crate) fn encode_source_thumbnail<P: AsRef<Path>>(path: P) -> anyhow::Result<ThumbnailImage> {
+    let reader = ImageReader::open(path)?.with_guessed_format()?;
+    let format = reader.format().context("not a supported image format")?;
+
+    match format {
+        ImageFormat::Gif => {
+            source_animated_thumbnail(GifDecoder::new(reader.into_inner())?, format)
+        }
+        ImageFormat::WebP => {
+            let decoder = WebPDecoder::new(reader.into_inner())?;
+            if decoder.has_animation() {
+                source_animated_thumbnail(decoder, format)
+            } else {
+                source_still_thumbnail(decoder)
+            }
+        }
+        ImageFormat::Png => {
+            let decoder = PngDecoder::new(reader.into_inner())?;
+            if decoder.is_apng()? {
+                source_animated_thumbnail(decoder.apng()?, format)
+            } else {
+                source_still_thumbnail(decoder)
+            }
+        }
+        _ => source_still_thumbnail(reader.into_decoder()?),
+    }
+}
+
+fn source_still_thumbnail<D: ImageDecoder>(mut decoder: D) -> anyhow::Result<ThumbnailImage> {
+    let orientation = decoder.orientation().ok();
+    let image = DynamicImage::from_decoder(decoder)?;
+
+    let (width, height) = image.dimensions();
+    // The re-encode preserves the size of an image this small, so the stored
+    // content doubles as the thumbnail.
+    if width.max(height) <= THUMBNAIL_MAX_EDGE {
+        return Ok(ThumbnailImage::OriginalFits);
+    }
+
+    let mut image = resize(image, THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    if let Some(orientation) = orientation {
+        image.apply_orientation(orientation);
+    }
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(rgba.as_raw(), width, height)?,
+        is_animated: false,
+    })
+}
+
+/// Animated sources always yield a static first-frame thumbnail, so the
+/// thumbnail path never hands animated bytes to a static surface.
+fn source_animated_thumbnail<'a, D: AnimationDecoder<'a>>(
+    decoder: D,
+    source: ImageFormat,
+) -> anyhow::Result<ThumbnailImage> {
+    let first = decoder
+        .into_frames()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
+    let buffer = fit_to_max(first.into_buffer(), THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    let (width, height) = buffer.dimensions();
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(buffer.as_raw(), width, height)?,
+        is_animated: true,
+    })
+}
+
 /// Classifies an attachment's encoded bytes as animated by reading only the
 /// format-specific header chunks.
 pub fn image_is_animated(bytes: &[u8]) -> bool {
@@ -218,16 +289,6 @@ fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
     )?)
 }
 
-/// A flat neutral blurhash, stored until the real one has been computed.
-pub(crate) fn placeholder_blurhash() -> &'static str {
-    static PLACEHOLDER: LazyLock<String> = LazyLock::new(|| {
-        let gray = [0x80, 0x80, 0x80, 0xff];
-        blurhash::encode(BLURHASH_COMPONENTS_X, BLURHASH_COMPONENTS_Y, 1, 1, &gray)
-            .expect("component counts are in range")
-    });
-    &PLACEHOLDER
-}
-
 /// Decodes a still image and re-encodes it as a static WebP.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
@@ -236,9 +297,6 @@ fn load_still_image<D: ImageDecoder>(
     let orientation = decoder.orientation().ok();
 
     let image = DynamicImage::from_decoder(decoder)?;
-
-    // TODO: use image crate to resize to thumbnail IF too big
-    // and then surface it in UI
 
     let mut image = resize(
         image,
@@ -249,29 +307,16 @@ fn load_still_image<D: ImageDecoder>(
         image.apply_orientation(orientation);
     }
 
+    let (width, height) = image.dimensions();
+
     let blurhash = compute_blurhash(&image)?;
 
     let image_rgba = image.to_rgba8();
-    let (width, height) = image_rgba.dimensions();
 
     let webp_data = webpx::Encoder::new_rgba(&image_rgba, width, height)
         .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
         .encode(webpx::Unstoppable)
         .context("WebP encode failed")?;
-
-    let thumbnail = if width.max(height) <= THUMBNAIL_MAX_EDGE {
-        None
-    } else {
-        let thumbnail = image
-            .resize(
-                THUMBNAIL_MAX_EDGE,
-                THUMBNAIL_MAX_EDGE,
-                image::imageops::FilterType::Lanczos3,
-            )
-            .into_rgba8();
-        let (width, height) = thumbnail.dimensions();
-        Some(encode_thumbnail_webp(thumbnail.as_raw(), width, height)?)
-    };
 
     info!(
         from_bytes = file_size,
@@ -284,7 +329,6 @@ fn load_still_image<D: ImageDecoder>(
         image_dimensions: (width, height),
         blurhash,
         is_animated: false,
-        thumbnail,
     })
 }
 
@@ -345,18 +389,6 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         .finish(timestamp_ms)
         .context("WebP finalize failed")?;
 
-    // Animated sources always store a static first-frame thumbnail, so the
-    // thumbnail path never hands animated bytes to a static surface.
-    let thumbnail = {
-        let buffer = fit_to_max(
-            first_dynamic_image.into_rgba8(),
-            THUMBNAIL_MAX_EDGE,
-            THUMBNAIL_MAX_EDGE,
-        );
-        let (width, height) = buffer.dimensions();
-        encode_thumbnail_webp(buffer.as_raw(), width, height)?
-    };
-
     info!(
         from_bytes = file_size,
         to_bytes = webp_data.len(),
@@ -369,7 +401,6 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         image_dimensions: (width, height),
         blurhash,
         is_animated: true,
-        thumbnail: Some(thumbnail),
     })
 }
 

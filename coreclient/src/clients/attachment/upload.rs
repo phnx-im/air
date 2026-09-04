@@ -37,7 +37,7 @@ use sha2::{Digest, Sha256};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
-use tracing::error;
+use tracing::{debug, error};
 use url::Url;
 
 use crate::{
@@ -55,7 +55,7 @@ use crate::{
     },
     groups::Group,
     utils::image::{
-        ReencodedAttachmentImage, placeholder_blurhash, probe_attachment_image,
+        ReencodedAttachmentImage, ThumbnailImage, encode_source_thumbnail, probe_attachment_image,
         reencode_attachment_image,
     },
 };
@@ -146,6 +146,46 @@ impl CoreUser {
             Ok(probed) => probed,
             Err(error) => return Ok(Err(error)),
         };
+        debug!(
+            content_type = probed.content_type,
+            size = probed.size,
+            dimensions = ?probed.image_dimensions,
+            "probed attachment source"
+        );
+
+        // The thumbnail is made before the message is stored, so the message
+        // renders real pixels from its first frame. Only this cheap part of
+        // processing happens up front, the re-encode and upload run in the
+        // returned task.
+        let thumbnail = if probed.is_image() {
+            let thumbnail_path = path.to_owned();
+            match spawn_blocking(move || encode_source_thumbnail(thumbnail_path)).await? {
+                Ok(thumbnail) => Some(thumbnail),
+                Err(error) => {
+                    error!(%error, "failed to decode attachment image");
+                    return Ok(Err(ProvisionAttachmentError::DecodingError));
+                }
+            }
+        } else {
+            None
+        };
+        let is_animated = thumbnail.as_ref().map(|thumbnail| match thumbnail {
+            ThumbnailImage::Encoded { is_animated, .. } => *is_animated,
+            // Never animated by invariant
+            ThumbnailImage::OriginalFits => false,
+        });
+        let thumbnail = thumbnail.map(|thumbnail| match thumbnail {
+            ThumbnailImage::Encoded { bytes, .. } => AttachmentThumbnail::Ready { bytes },
+            ThumbnailImage::OriginalFits => AttachmentThumbnail::OriginalFits,
+        });
+        if let Some(thumbnail) = &thumbnail {
+            let kind = match thumbnail {
+                AttachmentThumbnail::Ready { bytes } => format!("ready ({} bytes)", bytes.len()),
+                AttachmentThumbnail::OriginalFits => "original fits".to_owned(),
+                AttachmentThumbnail::Failed => "failed".to_owned(),
+            };
+            debug!(kind, ?is_animated, "made source thumbnail");
+        }
 
         let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
@@ -174,16 +214,21 @@ impl CoreUser {
                     message_id,
                     content_type: probed.content_type.clone(),
                     status: AttachmentStatus::Uploading,
-                    is_animated: None,
+                    is_animated,
                     created_at: Utc::now(),
                 }
-                .store(txn, None)
+                .store(&mut *txn, None)
                 .await?;
+
+                if let Some(thumbnail) = &thumbnail {
+                    store_thumbnail(&mut *txn, attachment_id, thumbnail).await?;
+                }
 
                 Ok(message)
             },
         ))
         .await?;
+        debug!(?attachment_id, ?message_id, "stored provisional message");
 
         // The message is visible from here on.
         let (progress_tx, progress) = AttachmentProgress::new();
@@ -314,25 +359,37 @@ impl CoreUser {
     ) -> anyhow::Result<Result<ChatMessage, ProvisionAttachmentError>> {
         let content = match source {
             AttachmentSource::File { path, spec } => {
-                let processed = spawn_blocking(move || {
-                    let bytes = std::fs::read(&path)
-                        .with_context(|| format!("Failed to read file at {}", path.display()))?;
-                    ProcessedAttachment::from_bytes(bytes, spec)
-                })
-                .await?;
-                let mut processed = match processed {
-                    Ok(processed) => processed,
-                    Err(error) => {
-                        error!(%error, "failed to process attachment to send");
-                        return Ok(Err(ProvisionAttachmentError::DecodingError));
-                    }
-                };
+                let bytes = tokio::fs::read(&path)
+                    .await
+                    .with_context(|| format!("Failed to read file at {}", path.display()))?;
+                debug!(
+                    ?attachment_id,
+                    bytes = bytes.len(),
+                    "read attachment source"
+                );
+                let processed =
+                    match spawn_blocking(move || ProcessedAttachment::from_bytes(bytes, spec))
+                        .await?
+                    {
+                        Ok(processed) => processed,
+                        Err(error) => {
+                            error!(%error, "failed to process attachment to send");
+                            return Ok(Err(ProvisionAttachmentError::DecodingError));
+                        }
+                    };
+                debug!(
+                    ?attachment_id,
+                    content_type = processed.content_type,
+                    size = processed.size,
+                    "processed attachment"
+                );
                 if !self
-                    .persist_processed(attachment_id, &mut message, &mut processed)
+                    .persist_processed(attachment_id, &mut message, &processed)
                     .await?
                 {
                     bail!("Attachment {attachment_id:?} was deleted while processing");
                 }
+                debug!(?attachment_id, "persisted processed attachment");
                 processed.content
             }
             AttachmentSource::Processed(bytes) => bytes.into(),
@@ -363,6 +420,12 @@ impl CoreUser {
         drop(content);
 
         let remote_attachment_id = metadata.remote_attachment_id;
+        debug!(
+            ?attachment_id,
+            ?remote_attachment_id,
+            ciphertext_bytes = ciphertext.len(),
+            "provisioned attachment"
+        );
 
         let mut content = message
             .message()
@@ -396,18 +459,16 @@ impl CoreUser {
 
     /// Persists the processed attachment before any network work.
     ///
-    /// The processed bytes replace the empty attachment content, the thumbnail
-    /// and animation flag are stored, and the stored message parts get the
-    /// processed values. A retry resumes from here and never needs the
-    /// original file again. The thumbnail also makes the echo bubble render
-    /// while the upload is still running.
+    /// The processed bytes replace the empty attachment content and the stored
+    /// message parts get the processed values. A retry resumes from here and
+    /// never needs the original file again.
     ///
     /// Returns `false` if the attachment row is gone (message deleted).
     async fn persist_processed(
         &self,
         attachment_id: AttachmentId,
         message: &mut ChatMessage,
-        processed: &mut ProcessedAttachment,
+        processed: &ProcessedAttachment,
     ) -> anyhow::Result<bool> {
         let content = message
             .message_mut()
@@ -419,13 +480,6 @@ impl CoreUser {
             .image_data
             .as_ref()
             .is_some_and(|data| data.is_animated);
-        let thumbnail = processed
-            .image_data
-            .as_mut()
-            .map(|data| match data.thumbnail.take() {
-                Some(bytes) => AttachmentThumbnail::Ready { bytes },
-                None => AttachmentThumbnail::OriginalFits,
-            });
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<bool> {
@@ -441,9 +495,6 @@ impl CoreUser {
                     return Ok(false);
                 }
                 message.update(&mut *txn).await?;
-                if let Some(thumbnail) = &thumbnail {
-                    store_thumbnail(&mut *txn, attachment_id, thumbnail).await?;
-                }
                 Ok(true)
             })
             .await
@@ -501,6 +552,7 @@ impl CoreUser {
         let http_client = self.http_client();
         upload_encrypted_attachment(&http_client, provision_response, progress_tx, ciphertext)
             .await?;
+        debug!(?attachment_id, "uploaded attachment ciphertext");
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 message.update(&mut *txn).await?;
@@ -514,7 +566,9 @@ impl CoreUser {
                     .await?;
                 Ok(())
             })
-            .await
+            .await?;
+        debug!(?attachment_id, "attachment ready");
+        Ok(())
     }
 }
 
@@ -635,11 +689,10 @@ impl ProbedAttachment {
     /// The part tree a message is stored with before its attachment has been
     /// processed and provisioned.
     ///
-    /// The shape is final -- whether the blurhash sibling exists is decided
-    /// here, so part indices never move. Only field values are replaced later.
     /// The placeholder URL is built from the local attachment id so that it
-    /// parses like any other, and the blurhash is a valid neutral hash because
-    /// the UI paints it behind the picture from the first frame.
+    /// parses like any other. There is no blurhash part yet: the sender
+    /// renders from the thumbnail, never from a blurhash, so the part is only
+    /// added for the wire once the image has been processed.
     fn provisional_nested_parts(&self, attachment_id: AttachmentId) -> Vec<NestedPart> {
         let url = AttachmentUrl::new(
             RemoteAttachmentId::new(attachment_id.uuid),
@@ -663,14 +716,7 @@ impl ProbedAttachment {
             filename: self.filename.clone(),
         };
 
-        let blurhash = self.is_image().then(|| NestedPart::SinglePart {
-            disposition: Disposition::Preview,
-            language: String::new(),
-            content_type: "text/blurhash".to_owned(),
-            content: placeholder_blurhash().as_bytes().to_vec(),
-        });
-
-        [Some(attachment), blurhash].into_iter().flatten().collect()
+        vec![attachment]
     }
 }
 
@@ -691,8 +737,6 @@ struct ProcessedAttachmentImageData {
     width: u32,
     height: u32,
     is_animated: bool,
-    /// WebP encoded thumbnail, or `None` if the original fits as thumbnail
-    thumbnail: Option<Vec<u8>>,
 }
 
 impl ProcessedAttachment {
@@ -715,14 +759,12 @@ impl ProcessedAttachment {
                 image_dimensions: (width, height),
                 blurhash,
                 is_animated,
-                thumbnail,
             } = reencode_attachment_image(bytes)?;
             let image_data = ProcessedAttachmentImageData {
                 blurhash,
                 width,
                 height,
                 is_animated,
-                thumbnail,
             };
             (
                 webp_image.into(),
@@ -761,7 +803,8 @@ impl ProcessedAttachment {
     ///
     /// The URL keeps its local attachment id, only its dimensions change to
     /// the re-encoded ones. Provisioning later fills in the remote id, key and
-    /// nonce.
+    /// nonce. An image gains its blurhash part here: recipients render it
+    /// before downloading, while the sender only ever renders the thumbnail.
     fn patch_parts(&self, content: &mut MimiContent) -> anyhow::Result<()> {
         let dimensions = self
             .image_data
@@ -786,28 +829,17 @@ impl ProcessedAttachment {
             }
             Ok(())
         })?;
-        if let Some(image_data) = &self.image_data {
-            patch_blurhash(content, &image_data.blurhash);
+        if let Some(image_data) = &self.image_data
+            && let NestedPart::MultiPart { parts, .. } = &mut content.nested_part
+        {
+            parts.push(NestedPart::SinglePart {
+                disposition: Disposition::Preview,
+                language: String::new(),
+                content_type: "text/blurhash".to_owned(),
+                content: image_data.blurhash.clone().into_bytes(),
+            });
         }
         Ok(())
-    }
-}
-
-/// Replaces the placeholder value of the blurhash preview part.
-fn patch_blurhash(content: &mut MimiContent, blurhash: &str) {
-    let NestedPart::MultiPart { parts, .. } = &mut content.nested_part else {
-        return;
-    };
-    for part in parts {
-        if let NestedPart::SinglePart {
-            content_type,
-            content,
-            ..
-        } = part
-            && content_type == "text/blurhash"
-        {
-            *content = blurhash.as_bytes().to_vec();
-        }
     }
 }
 

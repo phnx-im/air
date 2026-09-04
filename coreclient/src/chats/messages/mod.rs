@@ -80,7 +80,8 @@ impl TimestampedMessage {
 }
 
 /// Identifier of a message in a chat
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[display("{uuid}")]
 pub struct MessageId {
     pub uuid: Uuid,
 }

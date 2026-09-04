@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/attachments/animated_attachment_image.dart';
 import 'package:air/features/attachments/attachment_image_overlay.dart';
 import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
@@ -67,12 +68,16 @@ class AttachmentImage extends StatelessWidget {
       ),
     };
 
+    final blurhash = imageMetadata.blurhash;
     return AspectRatio(
       aspectRatio: imageMetadata.width / imageMetadata.height,
       child: Stack(
         fit: .expand,
         children: [
-          BlurHash(hash: imageMetadata.blurhash),
+          // An own upload has no blurhash until it has been processed; the
+          // thumbnail takes over shortly after.
+          ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
+          if (blurhash != null) BlurHash(hash: blurhash),
           content,
         ],
       ),

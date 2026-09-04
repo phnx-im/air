@@ -12672,7 +12672,7 @@ impl SseDecode for crate::api::types::UiEventMessage {
 impl SseDecode for crate::api::message_content::UiImageMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_blurhash = <String>::sse_decode(deserializer);
+        let mut var_blurhash = <Option<String>>::sse_decode(deserializer);
         let mut var_width = <u32>::sse_decode(deserializer);
         let mut var_height = <u32>::sse_decode(deserializer);
         let mut var_isAnimated = <Option<bool>>::sse_decode(deserializer);
@@ -19111,7 +19111,7 @@ impl SseEncode for crate::api::types::UiEventMessage {
 impl SseEncode for crate::api::message_content::UiImageMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.blurhash, serializer);
+        <Option<String>>::sse_encode(self.blurhash, serializer);
         <u32>::sse_encode(self.width, serializer);
         <u32>::sse_encode(self.height, serializer);
         <Option<bool>>::sse_encode(self.is_animated, serializer);

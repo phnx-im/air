@@ -103,7 +103,9 @@ pub struct UiAttachment {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiImageMetadata {
-    pub blurhash: String,
+    /// `None` for an own upload that has not been processed yet: the sender
+    /// renders from the thumbnail, the blurhash exists for recipients.
+    pub blurhash: Option<String>,
     pub width: u32,
     pub height: u32,
     /// Whether the image is animated, if already classified locally
