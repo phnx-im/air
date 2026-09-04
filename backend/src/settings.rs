@@ -30,6 +30,8 @@ pub struct Settings {
     pub ratelimits: RateLimitsSettings,
     #[serde(default)]
     pub registration: RegistrationSettings,
+    #[serde(default)]
+    pub relay: RelaySettings,
 }
 
 /// Configuration for the application.
@@ -237,6 +239,39 @@ impl Default for RateLimitsSettings {
             burst: 100,
         }
     }
+}
+
+/// Lifetime and reuse policy of a device-linking rendezvous session.
+///
+/// Field names carry no underscores, because environment overrides split on
+/// them (`AIR_RELAY_SESSIONTTL`).
+#[derive(Debug, Deserialize, Clone)]
+pub struct RelaySettings {
+    /// How long a session lives after its rendezvous ID is assigned.
+    #[serde(with = "duration_millis", default = "default_session_ttl")]
+    pub sessionttl: std::time::Duration,
+    /// How long an ended session's rendezvous ID is held back from reuse. A
+    /// user typing a stale code must not consume an unrelated fresh session,
+    /// so this is never shorter than the session lifetime in practice.
+    #[serde(with = "duration_millis", default = "default_id_quarantine")]
+    pub idquarantine: std::time::Duration,
+}
+
+impl Default for RelaySettings {
+    fn default() -> Self {
+        Self {
+            sessionttl: default_session_ttl(),
+            idquarantine: default_id_quarantine(),
+        }
+    }
+}
+
+fn default_session_ttl() -> std::time::Duration {
+    std::time::Duration::from_secs(10 * 60)
+}
+
+fn default_id_quarantine() -> std::time::Duration {
+    std::time::Duration::from_secs(10 * 60)
 }
 
 /// How registration is gated.

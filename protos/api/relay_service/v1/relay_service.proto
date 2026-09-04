@@ -21,7 +21,7 @@ message QsUserId {
   common.v1.Uuid value = 1;
 }
 
-message LinkingSessionId {
+message RendezvousId {
   string value = 1;
 }
 
@@ -37,5 +37,5 @@ message LinkClientRequest {
 message LinkClientRequestPayload {
   common.v1.ClientMetadata client_metadata = 1;
   QsUserId sender = 2;
-  LinkingSessionId session_id = 3;
+  RendezvousId rendezvous_id = 3;
 }

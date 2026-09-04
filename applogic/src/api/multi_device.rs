@@ -11,7 +11,6 @@ use aircoreclient::clients::{
     CoreUser,
     multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
 };
-use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, Result};
 use flutter_rust_bridge::frb;
 use qrcode::QrCode;
@@ -28,11 +27,10 @@ const LINKING_URL_SCHEME: &str = "air";
 const LINKING_URL_PATH: &str = "multiDeviceLinkingCode";
 const LINKING_URL_SESSION_ID: &str = "sessionId";
 
-/// Builds the QR-code URL that a fresh device displays for an existing device to scan.
-fn multi_device_linking_url(domain: &Fqdn, session_id: &LinkingSessionId) -> String {
-    format!(
-        "{LINKING_URL_SCHEME}://{domain}/{LINKING_URL_PATH}?{LINKING_URL_SESSION_ID}={session_id}"
-    )
+/// Builds the QR-code URL that a fresh device displays for an existing device
+/// to scan. The query parameter carries the full linking code.
+fn multi_device_linking_url(domain: &Fqdn, code: &str) -> String {
+    format!("{LINKING_URL_SCHEME}://{domain}/{LINKING_URL_PATH}?{LINKING_URL_SESSION_ID}={code}")
 }
 
 /// Extracts the linking code from a QR payload produced by [`multi_device_linking_url`].
@@ -116,24 +114,22 @@ pub async fn multi_device_provision_client(
     let forward_code = async {
         while let Some(msg) = session_rx.recv().await {
             match msg {
-                MultiDeviceProvisionStep::SessionId(session_id) => {
-                    let qrcode_svg =
-                        QrCode::new(multi_device_linking_url(&qrcode_domain, &session_id))
-                            .map(|code| {
-                                use qrcode::render::svg;
-                                code.render::<svg::Color>()
-                                    .min_dimensions(200, 200)
-                                    .dark_color(svg::Color("#000000"))
-                                    .light_color(svg::Color("#FFFFFF"))
-                                    .quiet_zone(false)
-                                    .build()
-                            })
-                            .ok();
+                MultiDeviceProvisionStep::Code(code) => {
+                    let qrcode_svg = QrCode::new(multi_device_linking_url(&qrcode_domain, &code))
+                        .map(|code| {
+                            use qrcode::render::svg;
+                            code.render::<svg::Color>()
+                                .min_dimensions(200, 200)
+                                .dark_color(svg::Color("#000000"))
+                                .light_color(svg::Color("#FFFFFF"))
+                                .quiet_zone(false)
+                                .build()
+                        })
+                        .ok();
 
-                    if let Err(error) = sink.add(MultiDeviceProvisionEvent::Code {
-                        code: session_id.to_string(),
-                        qrcode_svg,
-                    }) {
+                    if let Err(error) =
+                        sink.add(MultiDeviceProvisionEvent::Code { code, qrcode_svg })
+                    {
                         error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
                     }
                 }
@@ -225,7 +221,6 @@ pub async fn multi_device_link_client(
     let confirmation_rx = confirmation
         .take_receiver()
         .context("multi-device link confirmation already used")?;
-    let session_id = LinkingSessionId { value: session_id };
     let (connected_tx, connected_rx) = oneshot::channel();
 
     let forward_connected = async {
@@ -245,9 +240,10 @@ pub async fn multi_device_link_client(
         .await
         {
             Ok(Ok(())) => MultiDeviceLinkEvent::Linked,
-            Ok(Err(MultiDeviceLinkClientError::SessionNotFound)) => {
-                MultiDeviceLinkEvent::SessionNotFound
-            }
+            Ok(Err(
+                MultiDeviceLinkClientError::SessionNotFound
+                | MultiDeviceLinkClientError::InvalidCode,
+            )) => MultiDeviceLinkEvent::SessionNotFound,
             Err(error) => {
                 error!(%error, "multi-device linking failed");
                 MultiDeviceLinkEvent::Failed(error.to_string())

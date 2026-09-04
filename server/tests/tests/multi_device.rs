@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use aircommon::{credentials::LeafCredential, identifiers::UserId};
+use aircommon::{credentials::LeafCredential, crypto::mdl::code::LinkingCode, identifiers::UserId};
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     UserProfile,
@@ -13,7 +13,7 @@ use aircoreclient::{
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
     },
 };
-use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
+use airprotos::auth_service::v1::OperationType;
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
@@ -107,19 +107,20 @@ fn ignore_connected() -> tokio::sync::oneshot::Sender<()> {
     tokio::sync::oneshot::channel().0
 }
 
-/// Receives the session ID from the first provisioning step. The receiver must
-/// stay alive afterwards: the new device later sends a `Linking` step, and
-/// dropping the receiver would make that send fail and abort provisioning.
-async fn recv_session_id(
+/// Receives the linking code from the first provisioning step. The receiver
+/// must stay alive afterwards: the new device later sends a `Linking` step,
+/// and dropping the receiver would make that send fail and abort
+/// provisioning.
+async fn recv_linking_code(
     rx: &mut tokio::sync::mpsc::Receiver<MultiDeviceProvisionStep>,
-) -> LinkingSessionId {
+) -> String {
     match rx
         .recv()
         .await
-        .expect("provision channel closed before session id")
+        .expect("provision channel closed before the linking code")
     {
-        MultiDeviceProvisionStep::SessionId(session_id) => session_id,
-        MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before session id"),
+        MultiDeviceProvisionStep::Code(code) => code,
+        MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before the code"),
     }
 }
 
@@ -152,7 +153,7 @@ async fn link_new_device_named(
         (new_device, tmp)
     });
 
-    let session_id = recv_session_id(&mut session_rx).await;
+    let session_id = recv_linking_code(&mut session_rx).await;
 
     setup
         .get_user(user_id)
@@ -509,16 +510,13 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    let fake_digest =
-        hex::decode("68924f1f6f60d5fdb8463881a5945e58c3f1402c65681b1270f5aeccbed17bd1")
-            .unwrap()
-            .try_into()
-            .unwrap();
-    let fake_session_id = LinkingSessionId::from_digest(&fake_digest, 8).unwrap();
+    // A well-formed code, check digit and all, for a session that was never
+    // opened.
+    let fake_code = LinkingCode::generate("999").unwrap().to_digits();
     let result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(fake_session_id, ignore_connected(), auto_confirm())
+        .multi_device_link_client(fake_code, ignore_connected(), auto_confirm())
         .await;
 
     assert!(matches!(
@@ -549,7 +547,7 @@ async fn multi_device_second_link_attempt_returns_error() {
         (new_device, tmp)
     });
 
-    let session_id = recv_session_id(&mut session_rx).await;
+    let session_id = recv_linking_code(&mut session_rx).await;
 
     setup
         .get_user(&alice)
@@ -620,10 +618,11 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
         (new_device, tmp)
     });
 
-    let alice_session_id = recv_session_id(&mut alice_session_rx).await;
-    let bob_session_id = recv_session_id(&mut bob_session_rx).await;
+    let alice_session_id = recv_linking_code(&mut alice_session_rx).await;
+    let bob_session_id = recv_linking_code(&mut bob_session_rx).await;
 
-    // Session IDs derived from different key packages must be distinct.
+    // Concurrent sessions must get distinct rendezvous ids, and therefore
+    // distinct codes.
     assert_ne!(alice_session_id, bob_session_id);
 
     setup

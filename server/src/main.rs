@@ -128,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .expect("Failed to connect to database.");
 
-    let rs = Rs::new(shutdown.clone());
+    let rs = Rs::new(shutdown.clone(), configuration.relay.clone());
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
