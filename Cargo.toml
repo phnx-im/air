@@ -156,6 +156,10 @@ rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48a
 # [#1419](https://github.com/RustCrypto/signatures/pull/1419)
 ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbdd66a702cc0c4ef676b38022e5cbb" }
 
+# Optimize dependencies even in dev builds. Own crates stay unoptimized and debuggable.
+[profile.dev.package."*"]
+opt-level = 3
+
 [profile.release]
 strip = true
 lto = true
