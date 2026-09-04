@@ -176,7 +176,7 @@ impl AttachmentsRepository {
             .context("Attachment not found")
     }
 
-    /// Load thumbnail for the database
+    /// Load thumbnail from the database.
     ///
     /// If the thumbnail is not yet generated, it is regenerated, and then the data is returned.
     #[instrument(level = "debug", skip(self))]

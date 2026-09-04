@@ -164,15 +164,3 @@ path = "app/lib/ds/foundations/icons.dart"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
-
-[[annotations]]
-path = "coreclient/migrations/**/*.sql"
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Phoenix R&D GmbH <hello@phnx.im>"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
-
-[[annotations]]
-path = "backend/migrations/**/*.sql"
-precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Phoenix R&D GmbH <hello@phnx.im>"
-SPDX-License-Identifier = "AGPL-3.0-or-later"

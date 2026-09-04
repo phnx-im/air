@@ -66,7 +66,12 @@ impl CoreUser {
                 AttachmentContent::Ready(bytes)
                 | AttachmentContent::Uploading(bytes)
                 | AttachmentContent::UploadFailed(bytes) => image_is_animated(bytes.as_slice()),
-                _ => return Ok(None),
+                AttachmentContent::None
+                | AttachmentContent::Pending
+                | AttachmentContent::Downloading
+                | AttachmentContent::DownloadFailed
+                | AttachmentContent::NotFound
+                | AttachmentContent::Unknown => return Ok(None),
             };
         AttachmentRecord::set_is_animated(self.db().write().await?, attachment_id, is_animated)
             .await?;
