@@ -34,8 +34,9 @@ pub use crate::{
         MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
-            AttachmentContent, AttachmentId, AttachmentStatus, AttachmentUrl,
-            AttachmentUrlParseError, MimiContentExt, ProvisionAttachmentError, UploadTaskError,
+            AttachmentContent, AttachmentId, AttachmentInfo, AttachmentStatus, AttachmentThumbnail,
+            AttachmentUrl, AttachmentUrlParseError, MimiContentExt, ProvisionAttachmentError,
+            UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,

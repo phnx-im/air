@@ -249,19 +249,11 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
       messageListCubit.setState(fredMessages);
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -538,19 +530,11 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),

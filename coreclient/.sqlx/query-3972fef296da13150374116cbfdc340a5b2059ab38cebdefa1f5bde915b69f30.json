@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: _\",\n                is_animated\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 1,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3972fef296da13150374116cbfdc340a5b2059ab38cebdefa1f5bde915b69f30"
+}

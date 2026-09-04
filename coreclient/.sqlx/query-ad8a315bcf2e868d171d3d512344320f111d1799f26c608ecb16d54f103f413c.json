@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                content,\n                status AS \"status: _\"\n            FROM attachment\n            WHERE attachment_id = ?",
+  "query": "SELECT\n                ac.content,\n                a.status AS \"status: _\"\n            FROM attachment a\n            LEFT JOIN attachment_content ac USING (attachment_id)\n            WHERE a.attachment_id = ?",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Blob",
         "origin": {
           "Table": {
-            "table": "attachment",
+            "table": "attachment_content",
             "name": "content"
           }
         }
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "91a763bbd0d74363745970abc80289a5c8be56e7c6b402d4647c6352abd50ee6"
+  "hash": "ad8a315bcf2e868d171d3d512344320f111d1799f26c608ecb16d54f103f413c"
 }
