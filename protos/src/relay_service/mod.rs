@@ -4,5 +4,6 @@
 
 pub(crate) mod codec;
 mod convert;
+pub mod mdl;
 mod sign;
 pub mod v1;
