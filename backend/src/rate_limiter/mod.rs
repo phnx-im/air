@@ -10,6 +10,10 @@ use sqlx::types::chrono::{DateTime, Utc};
 
 pub(crate) mod provider;
 
+pub(crate) fn too_many_requests() -> tonic::Status {
+    tonic::Status::resource_exhausted("Too many requests, please try again later")
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct RlConfig {
     pub(crate) max_requests: u64,
@@ -64,9 +68,14 @@ impl Allowance {
         self.valid_until = Utc::now() + config.time_window;
     }
 
+    /// Whether the window this allowance counts over has passed, so nothing
+    /// is lost by forgetting it.
+    pub(crate) fn is_stale(&self) -> bool {
+        self.valid_until < Utc::now()
+    }
+
     fn allowed(&mut self, config: &RlConfig) -> bool {
-        // Check if the time window has passed
-        if self.valid_until < Utc::now() {
+        if self.is_stale() {
             self.reset(config);
         }
 
