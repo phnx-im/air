@@ -938,7 +938,7 @@ impl Group {
     }
 }
 
-/// Verify that merging `staged_commit` keeps the self-group flag of the group context's unchanged.
+/// Verify that merging `staged_commit` keeps the self-group flag in the group context unchanged.
 /// The flag is fixed at group creation.
 fn ensure_self_group_flag_unchanged(
     mls_group: &MlsGroup,
