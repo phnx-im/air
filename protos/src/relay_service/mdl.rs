@@ -64,6 +64,18 @@ impl MdlMessage {
     pub fn from_frame(frame: &RelayFrame) -> Result<Self, tls_codec::Error> {
         Self::tls_deserialize_exact_bytes(frame.as_slice())
     }
+
+    /// The message type's name, for logs that must not print payloads.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::ProvisionRequest(_) => "provision_request",
+            Self::SessionAssigned(_) => "session_assigned",
+            Self::PakeShareA(_) => "pake_share_a",
+            Self::PakeShareB(_) => "pake_share_b",
+            Self::GroupMessage(_) => "group_message",
+            Self::Abort(_) => "abort",
+        }
+    }
 }
 
 /// Opens a rendezvous session. Carries no PAKE share: the CPace generator
@@ -193,6 +205,9 @@ pub enum LinkingPayloadType {
     /// The new device joined the self group. Empty payload, both sides tear
     /// the session down afterwards.
     LinkingComplete = 3,
+    /// The existing device could not add the new device to the self group,
+    /// a CBOR `LinkingAbort`. Both sides tear the session down afterwards.
+    LinkingAbort = 4,
 }
 
 #[cfg(test)]
