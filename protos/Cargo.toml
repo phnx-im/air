@@ -15,7 +15,7 @@ aircommon.workspace = true
 airmacros.workspace = true
 apqmls.workspace = true
 chrono.workspace = true
-derive_more.workspace = true
+derive_more = { workspace = true, features = ["display"] }
 displaydoc.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true

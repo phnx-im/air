@@ -324,6 +324,9 @@ impl Group {
                 match message {
                     SelfGroupMessage::SettingsUpdate(update) => extracted.updates.push(update),
                     SelfGroupMessage::TokenSeed(seed) => extracted.token_seeds.push(seed),
+                    SelfGroupMessage::BlockedContactsUpdate(_) => {
+                        debug!("Skipping blocked-contacts update, no receive path yet");
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
