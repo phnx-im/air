@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    blocked_at AS \"blocked_at: _\",\n                    last_display_name AS \"last_display_name: _\"\n                FROM blocked_contact\n                WHERE user_uuid = ?1 AND user_domain = ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "blocked_at: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact",
+            "name": "blocked_at"
+          }
+        }
+      },
+      {
+        "name": "last_display_name: _",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "blocked_contact",
+            "name": "last_display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "93645510dc131ca855967f0fe00d23660fb4a026e0b7282a83d18fce8171236b"
+}
