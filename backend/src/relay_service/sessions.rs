@@ -12,7 +12,9 @@ use std::{
     time::Duration,
 };
 
+use aircommon::identifiers::QsUserId;
 use airprotos::relay_service::v1::RelayFrame;
+use chrono::TimeDelta;
 use tokio::{
     sync::{mpsc, oneshot},
     time::Instant,
@@ -21,7 +23,16 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::{info, warn};
 
-use crate::settings::RelaySettings;
+use crate::{
+    client_ip::IpBucket,
+    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlMemoryStorage},
+    settings::RelaySettings,
+};
+
+/// Service name the relay's rate-limiter keys are scoped under.
+const RL_SERVICE: &[u8] = b"rs";
+const RL_PROVISION: &[u8] = b"multi_device_provision_client";
+const RL_LINK: &[u8] = b"multi_device_link_client";
 
 /// Frames going out to one peer of a session.
 pub(crate) type Outbound = mpsc::Sender<Result<RelayFrame, Status>>;
@@ -117,11 +128,23 @@ impl fmt::Debug for Table {
 }
 
 /// The relay's shared state.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Rs {
     table: Arc<Mutex<Table>>,
+    /// Allowances live in memory alongside the sessions they guard. A
+    /// restart forgets them, which buys an attacker no more than waiting the
+    /// window out would.
+    allowances: RlMemoryStorage,
     settings: RelaySettings,
     stop: CancellationToken,
+}
+
+impl fmt::Debug for Rs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Rs")
+            .field("settings", &self.settings)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Rs {
@@ -141,11 +164,55 @@ impl Rs {
                 width: INITIAL_WIDTH,
                 ..Table::default()
             })),
+            allowances: RlMemoryStorage::default(),
             settings,
             stop,
         };
         rs.spawn_reaper();
         rs
+    }
+
+    /// Whether this address may open another linking session.
+    pub(crate) async fn allow_provision(&self, ip: IpBucket) -> bool {
+        self.allow(
+            self.settings.perip,
+            RlKey::new(RL_SERVICE, RL_PROVISION, &[b"ip", &ip]),
+        )
+        .await
+    }
+
+    /// Whether this address and this user may make another link attempt.
+    ///
+    /// Both allowances are charged, the address first, so an attacker cannot
+    /// spread attempts over accounts or over addresses alone.
+    pub(crate) async fn allow_link(&self, ip: IpBucket, qs_user_id: QsUserId) -> bool {
+        let by_ip = self
+            .allow(
+                self.settings.perip,
+                RlKey::new(RL_SERVICE, RL_LINK, &[b"ip", &ip]),
+            )
+            .await;
+        let by_user = self
+            .allow(
+                self.settings.peruser,
+                RlKey::new(
+                    RL_SERVICE,
+                    RL_LINK,
+                    &[b"qs_user", qs_user_id.as_uuid().as_bytes()],
+                ),
+            )
+            .await;
+        by_ip && by_user
+    }
+
+    async fn allow(&self, max_requests: u64, key: RlKey) -> bool {
+        let config = RlConfig {
+            max_requests,
+            time_window: TimeDelta::hours(1),
+        };
+        RateLimiter::new(config, self.allowances.clone())
+            .allowed(key)
+            .await
     }
 
     /// Opens a session for a provisioning device.
@@ -258,6 +325,9 @@ impl Rs {
         }
 
         table.quarantine.retain(|_, until| *until > now);
+        drop(table);
+
+        self.allowances.prune();
     }
 
     fn spawn_reaper(&self) {
@@ -290,6 +360,7 @@ mod tests {
             RelaySettings {
                 sessionttl: ttl,
                 idquarantine: quarantine,
+                ..RelaySettings::default()
             },
         )
     }
@@ -440,5 +511,69 @@ mod tests {
 
         let (responder, _rx) = mpsc::channel(8);
         assert!(rs.claim(&session.id, responder).is_none());
+    }
+}
+
+#[cfg(test)]
+mod rate_limit_tests {
+    use std::net::{IpAddr, Ipv4Addr};
+
+    use crate::client_ip::ClientIp;
+
+    use super::*;
+
+    fn relay(perip: u64, peruser: u64) -> Rs {
+        Rs::new(
+            CancellationToken::new(),
+            RelaySettings {
+                perip,
+                peruser,
+                ..RelaySettings::default()
+            },
+        )
+    }
+
+    fn bucket(last: u8) -> IpBucket {
+        ClientIp::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, last))).bucket()
+    }
+
+    #[tokio::test]
+    async fn provisioning_is_capped_per_address() {
+        let rs = relay(2, 100);
+        assert!(rs.allow_provision(bucket(1)).await);
+        assert!(rs.allow_provision(bucket(1)).await);
+        assert!(!rs.allow_provision(bucket(1)).await);
+        assert!(
+            rs.allow_provision(bucket(2)).await,
+            "another address has its own allowance"
+        );
+    }
+
+    #[tokio::test]
+    async fn link_attempts_are_capped_per_user() {
+        let rs = relay(100, 2);
+        let user = QsUserId::random();
+        assert!(rs.allow_link(bucket(1), user).await);
+        assert!(rs.allow_link(bucket(1), user).await);
+        assert!(!rs.allow_link(bucket(2), user).await);
+        assert!(
+            rs.allow_link(bucket(1), QsUserId::random()).await,
+            "another user has its own allowance"
+        );
+    }
+
+    #[tokio::test]
+    async fn link_attempts_are_capped_per_address() {
+        let rs = relay(2, 100);
+        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
+        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
+        assert!(!rs.allow_link(bucket(1), QsUserId::random()).await);
+    }
+
+    #[tokio::test]
+    async fn the_two_rpcs_do_not_share_an_allowance() {
+        let rs = relay(1, 100);
+        assert!(rs.allow_provision(bucket(1)).await);
+        assert!(rs.allow_link(bucket(1), QsUserId::random()).await);
     }
 }

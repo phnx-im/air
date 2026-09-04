@@ -255,6 +255,15 @@ pub struct RelaySettings {
     /// so this is never shorter than the session lifetime in practice.
     #[serde(with = "duration_millis", default = "default_id_quarantine")]
     pub idquarantine: std::time::Duration,
+    /// Sessions one client address may open, and link attempts it may make,
+    /// per hour.
+    #[serde(default = "default_relay_attempts")]
+    pub perip: u64,
+    /// Link attempts one registered user may make per hour. Every attempt
+    /// against a live session consumes it, so this caps what a compromised
+    /// account can guess.
+    #[serde(default = "default_relay_attempts")]
+    pub peruser: u64,
 }
 
 impl Default for RelaySettings {
@@ -262,6 +271,8 @@ impl Default for RelaySettings {
         Self {
             sessionttl: default_session_ttl(),
             idquarantine: default_id_quarantine(),
+            perip: default_relay_attempts(),
+            peruser: default_relay_attempts(),
         }
     }
 }
@@ -272,6 +283,10 @@ fn default_session_ttl() -> std::time::Duration {
 
 fn default_id_quarantine() -> std::time::Duration {
     std::time::Duration::from_secs(10 * 60)
+}
+
+fn default_relay_attempts() -> u64 {
+    10
 }
 
 /// How registration is gated.

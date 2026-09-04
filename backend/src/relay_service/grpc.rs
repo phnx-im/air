@@ -24,6 +24,7 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
+    client_ip::{ClientIp, IpBucket},
     qs::QsConnector,
     relay_service::{Rs, sessions::Outbound},
 };
@@ -41,6 +42,22 @@ impl<Qep: QsConnector> GrpcRs<Qep> {
     pub fn new(rs: Rs, qs_connector: Qep) -> Self {
         Self { rs, qs_connector }
     }
+}
+
+/// The address bucket a request counts under.
+fn ip_bucket<T>(request: &Request<T>) -> Result<IpBucket, Status> {
+    request
+        .extensions()
+        .get::<ClientIp>()
+        .map(ClientIp::bucket)
+        .ok_or_else(|| {
+            error!("no client address on a relay request");
+            Status::internal("failed to resolve the client address")
+        })
+}
+
+fn too_many_requests() -> Status {
+    Status::resource_exhausted("Too many requests, please try again later")
 }
 
 /// Pipes one peer's inbound frames to the other peer.
@@ -72,6 +89,11 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceProvisionClientStream>, Status> {
+        let ip = ip_bucket(&request)?;
+        if !self.rs.allow_provision(ip).await {
+            return Err(too_many_requests());
+        }
+
         let mut inbound = request.into_inner();
 
         let frame = inbound.message().await?.ok_or_else(|| {
@@ -149,6 +171,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceLinkClientStream>, Status> {
+        let ip = ip_bucket(&request)?;
         let mut inbound = request.into_inner();
 
         // The first frame is the signed request, so only a registered user
@@ -175,9 +198,14 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .ok_or_missing_field("uuid value")?
             .into();
 
+        let qs_user_id = aircommon::identifiers::QsUserId::from(qs_user_id);
+        if !self.rs.allow_link(ip, qs_user_id).await {
+            return Err(too_many_requests());
+        }
+
         let qs_user_signature_key: QsUserVerifyingKey = self
             .qs_connector
-            .user_verifying_key(aircommon::identifiers::QsUserId::from(qs_user_id))
+            .user_verifying_key(qs_user_id)
             .await
             .map_err(|error| {
                 error!(%error, "failed to load QS user signing key");
