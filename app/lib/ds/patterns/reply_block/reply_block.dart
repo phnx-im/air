@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -19,7 +20,7 @@ class ReplyBlock extends StatelessWidget {
     super.key,
     required this.preview,
     this.senderName,
-    this.fill,
+    required this.fill,
     this.showJumpIndicator = false,
     this.thumbnail,
     this.onTap,
@@ -32,9 +33,8 @@ class ReplyBlock extends StatelessWidget {
   /// for a message that was deleted or that the reader never had.
   final String? senderName;
 
-  /// Surface behind the quote. Null leaves the block transparent, for a host
-  /// that already paints one under it.
-  final Color? fill;
+  /// Surface behind the quote.
+  final Color fill;
 
   /// Show the arrow that says the original is still there to jump to. A
   /// [thumbnail] outranks it: a quoted picture trails its own still, which
@@ -49,88 +49,100 @@ class ReplyBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     final sender = senderName;
-    final fill = this.fill;
+    final surface = fill.on(PanelSurface.colorOf(context));
 
-    final quoted = Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: palette.separator.primary,
-            width: ReplyBlockTokens.accentWidth,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.only(left: ReplyBlockTokens.accentGap),
-      child: Column(
-        mainAxisSize: .min,
-        crossAxisAlignment: .start,
-        children: [
-          if (sender != null) ...[
-            Text(
-              sender,
-              maxLines: 1,
-              overflow: .ellipsis,
-              style: typeScale.body.xs.style(
-                color: palette.text.secondary,
-                weight: Weight.emphasized,
+    return PanelSurface(
+      color: surface,
+      child: Builder(
+        builder: (context) {
+          final palette = SemanticPalette.of(context);
+          final textColorSecondary = PanelSurface.textOf(context).secondary;
+          final textColorTertiary = PanelSurface.textOf(context).tertiary;
+
+          final quoted = Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: palette.separator.primary,
+                  width: ReplyBlockTokens.accentWidth,
+                ),
               ),
             ),
-            const SizedBox(height: ReplyBlockTokens.senderGap),
-          ],
-          Text(
-            preview,
-            maxLines: ReplyBlockTokens.previewMaxLines,
-            overflow: .ellipsis,
-            style: typeScale.body.xs.style(color: palette.text.secondary),
-          ),
-        ],
+            padding: const EdgeInsets.only(left: ReplyBlockTokens.accentGap),
+            child: Column(
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
+              children: [
+                if (sender != null) ...[
+                  Text(
+                    sender,
+                    maxLines: 1,
+                    overflow: .ellipsis,
+                    style: typeScale.body.xs.style(
+                      color: textColorSecondary,
+                      weight: Weight.emphasized,
+                    ),
+                  ),
+                  const SizedBox(height: ReplyBlockTokens.senderGap),
+                ],
+                Text(
+                  preview,
+                  maxLines: ReplyBlockTokens.previewMaxLines,
+                  overflow: .ellipsis,
+                  style: typeScale.body.xs.style(color: textColorSecondary),
+                ),
+              ],
+            ),
+          );
+
+          final trailing =
+              thumbnail ??
+              (showJumpIndicator
+                  ? Padding(
+                      padding: const EdgeInsets.only(
+                        top: ReplyBlockTokens.iconTopOffset,
+                      ),
+                      child: AppIcon.arrowUp(
+                        size: ReplyBlockTokens.iconSize,
+                        color: textColorTertiary,
+                      ),
+                    )
+                  : null);
+
+          Widget block = quoted;
+          if (trailing != null) {
+            block = Row(
+              crossAxisAlignment: .start,
+              children: [
+                Expanded(child: quoted),
+                const SizedBox(width: ReplyBlockTokens.iconGap),
+                trailing,
+              ],
+            );
+          }
+
+          block = Container(
+            padding: ReplyBlockTokens.padding,
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(ReplyBlockTokens.radius),
+            ),
+            child: block,
+          );
+
+          if (onTap == null) return block;
+
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: .opaque,
+              onTap: onTap,
+              child: block,
+            ),
+          );
+        },
       ),
-    );
-
-    final trailing =
-        thumbnail ??
-        (showJumpIndicator
-            ? Padding(
-                padding: const EdgeInsets.only(
-                  top: ReplyBlockTokens.iconTopOffset,
-                ),
-                child: AppIcon.arrowUp(
-                  size: ReplyBlockTokens.iconSize,
-                  color: palette.text.tertiary,
-                ),
-              )
-            : null);
-
-    Widget block = quoted;
-    if (trailing != null) {
-      block = Row(
-        crossAxisAlignment: .start,
-        children: [
-          Expanded(child: quoted),
-          const SizedBox(width: ReplyBlockTokens.iconGap),
-          trailing,
-        ],
-      );
-    }
-
-    if (fill != null) {
-      block = Container(
-        padding: ReplyBlockTokens.padding,
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(ReplyBlockTokens.radius),
-        ),
-        child: block,
-      );
-    }
-
-    if (onTap == null) return block;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(behavior: .opaque, onTap: onTap, child: block),
     );
   }
 }

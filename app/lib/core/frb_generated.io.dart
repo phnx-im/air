@@ -1461,6 +1461,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  VersionStatus dco_decode_version_status(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -2989,6 +2992,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
+
+  @protected
+  VersionStatus sse_decode_version_status(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -4892,6 +4898,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_version_status(VersionStatus self, SseSerializer serializer);
 }
 
 // Section: wire_class
