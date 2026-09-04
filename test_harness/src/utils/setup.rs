@@ -11,7 +11,7 @@ use std::{
 };
 
 use airbackend::{
-    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings, RelaySettings},
+    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
 use aircommon::{
@@ -188,6 +188,8 @@ enum ServerUrl {
     External(Url),
     Local(SocketAddr),
 }
+
+pub use airbackend::settings::RelaySettings;
 
 #[derive(Debug)]
 pub struct TestBackendParams {
