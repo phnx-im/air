@@ -6,7 +6,7 @@ use std::{assert_matches, collections::HashSet};
 
 use aircommon::{
     credentials::LeafCredential,
-    crypto::mdl::code::LinkingCode,
+    crypto::mdl::code::{LinkingCode, MIN_CODE_DIGITS, PASSWORD_DIGITS},
     identifiers::{UserId, Username},
 };
 use aircoreclient::{
@@ -19,7 +19,7 @@ use aircoreclient::{
     },
 };
 use airprotos::auth_service::v1::OperationType;
-use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
+use airserver_test_harness::utils::setup::{RelaySettings, TestBackend, TestBackendParams};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use std::{
@@ -3051,6 +3051,23 @@ async fn multi_device_both_devices_leave_before_the_commit() {
     );
 }
 
+/// The digits of the rendezvous ID a code was issued for.
+fn rendezvous_id_of(code: &str) -> &str {
+    &code[..code.len() - PASSWORD_DIGITS]
+}
+
+/// A code for the same session with a different password.
+fn code_with_a_wrong_password(code: &str) -> String {
+    let mut digits = code.as_bytes().to_vec();
+    let password_start = digits.len() - PASSWORD_DIGITS;
+    digits[password_start] = if digits[password_start] == b'0' {
+        b'1'
+    } else {
+        b'0'
+    };
+    String::from_utf8(digits).unwrap()
+}
+
 /// Spawns a provisioning device and hands back its linking code together
 /// with the task.
 async fn provision_device(
@@ -3075,4 +3092,180 @@ async fn provision_device(
 
     let code = recv_linking_code(&mut session_rx).await;
     (code, task, session_rx)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a wrong password fails the welcome", skip_all)]
+async fn multi_device_wrong_password_fails_authentication() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+    let wrong_code = code_with_a_wrong_password(&code);
+    assert_eq!(rendezvous_id_of(&wrong_code), rendezvous_id_of(&code));
+
+    let existing = link_client(
+        setup.get_user(&alice).user(),
+        wrong_code,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await;
+
+    let error = existing
+        .expect_err("the existing device must learn about the failure")
+        .to_string();
+    assert!(
+        error.contains("AuthenticationFailed"),
+        "expected a forwarded authentication failure, got {error}"
+    );
+
+    let error = new_device_task
+        .await
+        .unwrap()
+        .expect_err("the new device must reject the welcome")
+        .to_string();
+    assert!(
+        error.contains("authentication failed"),
+        "expected an authentication failure, got {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a short code is caught locally", skip_all)]
+async fn multi_device_short_code_does_not_burn_the_session() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+
+    // Cut to below the minimum rather than dropping one digit, because a
+    // longer rendezvous ID would make the shortened code still parse.
+    let short = code[..MIN_CODE_DIGITS - 1].to_owned();
+
+    let rejected = link_client(
+        setup.get_user(&alice).user(),
+        short,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await;
+    assert!(matches!(
+        rejected,
+        Ok(Err(MultiDeviceLinkClientError::InvalidCode))
+    ));
+
+    // The session was never touched, so the correct code still links.
+    link_client(
+        setup.get_user(&alice).user(),
+        code,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    new_device_task.await.unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a linking session expires", skip_all)]
+async fn multi_device_session_expires() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            sessionttl: Duration::from_millis(300),
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+
+    assert!(
+        new_device_task.await.unwrap().is_err(),
+        "the new device's session must end when the relay reaps it"
+    );
+
+    let result = link_client(
+        setup.get_user(&alice).user(),
+        code,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a rendezvous id is quarantined", skip_all)]
+async fn multi_device_rendezvous_id_is_not_reused() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (first_code, first_task, _first_rx) = provision_device(&setup).await;
+    link_client(
+        setup.get_user(&alice).user(),
+        first_code.clone(),
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let (_first_device, _first_tmp) = first_task.await.unwrap().unwrap();
+
+    let (second_code, second_task, _second_rx) = provision_device(&setup).await;
+    assert_ne!(
+        rendezvous_id_of(&second_code),
+        rendezvous_id_of(&first_code),
+        "an ended rendezvous id must stay in quarantine"
+    );
+    second_task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test link attempts are rate limited per user", skip_all)]
+async fn multi_device_link_attempts_are_rate_limited() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            peruser: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+
+    let (first_code, first_task, _first_rx) = provision_device(&setup).await;
+    link_client(
+        setup.get_user(&alice).user(),
+        first_code,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let (_first_device, _first_tmp) = first_task.await.unwrap().unwrap();
+
+    let (second_code, second_task, _second_rx) = provision_device(&setup).await;
+    let error = link_client(
+        setup.get_user(&alice).user(),
+        second_code,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .expect_err("the second attempt must be rate limited")
+    .to_string();
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+    second_task.abort();
 }
