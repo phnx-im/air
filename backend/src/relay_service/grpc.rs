@@ -112,7 +112,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceProvisionClientStream>, Status> {
         let ip = ip_bucket(&request)?;
-        if !self.rs.allow_provision(ip).await {
+        if !self.rs.allow_provision(ip) {
             return Err(too_many_requests());
         }
 
@@ -175,6 +175,9 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceLinkClientStream>, Status> {
         let ip = ip_bucket(&request)?;
+        if !self.rs.allow_link_from(ip) {
+            return Err(too_many_requests());
+        }
         let mut inbound = request.into_inner();
 
         // The first frame is the signed request, so only a registered user
@@ -202,10 +205,6 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .into();
 
         let qs_user_id = aircommon::identifiers::QsUserId::from(qs_user_id);
-        if !self.rs.allow_link(ip, qs_user_id).await {
-            return Err(too_many_requests());
-        }
-
         let qs_user_signature_key: QsUserVerifyingKey = self
             .qs_connector
             .user_verifying_key(qs_user_id)
@@ -219,6 +218,11 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         let payload: LinkClientRequestPayload = request
             .verify(&qs_user_signature_key)
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
+
+        // Charged only now that the sender proved it owns the account.
+        if !self.rs.allow_link_by(qs_user_id) {
+            return Err(too_many_requests());
+        }
 
         let rendezvous_id = payload.rendezvous_id.ok_or_missing_field("rendezvous_id")?;
         let Ok(id) = RendezVousId::new(rendezvous_id.value) else {
