@@ -117,9 +117,7 @@ pub(crate) fn probe_attachment_image<P: AsRef<Path>>(
 }
 
 /// Mirrors [`reencode_image`]'s format dispatch, reading only dimensions.
-fn probe_image_dimensions<R>(
-    reader: ImageReader<R>,
-) -> Result<Option<(u32, u32)>, ImageProbeError>
+fn probe_image_dimensions<R>(reader: ImageReader<R>) -> Result<Option<(u32, u32)>, ImageProbeError>
 where
     R: BufRead + Seek,
 {
