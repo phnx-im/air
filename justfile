@@ -105,6 +105,7 @@ regenerate-frb:
     CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
         flutter_rust_bridge_codegen generate --no-web
 
+    just dart run build_runner build
     cd .. && cargo fmt
 
 # Regenerate localization files.
@@ -130,6 +131,12 @@ regenerate-sqlx-client:
 regenerate-sqlx-server: start-docker-compose
     cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
+
+# Regenerate the licenses of the Rust dependencies shipped in the app.
+[group('regenerate')]
+regenerate-licenses:
+    cargo about generate -c about.toml -m applogic/Cargo.toml \
+        -o app/assets/licenses/rust_licenses.json about.hbs
 
 # Recompile svg icons for rendering.
 [working-directory: 'app']
