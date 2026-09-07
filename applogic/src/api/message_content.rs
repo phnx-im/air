@@ -4,6 +4,7 @@
 
 use aircommon::identifiers::MimiId;
 pub(crate) use aircoreclient::AttachmentId;
+use aircoreclient::AttachmentInfo;
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
@@ -105,10 +106,12 @@ pub struct UiImageMetadata {
     pub blurhash: String,
     pub width: u32,
     pub height: u32,
+    /// Whether the image is animated, if already classified locally
+    pub is_animated: Option<bool>,
 }
 
 impl UnresolvedMimiContent {
-    pub(crate) fn resolve(self, local_attachment_ids: &[AttachmentId]) -> UiMimiContent {
+    pub(crate) fn resolve(self, local_attachment_infos: &[AttachmentInfo]) -> UiMimiContent {
         let first_attachment_type = self.attachments.first().map(|attachment| {
             if attachment.image_metadata.is_some() {
                 UiAttachmentType::Image
@@ -120,14 +123,17 @@ impl UnresolvedMimiContent {
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
-            .zip(local_attachment_ids.iter().copied())
-            .map(|(attachment, attachment_id)| UiAttachment {
-                attachment_id,
+            .zip(local_attachment_infos.iter())
+            .map(|(attachment, info)| UiAttachment {
+                attachment_id: info.attachment_id,
                 filename: attachment.filename,
                 content_type: attachment.content_type,
                 description: attachment.description,
                 size: attachment.size,
-                image_metadata: attachment.image_metadata,
+                image_metadata: attachment.image_metadata.map(|metadata| UiImageMetadata {
+                    is_animated: info.is_animated,
+                    ..metadata
+                }),
             })
             .collect();
 

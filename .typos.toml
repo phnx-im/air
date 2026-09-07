@@ -26,6 +26,9 @@ extend-exclude = [
     # Exclude generated emoji list
     "app/lib/features/emoji/emoji_data.dart",
 
+    # Exclude generated Rust licenses file
+    "app/assets/licenses/rust_licenses.json",
+
     # Exclude license files
     "LICENSES/",
 
