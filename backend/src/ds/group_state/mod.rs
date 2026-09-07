@@ -177,7 +177,10 @@ impl DsGroupState {
     /// so the recorded profile keys are the ones a joiner at that epoch needs.
     pub(super) fn stage_welcome_info(&mut self, retained: Option<RetainedWelcomeInfo>) {
         let Some(retained) = retained else { return };
-        // Add members to room state that may be missing due to a (now fixed) bug.
+        // The function call while loading the room state skips members with a
+        // queued remove. A commit that doesn't include that proposal drops it
+        // but keeps the leaf, so add such members back before a joiner sees
+        // the room state.
         add_missing_members_to_room_state(
             &mut self.room_state,
             &self.group,
@@ -631,7 +634,7 @@ fn add_missing_members_to_room_state(
     group: &Group,
     storage: &CborMlsAssistStorage,
 ) {
-    let mut missing = Vec::new();
+    let mut members = Vec::new();
     for member in group.members() {
         let identity = LeafCredential::from_credential(&member.credential)
             .ok()
@@ -643,12 +646,7 @@ fn add_missing_members_to_room_state(
             );
             return;
         };
-        if !room_state.users().contains_key(&identity) {
-            missing.push((member.index, identity));
-        }
-    }
-    if missing.is_empty() {
-        return;
+        members.push((member.index, identity));
     }
 
     let queued_removes: HashSet<_> = match group.queued_proposals(storage) {
@@ -658,9 +656,24 @@ fn add_missing_members_to_room_state(
             return;
         }
     };
-    let missing: Vec<_> = missing
+
+    reconcile_room_state(room_state, members, &queued_removes);
+}
+
+/// Room-state part of [`add_missing_members_to_room_state`].
+///
+/// `members` holds the leaf index and room policy identity of every group
+/// member.
+fn reconcile_room_state(
+    room_state: &mut VerifiedRoomState,
+    members: Vec<(LeafNodeIndex, Vec<u8>)>,
+    queued_removes: &HashSet<LeafNodeIndex>,
+) {
+    let missing: Vec<_> = members
         .into_iter()
-        .filter(|(index, _)| !queued_removes.contains(index))
+        .filter(|(index, identity)| {
+            !room_state.users().contains_key(identity) && !queued_removes.contains(index)
+        })
         .collect();
     if missing.is_empty() {
         return;
@@ -914,5 +927,183 @@ mod test {
         assert!(!leaf_credential_matches_flag(&user_leaf(), true));
         // A self-group credential in a regular group is rejected.
         assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
+    }
+
+    fn user_identity() -> Vec<u8> {
+        use aircommon::identifiers::UserId;
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        RoomPolicyIdentity::User(user_id).to_bytes().unwrap()
+    }
+
+    fn room_owned_by(owner: &[u8]) -> VerifiedRoomState {
+        VerifiedRoomState::new(
+            owner.to_vec(),
+            mimi_room_policy::RoomPolicy::default_trusted_private(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn reconcile_adds_missing_member_as_regular() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state.users().get(&alice), Some(&RoleIndex::Owner));
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+    }
+
+    #[test]
+    fn reconcile_leaves_complete_room_state_unchanged() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: bob.clone(),
+                    role: RoleIndex::Regular,
+                }],
+            )
+            .unwrap();
+        let before = room_state.clone();
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![(LeafNodeIndex::new(0), alice), (LeafNodeIndex::new(1), bob)],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state, before);
+    }
+
+    #[test]
+    fn reconcile_skips_member_with_queued_remove() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::from([LeafNodeIndex::new(1)]),
+        );
+
+        assert_eq!(room_state.users().len(), 1);
+        assert!(room_state.users().contains_key(&alice));
+    }
+
+    #[test]
+    fn reconcile_adds_member_when_owner_left() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let carol = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: bob.clone(),
+                    role: RoleIndex::Regular,
+                }],
+            )
+            .unwrap();
+        // The owner leaves, so only a regular member is left to admit Carol.
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(1), bob.clone()),
+                (LeafNodeIndex::new(2), carol.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+        assert_eq!(room_state.users().get(&carol), Some(&RoleIndex::Regular));
+        assert!(!room_state.users().contains_key(&alice));
+    }
+
+    #[test]
+    fn reconcile_rebuilds_empty_room_state() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let carol = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+        assert!(room_state.users().is_empty());
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(1), bob.clone()),
+                (LeafNodeIndex::new(2), carol.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        // Everybody is a regular member, nobody keeps the stand-in owner role.
+        assert_eq!(room_state.users().len(), 2);
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+        assert_eq!(room_state.users().get(&carol), Some(&RoleIndex::Regular));
+    }
+
+    #[test]
+    fn reconcile_rebuilds_empty_room_state_ignoring_queued_removes() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+
+        // Alice's leaf is still in the tree with her self-remove queued.
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::from([LeafNodeIndex::new(0)]),
+        );
+
+        assert_eq!(room_state.users().len(), 1);
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
     }
 }

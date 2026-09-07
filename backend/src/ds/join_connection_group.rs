@@ -98,8 +98,8 @@ impl DsGroupState {
 
         // Check that the group indeed has exactly one member (prior to the new one joining). That
         // member is the inviter.
-        let member_indices: Vec<_> = self.member_profiles.keys().copied().collect();
-        let [inviter_index] = member_indices[..] else {
+        let mut member_indices = self.member_profiles.keys();
+        let (Some(&inviter_index), None) = (member_indices.next(), member_indices.next()) else {
             return Err(JoinConnectionGroupError::NotAConnectionGroup);
         };
 
