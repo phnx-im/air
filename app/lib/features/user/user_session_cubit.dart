@@ -81,6 +81,7 @@ class UserSessionCubit extends Cubit<UserSessionState> {
       // The error is not fatal, because the user record is still there.
       _log.severe('Failed to sync locale: $error', error, stackTrace);
     }
+    if (isClosed) return;
     emit(UserSessionState(user: user));
 
     final navigationState = _navigationCubit.state;
