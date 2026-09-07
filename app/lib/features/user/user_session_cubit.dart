@@ -42,6 +42,7 @@ class UserSessionCubit extends Cubit<UserSessionState> {
   }) : super(const UserSessionState()) {
     _subscription = _coreClient.userStream
         .asyncMap(_onUserChange)
+        .distinct()
         .listen(
           null,
           onError: (error, stackTrace) {
