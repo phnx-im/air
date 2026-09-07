@@ -214,6 +214,11 @@
         },
         {
           "name": "windows-sys",
+          "version": "0.52.0",
+          "repository": "https://github.com/microsoft/windows-rs"
+        },
+        {
+          "name": "windows-sys",
           "version": "0.60.2",
           "repository": "https://github.com/microsoft/windows-rs"
         },
@@ -225,6 +230,11 @@
         {
           "name": "windows-targets",
           "version": "0.42.2",
+          "repository": "https://github.com/microsoft/windows-rs"
+        },
+        {
+          "name": "windows-targets",
+          "version": "0.52.6",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
@@ -249,12 +259,22 @@
         },
         {
           "name": "windows_x86_64_gnu",
+          "version": "0.52.6",
+          "repository": "https://github.com/microsoft/windows-rs"
+        },
+        {
+          "name": "windows_x86_64_gnu",
           "version": "0.53.1",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
           "name": "windows_x86_64_msvc",
           "version": "0.42.2",
+          "repository": "https://github.com/microsoft/windows-rs"
+        },
+        {
+          "name": "windows_x86_64_msvc",
+          "version": "0.52.6",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
@@ -1382,7 +1402,7 @@
         },
         {
           "name": "chacha20",
-          "version": "0.10.1",
+          "version": "0.10.2",
           "repository": "https://github.com/RustCrypto/stream-ciphers"
         },
         {
@@ -1733,11 +1753,6 @@
         {
           "name": "getrandom",
           "version": "0.2.17",
-          "repository": "https://github.com/rust-random/getrandom"
-        },
-        {
-          "name": "getrandom",
-          "version": "0.3.4",
           "repository": "https://github.com/rust-random/getrandom"
         },
         {
@@ -2766,7 +2781,7 @@
       "used_by": [
         {
           "name": "h2",
-          "version": "0.4.16",
+          "version": "0.4.19",
           "repository": "https://github.com/hyperium/h2"
         }
       ]
@@ -3332,12 +3347,12 @@
         },
         {
           "name": "flutter_rust_bridge",
-          "version": "2.12.0",
+          "version": "2.13.0",
           "repository": "https://github.com/fzyzcjy/flutter_rust_bridge"
         },
         {
           "name": "flutter_rust_bridge_macros",
-          "version": "2.12.0",
+          "version": "2.13.0",
           "repository": "https://github.com/fzyzcjy/flutter_rust_bridge"
         },
         {

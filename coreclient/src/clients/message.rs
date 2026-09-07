@@ -131,10 +131,10 @@ impl CoreUser {
         .await
     }
 
-    // TODO: This should be merged with send_message. The remaining difference
-    // is that this variant runs inside an existing transaction and does not
-    // enqueue the message.
-    pub(crate) async fn send_message_transactional(
+    /// Stores a message inside an existing transaction, without enqueuing it.
+    ///
+    /// The content is not final yet (no MIMI ID).
+    pub(crate) async fn store_provisional_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,
@@ -142,13 +142,13 @@ impl CoreUser {
         content: MimiContent,
         mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<ChatMessage> {
-        let message = UnsentContent {
+        let message = ChatMessage::new_provisional_message(
+            self.user_id().clone(),
             chat_id,
             message_id,
             content,
-        }
-        .store_unsent_message(&mut *txn, self.user_id(), None)
-        .await?;
+        );
+        message.store(&mut *txn).await?;
         mark_as_read_until_message(txn, chat_id, &message, self.user_id(), mark_as_read).await?;
 
         Ok(message)

@@ -84,7 +84,10 @@ impl AttachmentsRepository {
                             break; // sink is closed
                         }
                     }
-                    AttachmentProgressEvent::Progress { bytes_loaded } => {
+                    AttachmentProgressEvent::Progress {
+                        bytes_total: _,
+                        bytes_loaded,
+                    } => {
                         if sink
                             .add(UiAttachmentStatus::Progress(bytes_loaded))
                             .is_err()

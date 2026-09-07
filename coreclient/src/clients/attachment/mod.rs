@@ -133,7 +133,8 @@ impl From<AttachmentId> for AttachmentInfo {
 ///
 /// Uniquely identifies an attachment on this local client. Must *not* be shared outside of this
 /// client.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[display("{uuid}")]
 pub struct AttachmentId {
     // Public for the FRB mirror
     pub uuid: Uuid,

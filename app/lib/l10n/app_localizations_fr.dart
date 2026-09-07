@@ -938,6 +938,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Échec de l\'importation de la pièce jointe. Veuillez réessayer.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'L\'image n\'a pas pu être décodée. Elle est peut-être endommagée ou dans un format non pris en charge.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
