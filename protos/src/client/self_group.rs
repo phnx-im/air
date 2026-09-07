@@ -262,39 +262,18 @@ pub struct BlockedContactsUpdate {
 ///
 /// ```cddl
 /// BlockedContactEntry = {
-///   user_id: PeerUserId .tag 1,
-///   state: BlockedContactState .tag 2,
-/// }
-/// ```
-#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
-pub struct BlockedContactEntry {
-    #[tag(1)]
-    pub user_id: PeerUserId,
-    /// [`BlockedContactState::Unknown`] when the sender left the state out or
-    /// used a state this client does not know. Ignored on receive.
-    #[tag(2)]
-    pub state: BlockedContactState,
-}
-
-/// The state a [`BlockedContactEntry`] puts a contact into.
-///
-/// ## CDDL Definition
-///
-/// ```cddl
-/// BlockedContactState = {
 ///   1: ContactBlocked //
 ///   2: ContactUnblocked
 /// }
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
-pub enum BlockedContactState {
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum BlockedContactEntry {
     #[tag(1)]
     Blocked(ContactBlocked),
     #[tag(2)]
     Unblocked(ContactUnblocked),
-    /// A state this client does not understand. The whole entry is ignored on
+    /// A state this client does not understand. The entry is ignored on
     /// receive.
-    #[default]
     #[unknown]
     Unknown,
 }
@@ -308,17 +287,20 @@ pub enum BlockedContactState {
 ///
 /// ```cddl
 /// ContactBlocked = {
-///   blocked_at: uint .tag 1,      ; unix epoch seconds (UTC)
-///   last_display_name: tstr .tag 2,
+///   user_id: PeerUserId .tag 1,
+///   blocked_at: uint .tag 2,      ; unix epoch seconds (UTC)
+///   last_display_name: tstr .tag 3,
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct ContactBlocked {
     #[tag(1)]
+    pub user_id: PeerUserId,
+    #[tag(2)]
     pub blocked_at: u64,
     /// The display name the blocking device last saw. Labels the contact in the
     /// blocked list without keeping the rest of its profile.
-    #[tag(2)]
+    #[tag(3)]
     pub last_display_name: String,
 }
 
@@ -327,10 +309,15 @@ pub struct ContactBlocked {
 /// ## CDDL Definition
 ///
 /// ```cddl
-/// ContactUnblocked = {}
+/// ContactUnblocked = {
+///   user_id: PeerUserId .tag 1,
+/// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
-pub struct ContactUnblocked {}
+pub struct ContactUnblocked {
+    #[tag(1)]
+    pub user_id: PeerUserId,
+}
 
 #[cfg(test)]
 mod test {
@@ -605,17 +592,14 @@ mod test {
     fn sample_blocked_contacts_update() -> BlockedContactsUpdate {
         BlockedContactsUpdate {
             contacts: vec![
-                BlockedContactEntry {
+                BlockedContactEntry::Blocked(ContactBlocked {
                     user_id: sample_peer_user_id(1),
-                    state: BlockedContactState::Blocked(ContactBlocked {
-                        blocked_at: 1_767_225_600,
-                        last_display_name: "Alice".to_owned(),
-                    }),
-                },
-                BlockedContactEntry {
+                    blocked_at: 1_767_225_600,
+                    last_display_name: "Alice".to_owned(),
+                }),
+                BlockedContactEntry::Unblocked(ContactUnblocked {
                     user_id: sample_peer_user_id(2),
-                    state: BlockedContactState::Unblocked(ContactUnblocked {}),
-                },
+                }),
             ],
         }
     }
@@ -679,36 +663,43 @@ mod test {
         );
     }
 
-    /// A state added after this client shipped decodes to `Unknown`, so the
-    /// receiver drops the one entry instead of the whole update.
+    /// An entry state added after this client shipped decodes to `Unknown`, so
+    /// the receiver drops the one entry instead of the whole update.
     #[test]
     fn blocked_contact_entry_with_unknown_state_decodes_to_unknown() {
-        #[derive(Debug, Clone, Default, PartialEq, SerializeTaggedUnion)]
-        enum BlockedContactStateV2 {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum BlockedContactEntryV2 {
+            #[tag(2)]
+            Unblocked(ContactUnblocked),
             #[tag(99)]
             Muted(u64),
-            #[default]
-            #[unknown]
-            Unknown,
         }
 
         #[derive(Debug, Clone, SerializeTaggedMap)]
-        struct BlockedContactEntryV2 {
+        struct BlockedContactsUpdateV2 {
             #[tag(1)]
-            user_id: PeerUserId,
-            #[tag(2)]
-            state: BlockedContactStateV2,
+            contacts: Vec<BlockedContactEntryV2>,
         }
 
-        let newer = BlockedContactEntryV2 {
+        let unblocked = ContactUnblocked {
             user_id: sample_peer_user_id(1),
-            state: BlockedContactStateV2::Muted(7),
+        };
+        let newer = BlockedContactsUpdateV2 {
+            contacts: vec![
+                BlockedContactEntryV2::Muted(7),
+                BlockedContactEntryV2::Unblocked(unblocked.clone()),
+            ],
         };
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
 
-        let decoded: BlockedContactEntry = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.user_id, sample_peer_user_id(1));
-        assert_eq!(decoded.state, BlockedContactState::Unknown);
+        let decoded: BlockedContactsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded.contacts,
+            vec![
+                BlockedContactEntry::Unknown,
+                BlockedContactEntry::Unblocked(unblocked),
+            ]
+        );
     }
 
     // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
