@@ -39,9 +39,11 @@ ignore-dev-dependencies = true
 private = { ignore = true }
 
 # No `license` field in Cargo.toml, only a LICENSE file.
+# spellchecker:ignore-next-line
 [allo-isolate.clarify]
 license = "Apache-2.0"
 
+# spellchecker:ignore-next-line
 [[allo-isolate.clarify.files]]
 path = "LICENSE"
 license = "Apache-2.0"
