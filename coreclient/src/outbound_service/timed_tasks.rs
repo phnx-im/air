@@ -5,7 +5,7 @@
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
 use airprotos::{
     auth_service::v1::OperationType,
-    client::{component::AirComponent, group::GroupData},
+    client::{app_data::GroupAppData, group::GroupData},
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -504,10 +504,9 @@ impl OutboundServiceContext {
             // For connection chats, that support empty connection group titles, we can erase the data.
             let is_connection = chat.is_connection();
             let erase_attributes = if is_connection {
-                group.members_air_component().all(|component| {
-                    component
-                        .map(|component| component.features.empty_connection_group_attributes)
-                        .unwrap_or(false)
+                group.members_app_data().all(|app_data| {
+                    app_data
+                        .is_some_and(|app_data| app_data.features.empty_connection_group_attributes)
                 })
             } else {
                 false
@@ -528,7 +527,7 @@ impl OutboundServiceContext {
             // non-emulation group and cannot register one. An unmarked
             // self-update would only bounce off the DS, so skip it and leave a
             // diagnosable trace.
-            if AirComponent::is_self_group_context(group.mls_group().extensions()) {
+            if GroupAppData::is_self_group_context(group.mls_group().extensions()) {
                 error!(
                     %chat_id,
                     "self group has no derivation epoch and cannot register one, \

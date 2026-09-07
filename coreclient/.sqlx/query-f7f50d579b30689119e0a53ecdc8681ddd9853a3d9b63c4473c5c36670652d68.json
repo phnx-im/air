@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                a.message_id AS \"message_id: _\",\n                a.attachment_id AS \"attachment_id: _\",\n                a.is_animated\n            FROM attachment a\n            JOIN message m USING (message_id)\n            WHERE m.chat_id = ?\n                AND (m.timestamp, m.message_id) >= (?, ?)\n                AND (m.timestamp, m.message_id) <= (?, ?)\n            ORDER BY a.message_id, a.rowid\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "attachment_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 2,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f7f50d579b30689119e0a53ecdc8681ddd9853a3d9b63c4473c5c36670652d68"
+}

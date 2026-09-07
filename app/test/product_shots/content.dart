@@ -397,6 +397,7 @@ final fredMessages = [
                 blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
                 width: 1080,
                 height: 1080,
+                isAnimated: false,
               ),
             ),
           ],

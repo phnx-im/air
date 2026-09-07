@@ -78,10 +78,12 @@ runs:
       run: echo "value=$(bash scripts/build-name.sh)" >> $GITHUB_OUTPUT
 
     # Forces apiclient's build script to collect fresh git metadata for this
-    # commit (see apiclient/build.rs)
+    # commit and bakes the store build number into it (see apiclient/build.rs)
     - name: Refresh client build metadata
       shell: bash
-      run: echo "AIR_REFRESH_BUILD_METADATA=${{ github.sha }}" >> $GITHUB_ENV
+      run: |
+        echo "AIR_REFRESH_BUILD_METADATA=${{ github.sha }}" >> $GITHUB_ENV
+        echo "AIR_BUILD_NUMBER=${{ steps.build-number.outputs.value }}" >> $GITHUB_ENV
 
     ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
 

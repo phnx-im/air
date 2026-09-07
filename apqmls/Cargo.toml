@@ -6,7 +6,7 @@
 name = "apqmls"
 description = "Amortized Post-Quantum MLS Combiner"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
-version = "0.21.0"
+version = "0.22.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
@@ -23,6 +23,6 @@ thiserror.workspace = true
 tls_codec.workspace = true
 
 [dev-dependencies]
-apqmls = { path = ".", features = ["test-utils"] }
+apqmls = { path = ".", features = ["test-utils"] , version = "0.22.0" }
 openmls = { workspace = true, features = ["test-utils"] }
 openmls_rust_crypto.workspace = true

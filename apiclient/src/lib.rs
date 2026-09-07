@@ -8,7 +8,8 @@ use std::{sync::Arc, time::Duration};
 
 use aircommon::identifiers::Fqdn;
 use airprotos::{
-    auth_service::v1::auth_service_client::AuthServiceClient, common::v1::ClientMetadata,
+    auth_service::v1::auth_service_client::AuthServiceClient,
+    common::v1::{ClientMetadata, Version},
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
     relay_service::v1::relay_service_client::RelayServiceClient,
@@ -148,7 +149,13 @@ impl ApiClient {
         self.inner.rs_grpc_client.clone()
     }
 
-    pub(crate) fn metadata(&self) -> &ClientMetadata {
-        &metadata::METADATA
+    pub fn version() -> &'static Version {
+        &metadata::VERSION
+    }
+
+    pub(crate) fn metadata(&self) -> ClientMetadata {
+        ClientMetadata {
+            version: Some(Self::version().clone()),
+        }
     }
 }

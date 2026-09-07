@@ -36,16 +36,14 @@ use aircommon::{
     },
 };
 use airprotos::client::{
-    component::{AIR_COMPONENT_ID, AirComponent},
+    app_data::GroupAppData,
+    component::AIR_COMPONENT_ID,
     self_group::{
         AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
-use openmls::prelude::{
-    AppEphemeralProposal, Extensions, GroupContext, Proposal, StagedCommit,
-    tls_codec::Serialize as _,
-};
+use openmls::prelude::{AppEphemeralProposal, Proposal, StagedCommit, tls_codec::Serialize as _};
 use openmls_traits::OpenMlsProvider;
 use tracing::{debug, warn};
 
@@ -53,22 +51,6 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
 };
-
-/// Reads the `is_self_group` flag from a group context's app-data dictionary.
-///
-/// The flag lives in the [`AirComponent`] entry under [`AIR_COMPONENT_ID`]. A
-/// missing component or entry means "not a self-group". Works on any
-/// [`Extensions<GroupContext>`], so it can be applied both to a live group's
-/// extensions and to the provisional post-commit context of a
-/// [`StagedCommit`](openmls::prelude::StagedCommit).
-pub(crate) fn extensions_claim_self_group(extensions: &Extensions<GroupContext>) -> bool {
-    extensions
-        .app_data_dictionary()
-        .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
-        .and_then(|data| AirComponent::from_bytes(data).ok())
-        .map(|component| component.is_self_group)
-        .unwrap_or(false)
-}
 
 impl Group {
     /// Returns whether this group claims to be a self-group, per the
@@ -83,7 +65,7 @@ impl Group {
     /// assume an adversary cannot make a client join a non-legitimate
     /// self-group.
     pub(crate) fn is_self_group(&self) -> bool {
-        extensions_claim_self_group(self.mls_group().extensions())
+        GroupAppData::is_self_group_context(self.mls_group().extensions())
     }
 
     /// Returns the message key for the self-group's current epoch, deriving and
@@ -504,10 +486,10 @@ mod derivation_tests {
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
-        mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
     use airprotos::client::{
-        component::{AIR_COMPONENT_ID, AirComponent},
+        app_data::GroupAppData,
+        component::AIR_COMPONENT_ID,
         self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
@@ -521,8 +503,6 @@ mod derivation_tests {
         groups::{Group, GroupDataBytes, openmls_provider::AirOpenMlsProvider},
         utils::persistence::open_db_in_memory,
     };
-
-    use super::extensions_claim_self_group;
 
     fn random_group_id() -> GroupId {
         GroupId::from(QualifiedGroupId::new(
@@ -540,19 +520,14 @@ mod derivation_tests {
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,
-    /// the group context carries `AirComponent::default_for_self_group`, which
-    /// is what the accessor's guard checks.
+    /// the group context marks the group as a self group, which is what the
+    /// accessor's guard checks.
     fn create_group(
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
-        let air_component = if is_self_group {
-            AirComponent::default_for_self_group()
-        } else {
-            AirComponent::default_for_leaf_or_key_package()
-        };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
             signer,
@@ -561,8 +536,10 @@ mod derivation_tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            None,
-            air_component,
+            GroupAppData {
+                is_self_group,
+                safe_aad_components: None,
+            },
         )?;
         Ok(group)
     }
@@ -779,11 +756,14 @@ mod derivation_tests {
         // Extensions that clear the self-group flag by replacing the AIR
         // component in the app data dictionary.
         let mut flipped = group.mls_group().extensions().clone();
-        flipped.add_or_replace(default_group_context_app_data_dictionary_extension(
-            AirComponent::default_for_leaf_or_key_package(),
-            None,
-        ))?;
-        assert!(!extensions_claim_self_group(&flipped));
+        flipped.add_or_replace(
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+            }
+            .to_extension(),
+        )?;
+        assert!(!GroupAppData::is_self_group_context(&flipped));
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, _pq_mls_group) = group.apq_mls_groups_mut()?;

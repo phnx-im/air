@@ -31,7 +31,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 final _log = Logger('YouSections');
 
@@ -468,13 +467,7 @@ class HelpSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final packageInfoFut = useMemoized(() => PackageInfo.fromPlatform());
-    final packageInfo = useFuture(packageInfoFut);
-
-    final version = switch (packageInfo.data) {
-      final info? => "${info.version}-${info.buildNumber}",
-      null => "",
-    };
+    final version = appVersion();
 
     final loc = AppLocalizations.of(context);
     final onVersionTap = useDeveloperUnlock();
