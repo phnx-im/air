@@ -12703,7 +12703,7 @@ impl SseDecode for crate::api::types::UiEventMessage {
 impl SseDecode for crate::api::message_content::UiImageMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_blurhash = <String>::sse_decode(deserializer);
+        let mut var_blurhash = <Option<String>>::sse_decode(deserializer);
         let mut var_width = <u32>::sse_decode(deserializer);
         let mut var_height = <u32>::sse_decode(deserializer);
         let mut var_isAnimated = <Option<bool>>::sse_decode(deserializer);
@@ -12915,6 +12915,9 @@ impl SseDecode for crate::api::share_cubit::UiShareSendError {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
+                return crate::api::share_cubit::UiShareSendError::DecodingError;
+            }
+            1 => {
                 let mut var_maxSizeBytes = <u64>::sse_decode(deserializer);
                 let mut var_actualSizeBytes = <u64>::sse_decode(deserializer);
                 return crate::api::share_cubit::UiShareSendError::AttachmentTooLarge {
@@ -12922,13 +12925,13 @@ impl SseDecode for crate::api::share_cubit::UiShareSendError {
                     actual_size_bytes: var_actualSizeBytes,
                 };
             }
-            1 => {
+            2 => {
                 let mut var_max = <u32>::sse_decode(deserializer);
                 return crate::api::share_cubit::UiShareSendError::TooManyAttachments {
                     max: var_max,
                 };
             }
-            2 => {
+            3 => {
                 return crate::api::share_cubit::UiShareSendError::Other;
             }
             _ => {
@@ -13120,6 +13123,9 @@ impl SseDecode for crate::api::chat_details_cubit::UploadAttachmentError {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
+                return crate::api::chat_details_cubit::UploadAttachmentError::DecodingError;
+            }
+            1 => {
                 let mut var_maxSizeBytes = <u64>::sse_decode(deserializer);
                 let mut var_actualSizeBytes = <u64>::sse_decode(deserializer);
                 return crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
@@ -16120,19 +16126,20 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiReaction>
 impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::UiShareSendError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
+            crate::api::share_cubit::UiShareSendError::DecodingError => [0.into_dart()].into_dart(),
             crate::api::share_cubit::UiShareSendError::AttachmentTooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => [
-                0.into_dart(),
+                1.into_dart(),
                 max_size_bytes.into_into_dart().into_dart(),
                 actual_size_bytes.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::share_cubit::UiShareSendError::TooManyAttachments { max } => {
-                [1.into_dart(), max.into_into_dart().into_dart()].into_dart()
+                [2.into_dart(), max.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::share_cubit::UiShareSendError::Other => [2.into_dart()].into_dart(),
+            crate::api::share_cubit::UiShareSendError::Other => [3.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -16354,11 +16361,14 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUsername>
 impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UploadAttachmentError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::DecodingError => {
+                [0.into_dart()].into_dart()
+            }
             crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => [
-                0.into_dart(),
+                1.into_dart(),
                 max_size_bytes.into_into_dart().into_dart(),
                 actual_size_bytes.into_into_dart().into_dart(),
             ]
@@ -19193,7 +19203,7 @@ impl SseEncode for crate::api::types::UiEventMessage {
 impl SseEncode for crate::api::message_content::UiImageMetadata {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.blurhash, serializer);
+        <Option<String>>::sse_encode(self.blurhash, serializer);
         <u32>::sse_encode(self.width, serializer);
         <u32>::sse_encode(self.height, serializer);
         <Option<bool>>::sse_encode(self.is_animated, serializer);
@@ -19363,20 +19373,23 @@ impl SseEncode for crate::api::share_cubit::UiShareSendError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
+            crate::api::share_cubit::UiShareSendError::DecodingError => {
+                <i32>::sse_encode(0, serializer);
+            }
             crate::api::share_cubit::UiShareSendError::AttachmentTooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => {
-                <i32>::sse_encode(0, serializer);
+                <i32>::sse_encode(1, serializer);
                 <u64>::sse_encode(max_size_bytes, serializer);
                 <u64>::sse_encode(actual_size_bytes, serializer);
             }
             crate::api::share_cubit::UiShareSendError::TooManyAttachments { max } => {
-                <i32>::sse_encode(1, serializer);
+                <i32>::sse_encode(2, serializer);
                 <u32>::sse_encode(max, serializer);
             }
             crate::api::share_cubit::UiShareSendError::Other => {
-                <i32>::sse_encode(2, serializer);
+                <i32>::sse_encode(3, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -19538,11 +19551,14 @@ impl SseEncode for crate::api::chat_details_cubit::UploadAttachmentError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::DecodingError => {
+                <i32>::sse_encode(0, serializer);
+            }
             crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => {
-                <i32>::sse_encode(0, serializer);
+                <i32>::sse_encode(1, serializer);
                 <u64>::sse_encode(max_size_bytes, serializer);
                 <u64>::sse_encode(actual_size_bytes, serializer);
             }

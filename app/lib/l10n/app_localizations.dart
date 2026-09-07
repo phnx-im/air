@@ -1614,6 +1614,12 @@ abstract class AppLocalizations {
   /// **'Failed to upload attachment. Try again.'**
   String get composer_error_attachment;
 
+  /// Snack bar shown in the composer when an image attachment cannot be decoded before upload. Retrying will not help, so the text does not ask for one.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be decoded. It may be damaged or in an unsupported format.'**
+  String get composer_error_attachment_decoding;
+
   /// Error shown when an attachment exceeds the size limit. Both placeholders are already formatted sizes with their unit.
   ///
   /// In en, this message translates to:
