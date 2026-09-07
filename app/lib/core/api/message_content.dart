@@ -56,7 +56,7 @@ enum UiAttachmentType { image, file }
 @freezed
 sealed class UiImageMetadata with _$UiImageMetadata {
   const factory UiImageMetadata({
-    required String blurhash,
+    String? blurhash,
     required int width,
     required int height,
     bool? isAnimated,

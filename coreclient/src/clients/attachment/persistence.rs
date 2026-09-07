@@ -219,6 +219,10 @@ pub(crate) async fn move_attachment_content_to_side_table(
 }
 
 impl AttachmentRecord {
+    pub(crate) fn message_id(&self) -> MessageId {
+        self.message_id
+    }
+
     pub(crate) async fn store(
         &self,
         mut connection: impl WriteConnection,
@@ -412,12 +416,13 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
+        connection.notifier().update(attachment_id);
         Ok(())
     }
 
     /// Moves the attachment to a status, but only while it is still in the
     /// expected one. Returns whether the row changed.
-    pub(crate) async fn transition_status(
+    pub(crate) async fn update_status_from(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         from: AttachmentStatus,
@@ -497,23 +502,47 @@ impl AttachmentRecord {
         Ok(())
     }
 
-    /// Replaces the stored content, leaving the status alone.
+    /// Stores the processed content of an upload, leaving the status alone.
     ///
-    /// Used once we're done re-encoding and encrypting an attachment.
-    pub(crate) async fn replace_content(
+    /// Written once re-encoding is done, before the upload starts, so a retry
+    /// resumes from it without the original bytes. Returns `false` if the
+    /// attachment is gone (deleted mid-upload); nothing is written then.
+    pub(crate) async fn store_processed_content(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         bytes: &[u8],
-    ) -> sqlx::Result<()> {
-        query!(
-            "UPDATE attachment SET content = ? WHERE attachment_id = ?",
-            bytes,
+        content_type: &str,
+        is_animated: bool,
+    ) -> sqlx::Result<bool> {
+        let updated = query!(
+            "UPDATE attachment SET
+                content_type = ?,
+                is_animated = ?
+            WHERE attachment_id = ?",
+            content_type,
+            is_animated,
             attachment_id,
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        if updated == 0 {
+            return Ok(false);
+        }
+        query!(
+            "INSERT INTO attachment_content (
+                attachment_id,
+                content
+            ) VALUES (?, ?)
+            ON CONFLICT (attachment_id) DO UPDATE
+            SET content = excluded.content",
+            attachment_id,
+            bytes,
         )
         .execute(connection.as_mut())
         .await?;
         connection.notifier().update(attachment_id);
-        Ok(())
+        Ok(true)
     }
 
     pub(crate) async fn load_content(
@@ -596,6 +625,18 @@ impl AttachmentRecord {
             message_id
         )
         .fetch_all(connection.as_mut())
+        .await
+    }
+
+    pub(crate) async fn has_content(
+        mut connection: impl ReadConnection,
+        attachment_id: AttachmentId,
+    ) -> sqlx::Result<bool> {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM attachment_content WHERE attachment_id = ?)",
+        )
+        .bind(attachment_id)
+        .fetch_one(connection.as_mut())
         .await
     }
 
@@ -973,7 +1014,7 @@ pub(crate) mod test {
         );
         record.store(pool.write().await?, Some(b"content")).await?;
 
-        let changed = AttachmentRecord::transition_status(
+        let changed = AttachmentRecord::update_status_from(
             pool.write().await?,
             record.attachment_id,
             AttachmentStatus::Uploading,
@@ -986,7 +1027,7 @@ pub(crate) mod test {
             .unwrap();
         assert_eq!(loaded.status, AttachmentStatus::Ready);
 
-        let changed = AttachmentRecord::transition_status(
+        let changed = AttachmentRecord::update_status_from(
             pool.write().await?,
             record.attachment_id,
             AttachmentStatus::Ready,

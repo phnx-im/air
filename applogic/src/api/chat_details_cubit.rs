@@ -905,6 +905,7 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
+            ProvisionAttachmentError::DecodingError => bail!("Failed to decode the attachment"),
         }
     }
 }

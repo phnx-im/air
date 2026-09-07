@@ -56,6 +56,7 @@ pub struct UiSharedAttachment {
 #[derive(Debug, Clone, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiShareSendError {
+    DecodingError,
     AttachmentTooLarge {
         max_size_bytes: u64,
         actual_size_bytes: u64,
@@ -442,7 +443,9 @@ async fn upload_attachment(
                     bytes_total,
                     bytes_loaded,
                 } => {
-                    report_progress(bytes_loaded as f64 / bytes_total as f64);
+                    if bytes_total > 0 {
+                        report_progress(bytes_loaded as f64 / bytes_total as f64);
+                    }
                 }
                 AttachmentProgressEvent::Completed
                 | AttachmentProgressEvent::Failed
@@ -485,6 +488,7 @@ fn provision_error(error: ProvisionAttachmentError) -> UiShareSendError {
             max_size_bytes: detail.max_size_bytes,
             actual_size_bytes: detail.actual_size_bytes,
         },
+        ProvisionAttachmentError::DecodingError => UiShareSendError::DecodingError,
     }
 }
 

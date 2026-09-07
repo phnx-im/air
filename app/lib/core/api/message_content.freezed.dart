@@ -181,7 +181,7 @@ $UiImageMetadataCopyWith<$Res>? get imageMetadata {
 /// @nodoc
 mixin _$UiImageMetadata {
 
- String get blurhash; int get width; int get height; bool? get isAnimated;
+ String? get blurhash; int get width; int get height; bool? get isAnimated;
 /// Create a copy of UiImageMetadata
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -212,7 +212,7 @@ abstract mixin class $UiImageMetadataCopyWith<$Res>  {
   factory $UiImageMetadataCopyWith(UiImageMetadata value, $Res Function(UiImageMetadata) _then) = _$UiImageMetadataCopyWithImpl;
 @useResult
 $Res call({
- String blurhash, int width, int height, bool? isAnimated
+ String? blurhash, int width, int height, bool? isAnimated
 });
 
 
@@ -229,10 +229,10 @@ class _$UiImageMetadataCopyWithImpl<$Res>
 
 /// Create a copy of UiImageMetadata
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? blurhash = null,Object? width = null,Object? height = null,Object? isAnimated = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? blurhash = freezed,Object? width = null,Object? height = null,Object? isAnimated = freezed,}) {
   return _then(_self.copyWith(
-blurhash: null == blurhash ? _self.blurhash : blurhash // ignore: cast_nullable_to_non_nullable
-as String,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
+blurhash: freezed == blurhash ? _self.blurhash : blurhash // ignore: cast_nullable_to_non_nullable
+as String?,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
 as int,height: null == height ? _self.height : height // ignore: cast_nullable_to_non_nullable
 as int,isAnimated: freezed == isAnimated ? _self.isAnimated : isAnimated // ignore: cast_nullable_to_non_nullable
 as bool?,
@@ -247,10 +247,10 @@ as bool?,
 
 
 class _UiImageMetadata implements UiImageMetadata {
-  const _UiImageMetadata({required this.blurhash, required this.width, required this.height, this.isAnimated});
+  const _UiImageMetadata({this.blurhash, required this.width, required this.height, this.isAnimated});
   
 
-@override final  String blurhash;
+@override final  String? blurhash;
 @override final  int width;
 @override final  int height;
 @override final  bool? isAnimated;
@@ -285,7 +285,7 @@ abstract mixin class _$UiImageMetadataCopyWith<$Res> implements $UiImageMetadata
   factory _$UiImageMetadataCopyWith(_UiImageMetadata value, $Res Function(_UiImageMetadata) _then) = __$UiImageMetadataCopyWithImpl;
 @override @useResult
 $Res call({
- String blurhash, int width, int height, bool? isAnimated
+ String? blurhash, int width, int height, bool? isAnimated
 });
 
 
@@ -302,10 +302,10 @@ class __$UiImageMetadataCopyWithImpl<$Res>
 
 /// Create a copy of UiImageMetadata
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? blurhash = null,Object? width = null,Object? height = null,Object? isAnimated = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? blurhash = freezed,Object? width = null,Object? height = null,Object? isAnimated = freezed,}) {
   return _then(_UiImageMetadata(
-blurhash: null == blurhash ? _self.blurhash : blurhash // ignore: cast_nullable_to_non_nullable
-as String,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
+blurhash: freezed == blurhash ? _self.blurhash : blurhash // ignore: cast_nullable_to_non_nullable
+as String?,width: null == width ? _self.width : width // ignore: cast_nullable_to_non_nullable
 as int,height: null == height ? _self.height : height // ignore: cast_nullable_to_non_nullable
 as int,isAnimated: freezed == isAnimated ? _self.isAnimated : isAnimated // ignore: cast_nullable_to_non_nullable
 as bool?,
