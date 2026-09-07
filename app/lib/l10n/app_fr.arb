@@ -258,6 +258,7 @@
   "composer_editMessage": "Modifier le message",
   "composer_error_sendMessage": "Échec de l'envoi du message. Veuillez réessayer.",
   "composer_error_attachment": "Échec de l'importation de la pièce jointe. Veuillez réessayer.",
+  "composer_error_attachment_decoding": "L'image n'a pas pu être décodée. Elle est peut-être endommagée ou dans un format non pris en charge.",
   "composer_error_attachment_too_large": "La pièce jointe est trop volumineuse. La taille maximale est de {maxSize} et la taille réelle est de {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Message supprimé",
   "composer_reply_noaccess_message_user": "Utilisateur inconnu",
