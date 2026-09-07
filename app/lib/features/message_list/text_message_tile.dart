@@ -348,6 +348,8 @@ class _MessageView extends HookWidget {
         .values[skinToneIndex.clamp(0, EmojiSkinVariation.values.length - 1)];
 
     final isDeleted = contentMessage.content.isDeleted;
+    // A message that is still sending has no MIMI ID yet, so there is nothing
+    // for a reply or a reaction to point at.
     final isReplyable =
         !isDeleted &&
         status != UiMessageStatus.error &&

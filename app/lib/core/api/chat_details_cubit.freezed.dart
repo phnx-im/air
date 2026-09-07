@@ -279,63 +279,63 @@ as List<UiUserId>,
 /// @nodoc
 mixin _$UploadAttachmentError {
 
- BigInt get maxSizeBytes; BigInt get actualSizeBytes;
-/// Create a copy of UploadAttachmentError
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$UploadAttachmentErrorCopyWith<UploadAttachmentError> get copyWith => _$UploadAttachmentErrorCopyWithImpl<UploadAttachmentError>(this as UploadAttachmentError, _$identity);
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UploadAttachmentError(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
+  return 'UploadAttachmentError()';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $UploadAttachmentErrorCopyWith<$Res>  {
-  factory $UploadAttachmentErrorCopyWith(UploadAttachmentError value, $Res Function(UploadAttachmentError) _then) = _$UploadAttachmentErrorCopyWithImpl;
-@useResult
-$Res call({
- BigInt maxSizeBytes, BigInt actualSizeBytes
-});
-
-
-
-
+class $UploadAttachmentErrorCopyWith<$Res>  {
+$UploadAttachmentErrorCopyWith(UploadAttachmentError _, $Res Function(UploadAttachmentError) __);
 }
+
+
+
 /// @nodoc
-class _$UploadAttachmentErrorCopyWithImpl<$Res>
-    implements $UploadAttachmentErrorCopyWith<$Res> {
-  _$UploadAttachmentErrorCopyWithImpl(this._self, this._then);
 
-  final UploadAttachmentError _self;
-  final $Res Function(UploadAttachmentError) _then;
 
-/// Create a copy of UploadAttachmentError
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
-  return _then(_self.copyWith(
-maxSizeBytes: null == maxSizeBytes ? _self.maxSizeBytes : maxSizeBytes // ignore: cast_nullable_to_non_nullable
-as BigInt,actualSizeBytes: null == actualSizeBytes ? _self.actualSizeBytes : actualSizeBytes // ignore: cast_nullable_to_non_nullable
-as BigInt,
-  ));
+class UploadAttachmentError_DecodingError extends UploadAttachmentError {
+  const UploadAttachmentError_DecodingError(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_DecodingError);
 }
 
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UploadAttachmentError.decodingError()';
 }
+
+
+}
+
 
 
 
@@ -346,12 +346,12 @@ class UploadAttachmentError_TooLarge extends UploadAttachmentError {
   const UploadAttachmentError_TooLarge({required this.maxSizeBytes, required this.actualSizeBytes}): super._();
   
 
-@override final  BigInt maxSizeBytes;
-@override final  BigInt actualSizeBytes;
+ final  BigInt maxSizeBytes;
+ final  BigInt actualSizeBytes;
 
 /// Create a copy of UploadAttachmentError
 /// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
+@JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $UploadAttachmentError_TooLargeCopyWith<UploadAttachmentError_TooLarge> get copyWith => _$UploadAttachmentError_TooLargeCopyWithImpl<UploadAttachmentError_TooLarge>(this, _$identity);
 
@@ -377,7 +377,7 @@ String toString() {
 /// @nodoc
 abstract mixin class $UploadAttachmentError_TooLargeCopyWith<$Res> implements $UploadAttachmentErrorCopyWith<$Res> {
   factory $UploadAttachmentError_TooLargeCopyWith(UploadAttachmentError_TooLarge value, $Res Function(UploadAttachmentError_TooLarge) _then) = _$UploadAttachmentError_TooLargeCopyWithImpl;
-@override @useResult
+@useResult
 $Res call({
  BigInt maxSizeBytes, BigInt actualSizeBytes
 });
@@ -396,7 +396,7 @@ class _$UploadAttachmentError_TooLargeCopyWithImpl<$Res>
 
 /// Create a copy of UploadAttachmentError
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
   return _then(UploadAttachmentError_TooLarge(
 maxSizeBytes: null == maxSizeBytes ? _self.maxSizeBytes : maxSizeBytes // ignore: cast_nullable_to_non_nullable
 as BigInt,actualSizeBytes: null == actualSizeBytes ? _self.actualSizeBytes : actualSizeBytes // ignore: cast_nullable_to_non_nullable

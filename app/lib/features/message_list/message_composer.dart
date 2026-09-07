@@ -645,6 +645,13 @@ class _MessageComposerState extends State<MessageComposer>
                     ),
                   );
                   break;
+                case UploadAttachmentError_DecodingError():
+                  showSnackBarStandalone(
+                    (loc) => SnackBar(
+                      content: Text(loc.composer_error_attachment_decoding),
+                    ),
+                  );
+                  break;
                 case null:
                   final chatId = cubit.state.chat?.id;
                   if (chatId != null) {

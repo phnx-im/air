@@ -632,10 +632,12 @@ impl AttachmentRecord {
         mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<bool> {
-        sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM attachment_content WHERE attachment_id = ?)",
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM attachment_content WHERE attachment_id = ?
+            ) AS "exists: _""#,
+            attachment_id,
         )
-        .bind(attachment_id)
         .fetch_one(connection.as_mut())
         .await
     }

@@ -208,7 +208,7 @@ $UiShareSendErrorCopyWith(UiShareSendError _, $Res Function(UiShareSendError) __
 
 class UiShareSendError_DecodingError extends UiShareSendError {
   const UiShareSendError_DecodingError(): super._();
-
+  
 
 
 

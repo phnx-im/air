@@ -913,6 +913,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to upload attachment. Try again.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'The image could not be decoded. It may be damaged or in an unsupported format.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,

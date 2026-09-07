@@ -385,11 +385,16 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let (progress, upload_task) = self
+        let Some((progress, upload_task)) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
-            .await?;
+            .await?
+        else {
+            // Nothing to retry from. The message is gone, which is what the
+            // user sees.
+            return Ok(None);
+        };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await
     }
@@ -905,13 +910,17 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
-            ProvisionAttachmentError::DecodingError => bail!("Failed to decode the attachment"),
+            ProvisionAttachmentError::DecodingError => {
+                Ok(Some(UploadAttachmentError::DecodingError))
+            }
         }
     }
 }
 
 /// Error which can occur when uploading an attachment
 pub enum UploadAttachmentError {
+    /// The image could not be decoded, so it can never be sent.
+    DecodingError,
     TooLarge {
         max_size_bytes: u64,
         actual_size_bytes: u64,

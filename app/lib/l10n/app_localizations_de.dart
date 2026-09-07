@@ -934,6 +934,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'Das Bild konnte nicht dekodiert werden. Es ist möglicherweise beschädigt oder hat ein nicht unterstütztes Format.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,

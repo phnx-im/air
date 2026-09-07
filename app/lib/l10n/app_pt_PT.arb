@@ -258,6 +258,7 @@
   "composer_editMessage": "Editar mensagem",
   "composer_error_sendMessage": "Não foi possível enviar a mensagem. Tenta de novo.",
   "composer_error_attachment": "Não foi possível carregar o anexo. Tenta de novo.",
+  "composer_error_attachment_decoding": "Não foi possível descodificar a imagem. Pode estar danificada ou num formato não suportado.",
   "composer_error_attachment_too_large": "O anexo é demasiado grande. O tamanho máximo é {maxSize} e o do ficheiro é {actualSize}.",
   "composer_reply_deleted_message_placeholder": "Mensagem original eliminada",
   "composer_reply_noaccess_message_user": "Utilizador desconhecido",

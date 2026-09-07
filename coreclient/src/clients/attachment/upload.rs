@@ -36,7 +36,7 @@ use sha2::{Digest, Sha256};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use url::Url;
 
 use crate::{
@@ -228,13 +228,18 @@ impl CoreUser {
     }
 
     /// Retries a failed attachment send.
+    ///
+    /// Returns `None` when there is nothing to retry from: the upload was
+    /// interrupted before processing finished, so the message is removed.
     pub async fn retry_upload_chat_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<(
-        AttachmentProgress,
-        impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-    )> {
+    ) -> anyhow::Result<
+        Option<(
+            AttachmentProgress,
+            impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
+        )>,
+    > {
         // load locally stored data
         let (message, content) = self
             .db()
@@ -247,15 +252,14 @@ impl CoreUser {
                     "For retrying, the attachment must be in UploadFailed status"
                 );
 
-                let message = self
-                    .message(attachment_record.message_id)
+                let message = ChatMessage::load(&mut *txn, attachment_record.message_id)
                     .await?
                     .context("Message not found")?;
                 ensure!(!message.is_sent(), "Message is already sent");
 
-                let content = match self.load_attachment(attachment_id).await? {
-                    AttachmentContent::UploadFailed(bytes)
-                    | AttachmentContent::Uploading(bytes) => Some(bytes),
+                let content = match AttachmentRecord::load_content(&mut *txn, attachment_id).await?
+                {
+                    AttachmentContent::UploadFailed(bytes) => Some(bytes),
                     AttachmentContent::Unknown => None,
                     _ => bail!("Unexpected attachment state for retrying"),
                 };
@@ -265,8 +269,12 @@ impl CoreUser {
             .await?;
 
         let Some(content) = content else {
+            warn!(
+                ?attachment_id,
+                "Attachment content is gone, removing the message"
+            );
             self.delete_attachment_message(message.id()).await?;
-            bail!("Attachment content is gone, removed the message");
+            return Ok(None);
         };
 
         self.db()
@@ -283,7 +291,7 @@ impl CoreUser {
             AttachmentSource::Processed(content),
             progress_tx,
         );
-        Ok((progress, task))
+        Ok(Some((progress, task)))
     }
 
     /// Processes, provisions and uploads an attachment whose message is already

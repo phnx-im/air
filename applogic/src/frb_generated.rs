@@ -13121,6 +13121,9 @@ impl SseDecode for crate::api::chat_details_cubit::UploadAttachmentError {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
+                return crate::api::chat_details_cubit::UploadAttachmentError::DecodingError;
+            }
+            1 => {
                 let mut var_maxSizeBytes = <u64>::sse_decode(deserializer);
                 let mut var_actualSizeBytes = <u64>::sse_decode(deserializer);
                 return crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
@@ -16328,11 +16331,14 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiUsername>
 impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UploadAttachmentError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::DecodingError => {
+                [0.into_dart()].into_dart()
+            }
             crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => [
-                0.into_dart(),
+                1.into_dart(),
                 max_size_bytes.into_into_dart().into_dart(),
                 actual_size_bytes.into_into_dart().into_dart(),
             ]
@@ -19489,11 +19495,14 @@ impl SseEncode for crate::api::chat_details_cubit::UploadAttachmentError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
+            crate::api::chat_details_cubit::UploadAttachmentError::DecodingError => {
+                <i32>::sse_encode(0, serializer);
+            }
             crate::api::chat_details_cubit::UploadAttachmentError::TooLarge {
                 max_size_bytes,
                 actual_size_bytes,
             } => {
-                <i32>::sse_encode(0, serializer);
+                <i32>::sse_encode(1, serializer);
                 <u64>::sse_encode(max_size_bytes, serializer);
                 <u64>::sse_encode(actual_size_bytes, serializer);
             }

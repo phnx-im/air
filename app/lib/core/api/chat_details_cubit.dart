@@ -454,6 +454,9 @@ class RequiredDebugCapabilities {
 sealed class UploadAttachmentError with _$UploadAttachmentError {
   const UploadAttachmentError._();
 
+  /// The image could not be decoded, so it can never be sent.
+  const factory UploadAttachmentError.decodingError() =
+      UploadAttachmentError_DecodingError;
   const factory UploadAttachmentError.tooLarge({
     required BigInt maxSizeBytes,
     required BigInt actualSizeBytes,

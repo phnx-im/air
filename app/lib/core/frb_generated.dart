@@ -11609,6 +11609,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
+        return UploadAttachmentError_DecodingError();
+      case 1:
         return UploadAttachmentError_TooLarge(
           maxSizeBytes: dco_decode_u_64(raw[1]),
           actualSizeBytes: dco_decode_u_64(raw[2]),
@@ -15697,6 +15699,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
+        return UploadAttachmentError_DecodingError();
+      case 1:
         var var_maxSizeBytes = sse_decode_u_64(deserializer);
         var var_actualSizeBytes = sse_decode_u_64(deserializer);
         return UploadAttachmentError_TooLarge(
@@ -19841,11 +19845,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
+      case UploadAttachmentError_DecodingError():
+        sse_encode_i_32(0, serializer);
       case UploadAttachmentError_TooLarge(
         maxSizeBytes: final maxSizeBytes,
         actualSizeBytes: final actualSizeBytes,
       ):
-        sse_encode_i_32(0, serializer);
+        sse_encode_i_32(1, serializer);
         sse_encode_u_64(maxSizeBytes, serializer);
         sse_encode_u_64(actualSizeBytes, serializer);
     }
