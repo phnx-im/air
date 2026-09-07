@@ -36,7 +36,7 @@ use crate::{
         },
     },
     groups::Group,
-    image_is_animated,
+    image_has_alpha, image_is_animated,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -132,10 +132,17 @@ impl CoreUser {
                 // Store the attachment and mark it as downloaded
                 let bytes = content.bytes.as_slice();
                 let is_animated = image_is_animated(bytes);
+                let has_alpha = image_has_alpha(bytes);
                 self.db()
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                        AttachmentRecord::set_content(&mut *txn, attachment_id, bytes, is_animated)
-                            .await?;
+                        AttachmentRecord::set_content(
+                            &mut *txn,
+                            attachment_id,
+                            bytes,
+                            is_animated,
+                            has_alpha,
+                        )
+                        .await?;
                         PendingAttachmentRecord::delete(txn, remote_attachment_id).await?;
                         Ok(())
                     })

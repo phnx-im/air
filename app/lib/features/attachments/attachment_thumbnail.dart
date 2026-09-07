@@ -32,6 +32,9 @@ class AttachmentThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final metadata = attachment.imageMetadata;
     final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    final placeholder = metadata != null
+        ? BlurHash(hash: metadata.blurhash)
+        : const SizedBox.shrink();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -41,7 +44,6 @@ class AttachmentThumbnail extends StatelessWidget {
           fit: .expand,
           children: [
             ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
-            if (metadata != null) BlurHash(hash: metadata.blurhash),
             Image(
               image: ResizeImage(
                 AttachmentThumbnailProvider(
@@ -54,7 +56,9 @@ class AttachmentThumbnail extends StatelessWidget {
                 allowUpscaling: false,
               ),
               fit: .cover,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              frameBuilder: (_, child, frame, _) =>
+                  frame == null ? placeholder : child,
+              errorBuilder: (_, _, _) => placeholder,
             ),
           ],
         ),

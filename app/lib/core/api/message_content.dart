@@ -60,6 +60,7 @@ sealed class UiImageMetadata with _$UiImageMetadata {
     required int width,
     required int height,
     bool? isAnimated,
+    bool? hasAlpha,
   }) = _UiImageMetadata;
 }
 

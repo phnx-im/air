@@ -1174,6 +1174,7 @@ class _MessageContent extends StatelessWidget {
         naturalWidth: metadata.width.toDouble(),
         naturalHeight: metadata.height.toDouble(),
         isSelf: isSender,
+        transparent: metadata.hasAlpha ?? false,
         // The attachment drives its own frames -- an animated picture steps
         // them one by one -- and takes the fit the chosen branch needs.
         builder: (fit) => AttachmentImage(

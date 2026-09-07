@@ -118,6 +118,9 @@ pub struct AttachmentInfo {
     pub attachment_id: AttachmentId,
     /// Whether the attachment is an animated image, if already classified
     pub is_animated: Option<bool>,
+    /// Whether the attachment is an image with an alpha channel, if already
+    /// classified
+    pub has_alpha: Option<bool>,
 }
 
 impl From<AttachmentId> for AttachmentInfo {
@@ -125,6 +128,7 @@ impl From<AttachmentId> for AttachmentInfo {
         Self {
             attachment_id,
             is_animated: None,
+            has_alpha: None,
         }
     }
 }

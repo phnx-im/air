@@ -46,6 +46,7 @@ pub(crate) struct AttachmentRecord {
     pub(super) content_type: String,
     pub(super) status: AttachmentStatus,
     pub(super) is_animated: Option<bool>,
+    pub(super) has_alpha: Option<bool>,
     pub(super) created_at: DateTime<Utc>,
 }
 
@@ -233,8 +234,9 @@ impl AttachmentRecord {
                 content_type,
                 status,
                 created_at,
-                is_animated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                is_animated,
+                has_alpha
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
             self.remote_attachment_id,
             self.chat_id,
@@ -243,6 +245,7 @@ impl AttachmentRecord {
             self.status,
             self.created_at,
             self.is_animated,
+            self.has_alpha,
         )
         .execute(connection.as_mut())
         .await?;
@@ -289,7 +292,8 @@ impl AttachmentRecord {
                     content_type AS "content_type: _",
                     status AS "status: _",
                     created_at AS "created_at: _",
-                    is_animated
+                    is_animated,
+                    has_alpha
                 FROM attachment
                 WHERE attachment_id = ?"#,
             attachment_id
@@ -420,14 +424,17 @@ impl AttachmentRecord {
         attachment_id: AttachmentId,
         bytes: &[u8],
         is_animated: bool,
+        has_alpha: bool,
     ) -> sqlx::Result<()> {
         let updated = query!(
             "UPDATE attachment SET
                 status = ?,
-                is_animated = ?
+                is_animated = ?,
+                has_alpha = ?
             WHERE attachment_id = ?",
             AttachmentStatus::Ready,
             is_animated,
+            has_alpha,
             attachment_id,
         )
         .execute(connection.as_mut())
@@ -546,12 +553,14 @@ impl AttachmentRecord {
         struct Row {
             attachment_id: AttachmentId,
             is_animated: Option<bool>,
+            has_alpha: Option<bool>,
         }
         let rows = query_as!(
             Row,
             r#"SELECT
                 attachment_id AS "attachment_id: _",
-                is_animated
+                is_animated,
+                has_alpha
             FROM attachment
             WHERE message_id = ?
             ORDER BY rowid"#,
@@ -564,6 +573,7 @@ impl AttachmentRecord {
             .map(|row| AttachmentInfo {
                 attachment_id: row.attachment_id,
                 is_animated: row.is_animated,
+                has_alpha: row.has_alpha,
             })
             .collect())
     }
@@ -578,6 +588,7 @@ impl AttachmentRecord {
             message_id: MessageId,
             attachment_id: AttachmentId,
             is_animated: Option<bool>,
+            has_alpha: Option<bool>,
         }
 
         // Normalize the range
@@ -591,7 +602,8 @@ impl AttachmentRecord {
             SELECT
                 a.message_id AS "message_id: _",
                 a.attachment_id AS "attachment_id: _",
-                a.is_animated
+                a.is_animated,
+                a.has_alpha
             FROM attachment a
             JOIN message m USING (message_id)
             WHERE m.chat_id = ?
@@ -613,6 +625,7 @@ impl AttachmentRecord {
             message_id,
             attachment_id,
             is_animated,
+            has_alpha,
         } in rows
         {
             attachment_infos
@@ -621,6 +634,7 @@ impl AttachmentRecord {
                 .push(AttachmentInfo {
                     attachment_id,
                     is_animated,
+                    has_alpha,
                 });
         }
 
@@ -778,6 +792,7 @@ pub(crate) mod test {
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             is_animated: Some(false),
+            has_alpha: Some(false),
             created_at: Utc::now().round_subsecs(6),
         }
     }
@@ -859,8 +874,14 @@ pub(crate) mod test {
 
         // 3. Set the content, which should move the status to Ready
         let content = b"some_image_content".to_vec();
-        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content, true)
-            .await?;
+        AttachmentRecord::set_content(
+            pool.write().await?,
+            record.attachment_id,
+            &content,
+            true,
+            false,
+        )
+        .await?;
 
         // Verify content and status
         let loaded_content =
@@ -897,7 +918,7 @@ pub(crate) mod test {
         let pool = DbAccess::for_tests(pool);
 
         let attachment_id = AttachmentId::random();
-        AttachmentRecord::set_content(pool.write().await?, attachment_id, b"content", false)
+        AttachmentRecord::set_content(pool.write().await?, attachment_id, b"content", false, false)
             .await?;
 
         let loaded_content =
@@ -1106,6 +1127,7 @@ pub(crate) mod test {
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             is_animated: Some(false),
+            has_alpha: Some(false),
             created_at,
         };
 

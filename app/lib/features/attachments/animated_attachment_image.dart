@@ -25,17 +25,18 @@ const int _maxAutoLoops = 3;
 /// replay from the start). Neither bytes nor frames are held in widget state
 /// beyond the current frame; each mount drives its own animation.
 ///
-/// Renders nothing until the first frame is decoded, so the caller's
-/// placeholder shows through.
+/// Renders [placeholder] until the first frame is decoded.
 class AnimatedAttachmentImage extends StatefulWidget {
   const AnimatedAttachmentImage({
     super.key,
     required this.attachment,
+    required this.placeholder,
     required this.fit,
     required this.isSender,
   });
 
   final UiAttachment attachment;
+  final Widget placeholder;
   final BoxFit fit;
   final bool isSender;
 
@@ -188,7 +189,7 @@ class _AnimatedAttachmentImageState extends State<AnimatedAttachmentImage> {
                   fit: widget.fit,
                   alignment: Alignment.center,
                 )
-              : const SizedBox.expand(),
+              : widget.placeholder,
         ),
         AttachmentImageOverlay(
           attachmentId: widget.attachment.attachmentId,
