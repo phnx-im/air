@@ -108,6 +108,7 @@ regenerate-frb:
     CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
         flutter_rust_bridge_codegen generate --no-web
 
+    just dart run build_runner build
     cd .. && cargo fmt
 
 # Regenerate localization files.
