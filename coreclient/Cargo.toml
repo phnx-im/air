@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.21.0"
+version = "0.22.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -60,7 +60,7 @@ webpx.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true
-aircommon = { workspace = true, features = ["test_utils"] }
+aircommon = { workspace = true, features = ["test_utils"] , version = "0.22.0" }
 airserver_test_harness.workspace = true
 cbor-diag.workspace = true
 insta = { workspace = true, features = ["json"] }
