@@ -11,8 +11,11 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/language_options.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:logging/logging.dart';
 
 part 'user_session_cubit.freezed.dart';
+
+final _log = Logger('UserSessionCubit');
 
 @freezed
 sealed class UserSessionState with _$UserSessionState {
@@ -37,7 +40,18 @@ class UserSessionCubit extends Cubit<UserSessionState> {
     required this._userSettingsCubit,
     required this._appLocaleCubit,
   }) : super(const UserSessionState()) {
-    _subscription = _coreClient.userStream.asyncMap(_onUserChange).listen(null);
+    _subscription = _coreClient.userStream
+        .asyncMap(_onUserChange)
+        .listen(
+          null,
+          onError: (error, stackTrace) {
+            _log.severe(
+              'User change handler failed: $error',
+              error,
+              stackTrace,
+            );
+          },
+        );
   }
 
   final CoreClient _coreClient;
@@ -59,9 +73,14 @@ class UserSessionCubit extends Cubit<UserSessionState> {
       user != null ? _openSession(user) : _closeSession();
 
   Future<void> _openSession(User user) async {
-    // Attach settings before emitting
     await _userSettingsCubit.attach(user: user);
-    await _syncLocale();
+    try {
+      // Attach settings before emitting
+      await _syncLocale();
+    } catch (error, stackTrace) {
+      // The error is not fatal, because the user record is still there.
+      _log.severe('Failed to sync locale: $error', error, stackTrace);
+    }
     emit(UserSessionState(user: user));
 
     final navigationState = _navigationCubit.state;
