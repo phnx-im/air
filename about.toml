@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Config for `cargo about`, which collects the licenses of the Rust
+# dependencies shipped in the app. See `just regenerate-licenses`.
+#
+# Keep `accepted` and `targets` in sync with `deny.toml`.
+
+accepted = [
+    "AGPL-3.0-or-later",
+    "Apache-2.0 WITH LLVM-exception",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-apple-ios",
+    "aarch64-linux-android",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# Skip our own workspace crates (`publish = false`).
+private = { ignore = true }
+
+# No `license` field in Cargo.toml, only a LICENSE file.
+# spellchecker:ignore-next-line
+[allo-isolate.clarify]
+license = "Apache-2.0"
+
+# spellchecker:ignore-next-line
+[[allo-isolate.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
