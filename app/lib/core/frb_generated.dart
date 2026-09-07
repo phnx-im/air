@@ -11283,13 +11283,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiImageMetadata dco_decode_ui_image_metadata(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return UiImageMetadata(
       blurhash: dco_decode_String(arr[0]),
       width: dco_decode_u_32(arr[1]),
       height: dco_decode_u_32(arr[2]),
       isAnimated: dco_decode_opt_box_autoadd_bool(arr[3]),
+      hasAlpha: dco_decode_opt_box_autoadd_bool(arr[4]),
     );
   }
 
@@ -15348,11 +15349,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_width = sse_decode_u_32(deserializer);
     var var_height = sse_decode_u_32(deserializer);
     var var_isAnimated = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_hasAlpha = sse_decode_opt_box_autoadd_bool(deserializer);
     return UiImageMetadata(
       blurhash: var_blurhash,
       width: var_width,
       height: var_height,
       isAnimated: var_isAnimated,
+      hasAlpha: var_hasAlpha,
     );
   }
 
@@ -19528,6 +19531,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.width, serializer);
     sse_encode_u_32(self.height, serializer);
     sse_encode_opt_box_autoadd_bool(self.isAnimated, serializer);
+    sse_encode_opt_box_autoadd_bool(self.hasAlpha, serializer);
   }
 
   @protected

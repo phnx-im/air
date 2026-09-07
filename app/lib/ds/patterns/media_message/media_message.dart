@@ -4,6 +4,7 @@
 
 import 'dart:math' as math;
 
+import 'package:air/ds/components/checkerboard/checkerboard.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/media_message/media_message_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -23,6 +24,9 @@ import 'package:flutter/widgets.dart';
 /// Without natural dimensions the bubble hugs whatever the picture decodes to,
 /// under the same height cap.
 ///
+/// A [transparent] picture is backed by a [Checkerboard], so a see-through
+/// region reads as transparent instead of taking the bubble's fill.
+///
 /// A pure view: the pixels, the stand-in shown while they load, and any status
 /// affordance on top all arrive as slots, so the host owns the transfer and the
 /// pattern owns the geometry.
@@ -33,6 +37,7 @@ class MediaMessage extends StatelessWidget {
     this.naturalWidth,
     this.naturalHeight,
     this.isSelf = false,
+    this.transparent = false,
     this.placeholder,
     this.error,
     this.overlay,
@@ -49,6 +54,7 @@ class MediaMessage extends StatelessWidget {
     this.naturalWidth,
     this.naturalHeight,
     this.isSelf = false,
+    this.transparent = false,
     this.placeholder,
     this.overlay,
     this.onTap,
@@ -70,6 +76,9 @@ class MediaMessage extends StatelessWidget {
 
   /// Whether the bubble is the local user's. Picks the bubble fill.
   final bool isSelf;
+
+  /// Whether the picture has an alpha channel. Puts a [Checkerboard] under it.
+  final bool transparent;
 
   /// Painted behind the picture, inside the bubble: a blurhash or another cheap
   /// stand-in that holds the frame while the full picture decodes.
@@ -120,12 +129,13 @@ class MediaMessage extends StatelessWidget {
           error: error ?? const _MediaError(),
         );
 
-    if (placeholder == null) return picture;
-    // The picture sizes the stack and the stand-in stretches to it, so this
-    // holds in the branch where the frame has no size of its own either.
+    if (!transparent && placeholder == null) return picture;
+    // The picture sizes the stack and the layers under it stretch to it, so
+    // this holds in the branch where the frame has no size of its own either.
     return Stack(
       children: [
-        Positioned.fill(child: placeholder!),
+        if (transparent) const Positioned.fill(child: Checkerboard()),
+        if (placeholder != null) Positioned.fill(child: placeholder!),
         picture,
       ],
     );

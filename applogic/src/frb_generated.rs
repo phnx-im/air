@@ -12705,11 +12705,13 @@ impl SseDecode for crate::api::message_content::UiImageMetadata {
         let mut var_width = <u32>::sse_decode(deserializer);
         let mut var_height = <u32>::sse_decode(deserializer);
         let mut var_isAnimated = <Option<bool>>::sse_decode(deserializer);
+        let mut var_hasAlpha = <Option<bool>>::sse_decode(deserializer);
         return crate::api::message_content::UiImageMetadata {
             blurhash: var_blurhash,
             width: var_width,
             height: var_height,
             is_animated: var_isAnimated,
+            has_alpha: var_hasAlpha,
         };
     }
 }
@@ -15814,6 +15816,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiImageMetad
             self.width.into_into_dart().into_dart(),
             self.height.into_into_dart().into_dart(),
             self.is_animated.into_into_dart().into_dart(),
+            self.has_alpha.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19141,6 +19144,7 @@ impl SseEncode for crate::api::message_content::UiImageMetadata {
         <u32>::sse_encode(self.width, serializer);
         <u32>::sse_encode(self.height, serializer);
         <Option<bool>>::sse_encode(self.is_animated, serializer);
+        <Option<bool>>::sse_encode(self.has_alpha, serializer);
     }
 }
 

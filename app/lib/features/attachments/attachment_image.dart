@@ -21,8 +21,9 @@ final _log = Logger('AttachmentImage');
 /// [_StaticAttachmentImage], animated ones through [AnimatedAttachmentImage].
 /// When the flag is not yet known (the attachment was not yet downloaded when
 /// the message state was loaded), [_UnclassifiedAttachmentImage] classifies it
-/// via the repository and then delegates to the right branch. The blurhash
-/// stays underneath as the placeholder for all states.
+/// via the repository and then delegates to the right branch. The blurhash is
+/// the placeholder in all states until a frame is painted. It is not kept
+/// underneath the picture, so a transparent image is not blended with it.
 ///
 /// [onTap] is forwarded to the static branch (image viewer); animated
 /// attachments keep the tap for their own playback.
@@ -47,20 +48,24 @@ class AttachmentImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final placeholder = BlurHash(hash: imageMetadata.blurhash);
     final content = switch (imageMetadata.isAnimated) {
       false => _StaticAttachmentImage(
         attachment: attachment,
+        placeholder: placeholder,
         fit: fit,
         isSender: isSender,
         onTap: onTap,
       ),
       true => AnimatedAttachmentImage(
         attachment: attachment,
+        placeholder: placeholder,
         fit: fit,
         isSender: isSender,
       ),
       null => _UnclassifiedAttachmentImage(
         attachment: attachment,
+        placeholder: placeholder,
         fit: fit,
         isSender: isSender,
         onTap: onTap,
@@ -69,13 +74,7 @@ class AttachmentImage extends StatelessWidget {
 
     return AspectRatio(
       aspectRatio: imageMetadata.width / imageMetadata.height,
-      child: Stack(
-        fit: .expand,
-        children: [
-          BlurHash(hash: imageMetadata.blurhash),
-          content,
-        ],
-      ),
+      child: content,
     );
   }
 }
@@ -85,12 +84,14 @@ class AttachmentImage extends StatelessWidget {
 class _UnclassifiedAttachmentImage extends StatefulWidget {
   const _UnclassifiedAttachmentImage({
     required this.attachment,
+    required this.placeholder,
     required this.fit,
     required this.isSender,
     this.onTap,
   });
 
   final UiAttachment attachment;
+  final Widget placeholder;
   final BoxFit fit;
   final bool isSender;
   final void Function(ImageProvider thumbnail)? onTap;
@@ -132,21 +133,30 @@ class _UnclassifiedAttachmentImageState
     return switch (_isAnimated) {
       false => _StaticAttachmentImage(
         attachment: widget.attachment,
+        placeholder: widget.placeholder,
         fit: widget.fit,
         isSender: widget.isSender,
         onTap: widget.onTap,
       ),
       true => AnimatedAttachmentImage(
         attachment: widget.attachment,
+        placeholder: widget.placeholder,
         fit: widget.fit,
         isSender: widget.isSender,
       ),
-      null => AttachmentImageOverlay(
-        attachmentId: widget.attachment.attachmentId,
-        size: widget.attachment.size,
-        isSender: widget.isSender,
-        isAnimationPaused: false,
-        onTapDownload: () => unawaited(_classify(retryDownloadIfFailed: true)),
+      null => Stack(
+        fit: .expand,
+        children: [
+          widget.placeholder,
+          AttachmentImageOverlay(
+            attachmentId: widget.attachment.attachmentId,
+            size: widget.attachment.size,
+            isSender: widget.isSender,
+            isAnimationPaused: false,
+            onTapDownload: () =>
+                unawaited(_classify(retryDownloadIfFailed: true)),
+          ),
+        ],
       ),
     };
   }
@@ -159,12 +169,14 @@ class _UnclassifiedAttachmentImageState
 class _StaticAttachmentImage extends StatelessWidget {
   const _StaticAttachmentImage({
     required this.attachment,
+    required this.placeholder,
     required this.fit,
     required this.isSender,
     this.onTap,
   });
 
   final UiAttachment attachment;
+  final Widget placeholder;
   final BoxFit fit;
   final bool isSender;
   final void Function(ImageProvider thumbnail)? onTap;
@@ -187,7 +199,11 @@ class _StaticAttachmentImage extends StatelessWidget {
                 image: thumbnail,
                 fit: fit,
                 alignment: Alignment.center,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                // The placeholder is replaced, not covered, once a frame is
+                // there: a transparent picture must not blend with it.
+                frameBuilder: (_, child, frame, _) =>
+                    frame == null ? placeholder : child,
+                errorBuilder: (_, _, _) => placeholder,
               ),
             );
           },

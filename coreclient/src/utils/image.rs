@@ -69,6 +69,7 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
     pub(crate) is_animated: bool,
+    pub(crate) has_alpha: bool,
     /// WebP encoded thumbnail, or `None` if the original fits as thumbnail.
     /// Always set for animated sources (static first frame).
     pub(crate) thumbnail: Option<Vec<u8>>,
@@ -148,6 +149,20 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
+/// Classifies an attachment's encoded bytes as carrying an alpha channel by
+/// reading only the header.
+///
+/// Attachments are re-encoded as WebP, whose encoder drops the alpha plane of
+/// a fully opaque picture, so this is a real "has transparent pixels" for
+/// them.
+pub fn image_has_alpha(bytes: &[u8]) -> bool {
+    ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()
+        .and_then(|reader| reader.into_decoder().ok())
+        .is_some_and(|decoder| decoder.color_type().has_alpha())
+}
+
 /// Compute the blurhash on a (very) small thumbnail, which produces a very
 /// similar result for photos and runs much faster.
 fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
@@ -212,6 +227,7 @@ fn load_still_image<D: ImageDecoder>(
     );
 
     Ok(ReencodedAttachmentImage {
+        has_alpha: image_has_alpha(&webp_data),
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
@@ -296,6 +312,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
     );
 
     Ok(ReencodedAttachmentImage {
+        has_alpha: image_has_alpha(&webp_data),
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
@@ -441,6 +458,28 @@ mod test {
             .quality(80.0)
             .encode(webpx::Unstoppable)
             .unwrap()
+    }
+
+    #[test]
+    fn has_alpha_follows_the_encoded_alpha_plane() {
+        let encode = |rgba: &[u8]| {
+            webpx::Encoder::new_rgba(rgba, 16, 16)
+                .quality(80.0)
+                .encode(webpx::Unstoppable)
+                .unwrap()
+        };
+
+        let mut rgba = vec![127u8; 16 * 16 * 4];
+        for pixel in rgba.chunks_mut(4) {
+            pixel[3] = 0xff;
+        }
+        assert!(!image_has_alpha(&encode(&rgba)));
+
+        // Transparent bottom half.
+        for pixel in rgba[16 * 8 * 4..].chunks_mut(4) {
+            pixel[3] = 0;
+        }
+        assert!(image_has_alpha(&encode(&rgba)));
     }
 
     fn encode_animated_webp(width: u32, height: u32, frames: u32) -> Vec<u8> {

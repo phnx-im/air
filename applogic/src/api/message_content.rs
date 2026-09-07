@@ -108,6 +108,8 @@ pub struct UiImageMetadata {
     pub height: u32,
     /// Whether the image is animated, if already classified locally
     pub is_animated: Option<bool>,
+    /// Whether the image has an alpha channel, if already classified locally
+    pub has_alpha: Option<bool>,
 }
 
 impl UnresolvedMimiContent {
@@ -132,6 +134,7 @@ impl UnresolvedMimiContent {
                 size: attachment.size,
                 image_metadata: attachment.image_metadata.map(|metadata| UiImageMetadata {
                     is_animated: info.is_animated,
+                    has_alpha: info.has_alpha,
                     ..metadata
                 }),
             })

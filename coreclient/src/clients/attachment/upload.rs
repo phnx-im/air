@@ -148,6 +148,7 @@ impl CoreUser {
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
         let is_animated = attachment.image_data.as_ref().map(|data| data.is_animated);
+        let has_alpha = attachment.image_data.as_ref().map(|data| data.has_alpha);
         let thumbnail = attachment
             .image_data
             .as_mut()
@@ -191,6 +192,7 @@ impl CoreUser {
                     content_type: content_type.to_owned(),
                     status: AttachmentStatus::Uploading,
                     is_animated,
+                    has_alpha,
                     created_at: Utc::now(),
                 };
                 record
@@ -410,6 +412,7 @@ struct ProcessedAttachmentImageData {
     width: u32,
     height: u32,
     is_animated: bool,
+    has_alpha: bool,
     /// WebP encoded thumbnail, or `None` if the original fits as thumbnail
     thumbnail: Option<Vec<u8>>,
 }
@@ -422,6 +425,7 @@ impl ProcessedAttachment {
                 image_dimensions: (width, height),
                 blurhash,
                 is_animated,
+                has_alpha,
                 thumbnail,
             }) = load_attachment_image(path)?
             {
@@ -430,6 +434,7 @@ impl ProcessedAttachment {
                     width,
                     height,
                     is_animated,
+                    has_alpha,
                     thumbnail,
                 };
                 (webp_image.into(), "image/webp", Some(image_data))
