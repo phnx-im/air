@@ -28,6 +28,7 @@ const _features = AirFeatures(
   encryptedGroupProfiles: true,
   emptyConnectionGroupAttributes: true,
   pqGroups: true,
+  groupProfileComponent: true,
 );
 
 final _contacts = [
