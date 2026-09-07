@@ -1096,6 +1096,24 @@ class AppLocalizationsPt extends AppLocalizations {
   String get licensesScreen_title => 'Licenças';
 
   @override
+  String get licensesScreen_searchHint => 'Buscar pacotes';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pacotes',
+      one: '$count pacote',
+      zero: 'Nenhum pacote',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Nenhum pacote encontrado.';
+
+  @override
   String get contactUsScreen_title => 'Fale com o Air';
 
   @override
@@ -2577,6 +2595,24 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get licensesScreen_title => 'Licenças';
+
+  @override
+  String get licensesScreen_searchHint => 'Pesquisar pacotes';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pacotes',
+      one: '$count pacote',
+      zero: 'Não há pacotes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Nenhum pacote encontrado.';
 
   @override
   String get contactUsScreen_title => 'Contactar o Air';

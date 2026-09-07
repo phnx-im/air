@@ -1098,6 +1098,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get licensesScreen_title => 'Licences';
 
   @override
+  String get licensesScreen_searchHint => 'Chercher des paquets';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paquets',
+      one: '$count paquet',
+      zero: 'Aucun paquet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Aucun paquet trouvé.';
+
+  @override
   String get contactUsScreen_title => 'Contacter Air';
 
   @override

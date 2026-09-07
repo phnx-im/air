@@ -1884,6 +1884,24 @@ abstract class AppLocalizations {
   /// **'Licenses'**
   String get licensesScreen_title;
 
+  /// Placeholder of the search field above the package list on the licenses screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search packages'**
+  String get licensesScreen_searchHint;
+
+  /// Count of packages under the license list. Provide the plural forms your language needs. The zero case is worded without a number.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No packages} one {{count} package} other {{count} packages}}'**
+  String licensesScreen_packageCount(int count);
+
+  /// Shown when the package search on the licenses screen matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No packages found.'**
+  String get licensesScreen_noResults;
+
   /// Title of the modal for contacting the Air team.
   ///
   /// In en, this message translates to:

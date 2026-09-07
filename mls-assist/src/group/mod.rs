@@ -15,7 +15,7 @@ use openmls::{
     prelude::{
         ConfirmationTag, CreationFromExternalError, GroupEpoch, LeafNodeIndex, Member,
         OpenMlsSignaturePublicKey, ProcessedMessage, ProcessedMessageContent, ProposalStore,
-        PublicGroup, Sender, SignaturePublicKey, StagedCommit,
+        PublicGroup, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         group_info::{GroupInfo, VerifiableGroupInfo},
     },
     treesync::{LeafNode, RatchetTree, RatchetTreeIn},
@@ -215,6 +215,19 @@ impl Group {
 
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
         self.public_group.members()
+    }
+
+    /// The proposals waiting for a commit to include them.
+    pub fn queued_proposals<Storage: MlsAssistStorageProvider>(
+        &self,
+        storage: &Storage,
+    ) -> Result<Vec<QueuedProposal>, Storage::Error> {
+        Ok(self
+            .public_group
+            .queued_proposals(storage)?
+            .into_iter()
+            .map(|(_, proposal)| proposal)
+            .collect())
     }
 
     pub fn ext_commit_sender_index(
