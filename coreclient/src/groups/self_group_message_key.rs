@@ -539,6 +539,7 @@ mod derivation_tests {
             GroupAppData {
                 is_self_group,
                 safe_aad_components: None,
+                profile: None,
             },
         )?;
         Ok(group)
@@ -760,8 +761,10 @@ mod derivation_tests {
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
+                profile: None,
             }
-            .to_extension(),
+            .to_extension()
+            .unwrap(),
         )?;
         assert!(!GroupAppData::is_self_group_context(&flipped));
 

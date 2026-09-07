@@ -71,6 +71,47 @@ impl GroupData {
     }
 }
 
+impl From<GroupProfileComponent> for GroupData {
+    fn from(component: GroupProfileComponent) -> Self {
+        Self {
+            encrypted_title: component.encrypted_title,
+            external_group_profile: component.external_group_profile,
+            legacy_title: None,
+            legacy_picture: None,
+        }
+    }
+}
+
+/// A component inside group app data that carries the group profile.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// GroupProfileComponent = {
+///   encryptedTitle: EncryptedGroupTitle .tag 1,
+///   externalGroupProfile: ExternalGroupProfile .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, Eq, PartialEq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct GroupProfileComponent {
+    /// The encrypted group title of the group.
+    #[tag(1)]
+    pub encrypted_title: Option<EncryptedGroupTitle>,
+    /// A pointer to an encrypted group profile stored externally.
+    #[tag(2)]
+    pub external_group_profile: Option<ExternalGroupProfile>,
+}
+
+impl GroupProfileComponent {
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, codec::Error> {
+        PersistenceCodec::to_vec(self)
+    }
+
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes)
+    }
+}
+
 /// External encrypted group profile in the object storage.
 ///
 /// This type is similar to the `ExternalPart` in the [MIMI Message Content draft].
@@ -479,5 +520,28 @@ mod test {
         let external = builder.build(Uuid::new_v4());
         let decrypted = GroupProfile::decrypt(&key, &external, ciphertext).unwrap();
         assert_eq!(decrypted, profile);
+    }
+
+    #[test]
+    fn group_profile_component_stability() {
+        let component = GroupProfileComponent {
+            encrypted_title: Some(EncryptedGroupTitle {
+                ciphertext: b"title-ciphertext".to_vec(),
+                nonce: [0xAA; _],
+                aad: b"group-title".to_vec(),
+            }),
+            external_group_profile: Some(ExternalGroupProfile {
+                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
+                size: 42,
+                enc_alg: Some(EncryptionAlgorithm::Aes256Gcm),
+                nonce: [0xBB; _],
+                aad: b"group-profile".to_vec(),
+                hash_alg: HashAlgorithm::Sha256,
+                content_hash: [0xCC; 32].to_vec(),
+            }),
+        };
+        let bytes = PersistenceCodec::to_vec(&component).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
     }
 }

@@ -385,10 +385,7 @@ impl CoreUser {
         else {
             return Ok(None);
         };
-        let Some(bytes) = group.group_data() else {
-            return Ok(None);
-        };
-        Ok(Some(GroupData::decode(&bytes)?))
+        group.group_data()
     }
 
     /// Sends a self-update commit that forces the given [`AirFeatures`] into the own leaf node.

@@ -14,7 +14,9 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::component::{
+    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent,
+};
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;
@@ -297,12 +299,10 @@ impl AppDataDebugInfo {
             .map(|list| {
                 list.component_ids
                     .iter()
-                    .map(|id| {
-                        if *id == AIR_COMPONENT_ID {
-                            format!("Air({id:#06x})")
-                        } else {
-                            format!("{id:#06x}")
-                        }
+                    .map(|id| match *id {
+                        AIR_COMPONENT_ID => format!("Air({id:#06x})"),
+                        AIR_GROUP_PROFILE_COMPONENT_ID => format!("GroupProfile({id:#06x})"),
+                        _ => format!("{id:#06x}"),
                     })
                     .collect()
             })

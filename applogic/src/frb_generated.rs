@@ -9237,6 +9237,7 @@ const _: fn() = || {
         let _: bool = AirFeatures.encrypted_group_profiles;
         let _: bool = AirFeatures.empty_connection_group_attributes;
         let _: bool = AirFeatures.pq_groups;
+        let _: bool = AirFeatures.group_profile_component;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -10365,10 +10366,12 @@ impl SseDecode for crate::api::types::AirFeatures {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
         let mut var_emptyConnectionGroupAttributes = <bool>::sse_decode(deserializer);
         let mut var_pqGroups = <bool>::sse_decode(deserializer);
+        let mut var_groupProfileComponent = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
             empty_connection_group_attributes: var_emptyConnectionGroupAttributes,
             pq_groups: var_pqGroups,
+            group_profile_component: var_groupProfileComponent,
         };
     }
 }
@@ -14089,6 +14092,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures
                 .into_into_dart()
                 .into_dart(),
             self.0.pq_groups.into_into_dart().into_dart(),
+            self.0.group_profile_component.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17255,6 +17259,7 @@ impl SseEncode for crate::api::types::AirFeatures {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
         <bool>::sse_encode(self.empty_connection_group_attributes, serializer);
         <bool>::sse_encode(self.pq_groups, serializer);
+        <bool>::sse_encode(self.group_profile_component, serializer);
     }
 }
 

@@ -15,6 +15,7 @@
 //!    `Extensions<GroupContext>`. Holds the third layer next to unrelated things: the QS client
 //!    reference in leaves, required capabilities and group data extension in the group context.
 
+use aircommon::codec;
 use mls_assist::components::ComponentsList;
 use openmls::{
     component::{ComponentId, ComponentType},
@@ -27,10 +28,13 @@ use openmls::{
 use tls_codec::{DeserializeBytes, Serialize};
 use tracing::error;
 
-use crate::client::component::{AIR_COMPONENT_ID, AirComponent, AirFeatures};
+use crate::client::{
+    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures},
+    group::GroupProfileComponent,
+};
 
 /// List of components supported by this client.
-const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
+const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID];
 
 /// App data a client advertises in its leaf node or key package.
 ///
@@ -55,6 +59,10 @@ pub struct GroupAppData {
     ///
     /// None if the group does not use SafeAAD.
     pub safe_aad_components: Option<Vec<ComponentId>>,
+    /// Group profile component.
+    ///
+    /// Missing for legacy groups where the group profile is stored in a group context extension.
+    pub profile: Option<GroupProfileComponent>,
 }
 
 impl ClientAppData {
@@ -179,16 +187,29 @@ impl GroupAppData {
         let component = air_component(dict)?;
         let safe_aad_components =
             components_list(dict, ComponentType::SafeAad.into()).map(|list| list.component_ids);
+        let profile = dict.get(&AIR_GROUP_PROFILE_COMPONENT_ID).and_then(|data| {
+            GroupProfileComponent::from_bytes(data)
+                .inspect_err(|error| {
+                    error!(%error, "Failed to deserialize group profile component");
+                })
+                .ok()
+        });
         Some(Self {
             is_self_group: component.is_self_group,
             safe_aad_components,
+            profile,
         })
     }
 
-    fn to_dictionary(&self) -> AppDataDictionary {
-        let mut component_ids = SUPPORTED_COMPONENTS.to_vec();
+    fn to_dictionary(&self) -> Result<AppDataDictionary, codec::Error> {
+        // Components the group carries, not the ones this client supports. The group profile
+        // component is added here once groups are created with it.
+        let mut component_ids = vec![AIR_COMPONENT_ID];
         if self.safe_aad_components.is_some() {
             component_ids.push(ComponentType::SafeAad.into());
+        }
+        if self.profile.is_some() {
+            component_ids.push(AIR_GROUP_PROFILE_COMPONENT_ID);
         }
         let mut dict = AppDataDictionary::new();
         insert_components_list(
@@ -199,6 +220,9 @@ impl GroupAppData {
         if let Some(ids) = &self.safe_aad_components {
             insert_components_list(&mut dict, ComponentType::SafeAad.into(), ids.clone());
         }
+        if let Some(profile) = &self.profile {
+            dict.insert(AIR_GROUP_PROFILE_COMPONENT_ID, profile.to_bytes()?);
+        }
         insert_air_component(
             &mut dict,
             &AirComponent {
@@ -206,12 +230,12 @@ impl GroupAppData {
                 is_self_group: self.is_self_group,
             },
         );
-        dict
+        Ok(dict)
     }
 
     // Layer 3 and 4: extension and extensions list.
 
-    fn from_group_context(extensions: &Extensions<GroupContext>) -> Option<Self> {
+    pub fn from_group_context(extensions: &Extensions<GroupContext>) -> Option<Self> {
         Self::from_dictionary(extensions.app_data_dictionary()?.dictionary())
     }
 
@@ -219,8 +243,14 @@ impl GroupAppData {
         Self::from_group_context(extensions).is_some_and(|data| data.is_self_group)
     }
 
-    pub fn to_extension(&self) -> Extension {
-        Extension::AppDataDictionary(AppDataDictionaryExtension::new(self.to_dictionary()))
+    pub fn group_profile(extensions: &Extensions<GroupContext>) -> Option<GroupProfileComponent> {
+        Self::from_group_context(extensions).and_then(|data| data.profile)
+    }
+
+    pub fn to_extension(&self) -> Result<Extension, codec::Error> {
+        Ok(Extension::AppDataDictionary(
+            AppDataDictionaryExtension::new(self.to_dictionary()?),
+        ))
     }
 }
 
@@ -270,6 +300,10 @@ fn is_virtual_client(dict: &AppDataDictionary) -> bool {
 #[cfg(test)]
 mod test {
     use aircommon::codec::PersistenceCodec;
+    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use uuid::uuid;
+
+    use crate::client::group::{EncryptedGroupTitle, ExternalGroupProfile};
 
     use super::*;
 
@@ -278,6 +312,31 @@ mod test {
             panic!("not an app data dictionary extension");
         };
         extension.dictionary().clone()
+    }
+
+    fn app_components(dict: &AppDataDictionary) -> Vec<ComponentId> {
+        components_list(dict, ComponentType::AppComponents.into())
+            .unwrap()
+            .component_ids
+    }
+
+    fn test_profile() -> GroupProfileComponent {
+        GroupProfileComponent {
+            encrypted_title: Some(EncryptedGroupTitle {
+                ciphertext: b"title-ciphertext".to_vec(),
+                nonce: [0xAA; _],
+                aad: b"group-title".to_vec(),
+            }),
+            external_group_profile: Some(ExternalGroupProfile {
+                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
+                size: 42,
+                enc_alg: Some(EncryptionAlgorithm::Aes256Gcm),
+                nonce: [0xBB; _],
+                aad: b"group-profile".to_vec(),
+                hash_alg: HashAlgorithm::Sha256,
+                content_hash: [0xCC; 32].to_vec(),
+            }),
+        }
     }
 
     #[test]
@@ -366,8 +425,10 @@ mod test {
                 GroupAppData {
                     is_self_group,
                     safe_aad_components: None,
+                    profile: None,
                 }
-                .to_extension(),
+                .to_extension()
+                .unwrap(),
             ])
             .unwrap()
         };
@@ -385,12 +446,65 @@ mod test {
 
     #[test]
     fn group_app_data_round_trip() {
-        let data = GroupAppData {
-            is_self_group: true,
-            safe_aad_components: Some(vec![0x8042]),
-        };
-        let extensions = Extensions::from_vec(vec![data.to_extension()]).unwrap();
-        assert_eq!(GroupAppData::from_group_context(&extensions), Some(data));
+        for data in [
+            GroupAppData {
+                is_self_group: true,
+                safe_aad_components: Some(vec![0x8042]),
+                profile: Some(test_profile()),
+            },
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+                profile: None,
+            },
+        ] {
+            let extensions = Extensions::from_vec(vec![data.to_extension().unwrap()]).unwrap();
+            assert_eq!(GroupAppData::from_group_context(&extensions), Some(data));
+        }
+    }
+
+    #[test]
+    fn group_profile_is_carried_only_when_set() {
+        let dict = dictionary_of(
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+                profile: Some(test_profile()),
+            }
+            .to_extension()
+            .unwrap(),
+        );
+        assert!(dict.contains(&AIR_GROUP_PROFILE_COMPONENT_ID));
+        assert!(app_components(&dict).contains(&AIR_GROUP_PROFILE_COMPONENT_ID));
+
+        let dict = dictionary_of(
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+                profile: None,
+            }
+            .to_extension()
+            .unwrap(),
+        );
+        assert!(!dict.contains(&AIR_GROUP_PROFILE_COMPONENT_ID));
+        assert!(!app_components(&dict).contains(&AIR_GROUP_PROFILE_COMPONENT_ID));
+    }
+
+    /// An undecodable profile component reads as no profile, so callers fall back to the legacy
+    /// group data extension instead of failing.
+    #[test]
+    fn undecodable_group_profile_reads_as_none() {
+        let mut dict = GroupAppData {
+            is_self_group: false,
+            safe_aad_components: None,
+            profile: Some(test_profile()),
+        }
+        .to_dictionary()
+        .unwrap();
+        dict.insert(AIR_GROUP_PROFILE_COMPONENT_ID, b"garbage".to_vec());
+
+        let data = GroupAppData::from_dictionary(&dict).unwrap();
+        assert_eq!(data.profile, None);
     }
 
     /// `safe_aad_required()` on the group context checks for a dictionary entry whose *key* is the
@@ -403,8 +517,10 @@ mod test {
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
+                profile: None,
             }
-            .to_extension(),
+            .to_extension()
+            .unwrap(),
         );
 
         // The SafeAad entry is present as a dictionary key...
@@ -435,8 +551,10 @@ mod test {
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
+                profile: None,
             }
-            .to_extension(),
+            .to_extension()
+            .unwrap(),
         );
 
         assert!(!dict.contains(&ComponentId::from(ComponentType::SafeAad)));

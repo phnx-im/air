@@ -309,6 +309,7 @@ impl CoreUser {
                 let client_app_data = GroupAppData {
                     is_self_group: true,
                     safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                    profile: None,
                 };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
