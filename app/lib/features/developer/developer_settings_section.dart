@@ -14,7 +14,7 @@ import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/developer/logs_screen.dart';
 import 'package:air/features/developer/user_debug_info.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
@@ -103,7 +103,7 @@ class DeveloperSettingsView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.select(
-      (LoadableUserCubit cubit) => cubit.state.loadedUser,
+      (UserSessionCubit cubit) => cubit.state.activeUser,
     );
 
     final debugInfo = useUserDebugInfo(user);

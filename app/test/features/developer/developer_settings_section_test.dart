@@ -16,7 +16,7 @@ import 'package:air/features/developer/log_entry.dart';
 import 'package:air/features/developer/logs_screen.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/l10n/l10n.dart';
@@ -30,17 +30,15 @@ import '../../mocks.dart';
 
 void main() {
   group('DeveloperSettingsView', () {
-    late MockLoadableUserCubit loadableUserCubit;
+    late MockUserSessionCubit userSessionCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() {
-      loadableUserCubit = MockLoadableUserCubit();
+      userSessionCubit = MockUserSessionCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
       // No user loaded, so the rows reporting on one stay out of the way.
-      when(
-        () => loadableUserCubit.state,
-      ).thenReturn(const LoadableUser.loading());
+      when(() => userSessionCubit.state).thenReturn(const UserSessionState());
       when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(developerMode: true));
@@ -64,7 +62,7 @@ void main() {
 
       return MultiBlocProvider(
         providers: [
-          BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+          BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: Builder(

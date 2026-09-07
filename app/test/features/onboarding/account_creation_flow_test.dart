@@ -9,8 +9,8 @@ import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
@@ -63,19 +63,19 @@ void main() {
     late MockRegistrationCubit registrationCubit;
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
-    late MockLoadableUserCubit loadableUserCubit;
+    late MockUserSessionCubit userSessionCubit;
 
     setUp(() {
       registrationCubit = MockRegistrationCubit();
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
-      loadableUserCubit = MockLoadableUserCubit();
+      userSessionCubit = MockUserSessionCubit();
 
       // No user until the account is created between the profile and username
       // steps. Tests that reach the created-account state override this.
       when(
-        () => loadableUserCubit.state,
-      ).thenReturn(const LoadableUser.unloaded());
+        () => userSessionCubit.state,
+      ).thenReturn(const UserSessionState(loggedOut: true));
       when(() => navigationCubit.state).thenReturn(
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
@@ -94,7 +94,7 @@ void main() {
         BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
         BlocProvider<UserCubit>.value(value: userCubit),
-        BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+        BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
       ],
       child: Builder(
         builder: (context) => MaterialApp(
@@ -252,8 +252,8 @@ void main() {
       // drop the widget entirely, mark the user loaded, then build a brand-new
       // flow.
       when(
-        () => loadableUserCubit.state,
-      ).thenReturn(LoadableUser.loaded(MockUser()));
+        () => userSessionCubit.state,
+      ).thenReturn(UserSessionState(user: MockUser()));
       await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

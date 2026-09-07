@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/developer/change_user_modal.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 
 import '../../helpers.dart';
@@ -41,17 +41,19 @@ final clientRecords = [
 void main() {
   group('ChangeUserModal', () {
     late MockUser user;
-    late MockLoadableUserCubit loadableUserCubit;
+    late MockUserSessionCubit userSessionCubit;
     late MockUsersCubit usersCubit;
 
     setUp(() async {
       user = MockUser();
       usersCubit = MockUsersCubit();
-      loadableUserCubit = MockLoadableUserCubit();
+      userSessionCubit = MockUserSessionCubit();
 
       when(() => user.userId).thenReturn(1.userId());
       when(() => user.clientRecordId).thenReturn(1.clientRecordId());
-      when(() => loadableUserCubit.state).thenReturn(LoadableUser.loaded(user));
+      when(
+        () => userSessionCubit.state,
+      ).thenReturn(UserSessionState(user: user));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(
           defaultUserId: 1.userId(),
@@ -62,7 +64,7 @@ void main() {
 
     Widget buildSubject() => MultiBlocProvider(
       providers: [
-        BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+        BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
         BlocProvider<UsersCubit>.value(value: usersCubit),
       ],
       child: Builder(

@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:provider/provider.dart';
 
@@ -42,7 +42,7 @@ class _ClientRecordsList extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final ownClientRecordId = context.select(
-      (LoadableUserCubit cubit) => cubit.state.loadedUser?.clientRecordId,
+      (UserSessionCubit cubit) => cubit.state.activeUser?.clientRecordId,
     );
 
     final clientRecordsFut = useMemoized(

@@ -6,6 +6,9 @@ import 'dart:async';
 
 import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('UserSettingsCubit');
 
 extension UserSettingsExtension on UserSettings {
   /// Whether experimental features are in effect.
@@ -40,7 +43,13 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
   /// Binds this wrapper to `user` and loads the persisted settings.
   Future<void> attach({required User user}) async {
     _dropImpl();
-    var loaded = await loadUserSettings(user: user);
+    UserSettings loaded;
+    try {
+      loaded = await loadUserSettings(user: user);
+    } catch (error, stackTrace) {
+      _log.severe('Failed to load user settings: $error', error, stackTrace);
+      loaded = const UserSettings();
+    }
     // Carry over the developer flags toggled before login. The unlock happens
     // on the intro screen, so it predates the user it is persisted against.
     if (_detachedState.developerMode) {
