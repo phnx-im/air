@@ -209,6 +209,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.1"
+  dot_shorthand_converter:
+    dependency: "direct dev"
+    description:
+      name: dot_shorthand_converter
+      sha256: eede8c03f0f39e163ac11a079433f636c10adb616776880c473904fde08a2a9b
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.4"
   fake_async:
     dependency: transitive
     description:
@@ -372,10 +380,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_rust_bridge
-      sha256: "7e8f565714dcb06197d29c74a559ee826c4eab4d586d7ccf9826aa5dc9478015"
+      sha256: ec69331e2335ab4d456c0a9fc700892c2c85b72b9c0cb39df3ecfe8833d5d5c8
       url: "https://pub.dev"
     source: hosted
-    version: "2.13.0-beta.6"
+    version: "2.13.0"
   flutter_rust_bridge_hooks:
     dependency: "direct dev"
     description:
@@ -724,22 +732,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
-  package_info_plus:
-    dependency: "direct main"
-    description:
-      name: package_info_plus
-      sha256: "127e1751e37ffb2ff4658beeaca77bad0c27bf5f932bd3a501c2296926d4b481"
-      url: "https://pub.dev"
-    source: hosted
-    version: "10.2.1"
-  package_info_plus_platform_interface:
-    dependency: transitive
-    description:
-      name: package_info_plus_platform_interface
-      sha256: db762cb2f4f25ee60fb6359773861b0f199e00b90d237bd85a76a1e806b46ef4
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
   path:
     dependency: "direct main"
     description:

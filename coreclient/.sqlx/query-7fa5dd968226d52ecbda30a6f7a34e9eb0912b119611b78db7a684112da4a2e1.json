@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT token_key_id\n         FROM privacy_pass_token\n         WHERE operation_type = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "token_key_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "token_key_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7fa5dd968226d52ecbda30a6f7a34e9eb0912b119611b78db7a684112da4a2e1"
+}

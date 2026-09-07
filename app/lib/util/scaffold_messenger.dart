@@ -106,11 +106,11 @@ SnackBar _asPill(SnackBar source, SnackbarTone tone) {
     duration: source.duration,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    behavior: SnackBarBehavior.floating,
+    behavior: .floating,
     padding: EdgeInsets.zero,
     margin: SnackbarTokens.insets,
     // The carrier clips to its own bounds by default, which would cut the
     // pill's drop shadow.
-    clipBehavior: Clip.none,
+    clipBehavior: .none,
   );
 }

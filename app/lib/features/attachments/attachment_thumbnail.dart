@@ -38,7 +38,7 @@ class AttachmentThumbnail extends StatelessWidget {
       child: SizedBox.square(
         dimension: size,
         child: Stack(
-          fit: StackFit.expand,
+          fit: .expand,
           children: [
             ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
             if (metadata != null) BlurHash(hash: metadata.blurhash),
@@ -50,10 +50,10 @@ class AttachmentThumbnail extends StatelessWidget {
                 ),
                 width: pixels,
                 height: pixels,
-                policy: ResizeImagePolicy.fit,
+                policy: .fit,
                 allowUpscaling: false,
               ),
-              fit: BoxFit.cover,
+              fit: .cover,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ],

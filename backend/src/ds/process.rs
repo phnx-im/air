@@ -161,7 +161,6 @@ use aircommon::{
 
 use super::Ds;
 
-pub const USER_EXPIRATION_DAYS: i64 = 90;
 pub(super) type Provider = MlsAssistRustCrypto<PersistenceCodec>;
 
 impl Ds {

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT\n                m.chat_id AS \"chat_id: _\",\n                m.message_id AS \"message_id: _\"\n            FROM message m\n            JOIN attachment a ON a.message_id = m.message_id\n            LEFT JOIN chat_message_queue q ON q.message_id = m.message_id\n            WHERE m.sent = 0\n                AND m.status != ?1\n                AND q.message_id IS NULL\n                AND NOT EXISTS (\n                    SELECT 1 FROM attachment other\n                    WHERE other.message_id = m.message_id AND other.status != ?2\n                )",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "message_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c21d69f339821716b5073a52400b0c53141331db5b6d016cb856cc6001188549"
+}

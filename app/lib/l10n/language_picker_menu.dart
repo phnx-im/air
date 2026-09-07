@@ -48,13 +48,13 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
     // Use persisted user preference when available, otherwise fall back to
     // in-memory selection or device locale.
     final languageOptions = buildLanguageOptions();
-    final resolvedLocale = supportedLanguageLocale(
-      localeForLanguageCode(storedLocale) ??
+    final resolvedLocale = resolveSupportedLocale(
+      localeFromTag(storedLocale) ??
           overrideLocale ??
           Localizations.localeOf(context),
     );
     final currentOption = languageOptions.firstWhere(
-      (option) => option.locale.languageCode == resolvedLocale.languageCode,
+      (option) => option.locale == resolvedLocale,
       orElse: () => languageOptions.first,
     );
 
@@ -84,8 +84,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
           for (final option in options)
             MenuItem(
               label: option.label,
-              selected:
-                  option.locale.languageCode == resolvedLocale.languageCode,
+              selected: option.locale == resolvedLocale,
               onPressed: () =>
                   unawaited(widget.onLocaleSelected(option.locale)),
             ),

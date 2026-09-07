@@ -33,13 +33,13 @@ class AndroidStatusBar extends StatelessWidget {
       child: Padding(
         padding: padding,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: .spaceBetween,
+          crossAxisAlignment: .center,
           children: [
             _AndroidTime(color: color, fontSize: height * 0.45),
             Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: .min,
+              crossAxisAlignment: .end,
               children: [
                 SizedBox(
                   width: iconHeight,
@@ -84,7 +84,7 @@ class _AndroidTime extends StatelessWidget {
       style: TextStyle(
         fontFamily: 'Roboto',
         fontSize: fontSize,
-        fontWeight: FontWeight.w600,
+        fontWeight: .w600,
         letterSpacing: 0.15,
         color: color,
       ),
@@ -122,7 +122,7 @@ class _AndroidSignalPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.fill
+      ..style = .fill
       ..isAntiAlias = true;
 
     canvas.drawPath(path, paint);
@@ -158,7 +158,7 @@ class _AndroidWifiPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.fill
+      ..style = .fill
       ..isAntiAlias = true;
 
     final center = Offset(size.width / 2, size.height);
@@ -198,8 +198,8 @@ class _AndroidBattery extends StatelessWidget {
     final bodyWidth = iconHeight * 0.6;
 
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: .center,
+      crossAxisAlignment: .center,
       children: [
         Container(
           width: capWidth,

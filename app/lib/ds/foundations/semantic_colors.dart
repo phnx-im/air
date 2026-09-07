@@ -56,12 +56,39 @@ class BackgroundMaterial {
 class TextPalette {
   final Color primary, secondary, tertiary, quaternary;
 
-  const TextPalette({
+  TextPalette({
     required this.primary,
     required this.secondary,
     required this.tertiary,
     required this.quaternary,
   });
+
+  final Map<int, TextPalette> _opaque = {};
+
+  /// All four slots composited onto [background], each fully opaque.
+  TextPalette on(Color background) {
+    assert(background.a == 1.0, 'background must be opaque: $background');
+    assert(
+      _opaque.length < 16,
+      'text palette cache growing too much: are you pushing animated values?',
+    );
+    // Keyed on the packed value, which is unique here: the assert above fixes
+    // the alpha byte at 0xFF.
+    return _opaque[background.toARGB32()] ??= TextPalette(
+      primary: primary.on(background),
+      secondary: secondary.on(background),
+      tertiary: tertiary.on(background),
+      quaternary: quaternary.on(background),
+    );
+  }
+}
+
+extension OpaqueOn on Color {
+  /// This color composited onto [background], fully opaque.
+  Color on(Color background) {
+    assert(background.a == 1.0, 'background must be opaque: $background');
+    return Color.alphaBlend(this, background);
+  }
 }
 
 class SeparatorPalette {
@@ -189,7 +216,7 @@ class SemanticAlias {
   const SemanticAlias({required this.light, required this.dark});
 
   Color resolve(Brightness brightness) =>
-      (brightness == Brightness.dark ? dark : light).resolve();
+      (brightness == .dark ? dark : light).resolve();
 }
 
 /// Typed reference to one slot in the semantic palette. Adding a case here
@@ -491,26 +518,20 @@ class SemanticPalette {
           secondary: r(SemanticColor.functionWarningSecondary),
         ),
       ),
-      message: brightness == Brightness.dark
-          ? _darkMessagePalette
-          : _lightMessagePalette,
+      message: brightness == .dark ? _darkMessagePalette : _lightMessagePalette,
     );
   }
 
   static SemanticPalette of(BuildContext context) {
-    return MediaQuery.platformBrightnessOf(context) == Brightness.dark
+    return MediaQuery.platformBrightnessOf(context) == .dark
         ? darkSemanticPalette
         : lightSemanticPalette;
   }
 }
 
-final SemanticPalette lightSemanticPalette = SemanticPalette.from(
-  Brightness.light,
-);
+final SemanticPalette lightSemanticPalette = SemanticPalette.from(.light);
 
-final SemanticPalette darkSemanticPalette = SemanticPalette.from(
-  Brightness.dark,
-);
+final SemanticPalette darkSemanticPalette = SemanticPalette.from(.dark);
 
 /// Message-bubble colors are the one bundle without aliases: they are an
 /// Air-specific extension that the reference DS carries in its message-bubble

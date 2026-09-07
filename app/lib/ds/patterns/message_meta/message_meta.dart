@@ -96,10 +96,10 @@ class MessageMeta extends StatelessWidget {
         // The stamp is one line by definition, so a column too narrow to hold
         // it scales it down rather than wrapping or clipping it.
         child: FittedBox(
-          fit: BoxFit.scaleDown,
+          fit: .scaleDown,
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               for (final (index, part) in parts.indexed) ...[
                 if (index > 0) const _Dot(),
@@ -127,7 +127,7 @@ class _Dot extends StatelessWidget {
         height: MessageMetaTokens.dotSize,
         decoration: BoxDecoration(
           color: SemanticPalette.of(context).text.quaternary,
-          shape: BoxShape.circle,
+          shape: .circle,
         ),
       ),
     );
@@ -154,7 +154,7 @@ class _EditedStamp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         AppIcon.pencil(size: MessageMetaTokens.iconSize, color: ink),
         const SizedBox(width: MessageMetaTokens.gap),
@@ -185,7 +185,7 @@ class _DeliveryStamp extends StatelessWidget {
       status: status,
       size: MessageMetaTokens.iconSize,
       builder: (context, glyph, ink) => Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: .min,
         children: [
           glyph,
           if (label != null) ...[

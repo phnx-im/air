@@ -11,8 +11,9 @@ def apple_platform(platform)
       name: "iOS",
       beta_lane: "beta_ios",
       app_identifier: "ms.air",
-      # The notification service extension is signed alongside the app.
-      extension_identifiers: ["ms.air.nse"],
+      # The notification service and share extensions are signed alongside
+      # the app.
+      extension_identifiers: ["ms.air.nse", "ms.air.share"],
       # match defaults to the platform of the enclosing block, so iOS needs no
       # extra options.
       match_options: {},

@@ -51,16 +51,16 @@ class AttachmentUploadView extends HookWidget {
           return KeyEventResult.ignored;
         },
         child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           child: Stack(
-            fit: StackFit.expand,
+            fit: .expand,
             children: [
               if (isImage.data == true)
                 PhotoView(imageProvider: FileImage(loadedFile))
               else if (isImage.data == false)
                 Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: [
                       const AppIcon.paperclip(size: 64, color: Colors.white),
                       const SizedBox(height: S.s12),
@@ -102,7 +102,7 @@ class AttachmentUploadView extends HookWidget {
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
-                    clipBehavior: Clip.none,
+                    clipBehavior: .none,
                     title: Text(
                       title,
                       style: TextStyle(color: palette.text.primary),

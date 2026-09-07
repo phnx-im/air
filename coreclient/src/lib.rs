@@ -31,6 +31,7 @@ pub use crate::{
         reactions::LastReaction,
     },
     clients::{
+        MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentStatus, AttachmentUrl,
@@ -40,7 +41,7 @@ pub use crate::{
         block_contact::BlockedContactError,
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},
         invitation_code::{InvitationCode, RequestInvitationCodeError},
-        invite_users::InviteUsersError,
+        invite_users::InviteUsersResult,
         linked_devices::{LinkedDevicesSetting, current_platform},
         safety_code::SafetyCode,
         user_settings::{
@@ -53,7 +54,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
-    privacy_pass::{RequestTokensError, TokenId},
+    privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,
     utils::{

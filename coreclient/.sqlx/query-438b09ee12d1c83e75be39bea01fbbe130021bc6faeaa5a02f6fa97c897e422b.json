@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_batch WHERE operation_type = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "438b09ee12d1c83e75be39bea01fbbe130021bc6faeaa5a02f6fa97c897e422b"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT request_hash FROM as_token_issuance\n                WHERE user_uuid = $1\n                    AND user_domain = $2\n                    AND operation_type = $3\n                    AND allowance_epoch = $4\n                    AND key_fingerprint = $5\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "request_hash",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "as_token_issuance",
+            "name": "request_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "280661ed86d3a68bba62affb4302c4331090d1ec365ea2545a9b0c0cbbba846f"
+}

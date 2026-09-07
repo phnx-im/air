@@ -94,7 +94,7 @@ void main() {
         (widget) =>
             widget is Container &&
             widget.decoration is BoxDecoration &&
-            (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
+            (widget.decoration! as BoxDecoration).shape == .circle,
       );
 
       await tester.pumpWidget(buildSubject(onBack: () {}));

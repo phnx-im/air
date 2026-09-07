@@ -12,6 +12,14 @@ service AuthService {
   rpc CheckInvitationCode(CheckInvitationCodeRequest) returns (CheckInvitationCodeResponse);
   rpc GetInvitationCodes(GetInvitationCodesRequest) returns (GetInvitationCodesResponse);
 
+  // Reports whether registration currently needs a challenge, and which kinds
+  // this server accepts.
+  rpc GetRegistrationInfo(GetRegistrationInfoRequest) returns (GetRegistrationInfoResponse);
+
+  // Opens a push-admission session and sends its challenge to the given push
+  // endpoint. It is answered by carrying the challenge into RegisterUser.
+  rpc CreateAdmissionSession(CreateAdmissionSessionRequest) returns (CreateAdmissionSessionResponse);
+
   rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 
@@ -24,6 +32,7 @@ service AuthService {
   rpc AsCredentials(AsCredentialsRequest) returns (AsCredentialsResponse);
 
   rpc IssueTokens(IssueTokensRequest) returns (IssueTokensResponse);
+  rpc IssueTokenBatch(IssueTokenBatchRequest) returns (IssueTokenBatchResponse);
 
   rpc ReportSpam(ReportSpamRequest) returns (ReportSpamResponse);
 
@@ -174,18 +183,99 @@ message GetInvitationCodesResponse {
   repeated InvitationCode invitation_codes = 1;
 }
 
+// registration info
+
+// A kind of challenge a gated registration can answer with.
+enum ChallengeType {
+  CHALLENGE_TYPE_UNSPECIFIED = 0;
+  CHALLENGE_TYPE_INVITATION_CODE = 1;
+  // A session the client answered with a challenge delivered to its push
+  // endpoint.
+  CHALLENGE_TYPE_ADMISSION_SESSION = 2;
+  // Held for hCaptcha, which arrives with its own request field and verifier.
+  reserved 3;
+}
+
+message GetRegistrationInfoRequest {
+  // Must be set, but the server never rejects on the version it carries: this
+  // endpoint has to answer any client, and enforcement happens at RegisterUser.
+  common.v1.ClientMetadata client_metadata = 1;
+}
+
+message GetRegistrationInfoResponse {
+  // Whether a registration right now has to carry a challenge response. The
+  // answer can change between this call and the registration, so a client must
+  // still handle a ChallengeRequired outcome.
+  bool challenge_required = 1;
+  // The kinds this server verifies, in its own preference order.
+  repeated ChallengeType accepted_challenges = 2;
+}
+
+// admission sessions
+
+// The push service that issued a push token.
+enum PushPlatform {
+  PUSH_PLATFORM_UNSPECIFIED = 0;
+  PUSH_PLATFORM_APPLE = 1;
+  PUSH_PLATFORM_GOOGLE = 2;
+}
+
+message CreateAdmissionSessionRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  PushPlatform platform = 2;
+  // The push endpoint the challenge is sent to. The server keeps a keyed hash
+  // of it to count registrations per endpoint, never the token itself.
+  string push_token = 3;
+}
+
+// The same response whatever the endpoint's history is, so it says nothing
+// about the token or how much of its quota is left.
+message CreateAdmissionSessionResponse {
+  // Reaches the client over HTTPS only. Spending the session takes this and the
+  // challenge that reaches it over the push service, so the push service cannot
+  // redeem what it carried.
+  common.v1.Uuid session_id = 1;
+  // How long the session stays spendable, counted from receipt. A duration
+  // rather than an instant, so the client's clock need not agree with the
+  // server's.
+  uint32 lifetime_seconds = 2;
+}
+
+message AdmissionSession {
+  common.v1.Uuid session_id = 1;
+  // The value that arrived over the push service.
+  string challenge = 2;
+}
+
 // register user
 
 message RegisterUserRequest {
+  // 2 and 3 were used by fields that no longer exist
+  reserved 2, 3;
+
   common.v1.ClientMetadata client_metadata = 5;
   UserCredentialPayload user_credential_payload = 1;
   EncryptedUserProfile encrypted_user_profile = 4;
+  // Each challenge kind owns one optional field.
   InvitationCode invitation_code = 6;
+  AdmissionSession admission_session = 7;
 }
 
 message RegisterUserResponse {
-  UserCredential user_credential = 1;
+  oneof outcome {
+    UserCredential user_credential = 1;
+    ChallengeRequired challenge_required = 2;
+    ChallengeRejected challenge_rejected = 3;
+  }
 }
+
+// The gate is closed and the request carried no challenge of an accepted kind.
+message ChallengeRequired {
+  repeated ChallengeType accepted_challenges = 1;
+}
+
+// The challenge response the request carried does not admit it.
+message ChallengeRejected {}
 
 // delete user
 
@@ -280,6 +370,11 @@ message BatchedTokenKey {
   bytes public_key = 1;
   uint32 token_key_id = 2;
   OperationType operation_type = 3;
+  // Set on the newest key of each operation type. During the rotation overlap
+  // window the AS advertises both the outgoing and the incoming key, and only
+  // the current one is guaranteed to outlive the tokens minted under it, so
+  // clients must build new token requests with it.
+  bool is_current = 4;
 }
 
 message AsCredential {
@@ -342,6 +437,40 @@ message IssueTokensPayload {
 
 message IssueTokensResponse {
   bytes token_response = 1;
+}
+
+// issue token batch
+
+message IssueTokenBatchRequest {
+  IssueTokenBatchPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message IssueTokenBatchPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  OperationType operation_type = 2;
+  common.v1.UserId user_id = 3;
+  bytes token_request = 4;
+  // Allowance epoch the batch belongs to (months or days since the Unix
+  // epoch, depending on the operation type).
+  uint32 allowance_epoch = 5;
+}
+
+message IssueTokenBatchResponse {
+  oneof outcome {
+    bytes token_response = 1;
+    // A different token batch was already issued for this allowance epoch,
+    // meaning the requesting devices derived diverging token seeds.
+    IssuanceConflict issuance_conflict = 2;
+    // The claimed allowance epoch is not current on the server.
+    InvalidAllowanceEpoch invalid_allowance_epoch = 3;
+  }
+}
+
+message IssuanceConflict {}
+
+message InvalidAllowanceEpoch {
+  uint32 current_epoch = 1;
 }
 
 // report spam

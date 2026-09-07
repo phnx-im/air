@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
-pub(crate) use aircoreclient::InviteUsersError;
 use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -63,9 +63,21 @@ pub struct UiUser {
 struct UiUserInner {
     user_id: UserId,
     usernames: Vec<Username>,
-    unsupported_version: bool,
+    /// Status of the version of the client communicated by the server.
+    version_status: VersionStatus,
     /// Another device of this user removed this one from the self group.
     account_unlinked: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum VersionStatus {
+    /// No expiration is announced by the server.
+    Supported,
+    /// Server rejects this version.
+    Unsupported,
+    /// The server announced that the version stops being accepted at this time.
+    ExpiresAt(DateTime<Utc>),
 }
 
 impl UiUser {
@@ -130,9 +142,10 @@ impl UiUser {
             .collect()
     }
 
+    /// Return the status of the client version communicated by the server.
     #[frb(getter, sync)]
-    pub fn unsupported_version(&self) -> bool {
-        self.inner.unsupported_version
+    pub fn version_status(&self) -> VersionStatus {
+        self.inner.version_status
     }
 
     #[frb(getter, sync)]
@@ -175,7 +188,7 @@ impl UserCubitBase {
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
-            unsupported_version: false,
+            version_status: VersionStatus::Supported,
             account_unlinked: false,
         })));
 
@@ -281,24 +294,21 @@ impl UserCubitBase {
 
     /// Adds multiple users to the chat with the given [`ChatId`].
     ///
-    /// If one of the users cannot be added, an error is returned and the chat is not modified,
-    /// that is, other users are *not* added to the chat too.
-    //
-    // Note: We use the `Result<Option<_>, _>` return type because FRB does not support generics
-    // and so we cannot propagate the result directly.
+    /// Users that cannot be added because their client is not compatible
+    /// with the group are left out of the invite and returned.
     #[frb(positional)]
     pub async fn add_users_to_chat(
         &self,
         chat_id: ChatId,
         user_ids: Vec<UiUserId>,
-    ) -> anyhow::Result<Option<InviteUsersError>> {
+    ) -> anyhow::Result<Vec<UiUserId>> {
         let user_ids: Vec<_> = user_ids.into_iter().map(From::from).collect();
-        Ok(self
+        let result = self
             .context
             .core_user
             .invite_users(chat_id, &user_ids)
-            .await?
-            .err())
+            .await?;
+        Ok(result.users_not_added.into_iter().map(From::from).collect())
     }
 
     #[frb(positional)]
@@ -625,9 +635,4 @@ impl CubitContext {
                 .await;
         }
     }
-}
-
-#[frb(mirror(InviteUsersError))]
-enum _InviteUsersError {
-    IncompatibleClient { reason: String },
 }

@@ -56,8 +56,8 @@ class InvitationCodesContent extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: .min,
+      crossAxisAlignment: .start,
       children: [
         const _InvitationCodesList(),
         const SizedBox(height: S.s24),
@@ -258,7 +258,7 @@ class _InvitationTokenItem extends StatelessWidget {
               AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
               style: typeScale.body.regular
                   .style(color: palette.text.tertiary)
-                  .copyWith(fontStyle: FontStyle.italic),
+                  .copyWith(fontStyle: .italic),
             ),
             const Spacer(),
             AppIcon.circleDashed(size: 24, color: palette.text.tertiary),
@@ -329,7 +329,7 @@ class _InfoText extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: .start,
         children: [
           Text(loc.invitationCodesScreen_infoText1, style: style),
           const SizedBox(height: S.s12),

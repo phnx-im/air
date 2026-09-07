@@ -4,26 +4,38 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 pub mod controlled_listener;
 pub mod setup;
 
 use airbackend::{
     air_service::BackendService,
-    auth_service::AuthService,
+    auth_service::{
+        AuthService,
+        admission::{ChallengeSendError, ChallengeSender},
+    },
     ds::{Ds, storage::Storage},
     qs::Qs,
     relay_service::Rs,
-    settings::{DatabaseSettings, RateLimitsSettings},
+    settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
-use aircommon::identifiers::Fqdn;
+use aircommon::{
+    identifiers::Fqdn,
+    messages::push_token::{PushToken, PushTokenOperator},
+};
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
     configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider,
     qs_connector::SimpleEnqueueProvider, run,
 };
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 use tokio::{
     runtime::Handle,
@@ -50,10 +62,41 @@ const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
     burst: 1000,
 };
 
+/// What the server tried to send to a push endpoint. The tests read the
+/// challenge here instead of from a push service.
+pub type SentChallenges = Arc<Mutex<Vec<String>>>;
+
+#[derive(Debug)]
+struct LoopbackChallengeSender {
+    sent: SentChallenges,
+}
+
+#[async_trait]
+impl ChallengeSender for LoopbackChallengeSender {
+    fn supports(&self, _operator: &PushTokenOperator) -> bool {
+        true
+    }
+
+    async fn send_challenge(
+        &self,
+        _push_token: &PushToken,
+        _session_id: Uuid,
+        challenge: &str,
+        _expires_at: DateTime<Utc>,
+    ) -> Result<(), ChallengeSendError> {
+        self.sent
+            .lock()
+            .expect("the challenge lock is poisoned")
+            .push(challenge.to_owned());
+        Ok(())
+    }
+}
+
 pub struct SpawnedApp {
     pub address: SocketAddr,
     pub control_handle: ControlHandle,
     pub codes: Vec<String>,
+    pub sent_challenges: SentChallenges,
     db_settings: DatabaseSettings,
     db_names: DbNames,
     stop: CancellationToken,
@@ -129,8 +172,8 @@ pub(crate) async fn spawn_app(
 
     let TestBackendParams {
         rate_limits,
-        client_version_req,
-        invitation_only,
+        version_policy,
+        registration,
         unredeemable_code,
         max_attachment_size,
     } = params;
@@ -177,7 +220,7 @@ pub(crate) async fn spawn_app(
     let mut ds = Ds::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
@@ -196,7 +239,7 @@ pub(crate) async fn spawn_app(
     let mut auth_service = AuthService::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
@@ -204,8 +247,8 @@ pub(crate) async fn spawn_app(
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
-    let codes = if !invitation_only {
-        auth_service.disable_invitation_only();
+    // Any policy that can close the gate needs codes to answer it with.
+    let codes = if registration.policy == RegistrationPolicy::Open {
         Vec::new()
     } else {
         const N: usize = 10;
@@ -218,6 +261,11 @@ pub(crate) async fn spawn_app(
             .map(|(code, _)| code)
             .collect::<Vec<_>>()
     };
+    auth_service.set_registration_settings(registration);
+    let sent_challenges = SentChallenges::default();
+    auth_service.set_challenge_sender(Arc::new(LoopbackChallengeSender {
+        sent: sent_challenges.clone(),
+    }));
     if let Some(code) = unredeemable_code {
         auth_service.set_unredeemable_code(code);
     }
@@ -228,7 +276,7 @@ pub(crate) async fn spawn_app(
     let qs = Qs::new(
         &configuration.database,
         domain.clone(),
-        client_version_req.clone(),
+        version_policy.clone(),
         stop.clone(),
     )
     .await
@@ -272,6 +320,7 @@ pub(crate) async fn spawn_app(
         address,
         control_handle,
         codes,
+        sent_challenges,
         db_settings: configuration.database,
         db_names,
         stop,

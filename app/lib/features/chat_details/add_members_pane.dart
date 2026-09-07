@@ -121,20 +121,16 @@ class _AddMembersViewState extends State<AddMembersView> {
   ) async {
     final navigationCubit = context.read<NavigationCubit>();
     final userCubit = context.read<UserCubit>();
-    final error = await userCubit.addUserToChat(
+    final notAdded = await userCubit.addUserToChat(
       widget.chatId,
       selectedContacts.toList(),
     );
-    switch (error) {
-      // No error
-      case null:
-        navigationCubit.pop();
-        break;
-      case InviteUsersError_IncompatibleClient(:final reason):
-        _log.severe('Failed to add members: incompatible client', reason);
-        showErrorBannerStandalone(
-          (loc) => loc.addMembersScreen_error_incompatibleClient,
-        );
+    if (notAdded.isNotEmpty) {
+      _log.warning('Failed to add members: incompatible client');
+      showErrorBannerStandalone(
+        (loc) => loc.addMembersScreen_error_incompatibleClient,
+      );
     }
+    navigationCubit.pop();
   }
 }

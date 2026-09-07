@@ -82,7 +82,7 @@ class CenteredEmoji extends StatefulWidget {
           text: emoji,
           style: style.copyWith(fontSize: scaledSize),
         ),
-        textDirection: TextDirection.ltr,
+        textDirection: .ltr,
         textHeightBehavior: const TextHeightBehavior(
           leadingDistribution: .even,
         ),

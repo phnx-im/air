@@ -91,6 +91,7 @@ pub struct ApqSignatureKeyPair {
 }
 
 impl ApqSignatureKeyPair {
+    /// Generates an independent key pair for each leg.
     pub fn new(signature_scheme: ApqSignatureScheme) -> Result<Self, CryptoError> {
         let t_signer = SignatureKeyPair::new(signature_scheme.t_signature_scheme)?;
         let pq_signer = SignatureKeyPair::new(signature_scheme.pq_signature_scheme)?;

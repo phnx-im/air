@@ -43,7 +43,7 @@ class ChatDebugInfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: S.s24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           const DeveloperCaption('Developer'),
           ListRow(
@@ -168,7 +168,7 @@ class _GroupDebugInfoBody extends StatelessWidget {
       ..sort((a, b) => a.key.compareTo(b.key));
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       spacing: S.s16,
       children: [
         DeveloperCard(
@@ -250,7 +250,7 @@ class _GroupDebugInfoBody extends StatelessWidget {
             ],
           ),
         Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: .stretch,
           spacing: S.s12,
           children: [
             DeveloperCaption('Members (${sortedMembers.length})'),

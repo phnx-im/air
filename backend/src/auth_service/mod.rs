@@ -13,7 +13,6 @@ use credentials::{
     CredentialGenerationError, intermediate_signing_key::IntermediateSigningKey,
     signing_key::StorableSigningKey,
 };
-use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
@@ -21,10 +20,18 @@ use usernames::UsernameQueues;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
-    auth_service::client_record::ClientRecord,
+    auth_service::{
+        admission::{ChallengeSender, load_or_generate_endpoint_bucket_key},
+        client_record::ClientRecord,
+        registration_gate::{RegistrationGate, load_or_generate_ip_bucket_key},
+    },
+    bucket_key::BucketKey,
     errors::StorageError,
+    settings::RegistrationSettings,
+    version::VersionPolicy,
 };
 
+pub mod admission;
 pub mod cli;
 pub mod client_api;
 mod client_record;
@@ -33,6 +40,8 @@ mod credentials;
 pub mod grpc;
 mod invitation_code_record;
 pub mod privacy_pass;
+pub(crate) mod registration_challenge;
+pub(crate) mod registration_gate;
 pub mod user_record;
 mod usernames;
 
@@ -40,8 +49,10 @@ mod usernames;
 pub struct AuthService {
     db_pool: PgPool,
     pub(crate) username_queues: UsernameQueues,
-    client_version_req: Option<VersionReq>,
-    invitation_only: bool,
+    version_policy: VersionPolicy,
+    registration_gate: RegistrationGate,
+    endpoint_bucket_key: BucketKey,
+    challenge_sender: Option<Arc<dyn ChallengeSender>>,
     unredeemable_code: Option<Arc<str>>,
     stop: CancellationToken,
 }
@@ -51,8 +62,37 @@ impl AuthService {
         &self.db_pool
     }
 
-    pub fn disable_invitation_only(&mut self) {
-        self.invitation_only = false;
+    pub fn set_registration_settings(&mut self, settings: RegistrationSettings) {
+        self.registration_gate.set_settings(settings);
+    }
+
+    /// Drops registration rows that no counter window can still see.
+    pub async fn prune_registration_records(&self) -> sqlx::Result<u64> {
+        self.registration_gate.prune(&self.db_pool).await
+    }
+
+    /// Republishes the deployment-scoped registration gate gauge.
+    pub async fn refresh_registration_gauge(&self) {
+        self.registration_gate.refresh_gauge(&self.db_pool).await;
+    }
+
+    /// Drops admission rows that are no longer needed.
+    pub async fn prune_admission_records(&self) -> sqlx::Result<u64> {
+        admission::prune_admission_records(
+            &self.db_pool,
+            &self.registration_gate.settings().admission,
+        )
+        .await
+    }
+
+    /// Sets the sender, so that the service can send admission challenges to
+    /// push endpoints.
+    pub fn set_challenge_sender(&mut self, sender: Arc<dyn ChallengeSender>) {
+        self.challenge_sender = Some(sender);
+    }
+
+    pub(crate) fn registration_gate(&self) -> &RegistrationGate {
+        &self.registration_gate
     }
 
     pub fn set_unredeemable_code(&mut self, code: String) {
@@ -92,15 +132,19 @@ impl BackendService for AuthService {
     async fn initialize(
         db_pool: PgPool,
         domain: Fqdn,
-        client_version_req: Option<VersionReq>,
+        version_policy: VersionPolicy,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
+        let bucket_key = load_or_generate_ip_bucket_key(&db_pool).await?;
+        let endpoint_bucket_key = load_or_generate_endpoint_bucket_key(&db_pool).await?;
         let auth_service = Self {
             db_pool,
             username_queues,
-            client_version_req,
-            invitation_only: true,
+            version_policy,
+            registration_gate: RegistrationGate::new(RegistrationSettings::default(), bucket_key),
+            endpoint_bucket_key,
+            challenge_sender: None,
             unredeemable_code: None,
             stop,
         };

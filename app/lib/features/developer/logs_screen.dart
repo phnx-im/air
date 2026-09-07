@@ -185,7 +185,7 @@ class LogsScreenView extends StatelessWidget {
       reserveWindowControls: Chrome.windowControlsFloat,
       trailing: _LogsMenuButton(onReload: onReload, onClear: onClear),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           _FilterBar(
             buffer: buffer,
@@ -400,7 +400,7 @@ class _FilterBar extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       spacing: S.s8,
       children: [
         SearchField(
@@ -417,7 +417,7 @@ class _FilterBar extends StatelessWidget {
           child: Wrap(
             spacing: S.s16,
             runSpacing: S.s8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+            crossAxisAlignment: .center,
             children: [
               // First, and so always on the top line: the one pill that is a
               // mode of the list rather than a filter over it.
@@ -493,7 +493,7 @@ class LogRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s4),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             Row(
               children: [
@@ -503,18 +503,18 @@ class LogRow extends StatelessWidget {
                   entry.level.label.padRight(5),
                   style: mono.copyWith(
                     color: levelColor(palette, entry.level),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: .w600,
                   ),
                 ),
                 const SizedBox(width: S.s8),
                 Expanded(
                   child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                    behavior: .opaque,
                     onTap: onTargetTap,
                     child: Text(
                       entry.target,
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      overflow: .ellipsis,
                       // The palette's only non-neutral accent, which is what
                       // sets the target apart from the message under it.
                       style: mono.copyWith(color: palette.function.link),
@@ -531,7 +531,7 @@ class LogRow extends StatelessWidget {
             Text(
               entry.message,
               maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.s
                   .style(color: palette.text.primary)
                   .withSystemMonospace(),
@@ -555,7 +555,7 @@ class LogDetailScreen extends StatelessWidget {
       title: entry.target.isEmpty ? 'Record' : entry.target,
       reserveWindowControls: Chrome.windowControlsFloat,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         spacing: S.s16,
         children: [
           _TextCard(caption: 'Message', text: entry.message),
@@ -611,7 +611,7 @@ class _TextCard extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         Row(
           children: [
@@ -700,7 +700,7 @@ class FilterPill extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s4),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           spacing: S.s4,
           children: [
             Text(

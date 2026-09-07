@@ -158,7 +158,7 @@ class _MediaFrame extends StatelessWidget {
           constraints: const BoxConstraints(
             maxHeight: MediaMessageTokens.maxHeight,
           ),
-          child: buildImage(BoxFit.contain),
+          child: buildImage(.contain),
         ),
       );
     }
@@ -173,7 +173,7 @@ class _MediaFrame extends StatelessWidget {
       return _bubble(
         width: MediaMessageTokens.minScaleWidth,
         height: MediaMessageTokens.maxHeight,
-        child: buildImage(BoxFit.cover),
+        child: buildImage(.cover),
       );
     }
 
@@ -189,7 +189,7 @@ class _MediaFrame extends StatelessWidget {
         return _bubble(
           width: width * scale,
           height: height * scale,
-          child: buildImage(BoxFit.cover),
+          child: buildImage(.cover),
         );
       },
     );
@@ -203,7 +203,7 @@ class _MediaFrame extends StatelessWidget {
           color: fill,
           borderRadius: BorderRadius.circular(MediaMessageTokens.radius),
         ),
-        clipBehavior: Clip.antiAlias,
+        clipBehavior: .antiAlias,
         child: child,
       );
 
@@ -226,7 +226,7 @@ class _MediaFrame extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(inner),
-        child: buildImage(BoxFit.cover),
+        child: buildImage(.cover),
       ),
     );
   }
@@ -258,7 +258,7 @@ class _ProviderImage extends StatelessWidget {
         return Image(
           // The box comes from the sender-declared size, which may not match
           // the actual pixels. `exact` would decode to the box like
-          // BoxFit.fill and distort the picture, so constrain the decode
+          // .fill and distort the picture, so constrain the decode
           // instead of reshaping it.
           image: width == null && height == null
               ? image
@@ -266,7 +266,7 @@ class _ProviderImage extends StatelessWidget {
                   image,
                   width: width,
                   height: height,
-                  policy: ResizeImagePolicy.fit,
+                  policy: .fit,
                   allowUpscaling: false,
                 ),
           fit: fit,

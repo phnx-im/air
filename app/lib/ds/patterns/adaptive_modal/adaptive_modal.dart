@@ -61,26 +61,27 @@ Future<T?> _showBottomSheet<T>({
   bool enableDrag = true,
   Color? barrierColor,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<T>(
-    _BottomSheetRoute<T>(
-      barrierDismissible: isDismissible,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      transitionDuration: Effect.duration(BottomSheetTokens.enter),
-      reverseDuration: Effect.duration(BottomSheetTokens.exit),
-      // The page drives every part of the transition off the route animation,
-      // so the route itself hands the child through untouched.
-      transitionBuilder: (context, animation, secondaryAnimation, child) =>
-          child,
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          _BottomSheetModal(
-            animation: animation,
-            builder: builder,
-            enableDrag: enableDrag,
-            contentPadding: contentPadding,
-            scrimColor: barrierColor,
-          ),
+  final focus = SuspendedKeyboardFocus.suspend(context);
+  final route = _BottomSheetRoute<T>(
+    barrierDismissible: isDismissible,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    transitionDuration: Effect.duration(BottomSheetTokens.enter),
+    reverseDuration: Effect.duration(BottomSheetTokens.exit),
+    // The page drives every part of the transition off the route animation,
+    // so the route itself hands the child through untouched.
+    transitionBuilder: (context, animation, secondaryAnimation, child) => child,
+    pageBuilder: (context, animation, secondaryAnimation) => _BottomSheetModal(
+      animation: animation,
+      builder: builder,
+      enableDrag: enableDrag,
+      contentPadding: contentPadding,
+      scrimColor: barrierColor,
     ),
   );
+  // Only once the sheet has slid out, so the keyboard does not push a card
+  // that is still on its way down.
+  unawaited(route.completed.then((_) => focus.restore()));
+  return Navigator.of(context, rootNavigator: true).push<T>(route);
 }
 
 /// A dialog route whose exit is quicker than its entry, which
@@ -228,7 +229,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     final palette = SemanticPalette.of(context);
 
     return Stack(
-      fit: StackFit.expand,
+      fit: .expand,
       children: [
         // Transparent to taps so the route's barrier below keeps handling
         // dismissal rather than this layer swallowing it.
@@ -278,15 +279,15 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     }
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onVerticalDragUpdate: _handleVerticalDragUpdate,
       onVerticalDragEnd: _handleVerticalDragEnd,
       onVerticalDragCancel: _handleVerticalDragCancel,
       child: SizedBox(
         width: double.infinity,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: .min,
+          crossAxisAlignment: .stretch,
           children: [
             if (widget.enableDrag)
               SizedBox(
@@ -304,7 +305,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                 ),
               ),
             Flexible(
-              fit: FlexFit.loose,
+              fit: .loose,
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: cardMaxHeight),
                 child: ClipRRect(
@@ -361,8 +362,8 @@ class AdaptiveDialogContent extends StatelessWidget {
     this.onPrimaryAction,
     this.secondaryActionText,
     this.onSecondaryAction,
-    this.titleAlignment = TextAlign.center,
-    this.descriptionAlignment = TextAlign.center,
+    this.titleAlignment = .center,
+    this.descriptionAlignment = .center,
     this.primaryType = ButtonType.primary,
     this.primaryTone = ButtonTone.normal,
     this.secondaryType = ButtonType.secondary,
@@ -387,8 +388,8 @@ class AdaptiveDialogContent extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         if (title != null)
           Text(
@@ -461,8 +462,8 @@ Future<bool> showAdaptiveConfirm({
   bool isDismissible = true,
   bool enableDrag = true,
   Color? barrierColor,
-  TextAlign titleAlignment = TextAlign.center,
-  TextAlign descriptionAlignment = TextAlign.center,
+  TextAlign titleAlignment = .center,
+  TextAlign descriptionAlignment = .center,
 }) async {
   final result = await showAdaptiveModal<bool>(
     context: context,

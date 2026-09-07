@@ -4,15 +4,15 @@
 
 use openmls::{
     component::ComponentData,
-    components::vc_derivation_info::EpochId,
     group::{
         CommitMessageBundle, CreateCommitError, ExternalCommitBuilder, ExternalCommitBuilderError,
-        ExternalCommitBuilderFinalizeError, GroupEpoch, LeafNodeLifetimePolicy, MlsGroup,
+        ExternalCommitBuilderFinalizeError, GroupEpoch, GroupId, LeafNodeLifetimePolicy, MlsGroup,
         MlsGroupJoinConfig,
     },
     prelude::{
-        AppDataUpdateProposal, CredentialWithKey, LeafNodeParameters, PreSharedKeyProposal,
-        PublicMessageIn, RatchetTreeIn, group_info::VerifiableGroupInfo,
+        AppDataUpdateProposal, Credential, CredentialWithKey, LeafNodeParameters,
+        PreSharedKeyProposal, Proposal, PublicMessageIn, RatchetTreeIn,
+        group_info::VerifiableGroupInfo,
     },
     storage::OpenMlsProvider,
 };
@@ -24,12 +24,13 @@ use crate::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
-    extension::{
-        APQMLS_COMPONENT_ID, ApqInfo, ensure_extension_support, ensure_leaf_node_component_support,
-    },
+    extension::{ensure_extension_support, ensure_leaf_node_component_support},
     key_package::ensure_ciphersuite_support,
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
     psk::{ApqPskError, derive_and_store_psk},
+    validation::{
+        ApqValidationError, validate_apq_group_info, validate_apq_session_at_construction,
+    },
 };
 
 impl ApqMlsGroup {
@@ -57,7 +58,9 @@ pub struct ApqExternalCommitBuilder {
     leaf_node_parameters: Option<(LeafNodeParameters, LeafNodeParameters)>,
     create_group_info: bool,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
-    vc_epoch_id: Option<EpochId>,
+    t_proposals: Vec<Proposal>,
+    vc_emulation_group_id: Option<GroupId>,
+    emulation_group: bool,
 }
 
 impl ApqExternalCommitBuilder {
@@ -102,9 +105,25 @@ impl ApqExternalCommitBuilder {
         self
     }
 
-    /// Sets the virtual-client emulation epoch.
-    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
-        self.vc_epoch_id = Some(epoch_id);
+    /// Add a proposal by value to the T commit.
+    ///
+    /// Only proposal types OpenMLS allows by value in an external commit pass
+    /// validation, for example `AppEphemeral` proposals.
+    pub fn add_t_proposal(mut self, proposal: Proposal) -> Self {
+        self.t_proposals.push(proposal);
+        self
+    }
+
+    /// Sets the emulation group whose newest derivation epoch the commit
+    /// derives from.
+    pub fn vc_emulation(mut self, emulation_group_id: GroupId) -> Self {
+        self.vc_emulation_group_id = Some(emulation_group_id);
+        self
+    }
+
+    /// Rejoin the T group as the emulation group of a virtual client.
+    pub fn emulation_group(mut self, emulation_group: bool) -> Self {
+        self.emulation_group = emulation_group;
         self
     }
 
@@ -119,6 +138,7 @@ impl ApqExternalCommitBuilder {
         signer: &S,
         credential_with_key: ApqCredentialWithKey,
         group_info: VerifiableApqGroupInfo,
+        credential_equivalence: impl Fn(&Credential, &Credential) -> bool,
     ) -> Result<
         (ApqMlsGroup, ApqCommitMessageBundle),
         ApqExternalCommitBuilderError<Provider::StorageError>,
@@ -132,7 +152,9 @@ impl ApqExternalCommitBuilder {
             leaf_node_parameters,
             create_group_info,
             t_psk_proposals,
-            vc_epoch_id,
+            t_proposals: t_own_proposals,
+            vc_emulation_group_id,
+            emulation_group,
         } = self;
 
         let VerifiableApqGroupInfo {
@@ -152,16 +174,18 @@ impl ApqExternalCommitBuilder {
 
         let (t_ratchet_tree, pq_ratchet_tree) = ratchet_tree.map(ApqRatchetTreeIn::split).unzip();
 
-        // Increase the epoch in the apq info component.
-        let mut apq_info = ApqInfo::from_extensions(t_group_info.group_context().extensions())?
-            .ok_or(ApqExternalCommitBuilderError::MissingApqInfo)?;
+        // Both GroupInfos must carry the same APQInfo, it must describe the two
+        // groups, and the ciphersuite pair must be valid for the mode.
+        let mut apq_info = validate_apq_group_info(&t_group_info, &pq_group_info)?;
+
+        // Increase the epoch in the apq info component. The dictionary entry is
+        // a bare `ApqInfo`, the proposal payload is an `ApqInfoUpdate`.
         apq_info.set_epoch(
             GroupEpoch::from(t_group_info.epoch().as_u64() + 1),
             GroupEpoch::from(pq_group_info.epoch().as_u64() + 1),
         );
         let component_data = apq_info.to_component_data()?;
-        let app_data_update_proposal =
-            AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, component_data.data());
+        let app_data_update_proposal = apq_info.to_full_update_proposal()?;
 
         // Leaf node parameters
         let apq_ciphersuite =
@@ -185,8 +209,10 @@ impl ApqExternalCommitBuilder {
             app_data_update_proposal.clone(),
             component_data.clone(),
             Vec::new(),
+            Vec::new(),
             create_group_info,
-            vc_epoch_id.clone(),
+            vc_emulation_group_id.clone(),
+            false,
             signer.pq_signer(),
         )?;
 
@@ -227,18 +253,32 @@ impl ApqExternalCommitBuilder {
                 app_data_update_proposal,
                 component_data,
                 t_psk_proposals,
+                t_own_proposals,
                 create_group_info,
-                vc_epoch_id,
+                vc_emulation_group_id,
+                emulation_group,
                 signer.t_signer(),
             )
         })();
-        let (t_group, t_bundle) = match t_result {
+        let (mut t_group, t_bundle) = match t_result {
             Ok(result) => result,
             Err(err) => {
                 let _ = pq_group.delete(provider.storage());
                 return Err(err);
             }
         };
+
+        // The two external commits are a FULL commit, so the joined session must
+        // satisfy the full set of APQ invariants, including matching epochs and
+        // consistent membership. Both groups are already merged and persisted,
+        // so a rejection has to roll both of them back.
+        if let Err(error) =
+            validate_apq_session_at_construction(&t_group, &pq_group, credential_equivalence)
+        {
+            let _ = t_group.delete(provider.storage());
+            let _ = pq_group.delete(provider.storage());
+            return Err(error.into());
+        }
 
         Ok((
             ApqMlsGroup::from_groups(t_group, pq_group),
@@ -262,15 +302,18 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     app_data_update_proposal: AppDataUpdateProposal,
     component_data: ComponentData,
     psk_proposals: Vec<PreSharedKeyProposal>,
+    own_proposals: Vec<Proposal>,
     create_group_info: bool,
-    vc_epoch_id: Option<EpochId>,
+    vc_emulation_group_id: Option<GroupId>,
+    emulation_group: bool,
     signer: &impl Signer,
 ) -> Result<(MlsGroup, CommitMessageBundle), ApqExternalCommitBuilderError<Provider::StorageError>>
 {
     let mut external_builder = ExternalCommitBuilder::new()
         .with_proposals(proposals)
         .with_config(config)
-        .with_aad(aad);
+        .with_aad(aad)
+        .emulation_group(emulation_group);
     if let Some(tree) = ratchet_tree {
         external_builder = external_builder.with_ratchet_tree(tree);
     }
@@ -280,15 +323,16 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     let vc_builder = external_builder
         .build_group(provider, group_info, credential_with_key)?
         .leaf_node_parameters(leaf_node_parameters);
-    let vc_builder = match vc_epoch_id {
-        Some(epoch_id) => {
-            vc_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?
+    let vc_builder = match &vc_emulation_group_id {
+        Some(group_id) => {
+            vc_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?
         }
         None => vc_builder,
     };
     let mut commit_builder = vc_builder
         .add_app_data_update_proposal(app_data_update_proposal)
         .add_psk_proposals(psk_proposals)
+        .add_proposals(own_proposals)
         .load_psks(provider.storage())?
         .create_group_info(create_group_info);
     let mut updater = commit_builder.app_data_dictionary_updater();
@@ -336,9 +380,9 @@ pub enum ApqExternalCommitBuilderError<StorageError> {
     Finalize(#[from] ExternalCommitBuilderFinalizeError<StorageError>),
     #[error(transparent)]
     Psk(#[from] ApqPskError<StorageError>),
-    /// Missing required ApqInfo in group-info extensions
-    #[error("Missing required ApqInfo in group-info extensions")]
-    MissingApqInfo,
+    /// The APQ invariants of the session don't hold
+    #[error(transparent)]
+    Validation(#[from] ApqValidationError),
     /// Malformed extension
     #[error("Malformed extension")]
     MalformedExtension(#[from] tls_codec::Error),

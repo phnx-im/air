@@ -97,8 +97,8 @@ class ListRow extends StatelessWidget {
           ],
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: .min,
+              crossAxisAlignment: .start,
               children: [
                 Text(
                   label,
@@ -109,9 +109,7 @@ class ListRow extends StatelessWidget {
                         tight: true,
                       ),
                   maxLines: labelMaxLines,
-                  overflow: labelMaxLines == null
-                      ? TextOverflow.clip
-                      : TextOverflow.ellipsis,
+                  overflow: labelMaxLines == null ? .clip : .ellipsis,
                 ),
                 if (sublabel != null) ...[
                   const SizedBox(height: ListRowTokens.sublabelGap),
@@ -122,7 +120,7 @@ class ListRow extends StatelessWidget {
                       tight: true,
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                   ),
                 ],
               ],

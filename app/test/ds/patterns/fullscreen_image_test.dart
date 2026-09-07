@@ -6,7 +6,6 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -186,7 +185,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('2 / 2'), findsOneWidget);
 
-    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final pointer = TestPointer(1, .mouse);
     final center = tester.getCenter(find.byType(FullscreenImage));
     await tester.sendEventToBinding(pointer.hover(center));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, -100)));

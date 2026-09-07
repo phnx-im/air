@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
-    group::{MlsGroup, MlsGroupJoinConfig, StagedWelcome, WelcomeError as OpenMlsWelcomeError},
-    prelude::Ciphersuite,
+    group::{
+        MlsGroup, MlsGroupJoinConfig, ProcessedWelcome, StagedWelcome,
+        WelcomeError as OpenMlsWelcomeError,
+    },
+    prelude::{Ciphersuite, Credential},
+    schedule::PreSharedKeyId,
     storage::OpenMlsProvider,
 };
 use thiserror::Error;
@@ -13,6 +17,7 @@ use crate::{
     ApqMlsGroup,
     messages::{ApqRatchetTreeIn, ApqWelcome},
     psk::{ApqPskError, derive_and_store_psk},
+    validation::{ApqValidationError, validate_apq_session_at_construction, validate_welcome_psk},
 };
 
 /// Errors that can occur when creating a new [`ApqMlsGroup`] from a welcome
@@ -23,21 +28,23 @@ pub enum WelcomeError<StorageError> {
     Processing(#[from] OpenMlsWelcomeError<StorageError>),
     #[error(transparent)]
     Psk(#[from] ApqPskError<StorageError>),
+    #[error(transparent)]
+    Validation(#[from] ApqValidationError),
 }
 
-/// A staged APQ welcome.
-pub struct StagedApqWelcome {
-    t_staged_welcome: StagedWelcome,
-    pq_staged_welcome: StagedWelcome,
-}
-
+/// Derives the combiner PSK from the freshly joined PQ group and stores it, so
+/// that the T Welcome can be processed.
+///
+/// Returns the [`PreSharedKeyId`] of the stored PSK. Callers that drive the two
+/// joins themselves must pass it to
+/// [`crate::validation::validate_welcome_psk`] before they join the T session.
 pub fn derive_and_store_join_psk<Provider: OpenMlsProvider>(
     provider: &Provider,
     pq_group: &mut MlsGroup,
     t_ciphersuite: Ciphersuite,
-) -> Result<(), WelcomeError<Provider::StorageError>> {
-    derive_and_store_psk::<_, false>(provider, pq_group, t_ciphersuite)?;
-    Ok(())
+) -> Result<PreSharedKeyId, WelcomeError<Provider::StorageError>> {
+    let psk_id = derive_and_store_psk::<_, false>(provider, pq_group, t_ciphersuite)?;
+    Ok(psk_id)
 }
 
 impl ApqMlsGroup {
@@ -48,6 +55,7 @@ impl ApqMlsGroup {
         mls_group_config: &MlsGroupJoinConfig,
         welcome: ApqWelcome,
         ratchet_tree: Option<ApqRatchetTreeIn>,
+        credential_equivalence: impl Fn(&Credential, &Credential) -> bool,
     ) -> Result<Self, WelcomeError<Provider::StorageError>> {
         let (t_ratchet_tree, pq_ratchet_tree) = match ratchet_tree {
             Some(r) => (Some(r.t_ratchet_tree), Some(r.pq_ratchet_tree)),
@@ -63,59 +71,50 @@ impl ApqMlsGroup {
 
         let t_ciphersuite = welcome.t_welcome.ciphersuite();
 
-        derive_and_store_psk::<_, false>(provider, &mut pq_group, t_ciphersuite)?;
+        // The PQ group is already persisted, so any failure from here on must
+        // roll it back. Otherwise we leave a half-joined group in storage.
+        let t_result = (|| {
+            let psk_id = derive_and_store_join_psk(provider, &mut pq_group, t_ciphersuite)?;
+            let processed_t_welcome =
+                ProcessedWelcome::new_from_welcome(provider, mls_group_config, welcome.t_welcome)?;
+            validate_welcome_psk(&processed_t_welcome, &psk_id)?;
+            processed_t_welcome
+                .into_staged_welcome(provider, t_ratchet_tree)?
+                .into_group(provider)
+                .map_err(WelcomeError::from)
+        })();
+        let mut t_group = match t_result {
+            Ok(t_group) => t_group,
+            Err(error) => {
+                let _ = pq_group.delete(provider.storage());
+                return Err(error);
+            }
+        };
 
-        let t_group = StagedWelcome::new_from_welcome(
+        validate_or_delete(
             provider,
-            mls_group_config,
-            welcome.t_welcome,
-            t_ratchet_tree,
-        )?
-        .into_group(provider)?;
+            &mut t_group,
+            &mut pq_group,
+            credential_equivalence,
+        )?;
 
         Ok(Self { t_group, pq_group })
     }
 }
 
-impl StagedApqWelcome {
-    /// Creates a new [`StagedApqWelcome`] from a welcome message.
-    pub fn new_from_welcome<Provider: OpenMlsProvider>(
-        provider: &Provider,
-        mls_group_config: &MlsGroupJoinConfig,
-        welcome: ApqWelcome,
-        ratchet_tree: Option<ApqRatchetTreeIn>,
-    ) -> Result<Self, WelcomeError<Provider::StorageError>> {
-        let (t_ratchet_tree, pq_ratchet_tree) = match ratchet_tree {
-            Some(r) => (Some(r.t_ratchet_tree), Some(r.pq_ratchet_tree)),
-            None => (None, None),
-        };
-        let t_staged_welcome = StagedWelcome::new_from_welcome(
-            provider,
-            mls_group_config,
-            welcome.t_welcome,
-            t_ratchet_tree,
-        )?;
-        let pq_staged_welcome = StagedWelcome::new_from_welcome(
-            provider,
-            mls_group_config,
-            welcome.pq_welcome,
-            pq_ratchet_tree,
-        )?;
-
-        Ok(StagedApqWelcome {
-            t_staged_welcome,
-            pq_staged_welcome,
-        })
+/// Validates the joined session, deleting both groups if it is rejected.
+fn validate_or_delete<Provider: OpenMlsProvider>(
+    provider: &Provider,
+    t_group: &mut MlsGroup,
+    pq_group: &mut MlsGroup,
+    credential_equivalence: impl Fn(&Credential, &Credential) -> bool,
+) -> Result<(), WelcomeError<Provider::StorageError>> {
+    if let Err(error) =
+        validate_apq_session_at_construction(t_group, pq_group, credential_equivalence)
+    {
+        let _ = t_group.delete(provider.storage());
+        let _ = pq_group.delete(provider.storage());
+        return Err(error.into());
     }
-
-    /// Consumes the staged welcome and creates a new [`ApqMlsGroup`].
-    pub fn into_group<Provider: OpenMlsProvider>(
-        self,
-        provider: &Provider,
-    ) -> Result<ApqMlsGroup, WelcomeError<Provider::StorageError>> {
-        let t_group = self.t_staged_welcome.into_group(provider)?;
-        let pq_group = self.pq_staged_welcome.into_group(provider)?;
-
-        Ok(ApqMlsGroup { t_group, pq_group })
-    }
+    Ok(())
 }

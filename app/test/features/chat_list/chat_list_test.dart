@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -22,18 +22,14 @@ import 'chat_list_content_test.dart';
 void main() {
   group('ChatList', () {
     late MockNavigationCubit navigationCubit;
-    late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
-    late MockChatDetailsCubit chatDetailsCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
-      chatListCubit = MockChatListCubit();
       contactsCubit = MockUsersCubit();
-      chatDetailsCubit = MockChatDetailsCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
       when(
@@ -44,28 +40,21 @@ void main() {
         () => contactsCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
       when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[1], members: [1.userId()]));
-      when(
         () => userSettingsCubit.state,
       ).thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-      ],
+      Map<ChatId, List<UiUserId>> members = const {},
+      bool shareMode = false,
+    }) => RepositoryProvider<ChatsRepository>.value(
+      value: FakeChatsRepository(chats, members: members),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: contactsCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: SDTFScope(
@@ -75,13 +64,9 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Scaffold(
-                  body: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                ),
+                home: shareMode
+                    ? const ChatListView(scaffold: true, shareMode: true)
+                    : const Scaffold(body: ChatListView()),
               );
             },
           ),
@@ -89,11 +74,42 @@ void main() {
       ),
     );
 
-    testWidgets('renders correctly when there are no chats', (tester) async {
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chatIds: []));
+    // The picker offers only chats the reader can send into: the connection
+    // request and the blocked contact fall out, and a group the reader is not
+    // a member of stays listed but disabled. Rows show group members instead
+    // of the last message, and no timestamp.
+    testWidgets('renders the share destination picker', (tester) async {
+      final contact = chats[0];
+      final request = chats[1];
+      final group = chats[2];
+      final otherGroup = chats[3];
+      final blocked = chats[4];
+      final muted = chats[5];
 
+      await tester.pumpWidget(
+        buildSubject(
+          chats: [contact, request, group, otherGroup, blocked, muted],
+          members: {
+            group.id: [1.userId(), 2.userId(), 4.userId()],
+            otherGroup.id: [2.userId(), 3.userId()],
+          },
+          shareMode: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bob, Charlie'), findsOne);
+      expect(find.text('Bob, Eve'), findsOne);
+      expect(find.text('eve_03'), findsNothing);
+      expect(find.text('Charlie'), findsNothing);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_share_destination.png'),
+      );
+    });
+
+    testWidgets('renders correctly when there are no chats', (tester) async {
       await tester.pumpWidget(buildSubject(chats: []));
 
       await expectLater(
@@ -107,16 +123,12 @@ void main() {
         20,
         (index) => chats[index % chats.length],
       );
-      final testChatIds = testChats.map((chat) => chat.id).toList();
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
           home: HomeNavigationState(chatOpen: true, chatId: chats[1].id),
         ),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: testChatIds));
 
       await tester.pumpWidget(buildSubject(chats: testChats));
 
@@ -130,10 +142,6 @@ void main() {
       tester,
     ) async {
       final testChats = [chats[0]];
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
-
       await tester.pumpWidget(buildSubject(chats: testChats));
 
       await tester.longPress(find.text('Hello Alice'));
@@ -158,10 +166,6 @@ void main() {
       });
 
       final testChats = [chats[0]];
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
-
       await tester.pumpWidget(buildSubject(chats: testChats));
 
       await tester.longPress(find.text('Hello Alice'));

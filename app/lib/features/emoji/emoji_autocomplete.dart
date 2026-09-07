@@ -86,7 +86,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
     return SuggestionOverlayStyle(
       backgroundColor: SemanticPalette.of(context).backgroundElevated.primary,
       borderRadius: BorderRadius.circular(CornerRadius.px16),
-      elevation: 8,
+      elevation: Elevation.large,
       maxWidth: Measure.m320,
       maxHeight: Measure.m240,
     );

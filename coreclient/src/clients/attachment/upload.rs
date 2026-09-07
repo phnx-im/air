@@ -42,7 +42,7 @@ use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl,
     Chat, ChatId, ChatMessage, MessageId,
     clients::{
-        CoreUser,
+        CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
@@ -105,6 +105,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         path: &Path,
+        mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<
         Result<
             (
@@ -162,7 +163,13 @@ impl CoreUser {
             async |txn| -> anyhow::Result<ChatMessage> {
                 let message_id = MessageId::random();
                 let message = self
-                    .send_message_transactional(&mut *txn, chat_id, message_id, content)
+                    .send_message_transactional(
+                        &mut *txn,
+                        chat_id,
+                        message_id,
+                        content,
+                        mark_as_read,
+                    )
                     .await?;
 
                 // store attachment locally
@@ -310,6 +317,7 @@ impl CoreUser {
         impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
     ) {
         let (progress_tx, progress) = AttachmentProgress::new();
+        let progress = progress.with_total_bytes(ciphertext.len() as u64);
         let http_client = self.http_client();
         let db = self.db().clone();
         let task = async move {
@@ -577,18 +585,17 @@ async fn upload_encrypted_attachment(
     ciphertext: Vec<u8>,
 ) -> anyhow::Result<()> {
     if let Some(signed_post_policy) = provision_response.post_policy {
-        // upload encrypted content via multipart upload
+        // upload encrypted content via multipart upload, reporting progress
+        // as the ciphertext is streamed to the server
         progress_tx.report(0);
-        let total_len = ciphertext.len();
         multipart_upload(
             http_client,
             &provision_response.upload_url,
             signed_post_policy,
             ciphertext,
+            &progress_tx,
         )
         .await?;
-        // Note: multipart does not support reporting progress for now
-        progress_tx.report(total_len);
         progress_tx.completed();
     } else {
         // upload encrypted content via signed PUT url
@@ -633,6 +640,7 @@ async fn multipart_upload(
     upload_url: &str,
     signed_post_policy: SignedPostPolicy,
     ciphertext: Vec<u8>,
+    progress_tx: &AttachmentProgressSender,
 ) -> anyhow::Result<()> {
     let post_policy = BASE64_STANDARD.decode(&signed_post_policy.base64)?;
     let post_policy: PostPolicy = serde_json::from_slice(&post_policy)?;
@@ -654,7 +662,26 @@ async fn multipart_upload(
         }
     }
 
-    let form = form.part("file", multipart::Part::bytes(ciphertext));
+    // Stream the ciphertext so upload progress is reported incrementally
+    // instead of jumping straight to completion. The content length is set
+    // explicitly because S3 POST uploads require it and it avoids chunked
+    // transfer encoding.
+    let total_len = ciphertext.len() as u64;
+    let mut uploaded = 0;
+    let tx = progress_tx.tx();
+    let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
+        if let Ok(chunk) = &chunk {
+            uploaded += chunk.len();
+            if let Some(tx) = tx.as_ref() {
+                let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                    bytes_loaded: uploaded,
+                });
+            }
+        }
+        chunk
+    });
+    let file_part = multipart::Part::stream_with_length(Body::wrap_stream(stream), total_len);
+    let form = form.part("file", file_part);
 
     http_client
         .post(upload_url)

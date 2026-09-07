@@ -7,7 +7,11 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/system_message/system_message.dart';
 import 'package:air/ds/patterns/system_message/system_message_tokens.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/emphasized_text.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -36,11 +40,35 @@ class DisplayMessageTile extends StatelessWidget {
   }
 }
 
-class _SystemMessageContent extends StatelessWidget {
+class _SystemMessageContent extends StatefulWidget {
   const _SystemMessageContent({required this.message, required this.timestamp});
 
   final UiSystemMessage message;
   final DateTime timestamp;
+
+  @override
+  State<_SystemMessageContent> createState() => _SystemMessageContentState();
+}
+
+class _SystemMessageContentState extends State<_SystemMessageContent> {
+  /// One recognizer per person
+  final Map<UiUserId, TapGestureRecognizer> _profileTaps = {};
+
+  @override
+  void dispose() {
+    for (final recognizer in _profileTaps.values) {
+      recognizer.dispose();
+    }
+    super.dispose();
+  }
+
+  TapGestureRecognizer _profileTap(UiUserId userId) => _profileTaps.putIfAbsent(
+    userId,
+    () =>
+        TapGestureRecognizer()
+          ..onTap = () =>
+              context.read<NavigationCubit>().openMemberDetails(userId),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +76,11 @@ class _SystemMessageContent extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
     );
 
-    return switch (message) {
+    final ownUserId = context.read<UserCubit>().state.userId;
+    GestureRecognizer? profileTap(UiUserId userId) =>
+        userId == ownUserId ? null : _profileTap(userId);
+
+    return switch (widget.message) {
       UiSystemMessage_ReceivedDirectConnectionRequest(
         :final sender,
         :final chatName,
@@ -73,8 +105,12 @@ class _SystemMessageContent extends StatelessWidget {
         ),
       _ => SystemMessage(
         tokens: SystemMessageTokens.current,
-        content: buildSystemMessageText(context, message),
-        timestamp: Timestamp(timestamp),
+        content: buildSystemMessageText(
+          context,
+          widget.message,
+          recognizerFor: profileTap,
+        ),
+        timestamp: Timestamp(widget.timestamp),
       ),
     };
   }
@@ -84,7 +120,10 @@ class _SystemMessageContent extends StatelessWidget {
   /// spacing and timestamp.
   Widget _request(Widget child) => Padding(
     padding: const EdgeInsets.symmetric(vertical: S.s24),
-    child: Column(spacing: S.s4, children: [child, Timestamp(timestamp)]),
+    child: Column(
+      spacing: S.s4,
+      children: [child, Timestamp(widget.timestamp)],
+    ),
   );
 }
 
@@ -93,7 +132,15 @@ class _SystemMessageContent extends StatelessWidget {
 ///
 /// The spans carry no base style: [SystemMessage] applies it to whatever it is
 /// handed, so only the emphasized runs need one of their own.
-TextSpan buildSystemMessageText(BuildContext context, UiSystemMessage message) {
+///
+/// [recognizerFor] makes the people the sentence names tappable. A caller that
+/// leaves it out, such as the chat list reading the sentence back as plain
+/// text, gets the same words with nothing attached.
+TextSpan buildSystemMessageText(
+  BuildContext context,
+  UiSystemMessage message, {
+  GestureRecognizer? Function(UiUserId userId)? recognizerFor,
+}) {
   final loc = AppLocalizations.of(context);
   final nameStyle = SystemMessage.emphasisOf(
     context,
@@ -103,75 +150,42 @@ TextSpan buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   String nameOf(UiUserId id) =>
       context.select((UsersCubit c) => c.state.profile(userId: id).displayName);
 
+  EmphasizedValue user(UiUserId id) =>
+      EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
+
   return switch (message) {
     UiSystemMessage_Add(field0: final userId, field1: final contactId) =>
-      TextSpan(
-        children: [
-          TextSpan(
-            text: loc.systemMessage_userAddedUser_prefix(nameOf(userId)),
-            style: nameStyle,
-          ),
-          TextSpan(text: loc.systemMessage_userAddedUser_infix),
-          TextSpan(
-            text: loc.systemMessage_userAddedUser_suffix(nameOf(contactId)),
-            style: nameStyle,
-          ),
-        ],
+      emphasizedText(
+        (marks) => loc.systemMessage_userAddedUser(marks[0], marks[1]),
+        [user(userId), user(contactId)],
+        nameStyle,
       ),
     UiSystemMessage_Remove(field0: final userId, field1: final contactId) =>
-      TextSpan(
-        children: [
-          TextSpan(
-            text: loc.systemMessage_userRemovedUser_prefix(nameOf(userId)),
-            style: nameStyle,
-          ),
-          TextSpan(text: loc.systemMessage_userRemovedUser_infix),
-          TextSpan(
-            text: loc.systemMessage_userRemovedUser_suffix(nameOf(contactId)),
-            style: nameStyle,
-          ),
-        ],
+      emphasizedText(
+        (marks) => loc.systemMessage_userRemovedUser(marks[0], marks[1]),
+        [user(userId), user(contactId)],
+        nameStyle,
       ),
     UiSystemMessage_ChangeTitle(
       field0: final userId,
       field1: final oldTitle,
       field2: final newTitle,
     ) =>
-      TextSpan(
-        children: [
-          TextSpan(
-            text: loc.systemMessage_userChangedTitle_prefix(nameOf(userId)),
-            style: nameStyle,
-          ),
-          TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
-          TextSpan(
-            text: loc.systemMessage_userChangedTitle_infix_2(oldTitle),
-            style: nameStyle,
-          ),
-          TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
-          TextSpan(
-            text: loc.systemMessage_userChangedTitle_suffix(newTitle),
-            style: nameStyle,
-          ),
-        ],
+      emphasizedText(
+        (marks) =>
+            loc.systemMessage_userChangedTitle(marks[0], marks[1], marks[2]),
+        [user(userId), EmphasizedValue(oldTitle), EmphasizedValue(newTitle)],
+        nameStyle,
       ),
-    UiSystemMessage_ChangePicture(:final field0) => TextSpan(
-      children: [
-        TextSpan(
-          text: loc.systemMessage_userChangedPicture_prefix(nameOf(field0)),
-          style: nameStyle,
-        ),
-        TextSpan(text: loc.systemMessage_userChangedPicture_infix),
-      ],
+    UiSystemMessage_ChangePicture(:final field0) => emphasizedText(
+      (marks) => loc.systemMessage_userChangedPicture(marks[0]),
+      [user(field0)],
+      nameStyle,
     ),
-    UiSystemMessage_CreateGroup(field0: final creatorId) => TextSpan(
-      children: [
-        TextSpan(
-          text: loc.systemMessage_userCreatedGroup_prefix(nameOf(creatorId)),
-          style: nameStyle,
-        ),
-        TextSpan(text: loc.systemMessage_userCreatedGroup_suffix),
-      ],
+    UiSystemMessage_CreateGroup(field0: final creatorId) => emphasizedText(
+      (marks) => loc.systemMessage_userCreatedGroup(marks[0]),
+      [user(creatorId)],
+      nameStyle,
     ),
     UiSystemMessage_NewHandleConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newHandleConnectionChat(field0.plaintext),

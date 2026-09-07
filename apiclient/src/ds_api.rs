@@ -18,9 +18,9 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
-            ExternalCommitInfoIn, GroupOperationParamsOut, PqExternalCommitInfoIn,
-            SelfRemoveParamsOut, SendMessageCollisionTag, SendMessageParamsOut,
-            TargetedMessageParamsOut, WelcomeInfoIn,
+            EpochSnapshotIn, ExternalCommitInfoIn, GroupOperationParamsOut, PqEpochSnapshotIn,
+            PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag,
+            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -36,11 +36,11 @@ use airprotos::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
         ApqGroupOperationPayload, ApqResyncPayload, ApqSelfRemovePayload,
         ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
-        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
-        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
-        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        EpochSnapshotRequest, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
+        GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
+        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
+        ResyncPayload, SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload,
+        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -186,6 +186,7 @@ impl ApiClient {
             room_state,
             pq,
             creator_user_credential,
+            group_bootstrap,
         } = params;
 
         let qgid: QualifiedGroupId = group_id.try_into()?;
@@ -218,6 +219,7 @@ impl ApiClient {
                 t_group_data: Some(t_group_data),
                 pq_group_data: Some(pq_group_data),
                 creator_user_credential,
+                group_bootstrap,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_apq_group(request).await?;
@@ -232,6 +234,7 @@ impl ApiClient {
                 group_info: Some(group_info.try_ref_into()?),
                 room_state: Some(room_state.unverified().try_ref_into()?),
                 creator_user_credential,
+                group_bootstrap,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_group(request).await?;
@@ -444,6 +447,58 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
             indexed_encrypted_user_profile_keys,
+            pq,
+        })
+    }
+
+    /// Get the group state the DS served at `epoch`.
+    ///
+    /// `group_id` is the T leg's group id, also for APQ groups: the snapshot of
+    /// an APQ group covers both legs.
+    pub async fn ds_epoch_snapshot(
+        &self,
+        group_id: GroupId,
+        epoch: GroupEpoch,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<EpochSnapshotIn, DsRequestError> {
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let request = EpochSnapshotRequest {
+            client_metadata: Some(self.metadata().clone()),
+            qgid: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            epoch: epoch.as_u64(),
+        };
+        let response = self
+            .ds_grpc_client()
+            .epoch_snapshot(request)
+            .await?
+            .into_inner();
+
+        let pq = match (response.pq_group_info, response.pq_ratchet_tree) {
+            (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqEpochSnapshotIn {
+                verifiable_group_info: pq_group_info.try_ref_into()?,
+                ratchet_tree_in: pq_ratchet_tree.try_ref_into()?,
+            }),
+            (None, None) => None,
+            _ => return Err(DsRequestError::UnexpectedResponse),
+        };
+
+        Ok(EpochSnapshotIn {
+            verifiable_group_info: response
+                .group_info
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            ratchet_tree_in: response
+                .ratchet_tree
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            room_state: VerifiedRoomState::verify(
+                response
+                    .room_state
+                    .ok_or(DsRequestError::UnexpectedResponse)?
+                    .try_ref_into()?,
+            )
+            .map_err(|_| DsRequestError::UnexpectedResponse)?,
             pq,
         })
     }

@@ -52,7 +52,7 @@ check-cargo-deny:
 
 [group('check')]
 check-cargo-machete:
-    cargo machete
+    cargo machete --with-metadata
 
 [group('check')]
 check-dart:
@@ -62,6 +62,11 @@ check-dart:
 
 [group('check')]
 check-frb: regenerate-frb && _check-unstaged-changes
+
+# Check the ARB files for problems gen-l10n accepts silently.
+[group('check')]
+check-l10n:
+    cargo xtask validate-l10n
 
 [group('check')]
 [working-directory('protos')]
@@ -98,7 +103,7 @@ regenerate-frb:
     rm -Rf lib/core/api lib/core/frb_*.dart lib/core/lib.dart
 
     CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
-        flutter_rust_bridge_codegen generate
+        flutter_rust_bridge_codegen generate --no-web
 
     cd .. && cargo fmt
 

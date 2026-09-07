@@ -17,7 +17,6 @@ use tls_codec::{
     TlsDeserializeBytes, TlsSerialize, TlsSize,
 };
 
-pub mod assert_matches;
 pub mod codec;
 pub mod credentials;
 pub mod crypto;
@@ -27,6 +26,7 @@ pub mod messages;
 pub mod mls_group_config;
 pub mod padme;
 pub mod pow;
+pub mod registration;
 pub mod time;
 pub mod utils;
 pub mod virtual_client;

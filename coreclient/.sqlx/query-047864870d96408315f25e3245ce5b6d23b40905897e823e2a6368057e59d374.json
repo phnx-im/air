@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT a.attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment a\n            JOIN message m ON m.message_id = a.message_id\n            LEFT JOIN chat_message_queue q ON q.message_id = a.message_id\n            WHERE a.status = ?1\n                AND a.created_at < ?2\n                AND m.sent = 0\n                AND q.message_id IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "047864870d96408315f25e3245ce5b6d23b40905897e823e2a6368057e59d374"
+}

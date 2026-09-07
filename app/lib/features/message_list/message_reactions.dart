@@ -122,7 +122,7 @@ Future<void> showQuickReactionMenu({
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: _QuickReactionMenuOverlay(
               animation: curved,
               anchorRect: anchorRect,
@@ -263,7 +263,7 @@ Future<void> showWhoReactedSheet({
         opacity: animation,
         child: Center(
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: Container(
               width: _reactorPanelSize.width,
               height: _reactorPanelSize.height,

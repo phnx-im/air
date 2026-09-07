@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::group_state::DsGroupState;
-use super::process::USER_EXPIRATION_DAYS;
 use crate::errors::ClientSelfRemovalError;
-use aircommon::{credentials::LeafCredential, time::Duration};
+use aircommon::credentials::LeafCredential;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
@@ -82,10 +81,9 @@ impl DsGroupState {
         };
 
         // We first accept the message into the group state ...
-        self.group.accept_processed_message(
+        let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
-            Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
         let serialized_mls_message = processed_assisted_message_plus.serialized_mls_message;
@@ -93,6 +91,8 @@ impl DsGroupState {
         // Store the proposal so we can send it to clients requesting external
         // commit info.
         self.proposals.push(serialized_mls_message.0.clone());
+
+        self.stage_welcome_info(retained_welcome_info);
 
         // We remove the user and client profile only when the proposal is committed.
 

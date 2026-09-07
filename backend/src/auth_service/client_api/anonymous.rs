@@ -41,6 +41,7 @@ impl AuthService {
                 public_key: k.public_key,
                 token_key_id: k.token_key_id,
                 operation_type: k.operation_type as i32,
+                is_current: k.is_current,
             })
             .collect();
 

@@ -45,6 +45,39 @@ void main() {
       ),
     );
 
+    testWidgets('offers onboarding once there is no user to open', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create account'), findsOneWidget);
+    });
+
+    testWidgets('holds back onboarding while the user loads', (tester) async {
+      when(
+        () => loadableUserCubit.state,
+      ).thenReturn(const LoadableUser.loading());
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create account'), findsNothing);
+    });
+
+    testWidgets('holds back onboarding until a loaded user takes over', (
+      tester,
+    ) async {
+      when(
+        () => loadableUserCubit.state,
+      ).thenReturn(LoadableUser.loaded(MockUser()));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create account'), findsNothing);
+    });
+
     testWidgets('renders correctly on phone', (tester) async {
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

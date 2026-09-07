@@ -380,6 +380,9 @@ impl<C: Codec> PublicStorageProvider<CURRENT_VERSION> for MlsAssistMemoryStorage
 #[derive(Default, Deserialize)]
 struct SerializableMlsAssistMemoryStorage {
     storage_bytes: Vec<(ByteBuf, ByteBuf)>,
+    /// Only read, never written: retained trees now live outside the group
+    /// state.
+    #[serde(default)]
     past_group_states_bytes: Vec<(ByteBuf, ByteBuf)>,
     group_infos_bytes: Vec<(ByteBuf, ByteBuf)>,
 }
@@ -387,7 +390,6 @@ struct SerializableMlsAssistMemoryStorage {
 #[derive(Default, Serialize)]
 struct SerializableMlsAssistMemoryStorageRef<'a> {
     storage_bytes: Vec<(&'a Bytes, ByteBuf)>,
-    past_group_states_bytes: Vec<(&'a Bytes, &'a Bytes)>,
     group_infos_bytes: Vec<(&'a Bytes, &'a Bytes)>,
 }
 
@@ -398,16 +400,6 @@ impl<C: Codec> MlsAssistMemoryStorage<C> {
             .iter()
             .map(|(key, value)| Ok((Bytes::new(key), C::to_vec(value)?.into())))
             .collect::<Result<Vec<_>, _>>()?;
-        let past_group_states = self.past_group_states.read().unwrap();
-        let past_group_states_bytes = past_group_states
-            .iter()
-            .map(|(group_id_bytes, past_group_states_bytes)| {
-                (
-                    Bytes::new(group_id_bytes),
-                    Bytes::new(past_group_states_bytes),
-                )
-            })
-            .collect();
         let group_infos = self.group_infos.read().unwrap();
         let group_infos_bytes = group_infos
             .iter()
@@ -417,7 +409,6 @@ impl<C: Codec> MlsAssistMemoryStorage<C> {
             .collect();
         let serialized = SerializableMlsAssistMemoryStorageRef {
             storage_bytes,
-            past_group_states_bytes,
             group_infos_bytes,
         };
         C::to_vec(&serialized)
@@ -456,19 +447,7 @@ impl<C: Codec> MlsAssistMemoryStorage<C> {
 }
 
 impl<C: Codec> MlsAssistStorageProvider for MlsAssistMemoryStorage<C> {
-    fn write_past_group_states(
-        &self,
-        group_id: &impl GroupId<CURRENT_VERSION>,
-        past_group_states: &impl serde::Serialize,
-    ) -> Result<(), StorageError<Self>> {
-        let group_id_bytes = C::to_vec(group_id)?;
-        let past_group_states_bytes = C::to_vec(past_group_states)?;
-        let mut past_group_states = self.past_group_states.write().unwrap();
-        past_group_states.insert(group_id_bytes, past_group_states_bytes);
-        Ok(())
-    }
-
-    fn read_past_group_states<PastGroupStates: DeserializeOwned>(
+    fn read_legacy_past_group_states<PastGroupStates: DeserializeOwned>(
         &self,
         group_id: &impl GroupId<CURRENT_VERSION>,
     ) -> Result<Option<PastGroupStates>, StorageError<Self>> {

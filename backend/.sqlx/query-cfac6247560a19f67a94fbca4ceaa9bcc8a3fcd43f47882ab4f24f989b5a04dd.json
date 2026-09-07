@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_token_issuance WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cfac6247560a19f67a94fbca4ceaa9bcc8a3fcd43f47882ab4f24f989b5a04dd"
+}

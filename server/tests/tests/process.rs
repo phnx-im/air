@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use aircoreclient::clients::MarkChatAsRead;
 use airserver_test_harness::utils::setup::TestBackend;
 use mimi_content::MimiContent;
 use rand::RngExt;
@@ -30,7 +31,10 @@ async fn process_qs_messages_cancellation_safety() {
     let alice_user = setup.get_user(&alice).user.clone();
     for idx in 0..NUM_MESSAGES {
         let msg = MimiContent::simple_markdown_message("Hello bob".into(), [idx as u8; 16]);
-        alice_user.send_message(chat_id, msg, None).await.unwrap();
+        alice_user
+            .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
+            .await
+            .unwrap();
     }
     alice_user.outbound_service().run_once().await;
 

@@ -41,7 +41,7 @@ void main() {
             theme: testLightTheme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: ModalScaffold(
-              title: 'Safety Code',
+              title: 'Safety code',
               child: SafetyCodeView(profile: userProfiles[1]),
             ),
           ),

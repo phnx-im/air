@@ -50,7 +50,7 @@ void main() {
     testWidgets(
       'reaches the theme it is built into',
       (tester) async {
-        final theme = themeData(Brightness.light);
+        final theme = themeData(.light);
 
         expect(theme.textTheme.bodyLarge?.fontSize, 14);
       },

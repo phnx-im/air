@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO admission_send_record (endpoint_bucket) VALUES ($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c060c2b8f4fa764812737b89fe5ce9bdd053b9afb76c20d392b1b80efc755dba"
+}

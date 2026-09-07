@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM admission_consumption_record\n        WHERE created_at < now() - ($1::BIGINT * INTERVAL '1 second')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "080a0d22cb8ac3ee138a2a7a851baf02a28fb2cb675c6ca918ffc4a3708f55b1"
+}

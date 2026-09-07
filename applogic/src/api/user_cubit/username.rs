@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    api::user::User,
+    api::{user::User, user_cubit::VersionStatus},
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
@@ -136,22 +136,22 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
         {
             Ok(stream) => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
-                    if !state.inner.unsupported_version {
+                    if let VersionStatus::Supported = state.inner.version_status {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
-                    inner.unsupported_version = false;
+                    inner.version_status = VersionStatus::Supported;
                     true
                 });
                 stream
             }
             Err(error) if error.is_unsupported_version() => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
-                    if state.inner.unsupported_version {
+                    if let VersionStatus::Unsupported = state.inner.version_status {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
-                    inner.unsupported_version = true;
+                    inner.version_status = VersionStatus::Unsupported;
                     true
                 });
                 return Err(error.into());

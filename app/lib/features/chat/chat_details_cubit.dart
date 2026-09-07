@@ -15,9 +15,9 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   ChatDetailsCubit({
     required UserCubit userCubit,
     required UserSettingsCubit userSettingsCubit,
-    required ChatsRepository chatsRepository,
     required AttachmentsRepository attachmentsRepository,
     required ChatId chatId,
+    UiChatDetails? chat,
 
     /// Whether to load the chat members too.
     bool withMembers = true,
@@ -25,7 +25,7 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
          userCubit: userCubit.impl,
          userSettingsCubit: userSettingsCubit.impl,
          chatId: chatId,
-         chatsRepository: chatsRepository,
+         chat: chat,
          attachmentsRepository: attachmentsRepository,
          withMembers: withMembers,
        );

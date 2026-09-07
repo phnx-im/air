@@ -9,16 +9,13 @@ extend-exclude = [
     ".git/",
 
     # Exclude localization except for english
-    "app/ios/Runner/de.lproj/InfoPlist.strings",
-    "app/ios/Runner/fr.lproj/InfoPlist.strings",
-    "app/ios/Runner/sv.lproj/InfoPlist.strings",
-    "app/lib/l10n/GLOSSARY_de.md",
-    "app/lib/l10n/GLOSSARY_fr.md",
-    "app/lib/l10n/GLOSSARY_sv.md",
-    "app/lib/l10n/app_de.arb",
-    "app/lib/l10n/app_fr.arb",
+    "app/ios/Runner/*.lproj/InfoPlist.strings",
+    "!app/ios/Runner/en.lproj/InfoPlist.strings",
+    "app/lib/l10n/GLOSSARY_*.md",
+    "!app/lib/l10n/GLOSSARY_en.md",
+    "app/lib/l10n/app_*.arb",
+    "!app/lib/l10n/app_en.arb",
     "app/lib/l10n/app_localizations*.dart",
-    "app/lib/l10n/app_sv.arb",
 
     # Exclude iOS project
     "app/ios/Runner.xcodeproj",

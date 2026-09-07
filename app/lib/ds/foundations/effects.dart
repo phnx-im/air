@@ -115,7 +115,7 @@ const double _shadowAlphaFloor = 0.01;
 Map<Elevation, List<BoxShadow>> _resolveShadows() {
   // Black is mode-invariant by design (see its alias), so either brightness
   // resolves the same cell.
-  final tint = SemanticColor.functionNeutralBlack.resolve(Brightness.light);
+  final tint = SemanticColor.functionNeutralBlack.resolve(.light);
   final r = (tint.r * 255).round();
   final g = (tint.g * 255).round();
   final b = (tint.b * 255).round();

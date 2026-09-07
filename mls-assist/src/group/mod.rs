@@ -7,7 +7,6 @@ use crate::{
     provider_traits::{MlsAssistProvider, MlsAssistStorageProvider},
 };
 use apqmls::{messages::ApqGroupInfo, processing::ApqProcessedMessage};
-use chrono::Duration;
 use errors::StorageError;
 use openmls::{
     error::LibraryError,
@@ -29,10 +28,20 @@ pub mod errors;
 mod past_group_states;
 pub mod process;
 
+pub use past_group_states::LegacyPastGroupState;
+
 pub struct Group {
     public_group: PublicGroup,
     group_info: GroupInfo,
+    /// Legacy retained trees, read-only.
     past_group_states: PastGroupStates,
+}
+
+/// What a joiner added by a commit needs later.
+pub struct RetainedWelcomeInfo {
+    pub epoch: GroupEpoch,
+    pub ratchet_tree: RatchetTree,
+    pub potential_joiners: Vec<SignaturePublicKey>,
 }
 
 impl Group {
@@ -50,19 +59,14 @@ impl Group {
             ProposalStore::default(),
         )?;
         let group_id = group_info.group_context().group_id();
-        let past_group_states = PastGroupStates::default();
         provider
             .storage()
             .write_group_info(group_id, &group_info)
             .map_err(CreationFromExternalError::WriteToStorageError)?;
-        provider
-            .storage()
-            .write_past_group_states(group_id, &past_group_states)
-            .map_err(CreationFromExternalError::WriteToStorageError)?;
         Ok(Self {
             group_info,
             public_group,
-            past_group_states,
+            past_group_states: PastGroupStates::default(),
         })
     }
 
@@ -71,13 +75,12 @@ impl Group {
         group_id: &GroupId,
     ) -> Result<Option<Self>, StorageError<StorageProvider>> {
         let group_info_option = provider.read_group_info(group_id)?;
-        let past_group_states_option = provider.read_past_group_states(group_id)?;
+        let past_group_states = provider
+            .read_legacy_past_group_states(group_id)?
+            .unwrap_or_default();
         let public_group_option = PublicGroup::load(provider, group_id)?;
-        let (Some(group_info), Some(past_group_states), Some(public_group)) = (
-            group_info_option,
-            past_group_states_option,
-            public_group_option,
-        ) else {
+        let (Some(group_info), Some(public_group)) = (group_info_option, public_group_option)
+        else {
             return Ok(None);
         };
         let group = Self {
@@ -101,19 +104,23 @@ impl Group {
         Ok(())
     }
 
+    /// Merge `processed_assisted_message` into the group state.
+    ///
+    /// Returns the ratchet tree and joiner keys of the resulting epoch if the
+    /// message was a commit that added someone.
+    #[must_use = "the retained welcome info might need to be persisted"]
     pub fn accept_processed_message<StorageProvider: MlsAssistStorageProvider>(
         &mut self,
         provider: &StorageProvider,
         processed_assisted_message: ProcessedAssistedMessage,
-        expiration_time: Duration,
-    ) -> Result<(), MergeCommitError<StorageError<StorageProvider>>> {
+    ) -> Result<Option<RetainedWelcomeInfo>, MergeCommitError<StorageError<StorageProvider>>> {
         let processed_message = match processed_assisted_message {
             ProcessedAssistedMessage::NonCommit(processed_message) => processed_message,
             ProcessedAssistedMessage::Commit(processed_message, group_info) => {
                 self.group_info = *group_info;
                 processed_message
             }
-            ProcessedAssistedMessage::PrivateMessage(_) => return Ok(()),
+            ProcessedAssistedMessage::PrivateMessage(_) => return Ok(None),
         };
         let added_potential_joiners = match processed_message.into_content() {
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -155,25 +162,23 @@ impl Group {
                 Vec::new()
             }
         };
-        // Check if any potential joiners were added.
-        self.past_group_states.add_state(
-            // Note that we're saving the group state after merging the staged
-            // commit.
-            self.public_group.group_context().epoch(),
-            self.public_group.export_ratchet_tree(),
-            &added_potential_joiners,
-        );
-        // Check if any past group state has expired.
-        self.past_group_states
-            .remove_expired_states(expiration_time);
+
+        let retained_welcome_info =
+            (!added_potential_joiners.is_empty()).then(|| RetainedWelcomeInfo {
+                epoch: self.public_group.group_context().epoch(),
+                ratchet_tree: self.public_group.export_ratchet_tree(),
+                potential_joiners: added_potential_joiners,
+            });
         let group_id = self.group_info.group_context().group_id();
         provider
             .write_group_info(group_id, self.group_info())
             .map_err(MergeCommitError::StorageError)?;
+
         provider
-            .write_past_group_states(group_id, &self.past_group_states)
+            .delete_past_group_states(group_id)
             .map_err(MergeCommitError::StorageError)?;
-        Ok(())
+
+        Ok(retained_welcome_info)
     }
 
     pub fn group_info(&self) -> &GroupInfo {
@@ -188,15 +193,20 @@ impl Group {
         self.public_group.group_context().epoch()
     }
 
-    /// Get the nodes of the past group state with the given epoch for the given
-    /// joiner. Returns `None` if there is no past group state for that epoch
-    /// and the given joiner.
-    pub fn past_group_state(
-        &mut self,
+    /// Get the nodes of the legacy retained group state with the given epoch for
+    /// the given joiner. Returns `None` if there is no such entry, which is the
+    /// case for every group written since trees stopped being retained here.
+    pub fn legacy_past_group_state(
+        &self,
         epoch: &GroupEpoch,
         joiner: &SignaturePublicKey,
     ) -> Option<&RatchetTree> {
         self.past_group_states.get_for_joiner(epoch, joiner)
+    }
+
+    /// Move the legacy retained entries out, leaving none behind.
+    pub fn take_legacy_past_group_states(&mut self) -> Vec<LegacyPastGroupState> {
+        self.past_group_states.take_all_past_group_states()
     }
 
     pub fn leaf(&self, leaf_index: LeafNodeIndex) -> Option<&LeafNode> {

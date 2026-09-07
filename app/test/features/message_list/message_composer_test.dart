@@ -10,6 +10,8 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -94,12 +96,18 @@ void main() {
   // test has to carry the very key `showSnackBarStandalone` reaches for.
   Widget buildSubject() => MultiBlocProvider(
     providers: [
+      RepositoryProvider<ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
+      ),
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: usersCubit),
       BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
       BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      RepositoryProvider<ShareTargetPublisher>.value(
+        value: MockShareTargetPublisher(),
+      ),
     ],
     child: Builder(
       builder: (context) => MaterialApp(

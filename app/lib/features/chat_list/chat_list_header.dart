@@ -4,7 +4,6 @@
 
 import 'dart:async';
 
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -17,10 +16,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {
-  const ChatListHeader({super.key, this.scrollOffset = 0});
+  const ChatListHeader({super.key, this.scrollOffset, this.shareMode = false});
 
   /// The list's scroll offset, which reveals the title pill.
-  final double scrollOffset;
+  final ValueNotifier<double>? scrollOffset;
+
+  /// See [ChatListContent.shareMode].
+  final bool shareMode;
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +31,15 @@ class ChatListHeader extends StatelessWidget {
 
     return ListHeader(
       tokens: tokens,
-      title: loc.homeTab_chats,
+      title: shareMode ? loc.shareDestination_title : loc.homeTab_chats,
       scrollOffset: scrollOffset,
-      leading: _ComposeButton(tokens: tokens),
+      leading: shareMode
+          ? ListHeaderAction(
+              tokens: tokens,
+              icon: AppIconType.x,
+              onAction: (_) => context.read<NavigationCubit>().cancelShare(),
+            )
+          : _ComposeButton(tokens: tokens),
     );
   }
 }
@@ -74,13 +82,9 @@ class _ComposeButton extends StatelessWidget {
   }
 
   void _newContact(BuildContext context) {
-    final chatListCubit = context.read<ChatListCubit>();
     showDialog(
       context: context,
-      builder: (BuildContext context) => BlocProvider.value(
-        value: chatListCubit,
-        child: const AddContactDialog(),
-      ),
+      builder: (BuildContext context) => const AddContactDialog(),
     );
   }
 

@@ -90,7 +90,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
                   onEnter: (_) => setState(() => _hovered = true),
                   onExit: (_) => setState(() => _hovered = false),
                   child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                    behavior: .opaque,
                     onHorizontalDragStart: (details) {
                       _dragStartX = details.globalPosition.dx;
                       _dragStartWidth = _panelWidth;

@@ -58,7 +58,7 @@ class _ImageTestBubble extends StatelessWidget {
           attachment: file.copyWith(attachmentId: attachmentId),
           imageMetadata: file.imageMetadata!,
           isSender: isSender,
-          fit: BoxFit.cover,
+          fit: .cover,
         ),
       ),
     );
@@ -143,7 +143,7 @@ void main() {
 
     testWidgets('renders correctly (dark mode)', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
@@ -177,7 +177,7 @@ void main() {
 
     testWidgets('renders correctly (dark mode)', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
         tester.platformDispatcher.clearPlatformBrightnessTestValue();

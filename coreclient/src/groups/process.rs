@@ -15,7 +15,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
-use airprotos::client::{component::AirComponent, self_group::SettingsUpdate};
+use airprotos::client::{app_data::GroupAppData, self_group::SettingsUpdate};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -42,12 +42,56 @@ use crate::{
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
-    groups::client_auth_info::VerifiableUserCredentialExt,
+    groups::{
+        client_auth_info::VerifiableUserCredentialExt, self_group_message_key::SelfGroupPayload,
+    },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
+    privacy_pass,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
+
+/// Applies the messages a self-group commit carried.
+///
+/// `own_echo` marks the DS fanning one of our own commits back: the values are
+/// applied locally already, and what the commit adds is that it was accepted, so
+/// the pending intent behind it is completed rather than re-applied.
+async fn apply_self_group_payload(
+    txn: &mut WriteDbTransaction<'_>,
+    payload: &SelfGroupPayload,
+    own_echo: bool,
+) -> Result<()> {
+    if !payload.updates.is_empty() {
+        // Fold the extracted snapshots into one merged snapshot. This can be
+        // empty when the update decoded to unknown-only fields sent by a newer
+        // sibling; an empty snapshot covers nothing.
+        let mut merged = SettingsUpdate::default();
+        for update in &payload.updates {
+            merge_settings_update(&mut merged, update).await?;
+        }
+        if own_echo {
+            SettingChanges::complete_sent(txn, &merged).await?;
+        } else {
+            for update in &payload.updates {
+                apply_settings_update(txn, update).await?;
+            }
+            // Fields a sibling's accepted commit covered are no longer ours to
+            // change.
+            SettingChanges::remove_covered(txn, &merged).await?;
+        }
+    }
+
+    if own_echo {
+        privacy_pass::complete_sent_seeds(txn, &payload.token_seeds).await?;
+    } else {
+        for seed in &payload.token_seeds {
+            privacy_pass::apply_incoming_seed(txn, seed).await?;
+        }
+    }
+
+    Ok(())
+}
 
 pub(crate) enum ProcessMessageResult {
     Processed(ProcessMessageProcessed),
@@ -116,12 +160,12 @@ impl Group {
                     return Ok(ProcessMessageResult::ResyncRequired);
                 }
                 Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingEmulationEpochState
+                    error @ VirtualClientsError::MissingDerivationEpochState
                     | error @ VirtualClientsError::MissingOperationTree
                     | error @ VirtualClientsError::OperationGenerationConsumed
                     | error @ VirtualClientsError::OperationGenerationTooDistant,
                 ))) => {
-                    // The commit was not built against a virtual client emulation epoch we hold.
+                    // The commit was not built against a virtual client derivation epoch we hold.
                     // Only a resync can get us back onto the same shared leaf.
                     //
                     // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
@@ -280,34 +324,17 @@ impl Group {
             }
         };
 
-        // Settings phase. This must run before the pending-op discard below so
-        // the pending setting changes are reconciled against the snapshot this
-        // commit carried before the outbound service can re-issue them.
+        // Self-group message phase. This must run before the pending-op discard
+        // below so the pending setting changes and token seed proposals are
+        // reconciled against what this commit carried before the outbound
+        // service can re-issue them.
         if self.is_self_group() {
-            let updates = self.extract_settings_updates(txn, staged_commit).await;
-            if !updates.is_empty() {
-                // Fold the extracted snapshots into one merged snapshot. This
-                // can be empty when the update decoded to unknown-only fields
-                // sent by a newer sibling; an empty snapshot covers nothing.
-                let mut merged = SettingsUpdate::default();
-                for update in &updates {
-                    merge_settings_update(&mut merged, update).await?;
-                }
-                // Own echo: the DS fanned our own commit back while our
-                // pending commit was already gone. The values are already
-                // applied locally. The commit was accepted, so complete the
-                // pending setting changes it asserted.
+            let payload = self.extract_self_group_messages(txn, staged_commit).await;
+            if !payload.is_empty() {
+                // Own echo: the DS fanned our own commit back while our pending
+                // commit was already gone.
                 let own_echo = sender_index == self.mls_group().own_leaf_index();
-                if own_echo {
-                    SettingChanges::complete_sent(txn, &merged).await?;
-                } else {
-                    for update in &updates {
-                        apply_settings_update(txn, update).await?;
-                    }
-                    // Fields a sibling's accepted commit covered are no longer
-                    // ours to change.
-                    SettingChanges::remove_covered(txn, &merged).await?;
-                }
+                apply_self_group_payload(txn, &payload, own_echo).await?;
             }
         }
 
@@ -856,7 +883,7 @@ impl Group {
             }
             Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
                 StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingEmulationEpochState
+                    error @ VirtualClientsError::MissingDerivationEpochState
                     | error @ VirtualClientsError::MissingOperationTree
                     | error @ VirtualClientsError::OperationGenerationConsumed
                     | error @ VirtualClientsError::OperationGenerationTooDistant,
@@ -911,15 +938,15 @@ impl Group {
     }
 }
 
-/// Verify that merging `staged_commit` keeps the self-group flag of the group
-/// context's [`AirComponent`] unchanged. The flag is fixed at group creation.
+/// Verify that merging `staged_commit` keeps the self-group flag in the group context unchanged.
+/// The flag is fixed at group creation.
 fn ensure_self_group_flag_unchanged(
     mls_group: &MlsGroup,
     staged_commit: &StagedCommit,
 ) -> Result<()> {
     ensure!(
-        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
-            == AirComponent::is_self_group_context(mls_group.extensions()),
+        GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+            == GroupAppData::is_self_group_context(mls_group.extensions()),
         "commit would toggle the self-group flag"
     );
     Ok(())

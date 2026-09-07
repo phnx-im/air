@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::push_token::PushToken;
+use aircommon::{messages::push_token::PushToken, registration::RegistrationChallenge};
 use anyhow::bail;
 
 use super::{
@@ -45,7 +45,6 @@ impl UserCreationState {
         user_id: UserId,
         client_record_id: Uuid,
         push_token: Option<PushToken>,
-        invitation_code: String,
     ) -> Result<Self> {
         let client_record = ClientRecord::new(user_id.clone(), client_record_id);
         client_record.store(air_db.write().await?).await?;
@@ -53,7 +52,6 @@ impl UserCreationState {
         let basic_user_data = BasicUserData {
             user_id: user_id.clone(),
             push_token,
-            invitation_code,
         };
 
         let user_creation_state = UserCreationState::BasicUserData(basic_user_data);
@@ -69,6 +67,7 @@ impl UserCreationState {
         client_db: &DbAccess,
         client_record_id: Uuid,
         api_clients: &ApiClients,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         // If we're already in the final state, there is nothing to do.
         if matches!(self, UserCreationState::FinalUserState(_)) {
@@ -82,9 +81,9 @@ impl UserCreationState {
                     .await?;
                 Self::InitialUserState(state)
             }
-            UserCreationState::InitialUserState(state) => {
-                Self::PostRegistrationInitState(state.as_registration(api_clients).await?)
-            }
+            UserCreationState::InitialUserState(state) => Self::PostRegistrationInitState(
+                state.as_registration(api_clients, challenge).await?,
+            ),
             UserCreationState::PostRegistrationInitState(state) => {
                 let state = state.process_server_response(client_db).await?;
                 Self::UnfinalizedRegistrationState(state)
@@ -132,10 +131,17 @@ impl UserCreationState {
         client_db: &DbAccess,
         client_record_id: Uuid,
         api_clients: &ApiClients,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<PersistedUserState> {
         while !matches!(self, UserCreationState::FinalUserState(_)) {
             self = self
-                .step(air_db, client_db, client_record_id, api_clients)
+                .step(
+                    air_db,
+                    client_db,
+                    client_record_id,
+                    api_clients,
+                    challenge.clone(),
+                )
                 .await?
         }
 

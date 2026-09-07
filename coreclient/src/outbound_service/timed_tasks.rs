@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::{app_data::GroupAppData, group::GroupData},
+};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -16,11 +19,10 @@ use crate::{
     groups::Group,
     job::{
         JobError,
-        chat_operation::ChatOperation,
+        chat_operation::{ChatOperation, DerivationEpoch},
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
-    privacy_pass::RequestTokensError,
     usernames::UsernameRecord,
 };
 
@@ -324,26 +326,22 @@ impl OutboundServiceContext {
     }
 
     /// Ensures the client has Privacy Pass tokens available for all
-    /// operations. Fetches VOPRF public keys from the server and requests
-    /// tokens if the local store is running low.
+    /// operations. Fetches VOPRF public keys from the server on every run.
     ///
-    /// Returns a short interval (5 min) when tokens are still below the
-    /// threshold, and a long interval (6 h) when fully stocked.
+    /// Returns a short interval (5 min) while something still has to converge,
+    /// and a long interval (6 h) once there is nothing left to fetch.
     async fn replenish_tokens(
         &self,
         operation_type: OperationType,
         loaded_credentials: &mut bool,
     ) -> anyhow::Result<Duration> {
-        use crate::privacy_pass;
+        use crate::privacy_pass::{self, ReplenishOutcome};
 
         let api_client = self.api_clients.default_client()?;
 
-        let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.db.read().await?, operation_type).await?
-        else {
-            return Ok(Duration::hours(6));
-        };
-
+        // Refresh the key set before looking at the cache depth: a client whose
+        // cache never runs low would otherwise sleep through the AS rotation
+        // overlap window and end up holding tokens no key can redeem.
         if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
             self.db
@@ -358,56 +356,19 @@ impl OutboundServiceContext {
             *loaded_credentials = true;
         }
 
-        match privacy_pass::request_and_store_tokens(
+        let outcome = privacy_pass::replenish(
             &self.db,
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
             operation_type,
-            replenish_count,
         )
-        .await?
-        {
-            Ok(count) => {
-                if count < usize::from(operation_type.low_tokens_threshold()) {
-                    Ok(Duration::minutes(5))
-                } else {
-                    Ok(Duration::hours(6))
-                }
-            }
-            Err(RequestTokensError::QuotaExceeded {
-                retry_after,
-                tokens_available,
-            }) => {
-                warn!(
-                    %operation_type,
-                    retry_after_secs = retry_after.num_seconds(),
-                    tokens_available,
-                    "quota exceeded"
-                );
-                if tokens_available > 0 && retry_after.is_zero() {
-                    // Partial quota: some tokens are available right now. Retry immediately with
-                    // the reduced count.
-                    match privacy_pass::request_and_store_tokens(
-                        &self.db,
-                        &api_client,
-                        self.user_id().clone(),
-                        self.signing_key(),
-                        operation_type,
-                        tokens_available,
-                    )
-                    .await?
-                    {
-                        Ok(_) => Ok(Duration::hours(6)),
-                        Err(RequestTokensError::QuotaExceeded { retry_after, .. }) => {
-                            Ok(retry_after.max(Duration::minutes(5)))
-                        }
-                    }
-                } else {
-                    Ok(retry_after.max(Duration::minutes(5)))
-                }
-            }
-        }
+        .await?;
+
+        Ok(match outcome {
+            ReplenishOutcome::Settled => Duration::hours(6),
+            ReplenishOutcome::RetrySoon => Duration::minutes(5),
+        })
     }
 
     async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
@@ -543,10 +504,9 @@ impl OutboundServiceContext {
             // For connection chats, that support empty connection group titles, we can erase the data.
             let is_connection = chat.is_connection();
             let erase_attributes = if is_connection {
-                group.members_air_component().all(|component| {
-                    component
-                        .map(|component| component.features.empty_connection_group_attributes)
-                        .unwrap_or(false)
+                group.members_app_data().all(|app_data| {
+                    app_data
+                        .is_some_and(|app_data| app_data.features.empty_connection_group_attributes)
                 })
             } else {
                 false
@@ -557,19 +517,40 @@ impl OutboundServiceContext {
 
         let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
 
+        // The periodic self-update of the emulation group, i.e. the self group,
+        // doubles as the rotation of its derivation epoch. openmls rejects the
+        // marker on any other group.
+        let derivation_epoch = if group.mls_group().is_emulation_group() {
+            DerivationEpoch::Rotate
+        } else {
+            // A self group without a registered derivation epoch loads as a
+            // non-emulation group and cannot register one. An unmarked
+            // self-update would only bounce off the DS, so skip it and leave a
+            // diagnosable trace.
+            if GroupAppData::is_self_group_context(group.mls_group().extensions()) {
+                error!(
+                    %chat_id,
+                    "self group has no derivation epoch and cannot register one, \
+                     skipping its self-update"
+                );
+                return Ok(SelfUpdateOutcome::Skipped);
+            }
+            DerivationEpoch::Keep
+        };
+
         let job = if migration_attrs.is_some() {
             // Migration takes precedence over PQ self-update (PQ interval is long, so this is
             // fine).
             info!(%chat_id, "Migrating legacy group data");
-            ChatOperation::update(chat_id, migration_attrs)
+            ChatOperation::update(chat_id, migration_attrs, derivation_epoch)
         } else if pq_due {
             // Both T and PQ are due and no migration is needed, so the joint APQ update covers
             // both.
             info!(%chat_id, "Performing joint APQ self-update");
-            ChatOperation::apq_update(chat_id)
+            ChatOperation::apq_update(chat_id, derivation_epoch)
         } else {
             // Pure T-only update
-            ChatOperation::update(chat_id, None)
+            ChatOperation::update(chat_id, None, derivation_epoch)
         };
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),

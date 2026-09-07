@@ -13,7 +13,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 /// The surface a modal's content sits on: a card anchored to the top of the
@@ -67,7 +67,7 @@ class ModalShell extends StatelessWidget {
             color: surface,
             borderRadius: BorderRadius.circular(tokens.cardRadius),
           ),
-          clipBehavior: Clip.antiAlias,
+          clipBehavior: .antiAlias,
           child: child,
         ),
       ),
@@ -168,7 +168,7 @@ class DialogHeader extends StatelessWidget {
             middle: Text(
               title,
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              overflow: .ellipsis,
               style: typeScale.body.regular.style(
                 color: palette.text.primary,
                 weight: Weight.emphasized,
@@ -250,7 +250,7 @@ class _ModalSurfaceState extends State<ModalSurface> {
       unsaved: _unsaved,
       child: ModalShell(
         tokens: ModalShellTokens.of(context),
-        child: Material(type: MaterialType.transparency, child: widget.child),
+        child: Material(type: .transparency, child: widget.child),
       ),
     );
   }
@@ -297,6 +297,7 @@ class ModalPane extends StatefulWidget {
     super.key,
     required this.title,
     this.onDismiss,
+    this.dismissIcon = AppIconType.arrowLeft,
     this.onBack,
     this.trailing,
     this.scrollable = true,
@@ -311,6 +312,12 @@ class ModalPane extends StatefulWidget {
   ///
   /// Falls back to [ModalPageActions.onDismiss].
   final VoidCallback? onDismiss;
+
+  /// Glyph the dismiss takes where it lands in the leading slot of a
+  /// full-screen page, which is the way out of the screen it was pushed onto.
+  /// A surface the platform presents as a sheet of its own has no screen
+  /// behind it to go back to, so it takes the `x`.
+  final AppIconType dismissIcon;
 
   /// Returns to the level the modal drilled down from. Always the leading
   /// action, outranking [onDismiss] there.
@@ -363,7 +370,7 @@ class _ModalPaneState extends State<ModalPane> {
   bool _track(int depth, ScrollMetrics metrics) {
     // A scrollable nested inside a row reports through here too, at a depth
     // below the one this fade stands for.
-    if (depth == 0 && metrics.axis == Axis.vertical) {
+    if (depth == 0 && metrics.axis == .vertical) {
       _edges.value = ScrollEdges.of(metrics);
     }
     return false;
@@ -375,7 +382,7 @@ class _ModalPaneState extends State<ModalPane> {
     final fullBleed = ModalShellTokens.isFullBleed(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         _header(context),
         // Flexible keeps a scrolling body hugging its content, so the card
@@ -420,9 +427,9 @@ class _ModalPaneState extends State<ModalPane> {
       tokens: DialogHeaderTokens.of(context),
       title: widget.title,
       onLeading: onBack ?? (dismissLeads ? onDismiss : null),
-      leadingIcon: onBack != null || fullBleed
+      leadingIcon: onBack != null
           ? AppIconType.arrowLeft
-          : AppIconType.x,
+          : (fullBleed ? widget.dismissIcon : AppIconType.x),
       onTrailing: dismissTrails ? onDismiss : null,
       trailing: widget.trailing,
     );

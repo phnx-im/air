@@ -289,5 +289,74 @@ void main() {
         ),
       ).called(1);
     });
+
+    testWidgets('delivers a reaction picked on the message that just arrived', (
+      tester,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      when(
+        () => chatDetailsCubit.sendReaction(
+          messageId: any(named: 'messageId'),
+          emoji: any(named: 'emoji'),
+        ),
+      ).thenAnswer((_) async {});
+
+      messageListCubit.setState(_mobileMessages, isAtBottom: true);
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      final arrived = UiChatMessage(
+        id: 7.messageId(),
+        chatId: _chatId,
+        timestamp: DateTime.parse('2023-01-01T00:05:00.000Z'),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: 2.userId(),
+            sent: true,
+            edited: false,
+            content: UiMimiContent(
+              plainBody: 'One more thing',
+              topicId: Uint8List(0),
+              content: simpleMessage('One more thing'),
+              attachments: [],
+            ),
+          ),
+        ),
+        status: UiMessageStatus.sent,
+        reactions: [],
+      );
+      messageListCubit.appendNewer([arrived], isIncoming: true);
+      await tester.pumpAndSettle();
+
+      // Past the window in which the view keeps the message eligible for the
+      // entrance animation.
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.longPress(find.text('One more thing'));
+      await tester.pumpAndSettle();
+
+      // Anything that rebuilds the list under the open overlay: a delivery
+      // state landing, the read marker moving, a message being edited.
+      messageListCubit.setState(
+        [..._mobileMessages, arrived],
+        isAtBottom: true,
+        revision: 7,
+      );
+      await tester.pump();
+
+      final semantics = tester.ensureSemantics();
+      await tester.tap(find.bySemanticsLabel(RegExp('👍')));
+      semantics.dispose();
+      await tester.pumpAndSettle();
+
+      verify(
+        () => chatDetailsCubit.sendReaction(
+          messageId: 7.messageId(),
+          emoji: '👍',
+        ),
+      ).called(1);
+    });
   });
 }

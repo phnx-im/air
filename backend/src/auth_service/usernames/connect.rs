@@ -17,9 +17,9 @@ use airprotos::{
     },
     validation::{MissingFieldError, MissingFieldExt},
 };
+use chrono::Utc;
 use displaydoc::Display;
 use futures_util::Stream;
-use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -27,7 +27,10 @@ use tokio_stream::StreamExt;
 use tonic::{Status, Streaming};
 use tracing::{debug, error};
 
-use crate::auth_service::{AuthService, connection_package::StorableConnectionPackage};
+use crate::{
+    auth_service::{AuthService, connection_package::StorableConnectionPackage},
+    version::VersionPolicy,
+};
 
 use super::{UsernameRecord, queue::UsernameQueueError};
 
@@ -61,8 +64,7 @@ pub(crate) trait ConnectUsernameProtocol {
         connection_offer: ConnectionOfferMessage,
     ) -> Result<(), UsernameQueueError>;
 
-    #[expect(clippy::needless_lifetimes)]
-    fn client_version_req<'a>(&'a self) -> Option<&'a VersionReq>;
+    fn version_policy(&self) -> &VersionPolicy;
 }
 
 async fn run_protocol(
@@ -98,11 +100,14 @@ async fn run_protocol_impl(
         None => return Ok(()),
     };
 
-    crate::version::verify_client_version(
-        protocol.client_version_req(),
-        fetch_connection_package.client_metadata.as_ref(),
-    )
-    .map_err(ConnectProtocolError::UnsupportedVersion)?;
+    // TODO: Communicate verification result to the client
+    let _verified = protocol
+        .version_policy()
+        .verify_client_version(
+            fetch_connection_package.client_metadata.as_ref(),
+            Utc::now(),
+        )
+        .map_err(ConnectProtocolError::UnsupportedVersion)?;
 
     let hash = fetch_connection_package
         .hash
@@ -242,8 +247,8 @@ impl ConnectUsernameProtocol for AuthService {
         Ok(())
     }
 
-    fn client_version_req(&self) -> Option<&VersionReq> {
-        self.client_version_req.as_ref()
+    fn version_policy(&self) -> &VersionPolicy {
+        &self.version_policy
     }
 }
 
@@ -374,7 +379,9 @@ mod tests {
             .with(eq(hash), eq(connection_offer.clone()))
             .returning(|_, _| Ok(()));
 
-        mock_protocol.expect_client_version_req().returning(|| None);
+        mock_protocol
+            .expect_version_policy()
+            .return_const(Default::default());
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
@@ -441,7 +448,9 @@ mod tests {
             .with(eq(hash))
             .returning(|_| Ok(None));
 
-        mock_protocol.expect_client_version_req().returning(|| None);
+        mock_protocol
+            .expect_version_policy()
+            .return_const(Default::default());
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
@@ -477,7 +486,9 @@ mod tests {
             .with(eq(hash))
             .returning(|_| Ok(Some(ExpirationData::new(Duration::milliseconds(1)))));
 
-        mock_protocol.expect_client_version_req().returning(|| None);
+        mock_protocol
+            .expect_version_policy()
+            .return_const(Default::default());
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
@@ -570,7 +581,9 @@ mod tests {
             .with(eq(hash))
             .returning(move |_| Ok(inner_connection_package.clone()));
 
-        mock_protocol.expect_client_version_req().returning(|| None);
+        mock_protocol
+            .expect_version_policy()
+            .return_const(Default::default());
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 

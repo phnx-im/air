@@ -5,8 +5,8 @@
 use openmls::{
     group::GroupEpoch,
     prelude::{
-        Ciphersuite, Credential, KeyPackage, KeyPackageIn, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage, ProtocolVersion,
+        Credential, KeyPackage, KeyPackageIn, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage, ProtocolVersion,
         PublicMessageIn, RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
         group_info::{GroupInfo, VerifiableGroupInfo},
     },
@@ -17,7 +17,9 @@ use tls_codec::{
     Deserialize as _, Serialize as _, TlsDeserialize, TlsDeserializeBytes, TlsSerialize, TlsSize,
 };
 
-use crate::{ApqGroupId, authentication::ApqVerifyingKey, extension::PqtMode};
+use crate::{
+    ApqGroupId, authentication::ApqVerifyingKey, extension::PqtMode, validation::implied_mode,
+};
 
 /// An incoming message for processing by an [`crate::ApqMlsGroup`].
 #[derive(Debug, Clone, TlsDeserialize, TlsDeserializeBytes, TlsSize)]
@@ -233,12 +235,7 @@ impl ApqKeyPackage {
     }
 
     pub fn mode(&self) -> PqtMode {
-        match self.pq_key_package.ciphersuite() {
-            Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA512_MLDSA87
-            | Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87
-            | Ciphersuite::MLS_192_MLKEM768_AES256GCM_SHA384_MLDSA65 => PqtMode::ConfAndAuth,
-            _ => PqtMode::ConfOnly,
-        }
+        implied_mode(self.pq_key_package.ciphersuite())
     }
 
     /// Returns the credential of the T [`KeyPackage`].

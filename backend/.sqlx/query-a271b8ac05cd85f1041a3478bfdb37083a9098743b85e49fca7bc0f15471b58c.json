@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE admission_send_record SET created_at = now() - INTERVAL '2 hours'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a271b8ac05cd85f1041a3478bfdb37083a9098743b85e49fca7bc0f15471b58c"
+}

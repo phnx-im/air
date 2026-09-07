@@ -130,7 +130,7 @@ Widget _paragraph(
     style: isJumboEmoji(inlines) ? typeScale.emoji.jumbo.style() : null,
   ),
   softWrap: true,
-  textWidthBasis: TextWidthBasis.longestLine,
+  textWidthBasis: .longestLine,
 );
 
 Widget _heading(
@@ -168,8 +168,8 @@ Widget _quote(
     child: DefaultTextStyle.merge(
       style: TextStyle(color: palette.text.secondary),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         spacing: MessageTextTokens.blockGap,
         children: [
           for (final inner in blocks)
@@ -201,8 +201,8 @@ Widget _list(
       vertical: MessageTextTokens.listPaddingY,
     ),
     child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: .min,
+      crossAxisAlignment: .start,
       spacing: MessageTextTokens.listItemGap,
       children: [
         for (final (index, item) in items.indexed)
@@ -254,16 +254,16 @@ Widget _listItem(
   }
 
   return Row(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: .min,
+    crossAxisAlignment: .start,
     children: [
       marker,
       const SizedBox(width: MessageTextTokens.listMarkerGap),
       Flexible(
-        fit: FlexFit.loose,
+        fit: .loose,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: .min,
+          crossAxisAlignment: .start,
           spacing: MessageTextTokens.blockGap,
           children: [
             for (final block in item.blocks)
@@ -303,8 +303,8 @@ Widget _table(
   Widget cell(List<RangedBlockElement> blocks) => Padding(
     padding: MessageTextTokens.tableCellPadding,
     child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: .min,
+      crossAxisAlignment: .start,
       spacing: MessageTextTokens.blockGap,
       children: [
         for (final block in blocks)
@@ -327,7 +327,7 @@ Widget _table(
         children: [
           for (final blocks in head)
             DefaultTextStyle.merge(
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: .bold),
               child: cell(blocks),
             ),
         ],
@@ -441,7 +441,7 @@ class _Bullet extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        decoration: BoxDecoration(shape: .circle, color: color),
       ),
     ),
   );
@@ -505,10 +505,10 @@ class _CheckPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.stroke
+      ..style = .stroke
       ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..strokeCap = .round
+      ..strokeJoin = .round;
     // Drawn on a 12-unit grid and scaled to whatever box the token asks for.
     final scale = size.width / 12;
     final path = Path()
@@ -565,7 +565,7 @@ InlineSpan buildInlineElement(
       children: field0
           .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
-      style: const TextStyle(fontWeight: FontWeight.bold),
+      style: const TextStyle(fontWeight: .bold),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
       mouseCursor: destUrl != null
           ? SystemMouseCursors.click
@@ -575,7 +575,7 @@ InlineSpan buildInlineElement(
       children: field0
           .map((child) => buildInlineElement(context, child, isSender))
           .toList(),
-      style: const TextStyle(fontStyle: FontStyle.italic),
+      style: const TextStyle(fontStyle: .italic),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
       mouseCursor: destUrl != null
           ? SystemMouseCursors.click
@@ -607,7 +607,7 @@ InlineSpan buildInlineElement(
     // A task marker the parser did not put at the head of a list item, where
     // it would have been lifted into the marker column instead.
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
-      alignment: PlaceholderAlignment.middle,
+      alignment: .middle,
       child: Padding(
         padding: const EdgeInsets.only(right: MessageTextTokens.listMarkerGap),
         child: _Checkbox(
@@ -931,7 +931,7 @@ class CustomTextEditingController extends TextEditingController {
           color: SemanticPalette.of(context).function.danger,
           decorationColor: SemanticPalette.of(context).function.danger,
           decoration: TextDecoration.underline,
-          decorationStyle: TextDecorationStyle.wavy,
+          decorationStyle: .wavy,
         ),
       ),
     };
@@ -960,11 +960,11 @@ class CustomTextEditingController extends TextEditingController {
       ),
       InlineElement_Bold(:final field0) => TextSpan(
         children: buildWrappedInline(context, inline.start, inline.end, field0),
-        style: const TextStyle(fontWeight: FontWeight.bold),
+        style: const TextStyle(fontWeight: .bold),
       ),
       InlineElement_Italic(:final field0) => TextSpan(
         children: buildWrappedInline(context, inline.start, inline.end, field0),
-        style: const TextStyle(fontStyle: FontStyle.italic),
+        style: const TextStyle(fontStyle: .italic),
       ),
       InlineElement_Strikethrough(:final field0) => TextSpan(
         children: buildWrappedInline(context, inline.start, inline.end, field0),

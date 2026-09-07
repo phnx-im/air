@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO registration_record DEFAULT VALUES",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "3a18c9f6c14e4c68df4c011bf7e731c3437ee17d50a68ee5c77b4eb25fce0f3f"
+}

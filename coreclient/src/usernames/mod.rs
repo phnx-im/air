@@ -12,10 +12,10 @@ use aircommon::{
     },
 };
 use airprotos::auth_service::v1::OperationType;
-use anyhow::{Context, bail};
+use anyhow::Context;
 pub use persistence::UsernameRecord;
 use tokio::task::spawn_blocking;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use airapiclient::ApiClient;
 
@@ -212,12 +212,6 @@ impl CoreUser {
             return Ok(token);
         }
 
-        let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.db().read().await?, operation_type).await?
-        else {
-            bail!("no tokens available to replenish");
-        };
-
         let credentials_response = api_client.as_as_credentials().await?;
 
         self.db()
@@ -233,15 +227,15 @@ impl CoreUser {
         // Cache empty — replenish for future attempts but don't consume
         // immediately. The caller should propagate this error and retry,
         // providing a natural timing gap between issuance and redemption.
-        privacy_pass::request_and_store_tokens(
+        let outcome = privacy_pass::replenish(
             self.db(),
             api_client,
             self.user_id().clone(),
             self.signing_key(),
             operation_type,
-            replenish_count,
         )
-        .await??;
+        .await?;
+        info!(?outcome, %operation_type, "replenished tokens on an empty cache");
 
         anyhow::bail!(
             "privacy pass token cache was empty; \

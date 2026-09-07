@@ -116,7 +116,7 @@ class DeveloperCard extends StatelessWidget {
     final color = fill ?? developerCardFill(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         if (caption case final caption?) DeveloperCaption(caption),
         _CardSurface(
@@ -210,7 +210,7 @@ class DeveloperInfoRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: .start,
           children: [
             // Shares rather than a fixed label column: a column wide enough
             // for the desktop pane wraps a user ID every few characters on a
@@ -226,7 +226,7 @@ class DeveloperInfoRow extends StatelessWidget {
             Expanded(
               flex: 3,
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: .start,
                 children: [
                   Expanded(child: content ?? Text(value, style: valueStyle)),
                   if (trailing case final trailing?) ...[

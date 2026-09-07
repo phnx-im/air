@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::ops::Deref;
+use std::{collections::HashSet, ops::Deref};
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{GroupStorageWitness, LeafCredential, UserCredential},
+    credentials::{GroupStorageWitness, LeafCredential, RoomPolicyIdentity, UserCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     time::TimeStamp,
@@ -16,9 +16,9 @@ use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup, MlsGroupState};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::{OpenMlsProvider, storage::StorageProvider};
-use sqlx::{SqliteConnection, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 use tls_codec::Serialize as _;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     ChatId,
@@ -585,6 +585,40 @@ impl Group {
             .inspect_err(|error| error!(%error, ?group_id, "Failed to load own leaf index"))
             .ok()
             .flatten()
+    }
+
+    pub(crate) async fn load_participants(
+        executor: impl SqliteExecutor<'_>,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Option<HashSet<UserId>>> {
+        let Some(BlobDecoded(room_state)) = query_scalar!(
+            r#"SELECT g.room_state AS "room_state: BlobDecoded<VerifiedRoomState>"
+            FROM "group" g
+            INNER JOIN chat c ON c.group_id = g.group_id
+            WHERE c.chat_id = ?"#,
+            chat_id,
+        )
+        .fetch_optional(executor)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let user_ids = room_state
+            .users()
+            .keys()
+            .filter_map(|identity_bytes| {
+                let identity = RoomPolicyIdentity::from_bytes(identity_bytes)
+                    .inspect_err(|error| {
+                        warn!(%error, "malformed room state identity");
+                    })
+                    .ok()?;
+                match identity {
+                    RoomPolicyIdentity::User(user_id) => Some(user_id),
+                    RoomPolicyIdentity::Client(_) => None,
+                }
+            })
+            .collect();
+        Ok(Some(user_ids))
     }
 }
 

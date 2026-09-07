@@ -85,7 +85,7 @@ class ReactionChip extends StatelessWidget {
     final content = hidden != null
         ? Text('+$hidden', style: countStyle(palette.text.tertiary))
         : Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               // Ink-centered rather than a raw Text: on iOS the emoji glyph
               // isn't centered within its own line box, see [CenteredEmoji].

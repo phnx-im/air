@@ -7,31 +7,34 @@ use aircommon::{
     crypto::signatures::signable::Signable,
     identifiers::UserId,
     messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
+    registration::RegistrationChallenge,
     time::TimeStamp,
 };
-use metrics::counter;
 use tracing::error;
 
 use crate::{
     auth_service::{
         AuthService, client_record::ClientRecord,
         credentials::intermediate_signing_key::IntermediateSigningKey,
-        invitation_code_record::InvitationCodeRecord, user_record::UserRecord,
+        registration_challenge::ChallengeVerdict, user_record::UserRecord,
     },
     errors::auth_service::{DeleteUserError, RegisterUserError},
 };
+
+/// What a registration attempt produced.
+pub(crate) enum RegistrationOutcome {
+    Registered(RegisterUserResponse),
+    /// The challenge response the request carried does not admit it. The
+    /// transaction is rolled back, so the response stays unspent.
+    ChallengeRejected,
+}
 
 impl AuthService {
     pub(crate) async fn as_init_user_registration(
         &self,
         params: RegisterUserParamsIn,
-        mut code_record: Option<InvitationCodeRecord>,
-    ) -> Result<RegisterUserResponse, RegisterUserError> {
-        assert!(
-            !self.invitation_only || code_record.is_some(),
-            "invitation_only => code_record is Some"
-        );
-
+        challenge: Option<RegistrationChallenge>,
+    ) -> Result<RegistrationOutcome, RegisterUserError> {
         let RegisterUserParamsIn {
             client_payload,
             encrypted_user_profile,
@@ -80,6 +83,26 @@ impl AuthService {
             error!(%error, "Failed to start transaction");
             RegisterUserError::StorageError
         })?;
+
+        match challenge.as_ref() {
+            // Spending the response and creating the account are the same
+            // commit, so neither can happen without the other.
+            Some(challenge) => match self.consume_challenge(&mut txn, challenge).await? {
+                ChallengeVerdict::Accepted => {}
+                ChallengeVerdict::Rejected => return Ok(RegistrationOutcome::ChallengeRejected),
+            },
+            // A challenge-verified registration is already vouched for, so only
+            // the unvouched ones move the deployment-wide counter.
+            None => self
+                .registration_gate
+                .record_completion(&mut txn)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to record registration");
+                    RegisterUserError::StorageError
+                })?,
+        }
+
         UserRecord::new_and_store(txn.as_mut(), user_id, &encrypted_user_profile)
             .await
             .map_err(|error| {
@@ -94,23 +117,14 @@ impl AuthService {
                 RegisterUserError::StorageError
             })?;
 
-        if let Some(code_record) = code_record.as_mut() {
-            code_record.redeemed = true;
-            code_record.save(&self.db_pool).await.map_err(|error| {
-                error!(%error, "Failed to save invitation code");
-                RegisterUserError::StorageError
-            })?;
-            counter!("air_invitation_codes_redeemed_total").increment(1);
-        }
-
         txn.commit().await.map_err(|error| {
             error!(%error, "Failed to commit transaction");
             RegisterUserError::StorageError
         })?;
 
-        let response = RegisterUserResponse { user_credential };
-
-        Ok(response)
+        Ok(RegistrationOutcome::Registered(RegisterUserResponse {
+            user_credential,
+        }))
     }
 
     pub(crate) async fn as_delete_user(&self, user_id: &UserId) -> Result<(), DeleteUserError> {

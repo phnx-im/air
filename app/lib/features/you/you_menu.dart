@@ -82,7 +82,7 @@ class _FlatMenu extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(S.s8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           for (final section in sections)
             _MenuRow(
@@ -112,7 +112,7 @@ class _SectionList extends StatelessWidget {
     Widget card(List<Widget> rows) => ClipRRect(
       borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           for (final (index, row) in rows.indexed) ...[
             // A hairline of the screen behind separates the rows, so the card
@@ -125,7 +125,7 @@ class _SectionList extends StatelessWidget {
     );
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         for (final (index, group) in groups.indexed) ...[
           if (index > 0) const SizedBox(height: S.s16),
@@ -209,7 +209,7 @@ class _MenuRow extends StatelessWidget {
                 child: Text(
                   label,
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  overflow: .ellipsis,
                   style: typeScale.body.regular.style(
                     color: palette.text.primary,
                   ),

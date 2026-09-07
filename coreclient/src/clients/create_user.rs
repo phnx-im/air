@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use crate::{
     DisplayName,
+    clients::registration::RegistrationError,
     groups::client_auth_info::StorableUserCredential,
     key_stores::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
@@ -12,6 +15,7 @@ use crate::{
     user_profiles::generate::NewUserProfile,
     utils::global_lock::GlobalLock,
 };
+use airapiclient::as_api::RegistrationOutcome;
 use aircommon::{
     credentials::{
         AsIntermediateCredential, VerifiableUserCredential, keys::PreliminaryUserSigningKey,
@@ -27,10 +31,26 @@ use aircommon::{
         connection_package_v1::ConnectionPackageV1,
         push_token::{EncryptedPushToken, PushToken},
     },
+    registration::RegistrationChallenge,
 };
 use tracing::debug;
 
 use super::*;
+
+const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const HTTP_TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+
+/// Builds the HTTP client used for object storage transfers.
+///
+/// No read timeout: reqwest applies it as a deadline for the response head
+/// counted from the start of the request, which would cut off large uploads.
+fn build_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .tcp_keepalive(HTTP_TCP_KEEPALIVE)
+        .build()
+        .expect("failed to build HTTP client")
+}
 
 /// State before any network queries
 ///
@@ -40,7 +60,6 @@ use super::*;
 pub(crate) struct BasicUserData {
     pub(super) user_id: UserId,
     pub(super) push_token: Option<PushToken>,
-    pub(super) invitation_code: String,
 }
 
 impl BasicUserData {
@@ -134,7 +153,6 @@ impl BasicUserData {
             encrypted_user_profile,
             key_store,
             qs_initial_ratchet_secret,
-            invitation_code: self.invitation_code,
         };
 
         Ok(initial_user_state)
@@ -148,13 +166,12 @@ impl BasicUserData {
 pub(crate) struct InitialUserState {
     // Persisted CBOR field name; predates the rename to user credential.
     #[serde(rename = "client_credential_payload")]
-    user_credential_payload: UserCredentialPayload,
-    as_intermediate_credential: AsIntermediateCredential,
-    encrypted_push_token: Option<EncryptedPushToken>,
-    encrypted_user_profile: EncryptedUserProfile,
-    key_store: MemoryUserKeyStoreBase<PreliminaryUserSigningKey>,
-    qs_initial_ratchet_secret: RatchetSecret,
-    invitation_code: String,
+    pub(super) user_credential_payload: UserCredentialPayload,
+    pub(super) as_intermediate_credential: AsIntermediateCredential,
+    pub(super) encrypted_push_token: Option<EncryptedPushToken>,
+    pub(super) encrypted_user_profile: EncryptedUserProfile,
+    pub(super) key_store: MemoryUserKeyStoreBase<PreliminaryUserSigningKey>,
+    pub(super) qs_initial_ratchet_secret: RatchetSecret,
 }
 
 impl InitialUserState {
@@ -162,16 +179,27 @@ impl InitialUserState {
     pub(super) async fn as_registration(
         self,
         api_clients: &ApiClients,
+        challenge: Option<RegistrationChallenge>,
     ) -> Result<PostAsRegistrationState> {
         // Register the user with the backend.
-        let response = api_clients
+        let outcome = api_clients
             .default_client()?
             .as_register_user(
                 self.user_credential_payload.clone(),
                 self.encrypted_user_profile.clone(),
-                self.invitation_code.clone(),
+                challenge,
             )
             .await?;
+
+        let response = match outcome {
+            RegistrationOutcome::Registered(response) => response,
+            RegistrationOutcome::ChallengeRequired(accepted) => {
+                return Err(RegistrationError::ChallengeRequired(accepted).into());
+            }
+            RegistrationOutcome::ChallengeRejected => {
+                return Err(RegistrationError::ChallengeRejected.into());
+            }
+        };
 
         let post_registration_init_state = PostAsRegistrationState {
             initial_user_state: self,
@@ -192,10 +220,10 @@ impl InitialUserState {
 // a new version in `StorableUserCreationState` must be created.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct PostAsRegistrationState {
-    initial_user_state: InitialUserState,
+    pub(super) initial_user_state: InitialUserState,
     // Persisted CBOR field name; predates the rename to user credential.
     #[serde(rename = "client_credential")]
-    user_credential: VerifiableUserCredential,
+    pub(super) user_credential: VerifiableUserCredential,
 }
 
 impl PostAsRegistrationState {
@@ -210,7 +238,6 @@ impl PostAsRegistrationState {
             encrypted_user_profile: _,
             key_store,
             qs_initial_ratchet_secret,
-            invitation_code: _,
         } = self.initial_user_state;
 
         let user_credential: UserCredential = self
@@ -398,7 +425,7 @@ impl PersistedUserState {
             qs_client_id,
         } = self.state;
 
-        let http_client = reqwest::Client::new();
+        let http_client = build_http_client();
         let outbound_service = OutboundService::new(
             db.clone(),
             api_clients.clone(),

@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::{
     air_service::{BackendService, ServiceCreationError},
     ds::storage::Storage,
+    version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
 
@@ -29,10 +30,14 @@ mod resync;
 mod self_remove;
 pub mod storage;
 mod update_user_profile_key;
+mod welcome_info;
 
 /// Number of days after its last use upon which a group state is considered
 /// expired.
 pub const GROUP_STATE_EXPIRATION: Duration = Duration::days(90);
+
+/// How long the welcome information of an epoch is kept.
+pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(90);
 
 #[derive(Debug, Clone)]
 pub struct Ds {
@@ -40,7 +45,7 @@ pub struct Ds {
     reserved_group_ids: Arc<Mutex<HashSet<Uuid>>>,
     db_pool: PgPool,
     storage: Option<Storage>,
-    client_version_req: Option<semver::VersionReq>,
+    version_policy: VersionPolicy,
 }
 
 #[derive(Debug)]
@@ -50,7 +55,7 @@ impl BackendService for Ds {
     async fn initialize(
         db_pool: PgPool,
         domain: Fqdn,
-        client_version_req: Option<semver::VersionReq>,
+        version_policy: VersionPolicy,
         _stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let ds = Self {
@@ -58,7 +63,7 @@ impl BackendService for Ds {
             reserved_group_ids: Default::default(),
             db_pool,
             storage: None,
-            client_version_req,
+            version_policy,
         };
 
         Ok(ds)

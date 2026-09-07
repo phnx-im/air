@@ -5,7 +5,7 @@
 //! Parsed MLS leaf credentials.
 
 use mls_assist::openmls::prelude::{BasicCredentialError, Credential, CredentialType};
-use tls_codec::Serialize as _;
+use tls_codec::{DeserializeBytes, Serialize as _};
 use uuid::Uuid;
 
 use crate::identifiers::UserId;
@@ -43,6 +43,17 @@ impl RoomPolicyIdentity {
         match self {
             Self::User(user_id) => user_id.tls_serialize_detached(),
             Self::Client(client_id) => Ok(client_id.into_bytes().to_vec()),
+        }
+    }
+
+    /// Decodes a [`RoomPolicyIdentity`] from a byte slice.
+    ///
+    /// [`UserId`] bytes are always longer than the 16 bytes for a non-malicious payload. So, we
+    /// assume here that the identity was verified beforehand and does *not* contain spoofed bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, tls_codec::Error> {
+        match <[u8; 16]>::try_from(bytes) {
+            Ok(raw) => Ok(Self::Client(Uuid::from_bytes(raw))),
+            Err(_) => Ok(Self::User(UserId::tls_deserialize_exact_bytes(bytes)?)),
         }
     }
 }

@@ -59,8 +59,8 @@ class _ClientRecordsList extends HookWidget {
 
     // The host scrolls this, so the records are a plain column.
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: data.map((record) {
         final isCurrentRecord = record.clientRecordId == ownClientRecordId;
         final currentUserSuffix = isCurrentRecord ? " (current)" : "";
@@ -73,10 +73,9 @@ class _ClientRecordsList extends HookWidget {
           // The modal's inset places the row, so the tile adds none.
           contentPadding: EdgeInsets.zero,
           titleAlignment: ListTileTitleAlignment.top,
-          titleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: textColor,
-            fontWeight: FontWeight.bold,
-          ),
+          titleTextStyle: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: .bold),
           subtitleTextStyle: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: textColor),

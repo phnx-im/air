@@ -2,11 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 class MockNotificationContext extends Mock implements NotificationContextBase {}
@@ -265,6 +269,182 @@ void main() {
 
       expect(_home(cubit).youSection, isNull);
       expect(_home(cubit).chatDetails, [const ChatDetailsPage.details()]);
+    });
+  });
+
+  group('NavigationCubit share handoff', () {
+    late Directory cacheDir;
+
+    setUp(() async {
+      cacheDir = await Directory.systemTemp.createTemp('navigation-test');
+    });
+
+    tearDown(() => cacheDir.delete(recursive: true));
+
+    /// A share holding one extracted file, laid out like the share activity
+    /// does it: `share/<uuid>/<file>`.
+    Future<(PendingShare, Directory)> shareWithFile() async {
+      final dir = Directory(p.join(cacheDir.path, 'share', const Uuid().v4()));
+      final file = File(p.join(dir.path, 'a.txt'));
+      await file.create(recursive: true);
+      final share = PendingShare(
+        attachments: [UiSharedAttachment(path: file.path)],
+      );
+      return (share, dir);
+    }
+
+    // Deletion is fired and forgotten, so it is awaited by polling.
+    Future<void> expectDeleted(Directory dir) async {
+      for (var i = 0; i < 100 && await dir.exists(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(await dir.exists(), isFalse);
+    }
+
+    Future<void> expectKept(Directory dir) async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(await dir.exists(), isTrue);
+    }
+
+    test('a share without a destination opens the picker', () async {
+      final cubit = subject();
+      cubit.openHome();
+
+      await cubit.openShare(const PendingShare(text: 'hi'));
+
+      expect(
+        _home(cubit),
+        const HomeNavigationState(
+          pendingShare: PendingShare(text: 'hi'),
+          shareDestinationOpen: true,
+        ),
+      );
+    });
+
+    test('a share with a destination opens that chat holding it', () async {
+      final cubit = subject();
+      cubit.openHome();
+
+      await cubit.openShare(const PendingShare(text: 'hi'), chatId: _chatId);
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(
+          chatOpen: true,
+          chatId: _chatId,
+          pendingShare: const PendingShare(text: 'hi'),
+        ),
+      );
+      verify(() => notificationContext.chatOpened(chatId: _chatId)).called(1);
+    });
+
+    test('picking a destination carries the share into the chat', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share);
+
+      await cubit.openShareDestination(_chatId);
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(
+          chatOpen: true,
+          chatId: _chatId,
+          pendingShare: share,
+        ),
+      );
+      await expectKept(dir);
+    });
+
+    test('picking a destination with nothing pending does nothing', () async {
+      final cubit = subject();
+      cubit.openHome();
+
+      await cubit.openShareDestination(_chatId);
+
+      expect(_home(cubit), const HomeNavigationState());
+    });
+
+    test('a consumed share leaves its files to the composer', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share, chatId: _chatId);
+
+      cubit.shareConsumed();
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(chatOpen: true, chatId: _chatId),
+      );
+      await expectKept(dir);
+    });
+
+    test('cancelling from the picker drops the share and its files', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share);
+
+      cubit.cancelShare();
+
+      expect(_home(cubit), const HomeNavigationState());
+      await expectDeleted(dir);
+    });
+
+    test('backing out of the picker drops the share and its files', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share);
+
+      expect(cubit.pop(), isTrue);
+
+      expect(_home(cubit), const HomeNavigationState());
+      await expectDeleted(dir);
+    });
+
+    test('backing out of the chat drops the share and its files', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share, chatId: _chatId);
+
+      expect(cubit.pop(), isTrue);
+
+      expect(_home(cubit).pendingShare, isNull);
+      expect(_home(cubit).chatOpen, isFalse);
+      await expectDeleted(dir);
+    });
+
+    test('reaching a chat past the picker drops the share', () async {
+      final (share, dir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(share);
+
+      await cubit.openChat(_otherChatId);
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(chatOpen: true, chatId: _otherChatId),
+      );
+      await expectDeleted(dir);
+    });
+
+    test('a new share replaces a pending one and deletes its files', () async {
+      final (first, firstDir) = await shareWithFile();
+      final (second, secondDir) = await shareWithFile();
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openShare(first);
+
+      await cubit.openShare(second, chatId: _chatId);
+
+      expect(_home(cubit).pendingShare, second);
+      await expectDeleted(firstDir);
+      await expectKept(secondDir);
     });
   });
 

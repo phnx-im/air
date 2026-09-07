@@ -192,7 +192,13 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .with_context(|| format!("chat not found: {chat_id}"))?;
-                Ok(ChatMessage::first_unread_message(txn, chat_id, chat.last_read.into()).await?)
+                Ok(ChatMessage::first_unread_message(
+                    txn,
+                    chat_id,
+                    chat.last_read.into(),
+                    self.user_id(),
+                )
+                .await?)
             })
             .await
     }

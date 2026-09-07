@@ -13,8 +13,8 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
-    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
+    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -37,7 +37,6 @@ use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
         attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
-        chats_repository::ChatsRepository,
         types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
@@ -87,14 +86,14 @@ impl ChatDetailsCubitBase {
         user_cubit: &UserCubitBase,
         user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
-        chats_repository: &ChatsRepository,
+        chat: Option<UiChatDetails>,
         attachments_repository: &AttachmentsRepository,
         with_members: bool,
     ) -> Self {
         let store = user_cubit.core_user().clone();
 
         let initial_state = ChatDetailsState {
-            chat: chats_repository.get(chat_id),
+            chat,
             members: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
@@ -103,7 +102,6 @@ impl ChatDetailsCubitBase {
 
         let context = ChatDetailsContext::new(
             store.clone(),
-            chats_repository.clone(),
             user_cubit.notification_service().clone(),
             core.state_tx().clone(),
             chat_id,
@@ -279,11 +277,12 @@ impl ChatDetailsCubitBase {
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
         content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
-        Box::pin(
-            self.context
-                .core_user
-                .send_message(self.context.chat_id, content, replaces),
-        )
+        Box::pin(self.context.core_user.send_message(
+            self.context.chat_id,
+            content,
+            replaces,
+            MarkChatAsRead::Yes,
+        ))
         .await
         .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
@@ -355,16 +354,17 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match Box::pin(
-            self.context
-                .core_user
-                .upload_chat_attachment(self.context.chat_id, &path),
-        )
-        .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
-        };
+        let (attachment_id, progress, upload_task) =
+            match Box::pin(self.context.core_user.upload_chat_attachment(
+                self.context.chat_id,
+                &path,
+                MarkChatAsRead::Yes,
+            ))
+            .await?
+            {
+                Ok(result) => result,
+                Err(error) => return error.into_ui_result(),
+            };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
@@ -374,6 +374,18 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        // The attachment may have uploaded successfully and only be
+        // displayed as failed (e.g. shared from the iOS share extension).
+        // There is nothing to upload again; the outbound service's recovery
+        // pass hands the message over for sending.
+        if let Some(AttachmentStatus::Ready) = self
+            .context
+            .core_user
+            .attachment_status(attachment_id)
+            .await?
+        {
+            return Ok(None);
+        }
         let (progress, upload_task) = match self
             .context
             .core_user
@@ -530,7 +542,7 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        // Get plain body if any; if none, this message is not editable.
+        // Get the plain body. A message without one is not editable.
         let Some(body) = message
             .message()
             .mimi_content()
@@ -703,7 +715,6 @@ impl ChatDetailsCubitBase {
 #[derive(Clone)]
 struct ChatDetailsContext {
     core_user: CoreUser,
-    chats_repository: ChatsRepository,
     notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
     chat_id: ChatId,
@@ -714,7 +725,6 @@ struct ChatDetailsContext {
 impl ChatDetailsContext {
     fn new(
         store: CoreUser,
-        chats_repository: ChatsRepository,
         notification_service: NotificationService,
         state_tx: watch::Sender<ChatDetailsState>,
         chat_id: ChatId,
@@ -723,7 +733,6 @@ impl ChatDetailsContext {
         let (mark_as_read_tx, _) = watch::channel(Default::default());
         Self {
             core_user: store,
-            chats_repository,
             notification_service,
             state_tx,
             chat_id,
@@ -734,7 +743,7 @@ impl ChatDetailsContext {
 
     async fn load_and_emit_state(&self) {
         let (chat, last_read) = self.load_chat_details().await.unzip();
-        let is_modified = self.state_tx.send_if_modified(|state| {
+        self.state_tx.send_if_modified(|state| {
             if state.chat != chat {
                 state.chat = chat.clone();
                 true
@@ -742,10 +751,6 @@ impl ChatDetailsContext {
                 false
             }
         });
-
-        if is_modified && let Some(chat) = chat {
-            self.chats_repository.put(chat);
-        }
 
         if let Some(last_read) = last_read {
             // truncate nanoseconds because they are not supported by Dart's DateTime

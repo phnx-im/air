@@ -142,7 +142,7 @@ void main() {
 double _textWidth(String text, TextStyle style) {
   final painter = TextPainter(
     text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
+    textDirection: .ltr,
   )..layout();
   return painter.width;
 }

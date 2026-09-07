@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO admission_endpoint_bucket_key (key)\n        VALUES ($1)\n        ON CONFLICT (singleton) DO UPDATE SET key = admission_endpoint_bucket_key.key\n        RETURNING key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "admission_endpoint_bucket_key",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "78c9a21bb2ce0e3924f8a32cf07e0c102ecfdc2ba8a9cf437b7a539bd0d576ca"
+}

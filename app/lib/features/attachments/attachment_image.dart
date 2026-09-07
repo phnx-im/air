@@ -279,7 +279,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
     }
 
     final content = Stack(
-      fit: StackFit.expand,
+      fit: .expand,
       children: [
         BlurHash(hash: widget.imageMetadata.blurhash),
         ?foreground,
@@ -289,7 +289,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final isAnimationPaused = _isAnimated == true && _stopped && _error == null;
 
     return Stack(
-      fit: StackFit.expand,
+      fit: .expand,
       children: [
         GestureDetector(onTap: () => _onTap(thumbnail), child: content),
         AttachmentImageOverlay(
@@ -314,9 +314,9 @@ class _AttachmentImageState extends State<AttachmentImage> {
       ),
       // The box we lay out in comes from the sender-declared metadata, which
       // may not match the actual pixels. `exact` (the default) would decode to
-      // the box like BoxFit.fill and distort the image, so constrain the decode
+      // the box like .fill and distort the image, so constrain the decode
       // instead of reshaping it.
-      policy: ResizeImagePolicy.fit,
+      policy: .fit,
       width: constraints.maxWidth.isFinite
           ? (constraints.maxWidth * dpr).round()
           : null,

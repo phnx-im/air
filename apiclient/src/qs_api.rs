@@ -47,6 +47,7 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
+use tonic::Status;
 use tracing::error;
 
 use crate::ApiClient;
@@ -377,7 +378,7 @@ impl ApiClient {
         signing_key: &QsClientSigningKey,
     ) -> Result<
         (
-            impl Stream<Item = ListenResponse> + use<>,
+            impl Stream<Item = Result<ListenResponse, Status>> + use<>,
             QsListenResponder,
         ),
         QsRequestError,
@@ -404,11 +405,7 @@ impl ApiClient {
         );
 
         let response = self.qs_grpc_client().listen(requests).await?;
-        let responses = response.into_inner().map_while(|response| {
-            response
-                .inspect_err(|status| error!(?status, "terminating listen stream due to an error"))
-                .ok()
-        });
+        let responses = response.into_inner();
 
         let stream = CancellingStream::new(responses, cancel);
         let responder = QsListenResponder { tx };
@@ -424,6 +421,20 @@ pub struct QsListenResponder {
 }
 
 impl QsListenResponder {
+    /// Half-closes the request stream and waits for the server to confirm that all previously sent
+    /// requests were processed by closing the response stream with OK. For this stream, that means
+    /// all sent acks are durable.
+    ///
+    /// `stream` must be the response stream corresponding to this responder. The request stream is
+    /// only half-closed when this is the last clone of the responder.
+    pub async fn close(
+        self,
+        stream: &mut (impl Stream<Item = Result<ListenResponse, Status>> + Unpin),
+    ) {
+        drop(self);
+        crate::await_close_confirmation(stream).await;
+    }
+
     /// Acknowledges that the client has received events up to the given sequence number.
     ///
     /// The server can safely discard events with a sequence number lower than the one specified.

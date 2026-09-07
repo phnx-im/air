@@ -19,17 +19,15 @@ use aircommon::crypto::signatures::keys::{QsClientSigningKey, QsUserSigningKey};
 use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
 use aircommon::messages::{FriendshipToken, QueueMessage};
 use aircommon::mls_group_config::{
-    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-    default_leaf_node_extensions, self_group_leaf_node_capabilities,
+    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
 };
-use airprotos::client::component::AirComponent;
-use airprotos::client::self_group::{LinkedDevice, SettingsUpdate};
+use airprotos::client::app_data::ClientAppData;
+use airprotos::client::self_group::{LinkedDevice, SettingsUpdate, TokenSeed};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
 use chrono::Utc;
-use openmls::components::vc_derivation_info::EpochId;
 use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
@@ -52,8 +50,6 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
-use crate::db::access::WriteConnection;
-use crate::groups::self_group::SelfGroup;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
     clients::{
@@ -74,6 +70,7 @@ use crate::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
+    privacy_pass,
     utils::persistence::{open_air_db, open_client_db, open_lock_file},
 };
 
@@ -107,6 +104,10 @@ pub(crate) struct ProvisioningPackage {
     // Synced user settings snapshot so the new device starts with the
     // provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
+    // The agreed Privacy Pass token seeds, so the new device derives the same
+    // token requests as its sibling instead of running an agreement round for a
+    // key whose allowance epoch the sibling has already locked.
+    pub(crate) token_seeds: Vec<TokenSeed>,
     // The name the confirming user gave this device. Empty means "no choice
     // made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
@@ -503,6 +504,7 @@ impl CoreUser {
             .db()
             .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
             .await?;
+        let token_seeds = privacy_pass::committed_seeds(self.db().read().await?).await?;
 
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
@@ -521,6 +523,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key,
             synced_settings,
+            token_seeds,
             device_name,
             groups,
         })
@@ -633,7 +636,7 @@ impl CoreUser {
             },
         };
 
-        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
+        let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
         let client_reference = self.create_own_client_reference();
         // TODO: don't use Extension::Unknown
         leaf_node_extensions.add(Extension::Unknown(
@@ -641,7 +644,7 @@ impl CoreUser {
             UnknownExtension(client_reference.tls_serialize_detached()?),
         ))?;
         // add two fields AirComponent Option<QsClientId> and Option<QsUserId>
-        let key_package_extensions = default_key_package_extensions::<AirComponent>();
+        let key_package_extensions = ClientAppData::current().key_package_extensions();
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
@@ -687,18 +690,6 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Register a virtual-clients emulation epoch on the self group.
-    pub(crate) async fn register_self_group_vc_emulation_epoch(
-        mut connection: impl WriteConnection,
-    ) -> anyhow::Result<EpochId> {
-        let mut self_group = SelfGroup::load(&mut connection)
-            .await?
-            .context("self group not found")?;
-        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
-        debug!(?epoch_id, "registered self-group VC emulation epoch");
-        Ok(epoch_id)
-    }
-
     /// Poll our QS queue until the self-group Welcome arrives.
     async fn join_self_group_from_queue(&self) -> anyhow::Result<()> {
         let self_group_id = OwnClientInfo::load_self_group_id(self.db().read().await?)
@@ -736,18 +727,29 @@ impl CoreUser {
         let (mut stream, responder) = self.listen_queue().await?;
         let mut messages: Vec<QueueMessage> = Vec::new();
 
-        while let Some(message) = stream.next().await {
-            match message.event {
-                // Empty event is the sentinel: the queue is drained.
-                Some(listen_response::Event::Empty(_)) => break,
-                Some(listen_response::Event::Message(queue_message)) => {
-                    if let Ok(queue_message) = queue_message.try_into() {
-                        messages.push(queue_message);
+        let drained = loop {
+            match stream.next().await {
+                Some(Ok(message)) => match message.event {
+                    // Empty event is the sentinel: the queue is drained.
+                    Some(listen_response::Event::Empty(_)) => break true,
+                    Some(listen_response::Event::Message(queue_message)) => {
+                        if let Ok(queue_message) = queue_message.try_into() {
+                            messages.push(queue_message);
+                        }
                     }
+                    Some(listen_response::Event::Payload(_))
+                    | Some(listen_response::Event::VersionStatus(_))
+                    | None => {}
+                },
+                // Terminal status => stream is over, acks cannot be confirmed
+                Some(Err(error)) => {
+                    warn!(%error, "qs listen stream failed during drain");
+                    break false;
                 }
-                Some(listen_response::Event::Payload(_)) | None => {}
+                // EOF without our half-close (old server) => stream is over
+                None => break false,
             }
-        }
+        };
 
         let num_messages = messages.len();
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
@@ -757,6 +759,10 @@ impl CoreUser {
             if let Some(max_sequence_number) = max_sequence_number {
                 // Acks all messages before max_sequence_number + 1 (exclusive).
                 responder.ack(max_sequence_number + 1).await;
+                if drained {
+                    // half-close the request stream, then wait for the server to apply the ack
+                    responder.close(&mut stream).await;
+                }
             }
         } else {
             error!(
@@ -801,6 +807,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key: _,
             synced_settings,
+            token_seeds,
             device_name: _,
             groups,
         } = package;
@@ -848,11 +855,12 @@ impl CoreUser {
                 )
                 .await?;
 
-                // Seed the synced settings before the device processes any
-                // self-group traffic. A device joining via Welcome cannot
-                // decrypt updates from before its join, so the current state
-                // has to arrive in the linking payload.
+                // Seed the synced settings and the token seeds before the
+                // device processes any self-group traffic. A device joining via
+                // Welcome cannot decrypt commits from before its join, so the
+                // current state has to arrive in the linking payload.
                 apply_settings_update(txn, &synced_settings).await?;
+                privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
 
                 // Queue the onboarding into the groups the virtual client is
                 // already a member of. This is committed before the client
@@ -901,8 +909,11 @@ mod tests {
     use super::*;
 
     /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
-    /// and otherwise freshly generated key material.
-    fn sample_package(synced_settings: SettingsUpdate) -> anyhow::Result<ProvisioningPackage> {
+    /// and token seeds, and otherwise freshly generated key material.
+    fn sample_package(
+        synced_settings: SettingsUpdate,
+        token_seeds: Vec<TokenSeed>,
+    ) -> anyhow::Result<ProvisioningPackage> {
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
         let self_group_id = GroupId::from(QualifiedGroupId::new(
@@ -927,6 +938,7 @@ mod tests {
             self_group_id,
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
+            token_seeds,
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
             user_id,
@@ -934,13 +946,21 @@ mod tests {
     }
 
     /// A full package roundtrips through the linking channel with its synced
-    /// settings intact.
+    /// settings and token seeds intact.
     #[test]
-    fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
-        let package = sample_package(SettingsUpdate {
-            send_read_receipts: Some(false),
-            linked_devices: None,
-        })?;
+    fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
+        let seeds = vec![TokenSeed {
+            operation_type: 1,
+            key_fingerprint: [0x11; 32],
+            seed: [0x22; 32],
+        }];
+        let package = sample_package(
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                linked_devices: None,
+            },
+            seeds.clone(),
+        )?;
         let user_id = package.user_id.clone();
 
         let key = MultiDeviceLinkingKey::random()?;
@@ -954,6 +974,7 @@ mod tests {
                 linked_devices: None,
             }
         );
+        assert_eq!(decoded.token_seeds, seeds);
         assert_eq!(decoded.user_id, user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");

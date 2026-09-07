@@ -64,7 +64,7 @@ class _AppScrollbarState extends State<AppScrollbar> with FrameSafeState {
   void _track(int depth, ScrollMetrics metrics, {required bool scrolling}) {
     // A scrollable nested inside a row reports through here too, at a depth
     // below the one this bar stands for.
-    if (depth != 0 || metrics.axis != Axis.vertical) return;
+    if (depth != 0 || metrics.axis != .vertical) return;
 
     final next = _ThumbState.of(
       metrics,
@@ -94,20 +94,26 @@ class _AppScrollbarState extends State<AppScrollbar> with FrameSafeState {
         child: Stack(
           // The host sizes the bar, exactly as it sized the scrollable before
           // the bar wrapped it, and its chrome may deliberately spill out.
-          fit: StackFit.passthrough,
-          clipBehavior: Clip.none,
+          fit: .passthrough,
+          clipBehavior: .none,
           children: [
             widget.child,
             Positioned.fill(
               child: IgnorePointer(
-                child: ValueListenableBuilder<_ThumbState>(
-                  valueListenable: _thumb,
-                  builder: (context, thumb, _) => _Thumb(
-                    thumb: thumb,
-                    tokens: tokens,
-                    color: color,
-                    trackTop: widget.trackTop,
-                    trackBottom: widget.trackBottom,
+                // The boundary keeps the thumb's every-frame movement from
+                // re-recording the layer it shares with the host's chrome:
+                // without it, each scroll frame repaints the whole Scaffold
+                // above the viewport.
+                child: RepaintBoundary(
+                  child: ValueListenableBuilder<_ThumbState>(
+                    valueListenable: _thumb,
+                    builder: (context, thumb, _) => _Thumb(
+                      thumb: thumb,
+                      tokens: tokens,
+                      color: color,
+                      trackTop: widget.trackTop,
+                      trackBottom: widget.trackBottom,
+                    ),
                   ),
                 ),
               ),

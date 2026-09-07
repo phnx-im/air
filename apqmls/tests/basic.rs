@@ -64,6 +64,7 @@ fn join_group_helper(mode: PqtMode) -> JoinedGroup {
         &MlsGroupJoinConfig::default(),
         welcome,
         Some(ratchet_tree.into()),
+        compare_credentials,
     )
     .unwrap();
 

@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.20.0"
+version = "0.22.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -23,7 +23,6 @@ base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
-displaydoc.workspace = true
 enumset.workspace = true
 hex.workspace = true
 hkdf.workspace = true
@@ -46,12 +45,14 @@ serde_bytes.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
+strum.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
@@ -59,12 +60,11 @@ webpx.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true
-aircommon = { workspace = true, features = ["test_utils"] }
+aircommon = { workspace = true, features = ["test_utils"] , version = "0.22.0" }
 airserver_test_harness.workspace = true
 cbor-diag.workspace = true
 insta = { workspace = true, features = ["json"] }
 tempfile.workspace = true
-tonic.workspace = true
 tracing-subscriber.workspace = true
 
 [features]

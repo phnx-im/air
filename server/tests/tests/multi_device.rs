@@ -6,17 +6,20 @@ use std::collections::HashSet;
 
 use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
-    ChatId, ChatStatus, ChatType, Message, ReadReceiptsSetting, UserProfile,
+    ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
+    UserProfile,
     clients::{
-        CoreUser,
+        CoreUser, MarkChatAsRead,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
     },
 };
-use airprotos::relay_service::v1::LinkingSessionId;
+use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
+use std::time::Duration;
 use tempfile::TempDir;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
@@ -28,7 +31,7 @@ async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: Cha
 
     let content = MimiContent::simple_markdown_message(text.to_owned(), [7u8; 16]);
     sender
-        .send_message(chat_id, content.clone(), None)
+        .send_message(chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     sender.outbound_service().run_once().await;
@@ -884,6 +887,129 @@ async fn multi_device_settings_race_converges() {
     send_and_receive(old_device, &[&new_device], chat_id, "still in sync").await;
 }
 
+// Idempotent issuance derives every token from a seed the devices agree on, so
+// two devices that replenish independently end up holding byte-identical tokens
+// with no token synchronization protocol. The seed reaches the second device in
+// its provisioning package, which is what keeps it from proposing a seed of its
+// own and losing the race for an allowance epoch the first device has already
+// locked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linked devices hold identical tokens", skip_all)]
+async fn multi_device_token_issuance_is_idempotent() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    // A lone device agrees with itself, so it can issue right away.
+    first_device.outbound_service().run_once().await;
+    let seeds = first_device.committed_token_seeds().await.unwrap();
+    assert!(
+        !seeds.is_empty(),
+        "a lone device must agree on its own token seeds"
+    );
+    let first_tokens = first_device
+        .cached_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap();
+    assert!(
+        !first_tokens.is_empty(),
+        "the first device must hold tokens"
+    );
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+
+    // The linking payload carried the agreed seeds, so the new device starts out
+    // agreeing rather than proposing.
+    assert_eq!(
+        second_device.committed_token_seeds().await.unwrap(),
+        seeds,
+        "the new device must adopt its sibling's agreed seeds"
+    );
+
+    // The second device replenishes on its own. The AS answers the repeated
+    // request for free, and the tokens finalize to the same bytes.
+    second_device.outbound_service().run_once().await;
+    assert_eq!(
+        second_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        first_tokens,
+        "both devices must hold byte-identical tokens"
+    );
+
+    // Both devices still see each other, so neither switched to a private seed.
+    for (label, device) in [("first", first_device), ("second", &second_device)] {
+        assert_eq!(
+            device.self_group_client_ids().await.unwrap().len(),
+            2,
+            "the {label} device should see both leaves"
+        );
+        assert_eq!(
+            device.committed_token_seeds().await.unwrap(),
+            seeds,
+            "the {label} device must keep the agreed seeds"
+        );
+    }
+}
+
+// A seed that has to be invented while two devices are already linked is agreed
+// over the self group: a device proposes, a commit carries the proposal, and DS
+// commit order decides which proposal becomes the seed. This is the path a key
+// rotation takes, where neither device has a seed for the new key and the
+// provisioning snapshot cannot help, so the test puts both devices into exactly
+// the state a rotation leaves behind.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linked devices agree on a fresh token seed", skip_all)]
+async fn multi_device_token_seed_agreement() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+
+    for device in [first_device, &second_device] {
+        device.reset_privacy_pass_for_key_rotation().await.unwrap();
+        assert!(
+            device.committed_token_seeds().await.unwrap().is_empty(),
+            "the rotation left no agreed seed behind"
+        );
+    }
+
+    // Replenishment proposes, the next outbound run stages and sends the
+    // proposal commit, and the sibling has to process it. Once a seed is agreed,
+    // a further run fetches the batch under it.
+    for _ in 0..4 {
+        for device in [first_device, &second_device] {
+            device.outbound_service().run_once().await;
+            drain_queue(device).await;
+        }
+    }
+
+    let first_seeds = first_device.committed_token_seeds().await.unwrap();
+    assert!(
+        !first_seeds.is_empty(),
+        "the devices must have agreed on a seed"
+    );
+    assert_eq!(
+        second_device.committed_token_seeds().await.unwrap(),
+        first_seeds,
+        "both devices must agree on the same seed"
+    );
+
+    // Agreeing on the seed is what makes the tokens identical.
+    assert_eq!(
+        second_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        first_device
+            .cached_privacy_pass_tokens(OperationType::AddUsername)
+            .await
+            .unwrap(),
+        "both devices must hold byte-identical tokens"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test linking a third device", skip_all)]
 async fn multi_device_linking_a_third_device() {
@@ -1674,7 +1800,6 @@ async fn multi_device_inherits_connection_chats() {
     new_device
         .invite_users(group_chat_id, std::slice::from_ref(&bob))
         .await
-        .expect("fatal error inviting bob")
         .expect("failed to invite bob");
 
     let qs_messages = bob_device.qs_fetch_messages().await.unwrap();
@@ -1768,6 +1893,7 @@ async fn one_unread_message_on_both_devices(
             chat_id,
             MimiContent::simple_markdown_message("from bob".to_owned(), [1u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1832,6 +1958,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
             chat_id,
             MimiContent::simple_markdown_message("from bob again".to_owned(), [3u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1848,6 +1975,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
             chat_id,
             MimiContent::simple_markdown_message("from device 1".to_owned(), [2u8; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -1948,7 +2076,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
 
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [11u8; 16]);
     let message = first_device
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     let message_id = message.id();
@@ -2045,7 +2173,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     // A regular, confirmed send of the original message.
     let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [21u8; 16]);
     let message = first_device
-        .send_message(chat_id, content, None)
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     let message_id = message.id();
@@ -2059,7 +2187,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     let original = first_device.message(message_id).await.unwrap().unwrap();
     let edit = MimiContent::simple_markdown_message(EDITED_TEXT.to_owned(), [22u8; 16]);
     let edited = first_device
-        .send_message(chat_id, edit, Some(original))
+        .send_message(chat_id, edit, Some(original), MarkChatAsRead::Yes)
         .await
         .unwrap();
     assert!(
@@ -2107,7 +2235,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     let original = first_device.message(message_id).await.unwrap().unwrap();
     let second_edit = MimiContent::simple_markdown_message(FINAL_TEXT.to_owned(), [23u8; 16]);
     first_device
-        .send_message(chat_id, second_edit, Some(original))
+        .send_message(chat_id, second_edit, Some(original), MarkChatAsRead::Yes)
         .await
         .unwrap();
     first_device.outbound_service().run_once().await;
@@ -2117,5 +2245,375 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
         count_messages_with_text(bob_device, chat_id, FINAL_TEXT).await,
         1,
         "bob should see the second edit"
+    );
+}
+
+/// Alice in a group with Bob and Charlie, plus a second linked device of Alice
+/// that has onboarded itself into the group. Both of Alice's devices are
+/// drained, so they sit on the same epoch of the shared leaf.
+async fn setup_group_with_linked_device() -> (
+    TestBackend,
+    UserId,
+    UserId,
+    UserId,
+    ChatId,
+    CoreUser,
+    TempDir,
+) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    let (new_device, tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    new_device.outbound_service().run_once().await;
+    drain_queue(setup.get_user(&alice).user()).await;
+    drain_queue(&new_device).await;
+
+    (setup, alice, bob, charlie, chat_id, new_device, tmp)
+}
+
+/// Drains the device's queue and fails the test if any message could not be
+/// processed.
+async fn drain_queue_ok(user: &CoreUser, what: &str) {
+    let messages = user.qs_fetch_messages().await.unwrap();
+    let processed = user.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "{what}: {:?}",
+        processed.errors
+    );
+}
+
+/// How many "`user_id` left" system messages the device stores for the chat.
+async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) -> usize {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter(|message| {
+            matches!(
+                message.message(),
+                Message::Event(EventMessage::System(SystemMessage::Remove(remover, removed)))
+                    if remover == user_id && removed == user_id
+            )
+        })
+        .count()
+}
+
+/// Asserts that the device's chat is inactive. With `past_members` given,
+/// also asserts whom the chat remembers. A leave only records the members
+/// once the removal is committed, so the check right after the leave passes
+/// `None`.
+async fn assert_inactive(
+    user: &CoreUser,
+    chat_id: ChatId,
+    past_members: Option<&HashSet<UserId>>,
+    what: &str,
+) {
+    let chat = user.chat(&chat_id).await.unwrap();
+    match chat.status() {
+        ChatStatus::Inactive(inactive) => {
+            if let Some(past_members) = past_members {
+                let remembered: HashSet<_> = inactive.past_members().iter().cloned().collect();
+                assert_eq!(&remembered, past_members, "{what}: wrong past members");
+            }
+        }
+        status => panic!("{what}: expected an inactive chat, got {status:?}"),
+    }
+}
+
+/// `leaver` leaves the group while `sibling` shares the leaf. The sibling sees
+/// the pending self-remove on the shared leaf, the leaver copes with the echo of
+/// its own proposal, and both devices turn the chat inactive once bob commits.
+async fn leave_and_follow(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    charlie: &UserId,
+    chat_id: ChatId,
+    leaver: &CoreUser,
+    sibling: &CoreUser,
+) {
+    let all_members: HashSet<UserId> = [alice, bob, charlie].into_iter().cloned().collect();
+    let remaining: HashSet<UserId> = [bob, charlie].into_iter().cloned().collect();
+
+    leaver.leave_chat(chat_id).await.unwrap();
+    assert_inactive(
+        leaver,
+        chat_id,
+        None,
+        "the leaver turns the chat inactive right away",
+    )
+    .await;
+    assert_eq!(count_self_removes(leaver, chat_id, alice).await, 1);
+
+    // The DS fans the self-remove back to the shared leaf, so the sibling learns
+    // about it from the queue, like any other member does.
+    drain_queue_ok(
+        sibling,
+        "the sibling failed to process the self-remove of its own leaf",
+    )
+    .await;
+    assert_eq!(
+        sibling.pending_removes(chat_id).await.unwrap(),
+        vec![alice.clone()],
+        "the sibling should hold the pending removal of its own leaf"
+    );
+    assert_eq!(count_self_removes(sibling, chat_id, alice).await, 1);
+
+    // The leaver already holds the proposal, so the echo must be a no-op.
+    drain_queue_ok(
+        leaver,
+        "the leaver failed to process the echo of its own self-remove",
+    )
+    .await;
+    assert_eq!(
+        count_self_removes(leaver, chat_id, alice).await,
+        1,
+        "the echo of the own self-remove must not add a second system message"
+    );
+
+    // Another member commits the pending self-remove.
+    let bob_user = setup.get_user(bob).user();
+    drain_queue_ok(bob_user, "bob failed to process the self-remove").await;
+    assert_eq!(
+        bob_user.pending_removes(chat_id).await.unwrap(),
+        vec![alice.clone()]
+    );
+    bob_user.update_key(chat_id).await.unwrap();
+    assert_eq!(
+        bob_user.mls_chat_participants(chat_id).await.unwrap(),
+        remaining
+    );
+
+    // Both of alice's devices follow the commit that removes their shared leaf.
+    drain_queue_ok(sibling, "the sibling failed to process the commit").await;
+    assert_inactive(
+        sibling,
+        chat_id,
+        Some(&all_members),
+        "the sibling turns the chat inactive with the commit",
+    )
+    .await;
+    drain_queue_ok(leaver, "the leaver failed to process the commit").await;
+    assert_inactive(
+        leaver,
+        chat_id,
+        Some(&all_members),
+        "the leaver keeps the chat inactive",
+    )
+    .await;
+    for (device, what) in [(leaver, "leaver"), (sibling, "sibling")] {
+        assert_eq!(
+            count_self_removes(device, chat_id, alice).await,
+            1,
+            "the {what} must record the leave exactly once"
+        );
+        assert!(
+            device
+                .pending_chat_operation_info(chat_id)
+                .await
+                .unwrap()
+                .is_none(),
+            "the {what} must not keep a pending operation for the left group"
+        );
+    }
+
+    let charlie_user = setup.get_user(charlie).user();
+    drain_queue_ok(charlie_user, "charlie failed to process the commit").await;
+    assert_eq!(
+        charlie_user.mls_chat_participants(chat_id).await.unwrap(),
+        remaining
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Leave a group from the linked device", skip_all)]
+async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
+    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let old_device = setup.get_user(&alice).user();
+
+    leave_and_follow(
+        &setup,
+        &alice,
+        &bob,
+        &charlie,
+        chat_id,
+        &new_device,
+        old_device,
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Leave a group from the old device", skip_all)]
+async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
+    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let old_device = setup.get_user(&alice).user();
+
+    leave_and_follow(
+        &setup,
+        &alice,
+        &bob,
+        &charlie,
+        chat_id,
+        old_device,
+        &new_device,
+    )
+    .await;
+}
+
+/// A leave whose DS response got lost is retried with the same proposal. The
+/// DS fans the retry out to the shared leaf again, and the sibling must treat
+/// it as the duplicate it is.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Retried leave is ignored by the sibling", skip_all)]
+async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
+    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let old_device = setup.get_user(&alice).user();
+    let all_members: HashSet<UserId> = [&alice, &bob, &charlie].into_iter().cloned().collect();
+
+    setup.listener_control_handle().set_drop_next_response();
+    old_device.leave_chat(chat_id).await.unwrap();
+    let pending = old_device
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("the leave must stay pending after the dropped response");
+    assert_eq!(pending.operation_type, "leave");
+    assert_inactive(old_device, chat_id, None, "the leaver").await;
+
+    // The DS did accept the proposal, so the sibling sees it once.
+    drain_queue_ok(&new_device, "the sibling failed to process the self-remove").await;
+    assert_eq!(count_self_removes(&new_device, chat_id, &alice).await, 1);
+
+    // The retry re-sends the same proposal.
+    sleep(Duration::from_secs(2)).await;
+    drain_queue_ok(old_device, "the leaver failed to process its queue").await;
+    old_device.outbound_service().run_once().await;
+    assert!(
+        old_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "the retry must complete the pending leave"
+    );
+
+    drain_queue_ok(
+        &new_device,
+        "the sibling failed to process the retried self-remove",
+    )
+    .await;
+    assert_eq!(
+        count_self_removes(&new_device, chat_id, &alice).await,
+        1,
+        "the retried self-remove must not be recorded twice"
+    );
+    assert_eq!(
+        new_device.pending_removes(chat_id).await.unwrap(),
+        vec![alice.clone()]
+    );
+
+    // Bob commits and both devices turn the chat inactive.
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue_ok(bob_user, "bob failed to process the self-remove").await;
+    bob_user.update_key(chat_id).await.unwrap();
+
+    drain_queue_ok(&new_device, "the sibling failed to process the commit").await;
+    assert_inactive(&new_device, chat_id, Some(&all_members), "the sibling").await;
+    drain_queue_ok(old_device, "the leaver failed to process the commit").await;
+    assert_inactive(old_device, chat_id, Some(&all_members), "the leaver").await;
+    assert_eq!(count_self_removes(&new_device, chat_id, &alice).await, 1);
+    assert_eq!(count_self_removes(old_device, chat_id, &alice).await, 1);
+}
+
+/// Both devices leave before anyone commits: the second leave proposes the
+/// removal of a leaf that is already pending removal. Neither device may end up
+/// with a duplicate record or a stuck pending operation, and the group must
+/// still converge on the commit.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Both devices leave before the commit", skip_all)]
+async fn multi_device_both_devices_leave_before_the_commit() {
+    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let old_device = setup.get_user(&alice).user();
+    let all_members: HashSet<UserId> = [&alice, &bob, &charlie].into_iter().cloned().collect();
+    let remaining: HashSet<UserId> = [&bob, &charlie].into_iter().cloned().collect();
+
+    new_device.leave_chat(chat_id).await.unwrap();
+    drain_queue_ok(
+        old_device,
+        "the old device failed to process the self-remove",
+    )
+    .await;
+
+    // The user leaves on the other device as well.
+    old_device.leave_chat(chat_id).await.unwrap();
+    assert_inactive(old_device, chat_id, None, "the second leaver").await;
+
+    drain_queue_ok(
+        &new_device,
+        "the first leaver failed to process the second leave",
+    )
+    .await;
+    drain_queue_ok(old_device, "the second leaver failed to process its echo").await;
+    for (device, what) in [(&new_device, "first leaver"), (old_device, "second leaver")] {
+        assert_eq!(
+            count_self_removes(device, chat_id, &alice).await,
+            1,
+            "the {what} must record the leave exactly once"
+        );
+        assert_eq!(
+            device.pending_removes(chat_id).await.unwrap(),
+            vec![alice.clone()],
+            "the {what} must hold a single pending removal"
+        );
+    }
+
+    let bob_user = setup.get_user(&bob).user();
+    drain_queue_ok(bob_user, "bob failed to process the self-removes").await;
+    assert_eq!(
+        bob_user.pending_removes(chat_id).await.unwrap(),
+        vec![alice.clone()],
+        "bob must see the shared leaf pending removal once"
+    );
+    bob_user.update_key(chat_id).await.unwrap();
+    assert_eq!(
+        bob_user.mls_chat_participants(chat_id).await.unwrap(),
+        remaining
+    );
+
+    for (device, what) in [(&new_device, "first leaver"), (old_device, "second leaver")] {
+        drain_queue_ok(device, &format!("the {what} failed to process the commit")).await;
+        assert_inactive(device, chat_id, Some(&all_members), what).await;
+        assert_eq!(count_self_removes(device, chat_id, &alice).await, 1);
+        assert!(
+            device
+                .pending_chat_operation_info(chat_id)
+                .await
+                .unwrap()
+                .is_none(),
+            "the {what} must not keep a pending operation"
+        );
+    }
+
+    let charlie_user = setup.get_user(&charlie).user();
+    drain_queue_ok(charlie_user, "charlie failed to process the commit").await;
+    assert_eq!(
+        charlie_user.mls_chat_participants(chat_id).await.unwrap(),
+        remaining
     );
 }

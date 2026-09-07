@@ -110,8 +110,8 @@ class DeveloperSettingsView extends HookWidget {
     final info = debugInfo.info;
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       spacing: S.s16,
       children: [
         const _SettingsCard(),
@@ -194,7 +194,7 @@ class _InterfaceScaleRow extends HookWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           Row(
             children: [

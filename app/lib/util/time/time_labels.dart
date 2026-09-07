@@ -37,8 +37,12 @@ class TimeFormats {
         : null;
     return TimeFormats(
       locale: locale,
-      timePattern: patterns?.timePattern ?? DateFormat.jm(locale).pattern!,
-      datePattern: patterns?.datePattern ?? DateFormat.yMd(locale).pattern!,
+      timePattern:
+          patterns?.timePattern ??
+          _cached('jm|$locale', () => DateFormat.jm(locale)).pattern!,
+      datePattern:
+          patterns?.datePattern ??
+          _cached('yMd|$locale', () => DateFormat.yMd(locale)).pattern!,
     );
   }
 
@@ -51,26 +55,34 @@ class TimeFormats {
   final String datePattern;
 
   /// The clock alone: `14:32`, or `2:32 PM` on a 12-hour device.
-  String clock(DateTime at) => DateFormat(timePattern).format(at);
+  String clock(DateTime at) =>
+      _cached('c|$timePattern', () => DateFormat(timePattern)).format(at);
 
   /// Abbreviated weekday, e.g. `Mon`.
-  String weekdayShort(DateTime at) => DateFormat.E(locale).format(at);
+  String weekdayShort(DateTime at) =>
+      _cached('E|$locale', () => DateFormat.E(locale)).format(at);
 
   /// Full weekday, e.g. `Monday`.
-  String weekdayLong(DateTime at) => DateFormat.EEEE(locale).format(at);
+  String weekdayLong(DateTime at) =>
+      _cached('EEEE|$locale', () => DateFormat.EEEE(locale)).format(at);
 
   /// Numeric date, e.g. `5/20/26`.
-  String date(DateTime at) => DateFormat(datePattern).format(at);
+  String date(DateTime at) =>
+      _cached('d|$datePattern', () => DateFormat(datePattern)).format(at);
 
   /// Numeric date with the year dropped, e.g. `5/20`.
-  String dateWithoutYear(DateTime at) =>
-      DateFormat(_withoutYear(datePattern)).format(at);
+  String dateWithoutYear(DateTime at) => _cached(
+    'dy|$datePattern',
+    () => DateFormat(_withoutYear(datePattern)),
+  ).format(at);
 
   /// Weekday, month and day, e.g. `Wed, May 20`.
-  String weekdayMonthDay(DateTime at) => DateFormat.MMMEd(locale).format(at);
+  String weekdayMonthDay(DateTime at) =>
+      _cached('MMMEd|$locale', () => DateFormat.MMMEd(locale)).format(at);
 
   /// Month, day and year, e.g. `May 20, 2026`.
-  String monthDayYear(DateTime at) => DateFormat.yMMMd(locale).format(at);
+  String monthDayYear(DateTime at) =>
+      _cached('yMMMd|$locale', () => DateFormat.yMMMd(locale)).format(at);
 
   @override
   bool operator ==(Object other) =>
@@ -83,10 +95,21 @@ class TimeFormats {
   int get hashCode => Object.hash(locale, timePattern, datePattern);
 }
 
+/// [DateFormat] re-parses its pattern on every fresh instance, and these are
+/// asked for once per visible row on every clock tick, so instances are kept.
+/// Keyed by pattern and locale; the ambient default locale is appended for
+/// the pattern-only constructors, which resolve their symbols through it.
+final _dateFormats = <String, DateFormat>{};
+
+DateFormat _cached(String key, DateFormat Function() create) =>
+    _dateFormats['$key|${Intl.getCurrentLocale()}'] ??= create();
+
+final _yearInPattern = RegExp(r"[/.\-,\s]*[yY]+[/.\-,\s]*");
+
 /// Strips the year and any separator left stranded beside it, so `M/d/yy`
 /// reads `M/d` and `dd.MM.yyyy` reads `dd.MM`.
 String _withoutYear(String pattern) =>
-    pattern.replaceAll(RegExp(r"[/.\-,\s]*[yY]+[/.\-,\s]*"), '').trim();
+    pattern.replaceAll(_yearInPattern, '').trim();
 
 /// A moment's distance from [now], in the terms the labels below distinguish.
 /// Calendar days, not 24-hour windows: a message sent late yesterday reads

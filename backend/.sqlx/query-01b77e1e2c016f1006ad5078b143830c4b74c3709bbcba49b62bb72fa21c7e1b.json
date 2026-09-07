@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO registration_attempt (ip_bucket) VALUES ($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "01b77e1e2c016f1006ad5078b143830c4b74c3709bbcba49b62bb72fa21c7e1b"
+}

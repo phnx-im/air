@@ -18,6 +18,17 @@ use crate::{
 
 use super::CoreUser;
 
+/// Whether sending a message also marks the chat as read up to that message.
+///
+/// Regular sends from an open chat move the last-read marker. Sends that
+/// happen without the user looking at the chat (e.g. from the share
+/// extension) must leave it untouched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkChatAsRead {
+    Yes,
+    No,
+}
+
 impl CoreUser {
     /// Delete a message and send the deletion to other group members.
     ///
@@ -39,7 +50,7 @@ impl CoreUser {
 
         // The placeholder store and the purge of what the deleted message
         // leaves behind run atomically inside the send transaction.
-        Box::pin(self.send_message(chat_id, null_content, Some(message))).await
+        Box::pin(self.send_message(chat_id, null_content, Some(message), MarkChatAsRead::Yes)).await
     }
 
     /// Delete a message locally without sending a network message.
@@ -78,12 +89,14 @@ impl CoreUser {
     /// Store a message and return it.
     ///
     /// The message is stored as unsent and enqueued for the outbound service,
-    /// which sends it to the DS. The chat is marked as read until this message.
+    /// which sends it to the DS. If `mark_as_read` is [`MarkChatAsRead::Yes`],
+    /// the chat is marked as read until this message.
     pub async fn send_message(
         &self,
         chat_id: ChatId,
         content: MimiContent,
         replaces: Option<ChatMessage>,
+        mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<ChatMessage> {
         Box::pin(
             self.db()
@@ -99,8 +112,14 @@ impl CoreUser {
                     }
                     .store_unsent_message(&mut *txn, self.user_id(), replaces)
                     .await?;
-                    mark_as_read_until_message(&mut *txn, chat_id, &message, self.user_id())
-                        .await?;
+                    mark_as_read_until_message(
+                        &mut *txn,
+                        chat_id,
+                        &message,
+                        self.user_id(),
+                        mark_as_read,
+                    )
+                    .await?;
 
                     self.outbound_service()
                         .enqueue_chat_message_in_transaction(txn, message.id())
@@ -121,6 +140,7 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
         content: MimiContent,
+        mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<ChatMessage> {
         let message = UnsentContent {
             chat_id,
@@ -129,20 +149,22 @@ impl CoreUser {
         }
         .store_unsent_message(&mut *txn, self.user_id(), None)
         .await?;
-        mark_as_read_until_message(txn, chat_id, &message, self.user_id()).await?;
+        mark_as_read_until_message(txn, chat_id, &message, self.user_id(), mark_as_read).await?;
 
         Ok(message)
     }
 }
 
-/// Marks the chat as read until `message`, unless it is a deletion.
+/// Marks the chat as read until `message`, unless it is a deletion or the
+/// send must leave the last-read marker untouched.
 async fn mark_as_read_until_message(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
     message: &ChatMessage,
     own_user: &UserId,
+    mark_as_read: MarkChatAsRead,
 ) -> anyhow::Result<()> {
-    if message.status() == MessageStatus::Deleted {
+    if mark_as_read == MarkChatAsRead::No || message.status() == MessageStatus::Deleted {
         return Ok(());
     }
     Chat::mark_as_read_until_message_id(txn, chat_id, message.id(), own_user).await?;

@@ -48,7 +48,7 @@ Future<void> main() async {
     constructorEntries.writeln('    this.color,');
     constructorEntries.writeln('  })');
     constructorEntries.writeln('      : type = AppIconType.$enumName,');
-    constructorEntries.writeln('        fit = BoxFit.contain,');
+    constructorEntries.writeln('        fit = .contain,');
     constructorEntries.writeln('        alignment = Alignment.center;');
     constructorEntries.writeln();
 
@@ -100,7 +100,7 @@ Future<void> main() async {
   buffer.writeln('    required this.type,');
   buffer.writeln('    this.size,');
   buffer.writeln('    this.color,');
-  buffer.writeln('    this.fit = BoxFit.contain,');
+  buffer.writeln('    this.fit = .contain,');
   buffer.writeln('    this.alignment = Alignment.center,');
   buffer.writeln('  });');
   buffer.writeln();
@@ -122,7 +122,7 @@ Future<void> main() async {
   buffer.writeln('      height: size,');
   buffer.writeln('      fit: fit,');
   buffer.writeln('      alignment: alignment,');
-  buffer.writeln('      colorFilter: ColorFilter.mode(color, BlendMode.srcIn)');
+  buffer.writeln('      colorFilter: ColorFilter.mode(color, .srcIn)');
   buffer.writeln('    );');
   buffer.writeln('  }');
   buffer.writeln('}');

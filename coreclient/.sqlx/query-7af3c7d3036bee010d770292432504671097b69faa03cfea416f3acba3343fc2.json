@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT g.room_state AS \"room_state: BlobDecoded<VerifiedRoomState>\"\n            FROM \"group\" g\n            INNER JOIN chat c ON c.group_id = g.group_id\n            WHERE c.chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "room_state: BlobDecoded<VerifiedRoomState>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "room_state"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7af3c7d3036bee010d770292432504671097b69faa03cfea416f3acba3343fc2"
+}

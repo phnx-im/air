@@ -785,15 +785,15 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn write_vc_emulation_epoch_state<
+    fn write_vc_derivation_epoch_state<
         EpochId: traits::VcEpochId<CURRENT_VERSION>,
-        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+        VcDerivationEpochState: traits::VcDerivationEpochState<CURRENT_VERSION>,
     >(
         &self,
         epoch_id: &EpochId,
-        vc_emulation_epoch_state: &VcEmulationEpochState,
+        vc_derivation_epoch_state: &VcDerivationEpochState,
     ) -> Result<(), Self::Error> {
-        let storable = StorableVcSecretRef(vc_emulation_epoch_state);
+        let storable = StorableVcSecretRef(vc_derivation_epoch_state);
         let mut connection = self.connection.borrow_mut();
         let task = storable.store_vc_emulation_group_secret(
             &mut **connection,
@@ -803,13 +803,13 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn vc_emulation_epoch_state<
+    fn vc_derivation_epoch_state<
         EpochId: traits::VcEpochId<CURRENT_VERSION>,
-        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+        VcDerivationEpochState: traits::VcDerivationEpochState<CURRENT_VERSION>,
     >(
         &self,
         epoch_id: &EpochId,
-    ) -> Result<Option<VcEmulationEpochState>, Self::Error> {
+    ) -> Result<Option<VcDerivationEpochState>, Self::Error> {
         let storable = StorableVcEpochIdRef(epoch_id);
         let mut connection = self.connection.borrow_mut();
         let task = storable.load_vc_emulation_group_secret(
@@ -856,13 +856,13 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn write_registered_vc_emulation_epoch<
+    fn write_registered_vc_derivation_epoch<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        RegisteredVcEmulationEpoch: traits::RegisteredVcEmulationEpoch<CURRENT_VERSION>,
+        RegisteredVcDerivationEpoch: traits::RegisteredVcDerivationEpoch<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-        registered: &RegisteredVcEmulationEpoch,
+        registered: &RegisteredVcDerivationEpoch,
     ) -> Result<(), Self::Error> {
         let storable = StorableRegisteredVcEmulationEpochRef(registered);
         let mut connection = self.connection.borrow_mut();
@@ -870,20 +870,20 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn registered_vc_emulation_epoch<
+    fn registered_vc_derivation_epoch<
         GroupId: traits::GroupId<CURRENT_VERSION>,
-        RegisteredVcEmulationEpoch: traits::RegisteredVcEmulationEpoch<CURRENT_VERSION>,
+        RegisteredVcDerivationEpoch: traits::RegisteredVcDerivationEpoch<CURRENT_VERSION>,
     >(
         &self,
         group_id: &GroupId,
-    ) -> Result<Option<RegisteredVcEmulationEpoch>, Self::Error> {
+    ) -> Result<Option<RegisteredVcDerivationEpoch>, Self::Error> {
         let storable = StorableGroupIdRef(group_id);
         let mut connection = self.connection.borrow_mut();
         let task = storable.load_registered_vc_emulation_epoch(&mut **connection);
         block_async_in_place(task)
     }
 
-    fn delete_registered_vc_emulation_epoch<GroupId: traits::GroupId<CURRENT_VERSION>>(
+    fn delete_registered_vc_derivation_epoch<GroupId: traits::GroupId<CURRENT_VERSION>>(
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
@@ -972,7 +972,9 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
-    fn delete_vc_emulation_state_if_unreferenced<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
+    fn delete_vc_derivation_epoch_state_if_unreferenced<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+    >(
         &self,
         epoch_id: &EpochId,
     ) -> Result<bool, Self::Error> {

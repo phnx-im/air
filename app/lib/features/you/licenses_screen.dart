@@ -16,7 +16,7 @@ class LicensesScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         title: Text(loc.licensesScreen_title),
         leading: const AppBarBackButton(),
       ),
