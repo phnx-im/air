@@ -39,6 +39,7 @@ class MockUiUser implements UiUser {
     required int id,
     this.accountUnlinked = false,
     this.usernames = const [],
+    this.versionStatus = const VersionStatus.supported(),
   }) : _userId = id.userId();
 
   final UiUserId _userId;
@@ -56,7 +57,7 @@ class MockUiUser implements UiUser {
   final List<UiUsername> usernames;
 
   @override
-  bool get unsupportedVersion => false;
+  final VersionStatus versionStatus;
 
   @override
   final bool accountUnlinked;

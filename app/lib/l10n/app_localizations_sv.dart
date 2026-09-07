@@ -1081,6 +1081,24 @@ class AppLocalizationsSv extends AppLocalizations {
   String get licensesScreen_title => 'Licenser';
 
   @override
+  String get licensesScreen_searchHint => 'Sök paket';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paket',
+      one: '$count paket',
+      zero: 'Inga paket',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Inga paket hittades.';
+
+  @override
   String get contactUsScreen_title => 'Kontakta Air';
 
   @override
@@ -1313,10 +1331,15 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Öppna TestFlight på iOS eller Google Play på Android och uppdatera Air.';
+      'Öppna App Store på iOS eller Google Play på Android och uppdatera Air.';
 
   @override
   String get appOutdatedScreen_action => 'Uppdatera';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Uppdatera Air senast $date för att fortsätta använda det';
+  }
 
   @override
   String get contactRequestDialog_title => 'Kontaktförfrågan';

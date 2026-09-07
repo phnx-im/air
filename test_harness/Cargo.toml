@@ -4,16 +4,16 @@
 
 [package]
 name = "airserver_test_harness"
-version = "0.21.0"
+version = "0.22.0"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"
 
 [dependencies]
-airbackend = { workspace = true, features = ["test_utils"] }
+airbackend = { workspace = true, features = ["test_utils"] , version = "0.22.0" }
 aircommon.workspace = true
-aircoreclient = { workspace = true, features = ["test_utils"] }
-airserver = { workspace = true, features = ["test_utils"] }
+aircoreclient = { workspace = true, features = ["test_utils"] , version = "0.22.0" }
+airserver = { workspace = true, features = ["test_utils"] , version = "0.22.0" }
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true

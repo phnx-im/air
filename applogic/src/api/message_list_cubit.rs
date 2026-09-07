@@ -7,7 +7,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use aircoreclient::{
-    AttachmentId, ChatId, ChatMessage, ChatType, MessageId,
+    AttachmentInfo, ChatId, ChatMessage, ChatType, MessageId,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
@@ -158,7 +158,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         new_messages: Vec<ChatMessage>,
-        local_attachment_ids: HashMap<MessageId, Vec<AttachmentId>>,
+        local_attachment_infos: HashMap<MessageId, Vec<AttachmentInfo>>,
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) -> MessageListTransition {
@@ -177,7 +177,7 @@ impl MessageListData {
                 let messages: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_ids
+                        let ids = local_attachment_infos
                             .get(&m.id())
                             .map(|ids| ids.as_slice())
                             .unwrap_or_default();
@@ -204,7 +204,7 @@ impl MessageListData {
                 let prepended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_ids
+                        let ids = local_attachment_infos
                             .get(&m.id())
                             .map(|ids| ids.as_slice())
                             .unwrap_or_default();
@@ -248,7 +248,7 @@ impl MessageListData {
                 let appended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_ids
+                        let ids = local_attachment_infos
                             .get(&m.id())
                             .map(|ids| ids.as_slice())
                             .unwrap_or_default();
@@ -324,10 +324,10 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         message: ChatMessage,
-        local_attachment_ids: &[AttachmentId],
+        local_attachment_infos: &[AttachmentInfo],
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
-        let updated = UiChatMessage::from_message(message, local_attachment_ids);
+        let updated = UiChatMessage::from_message(message, local_attachment_infos);
         if self.messages[idx] == updated {
             return None;
         }
@@ -604,10 +604,10 @@ impl MessageListContext {
                 }
             };
 
-            let local_attachment_ids =
+            let local_attachment_infos =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range_inclusive(
+                        .attachment_infos_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -623,7 +623,7 @@ impl MessageListContext {
             let transition = self.data.apply_messages(
                 &mut state,
                 messages,
-                local_attachment_ids,
+                local_attachment_infos,
                 is_connection_chat,
                 LoadDirection::Replace {
                     has_older,
@@ -657,9 +657,10 @@ impl MessageListContext {
             messages
         };
 
-        let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
+        let local_attachment_infos = if let Some((from, to)) = messages.first().zip(messages.last())
+        {
             self.core_user
-                .attachment_ids_in_range_inclusive(
+                .attachment_infos_in_range_inclusive(
                     self.chat_id,
                     (from.timestamp(), from.id()),
                     (to.timestamp(), to.id()),
@@ -673,7 +674,7 @@ impl MessageListContext {
         let transition = self.data.apply_messages(
             &mut state,
             messages,
-            local_attachment_ids,
+            local_attachment_infos,
             is_connection_chat,
             LoadDirection::Replace {
                 has_older,
@@ -756,10 +757,10 @@ impl MessageListContext {
                 command: None,
             }
         } else {
-            let local_attachment_ids =
+            let local_attachment_infos =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range_inclusive(
+                        .attachment_infos_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -771,7 +772,7 @@ impl MessageListContext {
             self.data.apply_messages(
                 &mut state,
                 messages,
-                local_attachment_ids,
+                local_attachment_infos,
                 None,
                 LoadDirection::PrependOlder { has_older },
             )
@@ -810,10 +811,10 @@ impl MessageListContext {
                 command: None,
             }
         } else {
-            let local_attachment_ids =
+            let local_attachment_infos =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range_inclusive(
+                        .attachment_infos_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -825,7 +826,7 @@ impl MessageListContext {
             self.data.apply_messages(
                 &mut state,
                 messages,
-                local_attachment_ids,
+                local_attachment_infos,
                 None,
                 LoadDirection::AppendNewer { has_newer },
             )
@@ -879,9 +880,10 @@ impl MessageListContext {
             }
         };
 
-        let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
+        let local_attachment_infos = if let Some((from, to)) = messages.first().zip(messages.last())
+        {
             self.core_user
-                .attachment_ids_in_range_inclusive(
+                .attachment_infos_in_range_inclusive(
                     self.chat_id,
                     (from.timestamp(), from.id()),
                     (to.timestamp(), to.id()),
@@ -897,7 +899,7 @@ impl MessageListContext {
         let transition = self.data.apply_messages(
             &mut state,
             messages,
-            local_attachment_ids,
+            local_attachment_infos,
             is_connection_chat,
             LoadDirection::Replace {
                 has_older,
@@ -954,11 +956,11 @@ impl MessageListContext {
                 && let Some(message) = self.core_user.message(*message_id).await?
                 && message.chat_id() == self.chat_id
             {
-                let local_attachment_ids = self
+                let local_attachment_infos = self
                     .core_user
-                    .attachment_ids_for_message(message.id())
+                    .attachment_infos_for_message(message.id())
                     .await;
-                self.update_message_in_place(message, local_attachment_ids.as_slice());
+                self.update_message_in_place(message, local_attachment_infos.as_slice());
             }
         }
 
@@ -983,12 +985,12 @@ impl MessageListContext {
     fn update_message_in_place(
         &mut self,
         message: ChatMessage,
-        local_attachment_ids: &[AttachmentId],
+        local_attachment_infos: &[AttachmentInfo],
     ) {
         let mut state = self.state_tx.borrow().clone();
         if let Some(transition) =
             self.data
-                .update_message_in_place(&mut state, message, local_attachment_ids)
+                .update_message_in_place(&mut state, message, local_attachment_infos)
         {
             self.emit_state_and_transition(state, transition);
         }
