@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT\n                    attachment_id AS \"attachment_id: _\",\n                    remote_attachment_id AS \"remote_attachment_id: _\",\n                    chat_id AS \"chat_id: _\",\n                    message_id AS \"message_id: _\",\n                    content_type AS \"content_type: _\",\n                    status AS \"status: _\",\n                    created_at AS \"created_at: _\"\n                FROM attachment\n                WHERE attachment_id = ?",
+  "query": "\n                SELECT\n                    attachment_id AS \"attachment_id: _\",\n                    remote_attachment_id AS \"remote_attachment_id: _\",\n                    chat_id AS \"chat_id: _\",\n                    message_id AS \"message_id: _\",\n                    content_type AS \"content_type: _\",\n                    status AS \"status: _\",\n                    created_at AS \"created_at: _\",\n                    is_animated\n                FROM attachment\n                WHERE attachment_id = ?",
   "describe": {
     "columns": [
       {
@@ -79,6 +79,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 7,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
       }
     ],
     "parameters": {
@@ -91,8 +102,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "f78214453b26064fe5d54e58890f14407785098b7d5eabbb656a69be290c32c9"
+  "hash": "037049b567d00d95ab8e67e2fb460a465bcd7b88d7352395ba6569fc01cd4985"
 }

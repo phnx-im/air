@@ -81,6 +81,7 @@ impl CoreUser {
                 message_id,
                 content_type: content_type.clone(),
                 status: AttachmentStatus::Pending,
+                is_animated: None,
                 created_at,
             };
             let pending_record = PendingAttachmentRecord {

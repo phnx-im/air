@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/features/attachments/attachment_image_provider.dart';
+import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -44,8 +44,8 @@ class AttachmentThumbnail extends StatelessWidget {
             if (metadata != null) BlurHash(hash: metadata.blurhash),
             Image(
               image: ResizeImage(
-                AttachmentImageProvider(
-                  attachment: attachment,
+                AttachmentThumbnailProvider(
+                  attachmentId: attachment.attachmentId,
                   attachmentsRepository: context.read<AttachmentsRepository>(),
                 ),
                 width: pixels,
