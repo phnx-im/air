@@ -1068,6 +1068,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get licensesScreen_title => 'Licenses';
 
   @override
+  String get licensesScreen_searchHint => 'Search packages';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count packages',
+      one: '$count package',
+      zero: 'No packages',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'No packages found.';
+
+  @override
   String get contactUsScreen_title => 'Contact Air';
 
   @override
@@ -1299,10 +1317,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+      'Open the App Store on iOS or Google Play on Android, then update Air.';
 
   @override
   String get appOutdatedScreen_action => 'Update';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Update Air by $date to keep using it';
+  }
 
   @override
   String get contactRequestDialog_title => 'Contact request';

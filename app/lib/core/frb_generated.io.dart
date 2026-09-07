@@ -432,10 +432,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  FutureOr<void> Function(BigInt)
-  dco_decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(dynamic raw);
-
-  @protected
   Object dco_decode_DartOpaque(dynamic raw);
 
   @protected
@@ -1058,9 +1054,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiUsername> dco_decode_list_ui_username(dynamic raw);
 
   @protected
-  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
-
-  @protected
   LogEntry dco_decode_log_entry(dynamic raw);
 
   @protected
@@ -1466,6 +1459,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
+
+  @protected
+  VersionStatus dco_decode_version_status(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -2501,11 +2497,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
 
   @protected
-  LoadedImageAttachment sse_decode_loaded_image_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   LogEntry sse_decode_log_entry(SseDeserializer deserializer);
 
   @protected
@@ -3003,6 +2994,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
+  VersionStatus sse_decode_version_status(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -3348,12 +3342,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_DartFn_Inputs_notification_content_Output_unit_AnyhowException(
     FutureOr<void> Function(NotificationContent) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
-    FutureOr<void> Function(BigInt) self,
     SseSerializer serializer,
   );
 
@@ -4282,12 +4270,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_log_entry(LogEntry self, SseSerializer serializer);
 
   @protected
@@ -4916,6 +4898,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_version_status(VersionStatus self, SseSerializer serializer);
 }
 
 // Section: wire_class

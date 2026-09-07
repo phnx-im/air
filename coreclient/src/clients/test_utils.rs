@@ -4,17 +4,19 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+#[cfg(any(test, feature = "test_utils"))]
+use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
 use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::{component::AirComponent, group::GroupData};
+use airprotos::client::group::GroupData;
 
 use crate::{
     chats::GroupDataExt,
-    groups::{GroupDataBytes, self_group::SelfGroup},
+    groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
@@ -127,6 +129,25 @@ impl CoreUser {
         let t_epoch = group.mls_group().epoch();
         let pq_epoch = group.pq().map(|pq| pq.mls_group.epoch());
         Ok(Some((t_epoch, pq_epoch)))
+    }
+
+    /// Whether the self-group is registered as the emulation group of the
+    /// virtual client, i.e. whether it holds a derivation epoch.
+    pub async fn self_group_has_derivation_epoch(&self) -> anyhow::Result<bool> {
+        let Some(group) = self.self_group().await? else {
+            return Ok(false);
+        };
+        self.db()
+            .with_write_transaction(async |txn| {
+                use openmls_traits::OpenMlsProvider as _;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                let epoch_id = group
+                    .group()
+                    .mls_group()
+                    .newest_vc_derivation_epoch(provider.storage())?;
+                anyhow::Ok(epoch_id.is_some())
+            })
+            .await
     }
 
     /// Returns the pending chat operation info for the self-group, if any.
@@ -339,24 +360,24 @@ impl CoreUser {
         Ok(Some(GroupData::decode(&bytes)?))
     }
 
-    /// Sends a self-update commit that forces the given [`AirComponent`] into the own leaf node.
+    /// Sends a self-update commit that forces the given [`AirFeatures`] into the own leaf node.
     ///
     /// Use this in tests to simulate an old client that advertises a different set of feature
     /// flags.
     #[cfg(any(test, feature = "test_utils"))]
-    pub async fn set_group_air_component(
+    pub async fn set_group_features(
         &self,
         chat_id: ChatId,
-        air_component: AirComponent,
+        features: AirFeatures,
     ) -> anyhow::Result<()> {
         let op = self
             .db()
             .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_air_component(
+                PendingChatOperation::create_update_with_features(
                     txn,
                     self.signing_key(),
                     chat_id,
-                    air_component,
+                    features,
                 )
                 .await
             })

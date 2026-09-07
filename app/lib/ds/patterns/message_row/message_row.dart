@@ -90,10 +90,14 @@ class MessageRow extends StatelessWidget {
             children: [
               if (outgoing) const Spacer(flex: MessageRowTokens.gutterFlex),
               if (withAvatar) ...[
-                SizedBox(
-                  width: tokens.avatarSize,
-                  child: avatar != null ? _HangingAvatar(child: avatar) : null,
-                ),
+                avatar != null
+                    ? _HangingAvatar(
+                        child: SizedBox(
+                          width: tokens.avatarSize,
+                          child: avatar,
+                        ),
+                      )
+                    : SizedBox(width: tokens.avatarSize),
                 const SizedBox(width: MessageRowTokens.avatarGap),
               ],
               Expanded(
@@ -161,6 +165,8 @@ class _RenderHangingAvatar extends RenderShiftedBox {
 
   // The avatar lies outside the empty box, so the bounds check that
   // [RenderBox.hitTest] runs before asking the child would drop every tap.
+  // The row above still runs its own, so the sliver of avatar that out-tops
+  // the bubble stays untappable -- a couple of pixels off a one-line bubble.
   @override
   bool hitTest(BoxHitTestResult result, {required Offset position}) =>
       hitTestChildren(result, position: position);

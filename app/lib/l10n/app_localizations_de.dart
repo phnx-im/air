@@ -1091,6 +1091,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get licensesScreen_title => 'Lizenzen';
 
   @override
+  String get licensesScreen_searchHint => 'Pakete suchen';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Pakete',
+      one: '$count Paket',
+      zero: 'Keine Pakete',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Keine Pakete gefunden.';
+
+  @override
   String get contactUsScreen_title => 'Air kontaktieren';
 
   @override
@@ -1324,10 +1342,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Öffne TestFlight auf iOS oder Google Play auf Android und aktualisiere Air.';
+      'Öffne den App Store auf iOS oder Google Play auf Android und aktualisiere Air.';
 
   @override
   String get appOutdatedScreen_action => 'Aktualisieren';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Aktualisiere Air bis zum $date, um es weiter zu nutzen';
+  }
 
   @override
   String get contactRequestDialog_title => 'Kontaktanfrage';

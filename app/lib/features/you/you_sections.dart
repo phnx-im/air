@@ -18,6 +18,7 @@ import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
+import 'package:air/features/you/licenses_screen.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -31,7 +32,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 final _log = Logger('YouSections');
 
@@ -468,13 +468,7 @@ class HelpSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final packageInfoFut = useMemoized(() => PackageInfo.fromPlatform());
-    final packageInfo = useFuture(packageInfoFut);
-
-    final version = switch (packageInfo.data) {
-      final info? => "${info.version}-${info.buildNumber}",
-      null => "",
-    };
+    final version = appVersion();
 
     final loc = AppLocalizations.of(context);
     final onVersionTap = useDeveloperUnlock();
@@ -522,7 +516,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const LicensePage()),
+              MaterialPageRoute(
+                builder: (context) => const LicensesScreenView(),
+              ),
             );
           },
           child: Row(

@@ -59,6 +59,7 @@ sealed class UiImageMetadata with _$UiImageMetadata {
     required String blurhash,
     required int width,
     required int height,
+    bool? isAnimated,
   }) = _UiImageMetadata;
 }
 

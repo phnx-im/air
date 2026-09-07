@@ -8,11 +8,10 @@ use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
     mls_group_config::{
-        APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-        default_leaf_node_capabilities, default_leaf_node_extensions, vc_leaf_node_extensions,
+        APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
     },
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::ClientAppData;
 use anyhow::{Context, Result, ensure};
 use apqmls::{
     authentication::ApqCredentialWithKey, key_package::ApqKeyPackageBuilder,
@@ -96,9 +95,9 @@ impl MemoryUserKeyStore {
         virtual_client: bool,
     ) -> Result<KeyPackageBuilder> {
         let mut leaf_node_extensions = if virtual_client {
-            vc_leaf_node_extensions::<AirComponent>()
+            ClientAppData::current_virtual_client().leaf_node_extensions()
         } else {
-            default_leaf_node_extensions::<AirComponent>()
+            ClientAppData::current().leaf_node_extensions()
         };
 
         let client_reference = self.create_own_client_reference(qs_client_id);
@@ -109,12 +108,12 @@ impl MemoryUserKeyStore {
         leaf_node_extensions.add(client_ref_extension)?;
 
         let key_package_extensions = if last_resort {
-            let mut extensions = default_key_package_extensions::<AirComponent>();
+            let mut extensions = ClientAppData::current().key_package_extensions();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
             extensions.add(last_resort_extension)?;
             extensions
         } else {
-            default_key_package_extensions::<AirComponent>()
+            ClientAppData::current().key_package_extensions()
         };
 
         let builder = KeyPackage::builder()
@@ -155,9 +154,9 @@ impl MemoryUserKeyStore {
         virtual_client: bool,
     ) -> Result<ApqKeyPackageBuilder> {
         let mut leaf_node_extensions = if virtual_client {
-            vc_leaf_node_extensions::<AirComponent>()
+            ClientAppData::current_virtual_client().leaf_node_extensions()
         } else {
-            default_leaf_node_extensions::<AirComponent>()
+            ClientAppData::current().leaf_node_extensions()
         };
 
         let client_reference = self.create_own_client_reference(qs_client_id);
@@ -168,12 +167,12 @@ impl MemoryUserKeyStore {
         leaf_node_extensions.add(client_ref_extension)?;
 
         let key_package_extensions = if last_resort {
-            let mut extensions = default_key_package_extensions::<AirComponent>();
+            let mut extensions = ClientAppData::current().key_package_extensions();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
             extensions.add(last_resort_extension)?;
             extensions
         } else {
-            default_key_package_extensions::<AirComponent>()
+            ClientAppData::current().key_package_extensions()
         };
 
         Ok(ApqKeyPackage::builder()

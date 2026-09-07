@@ -11,13 +11,15 @@ import 'chats_data_source.dart';
 import 'notification_context.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user.dart';
+part 'user_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_unlinked`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;
@@ -35,11 +37,12 @@ class intArray12 extends NonGrowableListView<int> {
 abstract class UiUser implements RustOpaqueInterface {
   bool get accountUnlinked;
 
-  bool get unsupportedVersion;
-
   UiUserId get userId;
 
   List<UiUsername> get usernames;
+
+  /// Return the status of the client version communicated by the server.
+  VersionStatus get versionStatus;
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
@@ -123,3 +126,18 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 }
 
 enum AppState { mobileBackground, desktopBackground, foreground }
+
+@freezed
+sealed class VersionStatus with _$VersionStatus {
+  const VersionStatus._();
+
+  /// No expiration is announced by the server.
+  const factory VersionStatus.supported() = VersionStatus_Supported;
+
+  /// Server rejects this version.
+  const factory VersionStatus.unsupported() = VersionStatus_Unsupported;
+
+  /// The server announced that the version stops being accepted at this time.
+  const factory VersionStatus.expiresAt(DateTime field0) =
+      VersionStatus_ExpiresAt;
+}
