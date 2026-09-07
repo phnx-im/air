@@ -5,6 +5,7 @@
 mod bump_version;
 mod cut_release;
 mod generate_emoji;
+mod generate_licenses;
 mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
@@ -46,6 +47,9 @@ enum Commands {
     /// emojis grouped by category.
     #[command(name = "generate-emoji")]
     GenerateEmoji(generate_emoji::GenerateEmojiArgs),
+    /// Collect the licenses of the Rust dependencies shipped in the app into a JSON asset.
+    #[command(name = "generate-licenses")]
+    GenerateLicenses(generate_licenses::GenerateLicensesArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -57,5 +61,6 @@ fn main() -> anyhow::Result<()> {
         Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),
+        Commands::GenerateLicenses(args) => generate_licenses::run(args),
     }
 }

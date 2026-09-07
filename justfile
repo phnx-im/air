@@ -63,6 +63,9 @@ check-dart:
 [group('check')]
 check-frb: regenerate-frb && _check-unstaged-changes
 
+[group('check')]
+check-licenses: regenerate-licenses && _check-unstaged-changes
+
 # Check the ARB files for problems gen-l10n accepts silently.
 [group('check')]
 check-l10n:
@@ -130,6 +133,11 @@ regenerate-sqlx-client:
 regenerate-sqlx-server: start-docker-compose
     cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
+
+# Regenerate the licenses of the Rust dependencies shipped in the app.
+[group('regenerate')]
+regenerate-licenses:
+    cargo xtask generate-licenses
 
 # Recompile svg icons for rendering.
 [working-directory: 'app']
