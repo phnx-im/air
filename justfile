@@ -132,12 +132,6 @@ regenerate-sqlx-server: start-docker-compose
     cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
-# Regenerate the licenses of the Rust dependencies shipped in the app.
-[group('regenerate')]
-regenerate-licenses:
-    cargo about generate -c about.toml -m applogic/Cargo.toml \
-        -o app/assets/licenses/rust_licenses.json about.hbs
-
 # Recompile svg icons for rendering.
 [working-directory: 'app']
 [group('regenerate')]
