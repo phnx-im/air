@@ -113,10 +113,12 @@ impl CoreUser {
 
     /// Stores a message for an attachment and returns a task that sends it.
     ///
-    /// The message and the attachment record are stored from a cheap header
-    /// sniff before the file is read, so the message shows up in the chat
-    /// right away. The returned task reads and processes the file, persists
-    /// the processed content and only then talks to the server.
+    /// The message and the attachment record are stored before the upload
+    /// starts, so the message shows up in the chat right away. A non-image
+    /// costs only a header sniff. An image is fully decoded here as well, to
+    /// make the thumbnail the message renders from, and decoded a second time
+    /// by the returned task, which processes the file, persists the processed
+    /// content and only then talks to the server.
     pub async fn upload_chat_attachment(
         &self,
         chat_id: ChatId,
@@ -320,7 +322,7 @@ impl CoreUser {
                 }
                 Err(error) => {
                     if let Err(error) = core_user
-                        .finish_interrupted_attachment_upload(attachment_id)
+                        .fail_interrupted_attachment_upload(attachment_id)
                         .await
                     {
                         error!(%error, ?attachment_id, "Failed to record attachment failure");
@@ -454,10 +456,8 @@ impl CoreUser {
             .context("Attachment message without content")?;
         processed.patch_parts(content)?;
 
-        let is_animated = processed
-            .image_data
-            .as_ref()
-            .is_some_and(|data| data.is_animated);
+        // Stays NULL for a non-image, as it was when the probe stored it.
+        let is_animated = processed.image_data.as_ref().map(|data| data.is_animated);
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<bool> {
@@ -492,18 +492,10 @@ impl CoreUser {
     /// Marks an interrupted upload as failed, so that it can be retried.
     ///
     /// The task that would have recorded the outcome was dropped mid-flight
-    /// (the user cancelled). An upload that finished in the meantime keeps its status.
+    /// (the user cancelled), or it failed. An upload that finished in the
+    /// meantime keeps its status. If processing did not finish, there is
+    /// nothing to retry from, so the provisional message is removed instead.
     pub async fn fail_interrupted_attachment_upload(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> anyhow::Result<()> {
-        self.finish_interrupted_attachment_upload(attachment_id)
-            .await
-    }
-
-    /// Marks a processed upload as failed. If processing did not finish, there
-    /// is nothing to retry, so the provisional message is removed instead.
-    async fn finish_interrupted_attachment_upload(
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<()> {
@@ -616,7 +608,14 @@ struct ProbedAttachment {
 impl ProbedAttachment {
     fn from_path(path: PathBuf) -> anyhow::Result<Result<Self, ProvisionAttachmentError>> {
         let size = std::fs::metadata(&path)?.len();
-        let image_dimensions = probe_attachment_image(&path)?;
+        let image_dimensions = match probe_attachment_image(&path)? {
+            Ok(dimensions) => dimensions,
+            Err(error) => {
+                // The file looks like an image but its header does not decode.
+                error!(%error, "failed to probe attachment image");
+                return Ok(Err(ProvisionAttachmentError::DecodingError));
+            }
+        };
 
         if image_dimensions.is_some() && size > MAX_IMAGE_SOURCE_SIZE {
             return Ok(Err(ProvisionAttachmentError::TooLarge(

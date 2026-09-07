@@ -512,7 +512,7 @@ impl AttachmentRecord {
         attachment_id: AttachmentId,
         bytes: &[u8],
         content_type: &str,
-        is_animated: bool,
+        is_animated: Option<bool>,
     ) -> sqlx::Result<bool> {
         let updated = query!(
             "UPDATE attachment SET
