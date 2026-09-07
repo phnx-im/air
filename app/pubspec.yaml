@@ -55,7 +55,7 @@ dependencies:
 
 dev_dependencies:
   args: ^2.5.0
-  flutter_rust_bridge_hooks: 2.13.0-beta.6
+  flutter_rust_bridge_hooks: 2.13.0
   dot_shorthand_converter: ^0.0.4
   flutter_lints: ^6.0.0
   flutter_test:
