@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // ignore: depend_on_referenced_packages
+import 'package:code_assets/code_assets.dart';
+// ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
 // The native-assets hook protocol does not carry the Flutter build mode
@@ -30,16 +32,11 @@ void main(List<String> args) async {
         // instead of trying to open a live database (which has none during the
         // app build, on CI or locally).
         'SQLX_OFFLINE': '1',
-        // The Rust C deps (ring, libwebp via the `cc` crate) and rustc read
-        // IPHONEOS_DEPLOYMENT_TARGET to set the iOS floor. native_toolchain_rust
-        // does not pass one, so it is inherited from whichever Xcode target
-        // drives the hook. When that is the FlutterNativeAssets aggregate (used
-        // to build the lib before the NotificationService extension links it)
-        // rather than Runner, the floor is wrong and the C objects and the Rust
-        // cdylib disagree, failing to link with undefined `___chkstk_darwin`.
-        // Pin it to Flutter's hardcoded native-assets targetIOSVersion (15).
-        // Non-iOS/macOS toolchains ignore it, so this is safe unconditionally.
-        'IPHONEOS_DEPLOYMENT_TARGET': '15.0',
+        // Must match the MinimumOSVersion Flutter writes into the framework's
+        // Info.plist, otherwise App Store Connect rejects the upload.
+        if (input.config.code.targetOS == OS.iOS)
+          'IPHONEOS_DEPLOYMENT_TARGET':
+              '${input.config.code.iOS.targetVersion}.0',
       },
     ).run(input: input, output: output);
   });
