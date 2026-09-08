@@ -9,10 +9,12 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'chats_data_source.dart';
 import 'notification_context.dart';
+
 import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
+
 import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';

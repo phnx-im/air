@@ -30,12 +30,15 @@ import 'api/user_settings_cubit.dart';
 import 'api/username_suggestions.dart';
 import 'api/users_cubit.dart';
 import 'api/utils.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
+
 import 'frb_generated.dart';
 import 'lib.dart';
 import 'notifications.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'package:uuid/uuid.dart';
 
@@ -655,11 +658,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue dco_decode_Uuid(dynamic raw);
 
   @protected
-  AcceptContactRequestError dco_decode_accept_contact_request_error(
-    dynamic raw,
-  );
-
-  @protected
   AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
 
   @protected
@@ -706,11 +704,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
-
-  @protected
-  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
-    dynamic raw,
-  );
 
   @protected
   AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
@@ -804,6 +797,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TokenId dco_decode_box_autoadd_token_id(dynamic raw);
+
+  @protected
+  UiAcceptContactRequestError
+  dco_decode_box_autoadd_ui_accept_contact_request_error(dynamic raw);
 
   @protected
   UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw);
@@ -1145,10 +1142,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
-  AcceptContactRequestError?
-  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
-
-  @protected
   AddUsernameContactError?
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
@@ -1227,6 +1220,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RequiredDebugCapabilities?
   dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
+
+  @protected
+  UiAcceptContactRequestError?
+  dco_decode_opt_box_autoadd_ui_accept_contact_request_error(dynamic raw);
 
   @protected
   UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw);
@@ -1345,6 +1342,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   U8Array32 dco_decode_u_8_array_32(dynamic raw);
+
+  @protected
+  UiAcceptContactRequestError dco_decode_ui_accept_contact_request_error(
+    dynamic raw,
+  );
 
   @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
@@ -1985,11 +1987,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UuidValue sse_decode_Uuid(SseDeserializer deserializer);
 
   @protected
-  AcceptContactRequestError sse_decode_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AddUsernameContactError sse_decode_add_username_contact_error(
     SseDeserializer deserializer,
   );
@@ -2038,11 +2035,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
-
-  @protected
-  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
 
   @protected
   AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
@@ -2168,6 +2160,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
+
+  @protected
+  UiAcceptContactRequestError
+  sse_decode_box_autoadd_ui_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
@@ -2609,12 +2607,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
-  AcceptContactRequestError?
-  sse_decode_opt_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   AddUsernameContactError?
   sse_decode_opt_box_autoadd_add_username_contact_error(
     SseDeserializer deserializer,
@@ -2717,6 +2709,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RequiredDebugCapabilities?
   sse_decode_opt_box_autoadd_required_debug_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiAcceptContactRequestError?
+  sse_decode_opt_box_autoadd_ui_accept_contact_request_error(
     SseDeserializer deserializer,
   );
 
@@ -2869,6 +2867,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   U8Array32 sse_decode_u_8_array_32(SseDeserializer deserializer);
+
+  @protected
+  UiAcceptContactRequestError sse_decode_ui_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
@@ -3628,12 +3631,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
 
   @protected
-  void sse_encode_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_add_username_contact_error(
     AddUsernameContactError self,
     SseSerializer serializer,
@@ -3693,12 +3690,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_Chrono_Utc(
     DateTime self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError self,
     SseSerializer serializer,
   );
 
@@ -3851,6 +3842,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_ui_accept_contact_request_error(
+    UiAcceptContactRequestError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_ui_attachment_type(
@@ -4414,12 +4411,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_add_username_contact_error(
     AddUsernameContactError? self,
     SseSerializer serializer,
@@ -4536,6 +4527,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_required_debug_capabilities(
     RequiredDebugCapabilities? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_accept_contact_request_error(
+    UiAcceptContactRequestError? self,
     SseSerializer serializer,
   );
 
@@ -4727,6 +4724,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_8_array_32(U8Array32 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_accept_contact_request_error(
+    UiAcceptContactRequestError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);

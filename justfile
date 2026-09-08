@@ -147,9 +147,13 @@ regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
 # Run flutter test.
+#
+# TZ is pinned because goldens depict clock labels in the host's zone. The tests
+# don't load the Rust library, so skip the native assets hook, which would
+# otherwise build it.
 [working-directory: 'app']
-test-flutter:
-    TZ=UTC just flutter test
+test-flutter *args:
+    TZ=UTC FLUTTER_NATIVE_ASSETS=false just flutter test {{ args }}
 
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
 # Run docker compose services in the background.
@@ -168,7 +172,7 @@ update-goldens:
     # linger.
     git ls-files -z 'test/**/goldens/*.{{ os() }}.png' | xargs -0 rm -f
     # Update golden snapshots
-    TZ=UTC just flutter test --update-goldens
+    just test-flutter --update-goldens
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]
@@ -214,9 +218,9 @@ build platform:
 [linux]
 [working-directory: 'app/linux']
 build-rpm:
-    nfpm package -p rpm
+    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
 build-deb:
-    nfpm package -p deb
+    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p deb

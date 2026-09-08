@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'user_settings_cubit.dart';
@@ -9,6 +9,7 @@ part of 'user_settings_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $UserSettingsCopyWith<UserSettings> get copyWith => _$UserSettingsCopyWithImpl<U
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
+  final _this = this as UserSettings;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, _this.locale) || other.locale == _this.locale)&&(identical(other.interfaceScale, _this.interfaceScale) || other.interfaceScale == _this.interfaceScale)&&(identical(other.sidebarWidth, _this.sidebarWidth) || other.sidebarWidth == _this.sidebarWidth)&&(identical(other.sendOnEnter, _this.sendOnEnter) || other.sendOnEnter == _this.sendOnEnter)&&(identical(other.readReceipts, _this.readReceipts) || other.readReceipts == _this.readReceipts)&&(identical(other.developerMode, _this.developerMode) || other.developerMode == _this.developerMode)&&(identical(other.experimentalFeatures, _this.experimentalFeatures) || other.experimentalFeatures == _this.experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, _this.defaultEmojiSkinTone) || other.defaultEmojiSkinTone == _this.defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, _this.dismissedVersionExpiry) || other.dismissedVersionExpiry == _this.dismissedVersionExpiry));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
+int get hashCode {
+  final _this = this as UserSettings;
+  return Object.hash(runtimeType,_this.locale,_this.interfaceScale,_this.sidebarWidth,_this.sendOnEnter,_this.readReceipts,_this.developerMode,_this.experimentalFeatures,_this.defaultEmojiSkinTone,_this.dismissedVersionExpiry);
+}
 
 @override
 String toString() {
-  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
+  final _this = this as UserSettings;
+  return 'UserSettings(locale: ${_this.locale}, interfaceScale: ${_this.interfaceScale}, sidebarWidth: ${_this.sidebarWidth}, sendOnEnter: ${_this.sendOnEnter}, readReceipts: ${_this.readReceipts}, developerMode: ${_this.developerMode}, experimentalFeatures: ${_this.experimentalFeatures}, defaultEmojiSkinTone: ${_this.defaultEmojiSkinTone}, dismissedVersionExpiry: ${_this.dismissedVersionExpiry})';
 }
 
 
@@ -63,7 +69,7 @@ class _$UserSettingsCopyWithImpl<$Res>
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(UserSettings(
 locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
 as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
 as double?,sidebarWidth: null == sidebarWidth ? _self.sidebarWidth : sidebarWidth // ignore: cast_nullable_to_non_nullable
@@ -108,16 +114,18 @@ _$UserSettingsCopyWith<_UserSettings> get copyWith => __$UserSettingsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
+int get hashCode {
+    return Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
+}
 
 @override
 String toString() {
-  return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
+    return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
 }
 
 

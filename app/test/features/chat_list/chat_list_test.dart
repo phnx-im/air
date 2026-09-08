@@ -32,16 +32,13 @@ void main() {
       contactsCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({

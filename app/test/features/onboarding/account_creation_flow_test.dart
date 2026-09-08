@@ -73,19 +73,16 @@ void main() {
 
       // No user until the account is created between the profile and username
       // steps. Tests that reach the created-account state override this.
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(const UserSessionState(loggedOut: true));
+      when(() => userSessionCubit.state)
+          .thenReturn(const UserSessionState(loggedOut: true));
       when(() => navigationCubit.state).thenReturn(
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
       when(() => navigationCubit.pop()).thenReturn(true);
-      when(
-        () => registrationCubit.state,
-      ).thenReturn(const RegistrationState(invitationCode: _validCode));
-      when(
-        () => registrationCubit.submitInvitationCode(),
-      ).thenAnswer((_) async => null);
+      when(() => registrationCubit.state)
+          .thenReturn(const RegistrationState(invitationCode: _validCode));
+      when(() => registrationCubit.submitInvitationCode())
+          .thenAnswer((_) async => null);
       when(() => registrationCubit.signUp()).thenAnswer((_) async => null);
     });
 
@@ -153,9 +150,8 @@ void main() {
     });
 
     testWidgets('a short code never reaches the server', (tester) async {
-      when(
-        () => registrationCubit.state,
-      ).thenReturn(const RegistrationState(invitationCode: 'ABC'));
+      when(() => registrationCubit.state)
+          .thenReturn(const RegistrationState(invitationCode: 'ABC'));
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
@@ -251,9 +247,8 @@ void main() {
       // subtree for the logged-in one and tears down this flow. Mimic that:
       // drop the widget entirely, mark the user loaded, then build a brand-new
       // flow.
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(UserSessionState(user: MockUser()));
+      when(() => userSessionCubit.state)
+          .thenReturn(UserSessionState(user: MockUser()));
       await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

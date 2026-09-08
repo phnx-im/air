@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'registration.dart';
@@ -9,6 +9,7 @@ part of 'registration.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$CreateUserError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'CreateUserError()';
+    return 'CreateUserError()';
 }
 
 
@@ -46,7 +47,7 @@ $CreateUserErrorCopyWith(CreateUserError _, $Res Function(CreateUserError) __);
 
 
 class CreateUserError_ChallengeRequired extends CreateUserError {
-  const CreateUserError_ChallengeRequired({required final  List<ChallengeKind> accepted}): _accepted = accepted,super._();
+  const CreateUserError_ChallengeRequired({required  List<ChallengeKind> accepted}): _accepted = accepted,super._();
   
 
  final  List<ChallengeKind> _accepted;
@@ -67,16 +68,18 @@ $CreateUserError_ChallengeRequiredCopyWith<CreateUserError_ChallengeRequired> ge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_ChallengeRequired&&const DeepCollectionEquality().equals(other._accepted, _accepted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_ChallengeRequired&&const DeepCollectionEquality().equals(other.accepted, _accepted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_accepted));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_accepted));
+}
 
 @override
 String toString() {
-  return 'CreateUserError.challengeRequired(accepted: $accepted)';
+    return 'CreateUserError.challengeRequired(accepted: $accepted)';
 }
 
 
@@ -128,7 +131,7 @@ class CreateUserError_ChallengeRejected extends CreateUserError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_ChallengeRejected);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_ChallengeRejected);
 }
 
 
@@ -137,7 +140,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'CreateUserError.challengeRejected()';
+    return 'CreateUserError.challengeRejected()';
 }
 
 
@@ -165,16 +168,18 @@ $CreateUserError_OtherCopyWith<CreateUserError_Other> get copyWith => _$CreateUs
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_Other&&(identical(other.message, message) || other.message == message));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is CreateUserError_Other&&(identical(other.message, message) || other.message == message));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message);
+int get hashCode {
+    return Object.hash(runtimeType,message);
+}
 
 @override
 String toString() {
-  return 'CreateUserError.other(message: $message)';
+    return 'CreateUserError.other(message: $message)';
 }
 
 
@@ -221,16 +226,21 @@ mixin _$RegistrationChallenge {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge&&const DeepCollectionEquality().equals(other.field0, field0));
+  final _this = this as RegistrationChallenge;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge&&const DeepCollectionEquality().equals(other.field0, _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode {
+  final _this = this as RegistrationChallenge;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
 
 @override
 String toString() {
-  return 'RegistrationChallenge(field0: $field0)';
+  final _this = this as RegistrationChallenge;
+  return 'RegistrationChallenge(field0: ${_this.field0})';
 }
 
 
@@ -262,16 +272,18 @@ $RegistrationChallenge_InvitationCodeCopyWith<RegistrationChallenge_InvitationCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge_InvitationCode&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge_InvitationCode&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'RegistrationChallenge.invitationCode(field0: $field0)';
+    return 'RegistrationChallenge.invitationCode(field0: $field0)';
 }
 
 
@@ -328,16 +340,18 @@ $RegistrationChallenge_AdmissionSessionCopyWith<RegistrationChallenge_AdmissionS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge_AdmissionSession&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationChallenge_AdmissionSession&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'RegistrationChallenge.admissionSession(field0: $field0)';
+    return 'RegistrationChallenge.admissionSession(field0: $field0)';
 }
 
 
@@ -389,16 +403,21 @@ $RegistrationInfoCopyWith<RegistrationInfo> get copyWith => _$RegistrationInfoCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationInfo&&(identical(other.challengeRequired, challengeRequired) || other.challengeRequired == challengeRequired)&&const DeepCollectionEquality().equals(other.acceptedChallenges, acceptedChallenges));
+  final _this = this as RegistrationInfo;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RegistrationInfo&&(identical(other.challengeRequired, _this.challengeRequired) || other.challengeRequired == _this.challengeRequired)&&const DeepCollectionEquality().equals(other.acceptedChallenges, _this.acceptedChallenges));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,challengeRequired,const DeepCollectionEquality().hash(acceptedChallenges));
+int get hashCode {
+  final _this = this as RegistrationInfo;
+  return Object.hash(runtimeType,_this.challengeRequired,const DeepCollectionEquality().hash(_this.acceptedChallenges));
+}
 
 @override
 String toString() {
-  return 'RegistrationInfo(challengeRequired: $challengeRequired, acceptedChallenges: $acceptedChallenges)';
+  final _this = this as RegistrationInfo;
+  return 'RegistrationInfo(challengeRequired: ${_this.challengeRequired}, acceptedChallenges: ${_this.acceptedChallenges})';
 }
 
 
@@ -427,7 +446,7 @@ class _$RegistrationInfoCopyWithImpl<$Res>
 /// Create a copy of RegistrationInfo
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? challengeRequired = null,Object? acceptedChallenges = null,}) {
-  return _then(_self.copyWith(
+  return _then(RegistrationInfo(
 challengeRequired: null == challengeRequired ? _self.challengeRequired : challengeRequired // ignore: cast_nullable_to_non_nullable
 as bool,acceptedChallenges: null == acceptedChallenges ? _self.acceptedChallenges : acceptedChallenges // ignore: cast_nullable_to_non_nullable
 as List<ChallengeKind>,
@@ -442,7 +461,7 @@ as List<ChallengeKind>,
 
 
 class _RegistrationInfo implements RegistrationInfo {
-  const _RegistrationInfo({required this.challengeRequired, required final  List<ChallengeKind> acceptedChallenges}): _acceptedChallenges = acceptedChallenges;
+  const _RegistrationInfo({required this.challengeRequired, required  List<ChallengeKind> acceptedChallenges}): _acceptedChallenges = acceptedChallenges;
   
 
 @override final  bool challengeRequired;
@@ -464,16 +483,18 @@ _$RegistrationInfoCopyWith<_RegistrationInfo> get copyWith => __$RegistrationInf
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RegistrationInfo&&(identical(other.challengeRequired, challengeRequired) || other.challengeRequired == challengeRequired)&&const DeepCollectionEquality().equals(other._acceptedChallenges, _acceptedChallenges));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RegistrationInfo&&(identical(other.challengeRequired, challengeRequired) || other.challengeRequired == challengeRequired)&&const DeepCollectionEquality().equals(other.acceptedChallenges, _acceptedChallenges));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,challengeRequired,const DeepCollectionEquality().hash(_acceptedChallenges));
+int get hashCode {
+    return Object.hash(runtimeType,challengeRequired,const DeepCollectionEquality().hash(_acceptedChallenges));
+}
 
 @override
 String toString() {
-  return 'RegistrationInfo(challengeRequired: $challengeRequired, acceptedChallenges: $acceptedChallenges)';
+    return 'RegistrationInfo(challengeRequired: $challengeRequired, acceptedChallenges: $acceptedChallenges)';
 }
 
 

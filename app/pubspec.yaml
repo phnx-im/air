@@ -22,8 +22,8 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 0.22.0+1
 
 environment:
-  sdk: ">=3.12.2 <4.0.0"
-  flutter: ">=3.44.8 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -61,7 +61,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   vector_graphics_compiler: ^1.1.19
-  freezed: ^3.0.6
+  freezed: ^4.0.1
   integration_test:
     sdk: flutter
   flutter_driver:

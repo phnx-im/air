@@ -4,6 +4,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:vector_graphics_compiler/vector_graphics_compiler.dart' as vgc;
 

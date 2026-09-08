@@ -99,11 +99,14 @@ void main() {
       final recognizer = TapGestureRecognizer();
       addTearDown(recognizer.dispose);
 
-      final span =
-          emphasizedText((marks) => '${marks[0]} renamed it to ${marks[1]}', [
-            EmphasizedValue('Alice', recognizer: recognizer),
-            const EmphasizedValue('Ops'),
-          ], _style);
+      final span = emphasizedText(
+        (marks) => '${marks[0]} renamed it to ${marks[1]}',
+        [
+          EmphasizedValue('Alice', recognizer: recognizer),
+          const EmphasizedValue('Ops'),
+        ],
+        _style,
+      );
 
       final recognizers = [
         for (final child in span.children!) (child as TextSpan).recognizer,

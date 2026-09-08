@@ -674,14 +674,15 @@ impl ChatDetailsCubitBase {
 
     pub async fn accept_contact_request(
         &self,
-    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
+    ) -> anyhow::Result<Option<UiAcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
         Ok(self
             .context
             .core_user
             .accept_contact_request(chat_id)
             .await?
-            .err())
+            .err()
+            .map(From::from))
     }
 
     /// Mute notifications for this chat until the given datetime.
@@ -925,6 +926,25 @@ pub enum UploadAttachmentError {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+/// Accepting a contact request failed.
+// Mirror of [`AcceptContactRequestError`] due to a freezed 4.0 regression [freezed-1371].
+//
+// When mirroring the enum directly, the generated code in Dart does not compile. See the above
+// issue. For now, we mirror this enum manually as a struct.
+//
+// [freezed-1371]: https://github.com/rrousselGit/freezed/issues/1371
+pub struct UiAcceptContactRequestError {
+    pub reason: String,
+}
+
+impl From<AcceptContactRequestError> for UiAcceptContactRequestError {
+    fn from(error: AcceptContactRequestError) -> Self {
+        match error {
+            AcceptContactRequestError::IncompatibleClient { reason } => Self { reason },
+        }
+    }
 }
 
 #[frb(mirror(AcceptContactRequestError))]

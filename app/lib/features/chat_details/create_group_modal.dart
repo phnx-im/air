@@ -235,9 +235,8 @@ class _CreateGroupDetailsPane extends HookWidget {
                     focusNode: nameFocusNode,
                     textInputAction: .next,
                     textAlign: .center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.displayLarge?.copyWith(fontWeight: .bold),
+                    style: Theme.of(context).textTheme.displayLarge
+                        ?.copyWith(fontWeight: .bold),
                     decoration: FieldChrome.plain(
                       hintText: nameFocusNode.hasFocus
                           ? loc.groupCreationDetails_groupNameHintFocused
@@ -256,9 +255,8 @@ class _CreateGroupDetailsPane extends HookWidget {
                     child: Text(
                       loc.groupCreationDetails_groupNameHelper,
                       textAlign: .center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: palette.text.tertiary,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: palette.text.tertiary),
                     ),
                   ),
                 ],
@@ -300,9 +298,8 @@ class _CreateGroupDetailsPane extends HookWidget {
                     child: Text(
                       loc.groupCreationDetails_emptySelection,
                       textAlign: .center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: palette.text.tertiary,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: palette.text.tertiary),
                     ),
                   ),
               ],
@@ -512,9 +509,8 @@ class _SelectedParticipant extends StatelessWidget {
             textAlign: .center,
             maxLines: 2,
             overflow: .ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(height: 1.2),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(height: 1.2),
           ),
         ],
       ),

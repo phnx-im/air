@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'chat_list_item_cubit.dart';
@@ -9,13 +9,13 @@ part of 'chat_list_item_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatListItemState {
 
- UiChatDetails get chat;// if members are none, the cubit is not watching them
- List<UiUserId>? get members;
+ UiChatDetails get chat; List<UiUserId>? get members;
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -26,16 +26,21 @@ $ChatListItemStateCopyWith<ChatListItemState> get copyWith => _$ChatListItemStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListItemState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members));
+  final _this = this as ChatListItemState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatListItemState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members));
+int get hashCode {
+  final _this = this as ChatListItemState;
+  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members));
+}
 
 @override
 String toString() {
-  return 'ChatListItemState(chat: $chat, members: $members)';
+  final _this = this as ChatListItemState;
+  return 'ChatListItemState(chat: ${_this.chat}, members: ${_this.members})';
 }
 
 
@@ -64,7 +69,7 @@ class _$ChatListItemStateCopyWithImpl<$Res>
 /// Create a copy of ChatListItemState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? chat = null,Object? members = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(ChatListItemState(
 chat: null == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails,members: freezed == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>?,
@@ -79,13 +84,11 @@ as List<UiUserId>?,
 
 
 class _ChatListItemState implements ChatListItemState {
-  const _ChatListItemState({required this.chat, final  List<UiUserId>? members}): _members = members;
+  const _ChatListItemState({required this.chat,  List<UiUserId>? members}): _members = members;
   
 
 @override final  UiChatDetails chat;
-// if members are none, the cubit is not watching them
  final  List<UiUserId>? _members;
-// if members are none, the cubit is not watching them
 @override List<UiUserId>? get members {
   final value = _members;
   if (value == null) return null;
@@ -105,16 +108,18 @@ _$ChatListItemStateCopyWith<_ChatListItemState> get copyWith => __$ChatListItemS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListItemState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatListItemState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+int get hashCode {
+    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+}
 
 @override
 String toString() {
-  return 'ChatListItemState(chat: $chat, members: $members)';
+    return 'ChatListItemState(chat: $chat, members: $members)';
 }
 
 

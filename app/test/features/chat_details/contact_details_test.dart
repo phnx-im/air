@@ -37,9 +37,8 @@ void main() {
       UiChatMuted? mutedUntil,
       bool developerMode = false,
     }) {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(UserSettings(developerMode: developerMode));
+      when(() => userSettingsCubit.state)
+          .thenReturn(UserSettings(developerMode: developerMode));
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(
           chat: UiChatDetails(

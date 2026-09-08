@@ -23,9 +23,8 @@ void main() {
     setUp(() {
       userSessionCubit = MockUserSessionCubit();
       userSettingsCubit = MockUserSettingsCubit();
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(const UserSessionState(loggedOut: true));
+      when(() => userSessionCubit.state)
+          .thenReturn(const UserSessionState(loggedOut: true));
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
@@ -66,9 +65,8 @@ void main() {
     testWidgets('holds back onboarding until a loaded user takes over', (
       tester,
     ) async {
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(UserSessionState(user: MockUser()));
+      when(() => userSessionCubit.state)
+          .thenReturn(UserSessionState(user: MockUser()));
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();

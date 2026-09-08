@@ -34,7 +34,8 @@ void main(List<String> args) async {
         'SQLX_OFFLINE': '1',
         // Must match the MinimumOSVersion Flutter writes into the framework's
         // Info.plist, otherwise App Store Connect rejects the upload.
-        if (input.config.code.targetOS == OS.iOS)
+        if (input.config.buildCodeAssets &&
+            input.config.code.targetOS == OS.iOS)
           'IPHONEOS_DEPLOYMENT_TARGET':
               '${input.config.code.iOS.targetVersion}.0',
       },

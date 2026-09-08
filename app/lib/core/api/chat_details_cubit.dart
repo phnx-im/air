@@ -11,23 +11,25 @@ import '../lib.dart';
 import 'attachments_repository.dart';
 import 'markdown.dart';
 import 'message_content.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
+
 import 'types.dart';
 import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `clear_draft`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-  Future<AcceptContactRequestError?> acceptContactRequest();
+  Future<UiAcceptContactRequestError?> acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo();
 
@@ -127,15 +129,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Stream<ChatDetailsState> stream();
 
   Future<UploadAttachmentError?> uploadAttachment({required String path});
-}
-
-@freezed
-sealed class AcceptContactRequestError with _$AcceptContactRequestError {
-  const AcceptContactRequestError._();
-
-  const factory AcceptContactRequestError.incompatibleClient({
-    required String reason,
-  }) = AcceptContactRequestError_IncompatibleClient;
 }
 
 class AppDataDebugInfo {
@@ -448,6 +441,23 @@ class RequiredDebugCapabilities {
           extensionTypes == other.extensionTypes &&
           proposalTypes == other.proposalTypes &&
           credentialTypes == other.credentialTypes;
+}
+
+/// Accepting a contact request failed.
+class UiAcceptContactRequestError {
+  final String reason;
+
+  const UiAcceptContactRequestError({required this.reason});
+
+  @override
+  int get hashCode => reason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UiAcceptContactRequestError &&
+          runtimeType == other.runtimeType &&
+          reason == other.reason;
 }
 
 @freezed
