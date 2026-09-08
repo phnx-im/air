@@ -12,22 +12,21 @@ import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('AttachmentImage');
 
 /// Renders an attachment image loaded from the database.
 ///
-/// Branches on [UiImageMetadata.isAnimated]: static images go through
-/// [_StaticAttachmentImage], animated ones through [AnimatedAttachmentImage].
-/// When the flag is not yet known (the attachment was not yet downloaded when
-/// the message state was loaded), [_UnclassifiedAttachmentImage] classifies it
-/// via the repository and then delegates to the right branch. The blurhash
-/// stays underneath as the placeholder for all states.
+/// 1. While uploading (and after), we always have a thumbnail to render.
+/// 2. While downloading, the blurhash is rendered (bottom of the stack).
+/// 3. When a download or upload is finished, we either: render the thumbnail
+/// of a static image, or the full resolution animated image.
 ///
 /// [onTap] is forwarded to the static branch (image viewer); animated
 /// attachments keep the tap for their own playback.
-class AttachmentImage extends StatelessWidget {
+class AttachmentImage extends HookWidget {
   const AttachmentImage({
     super.key,
     required this.attachment,
@@ -48,6 +47,16 @@ class AttachmentImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusStream = useMemoized(
+      () => context.read<AttachmentsRepository>().statusStream(
+        attachmentId: attachment.attachmentId,
+      ),
+      [attachment.attachmentId],
+    );
+    final canPlayAnimation =
+        useStream<UiAttachmentStatus>(statusStream).data
+            is UiAttachmentStatus_Completed;
+
     final content = switch (imageMetadata.isAnimated) {
       false => _StaticAttachmentImage(
         attachment: attachment,
@@ -55,7 +64,15 @@ class AttachmentImage extends StatelessWidget {
         isSender: isSender,
         onTap: onTap,
       ),
-      true => AnimatedAttachmentImage(
+      // When we have the full payload (download finished) or persisted
+      // after upload, we can play the animation.
+      true when canPlayAnimation => AnimatedAttachmentImage(
+        attachment: attachment,
+        fit: fit,
+        isSender: isSender,
+      ),
+      // Render the static thumbnail until the animation is playable
+      true => _StaticAttachmentImage(
         attachment: attachment,
         fit: fit,
         isSender: isSender,
