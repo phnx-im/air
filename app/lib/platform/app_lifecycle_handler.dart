@@ -57,6 +57,14 @@ class AppLifecycleHandler with WidgetsBindingObserver {
       // is closed. In that case, we want to treat it as background state.
       _appStateController.sink.add(AppState.mobileBackground);
 
+      if (Platform.isAndroid) {
+        // Drop the keyboard focus. Otherwise Android tries to restore the
+        // keyboard on resume and immediately cancels it again, and the Flutter
+        // engine then reports a stale keyboard inset (bug), leaving the layout
+        // as if the keyboard were still up.
+        FocusManager.instance.primaryFocus?.unfocus();
+      }
+
       // iOS only
       if (Platform.isIOS) {
         // Request additional background time until the outbound service is
