@@ -24,6 +24,13 @@ static void my_application_activate(GApplication *application)
 {
   MyApplication *self = MY_APPLICATION(application);
 
+  GList *windows = gtk_application_get_windows(GTK_APPLICATION(application));
+  if (windows != nullptr)
+  {
+    gtk_window_present(GTK_WINDOW(windows->data));
+    return;
+  }
+
   GtkWindow *window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -131,16 +138,8 @@ MyApplication *my_application_new(int argc, char** argv)
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
-  gboolean is_service = FALSE;
-  for (int i = 1; i < argc; i++) {
-      if (g_strcmp0(argv[i], "--gapplication-service") == 0) {
-          is_service = TRUE;
-          break;
-      }
-  }
-
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID,
-                                     "flags", is_service ? G_APPLICATION_DEFAULT_FLAGS : G_APPLICATION_NON_UNIQUE,
+                                     "flags", G_APPLICATION_DEFAULT_FLAGS,
                                      nullptr));
 }
