@@ -353,6 +353,69 @@ const List<ColorTheme> builtinColorThemes = [
     },
     swatches: [Hue.blue, Hue.purple, Hue.cyan, Hue.red],
   ),
+
+  // macOS system colors, Apple's dark-mode set as seeds.
+  ColorTheme(
+    id: 'macos',
+    dark: macosDark,
+    light: macosLight,
+    name: 'macOS',
+    lightBackground: Color(0xFFFFFFFF),
+    darkBackground: Color(0xFF1E1E1E),
+    accents: {
+      Hue.red: Color(0xFFFF453A),
+      Hue.orange: Color(0xFFFF9F0A),
+      Hue.yellow: Color(0xFFFFD60A),
+      Hue.green: Color(0xFF30D158),
+      Hue.cyan: Color(0xFF64D2FF),
+      Hue.blue: Color(0xFF0A84FF),
+      Hue.purple: Color(0xFFBF5AF2),
+      Hue.magenta: Color(0xFFFF375F),
+    },
+    swatches: [Hue.blue, Hue.purple, Hue.green, Hue.red],
+  ),
+
+  // Windows 11, the Fluent accent set as seeds.
+  ColorTheme(
+    id: 'windows_11',
+    dark: windows11Dark,
+    light: windows11Light,
+    name: 'Windows 11',
+    lightBackground: Color(0xFFF3F3F3),
+    darkBackground: Color(0xFF202020),
+    accents: {
+      Hue.red: Color(0xFFE74856),
+      Hue.orange: Color(0xFFF7630C),
+      Hue.yellow: Color(0xFFFFB900),
+      Hue.green: Color(0xFF10893E),
+      Hue.cyan: Color(0xFF00B7C3),
+      Hue.blue: Color(0xFF0078D4),
+      Hue.purple: Color(0xFF881798),
+      Hue.magenta: Color(0xFFE3008C),
+    },
+    swatches: [Hue.blue, Hue.cyan, Hue.purple, Hue.red],
+  ),
+
+  // Windows XP, the four logo colors first among the seeds.
+  ColorTheme(
+    id: 'windows_xp',
+    dark: windowsXpDark,
+    light: windowsXpLight,
+    name: 'Windows XP',
+    lightBackground: Color(0xFFFFFFFF),
+    darkBackground: Color(0xFF1F1F1F),
+    accents: {
+      Hue.red: Color(0xFFD13438),
+      Hue.orange: Color(0xFFF6A800),
+      Hue.yellow: Color(0xFFFFD400),
+      Hue.green: Color(0xFF3C8A3C),
+      Hue.cyan: Color(0xFF21A1C4),
+      Hue.blue: Color(0xFF316AC5),
+      Hue.purple: Color(0xFF7B4FA0),
+      Hue.magenta: Color(0xFFC9327A),
+    },
+    swatches: [Hue.red, Hue.green, Hue.blue, Hue.yellow],
+  ),
 ];
 
 /// Looks up a theme by [ColorTheme.id], falling back to the default theme.

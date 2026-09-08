@@ -446,3 +446,145 @@ const RolePalette airLight = RolePalette(
   bubbleSelf: Color(0xFFE7E7E6),
   bubbleOther: Color(0xFFF3F3F3),
 );
+
+// Operating systems. Colors only: the shapes, blurs and bevels that make
+// these recognizable are out of a palette's reach.
+
+/// macOS system colors on the window greys. Selection is the source list's
+/// translucent grey, the accent stays for controls. The bubbles are
+/// Messages': a solid accent for yours, so they pin their ink.
+const RolePalette macosDark = RolePalette(
+  primary: Color(0xFF0A84FF),
+  onPrimary: Color(0xFFFFFFFF),
+  secondary: Color(0xFF5E5CE6),
+  onSecondary: Color(0xFFFFFFFF),
+  tertiary: Color(0xFF30D158),
+  onTertiary: Color(0xFF000000),
+  error: Color(0xFFFF453A),
+  onError: Color(0xFFFFFFFF),
+  surface: Color(0xFF1E1E1E),
+  onSurface: Color(0xFFFFFFFF),
+  surfaceVariant: Color(0xFF2A2A2A),
+  onSurfaceVariant: Color(0xFF98989D),
+  outline: Color(0xFF3A3A3C),
+  shadow: Color(0xFF000000),
+  hover: Color(0x0FFFFFFF),
+  onHover: Color(0xFFFFFFFF),
+  selection: Color(0x1FFFFFFF),
+  onSelection: Color(0xFFFFFFFF),
+  bubbleSelf: Color(0xFF0A84FF),
+  bubbleOther: Color(0xFF3B3B3D),
+  onBubbleSelf: Color(0xFFFFFFFF),
+);
+
+const RolePalette macosLight = RolePalette(
+  primary: Color(0xFF007AFF),
+  onPrimary: Color(0xFFFFFFFF),
+  secondary: Color(0xFF5856D6),
+  onSecondary: Color(0xFFFFFFFF),
+  tertiary: Color(0xFF34C759),
+  onTertiary: Color(0xFFFFFFFF),
+  error: Color(0xFFFF3B30),
+  onError: Color(0xFFFFFFFF),
+  surface: Color(0xFFFFFFFF),
+  onSurface: Color(0xFF000000),
+  surfaceVariant: Color(0xFFF2F2F7),
+  onSurfaceVariant: Color(0xFF8E8E93),
+  outline: Color(0xFFD1D1D6),
+  shadow: Color(0xFF000000),
+  hover: Color(0x0D000000),
+  onHover: Color(0xFF000000),
+  selection: Color(0x14000000),
+  onSelection: Color(0xFF000000),
+  bubbleSelf: Color(0xFF007AFF),
+  bubbleOther: Color(0xFFE9E9EB),
+  onBubbleSelf: Color(0xFFFFFFFF),
+);
+
+/// Windows 11: the accent on Mica greys. Selection is WinUI's subtle wash,
+/// not the accent, so it is pinned. In light mode the cards are white on a
+/// grey window, so [RolePalette.surfaceVariant] is the lighter of the two.
+const RolePalette windows11Dark = RolePalette(
+  primary: Color(0xFF60CDFF),
+  onPrimary: Color(0xFF000000),
+  secondary: Color(0xFF4CC2FF),
+  onSecondary: Color(0xFF000000),
+  tertiary: Color(0xFF0078D4),
+  onTertiary: Color(0xFFFFFFFF),
+  error: Color(0xFFFF99A4),
+  onError: Color(0xFF000000),
+  surface: Color(0xFF202020),
+  onSurface: Color(0xFFFFFFFF),
+  surfaceVariant: Color(0xFF2C2C2C),
+  onSurfaceVariant: Color(0xFF9F9F9F),
+  outline: Color(0xFF3A3A3A),
+  shadow: Color(0xFF000000),
+  hover: Color(0x0FFFFFFF),
+  onHover: Color(0xFFFFFFFF),
+  selection: Color(0x14FFFFFF),
+  onSelection: Color(0xFFFFFFFF),
+);
+
+const RolePalette windows11Light = RolePalette(
+  primary: Color(0xFF0067C0),
+  onPrimary: Color(0xFFFFFFFF),
+  secondary: Color(0xFF005FB8),
+  onSecondary: Color(0xFFFFFFFF),
+  tertiary: Color(0xFF0078D4),
+  onTertiary: Color(0xFFFFFFFF),
+  error: Color(0xFFC42B1C),
+  onError: Color(0xFFFFFFFF),
+  surface: Color(0xFFF3F3F3),
+  onSurface: Color(0xFF1A1A1A),
+  surfaceVariant: Color(0xFFFFFFFF),
+  onSurfaceVariant: Color(0xFF5F5F5F),
+  outline: Color(0xFFE5E5E5),
+  shadow: Color(0xFF000000),
+  hover: Color(0x0A000000),
+  onHover: Color(0xFF1A1A1A),
+  selection: Color(0x0F000000),
+  onSelection: Color(0xFF1A1A1A),
+);
+
+/// Windows XP. Light is Explorer's Luna: the white content pane as surface,
+/// the blue task pane as [RolePalette.surfaceVariant], so the rail and the
+/// chat list take the pane's blue and the derived half-mix tier lands near
+/// the pane's inner boxes. Ink on both is the title bar navy. XP had no dark
+/// mode, so dark is the Zune theme, black with orange.
+const RolePalette windowsXpDark = RolePalette(
+  primary: Color(0xFFF6A800),
+  onPrimary: Color(0xFF000000),
+  secondary: Color(0xFFFF8F00),
+  onSecondary: Color(0xFF000000),
+  tertiary: Color(0xFF7A7A7A),
+  onTertiary: Color(0xFFFFFFFF),
+  error: Color(0xFFFF5A5A),
+  onError: Color(0xFF000000),
+  surface: Color(0xFF1F1F1F),
+  onSurface: Color(0xFFFFFFFF),
+  surfaceVariant: Color(0xFF2B2B2B),
+  onSurfaceVariant: Color(0xFFA0A0A0),
+  outline: Color(0xFF3C3C3C),
+  shadow: Color(0xFF000000),
+  hover: Color(0x0FFFFFFF),
+  onHover: Color(0xFFFFFFFF),
+);
+
+const RolePalette windowsXpLight = RolePalette(
+  primary: Color(0xFF316AC5),
+  onPrimary: Color(0xFFFFFFFF),
+  secondary: Color(0xFF3C8A3C),
+  onSecondary: Color(0xFFFFFFFF),
+  tertiary: Color(0xFF215DC6),
+  onTertiary: Color(0xFFFFFFFF),
+  error: Color(0xFFD13438),
+  onError: Color(0xFFFFFFFF),
+  surface: Color(0xFFFFFFFF),
+  onSurface: Color(0xFF000000),
+  surfaceVariant: Color(0xFF7B8FD9),
+  onSurfaceVariant: Color(0xFF0A246A),
+  outline: Color(0xFF4D5FB8),
+  shadow: Color(0xFF000000),
+  hover: Color(0x40316AC5),
+  onHover: Color(0xFF000000),
+);

@@ -210,6 +210,9 @@ const double _hoverWashAlpha = 0.4;
 /// card tint, so the two sides separate from each other and from the surface.
 const double _bubbleTintAlpha = 0.45;
 
+/// Alpha of a pinned bubble ink used as the bubble's table border.
+const double _bubbleBorderAlpha = 0.4;
+
 /// The semantic slots the app paints with, derived from a [RolePalette]. The
 /// roles are the design, the slots are how the code has been reading them.
 class SemanticPalette {
@@ -259,6 +262,8 @@ class SemanticPalette {
     final hoverTint = r.hover.a < 1.0
         ? r.hover
         : r.hover.withValues(alpha: _hoverWashAlpha);
+    Color bubbleBorder(Color? ink) =>
+        ink == null ? r.outline : ink.withValues(alpha: _bubbleBorderAlpha);
 
     return SemanticPalette(
       roles: r,
@@ -352,7 +357,9 @@ class SemanticPalette {
       ),
       // Noctalia has no message roles. Unless the theme pins them, both sides
       // take an accent as a tint over the surface: yours the primary, the
-      // other side's the secondary.
+      // other side's the secondary. A pinned bubble ink also rules the
+      // bubble's borders, as the surface outline would not read on a solid
+      // accent.
       message: MessagePalette(
         selfBackground:
             r.bubbleSelf ??
@@ -360,14 +367,14 @@ class SemanticPalette {
         otherBackground:
             r.bubbleOther ??
             r.secondary.withValues(alpha: _bubbleTintAlpha).on(r.surface),
-        selfText: r.onSurface,
-        otherText: r.onSurface,
-        selfListPrefix: r.onSurfaceVariant,
-        otherListPrefix: r.onSurfaceVariant,
-        selfTableBorder: r.outline,
-        otherTableBorder: r.outline,
-        selfCheckboxCheck: r.onSurface,
-        otherCheckboxCheck: r.onSurface,
+        selfText: r.onBubbleSelf ?? r.onSurface,
+        otherText: r.onBubbleOther ?? r.onSurface,
+        selfListPrefix: r.onBubbleSelf ?? r.onSurfaceVariant,
+        otherListPrefix: r.onBubbleOther ?? r.onSurfaceVariant,
+        selfTableBorder: bubbleBorder(r.onBubbleSelf),
+        otherTableBorder: bubbleBorder(r.onBubbleOther),
+        selfCheckboxCheck: r.onBubbleSelf ?? r.onSurface,
+        otherCheckboxCheck: r.onBubbleOther ?? r.onSurface,
       ),
     );
   }

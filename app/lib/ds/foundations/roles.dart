@@ -43,6 +43,8 @@ class RolePalette {
     this._onNavSelection,
     this.bubbleSelf,
     this.bubbleOther,
+    this.onBubbleSelf,
+    this.onBubbleOther,
   });
 
   final Color primary, onPrimary;
@@ -73,6 +75,11 @@ class RolePalette {
   /// tints of [primary] and [secondary] over [surface]. A theme pins them
   /// where its bubbles are not accent-tinted, like Air's neutral greys.
   final Color? bubbleSelf, bubbleOther;
+
+  /// Ink on the bubbles. Null reads [onSurface], which holds as long as a
+  /// bubble is a tint of the surface. A theme whose bubble is a solid accent,
+  /// like iMessage blue, pins the ink too.
+  final Color? onBubbleSelf, onBubbleOther;
 
   bool get isDark => surface.computeLuminance() < 0.5;
 
