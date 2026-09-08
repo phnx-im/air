@@ -9195,13 +9195,6 @@ fn wire__crate__api__username_suggestions__username_from_display_impl(
 
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
-    match None::<crate::api::chat_details_cubit::AcceptContactRequestError>.unwrap() {
-        crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
-            reason,
-        } => {
-            let _: String = reason;
-        }
-    }
     {
         let AdmissionSession = None::<crate::api::registration::AdmissionSession>.unwrap();
         let _: uuid::Uuid = AdmissionSession.session_id;
@@ -10283,22 +10276,6 @@ impl SseDecode for uuid::Uuid {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u8>>::sse_decode(deserializer);
         return uuid::Uuid::from_slice(&inner).expect("fail to decode uuid");
-    }
-}
-
-impl SseDecode for crate::api::chat_details_cubit::AcceptContactRequestError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut tag_ = <i32>::sse_decode(deserializer);
-        match tag_ {
-            0 => {
-                let mut var_reason = <String>::sse_decode(deserializer);
-                return crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient{reason: var_reason};
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
     }
 }
 
@@ -11682,21 +11659,6 @@ impl SseDecode for Option<chrono::DateTime<chrono::Utc>> {
     }
 }
 
-impl SseDecode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <crate::api::chat_details_cubit::AcceptContactRequestError>::sse_decode(
-                    deserializer,
-                ),
-            );
-        } else {
-            return None;
-        }
-    }
-}
-
 impl SseDecode for Option<crate::api::types::AddUsernameContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11961,6 +11923,21 @@ impl SseDecode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
         if (<bool>::sse_decode(deserializer)) {
             return Some(
                 <crate::api::chat_details_cubit::RequiredDebugCapabilities>::sse_decode(
+                    deserializer,
+                ),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::chat_details_cubit::UiAcceptContactRequestError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::UiAcceptContactRequestError>::sse_decode(
                     deserializer,
                 ),
             );
@@ -12409,6 +12386,14 @@ impl SseDecode for [u8; 32] {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <Vec<u8>>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::from_vec_to_array(inner);
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::UiAcceptContactRequestError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_reason = <String>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::UiAcceptContactRequestError { reason: var_reason };
     }
 }
 
@@ -13994,36 +13979,6 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UsersState>> for UsersState {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>
-{
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-            crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
-                reason,
-            } => [0.into_dart(), reason.into_into_dart().into_dart()].into_dart(),
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>
-{
-}
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError>,
-    > for crate::api::chat_details_cubit::AcceptContactRequestError
-{
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<crate::api::chat_details_cubit::AcceptContactRequestError> {
-        self.into()
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddUsernameContactError> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self.0 {
@@ -15486,6 +15441,23 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::invitation_codes_c
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::invitation_codes_cubit::TokenId> {
         self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UiAcceptContactRequestError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.reason.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::chat_details_cubit::UiAcceptContactRequestError
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UiAcceptContactRequestError>
+    for crate::api::chat_details_cubit::UiAcceptContactRequestError
+{
+    fn into_into_dart(self) -> crate::api::chat_details_cubit::UiAcceptContactRequestError {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -17239,23 +17211,6 @@ impl SseEncode for uuid::Uuid {
     }
 }
 
-impl SseEncode for crate::api::chat_details_cubit::AcceptContactRequestError {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        match self {
-            crate::api::chat_details_cubit::AcceptContactRequestError::IncompatibleClient {
-                reason,
-            } => {
-                <i32>::sse_encode(0, serializer);
-                <String>::sse_encode(reason, serializer);
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
-    }
-}
-
 impl SseEncode for crate::api::types::AddUsernameContactError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18378,18 +18333,6 @@ impl SseEncode for Option<chrono::DateTime<chrono::Utc>> {
     }
 }
 
-impl SseEncode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::chat_details_cubit::AcceptContactRequestError>::sse_encode(
-                value, serializer,
-            );
-        }
-    }
-}
-
 impl SseEncode for Option<crate::api::types::AddUsernameContactError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18610,6 +18553,18 @@ impl SseEncode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::chat_details_cubit::RequiredDebugCapabilities>::sse_encode(
+                value, serializer,
+            );
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::chat_details_cubit::UiAcceptContactRequestError> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::UiAcceptContactRequestError>::sse_encode(
                 value, serializer,
             );
         }
@@ -18969,6 +18924,13 @@ impl SseEncode for [u8; 32] {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::UiAcceptContactRequestError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.reason, serializer);
     }
 }
 
