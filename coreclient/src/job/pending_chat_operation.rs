@@ -590,14 +590,15 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data_bytes) = self
+                    let (mut group_messages, group_data) = self
                         .group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(bytes) = group_data_bytes
-                        && let Some(chat_title) =
-                            GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
+                    if let Some(group_data) = group_data
+                        && let (chat_title, _profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key())
+                        && let Some(chat_title) = chat_title
                     {
                         let attributes = ChatAttributes::new(chat_title, new_chat_picture);
                         update_chat_attributes(
@@ -1825,6 +1826,7 @@ mod tests {
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: None,
+                        profile: None,
                     },
                 )?;
                 group.store(&mut *txn).await?;
@@ -1977,6 +1979,7 @@ mod tests {
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: None,
+                        profile: None,
                     },
                 )?;
                 group.store(&mut *txn).await?;
@@ -2063,6 +2066,7 @@ mod tests {
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                        profile: None,
                     },
                 )?;
                 group.store(&mut *txn).await?;

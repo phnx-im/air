@@ -75,7 +75,7 @@ impl Group {
             required_capabilities,
             // APQ groups automatically add an app data dictionary extension (to required
             // capabilities), so we can safely add it here for all APQ groups.
-            group_app_data.to_extension(),
+            group_app_data.to_extension()?,
         ])?;
 
         // The leaf signature key is the signer's own key.

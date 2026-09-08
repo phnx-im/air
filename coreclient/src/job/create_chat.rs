@@ -154,6 +154,7 @@ impl CreateChat {
                         GroupAppData {
                             is_self_group: false,
                             safe_aad_components: None,
+                            profile: None,
                         },
                     )?
                 } else {

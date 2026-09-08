@@ -507,6 +507,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: false,
         pq_groups: setup.apq_groups,
+        group_profile_component: true,
     };
     bob_user
         .set_group_features(chat_id, old_features)
@@ -578,6 +579,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: true,
         pq_groups: setup.apq_groups,
+        group_profile_component: true,
     };
     bob_user
         .set_group_features(chat_id, new_features)

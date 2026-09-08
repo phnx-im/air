@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::{
-    auth_service::v1::OperationType,
-    client::{app_data::GroupAppData, group::GroupData},
-};
+use airprotos::{auth_service::v1::OperationType, client::app_data::GroupAppData};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -589,9 +586,7 @@ fn legacy_group_data_migration(
         return None;
     }
 
-    let group_data_bytes = group.group_data()?;
-    let group_data = GroupData::decode(&group_data_bytes).ok()?;
-
+    let group_data = group.group_data().ok()??;
     if erase_attributes {
         // Erase the group data if it is not empty
         return (!group_data.is_empty()).then(ChatAttributes::empty);

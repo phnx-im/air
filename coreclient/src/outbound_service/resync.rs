@@ -9,7 +9,6 @@ use aircommon::{
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
@@ -350,8 +349,7 @@ impl Resync {
         own_user_id: &UserId,
         ds_timestamp: TimeStamp,
     ) -> Result<ChatId> {
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
+        let group_data = group.group_data()?.context("No group data")?;
         let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
 
