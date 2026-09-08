@@ -21,8 +21,8 @@ final _log = Logger('AttachmentImage');
 ///
 /// 1. While uploading (and after), we always have a thumbnail to render.
 /// 2. While downloading, the blurhash is rendered (bottom of the stack).
-/// 3. When a download or upload is finished, we either: render the thumbnails
-/// of static images, or the full resolution animated image.
+/// 3. When a download or upload is finished, we either: render the thumbnail
+/// of a static image, or the full resolution animated image.
 ///
 /// [onTap] is forwarded to the static branch (image viewer); animated
 /// attachments keep the tap for their own playback.
