@@ -47,6 +47,8 @@ class AttachmentImageOverlay extends HookWidget {
 
     final palette = SemanticPalette.of(context);
 
+    debugPrint("NEW STATUS: ${status.data}");
+
     return Align(
       alignment: Alignment.center,
       child: switch (status.data) {
@@ -86,7 +88,9 @@ class AttachmentImageOverlay extends HookWidget {
                 strokeWidth: StrokeWidth.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
                 backgroundColor: Colors.transparent,
-                value: loaded / BigInt.from(size),
+                value: loaded == BigInt.from(0)
+                    ? null
+                    : loaded / BigInt.from(size),
               ),
               ButtonIcon(
                 variant: ButtonIconVariant.plain,

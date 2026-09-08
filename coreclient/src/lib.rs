@@ -37,7 +37,7 @@ pub use crate::{
             AttachmentContent, AttachmentId, AttachmentInfo, AttachmentStatus, AttachmentThumbnail,
             AttachmentUrl, AttachmentUrlParseError, MimiContentExt, ProvisionAttachmentError,
             UploadTaskError,
-            progress::{AttachmentProgress, AttachmentProgressEvent},
+            progress::{AttachmentProgress, AttachmentProgressEvent, AttachmentProgressSender},
         },
         block_contact::BlockedContactError,
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},

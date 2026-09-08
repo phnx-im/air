@@ -13,8 +13,9 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
-    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentProgressSender, AttachmentStatus, Chat, ChatId,
+    ChatMessage, MarkChatAsRead, MessageId, ProvisionAttachmentError, UploadTaskError,
+    clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -23,6 +24,7 @@ use flutter_rust_bridge::frb;
 use mimi_content::MimiContent;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::{
@@ -354,18 +356,29 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) =
-            match Box::pin(self.context.core_user.upload_chat_attachment(
-                self.context.chat_id,
-                &path,
-                MarkChatAsRead::Yes,
-            ))
-            .await?
-            {
-                Ok(result) => result,
-                Err(error) => return error.into_ui_result(),
-            };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
+        let attachment_id = AttachmentId::random();
+        let (cancel, progress_tx) = self.track_attachment_upload(attachment_id);
+
+        let upload_task = match Box::pin(self.context.core_user.upload_chat_attachment(
+            self.context.chat_id,
+            &path,
+            MarkChatAsRead::Yes,
+            attachment_id,
+            progress_tx,
+        ))
+        .await
+        {
+            Ok(Ok(task)) => task,
+            Ok(Err(error)) => {
+                self.attachment_in_progress.remove(&attachment_id);
+                return error.into_ui_result();
+            }
+            Err(error) => {
+                self.attachment_in_progress.remove(&attachment_id);
+                return Err(error);
+            }
+        };
+        self.run_upload_task(attachment_id, cancel, upload_task)
             .await
     }
 
@@ -385,29 +398,48 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let Some((progress, upload_task)) = self
+
+        let (cancel, progress_tx) = self.track_attachment_upload(attachment_id);
+        let upload_task = match self
             .context
             .core_user
-            .retry_upload_chat_attachment(attachment_id)
-            .await?
-        else {
-            // Nothing to retry from. The message is gone, which is what the
-            // user sees.
-            return Ok(None);
+            .retry_upload_chat_attachment(attachment_id, progress_tx)
+            .await
+        {
+            Ok(Some(task)) => task,
+            Ok(None) => {
+                // Nothing to retry from. The message is gone, which is what
+                // the user sees.
+                self.attachment_in_progress.remove(&attachment_id);
+                return Ok(None);
+            }
+            Err(error) => {
+                self.attachment_in_progress.remove(&attachment_id);
+                return Err(error);
+            }
         };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
+        self.run_upload_task(attachment_id, cancel, upload_task)
             .await
     }
 
-    async fn upload_attachment_impl(
+    /// Registers an upload for progress tracking before it starts.
+    fn track_attachment_upload(
         &self,
         attachment_id: AttachmentId,
-        progress: AttachmentProgress,
-        upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
-    ) -> anyhow::Result<Option<UploadAttachmentError>> {
+    ) -> (CancellationToken, AttachmentProgressSender) {
+        let (progress_tx, progress) = AttachmentProgress::new();
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
         self.attachment_in_progress.insert(attachment_id, handle);
+        (cancel, progress_tx)
+    }
+
+    async fn run_upload_task(
+        &self,
+        attachment_id: AttachmentId,
+        cancel: CancellationToken,
+        upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         match cancel.run_until_cancelled_owned(upload_task).await {
             Some(Ok(message)) => {
                 self.context

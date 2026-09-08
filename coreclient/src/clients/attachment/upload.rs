@@ -124,13 +124,11 @@ impl CoreUser {
         chat_id: ChatId,
         path: &Path,
         mark_as_read: MarkChatAsRead,
+        attachment_id: AttachmentId,
+        progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<
         Result<
-            (
-                AttachmentId,
-                AttachmentProgress,
-                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-            ),
+            impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
             ProvisionAttachmentError,
         >,
     > {
@@ -171,7 +169,6 @@ impl CoreUser {
         });
         debug!(?is_animated, "made source thumbnail");
 
-        let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
         let content = attachment_content(probed.provisional_nested_parts(attachment_id));
 
@@ -215,7 +212,6 @@ impl CoreUser {
         debug!(?attachment_id, ?message_id, "stored provisional message");
 
         // The message is visible from here on.
-        let (progress_tx, progress) = AttachmentProgress::new();
         let task = self.send_attachment_task(
             attachment_id,
             message,
@@ -226,22 +222,23 @@ impl CoreUser {
             progress_tx,
         );
 
-        Ok(Ok((attachment_id, progress, task)))
+        Ok(Ok(task))
     }
 
     /// Retries a failed attachment send.
     ///
     /// Returns `None` when there is nothing to retry from: the upload was
     /// interrupted before processing finished, so the message is removed.
+    ///
+    /// `progress_tx` comes from the caller (see [`Self::upload_chat_attachment`])
+    /// so it can register it for tracking before the status flips back to
+    /// `Uploading` below.
     pub async fn retry_upload_chat_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<
-        Option<(
-            AttachmentProgress,
-            impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-        )>,
-    > {
+        progress_tx: AttachmentProgressSender,
+    ) -> anyhow::Result<Option<impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>>>
+    {
         // load locally stored data
         let (message, content) = self
             .db()
@@ -286,14 +283,14 @@ impl CoreUser {
             })
             .await?;
 
-        let (progress_tx, progress) = AttachmentProgress::new();
         let task = self.send_attachment_task(
             attachment_id,
             message,
             AttachmentSource::Processed(content),
             progress_tx,
         );
-        Ok(Some((progress, task)))
+
+        Ok(Some(task))
     }
 
     /// Processes, provisions and uploads an attachment whose message is already

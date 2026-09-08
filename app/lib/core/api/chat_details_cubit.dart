@@ -21,7 +21,7 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `clear_draft`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
+// These functions are ignored because they are not marked as `pub`: `clear_draft`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `run_upload_task`, `store_draft_from_state`, `track_attachment_upload`, `update_state_task`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`

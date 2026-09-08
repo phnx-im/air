@@ -145,7 +145,8 @@ impl AttachmentId {
         Self { uuid }
     }
 
-    pub(crate) fn random() -> Self {
+    /// Creates a fresh attachment ID before starting an upload.
+    pub fn random() -> Self {
         Self {
             uuid: Uuid::new_v4(),
         }

@@ -25,7 +25,13 @@ pub enum AttachmentProgressEvent {
 }
 
 impl AttachmentProgress {
-    pub(crate) fn new() -> (AttachmentProgressSender, Self) {
+    /// Creates a progress tracker and its sender.
+    ///
+    /// Public so a caller can create the pair -- and register the receiver
+    /// for tracking -- before starting an upload, instead of only learning
+    /// about it once the upload call returns (by which time the message it
+    /// belongs to may already be visible).
+    pub fn new() -> (AttachmentProgressSender, Self) {
         let (tx, rx) = watch::channel(AttachmentProgressEvent::Init);
         (AttachmentProgressSender { tx: Some(tx) }, Self { rx })
     }
@@ -39,7 +45,8 @@ impl AttachmentProgress {
     }
 }
 
-pub(crate) struct AttachmentProgressSender {
+/// Sends progress for a single upload or download.
+pub struct AttachmentProgressSender {
     tx: Option<watch::Sender<AttachmentProgressEvent>>,
 }
 

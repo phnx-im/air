@@ -16,8 +16,8 @@ use std::{
 
 use aircommon::{OpenMlsRand, RustCrypto};
 use aircoreclient::{
-    AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use anyhow::Context as _;
 use flutter_rust_bridge::frb;
@@ -417,18 +417,25 @@ async fn upload_attachment(
     report_progress: impl Fn(f64),
 ) -> Result<MessageId, UiShareSendError> {
     let path = PathBuf::from(&attachment.path);
+    let attachment_id = AttachmentId::random();
+    let (progress_tx, progress) = AttachmentProgress::new();
     // Sharing happens without the user looking at the chat, so it must not
     // mark older messages as read.
-    let provisioned =
-        Box::pin(core_user.upload_chat_attachment(chat_id, &path, MarkChatAsRead::No))
-            .await
-            .map_err(|error| {
-                error!(%error, "Failed to provision shared attachment");
-                UiShareSendError::Other
-            })?;
+    let provisioned = Box::pin(core_user.upload_chat_attachment(
+        chat_id,
+        &path,
+        MarkChatAsRead::No,
+        attachment_id,
+        progress_tx,
+    ))
+    .await
+    .map_err(|error| {
+        error!(%error, "Failed to provision shared attachment");
+        UiShareSendError::Other
+    })?;
 
-    let (attachment_id, progress, upload_task) = match provisioned {
-        Ok(result) => result,
+    let upload_task = match provisioned {
+        Ok(task) => task,
         Err(error) => return Err(provision_error(error)),
     };
 
