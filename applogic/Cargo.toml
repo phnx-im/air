@@ -12,6 +12,7 @@ description = "Multi-platform client application logic"
 license = "AGPL-3.0-or-later"
 
 [lib]
+name = "airapplogic"
 crate-type = ["cdylib", "staticlib", "lib"]
 
 # Silence warnings caused by the `frb` macro (since Rust 1.84.0).
