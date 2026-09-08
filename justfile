@@ -218,9 +218,9 @@ build platform:
 [linux]
 [working-directory: 'app/linux']
 build-rpm:
-    nfpm package -p rpm
+    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
 build-deb:
-    nfpm package -p deb
+    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p deb
