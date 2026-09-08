@@ -73,12 +73,10 @@ class _ClientRecordsList extends HookWidget {
           // The modal's inset places the row, so the tile adds none.
           contentPadding: EdgeInsets.zero,
           titleAlignment: ListTileTitleAlignment.top,
-          titleTextStyle: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: textColor, fontWeight: .bold),
-          subtitleTextStyle: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: textColor),
+          titleTextStyle: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: textColor, fontWeight: .bold),
+          subtitleTextStyle: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: textColor),
           leading: Transform.translate(
             offset: const Offset(0, S.s8),
             child: UserAvatar(profile: record.userProfile, size: S.s48),

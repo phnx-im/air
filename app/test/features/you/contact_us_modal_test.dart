@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:mocktail/mocktail.dart';
+
 import '../../helpers.dart';
 
 class MockUrlLauncher extends Mock implements UrlLauncher {}
@@ -137,23 +138,21 @@ void main() {
 
     // A message typed but not sent is what the form holds, so the click that
     // lands beside the card has to ask about it first.
-    testWidgets(
-      'asks before a click beside the card drops the message',
-      (tester) async {
-        sizeView(tester, desktopViewSize);
-        await open(tester);
+    testWidgets('asks before a click beside the card drops the message', (
+      tester,
+    ) async {
+      sizeView(tester, desktopViewSize);
+      await open(tester);
 
-        await tester.enterText(find.byType(EditableText), 'Something broke');
-        await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText), 'Something broke');
+      await tester.pumpAndSettle();
 
-        await tester.tapAt(const Offset(20, 450));
-        await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(20, 450));
+      await tester.pumpAndSettle();
 
-        expect(find.byType(ConfirmDialog), findsOneWidget);
-        expect(find.byType(ContactUsModal), findsOneWidget);
-      },
-      variant: desktopPlatform,
-    );
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+      expect(find.byType(ContactUsModal), findsOneWidget);
+    }, variant: desktopPlatform);
 
     testWidgets('drops an untouched form without asking', (tester) async {
       sizeView(tester, desktopViewSize);

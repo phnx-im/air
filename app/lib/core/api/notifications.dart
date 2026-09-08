@@ -8,8 +8,10 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import '../notifications.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
+
 import 'types.dart';
 
 // These functions are ignored because they are not marked as `pub`: `cancel_notifications`, `get_active_notifications`, `send_notification`

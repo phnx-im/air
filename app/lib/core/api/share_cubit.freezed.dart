@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'share_cubit.dart';
@@ -9,6 +9,7 @@ part of 'share_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $ShareStateCopyWith<ShareState> get copyWith => _$ShareStateCopyWithImpl<ShareSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ShareState&&(identical(other.loaded, loaded) || other.loaded == loaded)&&(identical(other.signedIn, signedIn) || other.signedIn == signedIn)&&const DeepCollectionEquality().equals(other.chats, chats)&&(identical(other.sendStatus, sendStatus) || other.sendStatus == sendStatus));
+  final _this = this as ShareState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ShareState&&(identical(other.loaded, _this.loaded) || other.loaded == _this.loaded)&&(identical(other.signedIn, _this.signedIn) || other.signedIn == _this.signedIn)&&const DeepCollectionEquality().equals(other.chats, _this.chats)&&(identical(other.sendStatus, _this.sendStatus) || other.sendStatus == _this.sendStatus));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,loaded,signedIn,const DeepCollectionEquality().hash(chats),sendStatus);
+int get hashCode {
+  final _this = this as ShareState;
+  return Object.hash(runtimeType,_this.loaded,_this.signedIn,const DeepCollectionEquality().hash(_this.chats),_this.sendStatus);
+}
 
 @override
 String toString() {
-  return 'ShareState(loaded: $loaded, signedIn: $signedIn, chats: $chats, sendStatus: $sendStatus)';
+  final _this = this as ShareState;
+  return 'ShareState(loaded: ${_this.loaded}, signedIn: ${_this.signedIn}, chats: ${_this.chats}, sendStatus: ${_this.sendStatus})';
 }
 
 
@@ -63,7 +69,7 @@ class _$ShareStateCopyWithImpl<$Res>
 /// Create a copy of ShareState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? loaded = null,Object? signedIn = null,Object? chats = null,Object? sendStatus = null,}) {
-  return _then(_self.copyWith(
+  return _then(ShareState(
 loaded: null == loaded ? _self.loaded : loaded // ignore: cast_nullable_to_non_nullable
 as bool,signedIn: null == signedIn ? _self.signedIn : signedIn // ignore: cast_nullable_to_non_nullable
 as bool,chats: null == chats ? _self.chats : chats // ignore: cast_nullable_to_non_nullable
@@ -89,7 +95,7 @@ $UiShareSendStatusCopyWith<$Res> get sendStatus {
 
 
 class _ShareState extends ShareState {
-  const _ShareState({required this.loaded, required this.signedIn, required final  List<UiChatDetails> chats, required this.sendStatus}): _chats = chats,super._();
+  const _ShareState({required this.loaded, required this.signedIn, required  List<UiChatDetails> chats, required this.sendStatus}): _chats = chats,super._();
   
 
 @override final  bool loaded;
@@ -113,16 +119,18 @@ _$ShareStateCopyWith<_ShareState> get copyWith => __$ShareStateCopyWithImpl<_Sha
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ShareState&&(identical(other.loaded, loaded) || other.loaded == loaded)&&(identical(other.signedIn, signedIn) || other.signedIn == signedIn)&&const DeepCollectionEquality().equals(other._chats, _chats)&&(identical(other.sendStatus, sendStatus) || other.sendStatus == sendStatus));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ShareState&&(identical(other.loaded, loaded) || other.loaded == loaded)&&(identical(other.signedIn, signedIn) || other.signedIn == signedIn)&&const DeepCollectionEquality().equals(other.chats, _chats)&&(identical(other.sendStatus, sendStatus) || other.sendStatus == sendStatus));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,loaded,signedIn,const DeepCollectionEquality().hash(_chats),sendStatus);
+int get hashCode {
+    return Object.hash(runtimeType,loaded,signedIn,const DeepCollectionEquality().hash(_chats),sendStatus);
+}
 
 @override
 String toString() {
-  return 'ShareState(loaded: $loaded, signedIn: $signedIn, chats: $chats, sendStatus: $sendStatus)';
+    return 'ShareState(loaded: $loaded, signedIn: $signedIn, chats: $chats, sendStatus: $sendStatus)';
 }
 
 
@@ -181,7 +189,7 @@ mixin _$UiShareSendError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError);
 }
 
 
@@ -190,7 +198,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendError()';
+    return 'UiShareSendError()';
 }
 
 
@@ -217,7 +225,7 @@ class UiShareSendError_DecodingError extends UiShareSendError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_DecodingError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_DecodingError);
 }
 
 
@@ -226,7 +234,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendError.decodingError()';
+    return 'UiShareSendError.decodingError()';
 }
 
 
@@ -255,16 +263,18 @@ $UiShareSendError_AttachmentTooLargeCopyWith<UiShareSendError_AttachmentTooLarge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_AttachmentTooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_AttachmentTooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+int get hashCode {
+    return Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+}
 
 @override
 String toString() {
-  return 'UiShareSendError.attachmentTooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
+    return 'UiShareSendError.attachmentTooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
 }
 
 
@@ -322,16 +332,18 @@ $UiShareSendError_TooManyAttachmentsCopyWith<UiShareSendError_TooManyAttachments
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_TooManyAttachments&&(identical(other.max, max) || other.max == max));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_TooManyAttachments&&(identical(other.max, max) || other.max == max));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,max);
+int get hashCode {
+    return Object.hash(runtimeType,max);
+}
 
 @override
 String toString() {
-  return 'UiShareSendError.tooManyAttachments(max: $max)';
+    return 'UiShareSendError.tooManyAttachments(max: $max)';
 }
 
 
@@ -383,7 +395,7 @@ class UiShareSendError_Other extends UiShareSendError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_Other);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendError_Other);
 }
 
 
@@ -392,7 +404,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendError.other()';
+    return 'UiShareSendError.other()';
 }
 
 
@@ -410,7 +422,7 @@ mixin _$UiShareSendStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus);
 }
 
 
@@ -419,7 +431,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendStatus()';
+    return 'UiShareSendStatus()';
 }
 
 
@@ -446,7 +458,7 @@ class UiShareSendStatus_Idle extends UiShareSendStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Idle);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Idle);
 }
 
 
@@ -455,7 +467,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendStatus.idle()';
+    return 'UiShareSendStatus.idle()';
 }
 
 
@@ -488,16 +500,18 @@ $UiShareSendStatus_UploadingCopyWith<UiShareSendStatus_Uploading> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Uploading&&(identical(other.current, current) || other.current == current)&&(identical(other.total, total) || other.total == total)&&(identical(other.progress, progress) || other.progress == progress));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Uploading&&(identical(other.current, current) || other.current == current)&&(identical(other.total, total) || other.total == total)&&(identical(other.progress, progress) || other.progress == progress));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,current,total,progress);
+int get hashCode {
+    return Object.hash(runtimeType,current,total,progress);
+}
 
 @override
 String toString() {
-  return 'UiShareSendStatus.uploading(current: $current, total: $total, progress: $progress)';
+    return 'UiShareSendStatus.uploading(current: $current, total: $total, progress: $progress)';
 }
 
 
@@ -551,7 +565,7 @@ class UiShareSendStatus_Sending extends UiShareSendStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Sending);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Sending);
 }
 
 
@@ -560,7 +574,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendStatus.sending()';
+    return 'UiShareSendStatus.sending()';
 }
 
 
@@ -583,7 +597,7 @@ class UiShareSendStatus_Done extends UiShareSendStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Done);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Done);
 }
 
 
@@ -592,7 +606,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendStatus.done()';
+    return 'UiShareSendStatus.done()';
 }
 
 
@@ -615,7 +629,7 @@ class UiShareSendStatus_Queued extends UiShareSendStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Queued);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Queued);
 }
 
 
@@ -624,7 +638,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiShareSendStatus.queued()';
+    return 'UiShareSendStatus.queued()';
 }
 
 
@@ -652,16 +666,18 @@ $UiShareSendStatus_FailedCopyWith<UiShareSendStatus_Failed> get copyWith => _$Ui
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Failed&&(identical(other.error, error) || other.error == error));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiShareSendStatus_Failed&&(identical(other.error, error) || other.error == error));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,error);
+int get hashCode {
+    return Object.hash(runtimeType,error);
+}
 
 @override
 String toString() {
-  return 'UiShareSendStatus.failed(error: $error)';
+    return 'UiShareSendStatus.failed(error: $error)';
 }
 
 

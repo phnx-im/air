@@ -30,13 +30,16 @@ import 'api/user_settings_cubit.dart';
 import 'api/username_suggestions.dart';
 import 'api/users_cubit.dart';
 import 'api/utils.dart';
+
 import 'dart:async';
 import 'dart:convert';
+
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'lib.dart';
 import 'notifications.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 
@@ -8860,9 +8863,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return Map.fromEntries(
-      dco_decode_list_record_chat_id_list_ui_user_id(
-        raw,
-      ).map((e) => MapEntry(e.$1, e.$2)),
+      dco_decode_list_record_chat_id_list_ui_user_id(raw)
+          .map((e) => MapEntry(e.$1, e.$2)),
     );
   }
 
@@ -8872,9 +8874,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return Map.fromEntries(
-      dco_decode_list_record_u_32_debug_capabilities(
-        raw,
-      ).map((e) => MapEntry(e.$1, e.$2)),
+      dco_decode_list_record_u_32_debug_capabilities(raw)
+          .map((e) => MapEntry(e.$1, e.$2)),
     );
   }
 

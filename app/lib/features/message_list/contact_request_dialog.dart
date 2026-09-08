@@ -126,9 +126,8 @@ class ContactRequestDialog extends HookWidget {
           break;
       }
     } catch (e, stackTrace) {
-      Logger.detached(
-        "ContactRequestDialog",
-      ).severe("Failed to accept contact request: $e", e, stackTrace);
+      Logger.detached("ContactRequestDialog")
+          .severe("Failed to accept contact request: $e", e, stackTrace);
       showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
     } finally {
       isAccepting.value = false;

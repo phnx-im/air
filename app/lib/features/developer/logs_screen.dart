@@ -33,9 +33,8 @@ import 'package:share_plus/share_plus.dart';
 /// Pageless, like the chat debug view, so a developer screen stays out of the
 /// navigation state.
 void showLogs(BuildContext context) {
-  Navigator.of(
-    context,
-  ).push(MaterialPageRoute(builder: (_) => const LogsScreen()));
+  Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const LogsScreen()));
 }
 
 /// Which ring buffer is being read. The app and the background isolate each

@@ -51,9 +51,8 @@ void main() {
 
       when(() => user.userId).thenReturn(1.userId());
       when(() => user.clientRecordId).thenReturn(1.clientRecordId());
-      when(
-        () => userSessionCubit.state,
-      ).thenReturn(UserSessionState(user: user));
+      when(() => userSessionCubit.state)
+          .thenReturn(UserSessionState(user: user));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(
           defaultUserId: 1.userId(),

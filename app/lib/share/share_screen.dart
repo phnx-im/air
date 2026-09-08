@@ -759,9 +759,8 @@ class _ComposeFooter extends StatelessWidget {
           decoration: InputDecoration(
             isDense: true,
             hintText: loc.shareScreen_captionHint,
-            hintStyle: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: palette.text.quaternary),
+            hintStyle: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: palette.text.quaternary),
             // The field is the only thing on the step to type into, so focus
             // does not thicken or color the outline. Every state is named
             // because Material's focused border outranks a bare `border`.

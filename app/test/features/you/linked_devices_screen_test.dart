@@ -135,12 +135,11 @@ void main() {
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               home: Builder(
                 builder: (context) => AppScaffold(
-                  title: AppLocalizations.of(
-                    context,
-                  ).userSettingsScreen_devices,
-                  backgroundColor: SemanticPalette.of(
-                    context,
-                  ).backgroundBase.primary,
+                  title: AppLocalizations.of(context)
+                      .userSettingsScreen_devices,
+                  backgroundColor: SemanticPalette.of(context)
+                      .backgroundBase
+                      .primary,
                   child: BlocProvider<LinkedDevicesCubit>.value(
                     value: cubit,
                     child: const LinkedDevicesView(),
@@ -299,9 +298,8 @@ void main() {
     testWidgets('confirming the unlink dialog unlinks through the cubit', (
       tester,
     ) async {
-      when(
-        () => cubit.unlinkDevice(clientId: any(named: 'clientId')),
-      ).thenAnswer((_) async {});
+      when(() => cubit.unlinkDevice(clientId: any(named: 'clientId')))
+          .thenAnswer((_) async {});
 
       await pumpView(tester, state: _withSibling());
 

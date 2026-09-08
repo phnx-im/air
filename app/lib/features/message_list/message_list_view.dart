@@ -31,11 +31,10 @@ import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/features/message_list/unread_divider.dart';
 
-typedef MessageCubitCreate =
-    MessageCubit Function({
-      required UserCubit userCubit,
-      required MessageState initialState,
-    });
+typedef MessageCubitCreate = MessageCubit Function({
+  required UserCubit userCubit,
+  required MessageState initialState,
+});
 
 class MessageListView extends StatefulWidget {
   const MessageListView({
@@ -540,9 +539,8 @@ class _MessageListViewState extends State<MessageListView>
             children: [
               // Disable the auto-scrollbar, we have our own above.
               ScrollConfiguration(
-                behavior: ScrollConfiguration.of(
-                  context,
-                ).copyWith(scrollbars: false),
+                behavior: ScrollConfiguration.of(context)
+                    .copyWith(scrollbars: false),
                 child: buildAnchoredList(bottomPadding: listBottomPadding),
               ),
               bottomFade,

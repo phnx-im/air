@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'markdown.dart';
@@ -9,6 +9,7 @@ part of 'markdown.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$BlockElement {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'BlockElement()';
+    return 'BlockElement()';
 }
 
 
@@ -46,7 +47,7 @@ $BlockElementCopyWith(BlockElement _, $Res Function(BlockElement) __);
 
 
 class BlockElement_Paragraph extends BlockElement {
-  const BlockElement_Paragraph(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const BlockElement_Paragraph( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -67,16 +68,18 @@ $BlockElement_ParagraphCopyWith<BlockElement_Paragraph> get copyWith => _$BlockE
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Paragraph&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Paragraph&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'BlockElement.paragraph(field0: $field0)';
+    return 'BlockElement.paragraph(field0: $field0)';
 }
 
 
@@ -118,7 +121,7 @@ as List<RangedInlineElement>,
 
 
 class BlockElement_Heading extends BlockElement {
-  const BlockElement_Heading(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const BlockElement_Heading( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -139,16 +142,18 @@ $BlockElement_HeadingCopyWith<BlockElement_Heading> get copyWith => _$BlockEleme
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Heading&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Heading&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'BlockElement.heading(field0: $field0)';
+    return 'BlockElement.heading(field0: $field0)';
 }
 
 
@@ -190,7 +195,7 @@ as List<RangedInlineElement>,
 
 
 class BlockElement_Quote extends BlockElement {
-  const BlockElement_Quote(final  List<RangedBlockElement> field0): _field0 = field0,super._();
+  const BlockElement_Quote( List<RangedBlockElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedBlockElement> _field0;
@@ -211,16 +216,18 @@ $BlockElement_QuoteCopyWith<BlockElement_Quote> get copyWith => _$BlockElement_Q
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Quote&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Quote&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'BlockElement.quote(field0: $field0)';
+    return 'BlockElement.quote(field0: $field0)';
 }
 
 
@@ -262,7 +269,7 @@ as List<RangedBlockElement>,
 
 
 class BlockElement_UnorderedList extends BlockElement {
-  const BlockElement_UnorderedList(final  List<List<RangedBlockElement>> field0): _field0 = field0,super._();
+  const BlockElement_UnorderedList( List<List<RangedBlockElement>> field0): _field0 = field0,super._();
   
 
  final  List<List<RangedBlockElement>> _field0;
@@ -283,16 +290,18 @@ $BlockElement_UnorderedListCopyWith<BlockElement_UnorderedList> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_UnorderedList&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_UnorderedList&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'BlockElement.unorderedList(field0: $field0)';
+    return 'BlockElement.unorderedList(field0: $field0)';
 }
 
 
@@ -334,7 +343,7 @@ as List<List<RangedBlockElement>>,
 
 
 class BlockElement_OrderedList extends BlockElement {
-  const BlockElement_OrderedList(this.field0, final  List<List<RangedBlockElement>> field1): _field1 = field1,super._();
+  const BlockElement_OrderedList(this.field0,  List<List<RangedBlockElement>> field1): _field1 = field1,super._();
   
 
  final  BigInt field0;
@@ -356,16 +365,18 @@ $BlockElement_OrderedListCopyWith<BlockElement_OrderedList> get copyWith => _$Bl
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_OrderedList&&(identical(other.field0, field0) || other.field0 == field0)&&const DeepCollectionEquality().equals(other._field1, _field1));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_OrderedList&&(identical(other.field0, field0) || other.field0 == field0)&&const DeepCollectionEquality().equals(other.field1, _field1));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,const DeepCollectionEquality().hash(_field1));
+int get hashCode {
+    return Object.hash(runtimeType,field0,const DeepCollectionEquality().hash(_field1));
+}
 
 @override
 String toString() {
-  return 'BlockElement.orderedList(field0: $field0, field1: $field1)';
+    return 'BlockElement.orderedList(field0: $field0, field1: $field1)';
 }
 
 
@@ -408,7 +419,7 @@ as List<List<RangedBlockElement>>,
 
 
 class BlockElement_Table extends BlockElement {
-  const BlockElement_Table({required final  List<List<RangedBlockElement>> head, required final  List<List<List<RangedBlockElement>>> rows}): _head = head,_rows = rows,super._();
+  const BlockElement_Table({required  List<List<RangedBlockElement>> head, required  List<List<List<RangedBlockElement>>> rows}): _head = head,_rows = rows,super._();
   
 
  final  List<List<RangedBlockElement>> _head;
@@ -436,16 +447,18 @@ $BlockElement_TableCopyWith<BlockElement_Table> get copyWith => _$BlockElement_T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Table&&const DeepCollectionEquality().equals(other._head, _head)&&const DeepCollectionEquality().equals(other._rows, _rows));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Table&&const DeepCollectionEquality().equals(other.head, _head)&&const DeepCollectionEquality().equals(other.rows, _rows));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_head),const DeepCollectionEquality().hash(_rows));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_head),const DeepCollectionEquality().hash(_rows));
+}
 
 @override
 String toString() {
-  return 'BlockElement.table(head: $head, rows: $rows)';
+    return 'BlockElement.table(head: $head, rows: $rows)';
 }
 
 
@@ -498,7 +511,7 @@ class BlockElement_HorizontalRule extends BlockElement {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_HorizontalRule);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_HorizontalRule);
 }
 
 
@@ -507,7 +520,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'BlockElement.horizontalRule()';
+    return 'BlockElement.horizontalRule()';
 }
 
 
@@ -520,7 +533,7 @@ String toString() {
 
 
 class BlockElement_CodeBlock extends BlockElement {
-  const BlockElement_CodeBlock(final  List<RangedCodeBlock> field0): _field0 = field0,super._();
+  const BlockElement_CodeBlock( List<RangedCodeBlock> field0): _field0 = field0,super._();
   
 
  final  List<RangedCodeBlock> _field0;
@@ -541,16 +554,18 @@ $BlockElement_CodeBlockCopyWith<BlockElement_CodeBlock> get copyWith => _$BlockE
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_CodeBlock&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_CodeBlock&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'BlockElement.codeBlock(field0: $field0)';
+    return 'BlockElement.codeBlock(field0: $field0)';
 }
 
 
@@ -607,16 +622,18 @@ $BlockElement_ErrorCopyWith<BlockElement_Error> get copyWith => _$BlockElement_E
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Error&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is BlockElement_Error&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'BlockElement.error(field0: $field0)';
+    return 'BlockElement.error(field0: $field0)';
 }
 
 
@@ -663,7 +680,7 @@ mixin _$InlineElement {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement);
 }
 
 
@@ -672,7 +689,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'InlineElement()';
+    return 'InlineElement()';
 }
 
 
@@ -704,16 +721,18 @@ $InlineElement_TextCopyWith<InlineElement_Text> get copyWith => _$InlineElement_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Text&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Text&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'InlineElement.text(field0: $field0)';
+    return 'InlineElement.text(field0: $field0)';
 }
 
 
@@ -770,16 +789,18 @@ $InlineElement_CodeCopyWith<InlineElement_Code> get copyWith => _$InlineElement_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Code&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Code&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'InlineElement.code(field0: $field0)';
+    return 'InlineElement.code(field0: $field0)';
 }
 
 
@@ -821,7 +842,7 @@ as String,
 
 
 class InlineElement_Link extends InlineElement {
-  const InlineElement_Link({required this.destUrl, required final  List<RangedInlineElement> children}): _children = children,super._();
+  const InlineElement_Link({required this.destUrl, required  List<RangedInlineElement> children}): _children = children,super._();
   
 
  final  String destUrl;
@@ -843,16 +864,18 @@ $InlineElement_LinkCopyWith<InlineElement_Link> get copyWith => _$InlineElement_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Link&&(identical(other.destUrl, destUrl) || other.destUrl == destUrl)&&const DeepCollectionEquality().equals(other._children, _children));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Link&&(identical(other.destUrl, destUrl) || other.destUrl == destUrl)&&const DeepCollectionEquality().equals(other.children, _children));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,destUrl,const DeepCollectionEquality().hash(_children));
+int get hashCode {
+    return Object.hash(runtimeType,destUrl,const DeepCollectionEquality().hash(_children));
+}
 
 @override
 String toString() {
-  return 'InlineElement.link(destUrl: $destUrl, children: $children)';
+    return 'InlineElement.link(destUrl: $destUrl, children: $children)';
 }
 
 
@@ -895,7 +918,7 @@ as List<RangedInlineElement>,
 
 
 class InlineElement_Bold extends InlineElement {
-  const InlineElement_Bold(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const InlineElement_Bold( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -916,16 +939,18 @@ $InlineElement_BoldCopyWith<InlineElement_Bold> get copyWith => _$InlineElement_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Bold&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Bold&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'InlineElement.bold(field0: $field0)';
+    return 'InlineElement.bold(field0: $field0)';
 }
 
 
@@ -967,7 +992,7 @@ as List<RangedInlineElement>,
 
 
 class InlineElement_Italic extends InlineElement {
-  const InlineElement_Italic(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const InlineElement_Italic( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -988,16 +1013,18 @@ $InlineElement_ItalicCopyWith<InlineElement_Italic> get copyWith => _$InlineElem
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Italic&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Italic&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'InlineElement.italic(field0: $field0)';
+    return 'InlineElement.italic(field0: $field0)';
 }
 
 
@@ -1039,7 +1066,7 @@ as List<RangedInlineElement>,
 
 
 class InlineElement_Strikethrough extends InlineElement {
-  const InlineElement_Strikethrough(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const InlineElement_Strikethrough( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -1060,16 +1087,18 @@ $InlineElement_StrikethroughCopyWith<InlineElement_Strikethrough> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Strikethrough&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Strikethrough&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'InlineElement.strikethrough(field0: $field0)';
+    return 'InlineElement.strikethrough(field0: $field0)';
 }
 
 
@@ -1111,7 +1140,7 @@ as List<RangedInlineElement>,
 
 
 class InlineElement_Spoiler extends InlineElement {
-  const InlineElement_Spoiler(final  List<RangedInlineElement> field0): _field0 = field0,super._();
+  const InlineElement_Spoiler( List<RangedInlineElement> field0): _field0 = field0,super._();
   
 
  final  List<RangedInlineElement> _field0;
@@ -1132,16 +1161,18 @@ $InlineElement_SpoilerCopyWith<InlineElement_Spoiler> get copyWith => _$InlineEl
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Spoiler&&const DeepCollectionEquality().equals(other._field0, _field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Spoiler&&const DeepCollectionEquality().equals(other.field0, _field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_field0));
+}
 
 @override
 String toString() {
-  return 'InlineElement.spoiler(field0: $field0)';
+    return 'InlineElement.spoiler(field0: $field0)';
 }
 
 
@@ -1198,16 +1229,18 @@ $InlineElement_ImageCopyWith<InlineElement_Image> get copyWith => _$InlineElemen
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Image&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_Image&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'InlineElement.image(field0: $field0)';
+    return 'InlineElement.image(field0: $field0)';
 }
 
 
@@ -1264,16 +1297,18 @@ $InlineElement_TaskListMarkerCopyWith<InlineElement_TaskListMarker> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_TaskListMarker&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_TaskListMarker&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'InlineElement.taskListMarker(field0: $field0)';
+    return 'InlineElement.taskListMarker(field0: $field0)';
 }
 
 
@@ -1325,16 +1360,21 @@ $MessageContentCopyWith<MessageContent> get copyWith => _$MessageContentCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageContent&&const DeepCollectionEquality().equals(other.elements, elements));
+  final _this = this as MessageContent;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageContent&&const DeepCollectionEquality().equals(other.elements, _this.elements));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(elements));
+int get hashCode {
+  final _this = this as MessageContent;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.elements));
+}
 
 @override
 String toString() {
-  return 'MessageContent(elements: $elements)';
+  final _this = this as MessageContent;
+  return 'MessageContent(elements: ${_this.elements})';
 }
 
 
@@ -1363,7 +1403,7 @@ class _$MessageContentCopyWithImpl<$Res>
 /// Create a copy of MessageContent
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? elements = null,}) {
-  return _then(_self.copyWith(
+  return _then(MessageContent(
 elements: null == elements ? _self.elements : elements // ignore: cast_nullable_to_non_nullable
 as List<RangedBlockElement>,
   ));
@@ -1377,7 +1417,7 @@ as List<RangedBlockElement>,
 
 
 class _MessageContent extends MessageContent {
-  const _MessageContent({required final  List<RangedBlockElement> elements}): _elements = elements,super._();
+  const _MessageContent({required  List<RangedBlockElement> elements}): _elements = elements,super._();
   
 
  final  List<RangedBlockElement> _elements;
@@ -1398,16 +1438,18 @@ _$MessageContentCopyWith<_MessageContent> get copyWith => __$MessageContentCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageContent&&const DeepCollectionEquality().equals(other._elements, _elements));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageContent&&const DeepCollectionEquality().equals(other.elements, _elements));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_elements));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_elements));
+}
 
 @override
 String toString() {
-  return 'MessageContent(elements: $elements)';
+    return 'MessageContent(elements: $elements)';
 }
 
 
@@ -1459,16 +1501,21 @@ $RangedBlockElementCopyWith<RangedBlockElement> get copyWith => _$RangedBlockEle
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedBlockElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
+  final _this = this as RangedBlockElement;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedBlockElement&&(identical(other.start, _this.start) || other.start == _this.start)&&(identical(other.end, _this.end) || other.end == _this.end)&&(identical(other.element, _this.element) || other.element == _this.element));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,element);
+int get hashCode {
+  final _this = this as RangedBlockElement;
+  return Object.hash(runtimeType,_this.start,_this.end,_this.element);
+}
 
 @override
 String toString() {
-  return 'RangedBlockElement(start: $start, end: $end, element: $element)';
+  final _this = this as RangedBlockElement;
+  return 'RangedBlockElement(start: ${_this.start}, end: ${_this.end}, element: ${_this.element})';
 }
 
 
@@ -1497,7 +1544,7 @@ class _$RangedBlockElementCopyWithImpl<$Res>
 /// Create a copy of RangedBlockElement
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? start = null,Object? end = null,Object? element = null,}) {
-  return _then(_self.copyWith(
+  return _then(RangedBlockElement(
 start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int,end: null == end ? _self.end : end // ignore: cast_nullable_to_non_nullable
 as int,element: null == element ? _self.element : element // ignore: cast_nullable_to_non_nullable
@@ -1539,16 +1586,18 @@ _$RangedBlockElementCopyWith<_RangedBlockElement> get copyWith => __$RangedBlock
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedBlockElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedBlockElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,element);
+int get hashCode {
+    return Object.hash(runtimeType,start,end,element);
+}
 
 @override
 String toString() {
-  return 'RangedBlockElement(start: $start, end: $end, element: $element)';
+    return 'RangedBlockElement(start: $start, end: $end, element: $element)';
 }
 
 
@@ -1611,16 +1660,21 @@ $RangedCodeBlockCopyWith<RangedCodeBlock> get copyWith => _$RangedCodeBlockCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value));
+  final _this = this as RangedCodeBlock;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedCodeBlock&&(identical(other.start, _this.start) || other.start == _this.start)&&(identical(other.end, _this.end) || other.end == _this.end)&&(identical(other.value, _this.value) || other.value == _this.value));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,value);
+int get hashCode {
+  final _this = this as RangedCodeBlock;
+  return Object.hash(runtimeType,_this.start,_this.end,_this.value);
+}
 
 @override
 String toString() {
-  return 'RangedCodeBlock(start: $start, end: $end, value: $value)';
+  final _this = this as RangedCodeBlock;
+  return 'RangedCodeBlock(start: ${_this.start}, end: ${_this.end}, value: ${_this.value})';
 }
 
 
@@ -1649,7 +1703,7 @@ class _$RangedCodeBlockCopyWithImpl<$Res>
 /// Create a copy of RangedCodeBlock
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? start = null,Object? end = null,Object? value = null,}) {
-  return _then(_self.copyWith(
+  return _then(RangedCodeBlock(
 start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int,end: null == end ? _self.end : end // ignore: cast_nullable_to_non_nullable
 as int,value: null == value ? _self.value : value // ignore: cast_nullable_to_non_nullable
@@ -1682,16 +1736,18 @@ _$RangedCodeBlockCopyWith<_RangedCodeBlock> get copyWith => __$RangedCodeBlockCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedCodeBlock&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.value, value) || other.value == value));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,value);
+int get hashCode {
+    return Object.hash(runtimeType,start,end,value);
+}
 
 @override
 String toString() {
-  return 'RangedCodeBlock(start: $start, end: $end, value: $value)';
+    return 'RangedCodeBlock(start: $start, end: $end, value: $value)';
 }
 
 
@@ -1745,16 +1801,21 @@ $RangedInlineElementCopyWith<RangedInlineElement> get copyWith => _$RangedInline
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedInlineElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
+  final _this = this as RangedInlineElement;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RangedInlineElement&&(identical(other.start, _this.start) || other.start == _this.start)&&(identical(other.end, _this.end) || other.end == _this.end)&&(identical(other.element, _this.element) || other.element == _this.element));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,element);
+int get hashCode {
+  final _this = this as RangedInlineElement;
+  return Object.hash(runtimeType,_this.start,_this.end,_this.element);
+}
 
 @override
 String toString() {
-  return 'RangedInlineElement(start: $start, end: $end, element: $element)';
+  final _this = this as RangedInlineElement;
+  return 'RangedInlineElement(start: ${_this.start}, end: ${_this.end}, element: ${_this.element})';
 }
 
 
@@ -1783,7 +1844,7 @@ class _$RangedInlineElementCopyWithImpl<$Res>
 /// Create a copy of RangedInlineElement
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? start = null,Object? end = null,Object? element = null,}) {
-  return _then(_self.copyWith(
+  return _then(RangedInlineElement(
 start: null == start ? _self.start : start // ignore: cast_nullable_to_non_nullable
 as int,end: null == end ? _self.end : end // ignore: cast_nullable_to_non_nullable
 as int,element: null == element ? _self.element : element // ignore: cast_nullable_to_non_nullable
@@ -1825,16 +1886,18 @@ _$RangedInlineElementCopyWith<_RangedInlineElement> get copyWith => __$RangedInl
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedInlineElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RangedInlineElement&&(identical(other.start, start) || other.start == start)&&(identical(other.end, end) || other.end == end)&&(identical(other.element, element) || other.element == element));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,start,end,element);
+int get hashCode {
+    return Object.hash(runtimeType,start,end,element);
+}
 
 @override
 String toString() {
-  return 'RangedInlineElement(start: $start, end: $end, element: $element)';
+    return 'RangedInlineElement(start: $start, end: $end, element: $element)';
 }
 
 

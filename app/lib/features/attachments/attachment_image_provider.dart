@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:air/core/core.dart';
+
 import 'dart:ui' as ui;
 
 /// Loads an attachment image from the database via an [AttachmentsRepository].
@@ -43,9 +44,9 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
   }
 
   Future<ui.Codec> _loadAsync(
-    final UiAttachment key,
-    final ImageDecoderCallback decode,
-    final StreamController<ImageChunkEvent> chunkEvents,
+    UiAttachment key,
+    ImageDecoderCallback decode,
+    StreamController<ImageChunkEvent> chunkEvents,
   ) async {
     Uint8List? bytes;
     try {

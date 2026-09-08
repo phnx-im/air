@@ -22,9 +22,8 @@ void main() {
   ) async {
     final userCubit = MockUserCubit();
     final coreClient = MockCoreClient();
-    when(
-      () => userCubit.state,
-    ).thenReturn(MockUiUser(id: 1, accountUnlinked: true));
+    when(() => userCubit.state)
+        .thenReturn(MockUiUser(id: 1, accountUnlinked: true));
     when(() => coreClient.deleteCurrentDatabase()).thenAnswer((_) async {});
 
     await tester.pumpWidget(

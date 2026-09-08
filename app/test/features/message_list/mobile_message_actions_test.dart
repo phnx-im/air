@@ -179,9 +179,8 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: 'untilMessageId'),

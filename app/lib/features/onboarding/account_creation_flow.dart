@@ -616,9 +616,8 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       setState(() {
         _usernameTaken = true;
         _isAddingUsername = false;
-        _usernameError = AppLocalizations.of(
-          context,
-        ).usernameScreen_error_alreadyExists;
+        _usernameError = AppLocalizations.of(context)
+            .usernameScreen_error_alreadyExists;
       });
       return true;
     } catch (_) {

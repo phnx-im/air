@@ -22,9 +22,8 @@ void main() {
     setUp(() async {
       usersCubit = MockUsersCubit();
 
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject({

@@ -115,9 +115,9 @@ class _ResizablePanelState extends State<ResizablePanel> {
                           width: StrokeWidth.px1,
                           height: _handleLength,
                           child: ColoredBox(
-                            color: SemanticPalette.of(
-                              context,
-                            ).separator.primary,
+                            color: SemanticPalette.of(context)
+                                .separator
+                                .primary,
                           ),
                         ),
                       ),

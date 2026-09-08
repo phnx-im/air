@@ -39,9 +39,8 @@ void main() {
 
       // No user loaded, so the rows reporting on one stay out of the way.
       when(() => userSessionCubit.state).thenReturn(const UserSessionState());
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(developerMode: true));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(developerMode: true));
       when(
         () => userSettingsCubit.setExperimentalFeatures(
           value: any(named: 'value'),
@@ -110,9 +109,8 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.tap(find.text('Experimental features'));
 
-      verify(
-        () => userSettingsCubit.setExperimentalFeatures(value: true),
-      ).called(1);
+      verify(() => userSettingsCubit.setExperimentalFeatures(value: true))
+          .called(1);
     });
 
     testWidgets('leaves experimental features inert without developer mode', (
@@ -520,22 +518,20 @@ void main() {
 
     // The screen covers the window, so on macOS the traffic lights float over
     // the back button's corner.
-    testWidgets(
-      'clears the window controls with the back button',
-      (tester) async {
-        await tester.pumpWidget(buildSubject(entries: [entry(0)]));
+    testWidgets('clears the window controls with the back button', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject(entries: [entry(0)]));
 
-        final button = find.descendant(
-          of: find.byType(AppBarBackButton),
-          matching: find.byType(ButtonIcon),
-        );
-        expect(
-          tester.getTopLeft(button.first).dx,
-          greaterThanOrEqualTo(Chrome.windowControlsInset),
-        );
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      final button = find.descendant(
+        of: find.byType(AppBarBackButton),
+        matching: find.byType(ButtonIcon),
+      );
+      expect(
+        tester.getTopLeft(button.first).dx,
+        greaterThanOrEqualTo(Chrome.windowControlsInset),
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   group('YouMenu', () {
@@ -546,12 +542,10 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home(home: HomeNavigationState()));
-      when(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home(home: HomeNavigationState()));
+      when(() => navigationCubit.openYouSection(YouSection.developer))
+          .thenAnswer((_) async {});
     });
 
     Widget buildSubject() => MultiBlocProvider(
@@ -572,16 +566,14 @@ void main() {
     // The developer row is a section like any other, so it opens beside the
     // menu.
     testWidgets('opens the developer section from its row', (tester) async {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(developerMode: true));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(developerMode: true));
 
       await tester.pumpWidget(buildSubject());
       await tester.tap(find.text('Developer'));
 
-      verify(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).called(1);
+      verify(() => navigationCubit.openYouSection(YouSection.developer))
+          .called(1);
     });
 
     testWidgets('lists no developer row outside developer mode', (

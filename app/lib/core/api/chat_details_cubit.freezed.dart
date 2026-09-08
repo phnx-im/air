@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'chat_details_cubit.dart';
@@ -9,6 +9,7 @@ part of 'chat_details_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $AcceptContactRequestErrorCopyWith<AcceptContactRequestError> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError&&(identical(other.reason, reason) || other.reason == reason));
+  final _this = this as AcceptContactRequestError;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError&&(identical(other.reason, _this.reason) || other.reason == _this.reason));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reason);
+int get hashCode {
+  final _this = this as AcceptContactRequestError;
+  return Object.hash(runtimeType,_this.reason);
+}
 
 @override
 String toString() {
-  return 'AcceptContactRequestError(reason: $reason)';
+  final _this = this as AcceptContactRequestError;
+  return 'AcceptContactRequestError(reason: ${_this.reason})';
 }
 
 
@@ -63,9 +69,8 @@ class _$AcceptContactRequestErrorCopyWithImpl<$Res>
 /// Create a copy of AcceptContactRequestError
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? reason = null,}) {
-  return _then(_self.copyWith(
-reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
+  return _then(AcceptContactRequestError._(
+
   ));
 }
 
@@ -92,16 +97,18 @@ $AcceptContactRequestError_IncompatibleClientCopyWith<AcceptContactRequestError_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError_IncompatibleClient&&(identical(other.reason, reason) || other.reason == reason));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError_IncompatibleClient&&(identical(other.reason, reason) || other.reason == reason));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reason);
+int get hashCode {
+    return Object.hash(runtimeType,reason);
+}
 
 @override
 String toString() {
-  return 'AcceptContactRequestError.incompatibleClient(reason: $reason)';
+    return 'AcceptContactRequestError.incompatibleClient(reason: $reason)';
 }
 
 
@@ -153,16 +160,21 @@ $ChatDetailsStateCopyWith<ChatDetailsState> get copyWith => _$ChatDetailsStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members));
+  final _this = this as ChatDetailsState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members));
+int get hashCode {
+  final _this = this as ChatDetailsState;
+  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members));
+}
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members)';
+  final _this = this as ChatDetailsState;
+  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members})';
 }
 
 
@@ -191,7 +203,7 @@ class _$ChatDetailsStateCopyWithImpl<$Res>
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,}) {
-  return _then(_self.copyWith(
+  return _then(ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,
@@ -206,7 +218,7 @@ as List<UiUserId>,
 
 
 class _ChatDetailsState extends ChatDetailsState {
-  const _ChatDetailsState({this.chat, required final  List<UiUserId> members}): _members = members,super._();
+  const _ChatDetailsState({this.chat, required  List<UiUserId> members}): _members = members,super._();
   
 
 @override final  UiChatDetails? chat;
@@ -228,16 +240,18 @@ _$ChatDetailsStateCopyWith<_ChatDetailsState> get copyWith => __$ChatDetailsStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+int get hashCode {
+    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+}
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members)';
+    return 'ChatDetailsState(chat: $chat, members: $members)';
 }
 
 
@@ -285,7 +299,7 @@ mixin _$UploadAttachmentError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError);
 }
 
 
@@ -294,7 +308,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UploadAttachmentError()';
+    return 'UploadAttachmentError()';
 }
 
 
@@ -321,7 +335,7 @@ class UploadAttachmentError_DecodingError extends UploadAttachmentError {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_DecodingError);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_DecodingError);
 }
 
 
@@ -330,7 +344,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UploadAttachmentError.decodingError()';
+    return 'UploadAttachmentError.decodingError()';
 }
 
 
@@ -359,16 +373,18 @@ $UploadAttachmentError_TooLargeCopyWith<UploadAttachmentError_TooLarge> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_TooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_TooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+int get hashCode {
+    return Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+}
 
 @override
 String toString() {
-  return 'UploadAttachmentError.tooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
+    return 'UploadAttachmentError.tooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
 }
 
 
