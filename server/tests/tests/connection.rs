@@ -4,9 +4,13 @@
 
 use std::time::Duration;
 
+use airapiclient::ApiClient;
 use aircommon::time::TimeStamp;
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
-use airprotos::client::component::AirFeatures;
+use airprotos::client::{
+    component::AirFeatures,
+    signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
+};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, TimeZone};
 use tokio::task::spawn_blocking;
@@ -18,6 +22,30 @@ async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via signed connection package", skip_all)]
+async fn connect_users_via_user_handle_uses_signed_package() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+
+    // A new client asks for a signed package and gets one, carrying the
+    // owner's features.
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let (package, _responder) = client.as_connect_username(record.hash).await.unwrap();
+    assert!(matches!(package, AnyConnectionPackageIn::Signed(_)));
+    let package = package.verify(&record.hash).unwrap();
+    let AnyConnectionPackage::Signed(package) = package else {
+        panic!("expected signed connection package");
+    };
+    assert_eq!(package.username_hash(), &record.hash);
+    assert!(package.air_features().pq_groups);
+
     setup.connect_users(&alice, &bob).await;
 }
 
