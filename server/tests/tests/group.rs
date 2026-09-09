@@ -1628,3 +1628,121 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
         .assert_profiles_resolve(&bob, &[&alice, &charlie, &dave], "stale welcome")
         .await;
 }
+
+/// An application message encrypted at an epoch the group has rotated out of
+/// its decryptable window (`MAX_PAST_EPOCHS`) is undecryptable for every
+/// up-to-date member. The DS must reject it instead of fanning it out, and
+/// the sender must recover by catching up and re-encrypting.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Stale epoch message is rejected and resent", skip_all)]
+async fn stale_epoch_message_is_rejected_and_resent() {
+    use aircommon::mls_group_config::MAX_PAST_EPOCHS;
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_and_settle(&alice, chat_id, &[&bob]).await;
+
+    let bob_epoch = setup
+        .get_user(&bob)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("Bob should have group state")
+        .0;
+
+    // Alice advances the group past the window while Bob stays stale.
+    for _ in 0..MAX_PAST_EPOCHS + 2 {
+        setup
+            .get_user(&alice)
+            .user
+            .update_key(chat_id)
+            .await
+            .unwrap();
+    }
+    let alice_epoch = setup
+        .get_user(&alice)
+        .user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("Alice should have group state")
+        .0;
+    assert!(
+        bob_epoch + (MAX_PAST_EPOCHS as u64) < alice_epoch,
+        "test setup must put Bob outside the decryptable window \
+         (bob {bob_epoch}, group {alice_epoch})"
+    );
+
+    // Bob sends without having drained. The DS rejects the stale ciphertext,
+    // and the message stays queued instead of being marked sent or failed.
+    let content =
+        MimiContent::simple_markdown_message("sent from a stale epoch".to_owned(), [1; 16]);
+    let message = setup
+        .get_user(&bob)
+        .user
+        .send_message(chat_id, content, None)
+        .await
+        .unwrap();
+    let message_id = message.id();
+    for _ in 0..2 {
+        setup
+            .get_user(&bob)
+            .user
+            .outbound_service()
+            .run_once()
+            .await;
+    }
+    let message = setup
+        .get_user(&bob)
+        .user
+        .message(message_id)
+        .await
+        .unwrap()
+        .expect("message should still exist");
+    assert!(
+        !message.is_sent(),
+        "the DS accepted an application message from an epoch outside the \
+         decryptable window; every member would silently drop it"
+    );
+
+    // Bob catches up. The queued message is re-encrypted at the epoch he
+    // drained to and goes through.
+    setup.settle(&[&bob]).await;
+    let message = setup
+        .get_user(&bob)
+        .user
+        .message(message_id)
+        .await
+        .unwrap()
+        .expect("message should still exist");
+    assert!(
+        message.is_sent(),
+        "the queued message should have been re-encrypted and sent after \
+         Bob caught up"
+    );
+
+    // And Alice can actually read it.
+    setup.settle(&[&alice]).await;
+    let alice_messages = setup
+        .get_user(&alice)
+        .user
+        .messages(chat_id, 20)
+        .await
+        .unwrap();
+    assert!(
+        alice_messages.iter().any(|m| {
+            matches!(
+                m.message(),
+                Message::Content(content)
+                    if content.content().string_rendering().as_deref().ok()
+                        == Some("sent from a stale epoch")
+            )
+        }),
+        "Alice should have received the re-encrypted message"
+    );
+}
