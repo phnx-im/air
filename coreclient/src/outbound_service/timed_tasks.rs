@@ -23,7 +23,10 @@ use crate::{
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
     },
-    usernames::UsernameRecord,
+    usernames::{
+        SignedConnectionPackages, UsernameRecord, connection_packages::ConnectionPackageRecord,
+        generate_signed_connection_packages,
+    },
 };
 
 use super::{OutboundServiceContext, error::OutboundServiceError};
@@ -76,6 +79,7 @@ impl OperationData for TimedTask {
                 id.push(3);
                 id.extend(i32::from(operation_type).to_le_bytes());
             }
+            TimedTaskKind::SignedConnectionPackageUpload => id.push(5),
         }
         OperationId(id)
     }
@@ -92,6 +96,8 @@ pub(crate) enum TimedTaskKind {
         #[serde(with = "operation_type_serde")]
         operation_type: OperationType,
     },
+    /// Oneshot task to upload initial signed connection packages for all existing usernames.
+    SignedConnectionPackageUpload,
 }
 
 impl TimedTaskKind {
@@ -105,6 +111,7 @@ impl TimedTaskKind {
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
             },
+            TimedTaskKind::SignedConnectionPackageUpload => Duration::minutes(5),
         }
     }
 }
@@ -197,20 +204,23 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res =
-                Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context)).await;
-
-            let interval = match res {
-                Ok(interval) => interval,
-                Err(error) => {
+            let res = Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context))
+                .await
+                .inspect_err(|error| {
                     error!(%error, "Failed to execute timed task");
-                    task_kind.default_retry_interval()
-                }
-            };
+                })
+                .unwrap_or_else(|_| Some(task_kind.default_retry_interval()));
 
-            // Schedule next run
-            op.reschedule(self.db.write().await?, Utc::now() + interval)
-                .await?;
+            if let Some(interval) = res {
+                // Schedule next run
+                let schedule_at = Utc::now()
+                    .checked_add_signed(interval)
+                    .unwrap_or(DateTime::<Utc>::MAX_UTC);
+                op.reschedule(self.db.write().await?, schedule_at).await?;
+            } else {
+                // One-time tasks should not be rescheduled
+                op.park(self.db.write().await?).await?;
+            }
         }
     }
 
@@ -237,22 +247,26 @@ impl OutboundServiceContext {
         Ok(())
     }
 
-    /// On success, returns the next due time for the task.
+    /// On success, returns the next due time for the task or `None` if the task should not be
+    /// repeated.
     async fn handle_task(
         &self,
         run_token: &CancellationToken,
         task_kind: TimedTaskKind,
         context: &mut TimedTaskContext,
-    ) -> anyhow::Result<Duration> {
+    ) -> anyhow::Result<Option<Duration>> {
         debug!(?task_kind, "handling task");
 
         match task_kind {
-            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await,
-            TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
-            TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
-            TimedTaskKind::TokenReplenishment { operation_type } => {
-                self.replenish_tokens(operation_type, &mut context.loaded_credentials)
-                    .await
+            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await.map(Some),
+            TimedTaskKind::UsernameRefresh => self.refresh_usernames().await.map(Some),
+            TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
+            TimedTaskKind::TokenReplenishment { operation_type } => self
+                .replenish_tokens(operation_type, &mut context.loaded_credentials)
+                .await
+                .map(Some),
+            TimedTaskKind::SignedConnectionPackageUpload => {
+                self.upload_signed_connection_packages().await
             }
         }
     }
@@ -564,6 +578,46 @@ impl OutboundServiceContext {
                 Err(OutboundServiceError::fatal(error))
             }
         }
+    }
+
+    /// Upload newly generated signed connection packages for all existing username.
+    async fn upload_signed_connection_packages(&self) -> anyhow::Result<Option<Duration>> {
+        let usernames = UsernameRecord::load_all(self.db.read().await?).await?;
+        let api_client = self.api_clients.default_client()?;
+
+        for username in usernames {
+            let SignedConnectionPackages {
+                packages,
+                decryption_keys,
+            } = generate_signed_connection_packages(&username.signing_key, username.hash)?;
+
+            // Store decryption keys before publishing
+            self.db
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    for (decryption_key, metadata) in decryption_keys {
+                        ConnectionPackageRecord::from(metadata)
+                            .store_for_username(&mut *txn, &username.username, &decryption_key)
+                            .await?;
+                    }
+                    Ok(())
+                })
+                .await?;
+
+            info!(
+                username = username.username.truncated_plaintext(),
+                "Uploading signed connection packages",
+            );
+            api_client
+                .as_publish_connection_packages_for_username(
+                    username.hash,
+                    Vec::new(), // no legacy packages
+                    packages,
+                    &username.signing_key,
+                )
+                .await?;
+        }
+
+        Ok(None) // don't reschedule
     }
 }
 

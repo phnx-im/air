@@ -327,6 +327,16 @@ mod persistence {
             .await?;
             Ok(())
         }
+
+        pub(crate) async fn park(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+            query!(
+                "UPDATE operation SET scheduled_at = NULL WHERE operation_id = ?",
+                self.operation_id.0,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
     }
 
     impl Type<Sqlite> for OperationKind {

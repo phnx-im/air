@@ -273,24 +273,46 @@ fn generate_connection_packages(
     signing_key: &UsernameSigningKey,
     hash: UsernameHash,
 ) -> anyhow::Result<GeneratedConnectionPackages> {
-    let mut decryption_keys = Vec::with_capacity(CONNECTION_PACKAGES + 1);
-
+    // A single last resort legacy package is enough to keep old clients connecting until the legacy
+    // fetch is retired.
     let (key, package, metadata) = ConnectionPackage::generate(hash, signing_key, true)?;
-    decryption_keys.push((key, metadata));
     let legacy = vec![package];
 
-    let mut signed = Vec::with_capacity(CONNECTION_PACKAGES);
+    let SignedConnectionPackages {
+        packages: signed,
+        mut decryption_keys,
+    } = generate_signed_connection_packages(signing_key, hash)?;
+    decryption_keys.push((key, metadata));
+
+    Ok(GeneratedConnectionPackages {
+        legacy,
+        signed,
+        decryption_keys,
+    })
+}
+
+pub(crate) struct SignedConnectionPackages {
+    pub(crate) packages: Vec<SignedConnectionPackage>,
+    pub(crate) decryption_keys: Vec<(ConnectionDecryptionKey, ConnectionPackageMetadata)>,
+}
+
+/// Generates a full pool of signed connection packages, the last one being a
+/// last resort package.
+pub(crate) fn generate_signed_connection_packages(
+    signing_key: &UsernameSigningKey,
+    hash: UsernameHash,
+) -> anyhow::Result<SignedConnectionPackages> {
+    let mut packages = Vec::with_capacity(CONNECTION_PACKAGES);
+    let mut decryption_keys = Vec::with_capacity(CONNECTION_PACKAGES);
     for i in 0..CONNECTION_PACKAGES {
         let is_last_resort = i + 1 == CONNECTION_PACKAGES;
         let (key, package, metadata) =
             SignedConnectionPackage::generate(hash, signing_key, is_last_resort)?;
         decryption_keys.push((key, metadata));
-        signed.push(package);
+        packages.push(package);
     }
-
-    Ok(GeneratedConnectionPackages {
-        legacy,
-        signed,
+    Ok(SignedConnectionPackages {
+        packages,
         decryption_keys,
     })
 }

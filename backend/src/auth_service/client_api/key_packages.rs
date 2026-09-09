@@ -138,7 +138,6 @@ mod tests {
         .await?)
     }
 
-    /// Registers a handle so connection packages can be published for it.
     async fn register_handle(
         pool: &PgPool,
         hash: UsernameHash,
