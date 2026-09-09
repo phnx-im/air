@@ -163,15 +163,21 @@ regenerate-licenses:
 regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
-# TZ is pinned because goldens depict clock labels in the host's zone. The tests
-# don't load the Rust library, so skip the native assets hook, which would
-# otherwise build it.
-
 # Run flutter test.
+#
+# TZ is pinned because goldens depict clock labels in the host's zone. The
+# config file tells hook/build.dart to skip the Rust build, which the tests
+# don't need (see the comment there). It is reset when the tests finish. If a
+# hard kill leaves it behind, the next `flutter run` skips the Rust build too:
+# delete the file or rerun this recipe.
 [working-directory: 'app']
 [env('TZ', 'UTC')]
-[env('FLUTTER_NATIVE_ASSETS', 'false')]
+[script]
 test-flutter *args:
+    config=.dart_tool/air_hook_config.json
+    mkdir -p .dart_tool
+    trap 'echo "{\"skip_rust_build\": false}" > "$config"' EXIT INT TERM
+    echo '{"skip_rust_build": true}' > "$config"
     just flutter test {{ args }}
 
 skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
