@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
+use aircommon::identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash};
 use airprotos::{
     auth_service::v1::OperationType,
     client::{app_data::GroupAppData, group::GroupData},
 };
+use anyhow::bail;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -80,21 +81,21 @@ impl OperationData for TimedTask {
     fn generate_id(&self) -> OperationId {
         let mut id = Vec::new();
         id.extend_from_slice(b"timed_task");
-        match self.kind {
+        match &self.kind {
             TimedTaskKind::KeyPackageUpload => id.push(0),
             TimedTaskKind::UsernameRefresh => id.push(1),
             TimedTaskKind::SelfUpdate => id.push(2),
             TimedTaskKind::TokenReplenishment { operation_type } => {
                 id.push(3);
-                id.extend(i32::from(operation_type).to_le_bytes());
+                id.extend(i32::from(*operation_type).to_le_bytes());
             }
-            TimedTaskKind::SignedConnectionPackageUpload => id.push(5),
+            TimedTaskKind::SignedConnectionPackageUpload { .. } => id.push(5),
         }
         OperationId(id)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
     // reserved 4 = removed ApqKeyPackageUpload
@@ -106,7 +107,10 @@ pub(crate) enum TimedTaskKind {
         operation_type: OperationType,
     },
     /// Oneshot task to upload initial signed connection packages for all existing usernames.
-    SignedConnectionPackageUpload,
+    SignedConnectionPackageUpload {
+        /// Usernames still to be processed.
+        pending_usernames: Vec<UsernameHash>,
+    },
 }
 
 impl TimedTaskKind {
@@ -120,7 +124,7 @@ impl TimedTaskKind {
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
             },
-            TimedTaskKind::SignedConnectionPackageUpload => Duration::minutes(5),
+            TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
         }
     }
 }
@@ -149,7 +153,9 @@ mod operation_type_serde {
 
 #[cfg(feature = "test_utils")]
 mod test_utils {
+    use aircommon::codec::PersistenceCodec;
     use chrono::DateTime;
+    use sqlx::Row;
 
     use crate::outbound_service::OutboundService;
 
@@ -171,6 +177,53 @@ mod test_utils {
                 .enqueue(self.context.db.write().await?)
                 .await
         }
+
+        /// Overwrites the signed connection package upload task with the given pending usernames.
+        pub async fn schedule_signed_connection_package_upload(
+            &self,
+            pending_usernames: Vec<UsernameHash>,
+            due_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
+                .into_operation()
+                .schedule_at(due_at)
+                .enqueue(self.context.db.write().await?)
+                .await
+        }
+
+        pub async fn signed_connection_package_upload_state(
+            &self,
+        ) -> anyhow::Result<Option<SignedConnectionPackageUploadState>> {
+            let operation_id = TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+                pending_usernames: Vec::new(),
+            })
+            .generate_id();
+            let row =
+                sqlx::query("SELECT data, scheduled_at FROM operation WHERE operation_id = ?")
+                    .bind(operation_id.0)
+                    .fetch_optional(self.context.db.read().await?.as_mut())
+                    .await?;
+            let Some(row) = row else {
+                return Ok(None);
+            };
+            let data: Vec<u8> = row.get("data");
+            let scheduled_at: DateTime<Utc> = row.get("scheduled_at");
+            let task: TimedTask = PersistenceCodec::from_slice(&data)?;
+            let TimedTaskKind::SignedConnectionPackageUpload { pending_usernames } = task.kind
+            else {
+                anyhow::bail!("unexpected task kind: {:?}", task.kind);
+            };
+            Ok(Some(SignedConnectionPackageUploadState {
+                parked: scheduled_at >= PARKED_AT,
+                pending_usernames,
+            }))
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct SignedConnectionPackageUploadState {
+        pub parked: bool,
+        pub pending_usernames: Vec<UsernameHash>,
     }
 }
 
@@ -210,17 +263,15 @@ impl OutboundServiceContext {
             else {
                 return Ok(());
             };
-            let task_kind = op.data.kind;
-            debug!(?task_kind, "dequeued task");
+            debug!(kind = ?op.data.kind, "dequeued task");
 
-            let res =
-                Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context)).await;
+            let res = Box::pin(self.handle_task(run_token, &mut op, &mut timed_task_context)).await;
 
             let interval = match res {
                 Ok(interval) => interval,
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
-                    Some(task_kind.default_retry_interval())
+                    Some(op.data.kind.default_retry_interval())
                 }
             };
             // `None` marks a one-shot task which must not run again
@@ -251,7 +302,14 @@ impl OutboundServiceContext {
                 .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
-        TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload)
+        // Snapshot of the usernames existing at the time of the first enqueue. Usernames added
+        // later already publish signed connection packages on creation.
+        let pending_usernames = UsernameRecord::load_all(self.db.read().await?)
+            .await?
+            .into_iter()
+            .map(|record| record.hash)
+            .collect();
+        TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
             .await?;
@@ -263,21 +321,23 @@ impl OutboundServiceContext {
     async fn handle_task(
         &self,
         run_token: &CancellationToken,
-        task_kind: TimedTaskKind,
+        op: &mut Operation<TimedTask>,
         context: &mut TimedTaskContext,
     ) -> anyhow::Result<Option<Duration>> {
-        debug!(?task_kind, "handling task");
+        debug!(kind = ?op.data.kind, "handling task");
 
-        match task_kind {
+        match &op.data.kind {
             TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await.map(Some),
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await.map(Some),
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
             TimedTaskKind::TokenReplenishment { operation_type } => self
-                .replenish_tokens(operation_type, &mut context.loaded_credentials)
+                .replenish_tokens(*operation_type, &mut context.loaded_credentials)
                 .await
                 .map(Some),
-            TimedTaskKind::SignedConnectionPackageUpload => {
-                self.upload_signed_connection_packages().await?;
+            TimedTaskKind::SignedConnectionPackageUpload { pending_usernames } => {
+                let pending_usernames = pending_usernames.clone();
+                self.upload_signed_connection_packages(op, pending_usernames)
+                    .await?;
                 Ok(None)
             }
         }
@@ -592,43 +652,93 @@ impl OutboundServiceContext {
         }
     }
 
-    /// Upload newly generated signed connection packages for all existing usernames.
-    async fn upload_signed_connection_packages(&self) -> anyhow::Result<()> {
-        let usernames = UsernameRecord::load_all(self.db.read().await?).await?;
+    /// Upload newly generated signed connection packages for the pending usernames.
+    ///
+    /// Usernames are removed from the pending list as soon as they are done, and the progress is
+    /// persisted in `op`. Returns an error if any username is still pending afterwards.
+    async fn upload_signed_connection_packages(
+        &self,
+        op: &mut Operation<TimedTask>,
+        mut pending_usernames: Vec<UsernameHash>,
+    ) -> anyhow::Result<()> {
+        if pending_usernames.is_empty() {
+            return Ok(());
+        }
+
         let api_client = self.api_clients.default_client()?;
 
-        for username in usernames {
+        // Usernames removed locally in the meantime are done.
+        let records = UsernameRecord::load_all(self.db.read().await?).await?;
+        pending_usernames.retain(|hash| records.iter().any(|record| record.hash == *hash));
+        self.persist_pending_usernames(op, &pending_usernames)
+            .await?;
+
+        let mut failed = 0;
+        for record in records {
+            if !pending_usernames.contains(&record.hash) {
+                continue;
+            }
+
             let SignedConnectionPackages {
                 packages,
                 decryption_keys,
-            } = generate_signed_connection_packages(&username.signing_key, username.hash)?;
+            } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
 
             // Store decryption keys before publishing
             self.db
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     for (decryption_key, metadata) in decryption_keys {
                         ConnectionPackageRecord::from(metadata)
-                            .store_for_username(&mut *txn, &username.username, &decryption_key)
+                            .store_for_username(&mut *txn, &record.username, &decryption_key)
                             .await?;
                     }
                     Ok(())
                 })
                 .await?;
 
-            info!(
-                username = username.username.truncated_plaintext(),
-                "Uploading signed connection packages",
-            );
-            api_client
+            let username = record.username.truncated_plaintext();
+            info!(username, "Uploading signed connection packages");
+            match api_client
                 .as_publish_connection_packages_for_username(
-                    username.hash,
+                    record.hash,
                     Vec::new(), // no legacy packages
                     packages,
-                    &username.signing_key,
+                    &record.signing_key,
                 )
+                .await
+            {
+                Ok(()) => {}
+                // The username does not exist on the server anymore
+                Err(error) if error.is_not_found() => {
+                    warn!(username, %error, "Username not found; skipping upload");
+                }
+                Err(error) => {
+                    error!(username, %error, "Failed to upload signed connection packages");
+                    failed += 1;
+                    continue;
+                }
+            }
+
+            pending_usernames.retain(|hash| *hash != record.hash);
+            self.persist_pending_usernames(op, &pending_usernames)
                 .await?;
         }
 
+        if failed > 0 {
+            bail!("failed to upload signed connection packages for {failed} username(s)");
+        }
+        Ok(())
+    }
+
+    async fn persist_pending_usernames(
+        &self,
+        op: &mut Operation<TimedTask>,
+        pending_usernames: &[UsernameHash],
+    ) -> anyhow::Result<()> {
+        op.data.kind = TimedTaskKind::SignedConnectionPackageUpload {
+            pending_usernames: pending_usernames.to_vec(),
+        };
+        op.update_data(self.db.write().await?).await?;
         Ok(())
     }
 }
@@ -676,4 +786,22 @@ fn legacy_group_data_migration(
         _ => None,
     };
     Some(ChatAttributes::new(title, legacy_picture))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn signed_connection_package_upload_id_ignores_pending_usernames() {
+        let empty = TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+            pending_usernames: Vec::new(),
+        })
+        .generate_id();
+        let pending = TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+            pending_usernames: vec![UsernameHash::new([1; 32]), UsernameHash::new([2; 32])],
+        })
+        .generate_id();
+        assert_eq!(empty, pending);
+    }
 }

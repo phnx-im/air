@@ -5,14 +5,14 @@
 use std::time::Duration;
 
 use airapiclient::ApiClient;
-use aircommon::time::TimeStamp;
+use aircommon::{identifiers::UsernameHash, time::TimeStamp};
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
 use airprotos::client::{
     component::AirFeatures,
     signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
 };
 use airserver_test_harness::utils::setup::TestBackend;
-use chrono::{DateTime, TimeZone};
+use chrono::{DateTime, TimeZone, Utc};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
@@ -47,6 +47,137 @@ async fn connect_users_via_user_handle_uses_signed_package() {
     assert!(package.air_features().pq_groups);
 
     setup.connect_users(&alice, &bob).await;
+}
+
+/// Fetches and verifies one connection package for the username.
+async fn fetch_connection_package(
+    client: &ApiClient,
+    hash: UsernameHash,
+) -> anyhow::Result<AnyConnectionPackage> {
+    let (package, _responder) = client.as_connect_username(hash).await?;
+    Ok(package.verify(&hash)?)
+}
+
+/// Consumes connection packages until the server hands out the last resort one.
+async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> anyhow::Result<()> {
+    for _ in 0..100 {
+        if fetch_connection_package(client, hash)
+            .await?
+            .is_last_resort()
+        {
+            return Ok(());
+        }
+    }
+    anyhow::bail!("connection packages not drained after 100 fetches");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Signed connection package upload task", skip_all)]
+async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let record = setup.get_user_mut(&bob).add_username().await?;
+    let user = setup.get_user(&bob).user();
+    let client = ApiClient::with_endpoint(&setup.server_url())?;
+
+    // Use up the packages published on creation, so that new ones are observable.
+    drain_connection_packages(&client, record.hash).await?;
+    assert!(
+        fetch_connection_package(&client, record.hash)
+            .await?
+            .is_last_resort()
+    );
+
+    // Run the one-shot task as if the username predated signed connection packages.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked, "task should be parked after success");
+    assert!(state.pending_usernames.is_empty());
+
+    let package = fetch_connection_package(&client, record.hash).await?;
+    assert!(matches!(package, AnyConnectionPackage::Signed(_)));
+    assert!(
+        !package.is_last_resort(),
+        "the task should have published fresh packages"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Signed connection package upload task retry", skip_all)]
+async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let record = setup.get_user_mut(&bob).add_username().await?;
+    let user = setup.get_user(&bob).user();
+
+    // The upload fails with a network error.
+    setup.listener_control_handle().set_drop_all();
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_normal();
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(!state.parked, "failed task must be retried");
+    assert_eq!(state.pending_usernames, vec![record.hash]);
+
+    // The retry succeeds.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(state.pending_usernames, Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked);
+    assert!(state.pending_usernames.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Signed connection package upload task unknown username",
+    skip_all
+)]
+async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let user = setup.get_user(&bob).user();
+
+    // A username which does not exist locally is treated as done.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![UsernameHash::new([7; 32])], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked);
+    assert!(state.pending_usernames.is_empty());
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

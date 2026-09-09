@@ -18,6 +18,10 @@ impl StorableSignedConnectionPackage {
         hash: &UsernameHash,
         packages: Vec<VerifiedSignedConnectionPackage>,
     ) -> sqlx::Result<()> {
+        if packages.is_empty() {
+            return Ok(());
+        }
+
         let mut payloads = Vec::with_capacity(packages.len());
         let mut signatures = Vec::with_capacity(packages.len());
         let mut is_last_resorts = Vec::with_capacity(packages.len());

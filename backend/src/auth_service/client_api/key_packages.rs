@@ -187,6 +187,31 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn publish_stores_signed_packages_only(pool: PgPool) -> anyhow::Result<()> {
+        let service = init_service(&pool).await?;
+        let hash = UsernameHash::new([1; 32]);
+        let signing_key = UsernameSigningKey::generate()?;
+        register_handle(&pool, hash, &signing_key).await?;
+
+        let (_, signed_package, _) = SignedConnectionPackage::generate(hash, &signing_key, false)?;
+        let signed_in = SignedConnectionPackageIn::try_from(signed_package)?;
+
+        service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                Vec::new(),
+                vec![signed_in],
+            )
+            .await?;
+
+        let loaded = StorableSignedConnectionPackage::load_for_username(&pool, &hash).await?;
+        assert!(loaded.is_some());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn publish_rejects_signed_package_for_other_handle(pool: PgPool) -> anyhow::Result<()> {
         let service = init_service(&pool).await?;
         let hash_a = UsernameHash::new([1; 32]);

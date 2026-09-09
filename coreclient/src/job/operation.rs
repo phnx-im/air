@@ -305,6 +305,25 @@ mod persistence {
             Ok(())
         }
 
+        /// Persist the current operation data
+        pub(crate) async fn update_data(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()>
+        where
+            T: OperationData + Serialize,
+        {
+            let data = BlobEncoded(&self.data);
+            query!(
+                "UPDATE operation SET data = ? WHERE operation_id = ?",
+                data,
+                self.operation_id.0,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
         /// Increase the number of retries and set the retry due at
         pub(crate) async fn reschedule(
             &mut self,
@@ -410,6 +429,30 @@ mod tests {
             .await
             .unwrap();
         assert!(op.is_none(), "Worker B should not see the locked task");
+    }
+
+    #[sqlx::test]
+    async fn test_update_data(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
+        let mut op = Operation::new(MockData {
+            payload: "before".to_string(),
+        });
+        op.enqueue(&mut txn).await.unwrap();
+
+        op.data.payload = "after".to_string();
+        op.update_data(&mut txn).await.unwrap();
+
+        let loaded = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .expect("operation should be due");
+        assert_eq!(loaded.operation_id, op.operation_id);
+        assert_eq!(loaded.data.payload, "after");
+        assert_eq!(loaded.scheduled_at, op.scheduled_at);
+        assert_eq!(loaded.retries, 0);
     }
 
     #[sqlx::test]
