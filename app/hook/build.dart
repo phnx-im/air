@@ -2,10 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:convert';
+import 'dart:io';
+
 // ignore: depend_on_referenced_packages
 import 'package:code_assets/code_assets.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
+
+// Written by `just test-flutter` to skip rust build.
+// See <https://github.com/dart-lang/native/issues/3237>
+const _hookConfigPath = '.dart_tool/air_hook_config.json';
+
+bool _skipRustBuild(BuildInput input, BuildOutputBuilder output) {
+  final file = File.fromUri(input.packageRoot.resolve(_hookConfigPath));
+  if (!file.existsSync()) {
+    return false;
+  }
+  output.dependencies.add(file.uri);
+  final config = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+  return config['skip_rust_build'] == true;
+}
 
 // The native-assets hook protocol does not carry the Flutter build mode
 // (debug/profile/release). However, the flutter tool enables link hooks only
@@ -18,6 +35,9 @@ FlutterRustBridgeBuildMode _rustBuildMode({required bool linkingEnabled}) =>
 
 void main(List<String> args) async {
   await build(args, (input, output) async {
+    if (_skipRustBuild(input, output)) {
+      return;
+    }
     await FlutterRustBridgeNativeAssetsBuilder(
       buildMode: _rustBuildMode(linkingEnabled: input.config.linkingEnabled),
       cratePath: '../applogic',
