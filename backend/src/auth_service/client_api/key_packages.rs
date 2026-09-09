@@ -13,10 +13,14 @@ use airprotos::client::signed_connection_package::{
 };
 use thiserror::Error;
 use tonic::Status;
+use tracing::error;
 
-use crate::auth_service::{
-    AuthService,
-    connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
+use crate::{
+    auth_service::{
+        AuthService,
+        connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
+    },
+    errors::StorageError,
 };
 
 impl AuthService {
@@ -56,21 +60,20 @@ impl AuthService {
             })
             .collect::<Result<Vec<VerifiedSignedConnectionPackage>, _>>()?;
 
+        let mut txn = self.db_pool.begin().await?;
         StorableConnectionPackage::store_multiple_for_username(
-            &self.db_pool,
+            txn.as_mut(),
             &connection_packages,
             hash,
         )
-        .await
-        .map_err(|_| PublishConnectionPackageError::StorageError)?;
-
+        .await?;
         StorableSignedConnectionPackage::store_multiple_for_username(
-            &self.db_pool,
+            txn.as_mut(),
             hash,
             signed_connection_packages,
         )
-        .await
-        .map_err(|_| PublishConnectionPackageError::StorageError)?;
+        .await?;
+        txn.commit().await?;
 
         Ok(())
     }
@@ -90,6 +93,20 @@ pub(crate) enum PublishConnectionPackageError {
     /// The verifying key does not match the one in the connection package
     #[error("Verifying key mismatch")]
     VerifyingKeyMismatch,
+}
+
+impl From<StorageError> for PublishConnectionPackageError {
+    fn from(error: StorageError) -> Self {
+        error!(%error, "failed to store connection package");
+        PublishConnectionPackageError::StorageError
+    }
+}
+
+impl From<sqlx::Error> for PublishConnectionPackageError {
+    fn from(error: sqlx::Error) -> Self {
+        error!(%error, "failed to store connection package");
+        PublishConnectionPackageError::StorageError
+    }
 }
 
 impl From<PublishConnectionPackageError> for Status {
