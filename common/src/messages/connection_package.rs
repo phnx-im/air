@@ -57,6 +57,13 @@ impl VersionedConnectionPackage {
             VersionedConnectionPackage::V2(cp_v2) => cp_v2,
         }
     }
+
+    pub fn username_hash(&self) -> &UsernameHash {
+        match self {
+            VersionedConnectionPackage::V1(cp) => cp.username_hash(),
+            VersionedConnectionPackage::V2(cp) => &cp.payload.user_handle_hash,
+        }
+    }
 }
 
 /// See [`VersionedConnectionPackage`].
@@ -213,6 +220,15 @@ pub struct ConnectionPackage {
     signature: UsernameSignature,
 }
 
+/// The facts about a connection package that its owner needs to keep outside the (possible sealed)
+/// package representation.
+#[derive(Debug)]
+pub struct ConnectionPackageMetadata {
+    pub hash: ConnectionPackageHash,
+    pub lifetime: ExpirationData,
+    pub is_last_resort: bool,
+}
+
 #[derive(Debug, Error)]
 pub enum ConnectionPackageError {
     #[error(transparent)]
@@ -222,22 +238,31 @@ pub enum ConnectionPackageError {
 }
 
 impl ConnectionPackage {
-    pub fn new(
+    pub fn generate(
         user_handle_hash: UsernameHash,
         signing_key: &UsernameSigningKey,
         is_last_resort: bool,
-    ) -> Result<(ConnectionDecryptionKey, Self), ConnectionPackageError> {
+    ) -> Result<(ConnectionDecryptionKey, Self, ConnectionPackageMetadata), ConnectionPackageError>
+    {
         let decryption_key = ConnectionDecryptionKey::generate()?;
+        let lifetime = ExpirationData::new(CONNECTION_PACKAGE_EXPIRATION);
         let payload = ConnectionPackagePayload {
             protocol_version: AirProtocolVersion::default(),
             user_handle_hash,
             encryption_key: decryption_key.encryption_key().clone(),
-            lifetime: ExpirationData::new(CONNECTION_PACKAGE_EXPIRATION),
+            lifetime: lifetime.clone(),
             verifying_key: signing_key.verifying_key().clone(),
             is_last_resort: TlsBool(is_last_resort),
         };
         let connection_package = payload.sign(signing_key)?;
-        Ok((decryption_key, connection_package))
+
+        let metadata = ConnectionPackageMetadata {
+            hash: connection_package.hash(),
+            lifetime,
+            is_last_resort,
+        };
+
+        Ok((decryption_key, connection_package, metadata))
     }
 
     pub fn from_parts(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {

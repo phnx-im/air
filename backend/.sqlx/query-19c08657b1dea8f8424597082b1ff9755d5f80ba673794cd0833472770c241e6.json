@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO username_signed_connection_package\n                (hash, payload, signature, is_last_resort, expires_at)\n            SELECT $1::bytea, payload, signature, is_last_resort, expires_at\n            FROM UNNEST($2::bytea[], $3::bytea[], $4::boolean[], $5::timestamptz[])\n            AS t(payload, signature, is_last_resort, expires_at)\n            ON CONFLICT (hash, payload) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "ByteaArray",
+        "ByteaArray",
+        "BoolArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19c08657b1dea8f8424597082b1ff9755d5f80ba673794cd0833472770c241e6"
+}
