@@ -40,6 +40,7 @@ import 'package:air/platform/method_channel.dart'
     show ClipboardImage, getClipboardFilePaths, getClipboardImage;
 
 import 'package:air/features/message_list/message_renderer.dart';
+import 'package:uuid/uuid.dart';
 
 final _log = Logger("MessageComposer");
 
@@ -574,7 +575,7 @@ class _MessageComposerState extends State<MessageComposer>
 
     final ext = image.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/clipboard_paste.$ext');
+    final tempFile = File('${tempDir.path}/${const Uuid().v4()}.$ext');
     await tempFile.writeAsBytes(image.bytes);
     final file = XFile(tempFile.path, mimeType: image.mimeType);
 
@@ -596,7 +597,7 @@ class _MessageComposerState extends State<MessageComposer>
 
     final ext = content.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/keyboard_insert.$ext');
+    final tempFile = File('${tempDir.path}/${const Uuid().v4()}.$ext');
     await tempFile.writeAsBytes(data);
     final file = XFile(tempFile.path, mimeType: content.mimeType);
 
