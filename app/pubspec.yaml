@@ -74,16 +74,8 @@ dev_dependencies:
   crypto: ^3.0.6
   yaml: ^3.1.2
   build_runner: ^2.10.3
-  device_frame: ^1.4.0
+  device_preview: ^3.0.0
 
-dependency_overrides:
-  device_frame:
-    path: ../../flutter_device_preview/device_frame
-
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter.
 flutter:
   # Build the test version by default, prevents accidental overwrite of the Play Store version on Android.
   default-flavor: staging

@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'android_status_bar.dart';
 import 'ios_status_bar.dart';
 import 'product_shot_frame.dart';
@@ -21,19 +23,17 @@ class ProductShot extends StatelessWidget {
     required this.subtitle,
     required this.child,
     required this.frameColor,
-    required this.device,
+    this.device,
     this.brightness = Brightness.light,
   });
 
-  /// The marketing canvas size, distinct from [ProductShotDevice.screenSize]
-  /// (the device frame drawn inside it, scaled to fit).
   final Size size;
   final Color backgroundColor;
   final Color titleColor;
   final Color subtitleColor;
   final String title;
   final String subtitle;
-  final ProductShotDevice device;
+  final ProductShotDevice? device;
   final Color frameColor;
   final Widget child;
 
@@ -43,7 +43,8 @@ class ProductShot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dev = device;
+    final platform = device?.platform ?? _defaultPlatform();
+    final dev = device ?? ProductShotDevices.forPlatform(platform);
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
     final statusBar = _statusBarFor(dev.platform, statusBarHeight, brightness);
@@ -68,21 +69,19 @@ class ProductShot extends StatelessWidget {
             final outerPadding = EdgeInsets.all(
               isLandscape ? size.height * 0.05 : size.width * 0.1,
             );
-            // Fractions are budgeted against the space left after padding,
-            // not the raw canvas, so header + frame always fit regardless of
-            // the canvas aspect ratio.
-            final availableWidth = size.width - outerPadding.horizontal;
-            final availableHeight = size.height - outerPadding.vertical;
-
             final frameHeightFraction = isLandscape ? 0.62 : 0.7;
-            final frameHeight = availableHeight * frameHeightFraction;
+            final frameHeight = size.height * frameHeightFraction;
+            final scaleY = frameHeight / dev.screenSize.height;
 
             const frameWidthFraction = 0.9;
-            final frameWidth = availableWidth * frameWidthFraction;
+            final frameWidth = size.width * frameWidthFraction;
+            final scaleX = frameWidth / dev.screenSize.width;
+
+            final scaleFactor = math.min(scaleX, scaleY);
 
             final headerHeight = isLandscape
-                ? availableHeight * 0.24
-                : availableHeight * (1 - frameHeightFraction - 0.1);
+                ? size.height * 0.24
+                : size.height * (1 - frameHeightFraction - 0.1);
             // Font sizes derive from the canvas width, which is far too large
             // on a landscape canvas, so reference the height there instead.
             final fontReference = isLandscape ? size.height : size.width;
@@ -121,23 +120,19 @@ class ProductShot extends StatelessWidget {
                   ),
                   Align(
                     alignment: Alignment.topCenter,
-                    child: SizedBox(
-                      width: frameWidth,
-                      height: frameHeight,
-                      child: FittedBox(
-                        fit: .contain,
-                        alignment: Alignment.topCenter,
-                        child: ProductShotFrame(
-                          statusBar: statusBar,
-                          statusBarHeight: statusBarHeight,
-                          screenSize: dev.screenSize,
-                          devicePixelRatio: dev.pixelRatio,
-                          safeArea: resolvedSafeArea,
-                          borderWidth: frameStyle.borderWidth,
-                          cornerRadius: frameStyle.cornerRadius,
-                          frameColor: frameStyle.frameColor,
-                          child: child,
-                        ),
+                    child: Transform.scale(
+                      scale: scaleFactor,
+                      alignment: Alignment.topCenter,
+                      child: ProductShotFrame(
+                        statusBar: statusBar,
+                        statusBarHeight: statusBarHeight,
+                        screenSize: dev.screenSize,
+                        devicePixelRatio: dev.pixelRatio,
+                        safeArea: resolvedSafeArea,
+                        borderWidth: frameStyle.borderWidth,
+                        cornerRadius: frameStyle.cornerRadius,
+                        frameColor: frameStyle.frameColor,
+                        child: child,
                       ),
                     ),
                   ),
@@ -209,9 +204,15 @@ class _ShotSubtitle extends StatelessWidget {
   }
 }
 
-_FrameStyle _frameStyleFor(TargetPlatform platform, Color frameColor) {
+ProductShotPlatform _defaultPlatform() {
+  return Platform.isAndroid
+      ? ProductShotPlatform.android
+      : ProductShotPlatform.ios;
+}
+
+_FrameStyle _frameStyleFor(ProductShotPlatform platform, Color frameColor) {
   switch (platform) {
-    case TargetPlatform.android:
+    case ProductShotPlatform.android:
       return _FrameStyle(
         borderWidth: 20,
         cornerRadius: 48,
@@ -219,7 +220,7 @@ _FrameStyle _frameStyleFor(TargetPlatform platform, Color frameColor) {
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
-    case TargetPlatform.iOS:
+    case ProductShotPlatform.ios:
       return _FrameStyle(
         borderWidth: 18,
         cornerRadius: 64,
@@ -227,7 +228,7 @@ _FrameStyle _frameStyleFor(TargetPlatform platform, Color frameColor) {
         frameHeightFraction: 0.94,
         verticalOffsetFraction: 0.12,
       );
-    case TargetPlatform.macOS:
+    case ProductShotPlatform.macos:
       return _FrameStyle(
         borderWidth: 28,
         cornerRadius: 48,
@@ -235,15 +236,13 @@ _FrameStyle _frameStyleFor(TargetPlatform platform, Color frameColor) {
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
-    case TargetPlatform.windows:
-    case TargetPlatform.linux:
+    case ProductShotPlatform.windows:
+    case ProductShotPlatform.linux:
       return _FrameStyle(
         frameColor: frameColor,
         frameHeightFraction: 0.82,
         verticalOffsetFraction: 0.12,
       );
-    default:
-      throw "Unsupported platform";
   }
 }
 
@@ -256,42 +255,38 @@ double _statusBarHeightFor(ProductShotDevice device) {
   }
 
   switch (device.platform) {
-    case TargetPlatform.android:
+    case ProductShotPlatform.android:
       return 40.0;
-    case TargetPlatform.iOS:
+    case ProductShotPlatform.ios:
       return 44.0;
-    case TargetPlatform.macOS:
-    case TargetPlatform.windows:
-    case TargetPlatform.linux:
+    case ProductShotPlatform.macos:
+    case ProductShotPlatform.windows:
+    case ProductShotPlatform.linux:
       return 0.0;
-    default:
-      throw "Unsupported platform";
   }
 }
 
 Widget _statusBarFor(
-  TargetPlatform platform,
+  ProductShotPlatform platform,
   double statusBarHeight,
   Brightness brightness,
 ) {
   final isLightMode = brightness == Brightness.light;
   switch (platform) {
-    case TargetPlatform.android:
+    case ProductShotPlatform.android:
       return AndroidStatusBar(
         height: statusBarHeight,
         isLightMode: isLightMode,
       );
-    case TargetPlatform.iOS:
+    case ProductShotPlatform.ios:
       return IosStatusBar(
         height: statusBarHeight,
         color: isLightMode ? Colors.black : Colors.white,
       );
-    case TargetPlatform.macOS:
-    case TargetPlatform.windows:
-    case TargetPlatform.linux:
+    case ProductShotPlatform.macos:
+    case ProductShotPlatform.windows:
+    case ProductShotPlatform.linux:
       return const SizedBox.shrink();
-    default:
-      throw "Unsupported platform";
   }
 }
 

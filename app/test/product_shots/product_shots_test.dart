@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/chats_repository.dart' as chats_repository;
@@ -17,7 +18,6 @@ import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:device_frame/device_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +32,7 @@ import '../mocks.dart';
 import 'content.dart';
 import 'product_shot.dart';
 import 'product_shot_device.dart';
+import 'device_shot.dart';
 
 /// Override with `--dart-define=GOLDENS_DIR=path/to/dir`.
 const _goldensDir = String.fromEnvironment(
@@ -44,6 +45,21 @@ const _renderAllPlatforms = bool.fromEnvironment(
   'FORCE_RENDER_ALL_PLATFORMS',
   defaultValue: false,
 );
+
+/// Which shot to record: `marketing` (the store canvas -- headline, subtitle
+/// and the device framed on a coloured background) or `device` (the framed
+/// device alone, on a transparent background).
+///
+/// The two go to different places, so a run records one or the other, never
+/// both. This repo records the marketing shots; the device shots are recorded
+/// into the private campaign directories, which pass
+/// `--dart-define=SHOT_VARIANT=device`.
+const _shotVariant = String.fromEnvironment(
+  'SHOT_VARIANT',
+  defaultValue: 'marketing',
+);
+
+const _marketingShots = _shotVariant == 'marketing';
 
 String _golden(String name) => '$_goldensDir/$name';
 
@@ -59,11 +75,6 @@ const _productShotsMatrix = [
   ProductShotInfo(
     hostPlatform: 'linux',
     targetPlatform: TargetPlatform.android,
-  ),
-  ProductShotInfo(hostPlatform: 'linux', targetPlatform: TargetPlatform.linux),
-  ProductShotInfo(
-    hostPlatform: 'windows',
-    targetPlatform: TargetPlatform.windows,
   ),
 ];
 
@@ -85,6 +96,28 @@ Size _canvasSizeFor(TargetPlatform platform) {
       throw "Unsupported platform";
   }
 }
+
+/// The golden filename slug for a depicted platform, matching the names the
+/// store listings already reference.
+String _platformSlug(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.android => 'android',
+  TargetPlatform.iOS => 'ios',
+  TargetPlatform.macOS => 'macos',
+  TargetPlatform.windows => 'windows',
+  TargetPlatform.linux => 'linux',
+  _ => throw "Unsupported platform",
+};
+
+/// The hand-declared device the tinted marketing bezel is drawn around.
+ProductShotDevice _marketingDeviceFor(TargetPlatform platform) =>
+    ProductShotDevices.forPlatform(switch (platform) {
+      TargetPlatform.android => ProductShotPlatform.android,
+      TargetPlatform.iOS => ProductShotPlatform.ios,
+      TargetPlatform.macOS => ProductShotPlatform.macos,
+      TargetPlatform.windows => ProductShotPlatform.windows,
+      TargetPlatform.linux => ProductShotPlatform.linux,
+      _ => throw "Unsupported platform",
+    });
 
 bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   TargetPlatform.macOS ||
@@ -112,8 +145,8 @@ class ProductShotInfo {
 
 /// Providers + app scaffolding shared by every product shot subject.
 ///
-/// [shot] is a [ProductShot] for the marketing variant or a [DeviceFrame] for
-/// the [frameless] one, which also centers it on a transparent background
+/// [shot] is a [ProductShot] for the marketing variant or a [DeviceShotFrame]
+/// for the device one, which also centers it on a transparent background
 /// instead of stretching it under the marketing canvas.
 Widget _buildProductShotSubject({
   required List<SingleChildWidget> providers,
@@ -145,6 +178,9 @@ Widget _buildProductShotSubject({
 );
 
 /// The marketing chrome colors for one brightness variant of a product shot.
+///
+/// [frameColor] tints the bezel the marketing shot draws around the app. The
+/// device shots have no use for it: their bodies are real device artwork.
 class _ShotPalette {
   const _ShotPalette({
     required this.backgroundColor,
@@ -153,10 +189,10 @@ class _ShotPalette {
     required this.frameColor,
   });
 
+  final Color frameColor;
   final Color backgroundColor;
   final Color titleColor;
   final Color subtitleColor;
-  final Color frameColor;
 }
 
 /// Everything one product shot subject (chat list, a private chat, a group
@@ -190,97 +226,71 @@ class _ProductShotSpec {
       brightness == Brightness.dark ? darkPalette : lightPalette;
 }
 
-/// Registers the marketing and frameless golden tests for [spec] across
-/// [_productShotsMatrix].
+/// Registers the golden tests for [spec] across [_productShotsMatrix], in
+/// light and dark, for whichever shot [_shotVariant] selects.
 void _testProductShots(String groupName, _ProductShotSpec spec) {
   group(groupName, () {
     for (final productShotInfo in _productShotsMatrix) {
-      final identifier = productShotInfo.targetPlatform.device().identifier;
+      final platform = productShotInfo.targetPlatform;
 
       for (final brightness in Brightness.values) {
-        final device = productShotInfo.targetPlatform.device(
-          brightness: brightness,
-        );
-        final deviceInfo = device.deviceInfo;
         final palette = spec.paletteFor(brightness);
         final isDark = brightness == Brightness.dark;
         final variantSuffix = isDark ? ', dark' : '';
         final goldenSuffix = isDark ? '.dark' : '';
 
+        final marketingDevice = _marketingDeviceFor(platform);
+        final deviceShotDevice = platform.deviceShot(brightness: brightness);
+        final identifier = _marketingShots
+            ? _platformSlug(platform)
+            : deviceShotDevice.identifier;
+        final name = _marketingShots
+            ? marketingDevice.name
+            : deviceShotDevice.name;
+
         testProductShot(
-          "$groupName (${deviceInfo.name}$variantSuffix)",
+          "$groupName ($name$variantSuffix)",
           productShotInfo: productShotInfo,
-          deviceInfo: deviceInfo,
-          physicalSizeOverride: _canvasSizeFor(productShotInfo.targetPlatform),
+          // The marketing canvas is a store-mandated pixel size. A device
+          // shot has no such size, so it takes the device's artwork scaled by
+          // its own pixel ratio, landing near a real screenshot's resolution.
+          logicalSize: _marketingShots
+              ? _canvasSizeFor(platform)
+              : deviceShotDevice.frameBounds.size * deviceShotDevice.exportScale,
           (tester) async {
+            final screen = spec.buildScreen(platform);
             await tester.pumpWidget(
               _buildProductShotSubject(
-                providers: spec.buildProviders(productShotInfo.targetPlatform),
+                providers: spec.buildProviders(platform),
                 brightness: brightness,
-                shot: ProductShot(
-                  size: _canvasSizeFor(productShotInfo.targetPlatform),
-                  backgroundColor: palette.backgroundColor,
-                  titleColor: palette.titleColor,
-                  subtitleColor: palette.subtitleColor,
-                  title: spec.title,
-                  subtitle: spec.subtitle,
-                  frameColor: palette.frameColor,
-                  brightness: brightness,
-                  device: device,
-                  child: spec.buildScreen(productShotInfo.targetPlatform),
-                ),
+                frameless: !_marketingShots,
+                shot: _marketingShots
+                    ? ProductShot(
+                        size: _canvasSizeFor(platform),
+                        backgroundColor: palette.backgroundColor,
+                        titleColor: palette.titleColor,
+                        subtitleColor: palette.subtitleColor,
+                        frameColor: palette.frameColor,
+                        title: spec.title,
+                        subtitle: spec.subtitle,
+                        brightness: brightness,
+                        device: marketingDevice,
+                        child: screen,
+                      )
+                    : DeviceShotFrame(
+                        device: deviceShotDevice,
+                        scale: deviceShotDevice.exportScale,
+                        child: screen,
+                      ),
               ),
             );
             await _precacheImages(tester);
             await tester.pumpAndSettle();
 
             await expectLater(
-              find.byType(ProductShot),
-              // Do not change the ios/android light file names, as they are
-              // referenced in stores/ios/en-US/screenshots and
-              // stores/android/metadata/en-US/images/phone-screenshots
+              find.byType(_marketingShots ? ProductShot : DeviceShotFrame),
               matchesGoldenFile(
                 _golden("${spec.goldenPrefix}.$identifier$goldenSuffix.png"),
-              ),
-            );
-          },
-        );
-      }
-
-      // Build the product shot without marketing chrome
-      for (final brightness in Brightness.values) {
-        final deviceInfo = productShotInfo.targetPlatform
-            .device(brightness: brightness)
-            .deviceInfo;
-        final isDark = brightness == Brightness.dark;
-        final variantSuffix = isDark ? ', dark' : '';
-        final goldenSuffix = isDark ? '.dark' : '';
-
-        testProductShot(
-          "$groupName (${deviceInfo.name}, frameless$variantSuffix)",
-          productShotInfo: productShotInfo,
-          deviceInfo: deviceInfo,
-          (tester) async {
-            await tester.pumpWidget(
-              _buildProductShotSubject(
-                providers: spec.buildProviders(productShotInfo.targetPlatform),
-                frameless: true,
-                brightness: brightness,
-                shot: DeviceFrame(
-                  device: deviceInfo,
-                  screen: spec.buildScreen(productShotInfo.targetPlatform),
-                ),
-              ),
-            );
-            await _precacheImages(tester);
-            await tester.pumpAndSettle();
-
-            await expectLater(
-              find.byType(DeviceFrame),
-              matchesGoldenFile(
-                _golden(
-                  "${spec.goldenPrefix}.$identifier$goldenSuffix.frameless.png",
-                ),
               ),
             );
           },
@@ -517,6 +527,13 @@ void main() {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
     registerFallbackValue(0.attachmentId());
+
+    final base = goldenFileComparator as LocalFileComparatorWithThreshold;
+    goldenFileComparator = LocalFileComparatorWithThreshold(
+      Uri.parse('${base.basedir}test.dart'),
+      base.threshold,
+      platformSuffix: false,
+    );
   });
 
   _testProductShots('Chat List', _chatListSpec());
@@ -554,15 +571,18 @@ void testProductShot(
   String description,
   WidgetTesterCallback callback, {
   required ProductShotInfo productShotInfo,
-  required DeviceInfo deviceInfo,
-  Size? physicalSizeOverride,
+  required Size logicalSize,
 }) async {
   testWidgets(
     description,
     (tester) async {
       debugDisableShadows = false;
 
-      tester.view.physicalSize = physicalSizeOverride ?? deviceInfo.frameSize;
+      // A golden is captured at one image pixel per logical pixel, so the
+      // view renders 1:1 and [logicalSize] is the output size. The metrics the
+      // app itself sees are the depicted device's, applied by the frame
+      // through a nested MediaQuery.
+      tester.view.physicalSize = logicalSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();

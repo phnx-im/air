@@ -127,11 +127,19 @@ UuidValue _intToUuidValue(int value) {
 }
 
 class LocalFileComparatorWithThreshold extends LocalFileComparator {
-  LocalFileComparatorWithThreshold(super.testFile, this.threshold);
+  LocalFileComparatorWithThreshold(
+    super.testFile,
+    this.threshold, {
+    this.platformSuffix = true,
+  });
 
   final double threshold;
 
+  /// Whether the depicted platform is appended to the golden's name.
+  final bool platformSuffix;
+
   String _platformSuffix() {
+    if (!platformSuffix) return '';
     switch (debugDefaultTargetPlatformOverride) {
       // when not overridden, the target platform is the current one.
       case null:

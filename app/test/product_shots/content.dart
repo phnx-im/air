@@ -285,7 +285,7 @@ class _Content {
         ),
       ),
     ),
-    status: UiMessageStatus.sent,
+    status: UiMessageStatus.delivered,
     reactions: [],
   );
 
