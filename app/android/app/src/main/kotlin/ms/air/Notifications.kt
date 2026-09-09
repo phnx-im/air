@@ -28,6 +28,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
+import androidx.core.app.RemoteInput
 import androidx.core.content.LocusIdCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -63,6 +64,11 @@ data class ChatId(
     val uuid: String
 )
 
+@Serializable
+data class MessageId(
+    val uuid: String
+)
+
 // Structured payload for Android `MessagingStyle` conversation notifications
 @Serializable
 data class ConversationNotification(
@@ -77,6 +83,7 @@ data class ConversationNotification(
     // Echoed back on dismissal to advance the notification watermark. Opaque
     // to the Kotlin side.
     val newestTimestamp: String,
+    val newestMessageId: MessageId? = null,
     // Base64 (standard alphabet, padded) on the JNI JSON path
     val chatAvatar: String? = null
 )
@@ -121,6 +128,22 @@ data class IncomingDismissalContent(
     val newestTimestamp: String
 )
 
+@Serializable
+data class IncomingMarkAsReadContent(
+    val path: String,
+    val logFilePath: String,
+    val chatId: String,
+    val messageId: String
+)
+
+@Serializable
+data class IncomingReplyContent(
+    val path: String,
+    val logFilePath: String,
+    val chatId: String,
+    val text: String
+)
+
 data class NotificationHandle(
     val notificationId: String,
     val chatId: String?
@@ -142,6 +165,18 @@ class NativeLib {
         // Returns an empty string on success; throws on failure.
         @JvmStatic
         external fun notification_dismissed(content: String): String
+
+        // Declare the native method
+        //
+        // Returns an empty string on success; throws on failure.
+        @JvmStatic
+        external fun mark_as_read(content: String): String
+
+        // Declare the native method
+        //
+        // Returns an empty string on success; throws on failure.
+        @JvmStatic
+        external fun reply(content: String): String
     }
 
     // Wrapper to process new messages. Handles JSON
@@ -177,6 +212,18 @@ class NativeLib {
         val jsonInput = Json.encodeToString(IncomingDismissalContent.serializer(), input)
         notification_dismissed(jsonInput)
     }
+
+    // Throws on failure, so that the caller can retry.
+    fun markAsRead(input: IncomingMarkAsReadContent) {
+        val jsonInput = Json.encodeToString(IncomingMarkAsReadContent.serializer(), input)
+        mark_as_read(jsonInput)
+    }
+
+    // Throws on failure, so that the caller can retry.
+    fun sendReply(input: IncomingReplyContent) {
+        val jsonInput = Json.encodeToString(IncomingReplyContent.serializer(), input)
+        reply(jsonInput)
+    }
 }
 
 class Notifications {
@@ -192,6 +239,8 @@ class Notifications {
         const val EXTRAS_NOTIFICATION_ID_KEY: String = "ms.air/notification_id"
         const val EXTRAS_CHAT_ID_KEY: String = "ms.air/chat_id"
         const val EXTRAS_NEWEST_TIMESTAMP_KEY: String = "ms.air/newest_timestamp"
+        const val EXTRAS_MESSAGE_ID_KEY: String = "ms.air/message_id"
+        const val KEY_TEXT_REPLY: String = "ms.air/text_reply"
 
         // Category required for the conversation shortcut
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
@@ -316,6 +365,32 @@ class Notifications {
                 putString(EXTRAS_CHAT_ID_KEY, chatUuid)
             }
 
+            val markAsReadIntent = conversation.newestMessageId?.let { newestMessageId ->
+                PendingIntent.getBroadcast(
+                    context,
+                    chatUuid.hashCode(),
+                    Intent(context, NotificationMarkAsReadReceiver::class.java).apply {
+                        putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
+                        putExtra(EXTRAS_MESSAGE_ID_KEY, newestMessageId.uuid)
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
+
+            val replyIntent = PendingIntent.getBroadcast(
+                context,
+                chatUuid.hashCode(),
+                Intent(context, NotificationReplyReceiver::class.java).apply {
+                    putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
+                },
+                // RemoteInput results are delivered via the Intent's extras, which the
+                // platform refuses to fill in on an immutable PendingIntent.
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            val remoteInput = RemoteInput.Builder(KEY_TEXT_REPLY)
+                .setLabel(context.getString(R.string.notification_action_reply))
+                .build()
+
             val chatPerson = Person.Builder()
                 .setKey(chatUuid)
                 .setName(conversation.chatTitle.ifBlank { chatUuid })
@@ -342,6 +417,32 @@ class Notifications {
                     .setOnlyAlertOnce(!conversation.alert)
                     .setGroup(GROUP_KEY)
                     .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                    .apply {
+                        markAsReadIntent?.let {
+                            addAction(
+                                NotificationCompat.Action.Builder(
+                                    R.drawable.ic_notification,
+                                    context.getString(R.string.notification_action_mark_as_read),
+                                    it
+                                )
+                                    .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+                                    .setShowsUserInterface(false)
+                                    .build()
+                            )
+                        }
+                        addAction(
+                            NotificationCompat.Action.Builder(
+                                R.drawable.ic_notification,
+                                context.getString(R.string.notification_action_reply),
+                                replyIntent
+                            )
+                                .addRemoteInput(remoteInput)
+                                .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+                                .setShowsUserInterface(false)
+                                .setAllowGeneratedReplies(true)
+                                .build()
+                        )
+                    }
                     .build()
 
             pushConversationShortcut(context, content, chatUuid, conversation)

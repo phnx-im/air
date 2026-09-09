@@ -66,7 +66,7 @@ impl OutboundService {
             .db
             .with_write_transaction(async |txn| {
                 if ChatMessage::load(&mut *txn, message_id).await?.is_none() {
-                    warn!(%message_id, "Message is gone, not enqueuing it");
+                    warn!(?message_id, "Message is gone, not enqueuing it");
                     return Ok(());
                 }
                 self.enqueue_chat_message_in_transaction(txn, message_id)
@@ -105,7 +105,7 @@ impl OutboundService {
             .db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
-                    warn!(%message_id, "Message is gone, not marking it as failed");
+                    warn!(?message_id, "Message is gone, not marking it as failed");
                     return Ok(());
                 };
                 let chat_id = message.chat_id();

@@ -8,6 +8,7 @@ use mimi_content::{
     MessageStatus, MimiContent,
     content_container::{Disposition, NestedPart, PartSemantics},
 };
+use serde::{Deserialize, Serialize};
 use tracing::{error, warn};
 
 use crate::{
@@ -80,7 +81,19 @@ impl TimestampedMessage {
 }
 
 /// Identifier of a message in a chat
-#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    derive_more::Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
 #[display("{uuid}")]
 pub struct MessageId {
     pub uuid: Uuid,

@@ -52,3 +52,26 @@ pub(crate) struct IncomingNotificationDismissal {
     chat_id: String,
     newest_timestamp: String,
 }
+
+/// Payload for the "Mark as read" notification action JNI entry point
+///
+/// `message_id` is the notification's `newest_message_id`, i.e. the newest message actually
+/// displayed.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncomingMarkAsRead {
+    path: String,
+    log_file_path: String,
+    chat_id: String,
+    message_id: String,
+}
+
+/// Payload for the "Reply" notification action JNI entry point
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncomingReply {
+    path: String,
+    log_file_path: String,
+    chat_id: String,
+    text: String,
+}

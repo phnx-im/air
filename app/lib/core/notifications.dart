@@ -69,6 +69,12 @@ class ConversationNotification {
   /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
   final String newestTimestamp;
 
+  /// Id of the newest `Message` entry in the rebuild set, if any.
+  ///
+  /// Echoed back on the mark-as-read action, opaque to Kotlin. Absent when the rebuild set's
+  /// tail is reaction-only.
+  final MessageId? newestMessageId;
+
   /// The chat's avatar: the group picture for a group chat, the
   /// counterpart's profile picture for a 1:1 chat
   ///
@@ -83,6 +89,7 @@ class ConversationNotification {
     required this.messages,
     required this.alert,
     required this.newestTimestamp,
+    this.newestMessageId,
     this.chatAvatar,
   });
 
@@ -95,6 +102,7 @@ class ConversationNotification {
       messages.hashCode ^
       alert.hashCode ^
       newestTimestamp.hashCode ^
+      newestMessageId.hashCode ^
       chatAvatar.hashCode;
 
   @override
@@ -109,6 +117,7 @@ class ConversationNotification {
           messages == other.messages &&
           alert == other.alert &&
           newestTimestamp == other.newestTimestamp &&
+          newestMessageId == other.newestMessageId &&
           chatAvatar == other.chatAvatar;
 }
 

@@ -6,21 +6,26 @@ use std::any::Any;
 use std::future::Future;
 use std::panic::{self, AssertUnwindSafe};
 
+use aircommon::{OpenMlsRand, RustCrypto};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
+use mimi_content::{MessageStatus, MimiContent};
 use tokio::runtime::Builder;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    api::user::User,
-    background_execution::{IncomingNotificationContent, IncomingNotificationDismissal, stack},
+    api::{user::User, user_settings_cubit::load_user_settings},
+    background_execution::{
+        IncomingMarkAsRead, IncomingNotificationContent, IncomingNotificationDismissal,
+        IncomingReply, stack,
+    },
     logging::init_logger,
     messages::FetchAndProcessAllMessagesError,
     notifications::{NotificationContent, NotificationId},
 };
 
-use aircoreclient::ChatId;
+use aircoreclient::{ChatId, MarkChatAsRead, MessageId};
 
 use super::NotificationBatch;
 
@@ -62,6 +67,48 @@ pub(crate) fn init_dismissal_environment(content: &str) -> Option<()> {
     run_in_background_runtime("notification-dismissal", move || {
         persist_notification_dismissal(path, chat_id, newest_timestamp)
     })
+}
+
+/// Processes a "Mark as read" notification action payload.
+pub(crate) fn init_mark_as_read_environment(content: &str) -> Option<()> {
+    let incoming: IncomingMarkAsRead = match serde_json::from_str(content) {
+        Ok(value) => value,
+        Err(error) => {
+            error!(%error, "Failed to parse incoming mark-as-read payload");
+            return None;
+        }
+    };
+    init_logger(incoming.log_file_path.clone());
+
+    let IncomingMarkAsRead {
+        path,
+        chat_id,
+        message_id,
+        ..
+    } = incoming;
+    run_in_background_runtime("mark-as-read", move || {
+        persist_mark_as_read(path, chat_id, message_id)
+    })
+}
+
+/// Processes a "Reply" notification action payload.
+pub(crate) fn init_reply_environment(content: &str) -> Option<()> {
+    let incoming: IncomingReply = match serde_json::from_str(content) {
+        Ok(value) => value,
+        Err(error) => {
+            error!(%error, "Failed to parse incoming reply payload");
+            return None;
+        }
+    };
+    init_logger(incoming.log_file_path.clone());
+
+    let IncomingReply {
+        path,
+        chat_id,
+        text,
+        ..
+    } = incoming;
+    run_in_background_runtime("reply", move || persist_reply(path, chat_id, text))
 }
 
 /// Runs the future produced by `make_future` to completion on a fresh tokio runtime, on a thread
@@ -208,6 +255,22 @@ async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
     })
 }
 
+/// Persists the db notifications that `writes` produces, so that the main app
+/// reloads its stores when it next drains the queue.
+async fn persisting_db_notifications<T>(
+    user: &User,
+    writes: impl Future<Output = anyhow::Result<T>>,
+) -> anyhow::Result<T> {
+    let pending = user.user.pending_db_notifications();
+    let result = writes.await;
+    for notification in pending {
+        if let Err(error) = user.user.enqueue_db_notification(&notification).await {
+            error!(%error, "Failed to enqueue store notification");
+        }
+    }
+    result
+}
+
 async fn persist_notification_dismissal(
     path: String,
     chat_id: String,
@@ -229,8 +292,84 @@ async fn persist_notification_dismissal(
         .context("Failed to load user")?
         .context("User not found: the database contained no user data")?;
 
-    user.user
-        .set_chat_notified_until(chat_id, notified_until)
+    persisting_db_notifications(&user, async {
+        user.user
+            .set_chat_notified_until(chat_id, notified_until)
+            .await
+            .context("Failed to persist notification watermark")
+    })
+    .await
+}
+
+async fn persist_mark_as_read(
+    path: String,
+    chat_id: String,
+    message_id: String,
+) -> anyhow::Result<()> {
+    let chat_id = Uuid::parse_str(&chat_id)
+        .context("Failed to parse chat id")
+        .map(ChatId::new)?;
+    let message_id = Uuid::parse_str(&message_id)
+        .context("Failed to parse message id")
+        .map(MessageId::new)?;
+
+    let user = User::load_default(path)
         .await
-        .context("Failed to persist notification watermark")
+        .context("Failed to load user")?
+        .context("User not found: the database contained no user data")?;
+
+    persisting_db_notifications(&user, async {
+        let (marked, read_message_ids) = user.user.mark_chat_as_read(chat_id, message_id).await?;
+        if !marked || read_message_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Mirrors the self-chat fallback in applogic/src/mark_as_read.rs: with read receipts off,
+        // tell only our own devices via the self chat instead of the other participants.
+        let settings = load_user_settings(&user).await;
+        let receipts_chat_id = if settings.read_receipts {
+            Some(chat_id)
+        } else {
+            user.user.self_chat_id().await?
+        };
+
+        if let Some(receipts_chat_id) = receipts_chat_id {
+            let statuses = read_message_ids
+                .iter()
+                .map(|(id, mimi_id)| (*id, mimi_id, MessageStatus::Read));
+            user.user
+                .outbound_service()
+                .enqueue_receipts(receipts_chat_id, statuses)
+                .await
+                .context("Failed to enqueue read receipt")?;
+            user.user.outbound_service().run_once().await;
+        }
+
+        Ok(())
+    })
+    .await
+}
+
+async fn persist_reply(path: String, chat_id: String, text: String) -> anyhow::Result<()> {
+    let chat_id = Uuid::parse_str(&chat_id)
+        .context("Failed to parse chat id")
+        .map(ChatId::new)?;
+
+    let user = User::load_default(path)
+        .await
+        .context("Failed to load user")?
+        .context("User not found: the database contained no user data")?;
+
+    persisting_db_notifications(&user, async {
+        let salt: [u8; 16] = RustCrypto::default().random_array()?;
+        let content = MimiContent::simple_markdown_message(text, salt);
+        user.user
+            .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+            .await
+            .context("Failed to send reply")?;
+        user.user.outbound_service().run_once().await;
+
+        Ok(())
+    })
+    .await
 }

@@ -6,12 +6,13 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, UserProfile,
+    Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, MessageId, UserProfile,
     clients::{
         CoreUser,
         process::process_qs::{NewChat, ReactionNotification},
     },
 };
+use flutter_rust_bridge::frb;
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -216,6 +217,18 @@ impl User {
 
         let chat_avatar = chat_avatar(&self.user, &chat).await;
 
+        // Search for the last message in the notification rebuild set (we have to skip reactions)
+        let newest_message_id =
+            rebuild
+                .rebuild_set
+                .entries
+                .iter()
+                .rev()
+                .find_map(|entry| match entry {
+                    ChatNotificationEntry::Message(message) => Some(message.id()),
+                    ChatNotificationEntry::Reaction(_) => None,
+                });
+
         let conversation = ConversationNotification {
             chat_title: title.clone(),
             is_group: chat.chat_type().is_group(),
@@ -227,6 +240,7 @@ impl User {
                 AlertMode::Silent => false,
             },
             newest_timestamp: newest.timestamp().to_rfc3339(),
+            newest_message_id,
             chat_avatar,
         };
 
@@ -435,6 +449,11 @@ pub struct ConversationNotification {
     pub alert: bool,
     /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
     pub newest_timestamp: String,
+    /// Id of the newest `Message` entry in the rebuild set, if any.
+    ///
+    /// Echoed back on the mark-as-read action, opaque to Kotlin. Absent when the rebuild set's
+    /// tail is reaction-only.
+    pub newest_message_id: Option<MessageId>,
     /// The chat's avatar: the group picture for a group chat, the
     /// counterpart's profile picture for a 1:1 chat
     ///
@@ -762,6 +781,7 @@ pub(crate) struct ChatNotificationsBatch {
 /// Outcome of rebuilding a single chat's notification
 #[derive(Debug)]
 #[expect(clippy::large_enum_variant)]
+#[frb(ignore)]
 enum ChatNotificationsRebuildOutcome {
     /// Chat has content to notify about
     /// => replace existing notification

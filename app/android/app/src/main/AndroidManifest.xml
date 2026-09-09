@@ -67,6 +67,8 @@
             </intent-filter>
         </service>
         <receiver android:name=".NotificationDismissReceiver" android:exported="false" />
+        <receiver android:name=".NotificationMarkAsReadReceiver" android:exported="false" />
+        <receiver android:name=".NotificationReplyReceiver" android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
