@@ -13,14 +13,14 @@ use airprotos::client::signed_connection_package::{
 };
 use thiserror::Error;
 use tonic::Status;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     auth_service::{
         AuthService,
         connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
     },
-    errors::StorageError,
+    errors::{DatabaseError, StorageError},
 };
 
 impl AuthService {
@@ -93,19 +93,36 @@ pub(crate) enum PublishConnectionPackageError {
     /// The verifying key does not match the one in the connection package
     #[error("Verifying key mismatch")]
     VerifyingKeyMismatch,
+    /// The username was deleted in the meantime
+    #[error("Username not found")]
+    UsernameNotFound,
 }
 
 impl From<StorageError> for PublishConnectionPackageError {
     fn from(error: StorageError) -> Self {
-        error!(%error, "failed to store connection package");
-        PublishConnectionPackageError::StorageError
+        match error {
+            StorageError::Database(DatabaseError::Sqlx(error)) => error.into(),
+            error => {
+                error!(%error, "failed to store connection package");
+                PublishConnectionPackageError::StorageError
+            }
+        }
     }
 }
 
 impl From<sqlx::Error> for PublishConnectionPackageError {
     fn from(error: sqlx::Error) -> Self {
-        error!(%error, "failed to store connection package");
-        PublishConnectionPackageError::StorageError
+        match error {
+            // The connection package tables reference the username, which was deleted concurrently
+            sqlx::Error::Database(error) if error.is_foreign_key_violation() => {
+                warn!(%error, "username deleted while storing connection packages");
+                PublishConnectionPackageError::UsernameNotFound
+            }
+            error => {
+                error!(%error, "failed to store connection package");
+                PublishConnectionPackageError::StorageError
+            }
+        }
     }
 }
 
@@ -114,6 +131,7 @@ impl From<PublishConnectionPackageError> for Status {
         let msg = e.to_string();
         match e {
             PublishConnectionPackageError::StorageError => Status::internal(msg),
+            PublishConnectionPackageError::UsernameNotFound => Status::not_found(msg),
             PublishConnectionPackageError::InvalidKeyPackage
             | PublishConnectionPackageError::VerifyingKeyMismatch
             | PublishConnectionPackageError::UsernameHashMismatch => Status::invalid_argument(msg),
@@ -224,6 +242,38 @@ mod tests {
 
         let loaded = StorableSignedConnectionPackage::load_for_username(&pool, &hash).await?;
         assert!(loaded.is_some());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn publish_for_unknown_handle_is_not_found(pool: PgPool) -> anyhow::Result<()> {
+        let service = init_service(&pool).await?;
+        let hash = UsernameHash::new([1; 32]);
+        let signing_key = UsernameSigningKey::generate()?;
+
+        let (_, legacy_package, _) = ConnectionPackage::generate(hash, &signing_key, false)?;
+        let legacy_proto = airprotos::auth_service::v1::ConnectionPackage::from(legacy_package);
+        let legacy_in = VersionedConnectionPackageIn::try_from(legacy_proto)?;
+
+        let (_, signed_package, _) = SignedConnectionPackage::generate(hash, &signing_key, false)?;
+        let signed_in = SignedConnectionPackageIn::try_from(signed_package)?;
+
+        let result = service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                vec![legacy_in],
+                vec![signed_in],
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(PublishConnectionPackageError::UsernameNotFound)
+        ));
+
+        let loaded = StorableSignedConnectionPackage::load_for_username(&pool, &hash).await?;
+        assert!(loaded.is_none());
 
         Ok(())
     }

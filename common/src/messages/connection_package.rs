@@ -220,7 +220,7 @@ pub struct ConnectionPackage {
     signature: UsernameSignature,
 }
 
-/// The facts about a connection package that its owner needs to keep outside the (possible sealed)
+/// The facts about a connection package that its owner needs to keep outside the (possibly sealed)
 /// package representation.
 #[derive(Debug)]
 pub struct ConnectionPackageMetadata {
