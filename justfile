@@ -171,13 +171,14 @@ regenerate-icons:
 # hard kill leaves it behind, the next `flutter run` skips the Rust build too:
 # delete the file or rerun this recipe.
 [working-directory: 'app']
+[env('TZ', 'UTC')]
 [script]
 test-flutter *args:
     config=.dart_tool/air_hook_config.json
     mkdir -p .dart_tool
     trap 'echo "{\"skip_rust_build\": false}" > "$config"' EXIT INT TERM
     echo '{"skip_rust_build": true}' > "$config"
-    TZ=UTC just flutter test {{ args }}
+    just flutter test {{ args }}
 
 skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
 
