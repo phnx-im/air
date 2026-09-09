@@ -7,7 +7,7 @@ use airprotos::{
     auth_service::v1::OperationType,
     client::{app_data::GroupAppData, group::GroupData},
 };
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -30,6 +30,15 @@ use crate::{
 };
 
 use super::{OutboundServiceContext, error::OutboundServiceError};
+
+/// A sentinel value for a one-shot task which already ran.
+pub(crate) const PARKED_AT: DateTime<Utc> = DateTime::from_naive_utc_and_offset(
+    NaiveDate::from_ymd_opt(9999, 1, 1)
+        .expect("valid date")
+        .and_hms_opt(0, 0, 0)
+        .expect("valid time"),
+    Utc,
+);
 
 /// Number of key packages to upload (excluding the last resort key package)
 #[cfg(not(feature = "test_utils"))]
@@ -204,23 +213,21 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context))
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "Failed to execute timed task");
-                })
-                .unwrap_or_else(|_| Some(task_kind.default_retry_interval()));
+            let res =
+                Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context)).await;
 
-            if let Some(interval) = res {
-                // Schedule next run
-                let schedule_at = Utc::now()
-                    .checked_add_signed(interval)
-                    .unwrap_or(DateTime::<Utc>::MAX_UTC);
-                op.reschedule(self.db.write().await?, schedule_at).await?;
-            } else {
-                // One-time tasks should not be rescheduled
-                op.park(self.db.write().await?).await?;
-            }
+            let interval = match res {
+                Ok(interval) => interval,
+                Err(error) => {
+                    error!(%error, "Failed to execute timed task");
+                    Some(task_kind.default_retry_interval())
+                }
+            };
+            // `None` marks a one-shot task which must not run again
+            let schedule_at = interval
+                .and_then(|interval| Utc::now().checked_add_signed(interval))
+                .unwrap_or(PARKED_AT);
+            op.reschedule(self.db.write().await?, schedule_at).await?;
         }
     }
 
@@ -244,6 +251,10 @@ impl OutboundServiceContext {
                 .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
+        TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(self.db.write().await?)
+            .await?;
         Ok(())
     }
 
@@ -266,7 +277,8 @@ impl OutboundServiceContext {
                 .await
                 .map(Some),
             TimedTaskKind::SignedConnectionPackageUpload => {
-                self.upload_signed_connection_packages().await
+                self.upload_signed_connection_packages().await?;
+                Ok(None)
             }
         }
     }
@@ -580,8 +592,8 @@ impl OutboundServiceContext {
         }
     }
 
-    /// Upload newly generated signed connection packages for all existing username.
-    async fn upload_signed_connection_packages(&self) -> anyhow::Result<Option<Duration>> {
+    /// Upload newly generated signed connection packages for all existing usernames.
+    async fn upload_signed_connection_packages(&self) -> anyhow::Result<()> {
         let usernames = UsernameRecord::load_all(self.db.read().await?).await?;
         let api_client = self.api_clients.default_client()?;
 
@@ -617,7 +629,7 @@ impl OutboundServiceContext {
                 .await?;
         }
 
-        Ok(None) // don't reschedule
+        Ok(())
     }
 }
 
