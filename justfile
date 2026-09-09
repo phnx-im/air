@@ -2,28 +2,34 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
+set minimum-version := "1.56.0"
+set default-list
+set script-interpreter := ['bash', '-eu']
+
+[windows]
+set shell := ['C:\Program Files\Git\bin\sh.exe', '-c']
+[windows]
+set script-interpreter := ['C:\Program Files\Git\bin\bash.exe', '-eu']
 
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
-ci := env_var_or_default("CI", "false")
+ci := env("CI", "false")
 
-_default:
-    just --list
-
-POSTGRES_HOST := env_var_or_default("POSTGRES_HOST", "localhost")
+POSTGRES_HOST := env("POSTGRES_HOST", "localhost")
 SERVER_DATABASE_URL := "postgres://postgres:password@" + POSTGRES_HOST + ":5432/air_db"
-CLIENT_DATABASE_URL := if os() == "windows" {
-    "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
-} else {
-    "sqlite://" + justfile_directory() + "/coreclient/client.db"
-}
 
+[unix]
+CLIENT_DATABASE_URL := "sqlite://" + justfile_directory() + "/coreclient/client.db"
+[windows]
+CLIENT_DATABASE_URL := "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
+
+# Run dart (via fvm outside of CI).
 [working-directory('app')]
 @dart *args:
     {{ if ci == "true" { "dart" } else { "fvm dart" } }} {{ args }}
 
+# Run flutter (via fvm outside of CI).
 [working-directory('app')]
 @flutter *args:
     {{ if ci == "true" { "flutter" } else { "fvm flutter" } }} {{ args }}
@@ -38,31 +44,38 @@ migrate-dev:
     cd coreclient && cargo sqlx migrate run --database-url {{CLIENT_DATABASE_URL}}
     cd backend && cargo sqlx migrate run --database-url {{SERVER_DATABASE_URL}}
 
+# Check that generated l10n and icon files are up to date.
 [group('check')]
 check-app-resources: regenerate-l10n regenerate-icons && _check-unstaged-changes
 
+# Lint Rust code with clippy.
 [group('check')]
 check-clippy:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+# Check Rust dependencies for advisories, licenses and bans.
 [group('check')]
 check-cargo-deny:
     cargo deny fetch
     cargo deny check
 
+# Check for unused Rust dependencies.
 [group('check')]
 check-cargo-machete:
     cargo machete --with-metadata
 
+# Check Dart formatting and run the analyzer.
 [group('check')]
 check-dart:
     just flutter pub get
     just dart format . -o none --set-exit-if-changed
     just dart analyze --fatal-infos
 
+# Check that generated flutter rust bridge files are up to date.
 [group('check')]
 check-frb: regenerate-frb && _check-unstaged-changes
 
+# Check that the generated Rust licenses file is up to date.
 [group('check')]
 check-licenses: regenerate-licenses && _check-unstaged-changes
 
@@ -71,6 +84,7 @@ check-licenses: regenerate-licenses && _check-unstaged-changes
 check-l10n:
     cargo xtask validate-l10n
 
+# Build, lint and check formatting of the protobuf files.
 [group('check')]
 [working-directory('protos')]
 check-buf:
@@ -79,17 +93,19 @@ check-buf:
     buf format --diff --exit-code
     # buf breaking --against '{{justfile_directory()}}/.git#branch=origin/main'
 
+# Check SPDX license headers.
 [group('check')]
 check-reuse:
     reuse lint -l
 
+# Check Rust formatting.
 [group('check')]
 check-rustfmt:
     cargo fmt -- --check
 
 # This task will run the command. If git diff then reports unstaged changes, the task will fail.
+[script]
 _check-unstaged-changes:
-    #!/usr/bin/env -S bash -eu
     diff=$(git --no-pager diff)
     if [ -n "$diff" ]; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
@@ -112,10 +128,11 @@ regenerate-frb:
     cd .. && cargo fmt
 
 # Regenerate localization files.
+[working-directory: 'app']
 [group('regenerate')]
 regenerate-l10n:
-    cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
-    cd app && just flutter gen-l10n
+    cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
+    just flutter gen-l10n
 
 # Regenerate database query metadata.
 [group('regenerate')]
@@ -162,10 +179,11 @@ test-flutter *args:
     echo '{"skip_rust_build": true}' > "$config"
     TZ=UTC just flutter test {{ args }}
 
-skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
+skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
+
 # Run docker compose services in the background.
-@start-docker-compose:
-    #!/usr/bin/env -S bash -eu
+[script]
+start-docker-compose:
     if [ "{{skip_docker}}" = "true" ]; then
         echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"
     else
@@ -190,7 +208,7 @@ update-goldens-ci pr='':
 
 # Start the app in debug mode.
 [working-directory: 'app']
-run-app *args='':
+run-app *args:
     just flutter run {{args}}
 
 # Start the server.
@@ -202,11 +220,11 @@ run-server:
     bash scripts/build-number.sh
 
 # Increment version numbers (minor by default, --patch on release branches).
-bump-version *args='':
+bump-version *args:
     cargo xtask bump-version {{args}}
 
 # Cut a release/0.X branch from main (at the given commit, default HEAD).
-cut-release *args='':
+cut-release *args:
     cargo xtask cut-release {{args}}
 
 # Install fvm.
@@ -218,16 +236,23 @@ install-fvm:
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
     bash install-fvm.sh 4.0.5
 
+# Build the app for the given platform (no-op in CI).
 [working-directory: 'app']
 build platform:
     if [[ "${CI:-false}" != "true" ]]; then fvm flutter build {{ platform }}; fi
 
-[linux]
-[working-directory: 'app/linux']
-build-rpm:
-    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p rpm
+app_flavor := env("APP_FLAVOR", "staging")
 
+# Package the Linux build as an rpm.
 [linux]
 [working-directory: 'app/linux']
+[env('APP_FLAVOR', app_flavor)]
+build-rpm:
+    nfpm package -p rpm
+
+# Package the Linux build as a deb.
+[linux]
+[working-directory: 'app/linux']
+[env('APP_FLAVOR', app_flavor)]
 build-deb:
-    APP_FLAVOR="${APP_FLAVOR:-staging}" nfpm package -p deb
+    nfpm package -p deb
