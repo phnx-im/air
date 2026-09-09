@@ -113,6 +113,7 @@ impl QsStreamProcessor {
 
                 result
             }
+            Some(listen_response::Event::VersionStatus(_)) => QsProcessEventResult::Ignored,
         }
     }
 }

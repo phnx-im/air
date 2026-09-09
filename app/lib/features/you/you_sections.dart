@@ -8,8 +8,8 @@ import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
@@ -18,6 +18,7 @@ import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
+import 'package:air/features/you/licenses_screen.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -31,7 +32,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 final _log = Logger('YouSections');
 
@@ -405,7 +405,7 @@ class _LanguageSettings extends StatelessWidget {
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
         // Before login there is no user to persist the locale to.
-        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
+        if (context.read<UserSessionCubit>().state.activeUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
@@ -468,13 +468,7 @@ class HelpSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final packageInfoFut = useMemoized(() => PackageInfo.fromPlatform());
-    final packageInfo = useFuture(packageInfoFut);
-
-    final version = switch (packageInfo.data) {
-      final info? => "${info.version}-${info.buildNumber}",
-      null => "",
-    };
+    final version = appVersion();
 
     final loc = AppLocalizations.of(context);
     final onVersionTap = useDeveloperUnlock();
@@ -522,7 +516,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const LicensePage()),
+              MaterialPageRoute(
+                builder: (context) => const LicensesScreenView(),
+              ),
             );
           },
           child: Row(

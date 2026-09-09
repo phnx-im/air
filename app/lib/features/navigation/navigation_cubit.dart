@@ -231,9 +231,8 @@ class NavigationCubit extends Cubit<NavigationState> {
 
   /// Pushes an intro screen, unless it is already the topmost one.
   void _pushIntroScreen(IntroScreenType screen) {
-    if (state case IntroState(
-      :final screens,
-    ) when screens.lastOrNull != screen) {
+    if (state case IntroState(:final screens)
+        when screens.lastOrNull != screen) {
       emit(NavigationState.intro(screens: [...screens, screen]));
     }
   }

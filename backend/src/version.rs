@@ -49,8 +49,6 @@ impl VersionExpiration {
 pub(crate) struct VerifiedClientVersion {
     pub(crate) version: Option<Version>,
     /// Set if the version expires in the future
-    // TODO: Will be communicated back to client over QS listen stream
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) expires_at: Option<DateTime<Utc>>,
 }
 

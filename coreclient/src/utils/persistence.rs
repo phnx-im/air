@@ -26,7 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
-    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
+    clients::{
+        attachment::persistence::move_attachment_content_to_side_table,
+        own_client_info::OwnClientInfo, store::ClientRecord,
+    },
     db::{
         access::{DbAccess, WriteConnection, WriteTransaction},
         notification::DbNotificationsSender,
@@ -275,6 +278,7 @@ pub async fn open_client_db(
 enum RustMigration {
     OwnClientIdBackfill = 20260817150000,
     StaleDeletedMessagesPurge = 20260817150100,
+    AttachmentContentMove = 20260831123717,
     VcDerivationEpochRetention = 20260902120000,
 }
 
@@ -283,6 +287,7 @@ impl RustMigration {
         match version {
             20260817150000 => Some(Self::OwnClientIdBackfill),
             20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            20260831123717 => Some(Self::AttachmentContentMove),
             20260902120000 => Some(Self::VcDerivationEpochRetention),
             _ => None,
         }
@@ -293,6 +298,9 @@ impl RustMigration {
         match self {
             RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
             RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+            RustMigration::AttachmentContentMove => {
+                move_attachment_content_to_side_table(write).await?
+            }
             RustMigration::VcDerivationEpochRetention => {
                 migrate_vc_derivation_epoch_retention(write).await?
             }
@@ -654,11 +662,9 @@ mod tests {
         let db = open_client_db(db_path, client_record_id).await?;
         db.close().await;
 
-        // Roll back past the marker and insert an `own_client_info` row the way an old,
+        // Unapply the marker and insert an `own_client_info` row the way an old,
         // pre-backfill client would have left it on disk: with a nil client id.
         let db = open_client_db(db_path, client_record_id).await?;
-        // Only this marker, so that later migrations stay applied and their SQL
-        // is not replayed against a schema that already has it.
         sqlx::query("DELETE FROM _sqlx_migrations WHERE version = ?")
             .bind(RustMigration::OwnClientIdBackfill as i64)
             .execute(db.write().await?.as_mut())

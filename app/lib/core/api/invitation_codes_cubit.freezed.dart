@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'invitation_codes_cubit.dart';
@@ -9,6 +9,7 @@ part of 'invitation_codes_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $InvitationCodeCopyWith<InvitationCode> get copyWith => _$InvitationCodeCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationCode&&(identical(other.code, code) || other.code == code)&&(identical(other.copied, copied) || other.copied == copied)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  final _this = this as InvitationCode;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationCode&&(identical(other.code, _this.code) || other.code == _this.code)&&(identical(other.copied, _this.copied) || other.copied == _this.copied)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,code,copied,createdAt);
+int get hashCode {
+  final _this = this as InvitationCode;
+  return Object.hash(runtimeType,_this.code,_this.copied,_this.createdAt);
+}
 
 @override
 String toString() {
-  return 'InvitationCode(code: $code, copied: $copied, createdAt: $createdAt)';
+  final _this = this as InvitationCode;
+  return 'InvitationCode(code: ${_this.code}, copied: ${_this.copied}, createdAt: ${_this.createdAt})';
 }
 
 
@@ -63,7 +69,7 @@ class _$InvitationCodeCopyWithImpl<$Res>
 /// Create a copy of InvitationCode
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? code = null,Object? copied = null,Object? createdAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(InvitationCode(
 code: null == code ? _self.code : code // ignore: cast_nullable_to_non_nullable
 as String,copied: null == copied ? _self.copied : copied // ignore: cast_nullable_to_non_nullable
 as bool,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
@@ -96,16 +102,18 @@ _$InvitationCodeCopyWith<_InvitationCode> get copyWith => __$InvitationCodeCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationCode&&(identical(other.code, code) || other.code == code)&&(identical(other.copied, copied) || other.copied == copied)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationCode&&(identical(other.code, code) || other.code == code)&&(identical(other.copied, copied) || other.copied == copied)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,code,copied,createdAt);
+int get hashCode {
+    return Object.hash(runtimeType,code,copied,createdAt);
+}
 
 @override
 String toString() {
-  return 'InvitationCode(code: $code, copied: $copied, createdAt: $createdAt)';
+    return 'InvitationCode(code: $code, copied: $copied, createdAt: $createdAt)';
 }
 
 
@@ -159,16 +167,21 @@ $InvitationCodesStateCopyWith<InvitationCodesState> get copyWith => _$Invitation
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationCodesState&&const DeepCollectionEquality().equals(other.codes, codes));
+  final _this = this as InvitationCodesState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InvitationCodesState&&const DeepCollectionEquality().equals(other.codes, _this.codes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(codes));
+int get hashCode {
+  final _this = this as InvitationCodesState;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.codes));
+}
 
 @override
 String toString() {
-  return 'InvitationCodesState(codes: $codes)';
+  final _this = this as InvitationCodesState;
+  return 'InvitationCodesState(codes: ${_this.codes})';
 }
 
 
@@ -197,7 +210,7 @@ class _$InvitationCodesStateCopyWithImpl<$Res>
 /// Create a copy of InvitationCodesState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? codes = null,}) {
-  return _then(_self.copyWith(
+  return _then(InvitationCodesState(
 codes: null == codes ? _self.codes : codes // ignore: cast_nullable_to_non_nullable
 as List<UiInvitationCode>,
   ));
@@ -211,7 +224,7 @@ as List<UiInvitationCode>,
 
 
 class _InvitationCodesState extends InvitationCodesState {
-  const _InvitationCodesState({required final  List<UiInvitationCode> codes}): _codes = codes,super._();
+  const _InvitationCodesState({required  List<UiInvitationCode> codes}): _codes = codes,super._();
   
 
  final  List<UiInvitationCode> _codes;
@@ -232,16 +245,18 @@ _$InvitationCodesStateCopyWith<_InvitationCodesState> get copyWith => __$Invitat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationCodesState&&const DeepCollectionEquality().equals(other._codes, _codes));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _InvitationCodesState&&const DeepCollectionEquality().equals(other.codes, _codes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_codes));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_codes));
+}
 
 @override
 String toString() {
-  return 'InvitationCodesState(codes: $codes)';
+    return 'InvitationCodesState(codes: $codes)';
 }
 
 
@@ -293,16 +308,21 @@ $TokenIdCopyWith<TokenId> get copyWith => _$TokenIdCopyWithImpl<TokenId>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenId&&(identical(other.id, id) || other.id == id)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+  final _this = this as TokenId;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TokenId&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,createdAt);
+int get hashCode {
+  final _this = this as TokenId;
+  return Object.hash(runtimeType,_this.id,_this.createdAt);
+}
 
 @override
 String toString() {
-  return 'TokenId(id: $id, createdAt: $createdAt)';
+  final _this = this as TokenId;
+  return 'TokenId(id: ${_this.id}, createdAt: ${_this.createdAt})';
 }
 
 
@@ -331,7 +351,7 @@ class _$TokenIdCopyWithImpl<$Res>
 /// Create a copy of TokenId
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? createdAt = null,}) {
-  return _then(_self.copyWith(
+  return _then(TokenId(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as PlatformInt64,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
@@ -362,16 +382,18 @@ _$TokenIdCopyWith<_TokenId> get copyWith => __$TokenIdCopyWithImpl<_TokenId>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenId&&(identical(other.id, id) || other.id == id)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _TokenId&&(identical(other.id, id) || other.id == id)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,createdAt);
+int get hashCode {
+    return Object.hash(runtimeType,id,createdAt);
+}
 
 @override
 String toString() {
-  return 'TokenId(id: $id, createdAt: $createdAt)';
+    return 'TokenId(id: $id, createdAt: $createdAt)';
 }
 
 
@@ -419,16 +441,21 @@ mixin _$UiInvitationCode {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode&&const DeepCollectionEquality().equals(other.field0, field0));
+  final _this = this as UiInvitationCode;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode&&const DeepCollectionEquality().equals(other.field0, _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode {
+  final _this = this as UiInvitationCode;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
 
 @override
 String toString() {
-  return 'UiInvitationCode(field0: $field0)';
+  final _this = this as UiInvitationCode;
+  return 'UiInvitationCode(field0: ${_this.field0})';
 }
 
 
@@ -460,16 +487,18 @@ $UiInvitationCode_TokenCopyWith<UiInvitationCode_Token> get copyWith => _$UiInvi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_Token&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_Token&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiInvitationCode.token(field0: $field0)';
+    return 'UiInvitationCode.token(field0: $field0)';
 }
 
 
@@ -535,16 +564,18 @@ $UiInvitationCode_CodeCopyWith<UiInvitationCode_Code> get copyWith => _$UiInvita
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_Code&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInvitationCode_Code&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiInvitationCode.code(field0: $field0)';
+    return 'UiInvitationCode.code(field0: $field0)';
 }
 
 

@@ -10,4 +10,6 @@
 # Managed by `cargo xtask cut-release`. Edit by hand only to postpone or
 # emergency-expire a version.
 application:
-  version_expirations: []
+  version_expirations:
+    - older_than: "0.21.0"
+      expires_on: "2026-09-17"

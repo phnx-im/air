@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -936,6 +937,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Não foi possível carregar o anexo. Tente de novo.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'Não foi possível decodificar a imagem. Ela pode estar danificada ou em um formato não suportado.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -1090,6 +1095,24 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get licensesScreen_title => 'Licenças';
+
+  @override
+  String get licensesScreen_searchHint => 'Buscar pacotes';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pacotes',
+      one: '$count pacote',
+      zero: 'Nenhum pacote',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Nenhum pacote encontrado.';
 
   @override
   String get contactUsScreen_title => 'Fale com o Air';
@@ -1326,10 +1349,15 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Abra o TestFlight no iOS ou o Google Play no Android e atualize o Air.';
+      'Abra a App Store no iOS ou o Google Play no Android e atualize o Air.';
 
   @override
   String get appOutdatedScreen_action => 'Atualizar';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Atualize o Air até $date para continuar usando';
+  }
 
   @override
   String get contactRequestDialog_title => 'Solicitação de contato';
@@ -2410,6 +2438,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
       'Não foi possível carregar o anexo. Tenta de novo.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'Não foi possível descodificar a imagem. Pode estar danificada ou num formato não suportado.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -2564,6 +2596,24 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get licensesScreen_title => 'Licenças';
+
+  @override
+  String get licensesScreen_searchHint => 'Pesquisar pacotes';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pacotes',
+      one: '$count pacote',
+      zero: 'Não há pacotes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Nenhum pacote encontrado.';
 
   @override
   String get contactUsScreen_title => 'Contactar o Air';
@@ -2801,10 +2851,15 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get appOutdatedScreen_description =>
-      'Abre o TestFlight no iOS ou o Google Play no Android e atualiza o Air.';
+      'Abre a App Store no iOS ou o Google Play no Android e atualiza o Air.';
 
   @override
   String get appOutdatedScreen_action => 'Atualizar';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Atualiza o Air até $date para continuares a usá-lo';
+  }
 
   @override
   String get contactRequestDialog_title => 'Pedido de contacto';

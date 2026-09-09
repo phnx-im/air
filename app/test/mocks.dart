@@ -14,8 +14,8 @@ import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/anchored_list/data.dart';
@@ -39,6 +39,7 @@ class MockUiUser implements UiUser {
     required int id,
     this.accountUnlinked = false,
     this.usernames = const [],
+    this.versionStatus = const VersionStatus.supported(),
   }) : _userId = id.userId();
 
   final UiUserId _userId;
@@ -56,7 +57,7 @@ class MockUiUser implements UiUser {
   final List<UiUsername> usernames;
 
   @override
-  bool get unsupportedVersion => false;
+  final VersionStatus versionStatus;
 
   @override
   final bool accountUnlinked;
@@ -262,8 +263,8 @@ class MockMessageCubit extends MockCubit<MessageState> implements MessageCubit {
   }
 }
 
-class MockLoadableUserCubit extends MockCubit<LoadableUser>
-    implements LoadableUserCubit {}
+class MockUserSessionCubit extends MockCubit<UserSessionState>
+    implements UserSessionCubit {}
 
 class MockUser extends Mock implements User {}
 

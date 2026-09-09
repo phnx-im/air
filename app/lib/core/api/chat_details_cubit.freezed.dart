@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'chat_details_cubit.dart';
@@ -9,136 +9,9 @@ part of 'chat_details_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
-/// @nodoc
-mixin _$AcceptContactRequestError {
-
- String get reason;
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$AcceptContactRequestErrorCopyWith<AcceptContactRequestError> get copyWith => _$AcceptContactRequestErrorCopyWithImpl<AcceptContactRequestError>(this as AcceptContactRequestError, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError&&(identical(other.reason, reason) || other.reason == reason));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,reason);
-
-@override
-String toString() {
-  return 'AcceptContactRequestError(reason: $reason)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $AcceptContactRequestErrorCopyWith<$Res>  {
-  factory $AcceptContactRequestErrorCopyWith(AcceptContactRequestError value, $Res Function(AcceptContactRequestError) _then) = _$AcceptContactRequestErrorCopyWithImpl;
-@useResult
-$Res call({
- String reason
-});
-
-
-
-
-}
-/// @nodoc
-class _$AcceptContactRequestErrorCopyWithImpl<$Res>
-    implements $AcceptContactRequestErrorCopyWith<$Res> {
-  _$AcceptContactRequestErrorCopyWithImpl(this._self, this._then);
-
-  final AcceptContactRequestError _self;
-  final $Res Function(AcceptContactRequestError) _then;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? reason = null,}) {
-  return _then(_self.copyWith(
-reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-}
-
-
-
-/// @nodoc
-
-
-class AcceptContactRequestError_IncompatibleClient extends AcceptContactRequestError {
-  const AcceptContactRequestError_IncompatibleClient({required this.reason}): super._();
-  
-
-@override final  String reason;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$AcceptContactRequestError_IncompatibleClientCopyWith<AcceptContactRequestError_IncompatibleClient> get copyWith => _$AcceptContactRequestError_IncompatibleClientCopyWithImpl<AcceptContactRequestError_IncompatibleClient>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AcceptContactRequestError_IncompatibleClient&&(identical(other.reason, reason) || other.reason == reason));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,reason);
-
-@override
-String toString() {
-  return 'AcceptContactRequestError.incompatibleClient(reason: $reason)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $AcceptContactRequestError_IncompatibleClientCopyWith<$Res> implements $AcceptContactRequestErrorCopyWith<$Res> {
-  factory $AcceptContactRequestError_IncompatibleClientCopyWith(AcceptContactRequestError_IncompatibleClient value, $Res Function(AcceptContactRequestError_IncompatibleClient) _then) = _$AcceptContactRequestError_IncompatibleClientCopyWithImpl;
-@override @useResult
-$Res call({
- String reason
-});
-
-
-
-
-}
-/// @nodoc
-class _$AcceptContactRequestError_IncompatibleClientCopyWithImpl<$Res>
-    implements $AcceptContactRequestError_IncompatibleClientCopyWith<$Res> {
-  _$AcceptContactRequestError_IncompatibleClientCopyWithImpl(this._self, this._then);
-
-  final AcceptContactRequestError_IncompatibleClient _self;
-  final $Res Function(AcceptContactRequestError_IncompatibleClient) _then;
-
-/// Create a copy of AcceptContactRequestError
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? reason = null,}) {
-  return _then(AcceptContactRequestError_IncompatibleClient(
-reason: null == reason ? _self.reason : reason // ignore: cast_nullable_to_non_nullable
-as String,
-  ));
-}
-
-
-}
-
 /// @nodoc
 mixin _$ChatDetailsState {
 
@@ -153,16 +26,21 @@ $ChatDetailsStateCopyWith<ChatDetailsState> get copyWith => _$ChatDetailsStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, members));
+  final _this = this as ChatDetailsState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(members));
+int get hashCode {
+  final _this = this as ChatDetailsState;
+  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members));
+}
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members)';
+  final _this = this as ChatDetailsState;
+  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members})';
 }
 
 
@@ -191,7 +69,7 @@ class _$ChatDetailsStateCopyWithImpl<$Res>
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,}) {
-  return _then(_self.copyWith(
+  return _then(ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,
@@ -206,7 +84,7 @@ as List<UiUserId>,
 
 
 class _ChatDetailsState extends ChatDetailsState {
-  const _ChatDetailsState({this.chat, required final  List<UiUserId> members}): _members = members,super._();
+  const _ChatDetailsState({this.chat, required  List<UiUserId> members}): _members = members,super._();
   
 
 @override final  UiChatDetails? chat;
@@ -228,16 +106,18 @@ _$ChatDetailsStateCopyWith<_ChatDetailsState> get copyWith => __$ChatDetailsStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other._members, _members));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+int get hashCode {
+    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+}
 
 @override
 String toString() {
-  return 'ChatDetailsState(chat: $chat, members: $members)';
+    return 'ChatDetailsState(chat: $chat, members: $members)';
 }
 
 
@@ -279,63 +159,63 @@ as List<UiUserId>,
 /// @nodoc
 mixin _$UploadAttachmentError {
 
- BigInt get maxSizeBytes; BigInt get actualSizeBytes;
-/// Create a copy of UploadAttachmentError
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$UploadAttachmentErrorCopyWith<UploadAttachmentError> get copyWith => _$UploadAttachmentErrorCopyWithImpl<UploadAttachmentError>(this as UploadAttachmentError, _$identity);
+
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError);
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UploadAttachmentError(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
+    return 'UploadAttachmentError()';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $UploadAttachmentErrorCopyWith<$Res>  {
-  factory $UploadAttachmentErrorCopyWith(UploadAttachmentError value, $Res Function(UploadAttachmentError) _then) = _$UploadAttachmentErrorCopyWithImpl;
-@useResult
-$Res call({
- BigInt maxSizeBytes, BigInt actualSizeBytes
-});
-
-
-
-
+class $UploadAttachmentErrorCopyWith<$Res>  {
+$UploadAttachmentErrorCopyWith(UploadAttachmentError _, $Res Function(UploadAttachmentError) __);
 }
+
+
+
 /// @nodoc
-class _$UploadAttachmentErrorCopyWithImpl<$Res>
-    implements $UploadAttachmentErrorCopyWith<$Res> {
-  _$UploadAttachmentErrorCopyWithImpl(this._self, this._then);
 
-  final UploadAttachmentError _self;
-  final $Res Function(UploadAttachmentError) _then;
 
-/// Create a copy of UploadAttachmentError
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
-  return _then(_self.copyWith(
-maxSizeBytes: null == maxSizeBytes ? _self.maxSizeBytes : maxSizeBytes // ignore: cast_nullable_to_non_nullable
-as BigInt,actualSizeBytes: null == actualSizeBytes ? _self.actualSizeBytes : actualSizeBytes // ignore: cast_nullable_to_non_nullable
-as BigInt,
-  ));
+class UploadAttachmentError_DecodingError extends UploadAttachmentError {
+  const UploadAttachmentError_DecodingError(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_DecodingError);
 }
 
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UploadAttachmentError.decodingError()';
 }
+
+
+}
+
 
 
 
@@ -346,12 +226,12 @@ class UploadAttachmentError_TooLarge extends UploadAttachmentError {
   const UploadAttachmentError_TooLarge({required this.maxSizeBytes, required this.actualSizeBytes}): super._();
   
 
-@override final  BigInt maxSizeBytes;
-@override final  BigInt actualSizeBytes;
+ final  BigInt maxSizeBytes;
+ final  BigInt actualSizeBytes;
 
 /// Create a copy of UploadAttachmentError
 /// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
+@JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
 $UploadAttachmentError_TooLargeCopyWith<UploadAttachmentError_TooLarge> get copyWith => _$UploadAttachmentError_TooLargeCopyWithImpl<UploadAttachmentError_TooLarge>(this, _$identity);
 
@@ -359,16 +239,18 @@ $UploadAttachmentError_TooLargeCopyWith<UploadAttachmentError_TooLarge> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_TooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UploadAttachmentError_TooLarge&&(identical(other.maxSizeBytes, maxSizeBytes) || other.maxSizeBytes == maxSizeBytes)&&(identical(other.actualSizeBytes, actualSizeBytes) || other.actualSizeBytes == actualSizeBytes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+int get hashCode {
+    return Object.hash(runtimeType,maxSizeBytes,actualSizeBytes);
+}
 
 @override
 String toString() {
-  return 'UploadAttachmentError.tooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
+    return 'UploadAttachmentError.tooLarge(maxSizeBytes: $maxSizeBytes, actualSizeBytes: $actualSizeBytes)';
 }
 
 
@@ -377,7 +259,7 @@ String toString() {
 /// @nodoc
 abstract mixin class $UploadAttachmentError_TooLargeCopyWith<$Res> implements $UploadAttachmentErrorCopyWith<$Res> {
   factory $UploadAttachmentError_TooLargeCopyWith(UploadAttachmentError_TooLarge value, $Res Function(UploadAttachmentError_TooLarge) _then) = _$UploadAttachmentError_TooLargeCopyWithImpl;
-@override @useResult
+@useResult
 $Res call({
  BigInt maxSizeBytes, BigInt actualSizeBytes
 });
@@ -396,7 +278,7 @@ class _$UploadAttachmentError_TooLargeCopyWithImpl<$Res>
 
 /// Create a copy of UploadAttachmentError
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? maxSizeBytes = null,Object? actualSizeBytes = null,}) {
   return _then(UploadAttachmentError_TooLarge(
 maxSizeBytes: null == maxSizeBytes ? _self.maxSizeBytes : maxSizeBytes // ignore: cast_nullable_to_non_nullable
 as BigInt,actualSizeBytes: null == actualSizeBytes ? _self.actualSizeBytes : actualSizeBytes // ignore: cast_nullable_to_non_nullable

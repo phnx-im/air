@@ -4,34 +4,32 @@
 
 use std::sync::LazyLock;
 
-use airprotos::common::{self, v1::ClientMetadata};
+use airprotos::common::{self, v1::Version};
 
 // Collected by `build.rs`. Note that these are only refreshed when the build
 // script reruns, see the comment there.
-pub(super) static METADATA: LazyLock<ClientMetadata> = LazyLock::new(|| {
-    new_metadata(
+pub(super) static VERSION: LazyLock<Version> = LazyLock::new(|| {
+    new_version(
         env!("CARGO_PKG_VERSION"),
         env!("AIR_GIT_DIRTY") == "true",
         env!("AIR_COMMIT_HASH"),
-        env!("AIR_COMMITS_SINCE_TAG")
+        env!("AIR_BUILD_NUMBER")
             .parse()
-            .expect("invalid commit count"),
+            .expect("invalid build number"),
     )
 });
 
-fn new_metadata(
+fn new_version(
     pkg_version: &str,
     git_dirty: bool,
     commit_hash: &str,
-    commits_since_tag: usize,
-) -> ClientMetadata {
+    build_number: u64,
+) -> Version {
     let mut version = semver::Version::parse(pkg_version).unwrap();
 
     if git_dirty {
         version.pre = semver::Prerelease::new("dev").unwrap();
     }
-
-    let build_number = u64::try_from(commits_since_tag).unwrap();
 
     let commit_hash_hex = &commit_hash[0..8];
     debug_assert_eq!(commit_hash_hex.len() % 2, 0);
@@ -43,49 +41,41 @@ fn new_metadata(
         })
         .collect();
 
-    let proto_version = common::v1::Version {
+    common::v1::Version {
         build_number,
         commit_hash,
         ..version.into()
-    };
-
-    ClientMetadata {
-        version: Some(proto_version),
     }
 }
 
 #[cfg(test)]
 mod test {
     #[test]
-    fn metadata() {
-        let metadata = super::new_metadata("1.2.3", false, "1234567890abcdef", 10);
+    fn version() {
+        let version = super::new_version("1.2.3", false, "1234567890abcdef", 10);
         assert_eq!(
-            metadata,
-            airprotos::common::v1::ClientMetadata {
-                version: Some(airprotos::common::v1::Version {
-                    major: 1,
-                    minor: 2,
-                    patch: 3,
-                    pre: Default::default(),
-                    build_number: 10,
-                    commit_hash: vec![0x12, 0x34, 0x56, 0x78],
-                }),
-            }
+            version,
+            airprotos::common::v1::Version {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                pre: Default::default(),
+                build_number: 10,
+                commit_hash: vec![0x12, 0x34, 0x56, 0x78],
+            },
         );
 
-        let metadata = super::new_metadata("1.2.3", true, "1234567890abcdef", 10);
+        let version = super::new_version("1.2.3", true, "1234567890abcdef", 10);
         assert_eq!(
-            metadata,
-            airprotos::common::v1::ClientMetadata {
-                version: Some(airprotos::common::v1::Version {
-                    major: 1,
-                    minor: 2,
-                    patch: 3,
-                    pre: "dev".to_owned(),
-                    build_number: 10,
-                    commit_hash: vec![0x12, 0x34, 0x56, 0x78],
-                }),
-            }
+            version,
+            airprotos::common::v1::Version {
+                major: 1,
+                minor: 2,
+                patch: 3,
+                pre: "dev".to_owned(),
+                build_number: 10,
+                commit_hash: vec![0x12, 0x34, 0x56, 0x78],
+            },
         );
     }
 }

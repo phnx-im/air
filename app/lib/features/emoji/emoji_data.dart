@@ -1819,32 +1819,22 @@ const List<(String, List<Emoji>)> emojisByCategory = [
         '\u{1F6B6}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'woman_walking_right',
         {
-          '\u{1F3FB}':
-              '\u{1F6B6}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F6B6}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F6B6}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F6B6}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F6B6}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F6B6}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F6B6}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F6B6}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F6B6}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F6B6}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji(
         '\u{1F6B6}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'man_walking_right',
         {
-          '\u{1F3FB}':
-              '\u{1F6B6}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F6B6}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F6B6}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F6B6}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F6B6}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F6B6}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F6B6}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F6B6}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F6B6}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F6B6}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji('\u{1F9CD}', 'person_standing', {
@@ -1900,32 +1890,22 @@ const List<(String, List<Emoji>)> emojisByCategory = [
         '\u{1F9CE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'woman_kneeling_right',
         {
-          '\u{1F3FB}':
-              '\u{1F9CE}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F9CE}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F9CE}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F9CE}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F9CE}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F9CE}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F9CE}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F9CE}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F9CE}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F9CE}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji(
         '\u{1F9CE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'man_kneeling_right',
         {
-          '\u{1F3FB}':
-              '\u{1F9CE}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F9CE}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F9CE}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F9CE}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F9CE}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F9CE}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F9CE}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F9CE}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F9CE}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F9CE}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji('\u{1F9D1}\u{200D}\u{1F9AF}', 'person_with_probing_cane', {
@@ -2167,32 +2147,22 @@ const List<(String, List<Emoji>)> emojisByCategory = [
         '\u{1F3C3}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'woman_running_right',
         {
-          '\u{1F3FB}':
-              '\u{1F3C3}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F3C3}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F3C3}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F3C3}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F3C3}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F3C3}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F3C3}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F3C3}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F3C3}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F3C3}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji(
         '\u{1F3C3}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         'man_running_right',
         {
-          '\u{1F3FB}':
-              '\u{1F3C3}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FC}':
-              '\u{1F3C3}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FD}':
-              '\u{1F3C3}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FE}':
-              '\u{1F3C3}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
-          '\u{1F3FF}':
-              '\u{1F3C3}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FB}': '\u{1F3C3}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FC}': '\u{1F3C3}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FD}': '\u{1F3C3}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FE}': '\u{1F3C3}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
+          '\u{1F3FF}': '\u{1F3C3}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}\u{200D}\u{27A1}\u{FE0F}',
         },
       ),
       Emoji('\u{1F9D1}\u{200D}\u{1FA70}', 'ballet_dancer', {
@@ -3069,213 +3039,118 @@ const List<(String, List<Emoji>)> emojisByCategory = [
         '\u{1F3FD}': '\u{1F48F}\u{1F3FD}',
         '\u{1F3FE}': '\u{1F48F}\u{1F3FE}',
         '\u{1F3FF}': '\u{1F48F}\u{1F3FF}',
-        '\u{1F3FB}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FB}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FB}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FB}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FC}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FC}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FC}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FC}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FD}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FD}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FD}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FD}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FE}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FE}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FE}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FE}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FF}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FF}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FF}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FF}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FB}\u{1F3FC}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FB}\u{1F3FD}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FB}\u{1F3FE}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FB}\u{1F3FF}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FC}\u{1F3FB}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FC}\u{1F3FD}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FC}\u{1F3FE}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FC}\u{1F3FF}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FD}\u{1F3FB}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FD}\u{1F3FC}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FD}\u{1F3FE}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FD}\u{1F3FF}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FE}\u{1F3FB}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FE}\u{1F3FC}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FE}\u{1F3FD}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FE}\u{1F3FF}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FF}\u{1F3FB}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FF}\u{1F3FC}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FF}\u{1F3FD}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FF}\u{1F3FE}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}',
       }),
       Emoji(
         '\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}',
         'kiss_mw',
         {
-          '\u{1F3FB}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
         },
       ),
       Emoji(
         '\u{1F468}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}',
         'kiss_mm',
         {
-          '\u{1F3FB}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}',
         },
       ),
       Emoji(
         '\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}',
         'kiss_ww',
         {
-          '\u{1F3FB}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}',
         },
       ),
       Emoji('\u{1F491}', 'couple_with_heart', {
@@ -3284,213 +3159,118 @@ const List<(String, List<Emoji>)> emojisByCategory = [
         '\u{1F3FD}': '\u{1F491}\u{1F3FD}',
         '\u{1F3FE}': '\u{1F491}\u{1F3FE}',
         '\u{1F3FF}': '\u{1F491}\u{1F3FF}',
-        '\u{1F3FB}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FB}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FB}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FB}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FC}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FC}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FC}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FC}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FD}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FD}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FD}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
-        '\u{1F3FD}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FE}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FE}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FE}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FE}\u{1F3FF}':
-            '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
-        '\u{1F3FF}\u{1F3FB}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
-        '\u{1F3FF}\u{1F3FC}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
-        '\u{1F3FF}\u{1F3FD}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
-        '\u{1F3FF}\u{1F3FE}':
-            '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FB}\u{1F3FC}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FB}\u{1F3FD}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FB}\u{1F3FE}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FB}\u{1F3FF}': '\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FC}\u{1F3FB}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FC}\u{1F3FD}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FC}\u{1F3FE}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FC}\u{1F3FF}': '\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FD}\u{1F3FB}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FD}\u{1F3FC}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FD}\u{1F3FE}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
+        '\u{1F3FD}\u{1F3FF}': '\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FE}\u{1F3FB}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FE}\u{1F3FC}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FE}\u{1F3FD}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FE}\u{1F3FF}': '\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FF}',
+        '\u{1F3FF}\u{1F3FB}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FB}',
+        '\u{1F3FF}\u{1F3FC}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FC}',
+        '\u{1F3FF}\u{1F3FD}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FD}',
+        '\u{1F3FF}\u{1F3FE}': '\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F9D1}\u{1F3FE}',
       }),
       Emoji(
         '\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}',
         'couple_with_heart_mw',
         {
-          '\u{1F3FB}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
         },
       ),
       Emoji(
         '\u{1F468}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}',
         'couple_with_heart_mm',
         {
-          '\u{1F3FB}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F468}\u{1F3FF}',
         },
       ),
       Emoji(
         '\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}',
         'couple_with_heart_ww',
         {
-          '\u{1F3FB}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FB}\u{1F3FC}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FB}\u{1F3FD}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FB}\u{1F3FE}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FB}\u{1F3FF}':
-              '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FC}\u{1F3FB}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FC}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FC}\u{1F3FD}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FC}\u{1F3FE}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FC}\u{1F3FF}':
-              '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FD}\u{1F3FB}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FD}\u{1F3FC}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FD}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FD}\u{1F3FE}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FD}\u{1F3FF}':
-              '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FE}\u{1F3FB}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FE}\u{1F3FC}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FE}\u{1F3FD}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FE}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FE}\u{1F3FF}':
-              '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
-          '\u{1F3FF}\u{1F3FB}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
-          '\u{1F3FF}\u{1F3FC}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
-          '\u{1F3FF}\u{1F3FD}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
-          '\u{1F3FF}\u{1F3FE}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
-          '\u{1F3FF}':
-              '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FB}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FB}\u{1F3FC}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FB}\u{1F3FD}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FB}\u{1F3FE}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FB}\u{1F3FF}': '\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FC}\u{1F3FB}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FC}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FC}\u{1F3FD}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FC}\u{1F3FE}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FC}\u{1F3FF}': '\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FD}\u{1F3FB}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FD}\u{1F3FC}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FD}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FD}\u{1F3FE}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FD}\u{1F3FF}': '\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FE}\u{1F3FB}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FE}\u{1F3FC}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FE}\u{1F3FD}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FE}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FE}\u{1F3FF}': '\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
+          '\u{1F3FF}\u{1F3FB}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FB}',
+          '\u{1F3FF}\u{1F3FC}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FC}',
+          '\u{1F3FF}\u{1F3FD}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FD}',
+          '\u{1F3FF}\u{1F3FE}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FE}',
+          '\u{1F3FF}': '\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F469}\u{1F3FF}',
         },
       ),
       Emoji('\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F466}', 'family_mwb'),

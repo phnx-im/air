@@ -188,9 +188,8 @@ mod tests {
         credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
-        mls_group_config::AppComponent,
     };
-    use airprotos::client::component::AirComponent;
+    use airprotos::client::app_data::GroupAppData;
     use chrono::DateTime;
     use openmls::components::vc_derivation_info::{EpochId, VC_COMPONENT_ID};
     use uuid::Uuid;
@@ -222,10 +221,10 @@ mod tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            // Registering a derivation epoch requires Safe AAD framing, as on
-            // the real self group.
-            Some(vec![VC_COMPONENT_ID]),
-            AirComponent::default_for_self_group(),
+            GroupAppData {
+                is_self_group: true,
+                safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+            },
         )?;
         Ok(group)
     }

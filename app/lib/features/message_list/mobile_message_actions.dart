@@ -43,6 +43,7 @@ Future<void> showMobileMessageActions({
   void Function(String emoji)? onReact,
   VoidCallback? onReactMore,
 }) {
+  final focus = SuspendedKeyboardFocus.suspend(context);
   // Drop taps that land during the closing transition.
   var consumed = false;
   // Deliver a picked reaction only after the exit transition settled.
@@ -69,9 +70,9 @@ Future<void> showMobileMessageActions({
       if (!exitListenerAttached) {
         exitListenerAttached = true;
         animation.addStatusListener((status) {
-          if (status == .dismissed && pickedEmoji != null) {
-            onReact?.call(pickedEmoji!);
-          }
+          if (status != .dismissed) return;
+          if (pickedEmoji != null) onReact?.call(pickedEmoji!);
+          focus.restore();
         });
       }
 

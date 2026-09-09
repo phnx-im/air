@@ -11,6 +11,7 @@ use aircommon::identifiers::{UserId, Username};
 use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
@@ -62,9 +63,21 @@ pub struct UiUser {
 struct UiUserInner {
     user_id: UserId,
     usernames: Vec<Username>,
-    unsupported_version: bool,
+    /// Status of the version of the client communicated by the server.
+    version_status: VersionStatus,
     /// Another device of this user removed this one from the self group.
     account_unlinked: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum VersionStatus {
+    /// No expiration is announced by the server.
+    Supported,
+    /// Server rejects this version.
+    Unsupported,
+    /// The server announced that the version stops being accepted at this time.
+    ExpiresAt(DateTime<Utc>),
 }
 
 impl UiUser {
@@ -129,9 +142,10 @@ impl UiUser {
             .collect()
     }
 
+    /// Return the status of the client version communicated by the server.
     #[frb(getter, sync)]
-    pub fn unsupported_version(&self) -> bool {
-        self.inner.unsupported_version
+    pub fn version_status(&self) -> VersionStatus {
+        self.inner.version_status
     }
 
     #[frb(getter, sync)]
@@ -174,7 +188,7 @@ impl UserCubitBase {
         let core = CubitCore::with_initial_state(UiUser::new(Arc::new(UiUserInner {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
-            unsupported_version: false,
+            version_status: VersionStatus::Supported,
             account_unlinked: false,
         })));
 

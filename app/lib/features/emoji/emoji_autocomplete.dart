@@ -28,9 +28,8 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
     // preceded by whitespace, so mid-word colons (e.g. "std::unix::signal")
     // don't match.
     final untilCaret = value.text.substring(0, caret);
-    final match = RegExp(
-      r'(^|\s)(:[a-zA-Z0-9_\-\+]+:?)$',
-    ).firstMatch(untilCaret);
+    final match = RegExp(r'(^|\s)(:[a-zA-Z0-9_\-\+]+:?)$')
+        .firstMatch(untilCaret);
     final shortcode = match?.group(2);
     if (shortcode == null) {
       return null;

@@ -54,14 +54,14 @@ clap = { version = "4.5", features = ["derive", "env"] }
 config = { version = "0.15", default-features = false, features = ["yaml"] }
 criterion = { version = "0.8.2", features = ["html_reports", "async", "async_tokio"] }
 dashmap = "6.1.0"
-derive_more = { version = "2.1.1", features = ["from"] }
+derive_more = { version = "2.1.1", features = ["from", "display"] }
 deunicode = "1.6.2"
 digest-io = "0.1.0"
 displaydoc = "0.2.5"
 ed25519 = "2.2"
 enumset = "1.1.5"
 flate2 = "1.1.0"
-flutter_rust_bridge = { version = "=2.12.0", features = ["chrono", "uuid"] }
+flutter_rust_bridge = { version = "=2.13.0", features = ["chrono", "uuid"] }
 futures-core = "0.3.31"
 futures-util = "0.3.31"
 h2 = "0.4.12"
@@ -133,10 +133,9 @@ tracing-log = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log", "parking_lot"] }
 url = "2.5.4"
 uuid = "1.16.0"
-webpx = { version = "0.4.0", default-features = false, features = ["encode", "animation", "std"] }
+webpx = { version = "0.4.0", default-features = false, features = ["decode", "encode", "animation", "std"] }
 xshell = "0.2"
 zeroize = "1.8.2"
-
 
 [patch.crates-io]
 # openmls = { path = "../openmls/openmls" }

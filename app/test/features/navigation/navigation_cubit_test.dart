@@ -33,9 +33,8 @@ void main() {
 
   setUp(() {
     notificationContext = MockNotificationContext();
-    when(
-      () => notificationContext.chatOpened(chatId: any(named: 'chatId')),
-    ).thenAnswer((_) async {});
+    when(() => notificationContext.chatOpened(chatId: any(named: 'chatId')))
+        .thenAnswer((_) async {});
   });
 
   NavigationCubit subject() =>

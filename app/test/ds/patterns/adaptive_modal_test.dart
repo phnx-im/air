@@ -137,15 +137,13 @@ void main() {
 
     // The sheet is a touch idiom, so a desktop window narrow enough to sit in
     // the small breakpoint still gets the card.
-    testWidgets(
-      'presents a dialog card on desktop in a narrow window',
-      (tester) async {
-        sizeView(tester, phoneViewSize);
-        await open(tester);
+    testWidgets('presents a dialog card on desktop in a narrow window', (
+      tester,
+    ) async {
+      sizeView(tester, phoneViewSize);
+      await open(tester);
 
-        expect(find.byType(AppDialog), findsOneWidget);
-      },
-      variant: desktopPlatform,
-    );
+      expect(find.byType(AppDialog), findsOneWidget);
+    }, variant: desktopPlatform);
   });
 }

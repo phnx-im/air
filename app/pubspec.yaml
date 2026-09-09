@@ -19,11 +19,11 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-version: 0.21.0+1
+version: 0.22.0+1
 
 environment:
-  sdk: ">=3.12.2 <4.0.0"
-  flutter: ">=3.44.8 <4.0.0"
+  sdk: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -31,13 +31,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   convert: ^3.0.0
-  flutter_rust_bridge: 2.12.0
+  flutter_rust_bridge: 2.13.0
   freezed_annotation: ^3.0.0
   path_provider: ^2.1.1
   image_picker: ^1.0.7
   collection: any
-  airapplogic:
-    path: rust_builder
   intl: ^0.20.2
   uuid: ^4.5.3
   provider: ^6.1.2
@@ -48,7 +46,6 @@ dependencies:
   file_selector: ^1.0.3
   flutter_blurhash: ^0.9.1
   flutter_svg: ^2.0.13
-  package_info_plus: ^10.2.1
   flutter_hooks: ^0.21.3+1
   url_launcher: ^6.3.2
   vector_graphics: ^1.1.19
@@ -58,12 +55,13 @@ dependencies:
 
 dev_dependencies:
   args: ^2.5.0
+  flutter_rust_bridge_hooks: 2.13.0
   dot_shorthand_converter: ^0.0.4
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
   vector_graphics_compiler: ^1.1.19
-  freezed: ^3.0.6
+  freezed: ^4.0.1
   integration_test:
     sdk: flutter
   flutter_driver:
@@ -92,6 +90,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/logo.svg
+    - assets/licenses/rust_licenses.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.

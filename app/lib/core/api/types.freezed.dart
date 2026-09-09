@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'types.dart';
@@ -9,6 +9,7 @@ part of 'types.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $AirComponentCopyWith<AirComponent> get copyWith => _$AirComponentCopyWithImpl<A
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
+  final _this = this as AirComponent;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, _this.features) || other.features == _this.features)&&(identical(other.isSelfGroup, _this.isSelfGroup) || other.isSelfGroup == _this.isSelfGroup));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,features,isSelfGroup);
+int get hashCode {
+  final _this = this as AirComponent;
+  return Object.hash(runtimeType,_this.features,_this.isSelfGroup);
+}
 
 @override
 String toString() {
-  return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
+  final _this = this as AirComponent;
+  return 'AirComponent(features: ${_this.features}, isSelfGroup: ${_this.isSelfGroup})';
 }
 
 
@@ -63,7 +69,7 @@ class _$AirComponentCopyWithImpl<$Res>
 /// Create a copy of AirComponent
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? features = null,Object? isSelfGroup = null,}) {
-  return _then(_self.copyWith(
+  return _then(AirComponent(
 features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
 as AirFeatures,isSelfGroup: null == isSelfGroup ? _self.isSelfGroup : isSelfGroup // ignore: cast_nullable_to_non_nullable
 as bool,
@@ -103,16 +109,18 @@ _$AirComponentCopyWith<_AirComponent> get copyWith => __$AirComponentCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,features,isSelfGroup);
+int get hashCode {
+    return Object.hash(runtimeType,features,isSelfGroup);
+}
 
 @override
 String toString() {
-  return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
+    return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
 }
 
 
@@ -174,16 +182,21 @@ $AirFeaturesCopyWith<AirFeatures> get copyWith => _$AirFeaturesCopyWithImpl<AirF
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == emptyConnectionGroupAttributes)&&(identical(other.pqGroups, pqGroups) || other.pqGroups == pqGroups));
+  final _this = this as AirFeatures;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, _this.encryptedGroupProfiles) || other.encryptedGroupProfiles == _this.encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, _this.emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == _this.emptyConnectionGroupAttributes)&&(identical(other.pqGroups, _this.pqGroups) || other.pqGroups == _this.pqGroups));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupAttributes,pqGroups);
+int get hashCode {
+  final _this = this as AirFeatures;
+  return Object.hash(runtimeType,_this.encryptedGroupProfiles,_this.emptyConnectionGroupAttributes,_this.pqGroups);
+}
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupAttributes: $emptyConnectionGroupAttributes, pqGroups: $pqGroups)';
+  final _this = this as AirFeatures;
+  return 'AirFeatures(encryptedGroupProfiles: ${_this.encryptedGroupProfiles}, emptyConnectionGroupAttributes: ${_this.emptyConnectionGroupAttributes}, pqGroups: ${_this.pqGroups})';
 }
 
 
@@ -212,7 +225,7 @@ class _$AirFeaturesCopyWithImpl<$Res>
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupAttributes = null,Object? pqGroups = null,}) {
-  return _then(_self.copyWith(
+  return _then(AirFeatures(
 encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
 as bool,emptyConnectionGroupAttributes: null == emptyConnectionGroupAttributes ? _self.emptyConnectionGroupAttributes : emptyConnectionGroupAttributes // ignore: cast_nullable_to_non_nullable
 as bool,pqGroups: null == pqGroups ? _self.pqGroups : pqGroups // ignore: cast_nullable_to_non_nullable
@@ -245,16 +258,18 @@ _$AirFeaturesCopyWith<_AirFeatures> get copyWith => __$AirFeaturesCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == emptyConnectionGroupAttributes)&&(identical(other.pqGroups, pqGroups) || other.pqGroups == pqGroups));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == emptyConnectionGroupAttributes)&&(identical(other.pqGroups, pqGroups) || other.pqGroups == pqGroups));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupAttributes,pqGroups);
+int get hashCode {
+    return Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupAttributes,pqGroups);
+}
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupAttributes: $emptyConnectionGroupAttributes, pqGroups: $pqGroups)';
+    return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupAttributes: $emptyConnectionGroupAttributes, pqGroups: $pqGroups)';
 }
 
 
@@ -308,16 +323,21 @@ $UiChatMessageCopyWith<UiChatMessage> get copyWith => _$UiChatMessageCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.reactions, reactions));
+  final _this = this as UiChatMessage;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMessage&&(identical(other.chatId, _this.chatId) || other.chatId == _this.chatId)&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.timestamp, _this.timestamp) || other.timestamp == _this.timestamp)&&(identical(other.message, _this.message) || other.message == _this.message)&&(identical(other.inReplyToMessage, _this.inReplyToMessage) || other.inReplyToMessage == _this.inReplyToMessage)&&(identical(other.status, _this.status) || other.status == _this.status)&&const DeepCollectionEquality().equals(other.reactions, _this.reactions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,status,const DeepCollectionEquality().hash(reactions));
+int get hashCode {
+  final _this = this as UiChatMessage;
+  return Object.hash(runtimeType,_this.chatId,_this.id,_this.timestamp,_this.message,_this.inReplyToMessage,_this.status,const DeepCollectionEquality().hash(_this.reactions));
+}
 
 @override
 String toString() {
-  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, status: $status, reactions: $reactions)';
+  final _this = this as UiChatMessage;
+  return 'UiChatMessage(chatId: ${_this.chatId}, id: ${_this.id}, timestamp: ${_this.timestamp}, message: ${_this.message}, inReplyToMessage: ${_this.inReplyToMessage}, status: ${_this.status}, reactions: ${_this.reactions})';
 }
 
 
@@ -346,7 +366,7 @@ class _$UiChatMessageCopyWithImpl<$Res>
 /// Create a copy of UiChatMessage
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? chatId = null,Object? id = null,Object? timestamp = null,Object? message = null,Object? inReplyToMessage = freezed,Object? status = null,Object? reactions = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiChatMessage(
 chatId: null == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
 as ChatId,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as MessageId,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
@@ -387,7 +407,7 @@ $UiInReplyToMessageCopyWith<$Res>? get inReplyToMessage {
 
 
 class _UiChatMessage implements UiChatMessage {
-  const _UiChatMessage({required this.chatId, required this.id, required this.timestamp, required this.message, this.inReplyToMessage, required this.status, required final  List<UiReaction> reactions}): _reactions = reactions;
+  const _UiChatMessage({required this.chatId, required this.id, required this.timestamp, required this.message, this.inReplyToMessage, required this.status, required  List<UiReaction> reactions}): _reactions = reactions;
   
 
 @override final  ChatId chatId;
@@ -414,16 +434,18 @@ _$UiChatMessageCopyWith<_UiChatMessage> get copyWith => __$UiChatMessageCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other._reactions, _reactions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiChatMessage&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.id, id) || other.id == id)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&(identical(other.message, message) || other.message == message)&&(identical(other.inReplyToMessage, inReplyToMessage) || other.inReplyToMessage == inReplyToMessage)&&(identical(other.status, status) || other.status == status)&&const DeepCollectionEquality().equals(other.reactions, _reactions));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,status,const DeepCollectionEquality().hash(_reactions));
+int get hashCode {
+    return Object.hash(runtimeType,chatId,id,timestamp,message,inReplyToMessage,status,const DeepCollectionEquality().hash(_reactions));
+}
 
 @override
 String toString() {
-  return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, status: $status, reactions: $reactions)';
+    return 'UiChatMessage(chatId: $chatId, id: $id, timestamp: $timestamp, message: $message, inReplyToMessage: $inReplyToMessage, status: $status, reactions: $reactions)';
 }
 
 
@@ -497,7 +519,7 @@ mixin _$UiChatMuted {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted);
 }
 
 
@@ -506,7 +528,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatMuted()';
+    return 'UiChatMuted()';
 }
 
 
@@ -538,16 +560,18 @@ $UiChatMuted_UntilCopyWith<UiChatMuted_Until> get copyWith => _$UiChatMuted_Unti
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Until&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Until&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatMuted.until(field0: $field0)';
+    return 'UiChatMuted.until(field0: $field0)';
 }
 
 
@@ -599,7 +623,7 @@ class UiChatMuted_Forever extends UiChatMuted {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Forever);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Forever);
 }
 
 
@@ -608,7 +632,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatMuted.forever()';
+    return 'UiChatMuted.forever()';
 }
 
 
@@ -626,7 +650,7 @@ mixin _$UiChatStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus);
 }
 
 
@@ -635,7 +659,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatStatus()';
+    return 'UiChatStatus()';
 }
 
 
@@ -662,7 +686,7 @@ class UiChatStatus_Pending extends UiChatStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Pending);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Pending);
 }
 
 
@@ -671,7 +695,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatStatus.pending()';
+    return 'UiChatStatus.pending()';
 }
 
 
@@ -699,16 +723,18 @@ $UiChatStatus_InactiveCopyWith<UiChatStatus_Inactive> get copyWith => _$UiChatSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Inactive&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Inactive&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatStatus.inactive(field0: $field0)';
+    return 'UiChatStatus.inactive(field0: $field0)';
 }
 
 
@@ -760,7 +786,7 @@ class UiChatStatus_Active extends UiChatStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Active);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Active);
 }
 
 
@@ -769,7 +795,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatStatus.active()';
+    return 'UiChatStatus.active()';
 }
 
 
@@ -792,7 +818,7 @@ class UiChatStatus_Blocked extends UiChatStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Blocked);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Blocked);
 }
 
 
@@ -801,7 +827,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiChatStatus.blocked()';
+    return 'UiChatStatus.blocked()';
 }
 
 
@@ -819,16 +845,21 @@ mixin _$UiChatType {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType&&const DeepCollectionEquality().equals(other.field0, field0));
+  final _this = this as UiChatType;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType&&const DeepCollectionEquality().equals(other.field0, _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode {
+  final _this = this as UiChatType;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
 
 @override
 String toString() {
-  return 'UiChatType(field0: $field0)';
+  final _this = this as UiChatType;
+  return 'UiChatType(field0: ${_this.field0})';
 }
 
 
@@ -860,16 +891,18 @@ $UiChatType_HandleConnectionCopyWith<UiChatType_HandleConnection> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_HandleConnection&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_HandleConnection&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatType.handleConnection(field0: $field0)';
+    return 'UiChatType.handleConnection(field0: $field0)';
 }
 
 
@@ -935,16 +968,18 @@ $UiChatType_ConnectionCopyWith<UiChatType_Connection> get copyWith => _$UiChatTy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Connection&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Connection&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatType.connection(field0: $field0)';
+    return 'UiChatType.connection(field0: $field0)';
 }
 
 
@@ -1001,16 +1036,18 @@ $UiChatType_TargetedMessageConnectionCopyWith<UiChatType_TargetedMessageConnecti
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_TargetedMessageConnection&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_TargetedMessageConnection&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatType.targetedMessageConnection(field0: $field0)';
+    return 'UiChatType.targetedMessageConnection(field0: $field0)';
 }
 
 
@@ -1067,16 +1104,18 @@ $UiChatType_GroupCopyWith<UiChatType_Group> get copyWith => _$UiChatType_GroupCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Group&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Group&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatType.group(field0: $field0)';
+    return 'UiChatType.group(field0: $field0)';
 }
 
 
@@ -1133,16 +1172,18 @@ $UiChatType_PendingConnectionCopyWith<UiChatType_PendingConnection> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_PendingConnection&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_PendingConnection&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiChatType.pendingConnection(field0: $field0)';
+    return 'UiChatType.pendingConnection(field0: $field0)';
 }
 
 
@@ -1194,16 +1235,21 @@ $UiContentMessageCopyWith<UiContentMessage> get copyWith => _$UiContentMessageCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiContentMessage&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.content, content) || other.content == content)&&(identical(other.edited, edited) || other.edited == edited));
+  final _this = this as UiContentMessage;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiContentMessage&&(identical(other.sender, _this.sender) || other.sender == _this.sender)&&(identical(other.sent, _this.sent) || other.sent == _this.sent)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.edited, _this.edited) || other.edited == _this.edited));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,sent,content,edited);
+int get hashCode {
+  final _this = this as UiContentMessage;
+  return Object.hash(runtimeType,_this.sender,_this.sent,_this.content,_this.edited);
+}
 
 @override
 String toString() {
-  return 'UiContentMessage(sender: $sender, sent: $sent, content: $content, edited: $edited)';
+  final _this = this as UiContentMessage;
+  return 'UiContentMessage(sender: ${_this.sender}, sent: ${_this.sent}, content: ${_this.content}, edited: ${_this.edited})';
 }
 
 
@@ -1232,7 +1278,7 @@ class _$UiContentMessageCopyWithImpl<$Res>
 /// Create a copy of UiContentMessage
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? sender = null,Object? sent = null,Object? content = null,Object? edited = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiContentMessage(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
 as UiUserId,sent: null == sent ? _self.sent : sent // ignore: cast_nullable_to_non_nullable
 as bool,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
@@ -1276,16 +1322,18 @@ _$UiContentMessageCopyWith<_UiContentMessage> get copyWith => __$UiContentMessag
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiContentMessage&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.content, content) || other.content == content)&&(identical(other.edited, edited) || other.edited == edited));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiContentMessage&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.content, content) || other.content == content)&&(identical(other.edited, edited) || other.edited == edited));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,sent,content,edited);
+int get hashCode {
+    return Object.hash(runtimeType,sender,sent,content,edited);
+}
 
 @override
 String toString() {
-  return 'UiContentMessage(sender: $sender, sent: $sent, content: $content, edited: $edited)';
+    return 'UiContentMessage(sender: $sender, sent: $sent, content: $content, edited: $edited)';
 }
 
 
@@ -1349,16 +1397,21 @@ $UiErrorMessageCopyWith<UiErrorMessage> get copyWith => _$UiErrorMessageCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiErrorMessage&&(identical(other.message, message) || other.message == message));
+  final _this = this as UiErrorMessage;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiErrorMessage&&(identical(other.message, _this.message) || other.message == _this.message));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message);
+int get hashCode {
+  final _this = this as UiErrorMessage;
+  return Object.hash(runtimeType,_this.message);
+}
 
 @override
 String toString() {
-  return 'UiErrorMessage(message: $message)';
+  final _this = this as UiErrorMessage;
+  return 'UiErrorMessage(message: ${_this.message})';
 }
 
 
@@ -1387,7 +1440,7 @@ class _$UiErrorMessageCopyWithImpl<$Res>
 /// Create a copy of UiErrorMessage
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? message = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiErrorMessage(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -1416,16 +1469,18 @@ _$UiErrorMessageCopyWith<_UiErrorMessage> get copyWith => __$UiErrorMessageCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiErrorMessage&&(identical(other.message, message) || other.message == message));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiErrorMessage&&(identical(other.message, message) || other.message == message));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message);
+int get hashCode {
+    return Object.hash(runtimeType,message);
+}
 
 @override
 String toString() {
-  return 'UiErrorMessage(message: $message)';
+    return 'UiErrorMessage(message: $message)';
 }
 
 
@@ -1472,16 +1527,21 @@ mixin _$UiEventMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage&&const DeepCollectionEquality().equals(other.field0, field0));
+  final _this = this as UiEventMessage;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage&&const DeepCollectionEquality().equals(other.field0, _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode {
+  final _this = this as UiEventMessage;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
 
 @override
 String toString() {
-  return 'UiEventMessage(field0: $field0)';
+  final _this = this as UiEventMessage;
+  return 'UiEventMessage(field0: ${_this.field0})';
 }
 
 
@@ -1513,16 +1573,18 @@ $UiEventMessage_SystemCopyWith<UiEventMessage_System> get copyWith => _$UiEventM
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage_System&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage_System&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiEventMessage.system(field0: $field0)';
+    return 'UiEventMessage.system(field0: $field0)';
 }
 
 
@@ -1588,16 +1650,18 @@ $UiEventMessage_ErrorCopyWith<UiEventMessage_Error> get copyWith => _$UiEventMes
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage_Error&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiEventMessage_Error&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiEventMessage.error(field0: $field0)';
+    return 'UiEventMessage.error(field0: $field0)';
 }
 
 
@@ -1653,7 +1717,7 @@ mixin _$UiInReplyToMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage);
 }
 
 
@@ -1662,7 +1726,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiInReplyToMessage()';
+    return 'UiInReplyToMessage()';
 }
 
 
@@ -1689,7 +1753,7 @@ class UiInReplyToMessage_NotFound extends UiInReplyToMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_NotFound);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_NotFound);
 }
 
 
@@ -1698,7 +1762,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiInReplyToMessage.notFound()';
+    return 'UiInReplyToMessage.notFound()';
 }
 
 
@@ -1728,16 +1792,18 @@ $UiInReplyToMessage_ResolvedCopyWith<UiInReplyToMessage_Resolved> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_Resolved&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.mimiContent, mimiContent) || other.mimiContent == mimiContent));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_Resolved&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.mimiContent, mimiContent) || other.mimiContent == mimiContent));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,messageId,sender,mimiContent);
+int get hashCode {
+    return Object.hash(runtimeType,messageId,sender,mimiContent);
+}
 
 @override
 String toString() {
-  return 'UiInReplyToMessage.resolved(messageId: $messageId, sender: $sender, mimiContent: $mimiContent)';
+    return 'UiInReplyToMessage.resolved(messageId: $messageId, sender: $sender, mimiContent: $mimiContent)';
 }
 
 
@@ -1800,16 +1866,21 @@ $UiLastReactionCopyWith<UiLastReaction> get copyWith => _$UiLastReactionCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLastReaction&&(identical(other.reactor, reactor) || other.reactor == reactor)&&(identical(other.emoji, emoji) || other.emoji == emoji));
+  final _this = this as UiLastReaction;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLastReaction&&(identical(other.reactor, _this.reactor) || other.reactor == _this.reactor)&&(identical(other.emoji, _this.emoji) || other.emoji == _this.emoji));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reactor,emoji);
+int get hashCode {
+  final _this = this as UiLastReaction;
+  return Object.hash(runtimeType,_this.reactor,_this.emoji);
+}
 
 @override
 String toString() {
-  return 'UiLastReaction(reactor: $reactor, emoji: $emoji)';
+  final _this = this as UiLastReaction;
+  return 'UiLastReaction(reactor: ${_this.reactor}, emoji: ${_this.emoji})';
 }
 
 
@@ -1838,7 +1909,7 @@ class _$UiLastReactionCopyWithImpl<$Res>
 /// Create a copy of UiLastReaction
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? reactor = null,Object? emoji = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiLastReaction(
 reactor: null == reactor ? _self.reactor : reactor // ignore: cast_nullable_to_non_nullable
 as UiUserId,emoji: null == emoji ? _self.emoji : emoji // ignore: cast_nullable_to_non_nullable
 as String,
@@ -1869,16 +1940,18 @@ _$UiLastReactionCopyWith<_UiLastReaction> get copyWith => __$UiLastReactionCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLastReaction&&(identical(other.reactor, reactor) || other.reactor == reactor)&&(identical(other.emoji, emoji) || other.emoji == emoji));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLastReaction&&(identical(other.reactor, reactor) || other.reactor == reactor)&&(identical(other.emoji, emoji) || other.emoji == emoji));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,reactor,emoji);
+int get hashCode {
+    return Object.hash(runtimeType,reactor,emoji);
+}
 
 @override
 String toString() {
-  return 'UiLastReaction(reactor: $reactor, emoji: $emoji)';
+    return 'UiLastReaction(reactor: $reactor, emoji: $emoji)';
 }
 
 
@@ -1926,16 +1999,21 @@ mixin _$UiMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage&&const DeepCollectionEquality().equals(other.field0, field0));
+  final _this = this as UiMessage;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage&&const DeepCollectionEquality().equals(other.field0, _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
+int get hashCode {
+  final _this = this as UiMessage;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
 
 @override
 String toString() {
-  return 'UiMessage(field0: $field0)';
+  final _this = this as UiMessage;
+  return 'UiMessage(field0: ${_this.field0})';
 }
 
 
@@ -1967,16 +2045,18 @@ $UiMessage_ContentCopyWith<UiMessage_Content> get copyWith => _$UiMessage_Conten
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage_Content&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage_Content&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiMessage.content(field0: $field0)';
+    return 'UiMessage.content(field0: $field0)';
 }
 
 
@@ -2042,16 +2122,18 @@ $UiMessage_DisplayCopyWith<UiMessage_Display> get copyWith => _$UiMessage_Displa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage_Display&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessage_Display&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiMessage.display(field0: $field0)';
+    return 'UiMessage.display(field0: $field0)';
 }
 
 
@@ -2101,7 +2183,7 @@ $UiEventMessageCopyWith<$Res> get field0 {
 /// @nodoc
 mixin _$UiMessageDraft {
 
- String get message; MessageId? get editingId; (UiMimiId, UiInReplyToMessage)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
+ String get message; MessageId? get editingId; (UiMimiId, UiInReplyToMessage,)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2112,16 +2194,21 @@ $UiMessageDraftCopyWith<UiMessageDraft> get copyWith => _$UiMessageDraftCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.inReplyTo, inReplyTo) || other.inReplyTo == inReplyTo)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
+  final _this = this as UiMessageDraft;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageDraft&&(identical(other.message, _this.message) || other.message == _this.message)&&(identical(other.editingId, _this.editingId) || other.editingId == _this.editingId)&&(identical(other.inReplyTo, _this.inReplyTo) || other.inReplyTo == _this.inReplyTo)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isCommitted, _this.isCommitted) || other.isCommitted == _this.isCommitted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message,editingId,inReplyTo,updatedAt,isCommitted);
+int get hashCode {
+  final _this = this as UiMessageDraft;
+  return Object.hash(runtimeType,_this.message,_this.editingId,_this.inReplyTo,_this.updatedAt,_this.isCommitted);
+}
 
 @override
 String toString() {
-  return 'UiMessageDraft(message: $message, editingId: $editingId, inReplyTo: $inReplyTo, updatedAt: $updatedAt, isCommitted: $isCommitted)';
+  final _this = this as UiMessageDraft;
+  return 'UiMessageDraft(message: ${_this.message}, editingId: ${_this.editingId}, inReplyTo: ${_this.inReplyTo}, updatedAt: ${_this.updatedAt}, isCommitted: ${_this.isCommitted})';
 }
 
 
@@ -2132,7 +2219,7 @@ abstract mixin class $UiMessageDraftCopyWith<$Res>  {
   factory $UiMessageDraftCopyWith(UiMessageDraft value, $Res Function(UiMessageDraft) _then) = _$UiMessageDraftCopyWithImpl;
 @useResult
 $Res call({
- String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -2150,11 +2237,11 @@ class _$UiMessageDraftCopyWithImpl<$Res>
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? message = null,Object? editingId = freezed,Object? inReplyTo = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiMessageDraft(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
-as (UiMimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as (UiMimiId, UiInReplyToMessage,)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -2173,7 +2260,7 @@ class _UiMessageDraft implements UiMessageDraft {
 
 @override final  String message;
 @override final  MessageId? editingId;
-@override final  (UiMimiId, UiInReplyToMessage)? inReplyTo;
+@override final  (UiMimiId, UiInReplyToMessage,)? inReplyTo;
 @override final  DateTime updatedAt;
 @override final  bool isCommitted;
 
@@ -2187,16 +2274,18 @@ _$UiMessageDraftCopyWith<_UiMessageDraft> get copyWith => __$UiMessageDraftCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.inReplyTo, inReplyTo) || other.inReplyTo == inReplyTo)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.inReplyTo, inReplyTo) || other.inReplyTo == inReplyTo)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,message,editingId,inReplyTo,updatedAt,isCommitted);
+int get hashCode {
+    return Object.hash(runtimeType,message,editingId,inReplyTo,updatedAt,isCommitted);
+}
 
 @override
 String toString() {
-  return 'UiMessageDraft(message: $message, editingId: $editingId, inReplyTo: $inReplyTo, updatedAt: $updatedAt, isCommitted: $isCommitted)';
+    return 'UiMessageDraft(message: $message, editingId: $editingId, inReplyTo: $inReplyTo, updatedAt: $updatedAt, isCommitted: $isCommitted)';
 }
 
 
@@ -2207,7 +2296,7 @@ abstract mixin class _$UiMessageDraftCopyWith<$Res> implements $UiMessageDraftCo
   factory _$UiMessageDraftCopyWith(_UiMessageDraft value, $Res Function(_UiMessageDraft) _then) = __$UiMessageDraftCopyWithImpl;
 @override @useResult
 $Res call({
- String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -2229,7 +2318,7 @@ class __$UiMessageDraftCopyWithImpl<$Res>
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
-as (UiMimiId, UiInReplyToMessage)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as (UiMimiId, UiInReplyToMessage,)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,isCommitted: null == isCommitted ? _self.isCommitted : isCommitted // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
@@ -2252,16 +2341,21 @@ $UiReactionCopyWith<UiReaction> get copyWith => _$UiReactionCopyWithImpl<UiReact
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiReaction&&(identical(other.emoji, emoji) || other.emoji == emoji)&&const DeepCollectionEquality().equals(other.users, users));
+  final _this = this as UiReaction;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiReaction&&(identical(other.emoji, _this.emoji) || other.emoji == _this.emoji)&&const DeepCollectionEquality().equals(other.users, _this.users));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,emoji,const DeepCollectionEquality().hash(users));
+int get hashCode {
+  final _this = this as UiReaction;
+  return Object.hash(runtimeType,_this.emoji,const DeepCollectionEquality().hash(_this.users));
+}
 
 @override
 String toString() {
-  return 'UiReaction(emoji: $emoji, users: $users)';
+  final _this = this as UiReaction;
+  return 'UiReaction(emoji: ${_this.emoji}, users: ${_this.users})';
 }
 
 
@@ -2290,7 +2384,7 @@ class _$UiReactionCopyWithImpl<$Res>
 /// Create a copy of UiReaction
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? emoji = null,Object? users = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiReaction(
 emoji: null == emoji ? _self.emoji : emoji // ignore: cast_nullable_to_non_nullable
 as String,users: null == users ? _self.users : users // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,
@@ -2305,7 +2399,7 @@ as List<UiUserId>,
 
 
 class _UiReaction implements UiReaction {
-  const _UiReaction({required this.emoji, required final  List<UiUserId> users}): _users = users;
+  const _UiReaction({required this.emoji, required  List<UiUserId> users}): _users = users;
   
 
 @override final  String emoji;
@@ -2327,16 +2421,18 @@ _$UiReactionCopyWith<_UiReaction> get copyWith => __$UiReactionCopyWithImpl<_UiR
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiReaction&&(identical(other.emoji, emoji) || other.emoji == emoji)&&const DeepCollectionEquality().equals(other._users, _users));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiReaction&&(identical(other.emoji, emoji) || other.emoji == emoji)&&const DeepCollectionEquality().equals(other.users, _users));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,emoji,const DeepCollectionEquality().hash(_users));
+int get hashCode {
+    return Object.hash(runtimeType,emoji,const DeepCollectionEquality().hash(_users));
+}
 
 @override
 String toString() {
-  return 'UiReaction(emoji: $emoji, users: $users)';
+    return 'UiReaction(emoji: $emoji, users: $users)';
 }
 
 
@@ -2384,7 +2480,7 @@ mixin _$UiSystemMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage);
 }
 
 
@@ -2393,7 +2489,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiSystemMessage()';
+    return 'UiSystemMessage()';
 }
 
 
@@ -2426,16 +2522,18 @@ $UiSystemMessage_AddCopyWith<UiSystemMessage_Add> get copyWith => _$UiSystemMess
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Add&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Add&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode {
+    return Object.hash(runtimeType,field0,field1);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.add(field0: $field0, field1: $field1)';
+    return 'UiSystemMessage.add(field0: $field0, field1: $field1)';
 }
 
 
@@ -2494,16 +2592,18 @@ $UiSystemMessage_RemoveCopyWith<UiSystemMessage_Remove> get copyWith => _$UiSyst
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Remove&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Remove&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1);
+int get hashCode {
+    return Object.hash(runtimeType,field0,field1);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.remove(field0: $field0, field1: $field1)';
+    return 'UiSystemMessage.remove(field0: $field0, field1: $field1)';
 }
 
 
@@ -2563,16 +2663,18 @@ $UiSystemMessage_ChangeTitleCopyWith<UiSystemMessage_ChangeTitle> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangeTitle&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1)&&(identical(other.field2, field2) || other.field2 == field2));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangeTitle&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1)&&(identical(other.field2, field2) || other.field2 == field2));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0,field1,field2);
+int get hashCode {
+    return Object.hash(runtimeType,field0,field1,field2);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.changeTitle(field0: $field0, field1: $field1, field2: $field2)';
+    return 'UiSystemMessage.changeTitle(field0: $field0, field1: $field1, field2: $field2)';
 }
 
 
@@ -2631,16 +2733,18 @@ $UiSystemMessage_ChangePictureCopyWith<UiSystemMessage_ChangePicture> get copyWi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangePicture&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ChangePicture&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.changePicture(field0: $field0)';
+    return 'UiSystemMessage.changePicture(field0: $field0)';
 }
 
 
@@ -2698,16 +2802,18 @@ $UiSystemMessage_ReceivedHandleConnectionRequestCopyWith<UiSystemMessage_Receive
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedHandleConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedHandleConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,username);
+int get hashCode {
+    return Object.hash(runtimeType,sender,username);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedHandleConnectionRequest(sender: $sender, username: $username)';
+    return 'UiSystemMessage.receivedHandleConnectionRequest(sender: $sender, username: $username)';
 }
 
 
@@ -2775,16 +2881,18 @@ $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith<UiSystemMessage_Receive
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,chatName);
+int get hashCode {
+    return Object.hash(runtimeType,sender,chatName);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedDirectConnectionRequest(sender: $sender, chatName: $chatName)';
+    return 'UiSystemMessage.receivedDirectConnectionRequest(sender: $sender, chatName: $chatName)';
 }
 
 
@@ -2843,16 +2951,18 @@ $UiSystemMessage_AcceptedConnectionRequestCopyWith<UiSystemMessage_AcceptedConne
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_AcceptedConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_AcceptedConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,username);
+int get hashCode {
+    return Object.hash(runtimeType,sender,username);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.acceptedConnectionRequest(sender: $sender, username: $username)';
+    return 'UiSystemMessage.acceptedConnectionRequest(sender: $sender, username: $username)';
 }
 
 
@@ -2923,16 +3033,18 @@ $UiSystemMessage_ReceivedConnectionConfirmationCopyWith<UiSystemMessage_Received
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedConnectionConfirmation&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedConnectionConfirmation&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,sender,username);
+int get hashCode {
+    return Object.hash(runtimeType,sender,username);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.receivedConnectionConfirmation(sender: $sender, username: $username)';
+    return 'UiSystemMessage.receivedConnectionConfirmation(sender: $sender, username: $username)';
 }
 
 
@@ -3002,16 +3114,18 @@ $UiSystemMessage_NewHandleConnectionChatCopyWith<UiSystemMessage_NewHandleConnec
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_NewHandleConnectionChat&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_NewHandleConnectionChat&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.newHandleConnectionChat(field0: $field0)';
+    return 'UiSystemMessage.newHandleConnectionChat(field0: $field0)';
 }
 
 
@@ -3077,16 +3191,18 @@ $UiSystemMessage_NewDirectConnectionChatCopyWith<UiSystemMessage_NewDirectConnec
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_NewDirectConnectionChat&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_NewDirectConnectionChat&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.newDirectConnectionChat(field0: $field0)';
+    return 'UiSystemMessage.newDirectConnectionChat(field0: $field0)';
 }
 
 
@@ -3143,16 +3259,18 @@ $UiSystemMessage_CreateGroupCopyWith<UiSystemMessage_CreateGroup> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_CreateGroup&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_CreateGroup&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiSystemMessage.createGroup(field0: $field0)';
+    return 'UiSystemMessage.createGroup(field0: $field0)';
 }
 
 
@@ -3204,7 +3322,7 @@ class UiSystemMessage_Onboarded extends UiSystemMessage {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Onboarded);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Onboarded);
 }
 
 
@@ -3213,7 +3331,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiSystemMessage.onboarded()';
+    return 'UiSystemMessage.onboarded()';
 }
 
 
@@ -3236,16 +3354,21 @@ $UiUsernameCopyWith<UiUsername> get copyWith => _$UiUsernameCopyWithImpl<UiUsern
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiUsername&&(identical(other.plaintext, plaintext) || other.plaintext == plaintext));
+  final _this = this as UiUsername;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiUsername&&(identical(other.plaintext, _this.plaintext) || other.plaintext == _this.plaintext));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,plaintext);
+int get hashCode {
+  final _this = this as UiUsername;
+  return Object.hash(runtimeType,_this.plaintext);
+}
 
 @override
 String toString() {
-  return 'UiUsername(plaintext: $plaintext)';
+  final _this = this as UiUsername;
+  return 'UiUsername(plaintext: ${_this.plaintext})';
 }
 
 
@@ -3274,7 +3397,7 @@ class _$UiUsernameCopyWithImpl<$Res>
 /// Create a copy of UiUsername
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? plaintext = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiUsername(
 plaintext: null == plaintext ? _self.plaintext : plaintext // ignore: cast_nullable_to_non_nullable
 as String,
   ));
@@ -3303,16 +3426,18 @@ _$UiUsernameCopyWith<_UiUsername> get copyWith => __$UiUsernameCopyWithImpl<_UiU
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiUsername&&(identical(other.plaintext, plaintext) || other.plaintext == plaintext));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiUsername&&(identical(other.plaintext, plaintext) || other.plaintext == plaintext));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,plaintext);
+int get hashCode {
+    return Object.hash(runtimeType,plaintext);
+}
 
 @override
 String toString() {
-  return 'UiUsername(plaintext: $plaintext)';
+    return 'UiUsername(plaintext: $plaintext)';
 }
 
 

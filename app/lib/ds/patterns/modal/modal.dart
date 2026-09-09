@@ -471,9 +471,8 @@ class _ModalPaneState extends State<ModalPane> {
         children: [
           ScrollConfiguration(
             // The scrollbar above is ours. The platform's would double it up.
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
+            behavior: ScrollConfiguration.of(context)
+                .copyWith(scrollbars: false),
             // Metrics notifications cover what a scroll can't: the first
             // layout, and a body that grows or shrinks while it sits still.
             child: NotificationListener<ScrollMetricsNotification>(

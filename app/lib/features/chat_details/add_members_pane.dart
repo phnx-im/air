@@ -94,9 +94,8 @@ class _AddMembersViewState extends State<AddMembersView> {
             Expanded(
               child: AppScrollbar(
                 child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
+                  behavior: ScrollConfiguration.of(context)
+                      .copyWith(scrollbars: false),
                   child: MemberSelectionList(
                     contacts: contacts,
                     selectedContacts: selectedContacts,

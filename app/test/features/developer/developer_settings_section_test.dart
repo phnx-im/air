@@ -16,7 +16,7 @@ import 'package:air/features/developer/log_entry.dart';
 import 'package:air/features/developer/logs_screen.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/l10n/l10n.dart';
@@ -30,20 +30,17 @@ import '../../mocks.dart';
 
 void main() {
   group('DeveloperSettingsView', () {
-    late MockLoadableUserCubit loadableUserCubit;
+    late MockUserSessionCubit userSessionCubit;
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() {
-      loadableUserCubit = MockLoadableUserCubit();
+      userSessionCubit = MockUserSessionCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
       // No user loaded, so the rows reporting on one stay out of the way.
-      when(
-        () => loadableUserCubit.state,
-      ).thenReturn(const LoadableUser.loading());
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(developerMode: true));
+      when(() => userSessionCubit.state).thenReturn(const UserSessionState());
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(developerMode: true));
       when(
         () => userSettingsCubit.setExperimentalFeatures(
           value: any(named: 'value'),
@@ -64,7 +61,7 @@ void main() {
 
       return MultiBlocProvider(
         providers: [
-          BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
+          BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: Builder(
@@ -112,9 +109,8 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.tap(find.text('Experimental features'));
 
-      verify(
-        () => userSettingsCubit.setExperimentalFeatures(value: true),
-      ).called(1);
+      verify(() => userSettingsCubit.setExperimentalFeatures(value: true))
+          .called(1);
     });
 
     testWidgets('leaves experimental features inert without developer mode', (
@@ -522,22 +518,20 @@ void main() {
 
     // The screen covers the window, so on macOS the traffic lights float over
     // the back button's corner.
-    testWidgets(
-      'clears the window controls with the back button',
-      (tester) async {
-        await tester.pumpWidget(buildSubject(entries: [entry(0)]));
+    testWidgets('clears the window controls with the back button', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject(entries: [entry(0)]));
 
-        final button = find.descendant(
-          of: find.byType(AppBarBackButton),
-          matching: find.byType(ButtonIcon),
-        );
-        expect(
-          tester.getTopLeft(button.first).dx,
-          greaterThanOrEqualTo(Chrome.windowControlsInset),
-        );
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      final button = find.descendant(
+        of: find.byType(AppBarBackButton),
+        matching: find.byType(ButtonIcon),
+      );
+      expect(
+        tester.getTopLeft(button.first).dx,
+        greaterThanOrEqualTo(Chrome.windowControlsInset),
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   group('YouMenu', () {
@@ -548,12 +542,10 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home(home: HomeNavigationState()));
-      when(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home(home: HomeNavigationState()));
+      when(() => navigationCubit.openYouSection(YouSection.developer))
+          .thenAnswer((_) async {});
     });
 
     Widget buildSubject() => MultiBlocProvider(
@@ -574,16 +566,14 @@ void main() {
     // The developer row is a section like any other, so it opens beside the
     // menu.
     testWidgets('opens the developer section from its row', (tester) async {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(developerMode: true));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(developerMode: true));
 
       await tester.pumpWidget(buildSubject());
       await tester.tap(find.text('Developer'));
 
-      verify(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).called(1);
+      verify(() => navigationCubit.openYouSection(YouSection.developer))
+          .called(1);
     });
 
     testWidgets('lists no developer row outside developer mode', (

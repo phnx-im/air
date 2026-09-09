@@ -348,7 +348,8 @@ class _MessageView extends HookWidget {
         .values[skinToneIndex.clamp(0, EmojiSkinVariation.values.length - 1)];
 
     final isDeleted = contentMessage.content.isDeleted;
-    final isReplyable = !isDeleted && status != UiMessageStatus.error;
+    final isSent = status != .error && status != .sending;
+    final isReplyable = !isDeleted && isSent;
     final isHidden = status == UiMessageStatus.hidden && !isRevealed.value;
 
     return _MessageShell(
@@ -369,6 +370,7 @@ class _MessageView extends HookWidget {
       isDeleted: isDeleted,
       isHidden: isHidden,
       isReplyable: isReplyable,
+      isSent: isSent,
       isMobilePlatform: isMobilePlatform,
       isDesktopPlatform: isDesktopPlatform,
       isRevealed: isRevealed,
@@ -395,6 +397,7 @@ class _MessageShell extends StatelessWidget {
     required this.isDeleted,
     required this.isHidden,
     required this.isReplyable,
+    required this.isSent,
     required this.isMobilePlatform,
     required this.isDesktopPlatform,
     required this.isRevealed,
@@ -415,6 +418,7 @@ class _MessageShell extends StatelessWidget {
   final bool isDeleted;
   final bool isHidden;
   final bool isReplyable;
+  final bool isSent;
   final bool isMobilePlatform;
   final bool isDesktopPlatform;
   final ValueNotifier<bool> isRevealed;
@@ -446,6 +450,7 @@ class _MessageShell extends StatelessWidget {
       isSender: isSender,
       isDeleted: isDeleted,
       isReplyable: isReplyable,
+      isSent: isSent,
     );
 
     return LayoutBuilder(
@@ -573,6 +578,17 @@ class _MessageShell extends StatelessWidget {
         enableSelection: enableSelection,
       ),
     );
+    // Mobile: double-tap a message to react. Only wrap the bubble (not the
+    // reaction chips), otherwise it will delay other taps.
+    if (isMobilePlatform && isReplyable) {
+      bubble = GestureDetector(
+        onDoubleTap: () {
+          AppHaptics.confirm();
+          commands.openReactionMenu();
+        },
+        child: bubble,
+      );
+    }
     if (!enableSelection && isReplyable) {
       bubble = SwipeToReplyBubble(
         icon: AppIcon.cornerLeft(
@@ -618,15 +634,6 @@ class _MessageShell extends StatelessWidget {
             child: GestureDetector(
               behavior: .deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
-              // Mobile: double-tap a message to react. On desktop, the
-              // recognizer must not be registered at all, otherwise it wins the
-              // gesture arena and blocks double-click text selection.
-              onDoubleTap: isMobilePlatform && isReplyable
-                  ? () {
-                      AppHaptics.confirm();
-                      commands.openReactionMenu();
-                    }
-                  : null,
               onLongPress: onLongPress,
               child: band,
             ),
@@ -855,6 +862,7 @@ List<MessageAction> _messageActions(
   required bool isSender,
   required bool isDeleted,
   required bool isReplyable,
+  required bool isSent,
 }) {
   final loc = AppLocalizations.of(context);
   final palette = SemanticPalette.of(context);
@@ -881,30 +889,18 @@ List<MessageAction> _messageActions(
         leading: const AppIcon.pencil(size: _menuIconSize),
         onSelected: commands.edit,
       ),
-    if (!isDeleted)
-      MessageAction(
-        label: loc.messageContextMenu_delete,
-        leading: AppIcon.trash(
-          size: _menuIconSize,
-          color: palette.function.danger,
-        ),
-        isDestructive: true,
-        insertSeparatorBefore: true,
-        onSelected: () => isSender
-            ? _showDeleteMessageDialog(context: context, messageId: messageId)
-            : _showDeleteForMeDialog(context: context, messageId: messageId),
+    MessageAction(
+      label: loc.messageContextMenu_delete,
+      leading: AppIcon.trash(
+        size: _menuIconSize,
+        color: palette.function.danger,
       ),
-    if (isDeleted)
-      MessageAction(
-        label: loc.messageContextMenu_delete,
-        leading: AppIcon.trash(
-          size: _menuIconSize,
-          color: palette.function.danger,
-        ),
-        isDestructive: true,
-        onSelected: () =>
-            _showDeleteForMeDialog(context: context, messageId: messageId),
-      ),
+      isDestructive: true,
+      insertSeparatorBefore: !isDeleted,
+      onSelected: () => (isSender && isSent && !isDeleted)
+          ? _showDeleteMessageDialog(context: context, messageId: messageId)
+          : _showDeleteForMeDialog(context: context, messageId: messageId),
+    ),
     if (attachments.isNotEmpty && !Platform.isIOS)
       MessageAction(
         label: loc.messageContextMenu_save,

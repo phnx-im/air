@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'android_status_bar.dart';
 import 'ios_status_bar.dart';
 import 'product_shot_frame.dart';

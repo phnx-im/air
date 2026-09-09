@@ -50,19 +50,16 @@ void main() {
       memberDetailsCubit = MockMemberDetailsCubit();
       usersCubit = MockUsersCubit();
 
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chat, members: members));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chat, members: members));
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
-      when(
-        () => memberDetailsCubit.state,
-      ).thenReturn(const MemberDetailsState());
+      when(() => memberDetailsCubit.state)
+          .thenReturn(const MemberDetailsState());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject() => MultiBlocProvider(

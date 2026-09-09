@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -925,6 +926,10 @@ class AppLocalizationsSv extends AppLocalizations {
       'Kunde inte ladda upp bilagan. Försök igen.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'Bilden kunde inte avkodas. Den kan vara skadad eller ha ett format som inte stöds.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -1079,6 +1084,24 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get licensesScreen_title => 'Licenser';
+
+  @override
+  String get licensesScreen_searchHint => 'Sök paket';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paket',
+      one: '$count paket',
+      zero: 'Inga paket',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Inga paket hittades.';
 
   @override
   String get contactUsScreen_title => 'Kontakta Air';
@@ -1313,10 +1336,15 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Öppna TestFlight på iOS eller Google Play på Android och uppdatera Air.';
+      'Öppna App Store på iOS eller Google Play på Android och uppdatera Air.';
 
   @override
   String get appOutdatedScreen_action => 'Uppdatera';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Uppdatera Air senast $date för att fortsätta använda det';
+  }
 
   @override
   String get contactRequestDialog_title => 'Kontaktförfrågan';

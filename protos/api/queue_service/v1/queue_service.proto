@@ -339,6 +339,7 @@ message ListenResponse {
     QueueEmpty empty = 1;
     QueueMessage message = 2;
     QueueEventPayload payload = 3;
+    VersionStatus version_status = 4;
   }
 }
 
@@ -358,4 +359,9 @@ message QueueEventPayload {
   delivery_service.v1.GroupEpoch epoch = 3;
   common.v1.Timestamp timestamp = 4;
   bytes payload = 5;
+}
+
+message VersionStatus {
+  // Not set if the version is supported and does not expire.
+  common.v1.Timestamp expires_at = 1;
 }

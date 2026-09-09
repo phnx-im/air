@@ -78,10 +78,12 @@ runs:
       run: echo "value=$(bash scripts/build-name.sh)" >> $GITHUB_OUTPUT
 
     # Forces apiclient's build script to collect fresh git metadata for this
-    # commit (see apiclient/build.rs)
+    # commit and bakes the store build number into it (see apiclient/build.rs)
     - name: Refresh client build metadata
       shell: bash
-      run: echo "AIR_REFRESH_BUILD_METADATA=${{ github.sha }}" >> $GITHUB_ENV
+      run: |
+        echo "AIR_REFRESH_BUILD_METADATA=${{ github.sha }}" >> $GITHUB_ENV
+        echo "AIR_BUILD_NUMBER=${{ steps.build-number.outputs.value }}" >> $GITHUB_ENV
 
     ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
 
@@ -206,9 +208,14 @@ runs:
       uses: gferon/setup-flutter@1d849067b1961950d28aa76b231a2a88ce045b2e
       with:
         channel: stable
-        version: 3.44.8
+        version: 3.47.0
         cache: true
         cache-sdk: true
+
+    - if: inputs.flutter == 'true'
+      name: Enable native assets (build hooks)
+      shell: bash
+      run: flutter config --enable-native-assets
 
     - if: inputs.flutter == 'true' && runner.os == 'Linux'
       name: Install Linux Flutter build dependencies

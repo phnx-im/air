@@ -279,6 +279,22 @@ impl Chat {
         Ok(())
     }
 
+    pub(crate) async fn exists(
+        mut connection: impl ReadConnection,
+        chat_id: &ChatId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM chat c
+                INNER JOIN "group" t ON c.group_id = t.group_id
+                WHERE chat_id = ?
+            ) AS "exists: _""#,
+            chat_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     pub(crate) async fn load(
         mut txn: impl ReadTransaction,
         chat_id: &ChatId,
