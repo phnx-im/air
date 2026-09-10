@@ -5,5 +5,5 @@
 -- Dropped in their own migration, after the code migration paired with the
 -- previous one has read them, so that the schema the checked queries compile
 -- against never contains them.
-DROP TABLE vc_registered_emulation_epoch;
-DROP TABLE vc_emulation_binding_record;
+DROP TABLE IF EXISTS vc_registered_emulation_epoch;
+DROP TABLE IF EXISTS vc_emulation_binding_record;

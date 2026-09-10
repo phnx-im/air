@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{cell::RefCell, future::Future};
+use std::{cell::RefCell, collections::BTreeSet, future::Future};
 
 use aircommon::{codec::PersistenceCodec, time::TimeStamp};
 use openmls_traits::storage::{
@@ -14,7 +14,7 @@ use openmls_traits::storage::{
 };
 use sqlx::{
     Database, Decode, Encode, Row, Sqlite, SqliteConnection, SqliteExecutor, Type, encode::IsNull,
-    error::BoxDynError, query, sqlite::SqliteTypeInfo,
+    error::BoxDynError, query, query_scalar, sqlite::SqliteTypeInfo,
 };
 use tokio_stream::StreamExt;
 
@@ -1884,53 +1884,63 @@ async fn sweep_unreferenced_vc_derivation_epoch_states<VcEpochId: Entity<CURRENT
     .execute(&mut *executor)
     .await?;
 
-    let unreferenced = sqlx::query_scalar!(
-        r#"SELECT epoch_id AS "epoch_id!: Vec<u8>" FROM (
-            SELECT epoch_id FROM vc_emulation_group_secret
-                WHERE secret_type = 'emulation_epoch_state'
-            UNION
-            SELECT epoch_id FROM vc_operation_tree
-        ) AS candidate
-        WHERE NOT EXISTS (
-            SELECT 1 FROM vc_derivation_epoch_log_entry
-            WHERE epoch_id = candidate.epoch_id
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM vc_emulation_binding
-            WHERE epoch_id = candidate.epoch_id
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM vc_retained_key_package_material
-            WHERE epoch_id = candidate.epoch_id
-        )
-        AND NOT EXISTS (
-            SELECT 1 FROM vc_derivation_epoch_legacy_hold
-            WHERE epoch_id = candidate.epoch_id
-        )"#
+    let epoch_states = query_scalar!(
+        r#"DELETE FROM vc_emulation_group_secret
+        WHERE secret_type = 'emulation_epoch_state'
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_derivation_epoch_log_entry
+                WHERE epoch_id = vc_emulation_group_secret.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_emulation_binding
+                WHERE epoch_id = vc_emulation_group_secret.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_retained_key_package_material
+                WHERE epoch_id = vc_emulation_group_secret.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_derivation_epoch_legacy_hold
+                WHERE epoch_id = vc_emulation_group_secret.epoch_id
+            )
+        RETURNING epoch_id AS "epoch_id!: Vec<u8>""#
     )
     .fetch_all(&mut *executor)
     .await?;
 
-    let mut deleted = Vec::with_capacity(unreferenced.len());
-    for epoch_id in unreferenced {
-        query!(
-            "DELETE FROM vc_emulation_group_secret
-                WHERE epoch_id = ?1 AND secret_type = 'emulation_epoch_state'",
-            epoch_id,
-        )
-        .execute(&mut *executor)
-        .await?;
-        query!(
-            "DELETE FROM vc_operation_tree WHERE epoch_id = ?1",
-            epoch_id
-        )
-        .execute(&mut *executor)
-        .await?;
-        let epoch_id = PersistenceCodec::from_slice(&epoch_id)
-            .map_err(|error| sqlx::Error::Decode(error.into()))?;
-        deleted.push(epoch_id);
-    }
-    Ok(deleted)
+    let operation_trees = query_scalar!(
+        r#"DELETE FROM vc_operation_tree
+        WHERE NOT EXISTS (
+                SELECT 1 FROM vc_derivation_epoch_log_entry
+                WHERE epoch_id = vc_operation_tree.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_emulation_binding
+                WHERE epoch_id = vc_operation_tree.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_retained_key_package_material
+                WHERE epoch_id = vc_operation_tree.epoch_id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM vc_derivation_epoch_legacy_hold
+                WHERE epoch_id = vc_operation_tree.epoch_id
+            )
+        RETURNING epoch_id AS "epoch_id!: Vec<u8>""#
+    )
+    .fetch_all(&mut *executor)
+    .await?;
+
+    epoch_states
+        .into_iter()
+        .chain(operation_trees)
+        .collect::<BTreeSet<_>>()
+        .iter()
+        .map(|epoch_id| {
+            PersistenceCodec::from_slice(epoch_id)
+                .map_err(|error| sqlx::Error::Decode(error.into()))
+        })
+        .collect()
 }
 
 impl<'a, VcOperationTree: Entity<CURRENT_VERSION>> StorableOperationTreeRef<'a, VcOperationTree> {
