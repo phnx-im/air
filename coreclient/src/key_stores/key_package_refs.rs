@@ -131,7 +131,7 @@ mod test {
     use openmls::prelude::{CredentialWithKey, KeyPackage, SignaturePublicKey};
     use openmls_rust_crypto::RustCrypto;
     use openmls_traits::OpenMlsProvider;
-    use sqlx::{Row, SqlitePool, query, query_scalar};
+    use sqlx::{Row, query, query_scalar};
     use url::Host;
 
     use crate::{
@@ -176,6 +176,8 @@ mod test {
         let live_key_package_ref = key_packages[0].hash_ref(provider.crypto())?;
         let stale_key_package_ref = key_packages[1].hash_ref(provider.crypto())?;
         let new_key_package_ref = key_packages[2].hash_ref(provider.crypto())?;
+
+        drop(connection);
 
         query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 1)")
             .bind(KeyRefWrapper(&live_key_package_ref))
