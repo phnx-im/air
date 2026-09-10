@@ -92,7 +92,7 @@ impl ChatsDataSource {
         let username = Username::new(username.plaintext)?;
         self.inner
             .core_user
-            .add_contact(username, hash)
+            .add_contact(username, hash, false)
             .await
             .map(Result::err)
     }

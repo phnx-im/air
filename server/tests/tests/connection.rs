@@ -204,7 +204,7 @@ async fn connect_users_via_targeted_message() {
     // shared group.
     let bob_user = &setup.get_user(&bob).user;
     let bob_chat_id = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .unwrap();
 
@@ -330,7 +330,7 @@ async fn sanity_checks_for_targeted_message_connections() {
     let alice = setup.get_user(&alice);
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact_from_group(group_chat_id, bob.clone())
+        .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -342,13 +342,13 @@ async fn sanity_checks_for_targeted_message_connections() {
     let bob = setup.get_user(&bob);
     let bob_user = &bob.user;
     bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .unwrap();
 
     // Bob shouldn't be able to add Charlie again.
     let res = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -362,6 +362,8 @@ async fn sanity_checks_for_targeted_message_connections() {
 #[tracing::instrument(name = "Connection request timestamp test", skip_all)]
 async fn connection_request_has_server_timestamp() {
     let mut setup = TestBackend::single().await;
+    let apq_groups = setup.apq_groups;
+
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
@@ -381,7 +383,7 @@ async fn connection_request_has_server_timestamp() {
     .unwrap();
 
     alice_user
-        .add_contact(bob_username.clone(), username_hash)
+        .add_contact(bob_username.clone(), username_hash, apq_groups)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -666,6 +668,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: false,
         pq_groups: setup.apq_groups,
+        apq_connection_groups: setup.apq_groups,
     };
     bob_user
         .set_group_features(chat_id, old_features)
@@ -737,6 +740,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: true,
         pq_groups: setup.apq_groups,
+        apq_connection_groups: setup.apq_groups,
     };
     bob_user
         .set_group_features(chat_id, new_features)

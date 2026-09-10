@@ -512,7 +512,7 @@ impl TestBackend {
         .await
         .unwrap();
         let chat_id = user1
-            .add_contact(user2_username.clone(), username_hash)
+            .add_contact(user2_username.clone(), username_hash, self.apq_groups)
             .await
             .expect("fatal error")
             .expect("non-fatal error");

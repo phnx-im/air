@@ -348,6 +348,14 @@ pub(crate) struct Group {
     own_user_id: UserId,
 }
 
+/// What an external join into a connection group needs beyond the group itself.
+pub(super) struct ConnectionGroupJoin<'a> {
+    /// The sole member of the group, whose invitation admits us to its room state.
+    pub(super) inviter: &'a UserId,
+    /// Set when the join answers a connection offer, `None` for the from-group flow.
+    pub(super) connection_offer_hash: Option<ConnectionOfferHash>,
+}
+
 impl Group {
     pub(crate) fn is_apq(&self) -> bool {
         self.pq.is_some()
@@ -1071,11 +1079,7 @@ impl Group {
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
-        // Should be Some if this join is in response to a connection offer.
-        connection_offer_hash: Option<ConnectionOfferHash>,
-        // Should be Some if we are joining a connection group: the sole member of
-        // that group, whose invitation admits us to its room state.
-        inviter: Option<&UserId>,
+        connection_group: Option<ConnectionGroupJoin<'_>>,
         // Should be Some if we are joining as an emulator of a virtual client
         // that is already a member.
         vc_group_id: Option<GroupId>,
@@ -1118,7 +1122,10 @@ impl Group {
         let (mls_group, commit, group_info, encrypted_profile_keys_fallback) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
-            let psk_proposal = match connection_offer_hash {
+            let psk_proposal = match connection_group
+                .as_ref()
+                .and_then(|join| join.connection_offer_hash)
+            {
                 Some(co_hash) => {
                     let psk_value = co_hash.into_bytes();
                     let psk_id = PreSharedKeyId::new(
@@ -1200,8 +1207,8 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
-        if let Some(inviter) = inviter {
-            add_joiner_to_room_state(&mut room_state, inviter, signer.credential().user_id())?;
+        if let Some(join) = connection_group {
+            add_joiner_to_room_state(&mut room_state, join.inviter, signer.credential().user_id())?;
         }
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
@@ -1243,6 +1250,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
         vc_group_id: Option<GroupId>,
+        connection_group: Option<ConnectionGroupJoin<'_>>,
     ) -> anyhow::Result<
         Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
     > {
@@ -1267,7 +1275,7 @@ impl Group {
             ratchet_tree_in: t_ratchet_tree,
             encrypted_user_profile_keys,
             indexed_encrypted_user_profile_keys,
-            room_state,
+            mut room_state,
             proposals: t_proposals,
             pq:
                 Some(PqExternalCommitInfoIn {
@@ -1300,6 +1308,7 @@ impl Group {
             })
             .collect();
 
+        let t_ciphersuite = t_group_info.ciphersuite();
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
@@ -1342,6 +1351,19 @@ impl Group {
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
+        if let Some(hash) = connection_group
+            .as_ref()
+            .and_then(|join| join.connection_offer_hash)
+        {
+            let psk_value = hash.into_bytes();
+            let psk_id = PreSharedKeyId::new(
+                t_ciphersuite,
+                provider.rand(),
+                Psk::External(ExternalPsk::new(psk_value.to_vec())),
+            )?;
+            psk_id.store(&provider, &psk_value)?;
+            builder = builder.add_t_psk_proposal(PreSharedKeyProposal::new(psk_id));
+        }
         // As in the welcome path, the PQ leaf carries an empty credential.
         let res = builder.build(
             &provider,
@@ -1382,6 +1404,9 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        if let Some(join) = connection_group {
+            add_joiner_to_room_state(&mut room_state, join.inviter, own_user_id)?;
+        }
         ensure_room_state_matches_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
