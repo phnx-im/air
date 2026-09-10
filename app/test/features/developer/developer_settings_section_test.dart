@@ -320,7 +320,7 @@ void main() {
       await tester.pumpWidget(
         buildSubject(entries: [for (var i = 0; i < 200; i++) localEntry(i)]),
       );
-      await tester.drag(find.byType(LogRow).first, const Offset(0, -400));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
       await tester.pump();
 
       expect(find.text('record 0'), findsNothing);
@@ -341,7 +341,7 @@ void main() {
         ),
       );
       for (var i = 0; i < 6; i++) {
-        await tester.drag(find.byType(LogRow).first, const Offset(0, -400));
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
         await tester.pump();
       }
 
@@ -436,7 +436,7 @@ void main() {
       final entries = [for (var i = 0; i < 200; i++) entry(i)];
 
       await tester.pumpWidget(buildSubject(entries: entries, following: true));
-      await tester.drag(find.byType(LogRow).first, const Offset(0, -400));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
       await tester.pump();
       // A record arriving re-pins the list, from the frame after it was added.
       await tester.pumpWidget(
@@ -460,7 +460,7 @@ void main() {
           onFollowingChanged: (value) => following = value,
         ),
       );
-      await tester.drag(find.byType(LogRow).first, const Offset(0, -400));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
 
       expect(following, isFalse);
     });
