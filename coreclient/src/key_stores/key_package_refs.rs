@@ -136,6 +136,7 @@ mod test {
 
     use crate::{
         clients::CIPHERSUITE, db::access::DbAccess, groups::openmls_provider::AirOpenMlsProvider,
+        utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -145,10 +146,7 @@ mod test {
         // Note: We don't use `sqlx::test` and instead create manually a pool, because we must
         // run on a multi-threaded flavor of tokio runtime, because `AirOpenMlsProvider` blocks
         // the current thread.
-        let pool = SqlitePool::connect("sqlite://:memory:").await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
-
-        let pool = DbAccess::for_tests(pool);
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
 
         let mut connection = pool.write().await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -274,10 +272,7 @@ mod test {
 
     #[tokio::test]
     async fn stale_retained_material_is_deleted_with_its_refs() -> anyhow::Result<()> {
-        let pool = SqlitePool::connect("sqlite://:memory:").await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
-        let pool = DbAccess::for_tests(pool);
-
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let live = key_package_ref(b"live");
         let stale = key_package_ref(b"stale");
         let new = key_package_ref(b"new");
@@ -307,10 +302,7 @@ mod test {
 
     #[tokio::test]
     async fn orphaned_retained_material_is_deleted() -> anyhow::Result<()> {
-        let pool = SqlitePool::connect("sqlite://:memory:").await?;
-        sqlx::migrate!("./migrations").run(&pool).await?;
-        let pool = DbAccess::for_tests(pool);
-
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let referenced = key_package_ref(b"referenced");
         insert_ref(&pool, &referenced, true).await?;
         insert_retained_material(&pool, &referenced).await?;
