@@ -46,6 +46,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'GIF-Autoplay begrenzen';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Wenn aktiviert, werden GIFs beim Anzeigen 3-mal wiederholt und können danach manuell erneut abgespielt werden.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
