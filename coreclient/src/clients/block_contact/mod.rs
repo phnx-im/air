@@ -7,21 +7,46 @@ use chrono::{DateTime, Utc};
 
 use crate::{clients::CoreUser, user_profiles::display_name::DisplayName};
 
+use self::pending::{BlockedState, PendingBlockedContactChange};
+
 pub(crate) mod pending;
 
 impl CoreUser {
+    /// Blocks a contact and synchronizes the block across the user's linked
+    /// devices through the self-group.
     pub async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         let profile = self.user_profile(&user_id).await;
-        let blocked_contact = BlockedContact {
+        self.record_blocked_state(BlockedState::Blocked {
             user_id,
             last_display_name: profile.display_name.clone(),
             blocked_at: Utc::now(),
-        };
-        Ok(blocked_contact.store(self.db().write().await?).await?)
+        })
+        .await
     }
 
+    /// Unblocks a contact and synchronizes the unblock across the user's linked
+    /// devices through the self-group.
     pub async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
-        Ok(BlockedContact::delete_by_id(self.db().write().await?, user_id).await?)
+        self.record_blocked_state(BlockedState::Unblocked { user_id })
+            .await
+    }
+
+    /// Applies a blocked-state change locally right away (optimistic) and
+    /// parks it for the self-group. The outbound service turns the parked
+    /// changes into a commit and keeps re-issuing it until one is accepted.
+    async fn record_blocked_state(&self, intended: BlockedState) -> anyhow::Result<()> {
+        let enqueued = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingBlockedContactChange::record(txn, intended).await
+            })
+            .await?;
+
+        if enqueued {
+            self.outbound_service().notify_pending_chat_operations();
+        }
+
+        Ok(())
     }
 }
 
