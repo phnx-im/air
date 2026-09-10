@@ -434,6 +434,7 @@ impl Resync {
                 self.identity_link_wrapper_key,
                 aad,
                 vc_group_id,
+                None,
             )
             .await??;
             Ok((
@@ -455,8 +456,7 @@ impl Resync {
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
-                None, // This is not in response to a connection offer.
-                None, // A resync joins a group we are already a member of.
+                None,
                 vc_group_id,
             )
             .await??;

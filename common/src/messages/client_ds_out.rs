@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use apqmls::commit_builder::ApqCommitMessageBundle;
+use apqmls::{commit_builder::ApqCommitMessageBundle, extension::ApqInfo};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
@@ -37,7 +37,7 @@ pub struct ExternalCommitInfoIn {
     pub room_state: VerifiedRoomState,
     pub proposals: Vec<Vec<u8>>,
     pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
-    /// Present iff the request carried a `pq_qgid`, i.e. the caller is joining an APQ group.
+    /// Present for APQ groups.
     pub pq: Option<PqExternalCommitInfoIn>,
 }
 
@@ -45,6 +45,18 @@ pub struct PqExternalCommitInfoIn {
     pub group_info: VerifiableGroupInfo,
     pub ratchet_tree: RatchetTreeIn,
     pub proposals: Vec<Vec<u8>>,
+}
+
+impl ExternalCommitInfoIn {
+    /// Decide whether the group is an APQ group.
+    ///
+    /// The decision is based on the presence of the `APQInfo` component in the group context
+    /// extensions, never on the presence of the `pq` field which is sent by DS.
+    pub fn is_apq(&self) -> Result<bool, tls_codec::Error> {
+        let info =
+            ApqInfo::from_extensions(self.verifiable_group_info.group_context().extensions())?;
+        Ok(info.is_some())
+    }
 }
 
 /// The group state the DS served at a past epoch.
