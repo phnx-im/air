@@ -33,10 +33,10 @@ use chrono::Utc;
 use openmls::components::vc_derivation_info::{RegisteredVcDerivationEpoch, VcEmulationBindings};
 use openmls::{
     components::vc_derivation_info::{VcDerivationEpochLogEntry, VcEmulationBinding},
-    group::{GroupId, VcDerivationEpochDeletion, VcDerivationEpochRetentionPolicy},
+    group::{GroupId, MlsGroup, VcDerivationEpochDeletion, VcDerivationEpochRetentionPolicy},
 };
 use openmls_traits::{OpenMlsProvider, storage::StorageProvider};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     db::access::WriteTransaction,
@@ -52,19 +52,6 @@ pub(crate) fn sweep_vc_derivation_epochs(
     window: Duration,
 ) -> anyhow::Result<()> {
     let provider = AirOpenMlsProvider::new(txn.as_mut());
-
-    // Flips self groups that were created before the policy existed, whose
-    // stored join config deserializes to the `MaxEpochs` default.
-    if group.mls_group().vc_derivation_epoch_retention_policy()
-        != &VcDerivationEpochRetentionPolicy::KeepAll
-    {
-        group
-            .mls_group_mut()
-            .set_vc_derivation_epoch_retention_policy(
-                &provider,
-                VcDerivationEpochRetentionPolicy::KeepAll,
-            )?;
-    }
 
     let deletion = VcDerivationEpochDeletion::older_than_duration(window)
         .max_epochs(VC_DERIVATION_EPOCH_MAX_COUNT);
@@ -118,10 +105,18 @@ pub(crate) async fn migrate_vc_derivation_epoch_retention(
                 deprecated,
                 reason = "decodes records written before the per-entry rows"
             )]
-            let RegisteredVcDerivationEpoch {
+            let Ok(RegisteredVcDerivationEpoch {
                 group_epoch,
                 epoch_id,
-            } = PersistenceCodec::from_slice(&registration)?;
+            }) = PersistenceCodec::from_slice(&registration)
+            else {
+                warn!(
+                    ?group_id,
+                    "Failed to decode registered VC derivation epoch, skipping."
+                );
+                continue;
+            };
+
             // The timestamp is never compared for this entry's own deletion:
             // the sweep ages an entry out against its successor's timestamp.
             // The next rotation is what starts this entry's window.
@@ -131,6 +126,7 @@ pub(crate) async fn migrate_vc_derivation_epoch_retention(
                 SystemTime::now(),
             );
             storage.write_vc_derivation_epoch_log_entry(&group_id, entry.epoch_id(), &entry)?;
+            set_keep_all_policy(&provider, &group_id)?;
         }
 
         // Without its bindings a higher-level group cannot resolve the
@@ -179,6 +175,26 @@ pub(crate) async fn migrate_vc_derivation_epoch_retention(
         "Holding the derivation epoch state from before the log for one retention window"
     );
 
+    Ok(())
+}
+
+/// Sets [`VcDerivationEpochRetentionPolicy::KeepAll`] on the stored join
+/// config of the emulation group `group_id`.
+fn set_keep_all_policy(
+    provider: &AirOpenMlsProvider<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    let Some(mut mls_group) = MlsGroup::load(provider.storage(), group_id)? else {
+        warn!(
+            ?group_id,
+            "No group state for the derivation epoch registration, skipping."
+        );
+        return Ok(());
+    };
+    mls_group.set_vc_derivation_epoch_retention_policy(
+        provider,
+        VcDerivationEpochRetentionPolicy::KeepAll,
+    )?;
     Ok(())
 }
 
@@ -424,7 +440,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn sweep_sets_keep_all_policy() -> anyhow::Result<()> {
+    async fn set_keep_all_policy_rewrites_stored_join_config() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
 
@@ -432,6 +448,7 @@ mod tests {
         let mut txn = connection.begin().await?;
 
         let mut group = create_self_group(&mut txn, &signer)?;
+        let group_id = group.mls_group().group_id().clone();
         {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             group
@@ -440,14 +457,18 @@ mod tests {
                     &provider,
                     VcDerivationEpochRetentionPolicy::MaxEpochs(5),
                 )?;
+
+            set_keep_all_policy(&provider, &group_id)?;
+
+            let reloaded = MlsGroup::load(provider.storage(), &group_id)?.expect("group is stored");
+            assert_eq!(
+                reloaded.vc_derivation_epoch_retention_policy(),
+                &VcDerivationEpochRetentionPolicy::KeepAll
+            );
+
+            // A registration without group state is skipped, not an error.
+            set_keep_all_policy(&provider, &random_group_id())?;
         }
-
-        sweep_vc_derivation_epochs(&mut txn, &mut group, VC_DERIVATION_EPOCH_RETENTION_WINDOW)?;
-
-        assert_eq!(
-            group.mls_group().vc_derivation_epoch_retention_policy(),
-            &VcDerivationEpochRetentionPolicy::KeepAll
-        );
 
         txn.commit().await?;
         Ok(())
