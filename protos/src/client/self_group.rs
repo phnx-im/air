@@ -277,6 +277,15 @@ pub enum BlockedContactEntry {
     #[unknown]
     Unknown,
 }
+impl BlockedContactEntry {
+    pub fn user_id(&self) -> Option<&PeerUserId> {
+        match self {
+            BlockedContactEntry::Blocked(ContactBlocked { user_id, .. }) => Some(user_id),
+            BlockedContactEntry::Unblocked(ContactUnblocked { user_id }) => Some(user_id),
+            BlockedContactEntry::Unknown => None,
+        }
+    }
+}
 
 /// The contact is blocked.
 ///
