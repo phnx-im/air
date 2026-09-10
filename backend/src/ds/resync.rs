@@ -22,7 +22,10 @@ use tracing::error;
 
 use crate::errors::ResyncClientError;
 
-use super::group_state::{DsGroupState, leaf_credential_matches_flag};
+use super::{
+    apq::ApqExternalCommit,
+    group_state::{DsGroupState, leaf_credential_matches_flag},
+};
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
@@ -212,75 +215,24 @@ impl DsGroupState {
                     |_, _| true,
                 )
                 .map_err(|error| {
-                    error!(%error,"Failed to process APQ message");
+                    error!(%error, "Failed to process APQ message");
                     ResyncClientError::ProcessingError
                 })?;
 
-        // Perform DS-level validation
-        let apq_processed_message = &processed_assisted_message_plus
-            .processed_assisted_message
-            .processed_message;
-        let t_processed_message = &apq_processed_message.t_message;
-        let pq_processed_message = &apq_processed_message.pq_message;
-
-        let (
-            ProcessedMessageContent::StagedCommitMessage(t_staged_commit),
-            ProcessedMessageContent::StagedCommitMessage(pq_staged_commit),
-        ) = (
-            &t_processed_message.content(),
-            &pq_processed_message.content(),
-        )
-        else {
-            error!("Invalid message content; expected staged commit");
-            return Err(ResyncClientError::InvalidMessage);
-        };
-
-        if !t_group_state.self_group_flag_unchanged(t_staged_commit)
-            || !pq_group_state.self_group_flag_unchanged(pq_staged_commit)
-        {
-            error!("Commit would toggle the self-group flag");
-            return Err(ResyncClientError::InvalidMessage);
-        }
-
-        let (Sender::NewMemberCommit, Sender::NewMemberCommit) =
-            (t_processed_message.sender(), pq_processed_message.sender())
-        else {
-            error!("Invalid sender; expected new member commit");
-            return Err(ResyncClientError::InvalidMessage);
-        };
-
-        // Bind the two legs at the new leaf: the T and PQ update paths must be signed with the same
-        // signature key.
-        let t_new_leaf_key = t_staged_commit
-            .update_path_leaf_node()
-            .ok_or_else(|| {
-                error!("T update path leaf node not found");
-                ResyncClientError::InvalidMessage
-            })?
-            .signature_key();
-        let pq_new_leaf_key = pq_staged_commit
-            .update_path_leaf_node()
-            .ok_or_else(|| {
-                error!("PQ update path leaf node not found");
-                ResyncClientError::InvalidMessage
-            })?
-            .signature_key();
-        if t_new_leaf_key != pq_new_leaf_key {
-            error!("T and PQ update path signature keys do not match");
-            return Err(ResyncClientError::InvalidMessage);
-        }
+        let ApqExternalCommit {
+            t_staged_commit,
+            pq_staged_commit,
+            aad: _,
+            new_credential: t_new_credential,
+            new_sender_index: t_new_sender_index,
+        } = Self::validate_apq_external_commit(
+            t_group_state,
+            pq_group_state,
+            &processed_assisted_message_plus.processed_assisted_message,
+        )?;
 
         // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
-        // by the shared signature key above.
-        let t_new_credential = t_staged_commit
-            .update_path_leaf_node()
-            .ok_or(ResyncClientError::InvalidMessage)
-            .and_then(|leaf| {
-                LeafCredential::from_credential(leaf.credential()).map_err(|error| {
-                    error!(%error, "Resync leaf credential is invalid");
-                    ResyncClientError::InvalidMessage
-                })
-            })?;
+        // by the shared signature key.
         if !leaf_credential_matches_flag(&t_new_credential, t_group_state.is_self_group()) {
             error!("Resync leaf credential does not match group kind");
             return Err(ResyncClientError::InvalidMessage);
@@ -310,25 +262,6 @@ impl DsGroupState {
 
         // Change room state roles of removed clients to outsider (in T group)
         t_group_state.change_removed_roles_to_outsider(&t_sender, &t_removed_indices)?;
-
-        let t_new_sender_index = t_group_state
-            .group
-            .ext_commit_sender_index(t_staged_commit)
-            .map_err(|error| {
-                error!(%error, "Error getting T sender index");
-                ResyncClientError::InvalidMessage
-            })?;
-        let pq_new_sender_index = pq_group_state
-            .group
-            .ext_commit_sender_index(pq_staged_commit)
-            .map_err(|error| {
-                error!(%error, "Error getting PQ sender index");
-                ResyncClientError::InvalidMessage
-            })?;
-        if t_new_sender_index != pq_new_sender_index {
-            error!("T and PQ sender indices do not match");
-            return Err(ResyncClientError::InvalidMessage);
-        }
 
         // See the T-only variant: capture the replaced leaf's queue before the
         // profile is rekeyed, so a sibling emulator client can follow this commit.
