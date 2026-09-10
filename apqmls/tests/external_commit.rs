@@ -27,7 +27,7 @@ use openmls::{
         MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
         ProcessedMessageContent, Proposal, ProposalType, PublicGroup, PublicMessageIn,
     },
-    schedule::PreSharedKeyId,
+    schedule::{ExternalPsk, PreSharedKeyId, Psk},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use tls_codec::{Deserialize as _, Serialize as _};
@@ -468,6 +468,52 @@ fn psk_continuity() {
         bob_group.merge_pending_commit(&bob.provider).unwrap();
         process_and_merge(&alice, &mut alice_group, bundle.commit);
         assert_groups_eq(&mut alice_group, &mut bob_group);
+    }
+}
+
+/// An extra T-leg PSK, as used for the connection-offer PSK, rides the external commit next to
+/// the combiner PSK. Both sides must know it out of band.
+#[test]
+fn external_join_with_t_psk() {
+    for mode in TEST_MODES {
+        let alice = new_client("Alice", mode);
+        let bob = new_client("Bob", mode);
+        let mut alice_group = create_group(&alice, mode);
+
+        let psk_value = b"connection offer psk".to_vec();
+        let psk_id = PreSharedKeyId::new(
+            alice_group.t_group.ciphersuite(),
+            bob.provider.rand(),
+            Psk::External(ExternalPsk::new(psk_value.clone())),
+        )
+        .unwrap();
+        psk_id.store(&alice.provider, &psk_value).unwrap();
+        psk_id.store(&bob.provider, &psk_value).unwrap();
+
+        let (group_info, ratchet_tree) = export_join_info(&alice, &alice_group);
+        let (mut bob_group, bundle) = ApqMlsGroup::external_commit_builder()
+            .with_ratchet_tree(ratchet_tree)
+            .with_config(join_config())
+            .create_group_info(true)
+            .add_t_psk_proposal(PreSharedKeyProposal::new(psk_id))
+            .build(
+                &bob.provider,
+                &bob.signer,
+                bob.credential_with_key.clone(),
+                group_info,
+                compare_credentials,
+            )
+            .unwrap();
+        process_and_merge(&alice, &mut alice_group, bundle.commit);
+        assert_groups_eq(&mut alice_group, &mut bob_group);
+
+        let message = send_t_message(&alice, &mut alice_group, b"hi bob");
+        assert_eq!(receive_t_message(&bob, &mut bob_group, message), b"hi bob");
+        let message = send_t_message(&bob, &mut bob_group, b"hi alice");
+        assert_eq!(
+            receive_t_message(&alice, &mut alice_group, message),
+            b"hi alice"
+        );
     }
 }
 
