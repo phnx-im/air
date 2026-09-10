@@ -1858,8 +1858,6 @@ impl<'a, VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>>
     }
 }
 
-/// Implements the sweep of
-/// [`StorageProvider::delete_unreferenced_vc_derivation_epoch_states`].
 async fn sweep_unreferenced_vc_derivation_epoch_states<VcEpochId: Entity<CURRENT_VERSION>>(
     executor: &mut SqliteConnection,
 ) -> sqlx::Result<Vec<VcEpochId>> {
