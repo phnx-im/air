@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_emulation_group_secret\n        WHERE secret_type = 'emulation_epoch_state'\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_derivation_epoch_log_entry\n                WHERE epoch_id = vc_emulation_group_secret.epoch_id\n            )\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_emulation_binding\n                WHERE epoch_id = vc_emulation_group_secret.epoch_id\n            )\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_retained_key_package_material\n                WHERE epoch_id = vc_emulation_group_secret.epoch_id\n            )\n        RETURNING epoch_id AS \"epoch_id!: Vec<u8>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "epoch_id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "vc_emulation_group_secret",
+            "name": "epoch_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c9bad555f16e0f16fee555ad1e9478a2972f4d00eb415c5e0d27537b5ef77420"
+}
