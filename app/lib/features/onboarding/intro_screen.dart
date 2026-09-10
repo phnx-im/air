@@ -12,13 +12,13 @@ import 'package:air/ds/patterns/nux/nux_scaffold.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -37,10 +37,7 @@ class IntroScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final showOnboarding = context.select(
-      (LoadableUserCubit cubit) => switch (cubit.state) {
-        UnloadedUser() || UnloadingUser() => true,
-        LoadingUser() || LoadedUser() => false,
-      },
+      (UserSessionCubit cubit) => cubit.state.loggedOut,
     );
 
     final loc = AppLocalizations.of(context);

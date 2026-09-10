@@ -63,10 +63,14 @@ pub(crate) fn derive_and_store_psk<
                 provider.storage(),
                 APQMLS_COMPONENT_ID,
             )?
+            .as_slice()
+            .to_vec()
             .into()
     } else {
         group
             .safe_export_secret(provider.crypto(), provider.storage(), APQMLS_COMPONENT_ID)?
+            .as_slice()
+            .to_vec()
             .into()
     };
 

@@ -52,9 +52,8 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -123,12 +122,10 @@ void main() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject(chats: []));
@@ -149,12 +146,10 @@ void main() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject(chats: chats));
@@ -180,9 +175,8 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
         ),
       );
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
       messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject(chats: chats));
@@ -209,9 +203,8 @@ void main() {
           home: HomeNavigationState(chatOpen: true, chatId: chats[4].id),
         ),
       );
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[4], members: members));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[4], members: members));
       messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject(chats: chats));

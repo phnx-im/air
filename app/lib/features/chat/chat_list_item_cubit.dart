@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+
 import 'chats_repository.dart';
 
 part 'chat_list_item_cubit.freezed.dart';

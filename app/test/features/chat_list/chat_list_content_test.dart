@@ -84,8 +84,7 @@ final chats = [
           sent: true,
           edited: true,
           content: UiMimiContent(
-            plainBody:
-                'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
+            plainBody: 'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
             topicId: Uint8List(0),
             content: simpleMessage(
               'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
@@ -363,16 +362,13 @@ void main() {
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({
@@ -436,9 +432,8 @@ void main() {
       WidgetTester tester, {
       required HomeNavigationState home,
     }) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(NavigationState.home(home: home));
+      when(() => navigationCubit.state)
+          .thenReturn(NavigationState.home(home: home));
 
       await tester.pumpWidget(buildSubject(chats: [draftChat]));
     }

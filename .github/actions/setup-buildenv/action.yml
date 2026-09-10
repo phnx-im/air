@@ -22,7 +22,7 @@ inputs:
     required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
-    default: "just@1.48.1"
+    default: "just@1.58.0"
     required: false
   cargo-binstall-tools:
     description: "Space separated list of cargo-binstall tools to install"
@@ -208,9 +208,14 @@ runs:
       uses: gferon/setup-flutter@1d849067b1961950d28aa76b231a2a88ce045b2e
       with:
         channel: stable
-        version: 3.44.8
+        version: 3.47.0
         cache: true
         cache-sdk: true
+
+    - if: inputs.flutter == 'true'
+      name: Enable native assets (build hooks)
+      shell: bash
+      run: flutter config --enable-native-assets
 
     - if: inputs.flutter == 'true' && runner.os == 'Linux'
       name: Install Linux Flutter build dependencies

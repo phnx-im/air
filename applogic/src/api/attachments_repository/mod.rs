@@ -84,7 +84,10 @@ impl AttachmentsRepository {
                             break; // sink is closed
                         }
                     }
-                    AttachmentProgressEvent::Progress { bytes_loaded } => {
+                    AttachmentProgressEvent::Progress {
+                        bytes_total: _,
+                        bytes_loaded,
+                    } => {
                         if sink
                             .add(UiAttachmentStatus::Progress(bytes_loaded))
                             .is_err()
@@ -111,13 +114,12 @@ impl AttachmentsRepository {
             let ui_status = match self.core_user.attachment_status(attachment_id).await {
                 Ok(Some(AttachmentStatus::Ready)) => UiAttachmentStatus::Completed,
                 Ok(Some(AttachmentStatus::NotFound)) => UiAttachmentStatus::NotFound,
+                Ok(Some(AttachmentStatus::Pending)) => UiAttachmentStatus::Pending,
                 // Still in flight, a task will pick it up. No failure is
                 // reported while it is uploading or downloading.
-                Ok(Some(
-                    AttachmentStatus::Uploading
-                    | AttachmentStatus::Downloading
-                    | AttachmentStatus::Pending,
-                )) => UiAttachmentStatus::Progress(0),
+                Ok(Some(AttachmentStatus::Uploading | AttachmentStatus::Downloading)) => {
+                    UiAttachmentStatus::Progress(0)
+                }
                 // UploadFailed / DownloadFailed / Unknown / missing row.
                 _ => UiAttachmentStatus::Failed,
             };

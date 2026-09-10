@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'user_cubit.dart';
@@ -9,6 +9,7 @@ part of 'user_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$VersionStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'VersionStatus()';
+    return 'VersionStatus()';
 }
 
 
@@ -56,7 +57,7 @@ class VersionStatus_Supported extends VersionStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_Supported);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_Supported);
 }
 
 
@@ -65,7 +66,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'VersionStatus.supported()';
+    return 'VersionStatus.supported()';
 }
 
 
@@ -88,7 +89,7 @@ class VersionStatus_Unsupported extends VersionStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_Unsupported);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_Unsupported);
 }
 
 
@@ -97,7 +98,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'VersionStatus.unsupported()';
+    return 'VersionStatus.unsupported()';
 }
 
 
@@ -125,16 +126,18 @@ $VersionStatus_ExpiresAtCopyWith<VersionStatus_ExpiresAt> get copyWith => _$Vers
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_ExpiresAt&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is VersionStatus_ExpiresAt&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'VersionStatus.expiresAt(field0: $field0)';
+    return 'VersionStatus.expiresAt(field0: $field0)';
 }
 
 

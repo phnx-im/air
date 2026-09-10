@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'multi_device.dart';
@@ -9,6 +9,7 @@ part of 'multi_device.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$MultiDeviceLinkEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent()';
+    return 'MultiDeviceLinkEvent()';
 }
 
 
@@ -56,7 +57,7 @@ class MultiDeviceLinkEvent_AwaitingConfirmation extends MultiDeviceLinkEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_AwaitingConfirmation);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_AwaitingConfirmation);
 }
 
 
@@ -65,7 +66,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent.awaitingConfirmation()';
+    return 'MultiDeviceLinkEvent.awaitingConfirmation()';
 }
 
 
@@ -88,7 +89,7 @@ class MultiDeviceLinkEvent_Linked extends MultiDeviceLinkEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Linked);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Linked);
 }
 
 
@@ -97,7 +98,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent.linked()';
+    return 'MultiDeviceLinkEvent.linked()';
 }
 
 
@@ -125,16 +126,18 @@ $MultiDeviceLinkEvent_FailedCopyWith<MultiDeviceLinkEvent_Failed> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Failed&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Failed&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent.failed(field0: $field0)';
+    return 'MultiDeviceLinkEvent.failed(field0: $field0)';
 }
 
 
@@ -186,7 +189,7 @@ class MultiDeviceLinkEvent_SessionNotFound extends MultiDeviceLinkEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_SessionNotFound);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_SessionNotFound);
 }
 
 
@@ -195,7 +198,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceLinkEvent.sessionNotFound()';
+    return 'MultiDeviceLinkEvent.sessionNotFound()';
 }
 
 
@@ -213,7 +216,7 @@ mixin _$MultiDeviceProvisionEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent);
 }
 
 
@@ -222,7 +225,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent()';
+    return 'MultiDeviceProvisionEvent()';
 }
 
 
@@ -255,16 +258,18 @@ $MultiDeviceProvisionEvent_CodeCopyWith<MultiDeviceProvisionEvent_Code> get copy
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Code&&(identical(other.qrcodeSvg, qrcodeSvg) || other.qrcodeSvg == qrcodeSvg)&&(identical(other.code, code) || other.code == code));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Code&&(identical(other.qrcodeSvg, qrcodeSvg) || other.qrcodeSvg == qrcodeSvg)&&(identical(other.code, code) || other.code == code));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,qrcodeSvg,code);
+int get hashCode {
+    return Object.hash(runtimeType,qrcodeSvg,code);
+}
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent.code(qrcodeSvg: $qrcodeSvg, code: $code)';
+    return 'MultiDeviceProvisionEvent.code(qrcodeSvg: $qrcodeSvg, code: $code)';
 }
 
 
@@ -317,7 +322,7 @@ class MultiDeviceProvisionEvent_Linking extends MultiDeviceProvisionEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linking);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linking);
 }
 
 
@@ -326,7 +331,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent.linking()';
+    return 'MultiDeviceProvisionEvent.linking()';
 }
 
 
@@ -349,7 +354,7 @@ class MultiDeviceProvisionEvent_Linked extends MultiDeviceProvisionEvent {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linked);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linked);
 }
 
 
@@ -358,7 +363,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent.linked()';
+    return 'MultiDeviceProvisionEvent.linked()';
 }
 
 
@@ -386,16 +391,18 @@ $MultiDeviceProvisionEvent_FailedCopyWith<MultiDeviceProvisionEvent_Failed> get 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Failed&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Failed&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'MultiDeviceProvisionEvent.failed(field0: $field0)';
+    return 'MultiDeviceProvisionEvent.failed(field0: $field0)';
 }
 
 

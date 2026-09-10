@@ -15,7 +15,7 @@ use airbackend::{
     version::VersionPolicy,
 };
 use aircommon::{
-    OpenMlsRand, RustCrypto,
+    DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
     registration::RegistrationChallenge,
 };
@@ -220,7 +220,7 @@ impl Default for TestBackendParams {
                 ..Default::default()
             },
             unredeemable_code: None,
-            max_attachment_size: 20 * 1024 * 1024,
+            max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
         }
     }
 }
@@ -1055,7 +1055,13 @@ impl TestBackend {
             .await
             .expect("fatal error")?;
 
-        let message = upload_task.await.unwrap();
+        let message = upload_task.await.map_err(|error| match error {
+            UploadTaskError::Failed { message_id, error } => {
+                panic!("upload task for {message_id:?} failed: {error}")
+            }
+            UploadTaskError::Provision(error) => error,
+        })?;
+
         sender
             .outbound_service()
             .enqueue_chat_message(message.id())

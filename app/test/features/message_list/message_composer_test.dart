@@ -68,12 +68,10 @@ void main() {
     inputController = TextEditingController();
 
     when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-    when(
-      () => usersCubit.state,
-    ).thenReturn(MockUsersState(profiles: userProfiles));
-    when(
-      () => chatDetailsCubit.state,
-    ).thenReturn(ChatDetailsState(chat: _chat, members: _members));
+    when(() => usersCubit.state)
+        .thenReturn(MockUsersState(profiles: userProfiles));
+    when(() => chatDetailsCubit.state)
+        .thenReturn(ChatDetailsState(chat: _chat, members: _members));
     when(
       () => chatDetailsCubit.markAsRead(
         untilMessageId: any(named: "untilMessageId"),
@@ -142,9 +140,8 @@ void main() {
     testWidgets('restores the text and shows an error snackbar', (
       tester,
     ) async {
-      when(
-        () => chatDetailsCubit.sendMessage(any()),
-      ).thenAnswer((_) async => throw Exception('send failed'));
+      when(() => chatDetailsCubit.sendMessage(any()))
+          .thenAnswer((_) async => throw Exception('send failed'));
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -159,9 +156,8 @@ void main() {
       tester,
     ) async {
       final sent = Completer<void>();
-      when(
-        () => chatDetailsCubit.sendMessage(any()),
-      ).thenAnswer((_) => sent.future);
+      when(() => chatDetailsCubit.sendMessage(any()))
+          .thenAnswer((_) => sent.future);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

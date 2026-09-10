@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -911,6 +912,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get composer_error_attachment =>
       'Failed to upload attachment. Try again.';
+
+  @override
+  String get composer_error_attachment_decoding =>
+      'The image could not be decoded. It may be damaged or in an unsupported format.';
 
   @override
   String composer_error_attachment_too_large(

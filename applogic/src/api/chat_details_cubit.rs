@@ -366,8 +366,7 @@ impl ChatDetailsCubitBase {
                 Err(error) => return error.into_ui_result(),
             };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await?;
-        Ok(None)
+            .await
     }
 
     pub async fn retry_upload_attachment(
@@ -386,18 +385,18 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let (progress, upload_task) = match self
+        let Some((progress, upload_task)) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
             .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
+        else {
+            // Nothing to retry from. The message is gone, which is what the
+            // user sees.
+            return Ok(None);
         };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await?;
-        Ok(None)
+            .await
     }
 
     async fn upload_attachment_impl(
@@ -405,7 +404,7 @@ impl ChatDetailsCubitBase {
         attachment_id: AttachmentId,
         progress: AttachmentProgress,
         upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
         self.attachment_in_progress.insert(attachment_id, handle);
@@ -417,7 +416,9 @@ impl ChatDetailsCubitBase {
                     .enqueue_chat_message(message.id())
                     .await?;
             }
-            Some(Err(UploadTaskError { message_id, error })) => {
+            // The message is already gone, only the reason is left to report.
+            Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
+            Some(Err(UploadTaskError::Failed { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
                 self.context
                     .core_user
@@ -427,9 +428,15 @@ impl ChatDetailsCubitBase {
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");
+                // The task was dropped before it could record an outcome, so
+                // the attachment would otherwise be stuck uploading.
+                self.context
+                    .core_user
+                    .fail_interrupted_attachment_upload(attachment_id)
+                    .await?;
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Marks the chat as read until the given message id (including).
@@ -667,14 +674,15 @@ impl ChatDetailsCubitBase {
 
     pub async fn accept_contact_request(
         &self,
-    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
+    ) -> anyhow::Result<Option<UiAcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
         Ok(self
             .context
             .core_user
             .accept_contact_request(chat_id)
             .await?
-            .err())
+            .err()
+            .map(From::from))
     }
 
     /// Mute notifications for this chat until the given datetime.
@@ -903,16 +911,40 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
+            ProvisionAttachmentError::DecodingError => {
+                Ok(Some(UploadAttachmentError::DecodingError))
+            }
         }
     }
 }
 
 /// Error which can occur when uploading an attachment
 pub enum UploadAttachmentError {
+    /// The image could not be decoded, so it can never be sent.
+    DecodingError,
     TooLarge {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+/// Accepting a contact request failed.
+// Mirror of [`AcceptContactRequestError`] due to a freezed 4.0 regression [freezed-1371].
+//
+// When mirroring the enum directly, the generated code in Dart does not compile. See the above
+// issue. For now, we mirror this enum manually as a struct.
+//
+// [freezed-1371]: https://github.com/rrousselGit/freezed/issues/1371
+pub struct UiAcceptContactRequestError {
+    pub reason: String,
+}
+
+impl From<AcceptContactRequestError> for UiAcceptContactRequestError {
+    fn from(error: AcceptContactRequestError) -> Self {
+        match error {
+            AcceptContactRequestError::IncompatibleClient { reason } => Self { reason },
+        }
+    }
 }
 
 #[frb(mirror(AcceptContactRequestError))]

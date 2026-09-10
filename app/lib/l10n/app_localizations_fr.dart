@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -936,6 +937,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get composer_error_attachment =>
       'Échec de l\'importation de la pièce jointe. Veuillez réessayer.';
+
+  @override
+  String get composer_error_attachment_decoding =>
+      'L\'image n\'a pas pu être décodée. Elle est peut-être endommagée ou dans un format non pris en charge.';
 
   @override
   String composer_error_attachment_too_large(

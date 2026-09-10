@@ -39,13 +39,11 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       navigationCubit = MockNavigationCubit();
 
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(() => userCubit.state).thenReturn(MockUiUser(id: 3));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(const ChatDetailsState(members: []));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(const ChatDetailsState(members: []));
     });
 
     Widget buildSubject(UiSystemMessage message) => MultiBlocProvider(

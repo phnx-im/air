@@ -123,7 +123,9 @@ class _AttachmentFileStatus extends HookWidget {
               strokeWidth: StrokeWidth.px2,
               backgroundColor: color.withValues(alpha: Alpha.a10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
-              value: loaded / BigInt.from(size),
+              value: (size > 0 && loaded > BigInt.from(0))
+                  ? loaded / BigInt.from(size)
+                  : null,
             ),
             ButtonIcon(
               variant: ButtonIconVariant.plain,

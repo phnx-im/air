@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:io';
+
 import 'package:air/features/attachments/attachment_upload_view.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/emoji/emoji_data.dart';
@@ -642,6 +643,13 @@ class _MessageComposerState extends State<MessageComposer>
                           loc.bytesToHumanReadable(maxSizeBytes.toInt()),
                         ),
                       ),
+                    ),
+                  );
+                  break;
+                case UploadAttachmentError_DecodingError():
+                  showSnackBarStandalone(
+                    (loc) => SnackBar(
+                      content: Text(loc.composer_error_attachment_decoding),
                     ),
                   );
                   break;

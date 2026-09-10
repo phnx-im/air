@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -934,6 +935,10 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get composer_error_attachment =>
       'Não foi possível carregar o anexo. Tente de novo.';
+
+  @override
+  String get composer_error_attachment_decoding =>
+      'Não foi possível decodificar a imagem. Ela pode estar danificada ou em um formato não suportado.';
 
   @override
   String composer_error_attachment_too_large(
@@ -2431,6 +2436,10 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get composer_error_attachment =>
       'Não foi possível carregar o anexo. Tenta de novo.';
+
+  @override
+  String get composer_error_attachment_decoding =>
+      'Não foi possível descodificar a imagem. Pode estar danificada ou num formato não suportado.';
 
   @override
   String composer_error_attachment_too_large(

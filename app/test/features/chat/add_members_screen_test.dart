@@ -69,16 +69,14 @@ void main() {
         ..loadContacts(Future.value(_contacts));
       addTearDown(addMembersCubit.close);
 
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: _chat, members: const []));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: _chat, members: const []));
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(home: HomeNavigationState(chatId: _chat.id)),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
     });
 
     Widget buildSubject() => MultiBlocProvider(

@@ -27,34 +27,22 @@ void main() {
     // The whole point of deriving the device type from the target platform:
     // goldens depicting another platform pin one knob and get the matching
     // density and typescale, on whatever host records them.
-    testWidgets(
-      'follows the pinned target platform',
-      (tester) async {
-        expect(DeviceType.current, DeviceType.desktop);
-        expect(typeScale.body.regular.fontSize, 14);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('follows the pinned target platform', (tester) async {
+      expect(DeviceType.current, DeviceType.desktop);
+      expect(typeScale.body.regular.fontSize, 14);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'carries the iOS typescale on a desktop host',
-      (tester) async {
-        expect(DeviceType.current, DeviceType.phone);
-        expect(typeScale.body.regular.fontSize, 17);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-    );
+    testWidgets('carries the iOS typescale on a desktop host', (tester) async {
+      expect(DeviceType.current, DeviceType.phone);
+      expect(typeScale.body.regular.fontSize, 17);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
     // The theme resolves the typescale at build time, so it only tracks the
     // pinned platform as long as it is not cached across platforms.
-    testWidgets(
-      'reaches the theme it is built into',
-      (tester) async {
-        final theme = themeData(.light);
+    testWidgets('reaches the theme it is built into', (tester) async {
+      final theme = themeData(.light);
 
-        expect(theme.textTheme.bodyLarge?.fontSize, 14);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(theme.textTheme.bodyLarge?.fontSize, 14);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }

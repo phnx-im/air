@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
@@ -81,16 +82,14 @@ void main() {
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 10));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject(ProductShotPlatform platform) =>
@@ -147,9 +146,8 @@ void main() {
                         AppLocalizations.localizationsDelegates,
                     home: Material(
                       child: MediaQuery(
-                        data: MediaQuery.of(
-                          context,
-                        ).copyWith(platformBrightness: .light),
+                        data: MediaQuery.of(context)
+                            .copyWith(platformBrightness: .light),
                         child: shot,
                       ),
                     ),
@@ -228,12 +226,10 @@ void main() {
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -301,9 +297,8 @@ void main() {
                       AppLocalizations.localizationsDelegates,
                   home: Material(
                     child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
+                      data: MediaQuery.of(context)
+                          .copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -381,9 +376,8 @@ void main() {
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: chat, members: gardeningPartyMembers),
       );
@@ -443,9 +437,8 @@ void main() {
                       AppLocalizations.localizationsDelegates,
                   home: Material(
                     child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: .light),
+                      data: MediaQuery.of(context)
+                          .copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -514,9 +507,8 @@ void main() {
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -599,9 +591,8 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Material(
                   child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: .light),
+                    data: MediaQuery.of(context)
+                        .copyWith(platformBrightness: .light),
                     child: shot,
                   ),
                 ),
@@ -624,9 +615,8 @@ void main() {
             home: HomeNavigationState(chatOpen: true, chatId: chat.id),
           ),
         );
-        when(
-          () => chatDetailsCubit.state,
-        ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+        when(() => chatDetailsCubit.state)
+            .thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
         messageListCubit.setState(fredMessages);
 
         // The desktop layout always shows the chat list, so this shot doubles
