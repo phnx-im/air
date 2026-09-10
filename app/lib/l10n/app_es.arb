@@ -8,6 +8,8 @@
   "userSettingsScreen_deleteAccount": "Eliminar cuenta de Air",
   "userSettingsScreen_sendWithEnter": "Enviar con Enter",
   "userSettingsScreen_sendWithEnterDescription": "Si se activa, la tecla \"Enter\" del teclado envía el mensaje.",
+  "userSettingsScreen_limitAnimatedImagesLoops": "Limitar la reproducción automática de GIF",
+  "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Si se activa, los GIF se reproducen 3 veces al verlos y luego se pueden reproducir de nuevo manualmente.",
   "userSettingsScreen_readReceipts": "Confirmaciones de lectura",
   "userSettingsScreen_readReceiptsDescription": "Si se activa, los demás verán si has leído sus mensajes y tú verás si han leído los tuyos.",
   "userSettingsScreen_displayNameLabel": "Nombre visible",

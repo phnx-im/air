@@ -46,6 +46,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'If turned on, the keyboard\'s \"Enter\" key sends the message.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limit GIF autoplay';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'If turned on, GIFs loop 3 times when viewed, then can be manually replayed.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Read receipts';
 
   @override
