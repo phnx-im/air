@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    blocked_at AS \"blocked_at: _\",\n                    last_display_name AS \"last_display_name: _\",\n                    previous_blocked_at AS \"previous_blocked_at: _\",\n                    previous_last_display_name AS \"previous_last_display_name: _\"\n                FROM blocked_contact_change\n                ORDER BY user_uuid, user_domain",
+  "query": "SELECT\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    blocked_at AS \"blocked_at: _\",\n                    last_display_name AS \"last_display_name: _\"\n                FROM blocked_contact_change\n                ORDER BY user_uuid, user_domain",
   "describe": {
     "columns": [
       {
@@ -46,28 +46,6 @@
             "name": "last_display_name"
           }
         }
-      },
-      {
-        "name": "previous_blocked_at: _",
-        "ordinal": 4,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "blocked_contact_change",
-            "name": "previous_blocked_at"
-          }
-        }
-      },
-      {
-        "name": "previous_last_display_name: _",
-        "ordinal": 5,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "blocked_contact_change",
-            "name": "previous_last_display_name"
-          }
-        }
       }
     ],
     "parameters": {
@@ -77,10 +55,8 @@
       false,
       false,
       true,
-      true,
-      true,
       true
     ]
   },
-  "hash": "22058a211ce48b185a2715cc5d429627d1e68cee18bfc11c33f2a0817032b511"
+  "hash": "d161cb7f6e59d22e58d2ea61efffd79c472937a6b310bcd3db6b5d00330df8f8"
 }

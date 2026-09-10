@@ -2,17 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The user's not-yet-synchronized blocked-contact changes.
+//! The user's blocked-contact changes that still have to reach the siblings.
 //!
 //! Blocking is device-local state that is mirrored to the user's other devices
-//! through the self-group. This module holds the durable intent behind that
-//! sync.
+//! through the self-group. This module is the outbox for that sync: a change
+//! is applied locally right away and parked here until a self-group commit
+//! carrying it is accepted. The outbound service turns the parked changes into
+//! a commit whenever the self-group is free, so a change survives a lost epoch
+//! race and a re-toggle while a commit is in flight.
 //!
-//! The lifecycle mirrors the settings sync in
-//! [`crate::clients::user_settings`], but at per-contact granularity. A
-//! blocked-contacts update is a diff and communicates only the contacts it
-//! changes, so two devices changing different contacts do not cancel each
-//! other.
+//! Unlike the settings sync in [`crate::clients::user_settings`], an update is
+//! a per-contact diff, and there is no intent diffing against incoming
+//! commits: a sibling's accepted commit overwrites the stored state, and a
+//! parked change is simply re-sent by the next commit.
 
 use aircommon::identifiers::UserId;
 use airprotos::client::{
@@ -32,37 +34,31 @@ use super::BlockedContact;
 /// The blocked state of one contact, as stored in `blocked_contact`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BlockedState {
-    Blocked {
-        user_id: UserId,
-        blocked_at: DateTime<Utc>,
-        last_display_name: DisplayName,
-    },
-    Unblocked {
-        user_id: UserId,
-    },
+    Blocked(BlockedContact),
+    Unblocked { user_id: UserId },
 }
 
-impl BlockedState {
-    /// The wire form of this state.
-    ///
-    /// NB: `blocked_at` loses sub-second precision here.
-    fn to_entry(self) -> BlockedContactEntry {
-        match self {
-            Self::Blocked {
+/// NB: `blocked_at` loses sub-second precision here.
+impl From<BlockedState> for BlockedContactEntry {
+    fn from(state: BlockedState) -> Self {
+        match state {
+            BlockedState::Blocked(BlockedContact {
                 user_id,
-                blocked_at,
                 last_display_name,
-            } => BlockedContactEntry::Blocked(ContactBlocked {
+                blocked_at,
+            }) => Self::Blocked(ContactBlocked {
                 user_id: user_id.into(),
                 blocked_at: blocked_at.timestamp().max(0) as u64,
                 last_display_name: last_display_name.to_string(),
             }),
-            Self::Unblocked { user_id } => BlockedContactEntry::Unblocked(ContactUnblocked {
+            BlockedState::Unblocked { user_id } => Self::Unblocked(ContactUnblocked {
                 user_id: user_id.into(),
             }),
         }
     }
+}
 
+impl BlockedState {
     /// The state of an incoming entry.
     ///
     /// `None` for an entry this client cannot make sense of.
@@ -92,11 +88,11 @@ impl BlockedState {
                         );
                     })
                     .ok()?;
-                Some(Self::Blocked {
+                Some(Self::Blocked(BlockedContact {
                     user_id: user_id.clone().try_into().ok()?,
-                    blocked_at,
                     last_display_name,
-                })
+                    blocked_at,
+                }))
             }
             BlockedContactEntry::Unblocked(ContactUnblocked { user_id }) => Some(Self::Unblocked {
                 user_id: user_id.clone().try_into().ok()?,
@@ -107,119 +103,39 @@ impl BlockedState {
             }
         }
     }
+
+    pub(crate) fn user_id(&self) -> &UserId {
+        match self {
+            Self::Blocked(contact) => &contact.user_id,
+            Self::Unblocked { user_id } => user_id,
+        }
+    }
 }
 
-/// One contact's not-yet-synchronized blocked-state change.
+/// One contact's blocked-state change that still has to reach the siblings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingBlockedContactChange {
     /// The state we still intend to assert for this contact.
     intended: BlockedState,
-    /// The state stored before the contact was first touched, in case
-    /// we need to restore it.
-    previous: BlockedState,
 }
 
 impl PendingBlockedContactChange {
     pub(crate) fn user_id(&self) -> &UserId {
-        match &self.intended {
-            BlockedState::Blocked { user_id, .. } => user_id,
-            BlockedState::Unblocked { user_id } => user_id,
-        }
-    }
-
-    /// Records a local blocked-state change.
-    pub(crate) async fn record(
-        txn: &mut WriteDbTransaction<'_>,
-        user_id: &UserId,
-        intended: BlockedState,
-    ) -> sqlx::Result<bool> {
-        let current = BlockedState::load(&mut *txn, user_id).await?;
-        let previous = match Self::load(&mut *txn, user_id).await? {
-            Some(pending) => pending.previous,
-            None if current == intended => return Ok(false),
-            None => current,
-        };
-
-        intended.apply(&mut *txn).await?;
-        Self { intended, previous }.store(txn).await?;
-
-        Ok(true)
-    }
-
-    /// Completes the pending changes after one of our own commits was accepted.
-    pub(crate) async fn complete_sent(
-        txn: &mut WriteDbTransaction<'_>,
-        sent: &[BlockedContactEntry],
-    ) -> sqlx::Result<()> {
-        for entry in sent {
-            let Some(user_id) = entry.user_id().and_then(parse_peer_user_id) else {
-                continue;
-            };
-            let Some(pending) = Self::load(&mut *txn, &user_id).await? else {
-                continue;
-            };
-            if pending.intended.to_entry() == *entry {
-                Self::delete(&mut *txn, &user_id).await?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Drops the pending change of every contact a sibling's accepted update
-    /// names.
-    pub(crate) async fn remove_covered(
-        txn: &mut WriteDbTransaction<'_>,
-        incoming: &[BlockedContactEntry],
-    ) -> sqlx::Result<()> {
-        for entry in incoming {
-            let Some(user_id) = entry.user_id().and_then(parse_peer_user_id) else {
-                continue;
-            };
-            Self::delete(&mut *txn, &user_id).await?;
-        }
-        Ok(())
-    }
-
-    /// Rolls the touched contacts back to the state stored before their first
-    /// touch and clears the pending changes. Used when a send fails terminally.
-    pub(crate) async fn roll_back_and_clear(txn: &mut WriteDbTransaction<'_>) -> sqlx::Result<()> {
-        for pending in Self::load_all(&mut *txn).await? {
-            let current = BlockedState::load(&mut *txn, pending.user_id()).await?;
-            if current != pending.intended {
-                continue;
-            }
-            pending.previous.apply(&mut *txn).await?;
-        }
-        Self::delete_all(txn).await
-    }
-
-    /// Loads the pending changes as the entries a commit carries, sorted by
-    /// user id so the encoding is canonical.
-    pub(crate) async fn load_entries(
-        connection: impl ReadConnection,
-    ) -> sqlx::Result<Vec<BlockedContactEntry>> {
-        Ok(Self::load_all(connection)
-            .await?
-            .into_iter()
-            .map(|pending| pending.intended.to_entry())
-            .collect())
+        self.intended.user_id()
     }
 }
 
 /// Applies the entries of a sibling's accepted blocked-contacts update.
 ///
-/// Entries apply in order, so the last entry for a contact wins. An entry
-/// this client cannot make sense of is skipped, see [`BlockedState::from_entry`]
-/// and [`parse_peer_user_id`]. A skipped entry that still names a contact
-/// counts as covered, so the caller hands the full list to
-/// [`PendingBlockedContactChange::remove_covered`] either way. A
-/// [`BlockedContactEntry::Unknown`] names no contact and so covers nothing.
+/// Entries apply in order, so the last entry for a contact wins. An entry this
+/// client cannot make sense of is skipped, see [`BlockedState::from_entry`] and
+/// [`parse_peer_user_id`].
 pub(crate) async fn apply_blocked_contacts_update(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[BlockedContactEntry],
 ) -> sqlx::Result<()> {
     for entry in entries {
-        let Some(state) = BlockedState::from_entry(&entry) else {
+        let Some(state) = BlockedState::from_entry(entry) else {
             continue;
         };
         state.apply(&mut *txn).await?;
@@ -253,10 +169,9 @@ mod persistence {
         user_domain: Fqdn,
         blocked_at: Option<DateTime<Utc>>,
         last_display_name: Option<DisplayName>,
-        previous_blocked_at: Option<DateTime<Utc>>,
-        previous_last_display_name: Option<DisplayName>,
     }
 
+    /// Both columns are written together, see the table's `CHECK` constraint.
     impl From<SqlPendingBlockedContactChange> for PendingBlockedContactChange {
         fn from(
             SqlPendingBlockedContactChange {
@@ -264,32 +179,18 @@ mod persistence {
                 user_domain,
                 blocked_at,
                 last_display_name,
-                previous_blocked_at,
-                previous_last_display_name,
             }: SqlPendingBlockedContactChange,
         ) -> Self {
             let user_id = UserId::new(user_uuid, user_domain);
-            Self {
-                intended: blocked_state(user_id.clone(), blocked_at, last_display_name),
-                previous: blocked_state(user_id, previous_blocked_at, previous_last_display_name),
-            }
-        }
-    }
-
-    /// Both columns of a state are written together, see the table's `CHECK`
-    /// constraints.
-    fn blocked_state(
-        user_id: UserId,
-        blocked_at: Option<DateTime<Utc>>,
-        last_display_name: Option<DisplayName>,
-    ) -> BlockedState {
-        match blocked_at.zip(last_display_name) {
-            Some((blocked_at, last_display_name)) => BlockedState::Blocked {
-                user_id,
-                blocked_at,
-                last_display_name,
-            },
-            None => BlockedState::Unblocked { user_id },
+            let intended = match blocked_at.zip(last_display_name) {
+                Some((blocked_at, last_display_name)) => BlockedState::Blocked(BlockedContact {
+                    user_id,
+                    last_display_name,
+                    blocked_at,
+                }),
+                None => BlockedState::Unblocked { user_id },
+            };
+            Self { intended }
         }
     }
 
@@ -318,13 +219,13 @@ mod persistence {
                 Some(SqlBlockedState {
                     blocked_at,
                     last_display_name,
-                }) => Self::Blocked {
-                    user_id: UserId::new(uuid, domain.clone()),
-                    blocked_at,
+                }) => Self::Blocked(BlockedContact {
+                    user_id: user_id.clone(),
                     last_display_name,
-                },
+                    blocked_at,
+                }),
                 None => Self::Unblocked {
-                    user_id: UserId::new(uuid, domain.clone()),
+                    user_id: user_id.clone(),
                 },
             })
         }
@@ -333,65 +234,95 @@ mod persistence {
         /// change notification the local block and unblock paths emit.
         pub(crate) async fn apply(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
             match self {
-                Self::Blocked {
-                    user_id,
-                    blocked_at,
-                    last_display_name,
-                } => {
-                    BlockedContact {
-                        user_id: user_id.clone(),
-                        last_display_name: last_display_name.clone(),
-                        blocked_at: *blocked_at,
-                    }
-                    .store(connection)
-                    .await
-                }
+                Self::Blocked(contact) => contact.store(connection).await,
                 Self::Unblocked { user_id } => {
                     BlockedContact::delete_by_id(connection, user_id.clone()).await
                 }
             }
         }
-
-        /// The `(blocked_at, last_display_name)` column pair for this state.
-        fn columns(&self) -> (Option<DateTime<Utc>>, Option<DisplayName>) {
-            match self {
-                Self::Blocked {
-                    blocked_at,
-                    last_display_name,
-                    ..
-                } => (Some(*blocked_at), Some(last_display_name.clone())),
-                Self::Unblocked { .. } => (None, None),
-            }
-        }
     }
 
     impl PendingBlockedContactChange {
+        /// Applies a local blocked-state change and parks it for sending.
+        ///
+        /// Returns whether a commit has to be sent. A change that re-asserts the
+        /// stored state while nothing is parked for the contact is a no-op.
+        pub(crate) async fn record(
+            txn: &mut WriteDbTransaction<'_>,
+            intended: BlockedState,
+        ) -> sqlx::Result<bool> {
+            let user_id = intended.user_id();
+            if Self::load(&mut *txn, user_id).await?.is_none()
+                && BlockedState::load(&mut *txn, user_id).await? == intended
+            {
+                return Ok(false);
+            }
+
+            intended.apply(&mut *txn).await?;
+            Self { intended }.store(txn).await?;
+
+            Ok(true)
+        }
+
+        /// Completes the parked changes after one of our own commits was accepted.
+        ///
+        /// A contact re-toggled while the commit was in flight stays parked and is
+        /// re-sent by the next commit.
+        pub(crate) async fn complete_sent(
+            txn: &mut WriteDbTransaction<'_>,
+            sent: &[BlockedContactEntry],
+        ) -> sqlx::Result<()> {
+            for entry in sent {
+                let Some(user_id) = entry.user_id().and_then(parse_peer_user_id) else {
+                    continue;
+                };
+                let Some(pending) = Self::load(&mut *txn, &user_id).await? else {
+                    continue;
+                };
+                if BlockedContactEntry::from(pending.intended) == *entry {
+                    Self::delete(&mut *txn, &user_id).await?;
+                }
+            }
+            Ok(())
+        }
+
+        /// Loads the parked changes as the entries a commit carries, sorted by
+        /// user id so the encoding is canonical.
+        pub(crate) async fn load_entries(
+            connection: impl ReadConnection,
+        ) -> sqlx::Result<Vec<BlockedContactEntry>> {
+            Ok(Self::load_all(connection)
+                .await?
+                .into_iter()
+                .map(|pending| BlockedContactEntry::from(pending.intended))
+                .collect())
+        }
+
         pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let user_id = self.user_id();
             let uuid = user_id.uuid();
             let domain = user_id.domain();
-            let (blocked_at, last_display_name) = self.intended.columns();
-            let (previous_blocked_at, previous_last_display_name) = self.previous.columns();
+            let (blocked_at, last_display_name) = match &self.intended {
+                BlockedState::Blocked(contact) => (
+                    Some(contact.blocked_at),
+                    Some(contact.last_display_name.clone()),
+                ),
+                BlockedState::Unblocked { .. } => (None, None),
+            };
             query!(
                 "INSERT INTO blocked_contact_change (
                     user_uuid,
                     user_domain,
                     blocked_at,
-                    last_display_name,
-                    previous_blocked_at,
-                    previous_last_display_name
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                    last_display_name
+                ) VALUES (?1, ?2, ?3, ?4)
                 ON CONFLICT (user_uuid, user_domain) DO UPDATE SET
                     blocked_at = excluded.blocked_at,
-                    last_display_name = excluded.last_display_name,
-                    previous_blocked_at = excluded.previous_blocked_at,
-                    previous_last_display_name = excluded.previous_last_display_name",
+                    last_display_name = excluded.last_display_name",
                 uuid,
                 domain,
                 blocked_at,
                 last_display_name,
-                previous_blocked_at,
-                previous_last_display_name,
             )
             .execute(connection.as_mut())
             .await?;
@@ -410,9 +341,7 @@ mod persistence {
                     user_uuid AS "user_uuid: _",
                     user_domain AS "user_domain: _",
                     blocked_at AS "blocked_at: _",
-                    last_display_name AS "last_display_name: _",
-                    previous_blocked_at AS "previous_blocked_at: _",
-                    previous_last_display_name AS "previous_last_display_name: _"
+                    last_display_name AS "last_display_name: _"
                 FROM blocked_contact_change
                 WHERE user_uuid = ?1 AND user_domain = ?2"#,
                 uuid,
@@ -432,9 +361,7 @@ mod persistence {
                     user_uuid AS "user_uuid: _",
                     user_domain AS "user_domain: _",
                     blocked_at AS "blocked_at: _",
-                    last_display_name AS "last_display_name: _",
-                    previous_blocked_at AS "previous_blocked_at: _",
-                    previous_last_display_name AS "previous_last_display_name: _"
+                    last_display_name AS "last_display_name: _"
                 FROM blocked_contact_change
                 ORDER BY user_uuid, user_domain"#
             )
@@ -460,13 +387,6 @@ mod persistence {
             .await?;
             Ok(())
         }
-
-        pub(super) async fn delete_all(mut connection: impl WriteConnection) -> sqlx::Result<()> {
-            query!("DELETE FROM blocked_contact_change")
-                .execute(connection.as_mut())
-                .await?;
-            Ok(())
-        }
     }
 }
 
@@ -484,11 +404,11 @@ mod tests {
     }
 
     fn blocked(user_id: &UserId, blocked_at: i64, last_display_name: &str) -> BlockedState {
-        BlockedState::Blocked {
+        BlockedState::Blocked(BlockedContact {
             user_id: user_id.clone(),
-            blocked_at: DateTime::from_timestamp(blocked_at, 0).unwrap(),
             last_display_name: last_display_name.parse().unwrap(),
-        }
+            blocked_at: DateTime::from_timestamp(blocked_at, 0).unwrap(),
+        })
     }
 
     fn unblocked(user_id: &UserId) -> BlockedState {
@@ -516,22 +436,20 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn record_snapshots_unblocked_previous_state(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn record_applies_and_parks_a_block(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             assert!(
-                PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice"))
-                    .await?,
+                PendingBlockedContactChange::record(txn, blocked(&user, 10, "Alice")).await?,
                 "blocking an unblocked contact must need syncing"
             );
 
             let pending = PendingBlockedContactChange::load(&mut *txn, &user)
                 .await?
-                .expect("the change must be pending");
+                .expect("the change must be parked");
             assert_eq!(pending.intended, blocked(&user, 10, "Alice"));
-            assert_eq!(pending.previous, unblocked(&user));
 
             // The change is applied optimistically.
             assert_eq!(
@@ -544,25 +462,23 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn record_snapshots_blocked_previous_state(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn record_applies_and_parks_an_unblock(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             blocked(&user, 10, "Alice").apply(&mut *txn).await?;
 
-            assert!(PendingBlockedContactChange::record(txn, &user, unblocked(&user)).await?);
+            assert!(PendingBlockedContactChange::record(txn, unblocked(&user)).await?);
 
             let pending = PendingBlockedContactChange::load(&mut *txn, &user)
                 .await?
-                .expect("the change must be pending");
+                .expect("the change must be parked");
             assert_eq!(pending.intended, unblocked(&user));
             assert_eq!(
-                pending.previous,
-                blocked(&user, 10, "Alice"),
-                "the previous state must keep its timestamp and display name"
+                BlockedState::load(&mut *txn, &user).await?,
+                unblocked(&user)
             );
-            assert_eq!(BlockedState::load(&mut *txn, &user).await?, unblocked(&user));
             Ok(())
         })
         .await
@@ -575,30 +491,19 @@ mod tests {
         let blocked_user = user(2);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            assert!(
-                !PendingBlockedContactChange::record(
-                    txn,
-                    &unblocked_user,
-                    unblocked(&unblocked_user)
-                )
-                .await?
-            );
+            assert!(!PendingBlockedContactChange::record(txn, unblocked(&unblocked_user)).await?);
 
             blocked(&blocked_user, 10, "Alice").apply(&mut *txn).await?;
             assert!(
-                !PendingBlockedContactChange::record(
-                    txn,
-                    &blocked_user,
-                    blocked(&blocked_user, 10, "Alice")
-                )
-                .await?
+                !PendingBlockedContactChange::record(txn, blocked(&blocked_user, 10, "Alice"))
+                    .await?
             );
 
             assert!(
                 PendingBlockedContactChange::load_all(&mut *txn)
                     .await?
                     .is_empty(),
-                "a no-op tap must not record a pending change"
+                "a no-op tap must not park a change"
             );
             Ok(())
         })
@@ -606,22 +511,18 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn record_retoggle_keeps_the_first_previous_state(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
+    async fn record_retoggle_folds_into_one_row(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            blocked(&user, 10, "Alice").apply(&mut *txn).await?;
-
-            PendingBlockedContactChange::record(txn, &user, unblocked(&user)).await?;
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 20, "Alice B")).await?;
+            PendingBlockedContactChange::record(txn, blocked(&user, 10, "Alice")).await?;
+            PendingBlockedContactChange::record(txn, unblocked(&user)).await?;
+            PendingBlockedContactChange::record(txn, blocked(&user, 20, "Alice B")).await?;
 
             let pending = PendingBlockedContactChange::load_all(&mut *txn).await?;
             assert_eq!(pending.len(), 1, "a re-toggle must fold into the same row");
             assert_eq!(pending[0].intended, blocked(&user, 20, "Alice B"));
-            assert_eq!(pending[0].previous, blocked(&user, 10, "Alice"));
             Ok(())
         })
         .await
@@ -633,7 +534,7 @@ mod tests {
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice")).await?;
+            PendingBlockedContactChange::record(txn, blocked(&user, 10, "Alice")).await?;
             let sent = PendingBlockedContactChange::load_entries(&mut *txn).await?;
 
             PendingBlockedContactChange::complete_sent(txn, &sent).await?;
@@ -654,15 +555,15 @@ mod tests {
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice")).await?;
+            PendingBlockedContactChange::record(txn, blocked(&user, 10, "Alice")).await?;
             let sent = PendingBlockedContactChange::load_entries(&mut *txn).await?;
-            PendingBlockedContactChange::record(txn, &user, unblocked(&user)).await?;
+            PendingBlockedContactChange::record(txn, unblocked(&user)).await?;
 
             PendingBlockedContactChange::complete_sent(txn, &sent).await?;
 
             let pending = PendingBlockedContactChange::load(&mut *txn, &user)
                 .await?
-                .expect("the re-toggled contact must stay pending");
+                .expect("the re-toggled contact must stay parked");
             assert_eq!(pending.intended, unblocked(&user));
             Ok(())
         })
@@ -670,212 +571,21 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn complete_sent_ignores_an_unknown_state(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn complete_sent_ignores_an_unknown_entry(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice")).await?;
+            PendingBlockedContactChange::record(txn, blocked(&user, 10, "Alice")).await?;
 
-            let sent = vec![BlockedContactEntry::Unknown];
-            PendingBlockedContactChange::complete_sent(txn, &sent).await?;
+            PendingBlockedContactChange::complete_sent(txn, &[BlockedContactEntry::Unknown])
+                .await?;
 
             assert!(
                 PendingBlockedContactChange::load(&mut *txn, &user)
                     .await?
                     .is_some(),
-                "an unknown entry must not complete a pending change"
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn remove_covered_drops_named_contacts_only(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let named = user(1);
-        let other = user(2);
-
-        for incoming in [
-            blocked_entry(&named, 99, "Someone else"),
-            unblocked_entry(&named),
-        ] {
-            pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-                PendingBlockedContactChange::record(txn, &named, blocked(&named, 10, "Alice"))
-                    .await?;
-                PendingBlockedContactChange::record(txn, &other, blocked(&other, 20, "Bob"))
-                    .await?;
-
-                PendingBlockedContactChange::remove_covered(txn, &[incoming.clone()]).await?;
-
-                assert!(
-                    PendingBlockedContactChange::load(&mut *txn, &named)
-                        .await?
-                        .is_none(),
-                    "a named contact must be dropped, incoming entry: {incoming:?}"
-                );
-                let survivor = PendingBlockedContactChange::load(&mut *txn, &other)
-                    .await?
-                    .expect("an unnamed contact must stay pending");
-                assert_eq!(survivor.intended, blocked(&other, 20, "Bob"));
-
-                // Reset for the next incoming entry.
-                PendingBlockedContactChange::delete_all(&mut *txn).await?;
-                unblocked(&named).apply(&mut *txn).await?;
-                unblocked(&other).apply(&mut *txn).await?;
-                Ok(())
-            })
-            .await?;
-        }
-        Ok(())
-    }
-
-    /// An unknown entry names no contact, so it cannot cover one. A newer
-    /// sibling's unrecognized entry therefore leaves our pending change in
-    /// place.
-    #[sqlx::test]
-    async fn remove_covered_ignores_an_unknown_entry(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice")).await?;
-
-            PendingBlockedContactChange::remove_covered(txn, &[BlockedContactEntry::Unknown])
-                .await?;
-
-            assert!(
-                PendingBlockedContactChange::load(&mut *txn, &user)
-                    .await?
-                    .is_some()
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn roll_back_restores_the_previous_block(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            blocked(&user, 10, "Alice").apply(&mut *txn).await?;
-            PendingBlockedContactChange::record(txn, &user, unblocked(&user)).await?;
-
-            PendingBlockedContactChange::roll_back_and_clear(txn).await?;
-
-            assert_eq!(
-                BlockedState::load(&mut *txn, &user).await?,
-                blocked(&user, 10, "Alice"),
-                "the block must come back with its timestamp and display name"
-            );
-            assert!(
-                PendingBlockedContactChange::load_all(&mut *txn)
-                    .await?
-                    .is_empty(),
-                "rollback must clear the pending changes"
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn roll_back_deletes_when_there_was_no_previous_block(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked(&user, 10, "Alice")).await?;
-
-            PendingBlockedContactChange::roll_back_and_clear(txn).await?;
-
-            assert_eq!(BlockedState::load(&mut *txn, &user).await?, unblocked(&user));
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn roll_back_notifies_the_restored_contact(pool: SqlitePool) -> anyhow::Result<()> {
-        use std::time::Duration;
-
-        use tokio_stream::StreamExt;
-
-        use crate::db::notification::DbEntityId;
-
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            blocked(&user, 10, "Alice").apply(&mut *txn).await?;
-            PendingBlockedContactChange::record(txn, &user, unblocked(&user)).await?;
-            Ok(())
-        })
-        .await?;
-
-        let mut notifications = std::pin::pin!(pool.notifier_tx.subscribe());
-        pool.with_write_transaction(async |txn| {
-            PendingBlockedContactChange::roll_back_and_clear(txn).await
-        })
-        .await?;
-
-        let notification = tokio::time::timeout(Duration::from_secs(5), notifications.next())
-            .await
-            .expect("the rollback must notify")
-            .expect("notification stream should be open");
-        assert!(
-            notification.ops.keys().any(|entity_id| matches!(
-                entity_id,
-                DbEntityId::User(notified) if *notified == user
-            )),
-            "expected a User notification for the restored contact"
-        );
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn roll_back_skips_an_overwritten_contact(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let overwritten = user(1);
-        let untouched_since = user(2);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            blocked(&overwritten, 10, "Alice").apply(&mut *txn).await?;
-            PendingBlockedContactChange::record(txn, &overwritten, unblocked(&overwritten)).await?;
-            PendingBlockedContactChange::record(
-                txn,
-                &untouched_since,
-                blocked(&untouched_since, 20, "Bob"),
-            )
-            .await?;
-
-            // A sibling's update blocks the contact again, with its own values.
-            blocked(&overwritten, 30, "Alice B")
-                .apply(&mut *txn)
-                .await?;
-
-            PendingBlockedContactChange::roll_back_and_clear(txn).await?;
-
-            assert_eq!(
-                BlockedState::load(&mut *txn, &overwritten).await?,
-                blocked(&overwritten, 30, "Alice B"),
-                "the incoming state must not be clobbered by the rollback"
-            );
-            assert_eq!(
-                BlockedState::load(&mut *txn, &untouched_since).await?,
-                unblocked(&untouched_since),
-                "the other contact must be rolled back"
-            );
-            assert!(
-                PendingBlockedContactChange::load_all(&mut *txn)
-                    .await?
-                    .is_empty()
+                "an unknown entry must not complete a parked change"
             );
             Ok(())
         })
@@ -890,16 +600,13 @@ mod tests {
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             blocked(&second, 10, "Alice").apply(&mut *txn).await?;
-            PendingBlockedContactChange::record(txn, &first, blocked(&first, 20, "Bob")).await?;
-            PendingBlockedContactChange::record(txn, &second, unblocked(&second)).await?;
+            PendingBlockedContactChange::record(txn, blocked(&first, 20, "Bob")).await?;
+            PendingBlockedContactChange::record(txn, unblocked(&second)).await?;
 
             let entries = PendingBlockedContactChange::load_entries(&mut *txn).await?;
             assert_eq!(
                 entries,
-                vec![
-                    blocked_entry(&first, 20, "Bob"),
-                    unblocked_entry(&second),
-                ]
+                vec![blocked_entry(&first, 20, "Bob"), unblocked_entry(&second)]
             );
             Ok(())
         })

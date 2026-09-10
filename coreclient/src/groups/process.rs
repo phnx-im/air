@@ -94,9 +94,9 @@ async fn apply_self_group_payload(
     if own_echo {
         PendingBlockedContactChange::complete_sent(txn, &payload.blocked_contacts).await?;
     } else {
+        // A sibling's accepted state wins locally. A change of ours that is
+        // still parked stays parked and is re-sent by the next commit.
         apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
-        // Contacts in a sibling's accepted commit are no longer ours to change.
-        PendingBlockedContactChange::remove_covered(txn, &payload.blocked_contacts).await?;
     }
 
     Ok(())
@@ -1229,40 +1229,36 @@ mod tests {
         .await
     }
 
+    /// A sibling's accepted state wins locally, but our parked change is kept
+    /// so the next commit re-sends it.
     #[sqlx::test]
-    async fn sibling_update_drops_the_pending_change_it_covers(
+    async fn sibling_update_wins_locally_but_keeps_our_parked_change(
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
-        let covered = user(1);
+        let contested = user(1);
         let untouched = user(2);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(
-                txn,
-                &covered,
-                blocked_state(&covered, 10, "Alice"),
-            )
-            .await?;
-            PendingBlockedContactChange::record(
-                txn,
-                &untouched,
-                blocked_state(&untouched, 20, "Bob"),
-            )
-            .await?;
+            PendingBlockedContactChange::record(txn, blocked_state(&contested, 10, "Alice"))
+                .await?;
+            PendingBlockedContactChange::record(txn, blocked_state(&untouched, 20, "Bob")).await?;
 
-            let payload = blocked_contacts_payload(vec![unblocked_entry(&covered)]);
+            let payload = blocked_contacts_payload(vec![unblocked_entry(&contested)]);
             apply_self_group_payload(txn, &payload, false).await?;
 
             assert_eq!(
-                BlockedState::load(&mut *txn, &covered).await?,
-                unblocked_state(&covered),
-                "the sibling's state must win over our pending one"
+                BlockedState::load(&mut *txn, &contested).await?,
+                unblocked_state(&contested),
+                "the sibling's state must win locally"
             );
             assert_eq!(
                 PendingBlockedContactChange::load_entries(&mut *txn).await?,
-                vec![blocked_entry(&untouched, 20, "Bob")],
-                "a contact the update does not name must stay pending"
+                vec![
+                    blocked_entry(&contested, 10, "Alice"),
+                    blocked_entry(&untouched, 20, "Bob")
+                ],
+                "both parked changes must survive to be re-sent"
             );
             Ok(())
         })
@@ -1275,8 +1271,7 @@ mod tests {
         let user = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked_state(&user, 10, "Alice"))
-                .await?;
+            PendingBlockedContactChange::record(txn, blocked_state(&user, 10, "Alice")).await?;
             let sent = PendingBlockedContactChange::load_entries(&mut *txn).await?;
             // The stored state moved on after the commit went out.
             blocked_state(&user, 30, "Alice B").apply(&mut *txn).await?;
@@ -1300,58 +1295,25 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn sibling_update_skips_an_undecodable_entry_but_covers_it(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
+    async fn sibling_update_skips_entries_it_cannot_use(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let invalid_name = user(1);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(
-                txn,
-                &invalid_name,
-                blocked_state(&invalid_name, 20, "Bob"),
-            )
-            .await?;
+            blocked_state(&invalid_name, 20, "Bob")
+                .apply(&mut *txn)
+                .await?;
 
-            let payload = blocked_contacts_payload(vec![blocked_entry(&invalid_name, 30, " \n ")]);
+            let payload = blocked_contacts_payload(vec![
+                blocked_entry(&invalid_name, 30, " \n "),
+                BlockedContactEntry::Unknown,
+            ]);
             apply_self_group_payload(txn, &payload, false).await?;
 
             assert_eq!(
                 BlockedState::load(&mut *txn, &invalid_name).await?,
                 blocked_state(&invalid_name, 20, "Bob"),
                 "an entry we cannot decode must not change the stored state"
-            );
-            assert!(
-                PendingBlockedContactChange::load_entries(&mut *txn)
-                    .await?
-                    .is_empty(),
-                "the entry still names the contact, so it covers our pending change"
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    /// An unknown entry carries no user id, so it names no contact and cannot
-    /// cover a pending change the way an undecodable-but-named entry does.
-    #[sqlx::test]
-    async fn sibling_update_cannot_cover_via_an_unknown_entry(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            PendingBlockedContactChange::record(txn, &user, blocked_state(&user, 10, "Alice"))
-                .await?;
-
-            let payload = blocked_contacts_payload(vec![BlockedContactEntry::Unknown]);
-            apply_self_group_payload(txn, &payload, false).await?;
-
-            assert_eq!(
-                PendingBlockedContactChange::load_entries(&mut *txn).await?,
-                vec![blocked_entry(&user, 10, "Alice")]
             );
             Ok(())
         })

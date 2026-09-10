@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     clients::{
+        block_contact::pending::PendingBlockedContactChange,
         own_client_info::OwnClientInfo,
         user_settings::{SettingChanges, SettingsUpdateExt},
     },
@@ -44,6 +45,9 @@ impl OutboundServiceContext {
             }
             if let Err(error) = self.ensure_token_seed_operation().await {
                 error!(%error, "Failed to stage pending token seeds");
+            }
+            if let Err(error) = self.ensure_blocked_contacts_operation().await {
+                error!(%error, "Failed to stage parked blocked-contact changes");
             }
 
             let now = chrono::Utc::now();
@@ -129,6 +133,34 @@ impl OutboundServiceContext {
                 };
 
                 PendingChatOperation::create_token_seeds(txn, &signer, group, seeds).await?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Stages a self-group commit for the parked blocked-contact changes, if
+    /// any.
+    ///
+    /// The commit carries the parked entries as they stand now. They leave the
+    /// outbox when a commit carrying them is accepted, so this runs on every
+    /// outbound wake until one lands.
+    async fn ensure_blocked_contacts_operation(&self) -> anyhow::Result<()> {
+        let Some((self_group_id, signer)) = self.self_group_signer().await? else {
+            return Ok(());
+        };
+
+        self.db
+            .with_write_transaction(async |txn| {
+                let contacts = PendingBlockedContactChange::load_entries(&mut *txn).await?;
+                if contacts.is_empty() {
+                    return Ok(());
+                }
+                let Some(group) = free_self_group(txn, &self_group_id).await? else {
+                    return Ok(());
+                };
+
+                PendingChatOperation::create_blocked_contacts_update(txn, &signer, group, contacts)
+                    .await?;
                 Ok(())
             })
             .await

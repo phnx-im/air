@@ -39,8 +39,8 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, SelfGroupMessage, SelfGroupMessages,
-        SettingsUpdate, TokenSeed,
+        AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, SelfGroupMessage,
+        SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -179,6 +179,31 @@ impl Group {
         update: &SettingsUpdate,
     ) -> Result<ApqGroupOperationParamsOut> {
         let proposal = self.self_group_settings_proposal(txn, update).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
+
+    /// Stages a self-group commit carrying the given blocked-contact entries.
+    ///
+    /// A commit of its own rather than a field on the settings snapshot: an
+    /// update is a per-contact diff, so two devices changing different
+    /// contacts do not cancel each other.
+    pub(crate) async fn stage_blocked_contacts_update(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        contacts: &[BlockedContactEntry],
+    ) -> Result<ApqGroupOperationParamsOut> {
+        let proposal = self
+            .self_group_messages_proposal(
+                txn,
+                vec![SelfGroupMessage::BlockedContactsUpdate(
+                    BlockedContactsUpdate {
+                        contacts: contacts.to_vec(),
+                    },
+                )],
+            )
+            .await?;
         self.stage_self_group_message_commit(txn, signer, proposal)
             .await
     }
