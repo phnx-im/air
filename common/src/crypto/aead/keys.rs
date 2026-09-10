@@ -107,17 +107,6 @@ impl RandomlyGeneratable for AttachmentEarKeyType {}
 
 impl AeadKey for AttachmentEarKey {}
 
-#[derive(Debug)]
-pub struct MultiDeviceLinkingKeyType;
-
-impl RawKey for MultiDeviceLinkingKeyType {}
-
-pub type MultiDeviceLinkingKey = Key<MultiDeviceLinkingKeyType>;
-
-impl RandomlyGeneratable for MultiDeviceLinkingKeyType {}
-
-impl AeadKey for MultiDeviceLinkingKey {}
-
 // Self-group message key
 
 /// Key that encrypts `SelfGroupMessages` payloads carried in self-group

@@ -64,7 +64,13 @@ impl Allowance {
         self.valid_until = Utc::now() + config.time_window;
     }
 
-    fn allowed(&mut self, config: &RlConfig) -> bool {
+    /// Whether the window this allowance counts over has passed, so nothing
+    /// is lost by forgetting it.
+    pub(crate) fn is_stale(&self) -> bool {
+        self.valid_until < Utc::now()
+    }
+
+    pub(crate) fn allowed(&mut self, config: &RlConfig) -> bool {
         // Check if the time window has passed
         if self.valid_until < Utc::now() {
             self.reset(config);

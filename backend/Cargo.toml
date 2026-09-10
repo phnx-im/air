@@ -57,6 +57,7 @@ cbor-diag.workspace = true
 insta.workspace = true
 mockall.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber.workspace = true
 
 [features]
