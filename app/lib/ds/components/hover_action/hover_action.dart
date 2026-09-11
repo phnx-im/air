@@ -8,11 +8,6 @@ import 'package:air/ds/components/hover_action/hover_action_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
-/// The bubble a hover action belongs to. The button carries that bubble's
-/// fill, so it reads as part of the message rather than as chrome floating
-/// beside it.
-enum HoverActionSurface { self, other }
-
 /// A reveal-on-hover round icon button: a single glyph on the fill of the
 /// message it belongs to, triggering a quick action such as react or reply.
 ///
@@ -25,7 +20,7 @@ class HoverAction extends StatelessWidget {
     super.key,
     required this.tokens,
     required this.icon,
-    required this.surface,
+    required this.fill,
     this.revealed = true,
     this.onPressed,
   });
@@ -35,7 +30,9 @@ class HoverAction extends StatelessWidget {
   /// The action the button stands for.
   final AppIconType icon;
 
-  final HoverActionSurface surface;
+  /// Fill of the bubble the button belongs to. Carrying it makes the button
+  /// read as part of the message rather than as chrome floating beside it.
+  final Color fill;
 
   /// Whether the button is shown. Defaults to true for a host that places the
   /// button unconditionally.
@@ -46,10 +43,6 @@ class HoverAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final fill = switch (surface) {
-      HoverActionSurface.self => palette.message.selfBackground,
-      HoverActionSurface.other => palette.message.otherBackground,
-    };
 
     return AnimatedScale(
       scale: revealed ? 1.0 : tokens.hiddenScale,

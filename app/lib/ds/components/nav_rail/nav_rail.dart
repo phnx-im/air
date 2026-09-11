@@ -85,7 +85,12 @@ class NavRail extends StatelessWidget {
             height: NavRailTokens.itemSize,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: palette.backgroundBase.quinary,
+                // Dark lifts the active tab with a translucent fill, since the
+                // opaque window shade would sink it there. Light keeps the
+                // shade.
+                color: palette.brightness == .dark
+                    ? palette.fill.quaternary
+                    : palette.backgroundBase.quinary,
                 borderRadius: BorderRadius.circular(NavRailTokens.itemRadius),
               ),
             ),

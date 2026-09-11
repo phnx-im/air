@@ -15,10 +15,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Floating pill-shaped tab bar shown on mobile layouts.
 ///
-/// A flat fill with an exposed shadow, not the frosted glass it replaced. A
-/// negative [TabBarTokens.tabGap] laps the tabs over each other, and the active
-/// tab is drawn frontmost, so tapping the one behind slides the front pill onto
-/// it.
+/// Composed rather than flat: one opaque base with translucent fills painted
+/// over it, so the same tiers read on both themes. A negative
+/// [TabBarTokens.tabGap] laps the tabs over each other, and the active tab is
+/// drawn frontmost, so tapping the one behind slides the front pill onto it.
 class AppTabBar extends StatelessWidget {
   const AppTabBar({super.key});
 
@@ -34,20 +34,27 @@ class AppTabBar extends StatelessWidget {
 
     const tabs = HomeTab.values;
     final activeIndex = tabs.indexOf(activeTab);
-    final background = palette.backgroundElevated.secondary;
+    final dark = palette.brightness == .dark;
 
-    // The bar marks the active tab with the sliding pill alone, so the label
-    // keeps a single style in either state.
-    final labelStyle = typeScale.body.mini.style(color: palette.text.tertiary);
+    // The base is the only opaque color. Everything above it is a translucent
+    // fill, so the stack composes instead of replacing.
+    final base = palette.backgroundBase.primary;
+    final barFill = dark ? palette.fill.tertiary : palette.fill.quaternary;
+    // On light the active pill lifts back to the base surface, on dark it
+    // deepens the bar's wash a second time.
+    final activeTabFill = dark ? palette.fill.tertiary : base;
+
     final navTokens = NavItemTokens(
       boxWidth: TabBarTokens.tabWidth,
       boxHeight: TabBarTokens.height,
       radius: TabBarTokens.pillRadius,
       labelGap: TabBarTokens.labelGap,
       padding: TabBarTokens.tabPadding,
-      surface: background,
-      activeLabelStyle: labelStyle,
-      inactiveLabelStyle: labelStyle,
+      surface: base,
+      activeLabelStyle: typeScale.body.mini.style(color: palette.text.primary),
+      inactiveLabelStyle: typeScale.body.mini.style(
+        color: palette.text.tertiary,
+      ),
     );
 
     // Tabs are laid out by hand rather than in a Row: [TabBarTokens.tabGap] is
@@ -76,7 +83,7 @@ class AppTabBar extends StatelessWidget {
               width: TabBarTokens.barWidth(tabs.length),
               height: TabBarTokens.height,
               decoration: BoxDecoration(
-                color: background,
+                color: base,
                 borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
                 boxShadow: Effect.elevation(Elevation.small),
               ),
@@ -90,6 +97,7 @@ class AppTabBar extends StatelessWidget {
                   type: .transparency,
                   child: Stack(
                     children: [
+                      Positioned.fill(child: ColoredBox(color: barFill)),
                       // Painted back-to-front: the inactive tabs, then the
                       // sliding pill, then the active tab. That ordering is what
                       // makes the selected tab the frontmost item, so it laps over
@@ -101,19 +109,13 @@ class AppTabBar extends StatelessWidget {
                       AnimatedPositioned(
                         duration: Effect.duration(MotionPreset.short),
                         curve: Effect.easeOutQuart,
-                        // Inset on every side, so a ring of bar background shows
-                        // around the pill.
-                        left:
-                            activeIndex * TabBarTokens.stride +
-                            TabBarTokens.activePillInset,
-                        top: TabBarTokens.activePillInset,
-                        bottom: TabBarTokens.activePillInset,
-                        width:
-                            TabBarTokens.tabWidth -
-                            TabBarTokens.activePillInset * 2,
+                        left: activeIndex * TabBarTokens.stride,
+                        top: 0,
+                        bottom: 0,
+                        width: TabBarTokens.tabWidth,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: palette.backgroundElevated.tertiary,
+                            color: activeTabFill,
                             borderRadius: BorderRadius.circular(
                               TabBarTokens.pillRadius,
                             ),
@@ -147,6 +149,7 @@ class _TabBarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
+    final ink = active ? palette.text.primary : palette.text.tertiary;
 
     return NavItem(
       tokens: tokens,
@@ -159,7 +162,7 @@ class _TabBarItem extends StatelessWidget {
         width: TabBarTokens.avatarSize,
         height: TabBarTokens.avatarSize,
         child: Center(
-          child: _TabIcon(tab: tab, color: palette.text.tertiary),
+          child: _TabIcon(tab: tab, color: ink),
         ),
       ),
     );

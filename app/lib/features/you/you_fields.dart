@@ -11,17 +11,11 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// Fill for a filled module in the profile sections: a field row, a device row.
 ///
-/// The two hosts sit on different surfaces. The phone screen sits on
-/// `base.primary`, the two-pane detail pane on `base.quinary`, which in dark is
-/// the same shade as `base.secondary` and would swallow a base-tier module
-/// whole. `elevated.secondary` lifts it one step there, and matches
-/// `base.secondary` in light, so light and the phone are both unchanged.
-Color youModuleFill(BuildContext context) {
-  final palette = SemanticPalette.of(context);
-  return context.breakpoint.isSmall
-      ? palette.backgroundBase.secondary
-      : palette.backgroundElevated.secondary;
-}
+/// The DS ListRow tile fill. Translucent, so the one tier lifts off both the
+/// phone's `base.primary` screen and the two-pane detail pane, with no token
+/// per breakpoint.
+Color youModuleFill(BuildContext context) =>
+    SemanticPalette.of(context).fill.tertiary;
 
 /// The field vocabulary the profile sections are built from: a filled row, a
 /// switch row, and the two label styles that annotate them.

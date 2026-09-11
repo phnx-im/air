@@ -367,7 +367,7 @@ class _ParticipantNames extends StatelessWidget {
     return Text(
       displayNames,
       style: typeScale.body.s.style(
-        color: SemanticPalette.of(context).text.tertiary,
+        color: PanelSurface.textOf(context).tertiary,
       ),
       maxLines: 2,
       softWrap: true,
@@ -384,7 +384,7 @@ class _BlockedPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = SemanticPalette.of(context).text.tertiary;
+    final color = PanelSurface.textOf(context).tertiary;
     return Text.rich(
       TextSpan(
         children: [

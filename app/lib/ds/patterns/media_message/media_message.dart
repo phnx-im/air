@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/media_message/media_message_tokens.dart';
+import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:flutter/widgets.dart';
 
 /// A picture in a message bubble, sized by the rules the design gives it:
@@ -88,12 +89,8 @@ class MediaMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
     Widget content = _MediaFrame(
-      fill: isSelf
-          ? palette.message.selfBackground
-          : palette.message.otherBackground,
+      fill: MessageBubble.fillOf(context, isSelf: isSelf),
       naturalWidth: naturalWidth,
       naturalHeight: naturalHeight,
       buildImage: _buildImage,

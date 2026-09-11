@@ -60,7 +60,7 @@ class ListHeaderTokens {
   /// Stroke drawn outside the pill's edge. Zero drops the border outright: a
   /// zero-width [BorderSide] paints as a hairline, so it can't be passed
   /// through.
-  static const double pillBorderWidth = StrokeWidth.px1;
+  static const double pillBorderWidth = StrokeWidth.px1_5;
 
   /// Drop shadow the pill ramps in alongside its fill. Empty by default: the
   /// pill separates off its fill and border, and a header that has to lift
