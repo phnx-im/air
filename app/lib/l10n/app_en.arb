@@ -36,6 +36,14 @@
   "@userSettingsScreen_sendWithEnterDescription": {
     "description": "Explains the Send with Enter toggle. The quoted word is the name of the keyboard key."
   },
+  "userSettingsScreen_limitAnimatedImagesLoops": "Limit GIF autoplay",
+  "@userSettingsScreen_limitAnimatedImagesLoops": {
+    "description": "Label of the preference toggle that limits how many times a GIF autoplays."
+  },
+  "userSettingsScreen_limitAnimatedImagesLoopsDescription": "If turned on, GIFs loop 3 times when viewed, then can be manually replayed.",
+  "@userSettingsScreen_limitAnimatedImagesLoopsDescription": {
+    "description": "Explains the Limit GIF autoplay toggle."
+  },
   "userSettingsScreen_readReceipts": "Read receipts",
   "@userSettingsScreen_readReceipts": {
     "description": "Label of the preference toggle that enables read receipts."

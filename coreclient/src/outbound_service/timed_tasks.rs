@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash};
+use aircommon::{
+    identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
+    messages::connection_package::ConnectionPackageHash,
+    mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
+};
 use airprotos::{
     auth_service::v1::OperationType,
     client::{app_data::GroupAppData, group::GroupData},
@@ -17,7 +21,8 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatAttributes, ChatId,
     chats::{GroupDataExt, GroupDataProfilePart},
-    groups::Group,
+    db::access::WriteConnection,
+    groups::{Group, vc_epoch_retention::sweep_vc_derivation_epochs},
     job::{
         JobError,
         chat_operation::{ChatOperation, DerivationEpoch},
@@ -302,18 +307,31 @@ impl OutboundServiceContext {
                 .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
-        // Snapshot of the usernames existing at the time of the first enqueue. Usernames added
-        // later already publish signed connection packages on creation.
-        let pending_usernames = UsernameRecord::load_all(self.db.read().await?)
-            .await?
-            .into_iter()
-            .map(|record| record.hash)
-            .collect();
-        TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
-            .into_operation()
-            .enqueue_if_not_exists(self.db.write().await?)
-            .await?;
-        Ok(())
+        self.db
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                // Short-circuit loading pending usernames: operation id is independent of the
+                // `pending_usernames` value.
+                let operation_id = TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+                    pending_usernames: Vec::new(),
+                })
+                .generate_id();
+                if Operation::<TimedTask>::exists(&mut *txn, &operation_id).await? {
+                    return Ok(());
+                }
+                // Snapshot of the usernames existing at the time of the first enqueue. Usernames
+                // added later already publish signed connection packages on creation.
+                let pending_usernames = UsernameRecord::load_all(&mut *txn)
+                    .await?
+                    .into_iter()
+                    .map(|record| record.hash)
+                    .collect();
+                TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
+                    .into_operation()
+                    .enqueue(&mut *txn)
+                    .await?;
+                Ok(())
+            })
+            .await
     }
 
     /// On success, returns the next due time for the task or `None` if the task should not be
@@ -516,7 +534,7 @@ impl OutboundServiceContext {
     ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
-        let (group, is_connection, erase_attributes, pq_due) = {
+        let (mut group, is_connection, erase_attributes, pq_due) = {
             let mut read = self
                 .db
                 .read()
@@ -607,6 +625,13 @@ impl OutboundServiceContext {
         // doubles as the rotation of its derivation epoch. openmls rejects the
         // marker on any other group.
         let derivation_epoch = if group.mls_group().is_emulation_group() {
+            // The rotation below leaves the current derivation epoch behind, so
+            // this is also where the epochs that aged out of the retention
+            // window are released. A failure here only leaves state around, so
+            // it must not hold up the self-update.
+            if let Err(error) = self.sweep_derivation_epochs(&mut group).await {
+                warn!(%chat_id, %error, "Failed to sweep derivation epochs of the emulation group");
+            }
             DerivationEpoch::Rotate
         } else {
             // A self group without a registered derivation epoch loads as a
@@ -685,14 +710,17 @@ impl OutboundServiceContext {
             } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
 
             // Store decryption keys before publishing
-            self.db
-                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored_hashes: Vec<ConnectionPackageHash> = self
+                .db
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    let mut hashes = Vec::with_capacity(decryption_keys.len());
                     for (decryption_key, metadata) in decryption_keys {
+                        hashes.push(metadata.hash);
                         ConnectionPackageRecord::from(metadata)
                             .store_for_username(&mut *txn, &record.username, &decryption_key)
                             .await?;
                     }
-                    Ok(())
+                    Ok(hashes)
                 })
                 .await?;
 
@@ -708,14 +736,24 @@ impl OutboundServiceContext {
                 .await
             {
                 Ok(()) => {}
-                // The username does not exist on the server anymore
-                Err(error) if error.is_not_found() => {
-                    warn!(username, %error, "Username not found; skipping upload");
-                }
                 Err(error) => {
-                    error!(username, %error, "Failed to upload signed connection packages");
-                    failed += 1;
-                    continue;
+                    // The packages were never published, so their decryption keys are useless.
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                            for hash in &stored_hashes {
+                                ConnectionPackageRecord::delete(&mut *txn, hash).await?;
+                            }
+                            Ok(())
+                        })
+                        .await?;
+                    if error.is_not_found() {
+                        // The username does not exist on the server anymore
+                        warn!(username, %error, "Username not found; skipping upload");
+                    } else {
+                        error!(username, %error, "Failed to upload signed connection packages");
+                        failed += 1;
+                        continue;
+                    }
                 }
             }
 
@@ -739,6 +777,16 @@ impl OutboundServiceContext {
             pending_usernames: pending_usernames.to_vec(),
         };
         op.update_data(self.db.write().await?).await?;
+        Ok(())
+    }
+
+    /// Prunes the derivation epochs of the emulation group that aged out of
+    /// [`VC_DERIVATION_EPOCH_RETENTION_WINDOW`].
+    async fn sweep_derivation_epochs(&self, group: &mut Group) -> anyhow::Result<()> {
+        let mut write = self.db.write().await?;
+        let mut txn = write.begin().await?;
+        sweep_vc_derivation_epochs(&mut txn, group, VC_DERIVATION_EPOCH_RETENTION_WINDOW)?;
+        txn.commit().await?;
         Ok(())
     }
 }

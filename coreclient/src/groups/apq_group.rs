@@ -17,7 +17,9 @@ use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
-    group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
+    group::{
+        GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, VcDerivationEpochRetentionPolicy,
+    },
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
     },
@@ -109,6 +111,9 @@ impl Group {
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
+            // Air prunes derivation epochs on a wall-clock window instead, see
+            // `VC_DERIVATION_EPOCH_RETENTION_WINDOW`.
+            .vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
             // The self group is the emulation group of the virtual client, so its
             // initial epoch already has to be a derivation epoch.
             .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))

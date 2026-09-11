@@ -46,6 +46,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Si se activa, la tecla \"Enter\" del teclado envía el mensaje.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limitar la reproducción automática de GIF';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Si se activa, los GIF se reproducen 3 veces al verlos y luego se pueden reproducir de nuevo manualmente.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Confirmaciones de lectura';
 
   @override

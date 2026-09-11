@@ -126,7 +126,7 @@ mod persistence {
     };
     use tracing::warn;
 
-    use crate::db::access::{WriteConnection, WriteDbTransaction};
+    use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -203,6 +203,22 @@ mod persistence {
             .execute(connection.as_mut())
             .await?;
             Ok(())
+        }
+
+        /// Returns whether an operation with the given id is enqueued
+        pub(crate) async fn exists(
+            mut connection: impl ReadConnection,
+            operation_id: &OperationId,
+        ) -> sqlx::Result<bool> {
+            let exists = query_scalar!(
+                r#"SELECT EXISTS(
+                    SELECT 1 FROM operation WHERE operation_id = ?
+                ) AS "exists: bool""#,
+                operation_id.0,
+            )
+            .fetch_one(connection.as_mut())
+            .await?;
+            Ok(exists)
         }
 
         /// Dequeue an operation for retry

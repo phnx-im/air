@@ -27,6 +27,8 @@ impl StorableSignedConnectionPackage {
         let mut is_last_resorts = Vec::with_capacity(packages.len());
         let mut expires_ats = Vec::with_capacity(packages.len());
         for package in packages {
+            // Stored but not read yet. Packages are only removed on fetch or together with the
+            // username.
             expires_ats.push(DateTime::<Utc>::from(package.expires_at()));
             let (payload, signature, is_last_resort) = package.into_parts();
             payloads.push(payload);

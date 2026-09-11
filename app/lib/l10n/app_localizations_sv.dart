@@ -46,6 +46,14 @@ class AppLocalizationsSv extends AppLocalizations {
       'Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Begränsa automatisk uppspelning av GIF';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Om detta är aktiverat loopas GIF-bilder 3 gånger när de visas och kan sedan spelas upp igen manuellt.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Läskvitton';
 
   @override
