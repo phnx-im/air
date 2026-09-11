@@ -33,6 +33,28 @@ FlutterRustBridgeBuildMode _rustBuildMode({required bool linkingEnabled}) =>
     ? FlutterRustBridgeBuildMode.release
     : FlutterRustBridgeBuildMode.debug;
 
+// Android runs 64-bit devices with 16 KB memory pages, which requires shared
+// libraries aligned to the same size.
+// See <https://developer.android.com/guide/practices/page-sizes>
+const _pageSizeRustFlags =
+    '-C link-arg=-Wl,-z,max-page-size=16384 '
+    '-C link-arg=-Wl,-z,common-page-size=16384';
+
+const _pageSizeAlignedArchitectures = [Architecture.arm64, Architecture.x64];
+
+bool _needsPageSizeRustFlags(BuildInput input) {
+  final config = input.config;
+  return config.buildCodeAssets &&
+      config.code.targetOS == OS.android &&
+      _pageSizeAlignedArchitectures.contains(config.code.targetArchitecture);
+}
+
+// Extend the ambient RUSTFLAGS with the page size flags
+String _pageSizeRustFlagsWithAmbient() {
+  final ambient = Platform.environment['RUSTFLAGS'] ?? '';
+  return ambient.isEmpty ? _pageSizeRustFlags : '$ambient $_pageSizeRustFlags';
+}
+
 void main(List<String> args) async {
   await build(args, (input, output) async {
     if (_skipRustBuild(input, output)) {
@@ -52,6 +74,8 @@ void main(List<String> args) async {
         // instead of trying to open a live database (which has none during the
         // app build, on CI or locally).
         'SQLX_OFFLINE': '1',
+        if (_needsPageSizeRustFlags(input))
+          'RUSTFLAGS': _pageSizeRustFlagsWithAmbient(),
         // Must match the MinimumOSVersion Flutter writes into the framework's
         // Info.plist, otherwise App Store Connect rejects the upload.
         if (input.config.buildCodeAssets &&
