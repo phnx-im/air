@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash};
+use aircommon::{
+    identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
+    messages::connection_package::ConnectionPackageHash,
+};
 use airprotos::{
     auth_service::v1::OperationType,
     client::{app_data::GroupAppData, group::GroupData},
@@ -685,14 +688,17 @@ impl OutboundServiceContext {
             } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
 
             // Store decryption keys before publishing
-            self.db
-                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored_hashes: Vec<ConnectionPackageHash> = self
+                .db
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    let mut hashes = Vec::with_capacity(decryption_keys.len());
                     for (decryption_key, metadata) in decryption_keys {
+                        hashes.push(metadata.hash);
                         ConnectionPackageRecord::from(metadata)
                             .store_for_username(&mut *txn, &record.username, &decryption_key)
                             .await?;
                     }
-                    Ok(())
+                    Ok(hashes)
                 })
                 .await?;
 
@@ -708,14 +714,24 @@ impl OutboundServiceContext {
                 .await
             {
                 Ok(()) => {}
-                // The username does not exist on the server anymore
-                Err(error) if error.is_not_found() => {
-                    warn!(username, %error, "Username not found; skipping upload");
-                }
                 Err(error) => {
-                    error!(username, %error, "Failed to upload signed connection packages");
-                    failed += 1;
-                    continue;
+                    // The packages were never published, so their decryption keys are useless.
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                            for hash in &stored_hashes {
+                                ConnectionPackageRecord::delete(&mut *txn, hash).await?;
+                            }
+                            Ok(())
+                        })
+                        .await?;
+                    if error.is_not_found() {
+                        // The username does not exist on the server anymore
+                        warn!(username, %error, "Username not found; skipping upload");
+                    } else {
+                        error!(username, %error, "Failed to upload signed connection packages");
+                        failed += 1;
+                        continue;
+                    }
                 }
             }
 
