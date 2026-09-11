@@ -43,6 +43,8 @@ class _ChatListViewState extends State<ChatListView> {
 
   @override
   Widget build(BuildContext context) {
+    // The phone list is the full-screen base surface, so the floating tab
+    // bar's wash lifts off it. Desktop publishes its own panel surface.
     final bgColor = PanelSurface.colorOf(context);
     // On a phone the list runs behind the status bar, so the header carries
     // that inset itself and the list reserves the bar's height plus the
@@ -67,12 +69,13 @@ class _ChatListViewState extends State<ChatListView> {
         shareMode: widget.shareMode,
       ),
     );
+    final surface = PanelSurface(color: bgColor, child: container);
     return widget.scaffold
         ? Scaffold(
             backgroundColor: bgColor,
             body: Stack(
               children: [
-                container,
+                surface,
                 const Positioned(
                   bottom: 0,
                   left: 0,
@@ -82,7 +85,7 @@ class _ChatListViewState extends State<ChatListView> {
               ],
             ),
           )
-        : container;
+        : surface;
   }
 }
 

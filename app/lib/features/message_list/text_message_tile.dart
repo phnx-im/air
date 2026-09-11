@@ -660,9 +660,7 @@ class _MessageShell extends StatelessWidget {
   /// reachable on a desktop.
   Widget _hoverAffordance(BuildContext context) {
     const tokens = _hoverTokens;
-    final surface = isSender
-        ? HoverActionSurface.self
-        : HoverActionSurface.other;
+    final bubbleFill = MessageBubble.fillOf(context, isSelf: isSender);
     final withButtons = _withHoverActions;
 
     return Padding(
@@ -689,14 +687,14 @@ class _MessageShell extends StatelessWidget {
             key: reactButtonKey,
             tokens: tokens,
             icon: AppIconType.smilePlus,
-            surface: surface,
+            fill: bubbleFill,
             revealed: hovered,
             onPressed: () => commands.openReactionMenu(anchor: reactButtonKey),
           );
           final reply = HoverAction(
             tokens: tokens,
             icon: AppIconType.cornerLeft,
-            surface: surface,
+            fill: bubbleFill,
             revealed: hovered,
             onPressed: commands.reply,
           );
@@ -1077,17 +1075,12 @@ class _MessageContent extends StatelessWidget {
     child: child,
   );
 
-  Widget _highlighted(BuildContext context, Widget bubble) {
-    final palette = SemanticPalette.of(context);
-    return JumpHighlight(
-      id: messageId,
-      borderRadius: BorderRadius.circular(MessageBubbleTokens.radius),
-      baseColor: isSender
-          ? palette.message.selfBackground
-          : palette.message.otherBackground,
-      child: bubble,
-    );
-  }
+  Widget _highlighted(BuildContext context, Widget bubble) => JumpHighlight(
+    id: messageId,
+    borderRadius: BorderRadius.circular(MessageBubbleTokens.radius),
+    baseColor: MessageBubble.fillOf(context, isSelf: isSender),
+    child: bubble,
+  );
 
   Widget _text(List<Widget> blocks, {required bool jumbo}) =>
       MessageText(isSelf: isSender, blocks: blocks, jumbo: jumbo);

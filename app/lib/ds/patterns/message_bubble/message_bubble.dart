@@ -13,8 +13,8 @@ enum MessageBubbleVariant {
   filled,
 
   /// A stand-in for a body that's gone -- a deleted message. Outlined in the
-  /// fill the bubble would have had, so the message keeps its place in the
-  /// column without claiming the weight of one that still has content.
+  /// quietest bubble tier, so the message keeps its place in the column
+  /// without claiming the weight of one that still has content.
   outlined,
 
   /// Content that's its own shape -- an emoji-only body. No fill, no outline,
@@ -60,12 +60,31 @@ class MessageBubble extends StatelessWidget {
   /// the blocks share a width rather than each hugging its own.
   final bool intrinsicWidth;
 
+  /// The fill a bubble paints composited onto the pane behind it.
+  static Color fillOf(BuildContext context, {required bool isSelf}) {
+    final palette = SemanticPalette.of(context);
+    final dark = palette.brightness == .dark;
+    final tier = switch ((isSelf, dark, DeviceType.isDesktop)) {
+      // own message in light mode
+      (true, false, _) => palette.fill.secondary,
+      // own message in dark mode on mobile
+      (true, true, false) => palette.fill.primary,
+      // own message in dark mode on desktop
+      (true, true, true) => palette.fill.secondary,
+      // remote message in light mode
+      (false, false, _) => palette.fill.tertiary,
+      // remote message in dark mode on mobile
+      (false, true, false) => palette.fill.tertiary,
+      // remote message in dark mode on desktop
+      (false, true, true) => palette.fill.quaternary,
+    };
+    return tier.on(PanelSurface.colorOf(context));
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final fill = isSelf
-        ? palette.message.selfBackground
-        : palette.message.otherBackground;
+    final fill = fillOf(context, isSelf: isSelf);
     final corners = BorderRadius.circular(MessageBubbleTokens.radius);
 
     final decoration = switch (variant) {
@@ -74,7 +93,10 @@ class MessageBubble extends StatelessWidget {
         borderRadius: corners,
       ),
       MessageBubbleVariant.outlined => BoxDecoration(
-        border: Border.all(color: fill, width: MessageBubbleTokens.borderWidth),
+        border: Border.all(
+          color: palette.fill.tertiary,
+          width: MessageBubbleTokens.borderWidth,
+        ),
         borderRadius: corners,
       ),
       MessageBubbleVariant.naked => null,

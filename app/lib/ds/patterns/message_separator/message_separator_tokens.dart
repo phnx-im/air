@@ -30,6 +30,11 @@ abstract final class MessageSeparatorTokens {
     vertical: S.s4,
   );
 
+  /// Stroke drawn outside the pill in the surface color, so the floating copy
+  /// keeps a gap from the bubbles it passes over. Outside, so it never eats
+  /// into [pillPadding].
+  static const double pillStrokeWidth = StrokeWidth.px1_5;
+
   static const double ruleThickness = StrokeWidth.px0_5;
 
   /// Gap between the pill and the rules either side of it.

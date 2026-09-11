@@ -184,7 +184,7 @@ class _PeopleSection extends HookWidget {
                 variant: ButtonIconVariant.solid,
                 size: ButtonIconSize.s32,
                 icon: AppIconType.arrowRight,
-                fill: palette.backgroundBase.secondary,
+                fill: palette.fill.tertiary,
                 iconColor: palette.text.secondary,
                 onPressed: openGroupMembers,
               ),
@@ -224,7 +224,7 @@ class _AddPeopleRow extends StatelessWidget {
 
     return ListRow(
       tokens: tokens,
-      fill: palette.backgroundBase.secondary,
+      fill: palette.fill.tertiary,
       radius: CornerRadius.px0,
       label: loc.groupDetails_addPeople,
       leading: ButtonIcon(
@@ -259,7 +259,7 @@ class _MemberRow extends StatelessWidget {
 
     return ListRow(
       tokens: tokens,
-      fill: palette.backgroundBase.secondary,
+      fill: palette.fill.tertiary,
       radius: CornerRadius.px0,
       label: isSelf ? loc.chatList_you : profile.displayName,
       leading: UserAvatar(profile: profile, size: S.s32),

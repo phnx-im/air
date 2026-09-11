@@ -12,8 +12,8 @@ import '../../helpers.dart';
 void main() {
   group('FieldContainer', () {
     setUp(() {
-      // The palette follows the platform brightness, and the two tiers only
-      // differ in dark: in light both resolve to the same shade.
+      // The palette follows the platform brightness, so pin it to compare
+      // against one palette.
       TestWidgetsFlutterBinding.ensureInitialized()
               .platformDispatcher
               .platformBrightnessTestValue =
@@ -41,28 +41,22 @@ void main() {
       return (container.decoration! as BoxDecoration).color!;
     }
 
-    testWidgets('lifts off the detail pane in the two-pane layout', (
+    testWidgets('paints one translucent tile fill at both breakpoints', (
       tester,
     ) async {
       sizeView(tester, desktopViewSize);
       await tester.pumpWidget(buildSubject());
+      final onDetailPane = fillOf(tester);
 
-      expect(
-        fillOf(tester),
-        darkSemanticPalette.backgroundElevated.secondary,
-        reason: 'a module on the detail pane sits one elevation step above it',
-      );
-      // The pane is base.quinary, the same dark shade as base.secondary, so a
-      // base-tier module would be invisible on it.
-      expect(fillOf(tester), isNot(darkSemanticPalette.backgroundBase.quinary));
-    });
-
-    testWidgets('keeps the base tier on the phone', (tester) async {
       sizeView(tester, phoneViewSize);
       await tester.pumpWidget(buildSubject());
+      final onPhone = fillOf(tester);
 
-      expect(fillOf(tester), darkSemanticPalette.backgroundBase.secondary);
-      expect(fillOf(tester), isNot(darkSemanticPalette.backgroundBase.primary));
+      expect(onDetailPane, darkSemanticPalette.fill.tertiary);
+      expect(onPhone, onDetailPane);
+      // Translucent, so the module lifts off the detail pane and the phone
+      // screen alike without a tier per breakpoint.
+      expect(onDetailPane.a, lessThan(1.0));
     });
   });
 }
