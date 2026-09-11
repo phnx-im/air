@@ -14,8 +14,10 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -263,6 +265,11 @@ class _AddContactDialog extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final inProgress = useState(false);
+    final preferApq = useState(false);
+
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
 
     return AppDialog(
       child: Column(
@@ -283,6 +290,15 @@ class _AddContactDialog extends HookWidget {
             style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
+          if (experimentalFeatures) ...[
+            const SizedBox(height: S.s16),
+            SwitchField(
+              onChanged: (value) => preferApq.value = value,
+              value: preferApq.value,
+              label: "Post-Quantum Encryption",
+            ),
+          ],
+
           const SizedBox(height: S.s24),
 
           Row(
@@ -302,6 +318,7 @@ class _AddContactDialog extends HookWidget {
                   onPressed: () => _handleSendChatRequest(
                     context,
                     (value) => inProgress.value = value,
+                    preferApq.value,
                   ),
                   label: loc.addContactDialog_confirm,
                   state: inProgress.value
@@ -319,6 +336,7 @@ class _AddContactDialog extends HookWidget {
   void _handleSendChatRequest(
     BuildContext context,
     void Function(bool) setInProgress,
+    bool preferApq,
   ) async {
     setInProgress(true);
 
@@ -329,6 +347,7 @@ class _AddContactDialog extends HookWidget {
       final chatId = await userCubit.addContactFromGroup(
         userId: userId,
         chatId: groupChatId,
+        preferApq: preferApq,
       );
       navigationCubit.openChat(chatId);
     } catch (error) {
