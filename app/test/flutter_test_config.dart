@@ -28,6 +28,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     _checkTimeZoneIsUtc();
     _mockSystemDateTimeFormatChannel(binding);
+    _mockMobileScannerChannels(binding);
     await _loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
     _setPhysicalScreenSize(binding, pixel8ScreenSize, pixel8DevicePixelRatio);
@@ -159,4 +160,25 @@ void _mockSystemDateTimeFormatChannel(TestWidgetsFlutterBinding binding) {
     const MethodChannel('system_date_time_format'),
     (MethodCall methodCall) async => null,
   );
+}
+
+/// The camera is authorized but never comes up, so the scanner keeps showing
+/// its placeholder instead of printing a `MissingPluginException` on stop.
+void _mockMobileScannerChannels(TestWidgetsFlutterBinding binding) {
+  const prefix = 'dev.steenbakker.mobile_scanner/scanner';
+  binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('$prefix/method'),
+    (MethodCall methodCall) => switch (methodCall.method) {
+      'state' => Future.value(1),
+      'start' => Completer<Object?>().future,
+      _ => Future.value(null),
+    },
+  );
+  // The controller subscribes to both event channels before it starts.
+  for (final name in ['event', 'deviceOrientation']) {
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      MethodChannel('$prefix/$name'),
+      (MethodCall methodCall) async => null,
+    );
+  }
 }

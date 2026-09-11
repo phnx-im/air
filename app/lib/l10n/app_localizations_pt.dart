@@ -46,6 +46,14 @@ class AppLocalizationsPt extends AppLocalizations {
       'Se estiver ativado, a tecla \"Enter\" do teclado envia a mensagem.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limitar a reprodução automática de GIFs';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Se estiver ativado, os GIFs são reproduzidos 3 vezes ao serem visualizados e depois podem ser reproduzidos novamente manualmente.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Confirmações de leitura';
 
   @override
@@ -1543,6 +1551,14 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
       'Se estiver ativado, a tecla \"Enter\" do teclado envia a mensagem.';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limitar a reprodução automática de GIFs';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Se estiver ativado, os GIFs são reproduzidos 3 vezes ao serem visualizados e depois podem ser reproduzidos novamente manualmente.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Confirmações de leitura';

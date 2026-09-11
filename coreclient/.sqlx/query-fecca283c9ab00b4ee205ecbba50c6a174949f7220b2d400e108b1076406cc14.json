@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_derivation_epoch_legacy_hold WHERE held_until <= ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fecca283c9ab00b4ee205ecbba50c6a174949f7220b2d400e108b1076406cc14"
+}

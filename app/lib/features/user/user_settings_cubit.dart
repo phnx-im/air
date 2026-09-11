@@ -127,6 +127,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
   Future<void> setSendOnEnter({required bool value}) =>
       _impl!.setSendOnEnter(value: value);
 
+  Future<void> setLimitAnimatedImagesLoops({required bool value}) =>
+      _impl!.setLimitAnimatedImagesLoops(value: value);
+
   Future<void> setReadReceipts({required bool value}) =>
       _impl!.setReadReceipts(value: value);
 

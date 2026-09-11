@@ -167,6 +167,18 @@ abstract class AppLocalizations {
   /// **'If turned on, the keyboard\'s \"Enter\" key sends the message.'**
   String get userSettingsScreen_sendWithEnterDescription;
 
+  /// Label of the preference toggle that limits how many times a GIF autoplays.
+  ///
+  /// In en, this message translates to:
+  /// **'Limit GIF autoplay'**
+  String get userSettingsScreen_limitAnimatedImagesLoops;
+
+  /// Explains the Limit GIF autoplay toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'If turned on, GIFs loop 3 times when viewed, then can be manually replayed.'**
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription;
+
   /// Label of the preference toggle that enables read receipts.
   ///
   /// In en, this message translates to:
