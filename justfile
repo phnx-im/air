@@ -4,6 +4,8 @@
 
 set minimum-version := "1.56.0"
 set default-list
+
+[unix]
 set script-interpreter := ['bash', '-eu']
 
 [windows]
