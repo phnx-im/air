@@ -39,6 +39,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::{
     clients::{
         api_clients::ApiClients,
+        block_contact::pending::{apply_blocked_contacts_update, complete_sent_entries},
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -88,6 +89,12 @@ async fn apply_self_group_payload(
         for seed in &payload.token_seeds {
             privacy_pass::apply_incoming_seed(txn, seed).await?;
         }
+    }
+
+    if own_echo {
+        complete_sent_entries(txn, &payload.blocked_contacts).await?;
+    } else {
+        apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
     }
 
     Ok(())
@@ -1067,14 +1074,81 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::credentials::SelfGroupCredential;
+    use aircommon::{credentials::SelfGroupCredential, identifiers::UserId};
+    use airprotos::client::self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked};
+    use chrono::DateTime;
     use openmls::prelude::LeafNodeIndex;
+    use sqlx::SqlitePool;
     use uuid::Uuid;
+
+    use crate::{
+        clients::block_contact::{
+            BlockedContact,
+            pending::{BlockedState, entries_to_broadcast, store_outgoing_entry},
+        },
+        db::access::DbAccess,
+    };
 
     use super::*;
 
     fn self_group_credential(client_id: u128) -> LeafCredential {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    fn user(n: u128) -> UserId {
+        UserId::new(Uuid::from_u128(n), "localhost".parse().unwrap())
+    }
+
+    fn blocked_contact(
+        user_id: &UserId,
+        blocked_at: i64,
+        last_display_name: &str,
+    ) -> BlockedContact {
+        BlockedContact {
+            user_id: user_id.clone(),
+            last_display_name: last_display_name.parse().unwrap(),
+            blocked_at: DateTime::from_timestamp(blocked_at, 0).unwrap(),
+        }
+    }
+
+    fn blocked_state(user_id: &UserId, blocked_at: i64, last_display_name: &str) -> BlockedState {
+        BlockedState::Blocked(blocked_contact(user_id, blocked_at, last_display_name))
+    }
+
+    /// What a local block or unblock does: apply optimistically, then park the
+    /// change for the next self-group commit.
+    async fn record_locally(
+        txn: &mut WriteDbTransaction<'_>,
+        intended: BlockedState,
+    ) -> anyhow::Result<()> {
+        intended.apply(&mut *txn).await?;
+        store_outgoing_entry(txn, &BlockedContactEntry::from(&intended)).await?;
+        Ok(())
+    }
+
+    fn blocked_entry(
+        user_id: &UserId,
+        blocked_at: u64,
+        last_display_name: &str,
+    ) -> BlockedContactEntry {
+        BlockedContactEntry::Blocked(ContactBlocked {
+            user_id: user_id.clone().into(),
+            blocked_at,
+            last_display_name: last_display_name.to_owned(),
+        })
+    }
+
+    fn unblocked_entry(user_id: &UserId) -> BlockedContactEntry {
+        BlockedContactEntry::Unblocked(ContactUnblocked {
+            user_id: user_id.clone().into(),
+        })
+    }
+
+    fn blocked_contacts_payload(entries: Vec<BlockedContactEntry>) -> SelfGroupPayload {
+        SelfGroupPayload {
+            blocked_contacts: entries,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -1139,5 +1213,79 @@ mod tests {
                 "unexpected error: {error:#}"
             );
         }
+    }
+
+    #[sqlx::test]
+    async fn sibling_update_blocks_and_unblocks_contacts(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let to_block = user(1);
+        let to_unblock = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            blocked_state(&to_unblock, 10, "Alice")
+                .apply(&mut *txn)
+                .await?;
+
+            let payload = blocked_contacts_payload(vec![
+                blocked_entry(&to_block, 1_767_225_600, "Bob"),
+                unblocked_entry(&to_unblock),
+            ]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert!(BlockedContact::check_blocked(&mut *txn, &to_block).await?);
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn sibling_update_wins_locally_but_keeps_our_parked_change(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let contested = user(1);
+        let untouched = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            record_locally(txn, blocked_state(&contested, 10, "Alice")).await?;
+            record_locally(txn, blocked_state(&untouched, 20, "Bob")).await?;
+
+            let payload = blocked_contacts_payload(vec![unblocked_entry(&contested)]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
+            assert_eq!(
+                entries_to_broadcast(&mut *txn).await?,
+                vec![
+                    blocked_entry(&contested, 10, "Alice"),
+                    blocked_entry(&untouched, 20, "Bob")
+                ],
+                "both parked changes must survive to be re-sent"
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn the_last_entry_for_a_contact_wins(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let reblocked = user(1);
+        let unblocked = user(2);
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let payload = blocked_contacts_payload(vec![
+                unblocked_entry(&reblocked),
+                blocked_entry(&unblocked, 40, "Bob"),
+                blocked_entry(&reblocked, 50, "Alice"),
+                unblocked_entry(&unblocked),
+            ]);
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert!(BlockedContact::check_blocked(&mut *txn, &reblocked).await?);
+            assert!(!BlockedContact::check_blocked(&mut *txn, &unblocked).await?);
+            Ok(())
+        })
+        .await
     }
 }

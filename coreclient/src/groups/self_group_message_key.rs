@@ -39,7 +39,8 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
+        AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, SelfGroupMessage,
+        SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -178,6 +179,27 @@ impl Group {
         update: &SettingsUpdate,
     ) -> Result<ApqGroupOperationParamsOut> {
         let proposal = self.self_group_settings_proposal(txn, update).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
+
+    /// Stages a self-group commit carrying the given blocked-contact entries.
+    pub(crate) async fn stage_blocked_contacts_update(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        contacts: &[BlockedContactEntry],
+    ) -> Result<ApqGroupOperationParamsOut> {
+        let proposal = self
+            .self_group_messages_proposal(
+                txn,
+                vec![SelfGroupMessage::BlockedContactsUpdate(
+                    BlockedContactsUpdate {
+                        contacts: contacts.to_vec(),
+                    },
+                )],
+            )
+            .await?;
         self.stage_self_group_message_commit(txn, signer, proposal)
             .await
     }
@@ -325,6 +347,9 @@ impl Group {
                 match message {
                     SelfGroupMessage::SettingsUpdate(update) => extracted.updates.push(update),
                     SelfGroupMessage::TokenSeed(seed) => extracted.token_seeds.push(seed),
+                    SelfGroupMessage::BlockedContactsUpdate(update) => {
+                        extracted.blocked_contacts.extend(update.contacts);
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -342,11 +367,13 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) updates: Vec<SettingsUpdate>,
     /// Token seeds published by the sender.
     pub(crate) token_seeds: Vec<TokenSeed>,
+    /// Blocked-contact changes.
+    pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
 }
 
 impl SelfGroupPayload {
     pub(crate) fn is_empty(&self) -> bool {
-        self.updates.is_empty() && self.token_seeds.is_empty()
+        self.updates.is_empty() && self.token_seeds.is_empty() && self.blocked_contacts.is_empty()
     }
 }
 
@@ -491,7 +518,10 @@ mod derivation_tests {
     use airprotos::client::{
         app_data::GroupAppData,
         component::AIR_COMPONENT_ID,
-        self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+        self_group::{
+            AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
+            SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
+        },
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
     use openmls::prelude::{AppEphemeralProposal, GroupId, Proposal};
@@ -510,6 +540,18 @@ mod derivation_tests {
             Uuid::new_v4(),
             "example.com".parse().unwrap(),
         ))
+    }
+
+    /// A one-entry blocked-contacts update, blocking `uuid` at `blocked_at`.
+    fn blocked_contacts_update(uuid: u128, blocked_at: u64) -> BlockedContactsUpdate {
+        let user_id = UserId::new(Uuid::from_u128(uuid), "example.com".parse().unwrap());
+        BlockedContactsUpdate {
+            contacts: vec![BlockedContactEntry::Blocked(ContactBlocked {
+                user_id: user_id.into(),
+                blocked_at,
+                last_display_name: "Alice".to_owned(),
+            })],
+        }
     }
 
     /// Per-device self-group signer and its leaf wrapper, as used by real
@@ -822,6 +864,52 @@ mod derivation_tests {
 
         assert_eq!(extracted.updates, vec![update]);
         assert!(extracted.token_seeds.is_empty());
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_blocked_contacts_updates_keeps_entry_order() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (sg_signer, signer) = self_group_signer()?;
+        let user_id = UserId::random("example.com".parse()?);
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
+
+        let first = blocked_contacts_update(1, 10);
+        let second = blocked_contacts_update(2, 20);
+        let proposal = group
+            .self_group_messages_proposal(
+                &mut txn,
+                vec![
+                    SelfGroupMessage::BlockedContactsUpdate(first.clone()),
+                    SelfGroupMessage::BlockedContactsUpdate(second.clone()),
+                ],
+            )
+            .await?;
+        group
+            .stage_self_group_message_commit(&mut txn, &sg_signer, proposal)
+            .await?;
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
+
+        let mut expected = first.contacts;
+        expected.extend(second.contacts);
+        assert_eq!(extracted.blocked_contacts, expected);
+        assert!(extracted.updates.is_empty());
 
         txn.commit().await?;
         Ok(())

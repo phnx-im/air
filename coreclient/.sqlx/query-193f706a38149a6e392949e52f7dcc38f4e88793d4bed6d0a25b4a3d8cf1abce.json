@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM blocked_contact_change\n        WHERE user_uuid = ?1 AND user_domain = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "193f706a38149a6e392949e52f7dcc38f4e88793d4bed6d0a25b4a3d8cf1abce"
+}
