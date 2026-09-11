@@ -110,9 +110,6 @@ pub(super) enum OperationType {
     },
     BlockedContactsUpdate {
         params: Box<ApqGroupOperationParamsOut>,
-        /// The entries this commit carries. When the commit is accepted, the
-        /// parked changes are completed against them: only contacts sent with
-        /// the still-intended state are done.
         contacts: Vec<BlockedContactEntry>,
     },
     SelfGroupKeyPackageUpload {

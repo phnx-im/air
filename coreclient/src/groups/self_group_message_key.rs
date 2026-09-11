@@ -184,10 +184,6 @@ impl Group {
     }
 
     /// Stages a self-group commit carrying the given blocked-contact entries.
-    ///
-    /// A commit of its own rather than a field on the settings snapshot: an
-    /// update is a per-contact diff, so two devices changing different
-    /// contacts do not cancel each other.
     pub(crate) async fn stage_blocked_contacts_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,

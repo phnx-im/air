@@ -1238,8 +1238,6 @@ mod tests {
         .await
     }
 
-    /// A sibling's accepted state wins locally, but our parked change is kept
-    /// so the next commit re-sends it.
     #[sqlx::test]
     async fn sibling_update_wins_locally_but_keeps_our_parked_change(
         pool: SqlitePool,
@@ -1255,7 +1253,7 @@ mod tests {
             let payload = blocked_contacts_payload(vec![unblocked_entry(&contested)]);
             apply_self_group_payload(txn, &payload, false).await?;
 
-            assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?,);
+            assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
             assert_eq!(
                 entries_to_broadcast(&mut *txn).await?,
                 vec![

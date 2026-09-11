@@ -79,7 +79,6 @@ mod persistence {
 
     use super::*;
 
-    #[cfg(test)]
     struct SqlBlockedContact {
         user_uuid: uuid::Uuid,
         user_domain: aircommon::identifiers::Fqdn,
@@ -87,7 +86,6 @@ mod persistence {
         blocked_at: DateTime<Utc>,
     }
 
-    #[cfg(test)]
     impl From<SqlBlockedContact> for BlockedContact {
         fn from(
             SqlBlockedContact {
@@ -131,6 +129,26 @@ mod persistence {
             connection.notifier().add(self.user_id.clone());
 
             Ok(())
+        }
+
+        /// Every stored block, sorted by user id so the encoding is canonical.
+        pub(crate) async fn load_all(
+            mut connection: impl ReadConnection,
+        ) -> sqlx::Result<Vec<Self>> {
+            let records = sqlx::query_as!(
+                SqlBlockedContact,
+                r#"SELECT
+                    user_uuid AS "user_uuid: _",
+                    user_domain AS "user_domain: _",
+                    last_display_name AS "last_display_name: _",
+                    blocked_at AS "blocked_at: _"
+                FROM blocked_contact
+                ORDER BY user_uuid, user_domain"#
+            )
+            .fetch_all(connection.as_mut())
+            .await?;
+
+            Ok(records.into_iter().map(From::from).collect())
         }
 
         pub(crate) async fn check_blocked(

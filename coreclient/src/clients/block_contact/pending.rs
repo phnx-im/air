@@ -28,18 +28,26 @@ pub(crate) enum BlockedState {
 }
 
 /// NB: `blocked_at` loses sub-second precision here.
+impl From<&BlockedContact> for BlockedContactEntry {
+    fn from(
+        BlockedContact {
+            user_id,
+            last_display_name,
+            blocked_at,
+        }: &BlockedContact,
+    ) -> Self {
+        Self::Blocked(ContactBlocked {
+            user_id: user_id.clone().into(),
+            blocked_at: blocked_at.timestamp().max(0) as u64,
+            last_display_name: last_display_name.to_string(),
+        })
+    }
+}
+
 impl From<&BlockedState> for BlockedContactEntry {
     fn from(state: &BlockedState) -> Self {
         match state {
-            BlockedState::Blocked(BlockedContact {
-                user_id,
-                last_display_name,
-                blocked_at,
-            }) => Self::Blocked(ContactBlocked {
-                user_id: user_id.clone().into(),
-                blocked_at: blocked_at.timestamp().max(0) as u64,
-                last_display_name: last_display_name.to_string(),
-            }),
+            BlockedState::Blocked(contact) => contact.into(),
             BlockedState::Unblocked { user_id } => Self::Unblocked(ContactUnblocked {
                 user_id: user_id.clone().into(),
             }),
@@ -120,6 +128,21 @@ pub(crate) async fn apply_blocked_contacts_update(
         state.apply(&mut *txn).await?;
     }
     Ok(())
+}
+
+/// Every stored block, as the entries a provisioning package carries.
+///
+/// A device joining the self group through a Welcome cannot decrypt the commits
+/// from before its join, so the blocks made until then have to travel in the
+/// linking payload rather than as a diff.
+pub(crate) async fn blocked_contacts_snapshot(
+    connection: impl ReadConnection,
+) -> sqlx::Result<Vec<BlockedContactEntry>> {
+    Ok(BlockedContact::load_all(connection)
+        .await?
+        .iter()
+        .map(BlockedContactEntry::from)
+        .collect())
 }
 
 struct SqlOutgoingEntry {

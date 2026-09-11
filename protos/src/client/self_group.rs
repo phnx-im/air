@@ -251,7 +251,6 @@ pub struct SettingsUpdate {
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct BlockedContactsUpdate {
-    /// Unordered, at most one entry per user id.
     #[tag(1)]
     pub contacts: Vec<BlockedContactEntry>,
 }
