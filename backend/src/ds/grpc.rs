@@ -1390,7 +1390,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
-        let qs_client_refence = request
+        let qs_client_reference = request
             .qs_client_reference
             .ok_or_missing_field("qs_client_reference")?
             .try_into()?;
@@ -1407,7 +1407,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         pq_group_state,
                         t_message,
                         pq_message,
-                        qs_client_refence,
+                        qs_client_reference,
                     )?;
 
                     t_group_state.proposals.clear();
