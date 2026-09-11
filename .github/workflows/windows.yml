@@ -35,7 +35,7 @@ jobs:
 
       - name: Build Windows app
         working-directory: app
-        run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }} --build-name=${{ steps.setup-buildenv.outputs.build-name }}
+        run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       # Show sccache stats manually (because it fails in the post setup-buildenv step)
       - name: Show sccache stats

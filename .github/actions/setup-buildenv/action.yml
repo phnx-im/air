@@ -52,9 +52,6 @@ outputs:
   build-number:
     description: "Build number derived from the workflow run number"
     value: ${{ steps.build-number.outputs.value }}
-  build-name:
-    description: "App version, as committed in app/pubspec.yaml"
-    value: ${{ steps.build-name.outputs.value }}
 runs:
   using: composite
   steps:
@@ -71,11 +68,6 @@ runs:
       id: build-number
       shell: bash
       run: echo "value=$(bash scripts/build-number.sh)" >> $GITHUB_OUTPUT
-
-    - name: Compute build name
-      id: build-name
-      shell: bash
-      run: echo "value=$(bash scripts/build-name.sh)" >> $GITHUB_OUTPUT
 
     # Forces apiclient's build script to collect fresh git metadata for this
     # commit and bakes the store build number into it (see apiclient/build.rs)
@@ -223,3 +215,23 @@ runs:
       run: |
         sudo apt-get update -qq
         sudo apt-get install -yqq lld ninja-build libgtk-3-dev
+
+    # The Flutter native-assets hook runs with an allowlisted environment, so
+    # the variables set above never reach `cargo build` for the app. Forward
+    # them through the hook config instead (see app/hook/build.dart).
+    - if: inputs.flutter == 'true'
+      name: Configure the Rust build hook
+      shell: bash
+      run: |
+        mkdir -p app/.dart_tool
+        jq -n \
+          --arg build_number "$AIR_BUILD_NUMBER" \
+          --arg refresh "$AIR_REFRESH_BUILD_METADATA" \
+          --arg rustc_wrapper "${RUSTC_WRAPPER:-}" \
+          '{cargo_env: ({
+              AIR_BUILD_NUMBER: $build_number,
+              AIR_REFRESH_BUILD_METADATA: $refresh,
+              RUSTC_WRAPPER: $rustc_wrapper
+            } | with_entries(select(.value != "")))}' \
+          > app/.dart_tool/air_hook_config.json
+        cat app/.dart_tool/air_hook_config.json
