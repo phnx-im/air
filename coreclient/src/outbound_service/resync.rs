@@ -424,7 +424,7 @@ impl Resync {
         let aad = AadPayload::Resync.into();
         if self.pq_group_id.is_some() {
             // APQ group
-            let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
+            let (group, bundle, member_profile_infos) = Box::pin(Group::join_apq_group_externally(
                 txn,
                 api_clients,
                 external_commit_info,
@@ -435,7 +435,7 @@ impl Resync {
                 aad,
                 vc_group_id,
                 None,
-            )
+            ))
             .await??;
             Ok((
                 group,

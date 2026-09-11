@@ -24,12 +24,14 @@ const _allFeatures = AirFeatures(
   encryptedGroupProfiles: true,
   emptyConnectionGroupAttributes: true,
   pqGroups: true,
+  apqConnectionGroups: true,
 );
 
 const _noPqFeatures = AirFeatures(
   encryptedGroupProfiles: true,
   emptyConnectionGroupAttributes: true,
   pqGroups: false,
+  apqConnectionGroups: false,
 );
 
 final _profiles = [

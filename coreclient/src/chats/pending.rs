@@ -135,7 +135,7 @@ impl CoreUser {
                 });
                 // Join group: APQ or T decided by apq info in the member-signed group info.
                 let (mut group, commit, mut member_profile_info) = if is_apq {
-                    let res = Group::join_apq_group_externally(
+                    let res = Box::pin(Group::join_apq_group_externally(
                         txn,
                         self.api_clients(),
                         eci,
@@ -150,7 +150,7 @@ impl CoreUser {
                         // virtual-client onboarding: we are not a member of the group yet.
                         None,
                         connection_group,
-                    )
+                    ))
                     .await?;
                     match res {
                         Ok((group, bundle, infos)) => {
