@@ -423,12 +423,6 @@ pub struct GroupOperationParamsAad {
     pub new_encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
 }
 
-#[derive(Debug)]
-pub struct JoinConnectionGroupParams {
-    pub external_commit: AssistedMessageIn,
-    pub qs_client_reference: QsReference,
-}
-
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct JoinConnectionGroupParamsAad {
     pub encrypted_friendship_package: EncryptedFriendshipPackage,
