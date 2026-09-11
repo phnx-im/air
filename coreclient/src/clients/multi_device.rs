@@ -22,7 +22,7 @@ use aircommon::mls_group_config::{
     APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
 };
 use airprotos::client::app_data::ClientAppData;
-use airprotos::client::self_group::{LinkedDevice, SettingsUpdate, TokenSeed};
+use airprotos::client::self_group::{BlockedContactEntry, LinkedDevice, SettingsUpdate, TokenSeed};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
@@ -55,6 +55,7 @@ use crate::{
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
+        block_contact::pending::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
         listen_response,
         own_client_info::OwnClientInfo,
@@ -108,6 +109,8 @@ pub(crate) struct ProvisioningPackage {
     // token requests as its sibling instead of running an agreement round for a
     // key whose allowance epoch the sibling has already locked.
     pub(crate) token_seeds: Vec<TokenSeed>,
+    // Contacts blocked so far.
+    pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
     // The name the confirming user gave this device. Empty means "no choice
     // made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
@@ -506,6 +509,7 @@ impl CoreUser {
             .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
             .await?;
         let token_seeds = privacy_pass::committed_seeds(self.db().read().await?).await?;
+        let blocked_contacts = blocked_contacts_snapshot(self.db().read().await?).await?;
 
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
@@ -525,6 +529,7 @@ impl CoreUser {
             identity_link_wrapper_key,
             synced_settings,
             token_seeds,
+            blocked_contacts,
             device_name,
             groups,
         })
@@ -809,6 +814,7 @@ impl CoreUser {
             identity_link_wrapper_key: _,
             synced_settings,
             token_seeds,
+            blocked_contacts,
             device_name: _,
             groups,
         } = package;
@@ -862,6 +868,7 @@ impl CoreUser {
                 // current state has to arrive in the linking payload.
                 apply_settings_update(txn, &synced_settings).await?;
                 privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
+                apply_blocked_contacts_update(txn, &blocked_contacts).await?;
 
                 // Queue the onboarding into the groups the virtual client is
                 // already a member of. This is committed before the client
@@ -905,6 +912,7 @@ mod tests {
     use aircommon::credentials::test_utils::create_test_credentials;
     use aircommon::crypto::hpke::ClientIdDecryptionKey;
     use aircommon::identifiers::QualifiedGroupId;
+    use airprotos::client::self_group::ContactBlocked;
     use uuid::Uuid;
 
     use super::*;
@@ -914,6 +922,7 @@ mod tests {
     fn sample_package(
         synced_settings: SettingsUpdate,
         token_seeds: Vec<TokenSeed>,
+        blocked_contacts: Vec<BlockedContactEntry>,
     ) -> anyhow::Result<ProvisioningPackage> {
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -940,6 +949,7 @@ mod tests {
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
             token_seeds,
+            blocked_contacts,
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
             user_id,
@@ -947,7 +957,7 @@ mod tests {
     }
 
     /// A full package roundtrips through the linking channel with its synced
-    /// settings and token seeds intact.
+    /// settings, token seeds and blocked contacts intact.
     #[test]
     fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         let seeds = vec![TokenSeed {
@@ -955,12 +965,18 @@ mod tests {
             key_fingerprint: [0x11; 32],
             seed: [0x22; 32],
         }];
+        let blocked_contacts = vec![BlockedContactEntry::Blocked(ContactBlocked {
+            user_id: UserId::random("example.com".parse()?).into(),
+            blocked_at: 1_767_225_600,
+            last_display_name: "Alice".to_owned(),
+        })];
         let package = sample_package(
             SettingsUpdate {
                 send_read_receipts: Some(false),
                 linked_devices: None,
             },
             seeds.clone(),
+            blocked_contacts.clone(),
         )?;
         let user_id = package.user_id.clone();
 
@@ -976,6 +992,7 @@ mod tests {
             }
         );
         assert_eq!(decoded.token_seeds, seeds);
+        assert_eq!(decoded.blocked_contacts, blocked_contacts);
         assert_eq!(decoded.user_id, user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");
