@@ -37,7 +37,7 @@ use crate::{
     clients::{
         CoreUser,
         api_clients::ApiClients,
-        block_contact::pending::PendingBlockedContactChange,
+        block_contact::pending,
         linked_devices::merge_device_entry_locally,
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
@@ -346,10 +346,8 @@ impl PendingChatOperation {
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
             }
-            // Contacts the user re-toggled while the commit was in flight stay
-            // parked and are re-sent by the outbound service.
             OperationType::BlockedContactsUpdate { contacts, .. } => {
-                Ok(PendingBlockedContactChange::complete_sent(txn, contacts).await?)
+                Ok(pending::complete_sent_entries(txn, contacts).await?)
             }
             _ => Ok(()),
         }

@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
+use airprotos::client::self_group::BlockedContactEntry;
 use chrono::{DateTime, Utc};
 
 use crate::{clients::CoreUser, user_profiles::display_name::DisplayName};
 
-use self::pending::{BlockedState, PendingBlockedContactChange};
+use self::pending::BlockedState;
 
 pub(crate) mod pending;
 
 impl CoreUser {
-    /// Blocks a contact and synchronizes the block across the user's linked
-    /// devices through the self-group.
+    /// Blocks a contact.
     pub async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         let profile = self.user_profile(&user_id).await;
         self.record_blocked_state(BlockedState::Blocked(BlockedContact {
@@ -24,27 +24,24 @@ impl CoreUser {
         .await
     }
 
-    /// Unblocks a contact and synchronizes the unblock across the user's linked
-    /// devices through the self-group.
+    /// Unblocks a contact.
     pub async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         self.record_blocked_state(BlockedState::Unblocked { user_id })
             .await
     }
 
     /// Applies a blocked-state change locally right away (optimistic) and
-    /// parks it for the self-group. The outbound service turns the parked
-    /// changes into a commit and keeps re-issuing it until one is accepted.
+    /// parks to send to other devices via the self-group.
     async fn record_blocked_state(&self, intended: BlockedState) -> anyhow::Result<()> {
-        let enqueued = self
-            .db()
+        let entry = BlockedContactEntry::from(&intended);
+        self.db()
             .with_write_transaction(async |txn| {
-                PendingBlockedContactChange::record(txn, intended).await
+                intended.apply(&mut *txn).await?;
+                pending::store_outgoing_entry(txn, &entry).await
             })
             .await?;
 
-        if enqueued {
-            self.outbound_service().notify_pending_chat_operations();
-        }
+        self.outbound_service().notify_pending_chat_operations();
 
         Ok(())
     }
@@ -52,9 +49,9 @@ impl CoreUser {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BlockedContact {
-    user_id: UserId,
-    last_display_name: DisplayName,
-    blocked_at: DateTime<Utc>,
+    pub(crate) user_id: UserId,
+    pub(crate) last_display_name: DisplayName,
+    pub(crate) blocked_at: DateTime<Utc>,
 }
 
 #[cfg(test)]
@@ -81,6 +78,32 @@ mod persistence {
     };
 
     use super::*;
+
+    #[cfg(test)]
+    struct SqlBlockedContact {
+        user_uuid: uuid::Uuid,
+        user_domain: aircommon::identifiers::Fqdn,
+        last_display_name: DisplayName,
+        blocked_at: DateTime<Utc>,
+    }
+
+    #[cfg(test)]
+    impl From<SqlBlockedContact> for BlockedContact {
+        fn from(
+            SqlBlockedContact {
+                user_uuid,
+                user_domain,
+                last_display_name,
+                blocked_at,
+            }: SqlBlockedContact,
+        ) -> Self {
+            Self {
+                user_id: UserId::new(user_uuid, user_domain),
+                last_display_name,
+                blocked_at,
+            }
+        }
+    }
 
     impl BlockedContact {
         /// Stores the block, overwriting an existing one for the same user.

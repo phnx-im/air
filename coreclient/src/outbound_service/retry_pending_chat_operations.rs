@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::{
     clients::{
-        block_contact::pending::PendingBlockedContactChange,
+        block_contact::pending,
         own_client_info::OwnClientInfo,
         user_settings::{SettingChanges, SettingsUpdateExt},
     },
@@ -151,7 +151,7 @@ impl OutboundServiceContext {
 
         self.db
             .with_write_transaction(async |txn| {
-                let contacts = PendingBlockedContactChange::load_entries(&mut *txn).await?;
+                let contacts = pending::entries_to_broadcast(&mut *txn).await?;
                 if contacts.is_empty() {
                     return Ok(());
                 }

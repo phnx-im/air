@@ -143,7 +143,7 @@ regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
 [group('regenerate')]
 regenerate-sqlx-client:
     cargo sqlx database setup --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
-    cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
+    cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}} -- --tests
 
 # Regenerate server database query metadata.
 [working-directory: 'backend']

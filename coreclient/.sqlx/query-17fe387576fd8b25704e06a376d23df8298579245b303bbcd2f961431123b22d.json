@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    blocked_at AS \"blocked_at: _\",\n                    last_display_name AS \"last_display_name: _\"\n                FROM blocked_contact_change\n                ORDER BY user_uuid, user_domain",
+  "query": "SELECT\n            user_uuid AS \"user_uuid: _\",\n            user_domain,\n            blocked_at,\n            last_display_name\n        FROM blocked_contact_change\n        ORDER BY user_uuid, user_domain",
   "describe": {
     "columns": [
       {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "user_domain: _",
+        "name": "user_domain",
         "ordinal": 1,
         "type_info": "Text",
         "origin": {
@@ -26,9 +26,9 @@
         }
       },
       {
-        "name": "blocked_at: _",
+        "name": "blocked_at",
         "ordinal": 2,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "blocked_contact_change",
@@ -37,7 +37,7 @@
         }
       },
       {
-        "name": "last_display_name: _",
+        "name": "last_display_name",
         "ordinal": 3,
         "type_info": "Text",
         "origin": {
@@ -58,5 +58,5 @@
       true
     ]
   },
-  "hash": "d161cb7f6e59d22e58d2ea61efffd79c472937a6b310bcd3db6b5d00330df8f8"
+  "hash": "17fe387576fd8b25704e06a376d23df8298579245b303bbcd2f961431123b22d"
 }
