@@ -76,7 +76,10 @@ use crate::{
     db::notification::DbNotification,
     key_stores::MemoryUserKeyStore,
     user_profiles::IndexedUserProfile,
-    utils::persistence::{open_air_db, open_client_db},
+    utils::{
+        migration_progress::MigrationObserver,
+        persistence::{open_air_db, open_client_db, open_client_db_with_progress},
+    },
 };
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
@@ -257,7 +260,25 @@ impl CoreUser {
     /// If a user creation process of this client was interrupted before, this
     /// will resume that process.
     pub async fn load(db_path: &str, client_record_id: Uuid) -> Result<CoreUser> {
-        Self::load_impl(db_path, client_record_id, None).await
+        Self::load_impl(
+            db_path,
+            client_record_id,
+            None,
+            &MigrationObserver::default(),
+        )
+        .await
+    }
+
+    /// Same as [`load`](Self::load), but reports DB migration progress.
+    ///
+    /// Opening the client DB runs any pending migrations, which can take long
+    /// enough that the caller wants to show a progress indicator.
+    pub async fn load_with_progress(
+        db_path: &str,
+        client_record_id: Uuid,
+        observer: &MigrationObserver,
+    ) -> Result<CoreUser> {
+        Self::load_impl(db_path, client_record_id, None, observer).await
     }
 
     /// Same as [`load`], but allows to override the server URL.
@@ -267,20 +288,27 @@ impl CoreUser {
         client_record_id: Uuid,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        Self::load_impl(db_path, client_record_id, server_url).await
+        Self::load_impl(
+            db_path,
+            client_record_id,
+            server_url,
+            &MigrationObserver::default(),
+        )
+        .await
     }
 
     async fn load_impl(
         db_path: &str,
         client_record_id: Uuid,
         server_url: Option<Url>,
+        observer: &MigrationObserver,
     ) -> Result<CoreUser> {
         let air_db = open_air_db(db_path).await?;
         let record = ClientRecord::load(air_db.read().await?, client_record_id)
             .await?
             .context("missing client record")?;
         let user_id = record.user_id;
-        let client_db = open_client_db(db_path, client_record_id).await?;
+        let client_db = open_client_db_with_progress(db_path, client_record_id, observer).await?;
 
         let user_creation_state = UserCreationState::load(client_db.read().await?, &user_id)
             .await?

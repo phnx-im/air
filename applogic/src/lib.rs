@@ -16,6 +16,7 @@ pub(crate) mod logging;
 pub(crate) mod mark_as_read;
 pub(crate) mod message_content;
 pub(crate) mod messages;
+pub(crate) mod migration_progress;
 pub(crate) mod notifications;
 pub(crate) mod util;
 

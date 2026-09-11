@@ -60,7 +60,10 @@ pub use crate::{
     usernames::UsernameRecord,
     utils::{
         image::image_is_animated,
-        persistence::{delete_client_database, delete_databases, open_client_db},
+        migration_progress::{MigrationObserver, MigrationProgress},
+        persistence::{
+            delete_client_database, delete_databases, open_client_db, open_client_db_with_progress,
+        },
     },
 };
 

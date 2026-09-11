@@ -413,5 +413,6 @@
   "shareScreen_tooManyAttachments": "För många filer. Du kan dela upp till {max} filer åt gången.",
   "shareScreen_droppedItems": "{count, plural, one {{count} objekt kunde inte delas.} other {{count} objekt kunde inte delas.}}",
   "shareScreen_nothingToShare": "Det här innehållet kunde inte delas till Air.",
-  "shareScreen_close": "Stäng"
+  "shareScreen_close": "Stäng",
+  "dbMigration_updating": "Uppdaterar databasen..."
 }

@@ -5,6 +5,7 @@
 mod file_lock;
 pub(crate) mod global_lock;
 pub(crate) mod image;
+pub(crate) mod migration_progress;
 pub(crate) mod persistence;
 
 #[cfg(test)]

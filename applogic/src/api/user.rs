@@ -30,6 +30,7 @@ use super::{
     registration::{CreateUserError, RegistrationChallenge},
     types::{UiClientRecord, UiUserId, UiUserProfile},
 };
+use crate::migration_progress;
 
 fn into_create_user_error(error: impl std::fmt::Display) -> CreateUserError {
     CreateUserError::Other {
@@ -119,7 +120,8 @@ impl User {
     }
 
     pub async fn load(db_path: String, client_record_id: Uuid) -> anyhow::Result<Self> {
-        let user = CoreUser::load(&db_path, client_record_id).await?;
+        let observer = migration_progress::observer();
+        let user = CoreUser::load_with_progress(&db_path, client_record_id, &observer).await?;
         Ok(Self { user: user.clone() })
     }
 
@@ -136,9 +138,12 @@ impl User {
             Reverse((record.is_default, is_finished, record.created_at))
         });
 
+        let observer = migration_progress::observer();
         let mut loaded_user = None;
         for client_record in records {
-            match CoreUser::load(&path, client_record.client_record_id).await {
+            match CoreUser::load_with_progress(&path, client_record.client_record_id, &observer)
+                .await
+            {
                 Ok(user) => {
                     loaded_user = Some(user);
                     break;

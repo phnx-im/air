@@ -28,6 +28,7 @@ pub mod member_details_cubit;
 pub mod message_content;
 pub mod message_cubit;
 pub mod message_list_cubit;
+pub mod migration;
 pub mod multi_device;
 pub mod notification_context;
 pub mod notifications;

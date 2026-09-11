@@ -2023,5 +2023,9 @@
   "shareScreen_close": "Close",
   "@shareScreen_close": {
     "description": "Button that dismisses the share screen after nothing could be shared."
+  },
+  "dbMigration_updating": "Updating database...",
+  "@dbMigration_updating": {
+    "description": "Progress label on the startup splash while the client database migrations run, so the user does not think the app is stuck."
   }
 }

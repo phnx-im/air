@@ -18,6 +18,7 @@ import 'api/member_details_cubit.dart';
 import 'api/message_content.dart';
 import 'api/message_cubit.dart';
 import 'api/message_list_cubit.dart';
+import 'api/migration.dart';
 import 'api/multi_device.dart';
 import 'api/notification_context.dart';
 import 'api/notifications.dart';
@@ -603,6 +604,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<ChatsDelta> dco_decode_StreamSink_chats_delta_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<DbMigrationState> dco_decode_StreamSink_db_migration_state_Sse(
+    dynamic raw,
+  );
+
+  @protected
   RustStreamSink<InvitationCodesState>
   dco_decode_StreamSink_invitation_codes_state_Sse(dynamic raw);
 
@@ -898,6 +904,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CreateUserError dco_decode_create_user_error(dynamic raw);
+
+  @protected
+  DbMigrationState dco_decode_db_migration_state(dynamic raw);
 
   @protected
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
@@ -1920,6 +1929,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<DbMigrationState> sse_decode_StreamSink_db_migration_state_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<InvitationCodesState>
   sse_decode_StreamSink_invitation_codes_state_Sse(
     SseDeserializer deserializer,
@@ -2305,6 +2319,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CreateUserError sse_decode_create_user_error(SseDeserializer deserializer);
+
+  @protected
+  DbMigrationState sse_decode_db_migration_state(SseDeserializer deserializer);
 
   @protected
   DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
@@ -3553,6 +3570,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_db_migration_state_Sse(
+    RustStreamSink<DbMigrationState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_invitation_codes_state_Sse(
     RustStreamSink<InvitationCodesState> self,
     SseSerializer serializer,
@@ -4023,6 +4046,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_create_user_error(
     CreateUserError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_db_migration_state(
+    DbMigrationState self,
     SseSerializer serializer,
   );
 

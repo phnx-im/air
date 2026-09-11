@@ -412,5 +412,6 @@
   "shareScreen_tooManyAttachments": "Demasiados archivos. Puedes compartir hasta {max} archivos a la vez.",
   "shareScreen_droppedItems": "{count, plural, one {No se pudo compartir {count} elemento.} other {No se pudieron compartir {count} elementos.}}",
   "shareScreen_nothingToShare": "Este contenido no se pudo compartir en Air.",
-  "shareScreen_close": "Cerrar"
+  "shareScreen_close": "Cerrar",
+  "dbMigration_updating": "Actualizando la base de datos..."
 }

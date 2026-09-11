@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -864116904;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1586849808;
 
 // Section: executor
 
@@ -8170,6 +8170,47 @@ fn wire__crate__api__registration__create_admission_session_impl(
         },
     )
 }
+fn wire__crate__api__migration__create_db_migration_stream_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "create_db_migration_stream",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_sink = <StreamSink<
+                crate::api::migration::DbMigrationState,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Ok::<_, ()>({
+                            crate::api::migration::create_db_migration_stream(api_sink).await;
+                        })?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__logging__create_log_stream_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -10137,6 +10178,19 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
+        crate::api::migration::DbMigrationState,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
+    }
+}
+
+impl SseDecode
+    for StreamSink<
         crate::api::invitation_codes_cubit::InvitationCodesState,
         flutter_rust_bridge::for_generated::SseCodec,
     >
@@ -10600,6 +10654,18 @@ impl SseDecode for crate::api::registration::CreateUserError {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseDecode for crate::api::migration::DbMigrationState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::migration::DbMigrationState::Idle,
+            1 => crate::api::migration::DbMigrationState::Running,
+            _ => unreachable!("Invalid variant for DbMigrationState: {}", inner),
+        };
     }
 }
 
@@ -13358,28 +13424,29 @@ fn pde_ffi_dispatcher_primary_impl(
 161 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
 162 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
 163 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
-164 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-165 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-166 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-167 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-170 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-171 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-172 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-173 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-184 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-185 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-186 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-187 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-188 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+164 => wire__crate__api__migration__create_db_migration_stream_impl(port, ptr, rust_vec_len, data_len),
+165 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+167 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+171 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+172 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+173 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+174 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+175 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+185 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+186 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+187 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+188 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+189 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -13604,17 +13671,17 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         158 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
-        168 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        169 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        177 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        169 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        178 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        189 => {
+        190 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        190 => wire__crate__api__username_suggestions__username_from_display_impl(
+        191 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -14390,6 +14457,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::registration::CreateUserError
     for crate::api::registration::CreateUserError
 {
     fn into_into_dart(self) -> crate::api::registration::CreateUserError {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::migration::DbMigrationState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Idle => 0.into_dart(),
+            Self::Running => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::migration::DbMigrationState
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::migration::DbMigrationState>
+    for crate::api::migration::DbMigrationState
+{
+    fn into_into_dart(self) -> crate::api::migration::DbMigrationState {
         self
     }
 }
@@ -17089,6 +17177,18 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
+        crate::api::migration::DbMigrationState,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
+    }
+}
+
+impl SseEncode
+    for StreamSink<
         crate::api::invitation_codes_cubit::InvitationCodesState,
         flutter_rust_bridge::for_generated::SseCodec,
     >
@@ -17483,6 +17583,22 @@ impl SseEncode for crate::api::registration::CreateUserError {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseEncode for crate::api::migration::DbMigrationState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::migration::DbMigrationState::Idle => 0,
+                crate::api::migration::DbMigrationState::Running => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

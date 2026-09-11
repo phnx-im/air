@@ -11,6 +11,7 @@ import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/db_migration_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_session_scope.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -65,6 +66,9 @@ class _AppState extends State<App> {
   );
   final UserSettingsCubit _userSettingsCubit = UserSettingsCubit();
   final AppLocaleCubit _appLocaleCubit = AppLocaleCubit();
+  // Subscribes right away, so it is listening before the initial user load
+  // starts running database migrations.
+  final DbMigrationCubit _dbMigrationCubit = DbMigrationCubit();
 
   @override
   void initState() {
@@ -116,6 +120,7 @@ class _AppState extends State<App> {
     _backgroundService.stop();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
+    _dbMigrationCubit.close();
     super.dispose();
   }
 
@@ -148,6 +153,7 @@ class _AppState extends State<App> {
         BlocProvider<NavigationCubit>.value(value: _navigationCubit),
         BlocProvider<UserSettingsCubit>.value(value: _userSettingsCubit),
         BlocProvider<AppLocaleCubit>.value(value: _appLocaleCubit),
+        BlocProvider<DbMigrationCubit>.value(value: _dbMigrationCubit),
         BlocProvider<RegistrationCubit>(
           create: (context) => RegistrationCubit(coreClient: _coreClient),
         ),

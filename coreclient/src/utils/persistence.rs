@@ -35,7 +35,7 @@ use crate::{
         notification::DbNotificationsSender,
     },
     groups::vc_epoch_retention::migrate_vc_derivation_epoch_retention,
-    utils::global_lock::GlobalLock,
+    utils::{global_lock::GlobalLock, migration_progress::MigrationObserver},
 };
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
@@ -257,6 +257,20 @@ pub async fn open_client_db(
     client_db_path: &str,
     client_record_id: Uuid,
 ) -> anyhow::Result<DbAccess> {
+    open_client_db_with_progress(
+        client_db_path,
+        client_record_id,
+        &MigrationObserver::default(),
+    )
+    .await
+}
+
+/// Same as [`open_client_db`], but reports migration progress to `observer`.
+pub async fn open_client_db_with_progress(
+    client_db_path: &str,
+    client_record_id: Uuid,
+    observer: &MigrationObserver,
+) -> anyhow::Result<DbAccess> {
     let client_db_name = client_db_name(client_record_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     info!(db_url, "opening client DB");
@@ -266,7 +280,7 @@ pub async fn open_client_db(
     let read_pool = read_pool(opts).await?;
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    run_client_migrations(&db).await?;
+    run_client_migrations(&db, observer).await?;
 
     Ok(db)
 }
@@ -317,7 +331,7 @@ impl RustMigration {
 ///
 /// Note: This function is implemented along the lines of `sqlx::migrate::Migrator::run`, but
 /// adjusted to sqlite.
-async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
+async fn run_client_migrations(db: &DbAccess, observer: &MigrationObserver) -> anyhow::Result<()> {
     let migrator = sqlx::migrate!();
     let table = "_sqlx_migrations";
 
@@ -343,6 +357,13 @@ async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
         );
     }
     let applied: HashMap<i64, _> = applied.into_iter().map(|m| (m.version, m)).collect();
+
+    // Only report when there is actually work to do, so an up-to-date DB emits
+    // nothing at all and the UI has no reason to flash an indicator.
+    let has_pending = migrator.iter().any(|migration| {
+        !migration.migration_type.is_down_migration() && !applied.contains_key(&migration.version)
+    });
+    let _guard = has_pending.then(|| observer.start());
 
     for migration in migrator.iter() {
         if migration.migration_type.is_down_migration() {
