@@ -305,18 +305,31 @@ impl OutboundServiceContext {
                 .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
-        // Snapshot of the usernames existing at the time of the first enqueue. Usernames added
-        // later already publish signed connection packages on creation.
-        let pending_usernames = UsernameRecord::load_all(self.db.read().await?)
-            .await?
-            .into_iter()
-            .map(|record| record.hash)
-            .collect();
-        TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
-            .into_operation()
-            .enqueue_if_not_exists(self.db.write().await?)
-            .await?;
-        Ok(())
+        self.db
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                // Short-circuit loading pending usernames: operation id is independent of the
+                // `pending_usernames` value.
+                let operation_id = TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+                    pending_usernames: Vec::new(),
+                })
+                .generate_id();
+                if Operation::<TimedTask>::exists(&mut *txn, &operation_id).await? {
+                    return Ok(());
+                }
+                // Snapshot of the usernames existing at the time of the first enqueue. Usernames
+                // added later already publish signed connection packages on creation.
+                let pending_usernames = UsernameRecord::load_all(&mut *txn)
+                    .await?
+                    .into_iter()
+                    .map(|record| record.hash)
+                    .collect();
+                TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload { pending_usernames })
+                    .into_operation()
+                    .enqueue(&mut *txn)
+                    .await?;
+                Ok(())
+            })
+            .await
     }
 
     /// On success, returns the next due time for the task or `None` if the task should not be
