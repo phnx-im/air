@@ -2,40 +2,57 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::borrow::Borrow;
-
 use aircommon::{
-    crypto::{ConnectionDecryptionKey, hash::Hashable},
+    crypto::ConnectionDecryptionKey,
     identifiers::Username,
-    messages::connection_package::{ConnectionPackage, ConnectionPackageHash},
+    messages::connection_package::{ConnectionPackageHash, ConnectionPackageMetadata},
+    time::TimeStamp,
 };
 use sqlx::{Result, query, query_scalar};
 
 use crate::db::access::{ReadConnection, WriteConnection};
 
-pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
+pub(crate) struct ConnectionPackageRecord {
+    pub(crate) hash: ConnectionPackageHash,
+    pub(crate) expires_at: TimeStamp,
+    pub(crate) is_last_resort: bool,
+}
+
+impl From<ConnectionPackageMetadata> for ConnectionPackageRecord {
+    fn from(
+        ConnectionPackageMetadata {
+            hash,
+            lifetime,
+            is_last_resort,
+        }: ConnectionPackageMetadata,
+    ) -> Self {
+        Self {
+            hash,
+            expires_at: lifetime.not_after(),
+            is_last_resort,
+        }
+    }
+}
+
+impl ConnectionPackageRecord {
     /// Store the connection package in the database.
     ///
     /// Returns an error if the storage fails.
-    async fn store_for_username(
+    pub(crate) async fn store_for_username(
         &self,
         mut connection: impl WriteConnection,
         username: &Username,
         decryption_key: &ConnectionDecryptionKey,
     ) -> Result<()> {
-        let cp = self.borrow();
-        let hash = cp.hash();
-        let not_after = cp.expires_at();
-        let is_last_resort = cp.is_last_resort();
         query!(
             "INSERT INTO connection_package
                  (connection_package_hash, handle, decryption_key, expires_at, is_last_resort)
                  VALUES ($1, $2, $3, $4, $5)",
-            hash,
+            self.hash,
             username,
             decryption_key,
-            not_after,
-            is_last_resort
+            self.expires_at,
+            self.is_last_resort
         )
         .execute(connection.as_mut())
         .await?;
@@ -43,7 +60,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
         Ok(())
     }
 
-    async fn load_decryption_key(
+    pub(crate) async fn load_decryption_key(
         mut connection: impl ReadConnection,
         hash: &ConnectionPackageHash,
     ) -> Result<Option<ConnectionDecryptionKey>> {
@@ -58,7 +75,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
         .await
     }
 
-    async fn delete(
+    pub(crate) async fn delete(
         mut connection: impl WriteConnection,
         hash: &ConnectionPackageHash,
     ) -> Result<()> {
@@ -71,7 +88,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
         Ok(())
     }
 
-    async fn is_last_resort(
+    pub(crate) async fn load_is_last_resort(
         mut connection: impl ReadConnection,
         hash: &ConnectionPackageHash,
     ) -> Result<Option<bool>> {
@@ -86,15 +103,15 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     }
 }
 
-impl StorableConnectionPackage for ConnectionPackage {}
-
 #[cfg(test)]
 mod tests {
     use crate::{UsernameRecord, db::access::DbAccess};
 
     use super::*;
 
-    use aircommon::credentials::keys::UsernameSigningKey;
+    use aircommon::{
+        credentials::keys::UsernameSigningKey, messages::connection_package::ConnectionPackage,
+    };
 
     use sqlx::SqlitePool;
 
@@ -106,27 +123,29 @@ mod tests {
         let username = Username::new("test-handle".to_string()).unwrap();
         let signing_key = UsernameSigningKey::generate().unwrap();
         let hash = username.calculate_hash().unwrap();
-        let record = UsernameRecord::new(username, hash, signing_key);
-        record.store(&mut connection).await.unwrap();
-        let (decryption_key, connection_package) =
-            ConnectionPackage::new(record.hash, &record.signing_key, false).unwrap();
+        let username_record = UsernameRecord::new(username, hash, signing_key);
+        username_record.store(&mut connection).await.unwrap();
+        let (decryption_key, _package, metadata) =
+            ConnectionPackage::generate(username_record.hash, &username_record.signing_key, false)
+                .unwrap();
+        let record = ConnectionPackageRecord::from(metadata);
 
-        connection_package
-            .store_for_username(&mut connection, &record.username, &decryption_key)
+        record
+            .store_for_username(&mut connection, &username_record.username, &decryption_key)
             .await
             .unwrap();
 
         let loaded_decryption_key =
-            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
+            ConnectionPackageRecord::load_decryption_key(&mut connection, &record.hash)
                 .await
                 .unwrap()
                 .unwrap();
         assert_eq!(loaded_decryption_key, decryption_key);
-        ConnectionPackage::delete(&mut connection, &connection_package.hash())
+        ConnectionPackageRecord::delete(&mut connection, &record.hash)
             .await
             .unwrap();
         let loaded_decryption_key_after_delete =
-            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
+            ConnectionPackageRecord::load_decryption_key(&mut connection, &record.hash)
                 .await
                 .unwrap();
         assert!(loaded_decryption_key_after_delete.is_none());

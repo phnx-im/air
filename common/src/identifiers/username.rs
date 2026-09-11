@@ -88,6 +88,20 @@ impl Username {
     pub fn into_plaintext(self) -> String {
         self.plaintext.0
     }
+
+    /// Returns the truncated plaintext of the username.
+    ///
+    /// The truncated plaintext is the prefix of the plaintext and the suffix length. It is used to
+    /// log the username without revealing the full plaintext.
+    pub fn truncated_plaintext(&self) -> String {
+        let (prefix, suffix_len) = self
+            .plaintext
+            .0
+            .split_at_checked(2)
+            .map(|(prefix, suffix)| (prefix, suffix.len()))
+            .unwrap_or(("unknown", 0));
+        format!("{prefix}<..{suffix_len}>")
+    }
 }
 
 #[derive(

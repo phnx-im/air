@@ -24,13 +24,14 @@ use semver::BuildMetadata;
 use tonic::Status;
 
 use crate::{
+    client::component,
     common::v1::{ExpirationData, Version},
     convert::{FromRef, TryFromRef, TryRefInto},
     validation::{MissingFieldError, MissingFieldExt},
 };
 
 use super::v1::{
-    Ciphertext, Fqdn, GroupId, HpkeCiphertext, IndexedCiphertext, QualifiedGroupId,
+    AirFeatures, Ciphertext, Fqdn, GroupId, HpkeCiphertext, IndexedCiphertext, QualifiedGroupId,
     RatchetEncryptionKey, RatchetSecret, Signature, Timestamp, Uuid,
 };
 
@@ -489,6 +490,38 @@ fn write_build(value: &Version, buf: &mut String) -> fmt::Result {
         }
     }
     Ok(())
+}
+
+impl From<component::AirFeatures> for AirFeatures {
+    fn from(
+        component::AirFeatures {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }: component::AirFeatures,
+    ) -> Self {
+        Self {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }
+    }
+}
+
+impl From<AirFeatures> for component::AirFeatures {
+    fn from(
+        AirFeatures {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }: AirFeatures,
+    ) -> Self {
+        Self {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }
+    }
 }
 
 #[cfg(test)]

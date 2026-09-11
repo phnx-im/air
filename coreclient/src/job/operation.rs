@@ -126,7 +126,7 @@ mod persistence {
     };
     use tracing::warn;
 
-    use crate::db::access::{WriteConnection, WriteDbTransaction};
+    use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -203,6 +203,22 @@ mod persistence {
             .execute(connection.as_mut())
             .await?;
             Ok(())
+        }
+
+        /// Returns whether an operation with the given id is enqueued
+        pub(crate) async fn exists(
+            mut connection: impl ReadConnection,
+            operation_id: &OperationId,
+        ) -> sqlx::Result<bool> {
+            let exists = query_scalar!(
+                r#"SELECT EXISTS(
+                    SELECT 1 FROM operation WHERE operation_id = ?
+                ) AS "exists: bool""#,
+                operation_id.0,
+            )
+            .fetch_one(connection.as_mut())
+            .await?;
+            Ok(exists)
         }
 
         /// Dequeue an operation for retry
@@ -298,6 +314,25 @@ mod persistence {
         pub(crate) async fn delete(self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
                 "DELETE FROM operation WHERE operation_id = ?",
+                self.operation_id.0,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// Persist the current operation data
+        pub(crate) async fn update_data(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()>
+        where
+            T: OperationData + Serialize,
+        {
+            let data = BlobEncoded(&self.data);
+            query!(
+                "UPDATE operation SET data = ? WHERE operation_id = ?",
+                data,
                 self.operation_id.0,
             )
             .execute(connection.as_mut())
@@ -410,6 +445,30 @@ mod tests {
             .await
             .unwrap();
         assert!(op.is_none(), "Worker B should not see the locked task");
+    }
+
+    #[sqlx::test]
+    async fn test_update_data(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
+        let mut op = Operation::new(MockData {
+            payload: "before".to_string(),
+        });
+        op.enqueue(&mut txn).await.unwrap();
+
+        op.data.payload = "after".to_string();
+        op.update_data(&mut txn).await.unwrap();
+
+        let loaded = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
+            .await
+            .unwrap()
+            .expect("operation should be due");
+        assert_eq!(loaded.operation_id, op.operation_id);
+        assert_eq!(loaded.data.payload, "after");
+        assert_eq!(loaded.scheduled_at, op.scheduled_at);
+        assert_eq!(loaded.retries, 0);
     }
 
     #[sqlx::test]

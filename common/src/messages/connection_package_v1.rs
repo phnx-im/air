@@ -23,7 +23,7 @@ use crate::{
 
 pub use payload::{ConnectionPackageV1In, ConnectionPackageV1Payload};
 
-pub(crate) const CONNECTION_PACKAGE_EXPIRATION: Duration = Duration::days(30);
+pub const CONNECTION_PACKAGE_EXPIRATION: Duration = Duration::days(30);
 
 mod payload {
     use super::*;
@@ -169,6 +169,10 @@ impl ConnectionPackageV1 {
 
     pub fn expires_at(&self) -> TimeStamp {
         self.payload.lifetime.not_after()
+    }
+
+    pub fn username_hash(&self) -> &UsernameHash {
+        &self.payload.user_handle_hash
     }
 
     #[cfg(feature = "test_utils")]
