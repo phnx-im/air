@@ -22,7 +22,6 @@ on:
       - "app/pubspec.lock"
       - "Cargo.lock"
       - "rust-toolchain.toml"
-      - "scripts/build-name.sh"
       - "scripts/build-number.sh"
       - ".github/workflows/android.yml"
       - ".github/workflows/app-pr-android.yml"

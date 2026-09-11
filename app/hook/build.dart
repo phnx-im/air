@@ -10,18 +10,38 @@ import 'package:code_assets/code_assets.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
-// Written by `just test-flutter` to skip rust build.
-// See <https://github.com/dart-lang/native/issues/3237>
+// Optional build configuration, written by `just test-flutter` and by CI
+// (see .github/actions/setup-buildenv). Keys:
+//
+// - `skip_rust_build`: skip the Rust build, which the Flutter tests don't
+//   need. See <https://github.com/dart-lang/native/issues/3237>.
+// - `cargo_env`: extra environment variables for `cargo build`. The hook runs
+//   with an allowlisted environment, so CI variables such as the build number
+//   only reach cargo when forwarded here.
 const _hookConfigPath = '.dart_tool/air_hook_config.json';
 
-bool _skipRustBuild(BuildInput input, BuildOutputBuilder output) {
-  final file = File.fromUri(input.packageRoot.resolve(_hookConfigPath));
-  if (!file.existsSync()) {
-    return false;
+class _HookConfig {
+  const _HookConfig({this.skipRustBuild = false, this.cargoEnv = const {}});
+
+  final bool skipRustBuild;
+  final Map<String, String> cargoEnv;
+
+  static _HookConfig load(BuildInput input, BuildOutputBuilder output) {
+    final file = File.fromUri(input.packageRoot.resolve(_hookConfigPath));
+    if (!file.existsSync()) {
+      return const _HookConfig();
+    }
+    output.dependencies.add(file.uri);
+    final config = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    final cargoEnv = config['cargo_env'] as Map<String, Object?>? ?? const {};
+    return _HookConfig(
+      skipRustBuild: config['skip_rust_build'] == true,
+      cargoEnv: {
+        for (final MapEntry(:key, :value) in cargoEnv.entries)
+          key: value as String,
+      },
+    );
   }
-  output.dependencies.add(file.uri);
-  final config = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
-  return config['skip_rust_build'] == true;
 }
 
 // The native-assets hook protocol does not carry the Flutter build mode
@@ -35,7 +55,8 @@ FlutterRustBridgeBuildMode _rustBuildMode({required bool linkingEnabled}) =>
 
 void main(List<String> args) async {
   await build(args, (input, output) async {
-    if (_skipRustBuild(input, output)) {
+    final config = _HookConfig.load(input, output);
+    if (config.skipRustBuild) {
       return;
     }
     await FlutterRustBridgeNativeAssetsBuilder(
@@ -58,6 +79,7 @@ void main(List<String> args) async {
             input.config.code.targetOS == OS.iOS)
           'IPHONEOS_DEPLOYMENT_TARGET':
               '${input.config.code.iOS.targetVersion}.0',
+        ...config.cargoEnv,
       },
     ).run(input: input, output: output);
   });
