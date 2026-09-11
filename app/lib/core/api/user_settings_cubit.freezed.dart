@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UserSettings {
 
- String? get locale; double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get readReceipts; bool get developerMode; bool get experimentalFeatures; int get defaultEmojiSkinTone; DateTime? get dismissedVersionExpiry;
+ String? get locale; double? get interfaceScale; double get sidebarWidth; bool get sendOnEnter; bool get limitAnimatedImagesLoops; bool get readReceipts; bool get developerMode; bool get experimentalFeatures; int get defaultEmojiSkinTone; DateTime? get dismissedVersionExpiry;
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +27,20 @@ $UserSettingsCopyWith<UserSettings> get copyWith => _$UserSettingsCopyWithImpl<U
 @override
 bool operator ==(Object other) {
   final _this = this as UserSettings;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, _this.locale) || other.locale == _this.locale)&&(identical(other.interfaceScale, _this.interfaceScale) || other.interfaceScale == _this.interfaceScale)&&(identical(other.sidebarWidth, _this.sidebarWidth) || other.sidebarWidth == _this.sidebarWidth)&&(identical(other.sendOnEnter, _this.sendOnEnter) || other.sendOnEnter == _this.sendOnEnter)&&(identical(other.readReceipts, _this.readReceipts) || other.readReceipts == _this.readReceipts)&&(identical(other.developerMode, _this.developerMode) || other.developerMode == _this.developerMode)&&(identical(other.experimentalFeatures, _this.experimentalFeatures) || other.experimentalFeatures == _this.experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, _this.defaultEmojiSkinTone) || other.defaultEmojiSkinTone == _this.defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, _this.dismissedVersionExpiry) || other.dismissedVersionExpiry == _this.dismissedVersionExpiry));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserSettings&&(identical(other.locale, _this.locale) || other.locale == _this.locale)&&(identical(other.interfaceScale, _this.interfaceScale) || other.interfaceScale == _this.interfaceScale)&&(identical(other.sidebarWidth, _this.sidebarWidth) || other.sidebarWidth == _this.sidebarWidth)&&(identical(other.sendOnEnter, _this.sendOnEnter) || other.sendOnEnter == _this.sendOnEnter)&&(identical(other.limitAnimatedImagesLoops, _this.limitAnimatedImagesLoops) || other.limitAnimatedImagesLoops == _this.limitAnimatedImagesLoops)&&(identical(other.readReceipts, _this.readReceipts) || other.readReceipts == _this.readReceipts)&&(identical(other.developerMode, _this.developerMode) || other.developerMode == _this.developerMode)&&(identical(other.experimentalFeatures, _this.experimentalFeatures) || other.experimentalFeatures == _this.experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, _this.defaultEmojiSkinTone) || other.defaultEmojiSkinTone == _this.defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, _this.dismissedVersionExpiry) || other.dismissedVersionExpiry == _this.dismissedVersionExpiry));
 }
 
 
 @override
 int get hashCode {
   final _this = this as UserSettings;
-  return Object.hash(runtimeType,_this.locale,_this.interfaceScale,_this.sidebarWidth,_this.sendOnEnter,_this.readReceipts,_this.developerMode,_this.experimentalFeatures,_this.defaultEmojiSkinTone,_this.dismissedVersionExpiry);
+  return Object.hash(runtimeType,_this.locale,_this.interfaceScale,_this.sidebarWidth,_this.sendOnEnter,_this.limitAnimatedImagesLoops,_this.readReceipts,_this.developerMode,_this.experimentalFeatures,_this.defaultEmojiSkinTone,_this.dismissedVersionExpiry);
 }
 
 @override
 String toString() {
   final _this = this as UserSettings;
-  return 'UserSettings(locale: ${_this.locale}, interfaceScale: ${_this.interfaceScale}, sidebarWidth: ${_this.sidebarWidth}, sendOnEnter: ${_this.sendOnEnter}, readReceipts: ${_this.readReceipts}, developerMode: ${_this.developerMode}, experimentalFeatures: ${_this.experimentalFeatures}, defaultEmojiSkinTone: ${_this.defaultEmojiSkinTone}, dismissedVersionExpiry: ${_this.dismissedVersionExpiry})';
+  return 'UserSettings(locale: ${_this.locale}, interfaceScale: ${_this.interfaceScale}, sidebarWidth: ${_this.sidebarWidth}, sendOnEnter: ${_this.sendOnEnter}, limitAnimatedImagesLoops: ${_this.limitAnimatedImagesLoops}, readReceipts: ${_this.readReceipts}, developerMode: ${_this.developerMode}, experimentalFeatures: ${_this.experimentalFeatures}, defaultEmojiSkinTone: ${_this.defaultEmojiSkinTone}, dismissedVersionExpiry: ${_this.dismissedVersionExpiry})';
 }
 
 
@@ -51,7 +51,7 @@ abstract mixin class $UserSettingsCopyWith<$Res>  {
   factory $UserSettingsCopyWith(UserSettings value, $Res Function(UserSettings) _then) = _$UserSettingsCopyWithImpl;
 @useResult
 $Res call({
- String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool limitAnimatedImagesLoops, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
 });
 
 
@@ -68,12 +68,13 @@ class _$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? limitAnimatedImagesLoops = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
   return _then(UserSettings(
 locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
 as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
 as double?,sidebarWidth: null == sidebarWidth ? _self.sidebarWidth : sidebarWidth // ignore: cast_nullable_to_non_nullable
 as double,sendOnEnter: null == sendOnEnter ? _self.sendOnEnter : sendOnEnter // ignore: cast_nullable_to_non_nullable
+as bool,limitAnimatedImagesLoops: null == limitAnimatedImagesLoops ? _self.limitAnimatedImagesLoops : limitAnimatedImagesLoops // ignore: cast_nullable_to_non_nullable
 as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts // ignore: cast_nullable_to_non_nullable
 as bool,developerMode: null == developerMode ? _self.developerMode : developerMode // ignore: cast_nullable_to_non_nullable
 as bool,experimentalFeatures: null == experimentalFeatures ? _self.experimentalFeatures : experimentalFeatures // ignore: cast_nullable_to_non_nullable
@@ -91,13 +92,14 @@ as DateTime?,
 
 
 class _UserSettings implements UserSettings {
-  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 240.0, this.sendOnEnter = false, this.readReceipts = true, this.developerMode = false, this.experimentalFeatures = false, this.defaultEmojiSkinTone = 0, this.dismissedVersionExpiry});
+  const _UserSettings({this.locale, this.interfaceScale, this.sidebarWidth = 240.0, this.sendOnEnter = false, this.limitAnimatedImagesLoops = false, this.readReceipts = true, this.developerMode = false, this.experimentalFeatures = false, this.defaultEmojiSkinTone = 0, this.dismissedVersionExpiry});
   
 
 @override final  String? locale;
 @override final  double? interfaceScale;
 @override@JsonKey() final  double sidebarWidth;
 @override@JsonKey() final  bool sendOnEnter;
+@override@JsonKey() final  bool limitAnimatedImagesLoops;
 @override@JsonKey() final  bool readReceipts;
 @override@JsonKey() final  bool developerMode;
 @override@JsonKey() final  bool experimentalFeatures;
@@ -114,18 +116,18 @@ _$UserSettingsCopyWith<_UserSettings> get copyWith => __$UserSettingsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserSettings&&(identical(other.locale, locale) || other.locale == locale)&&(identical(other.interfaceScale, interfaceScale) || other.interfaceScale == interfaceScale)&&(identical(other.sidebarWidth, sidebarWidth) || other.sidebarWidth == sidebarWidth)&&(identical(other.sendOnEnter, sendOnEnter) || other.sendOnEnter == sendOnEnter)&&(identical(other.limitAnimatedImagesLoops, limitAnimatedImagesLoops) || other.limitAnimatedImagesLoops == limitAnimatedImagesLoops)&&(identical(other.readReceipts, readReceipts) || other.readReceipts == readReceipts)&&(identical(other.developerMode, developerMode) || other.developerMode == developerMode)&&(identical(other.experimentalFeatures, experimentalFeatures) || other.experimentalFeatures == experimentalFeatures)&&(identical(other.defaultEmojiSkinTone, defaultEmojiSkinTone) || other.defaultEmojiSkinTone == defaultEmojiSkinTone)&&(identical(other.dismissedVersionExpiry, dismissedVersionExpiry) || other.dismissedVersionExpiry == dismissedVersionExpiry));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
+    return Object.hash(runtimeType,locale,interfaceScale,sidebarWidth,sendOnEnter,limitAnimatedImagesLoops,readReceipts,developerMode,experimentalFeatures,defaultEmojiSkinTone,dismissedVersionExpiry);
 }
 
 @override
 String toString() {
-    return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
+    return 'UserSettings(locale: $locale, interfaceScale: $interfaceScale, sidebarWidth: $sidebarWidth, sendOnEnter: $sendOnEnter, limitAnimatedImagesLoops: $limitAnimatedImagesLoops, readReceipts: $readReceipts, developerMode: $developerMode, experimentalFeatures: $experimentalFeatures, defaultEmojiSkinTone: $defaultEmojiSkinTone, dismissedVersionExpiry: $dismissedVersionExpiry)';
 }
 
 
@@ -136,7 +138,7 @@ abstract mixin class _$UserSettingsCopyWith<$Res> implements $UserSettingsCopyWi
   factory _$UserSettingsCopyWith(_UserSettings value, $Res Function(_UserSettings) _then) = __$UserSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
+ String? locale, double? interfaceScale, double sidebarWidth, bool sendOnEnter, bool limitAnimatedImagesLoops, bool readReceipts, bool developerMode, bool experimentalFeatures, int defaultEmojiSkinTone, DateTime? dismissedVersionExpiry
 });
 
 
@@ -153,12 +155,13 @@ class __$UserSettingsCopyWithImpl<$Res>
 
 /// Create a copy of UserSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? locale = freezed,Object? interfaceScale = freezed,Object? sidebarWidth = null,Object? sendOnEnter = null,Object? limitAnimatedImagesLoops = null,Object? readReceipts = null,Object? developerMode = null,Object? experimentalFeatures = null,Object? defaultEmojiSkinTone = null,Object? dismissedVersionExpiry = freezed,}) {
   return _then(_UserSettings(
 locale: freezed == locale ? _self.locale : locale // ignore: cast_nullable_to_non_nullable
 as String?,interfaceScale: freezed == interfaceScale ? _self.interfaceScale : interfaceScale // ignore: cast_nullable_to_non_nullable
 as double?,sidebarWidth: null == sidebarWidth ? _self.sidebarWidth : sidebarWidth // ignore: cast_nullable_to_non_nullable
 as double,sendOnEnter: null == sendOnEnter ? _self.sendOnEnter : sendOnEnter // ignore: cast_nullable_to_non_nullable
+as bool,limitAnimatedImagesLoops: null == limitAnimatedImagesLoops ? _self.limitAnimatedImagesLoops : limitAnimatedImagesLoops // ignore: cast_nullable_to_non_nullable
 as bool,readReceipts: null == readReceipts ? _self.readReceipts : readReceipts // ignore: cast_nullable_to_non_nullable
 as bool,developerMode: null == developerMode ? _self.developerMode : developerMode // ignore: cast_nullable_to_non_nullable
 as bool,experimentalFeatures: null == experimentalFeatures ? _self.experimentalFeatures : experimentalFeatures // ignore: cast_nullable_to_non_nullable

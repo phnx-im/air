@@ -46,6 +46,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Si activée, la touche « Entrée » du clavier envoie le message.';
 
   @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limiter la lecture automatique des GIF';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Si activée, les GIF sont lus en boucle 3 fois à l\'affichage, puis peuvent être relancés manuellement.';
+
+  @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
 
   @override

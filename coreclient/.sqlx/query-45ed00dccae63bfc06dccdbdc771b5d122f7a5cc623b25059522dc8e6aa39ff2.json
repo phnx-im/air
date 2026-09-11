@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE operation SET data = ? WHERE operation_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "45ed00dccae63bfc06dccdbdc771b5d122f7a5cc623b25059522dc8e6aa39ff2"
+}

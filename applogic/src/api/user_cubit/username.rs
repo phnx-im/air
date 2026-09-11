@@ -73,12 +73,7 @@ impl UsernameContext {
         background_tasks: &UsernameBackgroundTasks,
     ) -> BackgroundStreamTask<Self, UsernameQueueMessage> {
         let username = self.username_record.username.clone();
-        let (prefix, suffix_len) = username
-            .plaintext()
-            .split_at_checked(2)
-            .map(|(prefix, suffix)| (prefix, suffix.len()))
-            .unwrap_or(("unknown", 0));
-        let name = format!("username-{prefix}<..{suffix_len}>");
+        let name = format!("username-{}", username.truncated_plaintext());
         background_tasks.insert(username, cancel.clone());
         BackgroundStreamTask::new(name, self, cancel)
     }
