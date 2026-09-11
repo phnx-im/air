@@ -8,6 +8,8 @@
   "userSettingsScreen_deleteAccount": "Radera Air-konto",
   "userSettingsScreen_sendWithEnter": "Skicka med Enter",
   "userSettingsScreen_sendWithEnterDescription": "Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.",
+  "userSettingsScreen_limitAnimatedImagesLoops": "Begränsa automatisk uppspelning av GIF",
+  "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Om detta är aktiverat loopas GIF-bilder 3 gånger när de visas och kan sedan spelas upp igen manuellt.",
   "userSettingsScreen_readReceipts": "Läskvitton",
   "userSettingsScreen_readReceiptsDescription": "Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.",
   "userSettingsScreen_displayNameLabel": "Visningsnamn",

@@ -22,7 +22,7 @@ inputs:
     required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
-    default: "just@1.48.1"
+    default: "just@1.58.0"
     required: false
   cargo-binstall-tools:
     description: "Space separated list of cargo-binstall tools to install"

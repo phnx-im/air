@@ -4610,16 +4610,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minicov"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4869b6a491569605d66d3952bcdf03df789e5b536e5f0cf7758a7f08a55ae24d"
-dependencies = [
- "cc",
- "walkdir",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5078,13 +5068,11 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "openmls"
-version = "0.9.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.9.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
- "backtrace",
  "itertools 0.14.0",
  "log",
- "once_cell",
  "openmls_basic_credential",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
@@ -5100,14 +5088,14 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tls_codec",
- "wasm-bindgen-test",
+ "web-time",
  "zeroize",
 ]
 
 [[package]]
 name = "openmls_basic_credential"
-version = "0.6.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.6.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5122,8 +5110,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_libcrux_crypto"
-version = "0.4.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.4.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "aes",
  "fpe",
@@ -5145,8 +5133,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_memory_storage"
-version = "0.6.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.6.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "hex",
  "log",
@@ -5158,8 +5146,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_rust_crypto"
-version = "0.6.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.6.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5186,8 +5174,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_serialization_helpers"
-version = "0.1.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.1.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5197,8 +5185,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_sqlite_storage"
-version = "0.3.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.3.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "openmls_traits",
  "refinery",
@@ -5208,8 +5196,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_test"
-version = "0.3.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.3.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "openmls_libcrux_crypto",
  "openmls_rust_crypto",
@@ -5221,8 +5209,8 @@ dependencies = [
 
 [[package]]
 name = "openmls_traits"
-version = "0.6.0-rc.1"
-source = "git+https://github.com/openmls/openmls?rev=f8427087333e002b4796793097fa67cf6b3bb2d1#f8427087333e002b4796793097fa67cf6b3bb2d1"
+version = "0.6.0"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "serde",
  "tls_codec",
@@ -8150,45 +8138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-bindgen-test"
-version = "0.3.77"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "895a2607575412a4eda1df892084a375ea10dfeadc4d7d2ab87b854e4ddc7ba1"
-dependencies = [
- "async-trait",
- "cast",
- "js-sys",
- "libm",
- "minicov",
- "nu-ansi-term",
- "num-traits",
- "oorandom",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test-macro",
- "wasm-bindgen-test-shared",
-]
-
-[[package]]
-name = "wasm-bindgen-test-macro"
-version = "0.3.77"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288cb0ebe215033bf949ae1fd046726daa4c32a157f24b9dc6ac387a52aa759"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "wasm-bindgen-test-shared"
-version = "0.2.127"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ff1c1b360982e93b6d8ea9c04836f71dba0817a16f91e229cf3a51bdd9d987"
-
-[[package]]
 name = "wasm-streams"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8288,6 +8237,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
+ "serde",
  "wasm-bindgen",
 ]
 
