@@ -36,6 +36,7 @@ sealed class AirFeatures with _$AirFeatures {
     required bool encryptedGroupProfiles,
     required bool emptyConnectionGroupAttributes,
     required bool pqGroups,
+    required bool apqConnectionGroups,
   }) = _AirFeatures;
 }
 

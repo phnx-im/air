@@ -133,4 +133,6 @@ message AirFeatures {
   bool encrypted_group_profiles = 1;
   bool empty_connection_group_attributes = 2;
   bool pq_groups = 3;
+  // The can establish connection group as an APQ group
+  bool apq_connection_groups = 4;
 }

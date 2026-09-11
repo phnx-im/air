@@ -5,7 +5,10 @@
 use std::time::Duration;
 
 use airapiclient::ApiClient;
-use aircommon::{identifiers::UsernameHash, time::TimeStamp};
+use aircommon::{
+    identifiers::{UserId, UsernameHash},
+    time::TimeStamp,
+};
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
 use airprotos::client::{
     component::AirFeatures,
@@ -204,7 +207,7 @@ async fn connect_users_via_targeted_message() {
     // shared group.
     let bob_user = &setup.get_user(&bob).user;
     let bob_chat_id = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .unwrap();
 
@@ -306,6 +309,210 @@ async fn connect_users_via_targeted_message() {
         charlie_contact.is_some(),
         "Charlie should have Bob as a contact"
     );
+
+    // The connection group is APQ iff requested, and both sides agree on it.
+    assert_eq!(
+        bob_user.chat_is_apq(bob_chat_id).await,
+        Some(setup.apq_groups)
+    );
+    assert_eq!(
+        charlie_user.chat_is_apq(charlie_chat_id).await,
+        Some(setup.apq_groups)
+    );
+}
+
+/// Connects `initiator` to `peer` through the shared group and returns the connection chat as
+/// seen by the initiator and by the peer.
+async fn connect_from_group(
+    setup: &TestBackend,
+    group_chat_id: ChatId,
+    initiator: &UserId,
+    peer: &UserId,
+    prefer_apq: bool,
+) -> (ChatId, ChatId) {
+    let initiator_user = &setup.get_user(initiator).user;
+    let initiator_chat_id = initiator_user
+        .add_contact_from_group(group_chat_id, peer.clone(), prefer_apq)
+        .await
+        .unwrap();
+
+    let peer_user = &setup.get_user(peer).user;
+    let qs_messages = peer_user.qs_fetch_messages().await.unwrap();
+    let mut result = peer_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "peer should process the connection request without errors: {:?}",
+        result.errors
+    );
+    let peer_chat_id = result.new_connections.pop().unwrap();
+    peer_user
+        .accept_contact_request(peer_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let qs_messages = initiator_user.qs_fetch_messages().await.unwrap();
+    let result = initiator_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "initiator should process the confirmation without errors: {:?}",
+        result.errors
+    );
+
+    assert!(initiator_user.contact(peer).await.is_some());
+    assert!(peer_user.contact(initiator).await.is_some());
+    (initiator_chat_id, peer_chat_id)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via user handle in APQ mode", skip_all)]
+async fn connect_users_via_user_handle_apq() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    // Asserts the APQ-ness on both sides and exchanges messages both ways.
+    setup.connect_users_apq(&alice, &bob).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connection group stays T when APQ is not requested", skip_all)]
+async fn connect_users_via_user_handle_not_requested_stays_t() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users_non_apq(&alice, &bob).await;
+}
+
+/// The connection request rides the APQ origin group as a T targeted message, and the connection
+/// group itself is APQ.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via targeted message in APQ mode", skip_all)]
+async fn connect_users_via_targeted_message_apq() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let group_chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    let (bob_chat_id, charlie_chat_id) =
+        connect_from_group(&setup, group_chat_id, &bob, &charlie, true).await;
+
+    let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
+    assert_eq!(bob_user.chat_is_apq(bob_chat_id).await, Some(true));
+    assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(true));
+
+    setup
+        .send_message(bob_chat_id, &bob, vec![&charlie], None)
+        .await;
+    setup
+        .send_message(bob_chat_id, &charlie, vec![&bob], None)
+        .await;
+}
+
+/// The initiator asks for APQ, but the peer's leaf in the origin group does not announce
+/// `apq_connection_groups`, so the connection group falls back to T.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "From-group connection falls back to T", skip_all)]
+async fn add_contact_from_group_falls_back_to_t_without_peer_flag() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Charlie runs a client that cannot join APQ connection groups.
+    let charlie_user = &setup.get_user(&charlie).user;
+    charlie_user
+        .set_group_features(
+            group_chat_id,
+            AirFeatures {
+                encrypted_group_profiles: true,
+                empty_connection_group_attributes: true,
+                pq_groups: true,
+                apq_connection_groups: false,
+            },
+        )
+        .await
+        .unwrap();
+
+    // Bob learns about Charlie's leaf before connecting.
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Charlie's leaf update without errors: {:?}",
+        result.errors
+    );
+
+    let (bob_chat_id, charlie_chat_id) =
+        connect_from_group(&setup, group_chat_id, &bob, &charlie, true).await;
+
+    let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
+    assert_eq!(bob_user.chat_is_apq(bob_chat_id).await, Some(false));
+    assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(false));
+}
+
+/// A connection group is resynced with the same machinery as any other group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync connection group", skip_all)]
+async fn resync_connection_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob_user.outbound_service().run_once().await;
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have completed"
+    );
+
+    let alice_user = &setup.get_user(&alice).user;
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's rejoin without errors: {:?}",
+        result.errors
+    );
+
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+
+    // A commit touching both legs after the resync shows that they are at compatible epochs.
+    let alice_user = &setup.get_user(&alice).user;
+    if setup.apq_groups {
+        alice_user.update_apq_key(chat_id).await.unwrap();
+    } else {
+        alice_user.update_key(chat_id).await.unwrap();
+    }
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's follow-up commit without errors: {:?}",
+        result.errors
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -330,7 +537,7 @@ async fn sanity_checks_for_targeted_message_connections() {
     let alice = setup.get_user(&alice);
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact_from_group(group_chat_id, bob.clone())
+        .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -342,13 +549,13 @@ async fn sanity_checks_for_targeted_message_connections() {
     let bob = setup.get_user(&bob);
     let bob_user = &bob.user;
     bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .unwrap();
 
     // Bob shouldn't be able to add Charlie again.
     let res = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -362,6 +569,8 @@ async fn sanity_checks_for_targeted_message_connections() {
 #[tracing::instrument(name = "Connection request timestamp test", skip_all)]
 async fn connection_request_has_server_timestamp() {
     let mut setup = TestBackend::single().await;
+    let apq_groups = setup.apq_groups;
+
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
@@ -381,7 +590,7 @@ async fn connection_request_has_server_timestamp() {
     .unwrap();
 
     alice_user
-        .add_contact(bob_username.clone(), username_hash)
+        .add_contact(bob_username.clone(), username_hash, apq_groups)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -666,6 +875,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: false,
         pq_groups: setup.apq_groups,
+        apq_connection_groups: setup.apq_groups,
     };
     bob_user
         .set_group_features(chat_id, old_features)
@@ -737,6 +947,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         encrypted_group_profiles: true,
         empty_connection_group_attributes: true,
         pq_groups: setup.apq_groups,
+        apq_connection_groups: setup.apq_groups,
     };
     bob_user
         .set_group_features(chat_id, new_features)

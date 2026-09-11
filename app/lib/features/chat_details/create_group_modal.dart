@@ -5,8 +5,6 @@
 import 'dart:typed_data';
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/components/toggle/toggle.dart';
-import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
@@ -23,6 +21,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -262,7 +261,7 @@ class _CreateGroupDetailsPane extends HookWidget {
                 ],
                 if (experimentalFeatures) ...[
                   const SizedBox(height: S.s32),
-                  _SwitchField(
+                  SwitchField(
                     onChanged: (value) {
                       context.read<AddMembersCubit>().enableApq(value);
                     },
@@ -513,49 +512,6 @@ class _SelectedParticipant extends StatelessWidget {
                 ?.copyWith(height: 1.2),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SwitchField extends StatelessWidget {
-  const _SwitchField({
-    required this.onChanged,
-    required this.value,
-    required this.label,
-  });
-
-  final ValueChanged<bool> onChanged;
-  final bool value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Container(
-        decoration: BoxDecoration(
-          color: palette.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(CornerRadius.px16),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: S.s12),
-        height: 42,
-        child: Row(
-          children: [
-            Text(
-              label,
-              style: typeScale.body.regular.style(color: palette.text.primary),
-            ),
-            const Spacer(),
-            Toggle(
-              tokens: ToggleTokens.current,
-              value: value,
-              onChanged: onChanged,
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -1753,6 +1753,7 @@ fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl
             >>::sse_decode(&mut deserializer);
             let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             let api_hash = <UsernameHash>::sse_decode(&mut deserializer);
+            let api_prefer_apq = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1779,6 +1780,7 @@ fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl
                                 &*api_that_guard,
                                 api_username,
                                 api_hash,
+                                api_prefer_apq,
                             )
                             .await?;
                         std::result::Result::Ok(output_ok)
@@ -4890,6 +4892,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(
             >>::sse_decode(&mut deserializer);
             let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
             let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            let api_prefer_apq = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4916,6 +4919,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(
                                 &*api_that_guard,
                                 api_chat_id,
                                 api_user_id,
+                                api_prefer_apq,
                             )
                             .await?;
                         std::result::Result::Ok(output_ok)
@@ -9235,6 +9239,7 @@ const _: fn() = || {
         let _: bool = AirFeatures.encrypted_group_profiles;
         let _: bool = AirFeatures.empty_connection_group_attributes;
         let _: bool = AirFeatures.pq_groups;
+        let _: bool = AirFeatures.apq_connection_groups;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -10347,10 +10352,12 @@ impl SseDecode for crate::api::types::AirFeatures {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
         let mut var_emptyConnectionGroupAttributes = <bool>::sse_decode(deserializer);
         let mut var_pqGroups = <bool>::sse_decode(deserializer);
+        let mut var_apqConnectionGroups = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
             empty_connection_group_attributes: var_emptyConnectionGroupAttributes,
             pq_groups: var_pqGroups,
+            apq_connection_groups: var_apqConnectionGroups,
         };
     }
 }
@@ -14080,6 +14087,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures
                 .into_into_dart()
                 .into_dart(),
             self.0.pq_groups.into_into_dart().into_dart(),
+            self.0.apq_connection_groups.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17281,6 +17289,7 @@ impl SseEncode for crate::api::types::AirFeatures {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
         <bool>::sse_encode(self.empty_connection_group_attributes, serializer);
         <bool>::sse_encode(self.pq_groups, serializer);
+        <bool>::sse_encode(self.apq_connection_groups, serializer);
     }
 }
 

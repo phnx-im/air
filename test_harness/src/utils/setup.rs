@@ -494,7 +494,28 @@ impl TestBackend {
         }
     }
 
+    /// Connects two users through an APQ connection group, regardless of [`Self::apq_groups`].
+    pub async fn connect_users_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, true).await
+    }
+
+    /// Connects two users through a plain (non-APQ) connection group, regardless of
+    /// [`Self::apq_groups`].
+    pub async fn connect_users_non_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, false).await
+    }
+
     pub async fn connect_users(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, self.apq_groups)
+            .await
+    }
+
+    async fn connect_users_inner(
+        &mut self,
+        user1_id: &UserId,
+        user2_id: &UserId,
+        prefer_apq: bool,
+    ) -> ChatId {
         info!("Connecting users {user1_id:?} and {user2_id:?}");
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
@@ -512,7 +533,7 @@ impl TestBackend {
         .await
         .unwrap();
         let chat_id = user1
-            .add_contact(user2_username.clone(), username_hash)
+            .add_contact(user2_username.clone(), username_hash, prefer_apq)
             .await
             .expect("fatal error")
             .expect("non-fatal error");
@@ -702,6 +723,17 @@ impl TestBackend {
             .unread_messages_count(user1_chat_id)
             .await;
         assert_eq!(user1_unread_messages, 0);
+
+        // Both users run the current client, so the connection group is APQ iff requested, and
+        // both sides agree on it.
+        for user_id in [user1_id, &user2_id] {
+            let is_apq = self.users[user_id].user.chat_is_apq(user1_chat_id).await;
+            assert_eq!(
+                is_apq,
+                Some(prefer_apq),
+                "unexpected connection group kind for {user_id:?}"
+            );
+        }
 
         // Send messages both ways to ensure it works.
         self.send_message(user1_chat_id, user1_id, vec![&user2_id], None)

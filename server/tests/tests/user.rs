@@ -167,7 +167,10 @@ async fn error_if_user_doesnt_exist() {
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
 
-    let res = alice_user.add_contact(username, hash).await.unwrap();
+    let res = alice_user
+        .add_contact(username, hash, setup.apq_groups)
+        .await
+        .unwrap();
 
     assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
 }
@@ -282,7 +285,11 @@ async fn blocked_contact() {
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(
+            alice_username.clone(),
+            alice_username_hash,
+            setup.apq_groups,
+        )
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -380,13 +387,14 @@ async fn username_sanity_checks() {
     let bob_username = username_record.username.clone();
     let bob_username_hash = bob_username.calculate_hash().unwrap();
 
+    let apq_groups = setup.apq_groups;
     let alice = setup.get_user_mut(&alice);
     let username_record = alice.add_username().await.unwrap();
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(alice_username.clone(), alice_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -397,12 +405,12 @@ async fn username_sanity_checks() {
 
     // Try to add Bob twice
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -524,6 +532,7 @@ async fn add_contact_and_change_profile() {
         .add_contact(
             alice_username_record.username.clone(),
             alice_username_record.hash,
+            setup.apq_groups,
         )
         .await
         .expect("fatal error")

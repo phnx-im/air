@@ -88,11 +88,12 @@ impl ChatsDataSource {
         &self,
         username: UiUsername,
         hash: UsernameHash,
+        prefer_apq: bool,
     ) -> anyhow::Result<Option<AddUsernameContactError>> {
         let username = Username::new(username.plaintext)?;
         self.inner
             .core_user
-            .add_contact(username, hash)
+            .add_contact(username, hash, prefer_apq)
             .await
             .map(Result::err)
     }

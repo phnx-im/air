@@ -293,6 +293,7 @@ abstract class RustLibApi extends BaseApi {
     required ChatsDataSource that,
     required UiUsername username,
     required UsernameHash hash,
+    required bool preferApq,
   });
 
   Future<ChatId> crateApiChatsDataSourceChatsDataSourceCreateGroupChat({
@@ -563,6 +564,7 @@ abstract class RustLibApi extends BaseApi {
     required UserCubitBase that,
     required ChatId chatId,
     required UiUserId userId,
+    required bool preferApq,
   });
 
   Future<bool> crateApiUserCubitUserCubitBaseAddUsername({
@@ -2518,6 +2520,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required ChatsDataSource that,
     required UiUsername username,
     required UsernameHash hash,
+    required bool preferApq,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2532,6 +2535,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             hash,
             serializer,
           );
+          sse_encode_bool(preferApq, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2546,7 +2550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatsDataSourceChatsDataSourceCreateContactChatConstMeta,
-        argValues: [that, username, hash],
+        argValues: [that, username, hash, preferApq],
         apiImpl: this,
       ),
     );
@@ -2556,7 +2560,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatsDataSourceChatsDataSourceCreateContactChatConstMeta =>
       const TaskConstMeta(
         debugName: "ChatsDataSource_create_contact_chat",
-        argNames: ["that", "username", "hash"],
+        argNames: ["that", "username", "hash", "preferApq"],
       );
 
   @override
@@ -4756,6 +4760,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required UserCubitBase that,
     required ChatId chatId,
     required UiUserId userId,
+    required bool preferApq,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4767,6 +4772,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_box_autoadd_chat_id(chatId, serializer);
           sse_encode_box_autoadd_ui_user_id(userId, serializer);
+          sse_encode_bool(preferApq, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4779,7 +4785,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseAddContactFromGroupConstMeta,
-        argValues: [that, chatId, userId],
+        argValues: [that, chatId, userId, preferApq],
         apiImpl: this,
       ),
     );
@@ -4789,7 +4795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiUserCubitUserCubitBaseAddContactFromGroupConstMeta =>
       const TaskConstMeta(
         debugName: "UserCubitBase_add_contact_from_group",
-        argNames: ["that", "chatId", "userId"],
+        argNames: ["that", "chatId", "userId", "preferApq"],
       );
 
   @override
@@ -9311,12 +9317,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirFeatures dco_decode_air_features(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return AirFeatures(
       encryptedGroupProfiles: dco_decode_bool(arr[0]),
       emptyConnectionGroupAttributes: dco_decode_bool(arr[1]),
       pqGroups: dco_decode_bool(arr[2]),
+      apqConnectionGroups: dco_decode_bool(arr[3]),
     );
   }
 
@@ -12769,10 +12776,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_encryptedGroupProfiles = sse_decode_bool(deserializer);
     var var_emptyConnectionGroupAttributes = sse_decode_bool(deserializer);
     var var_pqGroups = sse_decode_bool(deserializer);
+    var var_apqConnectionGroups = sse_decode_bool(deserializer);
     return AirFeatures(
       encryptedGroupProfiles: var_encryptedGroupProfiles,
       emptyConnectionGroupAttributes: var_emptyConnectionGroupAttributes,
       pqGroups: var_pqGroups,
+      apqConnectionGroups: var_apqConnectionGroups,
     );
   }
 
@@ -17157,6 +17166,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.encryptedGroupProfiles, serializer);
     sse_encode_bool(self.emptyConnectionGroupAttributes, serializer);
     sse_encode_bool(self.pqGroups, serializer);
+    sse_encode_bool(self.apqConnectionGroups, serializer);
   }
 
   @protected
@@ -20284,11 +20294,13 @@ class ChatsDataSourceImpl extends RustOpaque implements ChatsDataSource {
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
+    required bool preferApq,
   }) => RustLib.instance.api
       .crateApiChatsDataSourceChatsDataSourceCreateContactChat(
         that: this,
         username: username,
         hash: hash,
+        preferApq: preferApq,
       );
 
   Future<ChatId> createGroupChat({
@@ -20897,10 +20909,12 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
+    required bool preferApq,
   }) => RustLib.instance.api.crateApiUserCubitUserCubitBaseAddContactFromGroup(
     that: this,
     chatId: chatId,
     userId: userId,
+    preferApq: preferApq,
   );
 
   Future<bool> addUsername({required UiUsername username}) =>
