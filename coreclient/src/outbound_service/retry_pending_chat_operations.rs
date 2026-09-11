@@ -138,12 +138,7 @@ impl OutboundServiceContext {
             .await
     }
 
-    /// Stages a self-group commit for the parked blocked-contact changes, if
-    /// any.
-    ///
-    /// The commit carries the parked entries as they stand now. They leave the
-    /// outbox when a commit carrying them is accepted, so this runs on every
-    /// outbound wake until one lands.
+    /// Stages a self-group commit for the pending blocked-contact changes.
     async fn ensure_blocked_contacts_operation(&self) -> anyhow::Result<()> {
         let Some((self_group_id, signer)) = self.self_group_signer().await? else {
             return Ok(());

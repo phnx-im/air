@@ -363,9 +363,7 @@ impl PendingChatOperation {
         Ok(())
     }
 
-    /// Gives up the pending intent on terminal failure. No-op for operations
-    /// that carry no self-group state, and for blocked contacts, whose parked
-    /// changes are kept so the next commit re-sends them.
+    /// Gives up the pending intent on terminal failure.
     async fn roll_back_self_group_intent(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -887,11 +885,6 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    /// Stages a self-group commit carrying blocked-contact changes and stores
-    /// it as a pending chat operation.
-    ///
-    /// Takes the loaded self-group for the same reason
-    /// [`Self::create_settings_update`] does.
     pub(crate) async fn create_blocked_contacts_update(
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
