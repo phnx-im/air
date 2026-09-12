@@ -31,7 +31,8 @@ services:
       - postgres_data:/var/lib/postgresql
 
   minio:
-    image: minio/minio:latest
+    # MinIO community distribution
+    image: docker.io/pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -50,7 +51,7 @@ services:
       retries: 10
 
   minio-setup:
-    image: minio/mc
+    image: docker.io/pgsty/mc:RELEASE.2026-09-03T07-13-05Z
     depends_on:
       minio:
         condition: service_healthy
