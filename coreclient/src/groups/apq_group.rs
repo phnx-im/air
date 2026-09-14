@@ -8,18 +8,18 @@ use aircommon::{
     identifiers::UserId,
     mls_group_config::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
-        default_group_context_app_data_dictionary_extension, default_group_required_extensions,
-        default_leaf_node_capabilities, default_sender_ratchet_configuration,
-        self_group_leaf_node_capabilities, vc_leaf_node_extensions,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
-    component::ComponentId,
-    group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
+    group::{
+        GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, VcDerivationEpochRetentionPolicy,
+    },
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
     },
@@ -64,8 +64,7 @@ impl Group {
         t_group_id: GroupId,
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
-        safe_aad_components: Option<Vec<ComponentId>>,
-        air_component: AirComponent,
+        group_app_data: GroupAppData,
         vc_group_id: Option<&GroupId>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -84,7 +83,7 @@ impl Group {
             required_capabilities,
             // APQ groups automatically add an app data dictionary extension (to required
             // capabilities), so we can safely add it here for all APQ groups.
-            default_group_context_app_data_dictionary_extension(air_component, safe_aad_components),
+            group_app_data.to_extension(),
         ])?;
 
         // The leaf signature key is the signer's own key.
@@ -114,6 +113,9 @@ impl Group {
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
+            // Air prunes derivation epochs on a wall-clock window instead, see
+            // `VC_DERIVATION_EPOCH_RETENTION_WINDOW`.
+            .vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
             // The self group is the emulation group of the virtual client, so its
             // initial epoch already has to be a derivation epoch.
             .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))
@@ -121,7 +123,7 @@ impl Group {
         if let Some(vc_group_id) = vc_group_id {
             // Both leaves carry the virtual-client marker, as they do on the
             // external-commit join path.
-            let leaf_extensions = vc_leaf_node_extensions::<AirComponent>();
+            let leaf_extensions = ClientAppData::current_virtual_client().leaf_node_extensions();
             builder = builder
                 .with_leaf_node_extensions(leaf_extensions.clone(), leaf_extensions)?
                 .vc_emulation(vc_group_id);

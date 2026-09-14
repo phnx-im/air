@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'user.dart';
@@ -9,6 +9,7 @@ part of 'user.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $PlatformPushTokenCopyWith<PlatformPushToken> get copyWith => _$PlatformPushToke
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken&&(identical(other.field0, field0) || other.field0 == field0));
+  final _this = this as PlatformPushToken;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken&&(identical(other.field0, _this.field0) || other.field0 == _this.field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+  final _this = this as PlatformPushToken;
+  return Object.hash(runtimeType,_this.field0);
+}
 
 @override
 String toString() {
-  return 'PlatformPushToken(field0: $field0)';
+  final _this = this as PlatformPushToken;
+  return 'PlatformPushToken(field0: ${_this.field0})';
 }
 
 
@@ -92,16 +98,18 @@ $PlatformPushToken_AppleCopyWith<PlatformPushToken_Apple> get copyWith => _$Plat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken_Apple&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken_Apple&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'PlatformPushToken.apple(field0: $field0)';
+    return 'PlatformPushToken.apple(field0: $field0)';
 }
 
 
@@ -158,16 +166,18 @@ $PlatformPushToken_GoogleCopyWith<PlatformPushToken_Google> get copyWith => _$Pl
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken_Google&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PlatformPushToken_Google&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'PlatformPushToken.google(field0: $field0)';
+    return 'PlatformPushToken.google(field0: $field0)';
 }
 
 

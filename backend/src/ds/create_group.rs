@@ -8,7 +8,7 @@ use aircommon::{
     identifiers::{QsReference, QualifiedGroupId},
 };
 use airprotos::{
-    client::component::AirComponent,
+    client::app_data::GroupAppData,
     convert::TryRefInto,
     delivery_service::v1::{GroupSessionData, UserCredential as UserCredentialProto},
     validation::{InvalidTlsExt, MissingFieldExt},
@@ -102,7 +102,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let leaf_credential = LeafCredential::from_credential(&member.credential)
             .map_err(|_| Status::invalid_argument("invalid credential"))?;
         let is_self_group =
-            AirComponent::is_self_group_context(group.group_info().group_context().extensions());
+            GroupAppData::is_self_group_context(group.group_info().group_context().extensions());
         if !leaf_credential_matches_flag(&leaf_credential, is_self_group) {
             return Err(Status::invalid_argument(
                 "creator leaf credential does not match group kind",

@@ -1775,9 +1775,8 @@ mod tests {
         credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId},
-        mls_group_config::AppComponent,
     };
-    use airprotos::client::component::AirComponent;
+    use airprotos::client::app_data::GroupAppData;
     use openmls::{
         components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
         prelude::tls_codec::Serialize as _,
@@ -1834,8 +1833,10 @@ mod tests {
                     t_group_id,
                     pq_group_id,
                     GroupDataBytes::from(b"test-group-data".to_vec()),
-                    Some(vec![VC_COMPONENT_ID]),
-                    AirComponent::default_for_self_group(),
+                    GroupAppData {
+                        is_self_group: true,
+                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                    },
                     None,
                 )?;
                 group.store(&mut *txn).await?;

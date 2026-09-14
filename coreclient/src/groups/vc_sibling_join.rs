@@ -14,7 +14,7 @@ use aircommon::{
     mls_group_config::default_mls_group_join_config,
     time::TimeStamp,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::GroupAppData;
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::{
     ApqMlsGroup,
@@ -197,9 +197,9 @@ impl Group {
         // A bootstrap never installs the self group. The self group is the
         // emulation group, which a sibling joins through device linking.
         ensure!(
-            !AirComponent::is_self_group_context(mls_group.extensions())
+            !GroupAppData::is_self_group_context(mls_group.extensions())
                 && !pq_group.as_ref().is_some_and(|pq_group| {
-                    AirComponent::is_self_group_context(pq_group.extensions())
+                    GroupAppData::is_self_group_context(pq_group.extensions())
                 }),
             "group bootstrap for a group flagged as a self group"
         );

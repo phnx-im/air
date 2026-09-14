@@ -14,10 +14,9 @@ use aircommon::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
-    mls_group_config::AppComponent,
 };
 use airprotos::client::{
-    component::AirComponent,
+    app_data::GroupAppData,
     group::{EncryptedGroupTitle, GroupData},
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
@@ -312,7 +311,10 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let safe_aad_components = Some(vec![VC_COMPONENT_ID]);
+                let client_app_data = GroupAppData {
+                    is_self_group: true,
+                    safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -321,8 +323,7 @@ impl CoreUser {
                     group_id,
                     pq_group_id,
                     group_data_bytes,
-                    safe_aad_components,
-                    AirComponent::default_for_self_group(),
+                    client_app_data,
                     // The self group is the emulation group itself, not a
                     // virtual client of one.
                     None,

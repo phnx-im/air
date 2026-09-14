@@ -46,9 +46,8 @@ void main() {
       'collapses an emoji with several matching shortcodes to one entry',
       () {
         // Query matches both `laughing` and `satisfied` (same emoji).
-        final matches = EmojiRepository.search(
-          'satisf',
-        ).where((e) => e.emoji == _laughing);
+        final matches = EmojiRepository.search('satisf')
+            .where((e) => e.emoji == _laughing);
         expect(matches.length, 1);
       },
     );

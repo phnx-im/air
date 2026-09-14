@@ -9,6 +9,7 @@ use aircommon::messages::{
 use serde::{Deserialize, Serialize};
 
 pub(crate) mod persistence;
+pub(crate) mod signed;
 
 #[derive(Deserialize)]
 pub(in crate::auth_service) enum StorableConnectionPackage {

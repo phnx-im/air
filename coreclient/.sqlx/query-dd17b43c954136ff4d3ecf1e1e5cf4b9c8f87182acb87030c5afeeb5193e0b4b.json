@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_derivation_epoch_legacy_hold(epoch_id, held_until)\n        SELECT epoch_id, ?1 FROM (\n            SELECT epoch_id FROM vc_emulation_group_secret\n                WHERE secret_type = 'emulation_epoch_state'\n            UNION\n            SELECT epoch_id FROM vc_operation_tree\n        ) AS candidate\n        WHERE NOT EXISTS (\n            SELECT 1 FROM vc_derivation_epoch_log_entry\n            WHERE epoch_id = candidate.epoch_id\n        )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "dd17b43c954136ff4d3ecf1e1e5cf4b9c8f87182acb87030c5afeeb5193e0b4b"
+}

@@ -239,3 +239,76 @@ fn duplicate_keys_are_rejected() {
     let result: Result<Subset, _> = from_slice(&buf);
     assert!(result.is_err());
 }
+
+// `with` overrides
+
+/// Encodes an integer as its decimal string.
+mod as_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(n: &u32, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&n.to_string())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u32, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, SerializeTaggedMap, DeserializeTaggedMap)]
+struct WithOverride {
+    #[tag(1, with = "as_string")]
+    n: u32,
+    #[tag(2, with = "as_string")]
+    maybe: Option<u32>,
+    #[tag(3)]
+    other: String,
+}
+
+/// The text string under the given key of the top-level CBOR map.
+fn cbor_text_at(value: &impl serde::Serialize, key: u32) -> Option<String> {
+    let buf = to_vec(value).expect("serialize");
+    let mut decoder = minicbor::Decoder::new(&buf);
+    let len = decoder.map().expect("map").expect("definite map");
+    for _ in 0..len {
+        let k: u32 = decoder.u32().expect("key");
+        if k == key {
+            return Some(decoder.str().expect("text").to_owned());
+        }
+        decoder.skip().expect("skip value");
+    }
+    None
+}
+
+#[test]
+fn with_override_roundtrip() {
+    let orig = WithOverride {
+        n: 42,
+        maybe: Some(7),
+        other: "x".to_owned(),
+    };
+    assert_eq!(cbor_roundtrip(&orig), orig);
+}
+
+#[test]
+fn with_override_uses_the_module_encoding() {
+    let value = WithOverride {
+        n: 42,
+        maybe: Some(7),
+        other: String::new(),
+    };
+    assert_eq!(cbor_text_at(&value, 1).as_deref(), Some("42"));
+    assert_eq!(cbor_text_at(&value, 2).as_deref(), Some("7"));
+}
+
+#[test]
+fn with_override_option_none_is_omitted() {
+    let value = WithOverride {
+        n: 1,
+        maybe: None,
+        other: String::new(),
+    };
+    assert_eq!(cbor_map_len(&value), 1);
+    assert_eq!(cbor_roundtrip(&value), value);
+}

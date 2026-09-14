@@ -327,8 +327,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let value = f(&mut group_state, &mut group_data).await?;
         let new_epoch = group_state.group().epoch().as_u64();
-        // These callers never reach a new epoch a Welcome could refer to, so
-        // the outbox only ever carries migrated legacy entries.
+        // These callers never reach a new epoch a Welcome could refer to, so the welcome info
+        // outbox only ever carries migrated legacy entries. The epoch snapshot outbox is filled by
+        // a bootstrap-carrying join.
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
             .await?;
 
@@ -1432,7 +1433,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .try_into()?;
         let group_bootstrap = request.group_bootstrap;
 
-        let timestamp = self
+        let (timestamp, echo) = self
             .update_group_state_without_verification(
                 &qgid,
                 &ear_key,
@@ -1456,21 +1457,22 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                     group_state.proposals.clear();
 
-                    if let Some((group_bootstrap, epoch)) =
-                        group_bootstrap.zip(outcome.snapshot_epoch)
-                    {
-                        let echo = QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
-                            group_id: qgid.clone().into(),
-                            // APQ joins are rejected on this path.
-                            pq_group_id: None,
-                            epoch,
-                            timestamp: TimeStamp::now(),
-                            group_bootstrap,
+                    // Dispatched by the caller once the snapshot the echo points at is committed.
+                    let echo = group_bootstrap
+                        .zip(outcome.snapshot_epoch)
+                        .map(|(group_bootstrap, epoch)| {
+                            QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
+                                group_id: qgid.clone().into(),
+                                // Set once the APQ join connection group RPC carries a group
+                                // bootstrap.
+                                pq_group_id: None,
+                                epoch,
+                                timestamp: TimeStamp::now(),
+                                group_bootstrap,
+                            })
+                            .tls_failed("group join echo")
                         })
-                        .tls_failed("group join echo")?;
-                        self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
-                            .await;
-                    }
+                        .transpose()?;
 
                     let timestamp = self
                         .fan_out_message_without_notifications(
@@ -1479,10 +1481,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                             true,
                         )
                         .await;
-                    Ok(timestamp)
+                    Ok((timestamp, echo))
                 },
             )
             .await?;
+
+        if let Some(echo) = echo {
+            self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
+                .await;
+        }
 
         Ok(Response::new(JoinConnectionGroupResponse {
             fanout_timestamp: Some(timestamp.into()),

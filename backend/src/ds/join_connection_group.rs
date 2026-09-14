@@ -5,9 +5,10 @@
 use aircommon::{
     credentials::LeafCredential,
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
-    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
+use airprotos::client::app_data::ClientAppData;
+use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
     messages::SerializedMlsMessage,
@@ -106,8 +107,8 @@ impl DsGroupState {
             };
 
         // The external commit joining the client into the group carries the path plus, at most, the
-        // proposals `validate_join_proposals` permits.
-        if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+        // proposals validate_join_proposals permits.
+        let joiner_credential = if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
             processed_message.content()
         {
             validate_join_proposals(staged_commit)?;
@@ -131,10 +132,11 @@ impl DsGroupState {
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
             // Only a virtual client has siblings to echo to.
-            if bootstrap_requested && !leaf_node_is_virtual_client(joiner_leaf) {
+            if bootstrap_requested && !ClientAppData::leaf_is_virtual_client(joiner_leaf) {
                 tracing::warn!("Group bootstrap requires a virtual-client joiner leaf");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            joiner_credential
         } else {
             tracing::warn!("Invalid message: Commit content is not a staged commit.");
             return Err(JoinConnectionGroupError::InvalidMessage);
@@ -153,10 +155,25 @@ impl DsGroupState {
             return Err(JoinConnectionGroupError::InvalidMessage);
         };
 
-        // Check if the group indeed only has one user (prior to the new one joining).
-        if self.member_profiles.len() > 1 {
+        // Check that the group indeed has exactly one member (prior to the new one joining). That
+        // member is the inviter.
+        let mut member_indices = self.member_profiles.keys();
+        let (Some(&inviter_index), None) = (member_indices.next(), member_indices.next()) else {
             return Err(JoinConnectionGroupError::NotAConnectionGroup);
-        }
+        };
+
+        // The inviter created the room state before it knew the joiner's user id, so the joiner is
+        // not in it yet. Record the joiner as if the inviter had added them. Both clients apply
+        // the same change locally.
+        let inviter = self
+            .leaf_credential(inviter_index)
+            .ok_or(JoinConnectionGroupError::InvalidMessage)?;
+        self.room_state_change_role(
+            &inviter.room_policy_identity(),
+            &joiner_credential.room_policy_identity(),
+            RoleIndex::Regular,
+        )
+        .ok_or(JoinConnectionGroupError::InvalidMessage)?;
 
         // Get the sender's credential s.t. we can identify them later.
         let sender_credential = processed_message.credential().clone();

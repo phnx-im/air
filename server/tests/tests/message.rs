@@ -1166,9 +1166,9 @@ async fn delete_message_with_attachment() {
     // Verify attachment exists before deletion
     {
         let alice_user = &setup.get_user(&alice).user;
-        let attachment_ids = alice_user.attachment_ids_for_message(message_id).await;
+        let attachment_infos = alice_user.attachment_infos_for_message(message_id).await;
         assert_eq!(
-            attachment_ids.len(),
+            attachment_infos.len(),
             1,
             "Attachment should exist before deletion"
         );
@@ -1195,19 +1195,20 @@ async fn delete_message_with_attachment() {
             })
             .expect("Bob should have the attachment message");
 
-        let bob_attachment_ids = bob_user
-            .attachment_ids_for_message(attachment_msg.id())
+        let bob_attachment_infos = bob_user
+            .attachment_infos_for_message(attachment_msg.id())
             .await;
 
         // Download each attachment
-        for remote_attachment_id in &bob_attachment_ids {
-            let (_, download_future) = bob_user.download_attachment(*remote_attachment_id);
+        for remote_attachment_info in &bob_attachment_infos {
+            let (_, download_future) =
+                bob_user.download_attachment(remote_attachment_info.attachment_id);
             download_future.await.unwrap();
         }
 
         // Verify Bob has the attachment
         assert!(
-            !bob_attachment_ids.is_empty(),
+            !bob_attachment_infos.is_empty(),
             "Bob should have attachment after download"
         );
     }
@@ -1270,9 +1271,9 @@ async fn delete_message_with_attachment() {
 
     // Verify: Attachment record is deleted for the sender (Alice)
     let alice_user = &setup.get_user(&alice).user;
-    let attachment_ids = alice_user.attachment_ids_for_message(message_id).await;
+    let attachment_infos = alice_user.attachment_infos_for_message(message_id).await;
     assert!(
-        attachment_ids.is_empty(),
+        attachment_infos.is_empty(),
         "Alice's attachment should be deleted after message deletion"
     );
 
@@ -1287,9 +1288,11 @@ async fn delete_message_with_attachment() {
             .find(|m| m.message().is_deleted())
             .expect("Bob should have the deleted message");
 
-        let bob_attachment_ids = bob_user.attachment_ids_for_message(deleted_msg.id()).await;
+        let bob_attachment_infos = bob_user
+            .attachment_infos_for_message(deleted_msg.id())
+            .await;
         assert!(
-            bob_attachment_ids.is_empty(),
+            bob_attachment_infos.is_empty(),
             "Bob's attachment should be deleted after message deletion"
         );
     }

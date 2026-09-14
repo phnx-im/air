@@ -36,16 +36,15 @@ use aircommon::{
     },
 };
 use airprotos::client::{
-    component::{AIR_COMPONENT_ID, AirComponent},
+    app_data::GroupAppData,
+    component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
+        AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, SelfGroupMessage,
+        SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
-use openmls::prelude::{
-    AppEphemeralProposal, Extensions, GroupContext, Proposal, StagedCommit,
-    tls_codec::Serialize as _,
-};
+use openmls::prelude::{AppEphemeralProposal, Proposal, StagedCommit, tls_codec::Serialize as _};
 use openmls_traits::OpenMlsProvider;
 use tracing::{debug, warn};
 
@@ -53,22 +52,6 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, openmls_provider::AirOpenMlsProvider},
 };
-
-/// Reads the `is_self_group` flag from a group context's app-data dictionary.
-///
-/// The flag lives in the [`AirComponent`] entry under [`AIR_COMPONENT_ID`]. A
-/// missing component or entry means "not a self-group". Works on any
-/// [`Extensions<GroupContext>`], so it can be applied both to a live group's
-/// extensions and to the provisional post-commit context of a
-/// [`StagedCommit`](openmls::prelude::StagedCommit).
-pub(crate) fn extensions_claim_self_group(extensions: &Extensions<GroupContext>) -> bool {
-    extensions
-        .app_data_dictionary()
-        .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
-        .and_then(|data| AirComponent::from_bytes(data).ok())
-        .map(|component| component.is_self_group)
-        .unwrap_or(false)
-}
 
 impl Group {
     /// Returns whether this group claims to be a self-group, per the
@@ -83,7 +66,7 @@ impl Group {
     /// assume an adversary cannot make a client join a non-legitimate
     /// self-group.
     pub(crate) fn is_self_group(&self) -> bool {
-        extensions_claim_self_group(self.mls_group().extensions())
+        GroupAppData::is_self_group_context(self.mls_group().extensions())
     }
 
     /// Returns the message key for the self-group's current epoch, deriving and
@@ -135,6 +118,7 @@ impl Group {
                 AIR_COMPONENT_ID,
             )?;
             let exporter_bytes: [u8; AEAD_KEY_SIZE] = exporter_bytes
+                .as_slice()
                 .try_into()
                 .map_err(|_| anyhow!("unexpected self-group exporter secret length"))?;
             let exporter = SelfGroupExporterSecret::from_bytes(exporter_bytes);
@@ -195,6 +179,27 @@ impl Group {
         update: &SettingsUpdate,
     ) -> Result<ApqGroupOperationParamsOut> {
         let proposal = self.self_group_settings_proposal(txn, update).await?;
+        self.stage_self_group_message_commit(txn, signer, proposal)
+            .await
+    }
+
+    /// Stages a self-group commit carrying the given blocked-contact entries.
+    pub(crate) async fn stage_blocked_contacts_update(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        contacts: &[BlockedContactEntry],
+    ) -> Result<ApqGroupOperationParamsOut> {
+        let proposal = self
+            .self_group_messages_proposal(
+                txn,
+                vec![SelfGroupMessage::BlockedContactsUpdate(
+                    BlockedContactsUpdate {
+                        contacts: contacts.to_vec(),
+                    },
+                )],
+            )
+            .await?;
         self.stage_self_group_message_commit(txn, signer, proposal)
             .await
     }
@@ -337,6 +342,9 @@ impl Group {
                 match message {
                     SelfGroupMessage::SettingsUpdate(update) => extracted.updates.push(update),
                     SelfGroupMessage::TokenSeed(seed) => extracted.token_seeds.push(seed),
+                    SelfGroupMessage::BlockedContactsUpdate(update) => {
+                        extracted.blocked_contacts.extend(update.contacts);
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -354,11 +362,13 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) updates: Vec<SettingsUpdate>,
     /// Token seeds published by the sender.
     pub(crate) token_seeds: Vec<TokenSeed>,
+    /// Blocked-contact changes.
+    pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
 }
 
 impl SelfGroupPayload {
     pub(crate) fn is_empty(&self) -> bool {
-        self.updates.is_empty() && self.token_seeds.is_empty()
+        self.updates.is_empty() && self.token_seeds.is_empty() && self.blocked_contacts.is_empty()
     }
 }
 
@@ -499,11 +509,14 @@ mod derivation_tests {
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
-        mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
     use airprotos::client::{
-        component::{AIR_COMPONENT_ID, AirComponent},
-        self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+        app_data::GroupAppData,
+        component::AIR_COMPONENT_ID,
+        self_group::{
+            AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
+            SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
+        },
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
     use openmls::prelude::{AppEphemeralProposal, GroupId, Proposal};
@@ -517,13 +530,23 @@ mod derivation_tests {
         utils::persistence::open_db_in_memory,
     };
 
-    use super::extensions_claim_self_group;
-
     fn random_group_id() -> GroupId {
         GroupId::from(QualifiedGroupId::new(
             Uuid::new_v4(),
             "example.com".parse().unwrap(),
         ))
+    }
+
+    /// A one-entry blocked-contacts update, blocking `uuid` at `blocked_at`.
+    fn blocked_contacts_update(uuid: u128, blocked_at: u64) -> BlockedContactsUpdate {
+        let user_id = UserId::new(Uuid::from_u128(uuid), "example.com".parse().unwrap());
+        BlockedContactsUpdate {
+            contacts: vec![BlockedContactEntry::Blocked(ContactBlocked {
+                user_id: user_id.into(),
+                blocked_at,
+                last_display_name: "Alice".to_owned(),
+            })],
+        }
     }
 
     /// Per-device self-group signer and its leaf wrapper, as used by real
@@ -535,19 +558,14 @@ mod derivation_tests {
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,
-    /// the group context carries `AirComponent::default_for_self_group`, which
-    /// is what the accessor's guard checks.
+    /// the group context marks the group as a self group, which is what the
+    /// accessor's guard checks.
     fn create_group(
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
-        let air_component = if is_self_group {
-            AirComponent::default_for_self_group()
-        } else {
-            AirComponent::default_for_leaf_or_key_package()
-        };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
             signer,
@@ -556,8 +574,10 @@ mod derivation_tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            None,
-            air_component,
+            GroupAppData {
+                is_self_group,
+                safe_aad_components: None,
+            },
             None,
         )?;
         Ok(group)
@@ -775,11 +795,14 @@ mod derivation_tests {
         // Extensions that clear the self-group flag by replacing the AIR
         // component in the app data dictionary.
         let mut flipped = group.mls_group().extensions().clone();
-        flipped.add_or_replace(default_group_context_app_data_dictionary_extension(
-            AirComponent::default_for_leaf_or_key_package(),
-            None,
-        ))?;
-        assert!(!extensions_claim_self_group(&flipped));
+        flipped.add_or_replace(
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+            }
+            .to_extension(),
+        )?;
+        assert!(!GroupAppData::is_self_group_context(&flipped));
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, _pq_mls_group) = group.apq_mls_groups_mut()?;
@@ -837,6 +860,52 @@ mod derivation_tests {
 
         assert_eq!(extracted.updates, vec![update]);
         assert!(extracted.token_seeds.is_empty());
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_blocked_contacts_updates_keeps_entry_order() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (sg_signer, signer) = self_group_signer()?;
+        let user_id = UserId::random("example.com".parse()?);
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
+
+        let first = blocked_contacts_update(1, 10);
+        let second = blocked_contacts_update(2, 20);
+        let proposal = group
+            .self_group_messages_proposal(
+                &mut txn,
+                vec![
+                    SelfGroupMessage::BlockedContactsUpdate(first.clone()),
+                    SelfGroupMessage::BlockedContactsUpdate(second.clone()),
+                ],
+            )
+            .await?;
+        group
+            .stage_self_group_message_commit(&mut txn, &sg_signer, proposal)
+            .await?;
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
+
+        let mut expected = first.contacts;
+        expected.extend(second.contacts);
+        assert_eq!(extracted.blocked_contacts, expected);
+        assert!(extracted.updates.is_empty());
 
         txn.commit().await?;
         Ok(())

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT is_animated\n            FROM attachment\n            WHERE attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_animated",
+        "ordinal": 0,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "9c28c6ec240f1a2b94539e530ec25be60427bf09dd7eab9db84adb2fbbb08e06"
+}
