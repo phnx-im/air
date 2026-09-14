@@ -26,16 +26,6 @@ CLIENT_DATABASE_URL := "sqlite://" + justfile_directory() + "/coreclient/client.
 [windows]
 CLIENT_DATABASE_URL := "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
 
-# Run dart (via fvm outside of CI).
-[working-directory('app')]
-@dart *args:
-    {{ if ci == "true" { "dart" } else { "fvm dart" } }} {{ args }}
-
-# Run flutter (via fvm outside of CI).
-[working-directory('app')]
-@flutter *args:
-    {{ if ci == "true" { "flutter" } else { "fvm flutter" } }} {{ args }}
-
 # Reset and migrate databases.
 reset-dev:
     cd coreclient && cargo sqlx database reset -y --database-url {{CLIENT_DATABASE_URL}}
@@ -68,10 +58,11 @@ check-cargo-machete:
 
 # Check Dart formatting and run the analyzer.
 [group('check')]
+[working-directory('app')]
 check-dart:
-    just flutter pub get
-    just dart format . -o none --set-exit-if-changed
-    just dart analyze --fatal-infos
+    flutter pub get
+    dart format . -o none --set-exit-if-changed
+    dart analyze --fatal-infos
 
 # Check that generated flutter rust bridge files are up to date.
 [group('check')]
@@ -126,7 +117,7 @@ regenerate-frb:
     CARGO_TARGET_DIR="{{justfile_directory()}}/target/frb_codegen" \
         flutter_rust_bridge_codegen generate --no-web
 
-    just dart run build_runner build
+    dart run build_runner build
     cd .. && cargo fmt
 
 # Regenerate localization files.
@@ -134,7 +125,7 @@ regenerate-frb:
 [group('regenerate')]
 regenerate-l10n:
     cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
-    just flutter gen-l10n
+    flutter gen-l10n
 
 # Regenerate database query metadata.
 [group('regenerate')]
@@ -163,7 +154,7 @@ regenerate-licenses:
 [working-directory: 'app']
 [group('regenerate')]
 regenerate-icons:
-    just dart run tool/compile_svg_icons.dart
+    dart run tool/compile_svg_icons.dart
 
 # Run flutter test.
 #
@@ -180,7 +171,7 @@ test-flutter *args:
     mkdir -p .dart_tool
     trap 'echo "{\"skip_rust_build\": false}" > "$config"' EXIT INT TERM
     echo '{"skip_rust_build": true}' > "$config"
-    just flutter test {{ args }}
+    flutter test {{ args }}
 
 skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
 
@@ -212,7 +203,7 @@ update-goldens-ci pr='':
 # Start the app in debug mode.
 [working-directory: 'app']
 run-app *args:
-    just flutter run {{args}}
+    flutter run {{args}}
 
 # Start the server.
 run-server:
@@ -229,15 +220,6 @@ bump-version *args:
 # Cut a release/0.X branch from main (at the given commit, default HEAD).
 cut-release *args:
     cargo xtask cut-release {{args}}
-
-# Install fvm.
-install-fvm:
-    # If this fails, call this to get the new sha256sum:
-    #  curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
-    #  sha256sum install-fvm.sh
-
-    curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
-    bash install-fvm.sh 4.0.5
 
 # Build the app for the given platform (no-op in CI).
 [working-directory: 'app']
