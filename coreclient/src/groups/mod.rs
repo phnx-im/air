@@ -1093,8 +1093,8 @@ impl Group {
         // Should be Some if we are joining a connection group: the sole member of
         // that group, whose invitation admits us to its room state.
         inviter: Option<&UserId>,
-        // Should be Some if we are joining as an emulator of a virtual client
-        // that is already a member.
+        // Should be Some if we act as a virtual client emulated from that self
+        // group, whether joining anew or resyncing an existing membership.
         vc_group_id: Option<GroupId>,
     ) -> anyhow::Result<
         Result<
