@@ -46,6 +46,8 @@ impl Group {
             "seal_group_bootstrap must only be called on the self group"
         );
         let provider = AirOpenMlsProvider::new(txn.as_mut());
+        // The above write transaction serializes the calls on the same epoch which is important,
+        // because they must not be concurrent.
         let (info, secret) = self
             .mls_group()
             .next_vc_application_secret(&provider, OPERATION_CONTEXT)?;
