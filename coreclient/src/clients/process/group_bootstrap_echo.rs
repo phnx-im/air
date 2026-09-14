@@ -9,28 +9,22 @@
 //! all of the acting user's client queues. This module turns such an echo into
 //! the same local state the acting client built.
 
-use std::time::Duration;
-
 use aircommon::{
     codec::PersistenceCodec,
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
-    messages::{
-        client_as::ConnectionOfferHash, client_ds::GroupBootstrapEcho,
-        client_ds_out::EpochSnapshotIn,
-    },
+    messages::{client_as::ConnectionOfferHash, client_ds::GroupBootstrapEcho},
     time::TimeStamp,
 };
 use airprotos::client::group_bootstrap::{GroupBootstrapBlob, GroupBootstrapCarrier};
 use anyhow::{Context, Result, bail, ensure};
 use mimi_room_policy::RoleIndex;
-use tokio::time::sleep;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::{
     Chat, ChatMessage, ChatStatus, Contact, PartialContact, SystemMessage, TargetedMessageContact,
     chats::PendingConnectionInfo,
-    clients::{CoreUser, api_clients::ApiClients},
+    clients::CoreUser,
     contacts::UsernameContact,
     db::access::WriteDbTransaction,
     groups::{
@@ -42,14 +36,6 @@ use crate::{
 };
 
 use super::process_qs::QsMessageOutcome;
-
-/// A join echo may reach the sibling before the DS transaction that writes the
-/// snapshot commits, so a not-found on the first attempt is expected.
-const SNAPSHOT_FETCH_RETRY_DELAYS: [Duration; 3] = [
-    Duration::from_millis(200),
-    Duration::from_millis(500),
-    Duration::from_millis(1500),
-];
 
 impl CoreUser {
     pub(super) async fn handle_group_bootstrap_echo(
@@ -82,7 +68,17 @@ impl CoreUser {
         );
 
         let connection_offer_hash = connection_offer_psk_for(carrier, &contents)?;
-        let snapshot = fetch_epoch_snapshot(self.api_clients(), &echo, &contents).await?;
+        let qgid = QualifiedGroupId::try_from(echo.group_id.clone())?;
+        let snapshot = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_epoch_snapshot(
+                echo.group_id.clone(),
+                echo.epoch,
+                &contents.group_state_ear_key,
+            )
+            .await
+            .context("failed to fetch the epoch snapshot")?;
 
         let mut group = match carrier {
             GroupBootstrapCarrier::CreationEcho => {
@@ -243,12 +239,15 @@ impl CoreUser {
                 Self::schedule_fetch_user_profile(&mut *txn, (credential.into(), user_profile_key))
                     .await?;
 
-                // Replay the role change the accepting sibling applied: the DS
-                // does not add external joiners of connection groups to the
-                // room state it serves.
-                group.room_state_change_role(user_id, self.user_id(), RoleIndex::Regular)?;
-                let now = TimeStamp::now();
-                group.store_update(&mut *txn, Some(now), Some(now)).await?;
+                // The DS admits the joiner to its room state before it takes
+                // the snapshot, so a well-formed snapshot already lists us.
+                // Patch only one that does not, it would fail the member check
+                // on the next commit.
+                if group.room_state_role(self.user_id())?.is_none() {
+                    group.room_state_change_role(user_id, self.user_id(), RoleIndex::Regular)?;
+                    let now = TimeStamp::now();
+                    group.store_update(&mut *txn, Some(now), Some(now)).await?;
+                }
 
                 let chat =
                     Chat::new_onboarding_connection_chat(group.group_id().clone(), user_id.clone());
@@ -337,37 +336,4 @@ fn ensure_only_member(group: &Group, own_user_id: &UserId) -> Result<()> {
         "a freshly created group has members other than us: {members:?}"
     );
     Ok(())
-}
-
-/// Fetches the epoch snapshot of the echoed operation, retrying in place: the
-/// echo can outrun the DS transaction that writes the snapshot, and losing it
-/// loses the group.
-async fn fetch_epoch_snapshot(
-    api_clients: &ApiClients,
-    echo: &GroupBootstrapEcho,
-    contents: &GroupBootstrapContents,
-) -> Result<EpochSnapshotIn> {
-    let qgid = QualifiedGroupId::try_from(echo.group_id.clone())?;
-    let api_client = api_clients.get(qgid.owning_domain())?;
-    let mut attempt = 0;
-    loop {
-        let result = api_client
-            .ds_epoch_snapshot(
-                echo.group_id.clone(),
-                echo.epoch,
-                &contents.group_state_ear_key,
-            )
-            .await;
-        match result {
-            Ok(snapshot) => return Ok(snapshot),
-            Err(error) => {
-                let Some(delay) = SNAPSHOT_FETCH_RETRY_DELAYS.get(attempt) else {
-                    return Err(error).context("failed to fetch the epoch snapshot");
-                };
-                warn!(%error, "Failed to fetch the epoch snapshot; retrying");
-                sleep(*delay).await;
-                attempt += 1;
-            }
-        }
-    }
 }

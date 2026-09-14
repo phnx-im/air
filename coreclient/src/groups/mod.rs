@@ -2588,6 +2588,12 @@ impl Group {
         )
     }
 
+    /// The role of `user_id` in the room state, or `None` if it is not listed.
+    pub(crate) fn room_state_role(&self, user_id: &UserId) -> Result<Option<RoleIndex>> {
+        let identity = RoomPolicyIdentity::User(user_id.clone()).to_bytes()?;
+        Ok(self.room_state.users().get(&identity).cloned())
+    }
+
     pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
         self.mls_group().extensions().iter().find_map(|e| match e {
             Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
