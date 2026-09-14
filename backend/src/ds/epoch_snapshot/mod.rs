@@ -54,10 +54,14 @@ pub(super) struct DsEpochSnapshot {
     pub(super) pq_group_info: Option<GroupInfo>,
     #[tag(5)]
     pub(super) pq_ratchet_tree: Option<RatchetTree>,
-    /// The external commit accepted at this epoch, present iff the snapshot was
-    /// written at an external join.
+    /// The external commit accepted at this epoch, present iff the snapshot was written at an
+    /// external join.
+    ///
+    /// For an APQ join this is the T leg's commit.
     #[tag(6)]
     pub(super) join_commit: Option<Vec<u8>>,
+    // Tag 7 is reserved for `pq_join_commit`, the PQ leg's commit of an APQ join, which lands with
+    // the APQ join connection group RPC.
 }
 
 /// Binds a record to the group and epoch it was stored under
