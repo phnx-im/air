@@ -12,9 +12,8 @@ import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
 // Optional build configuration, written by `just test-flutter` and by CI
 // (see .github/actions/setup-buildenv).
-
-Keys:
 //
+// Keys:
 // - `skip_rust_build`: skip the Rust build, which the Flutter tests don't
 //   need. See <https://github.com/dart-lang/native/issues/3237>.
 // - `cargo_env`: extra environment variables for `cargo build`. The hook runs
