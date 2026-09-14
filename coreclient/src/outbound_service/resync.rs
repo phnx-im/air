@@ -267,6 +267,7 @@ impl Resync {
         }
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
+        let existing_chat_id = self.chat_id;
         let Some(original_leaf_index) =
             self.resolve_original_leaf_index(&external_commit_info, signer)
         else {
@@ -276,15 +277,18 @@ impl Resync {
             );
             // Drop the resync, mark the chat as inactive and delete the group state.
             connection
-                .with_transaction(async |txn| {
-                    handle_group_not_found_on_ds(txn, &self.group_id).await
+                .with_transaction(async |txn| -> anyhow::Result<()> {
+                    handle_group_not_found_on_ds(txn, &self.group_id).await?;
+                    if let Some(chat_id) = existing_chat_id {
+                        txn.notifier().add(chat_id);
+                    }
+                    Ok(())
                 })
                 .await
                 .map_err(OutboundServiceError::recoverable)?;
             return Ok(None);
         };
         let connection_contact = self.connection_contact.take();
-        let existing_chat_id = self.chat_id;
         let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection

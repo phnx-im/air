@@ -440,9 +440,7 @@ async fn ratchet_tolerance() {
 //     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
 // }
 
-// TODO: Re-enable once we have implemented a resync UX.
-//#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[allow(dead_code)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;
