@@ -152,9 +152,8 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     final domain = state.domain;
 
     try {
-      final info = await getRegistrationInfo(
-        domain: domain,
-      ).timeout(_registrationInfoTimeout);
+      final info = await getRegistrationInfo(domain: domain)
+          .timeout(_registrationInfoTimeout);
       // The answer describes the server that was asked, which is no longer the
       // one the flow points at.
       if (state.domain != domain) return;

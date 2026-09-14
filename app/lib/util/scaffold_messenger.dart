@@ -21,9 +21,8 @@ void showErrorBannerStandalone(
 
   final context = scaffoldMessengerKey.currentContext;
   if (context == null) {
-    Logger.detached(
-      'showErrorBanner',
-    ).severe("No context when showing error banner");
+    Logger.detached('showErrorBanner')
+        .severe("No context when showing error banner");
     return;
   }
 

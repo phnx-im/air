@@ -8,13 +8,12 @@ use aircommon::{
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
-        connection_package::{ConnectionPackage, ConnectionPackageHash},
+        connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
 };
 use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
 use anyhow::{Context, bail, ensure};
-use mimi_room_policy::RoleIndex;
 use openmls::treesync::errors::LeafNodeValidationError;
 use tls_codec::DeserializeBytes;
 use tracing::{instrument, warn};
@@ -30,7 +29,7 @@ use crate::{
     db::access::WriteConnection,
     groups::{Group, group_bootstrap::secret_bytes, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
-    usernames::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 pub(crate) struct PendingConnectionInfo {
@@ -143,6 +142,7 @@ impl CoreUser {
                         .clone(),
                     aad,
                     connection_offer_hash,
+                    Some(&sender_user_id),
                     vc_group_id,
                 )
                 .await?;
@@ -181,25 +181,17 @@ impl CoreUser {
                 // Fetch and store user profile
                 Self::schedule_fetch_user_profile(&mut *txn, contact_profile_info).await?;
 
-                group.room_state_change_role(
-                    &sender_user_id,
-                    self.user_id(),
-                    RoleIndex::Regular,
-                )?;
-
                 let now = TimeStamp::now();
                 group.store_update(&mut *txn, Some(now), Some(now)).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
                     let is_last_resort =
-                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            &mut *txn, &hash,
-                        )
-                        .await?
-                        .unwrap_or(false);
+                        ConnectionPackageRecord::load_is_last_resort(&mut *txn, &hash)
+                            .await?
+                            .unwrap_or(false);
                     if !is_last_resort {
-                        ConnectionPackage::delete(&mut *txn, &hash)
+                        ConnectionPackageRecord::delete(&mut *txn, &hash)
                             .await
                             .context("Failed to delete connection package")?;
                     }

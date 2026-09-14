@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:typed_data';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
@@ -91,8 +92,7 @@ final messages = [
         sent: true,
         edited: true,
         content: UiMimiContent(
-          plainBody:
-              'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
+          plainBody: 'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
           topicId: Uint8List(0),
           content: simpleMessage(
             'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
@@ -927,9 +927,8 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: 'untilMessageId'),
@@ -956,9 +955,8 @@ void main() {
               builder: (context) {
                 return MaterialApp(
                   debugShowCheckedModeBanner: false,
-                  theme: testThemeData(
-                    MediaQuery.platformBrightnessOf(context),
-                  ).copyWith(platform: platform),
+                  theme: testThemeData(MediaQuery.platformBrightnessOf(context))
+                      .copyWith(platform: platform),
                   localizationsDelegates:
                       AppLocalizations.localizationsDelegates,
                   home: const Scaffold(
@@ -1321,10 +1319,9 @@ void main() {
 
       messageListCubit.setState(attachmentMessages);
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.isAttachmentAnimated(
           attachmentId: any(named: 'attachmentId'),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
+          retryDownloadIfFailed: any(named: 'retryDownloadIfFailed'),
         ),
       ).thenAnswer((_) async => Future.any([]));
       when(
@@ -1432,9 +1429,8 @@ void main() {
       });
 
       messageListCubit.setState(messages);
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(readReceipts: false));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(readReceipts: false));
 
       await tester.pumpWidget(buildSubject());
 
@@ -1786,54 +1782,50 @@ void main() {
       );
     });
 
-    testWidgets(
-      'double-click selects a word on desktop',
-      (tester) async {
-        // A 1.0 ratio makes the whole list fit, so the target message is
-        // always built and on screen regardless of the viewport anchor.
-        tester.view.physicalSize = highTestSize;
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() {
-          tester.view.resetPhysicalSize();
-          tester.view.resetDevicePixelRatio();
-        });
+    testWidgets('double-click selects a word on desktop', (tester) async {
+      // A 1.0 ratio makes the whole list fit, so the target message is
+      // always built and on screen regardless of the viewport anchor.
+      tester.view.physicalSize = highTestSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-        messageListCubit.setState(messages);
+      messageListCubit.setState(messages);
 
-        await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject());
 
-        final target = find.textContaining('This is a delivered message');
-        expect(
-          find.ancestor(of: target, matching: find.byType(SelectableRegion)),
-          findsOne,
-        );
-        final paragraph = tester.renderObject<RenderParagraph>(
-          find.descendant(of: target, matching: find.byType(RichText)),
-        );
-        // The tile can be built but laid out below the fold, where taps
-        // land on nothing.
-        await tester.ensureVisible(target);
-        await tester.pumpAndSettle();
-        final center = tester.getCenter(target);
+      final target = find.textContaining('This is a delivered message');
+      expect(
+        find.ancestor(of: target, matching: find.byType(SelectableRegion)),
+        findsOne,
+      );
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: target, matching: find.byType(RichText)),
+      );
+      // The tile can be built but laid out below the fold, where taps
+      // land on nothing.
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+      final center = tester.getCenter(target);
 
-        final gesture = await tester.startGesture(center, kind: .mouse);
-        addTearDown(gesture.removePointer);
-        await tester.pump();
-        await gesture.up();
-        await tester.pump(const Duration(milliseconds: 50));
-        await gesture.down(center);
-        await tester.pump();
-        await gesture.up();
-        await tester.pump(kDoubleTapTimeout);
-        await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(center, kind: .mouse);
+      addTearDown(gesture.removePointer);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.down(center);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
 
-        // A double-tap recognizer on the bubble would win the gesture arena
-        // and swallow the second click, leaving no word selection.
-        expect(paragraph.selections, hasLength(1));
-        expect(paragraph.selections.single.isCollapsed, isFalse);
-        expect(find.byType(ReactionBar), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      // A double-tap recognizer on the bubble would win the gesture arena
+      // and swallow the second click, leaving no word selection.
+      expect(paragraph.selections, hasLength(1));
+      expect(paragraph.selections.single.isCollapsed, isFalse);
+      expect(find.byType(ReactionBar), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 }

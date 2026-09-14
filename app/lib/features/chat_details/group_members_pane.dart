@@ -77,9 +77,8 @@ class GroupMembersPane extends HookWidget {
           Expanded(
             child: AppScrollbar(
               child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(
-                  context,
-                ).copyWith(scrollbars: false),
+                behavior: ScrollConfiguration.of(context)
+                    .copyWith(scrollbars: false),
                 child: _MemberList(
                   chatId: chatId,
                   members: sortedMembers,

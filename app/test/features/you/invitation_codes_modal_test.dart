@@ -134,9 +134,8 @@ void main() {
 
     setUp(() {
       cubit = MockInvitationCodesCubit();
-      when(
-        () => cubit.state,
-      ).thenReturn(InvitationCodesState(codes: [code('ABCD-EFGH-IJKL')]));
+      when(() => cubit.state)
+          .thenReturn(InvitationCodesState(codes: [code('ABCD-EFGH-IJKL')]));
     });
 
     // The cubit sits below the navigator that hosts the dialog, as it does in

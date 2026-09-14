@@ -3,18 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    fs::{self},
-    io::Cursor,
+    io::{self, BufRead, Cursor, Seek},
     path::Path,
 };
 
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use image::{
     AnimationDecoder, Delay, DynamicImage, GenericImageView, ImageBuffer, ImageDecoder,
     ImageFormat, ImageReader, Rgba,
     codecs::{gif::GifDecoder, png::PngDecoder, webp::WebPDecoder},
     guess_format,
+    metadata::Orientation,
 };
+use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::info;
 
 /// Running blurhash on the full resolution picture is unnecessary (and
@@ -25,6 +26,9 @@ const BLURHASH_COMPONENTS_Y: u32 = 3;
 
 const MAX_PROFILE_IMAGE_WIDTH: u32 = 256;
 const MAX_PROFILE_IMAGE_HEIGHT: u32 = 256;
+
+const THUMBNAIL_MAX_EDGE: u32 = 1024;
+const THUMBNAIL_QUALITY_PERCENT: f32 = 80.0;
 
 pub(crate) fn resize_profile_image(image_bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut decoder = ImageReader::new(Cursor::new(image_bytes))
@@ -65,23 +69,117 @@ pub(crate) struct ReencodedAttachmentImage {
     pub(crate) webp_image: Vec<u8>,
     pub(crate) image_dimensions: (u32, u32),
     pub(crate) blurhash: String,
+    pub(crate) is_animated: bool,
 }
 
-/// Loads an image and re-encodes it to WEBP format.
-///
-/// If the path is not an image, returns `None`.
-///
-/// This does several things:
-/// - Rotates and flips the image according to the EXIF orientation
-/// - Resizes the image to a maximum width and height of 4096x4096
-/// - Converts the image to WebP. Animated GIFs, animated WebPs, and APNGs are
-///   re-encoded as animated WebP, preserving per-frame timing.
-pub(crate) fn load_attachment_image(
-    path: &Path,
-) -> anyhow::Result<Option<ReencodedAttachmentImage>> {
-    let file_size = fs::metadata(path)?.len();
+#[derive(Clone, Default)]
+pub(crate) struct ImageProcessingCancellation(CancellationToken);
 
+impl ImageProcessingCancellation {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn cancel_on_drop(&self) -> DropGuard {
+        self.0.clone().drop_guard()
+    }
+
+    pub(crate) fn ensure_running(&self) -> anyhow::Result<()> {
+        ensure!(!self.0.is_cancelled(), "image processing cancelled");
+        Ok(())
+    }
+}
+
+impl webpx::Stop for ImageProcessingCancellation {
+    fn check(&self) -> Result<(), webpx::StopReason> {
+        if self.0.is_cancelled() {
+            Err(webpx::StopReason::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// The magic bytes say the file is an image, but its header does not decode.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub(crate) struct ImageProbeError(#[from] image::ImageError);
+
+/// Reads an image's displayed dimensions from its header, without decoding it.
+///
+/// The outer error is the file being unreadable, the inner one its header
+/// not decoding.
+pub(crate) fn probe_attachment_image<P: AsRef<Path>>(
+    path: P,
+) -> io::Result<Result<Option<(u32, u32)>, ImageProbeError>> {
     let reader = ImageReader::open(path)?.with_guessed_format()?;
+    Ok(probe_image_dimensions(reader))
+}
+
+/// Mirrors [`reencode_image`]'s format dispatch, reading only dimensions.
+fn probe_image_dimensions<R>(reader: ImageReader<R>) -> Result<Option<(u32, u32)>, ImageProbeError>
+where
+    R: BufRead + Seek,
+{
+    let Some(format) = reader.format() else {
+        return Ok(None);
+    };
+
+    let dimensions = match format {
+        ImageFormat::Gif => oriented_dimensions(GifDecoder::new(reader.into_inner())?),
+        ImageFormat::WebP => oriented_dimensions(WebPDecoder::new(reader.into_inner())?),
+        ImageFormat::Png => oriented_dimensions(PngDecoder::new(reader.into_inner())?),
+        _ => match reader.into_decoder() {
+            Ok(decoder) => oriented_dimensions(decoder),
+            // format support not compiled in, upload as a regular file
+            Err(image::ImageError::Unsupported(_)) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        },
+    };
+
+    Ok(Some(dimensions))
+}
+
+/// The dimensions the image is displayed at, with the EXIF orientation.
+fn oriented_dimensions(mut decoder: impl ImageDecoder) -> (u32, u32) {
+    let orientation = decoder.orientation().ok();
+    let (width, height) = decoder.dimensions();
+    match orientation {
+        Some(
+            Orientation::Rotate90
+            | Orientation::Rotate270
+            | Orientation::Rotate90FlipH
+            | Orientation::Rotate270FlipH,
+        ) => (height, width),
+        _ => (width, height),
+    }
+}
+
+/// Re-encodes an image to WEBP format but also:
+/// - Rotates and flips the image according to the EXIF orientation
+/// - Resizes the image to a maximum width and height
+/// - Converts the image to WebP. Animated GIFs, animated WebPs, and APNGs are
+///   re-encoded as animated WebP.
+pub(crate) fn reencode_attachment_image(
+    bytes: Vec<u8>,
+    cancel: ImageProcessingCancellation,
+) -> anyhow::Result<ReencodedAttachmentImage> {
+    cancel.ensure_running()?;
+    let file_size = bytes.len() as u64;
+    // `Cursor<Vec<u8>>` rather than a borrow: the animated branch needs a
+    // reader that outlives the frame iterator.
+    let reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    reencode_image(reader, file_size, &cancel)?.context("not a supported image format")
+}
+
+fn reencode_image<R>(
+    reader: ImageReader<R>,
+    file_size: u64,
+    cancel: &ImageProcessingCancellation,
+) -> anyhow::Result<Option<ReencodedAttachmentImage>>
+where
+    R: BufRead + Seek + 'static,
+{
     let Some(format) = reader.format() else {
         return Ok(None);
     };
@@ -89,23 +187,23 @@ pub(crate) fn load_attachment_image(
     let result = match format {
         ImageFormat::Gif => {
             let decoder = GifDecoder::new(reader.into_inner())?;
-            load_animated_frames(decoder, file_size, format)?
+            load_animated_frames(decoder, file_size, format, cancel)?
         }
         ImageFormat::WebP => {
             let decoder = WebPDecoder::new(reader.into_inner())?;
             if decoder.has_animation() {
-                load_animated_frames(decoder, file_size, format)?
+                load_animated_frames(decoder, file_size, format, cancel)?
             } else {
-                load_still_image(decoder, file_size)?
+                load_still_image(decoder, file_size, cancel)?
             }
         }
         ImageFormat::Png => {
             let decoder = PngDecoder::new(reader.into_inner())?;
             if decoder.is_apng()? {
                 let apng = decoder.apng()?;
-                load_animated_frames(apng, file_size, format)?
+                load_animated_frames(apng, file_size, format, cancel)?
             } else {
-                load_still_image(decoder, file_size)?
+                load_still_image(decoder, file_size, cancel)?
             }
         }
         _ => {
@@ -115,11 +213,80 @@ pub(crate) fn load_attachment_image(
                 Err(image::ImageError::Unsupported(_)) => return Ok(None),
                 Err(error) => return Err(error.into()),
             };
-            load_still_image(decoder, file_size)?
+            load_still_image(decoder, file_size, cancel)?
         }
     };
 
     Ok(Some(result))
+}
+
+/// Makes a thumbnail from an image source file.
+///
+/// Mirrors [`reencode_image`]'s format dispatch. Used before an upload's
+/// message is stored, so the message renders real pixels from its first
+/// frame while the re-encode still runs.
+pub(crate) fn encode_source_thumbnail<P: AsRef<Path>>(path: P) -> anyhow::Result<SourceThumbnail> {
+    let reader = ImageReader::open(path)?.with_guessed_format()?;
+    let format = reader.format().context("not a supported image format")?;
+
+    match format {
+        ImageFormat::Gif => {
+            source_animated_thumbnail(GifDecoder::new(reader.into_inner())?, format)
+        }
+        ImageFormat::WebP => {
+            let decoder = WebPDecoder::new(reader.into_inner())?;
+            if decoder.has_animation() {
+                source_animated_thumbnail(decoder, format)
+            } else {
+                source_still_thumbnail(decoder)
+            }
+        }
+        ImageFormat::Png => {
+            let decoder = PngDecoder::new(reader.into_inner())?;
+            if decoder.is_apng()? {
+                source_animated_thumbnail(decoder.apng()?, format)
+            } else {
+                source_still_thumbnail(decoder)
+            }
+        }
+        _ => source_still_thumbnail(reader.into_decoder()?),
+    }
+}
+
+fn source_still_thumbnail<D: ImageDecoder>(mut decoder: D) -> anyhow::Result<SourceThumbnail> {
+    let orientation = decoder.orientation().ok();
+    let image = DynamicImage::from_decoder(decoder)?;
+
+    // Always encoded, even when the image is small enough to fit so
+    // we can render it immediately.
+    let mut image = resize(image, THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    if let Some(orientation) = orientation {
+        image.apply_orientation(orientation);
+    }
+    let rgba = image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    Ok(SourceThumbnail {
+        bytes: encode_thumbnail_webp(rgba.as_raw(), width, height)?,
+        is_animated: false,
+    })
+}
+
+/// Animated sources always yield a static first-frame thumbnail, so the
+/// thumbnail path never hands animated bytes to a static surface.
+fn source_animated_thumbnail<'a, D: AnimationDecoder<'a>>(
+    decoder: D,
+    source: ImageFormat,
+) -> anyhow::Result<SourceThumbnail> {
+    let first = decoder
+        .into_frames()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
+    let buffer = fit_to_max(first.into_buffer(), THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    let (width, height) = buffer.dimensions();
+    Ok(SourceThumbnail {
+        bytes: encode_thumbnail_webp(buffer.as_raw(), width, height)?,
+        is_animated: true,
+    })
 }
 
 /// Classifies an attachment's encoded bytes as animated by reading only the
@@ -161,10 +328,14 @@ fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
     file_size: u64,
+    cancel: &ImageProcessingCancellation,
 ) -> anyhow::Result<ReencodedAttachmentImage> {
+    cancel.ensure_running()?;
     let orientation = decoder.orientation().ok();
 
     let image = DynamicImage::from_decoder(decoder)?;
+    cancel.ensure_running()?;
+
     let mut image = resize(
         image,
         MAX_ATTACHMENT_IMAGE_WIDTH,
@@ -173,15 +344,18 @@ fn load_still_image<D: ImageDecoder>(
     if let Some(orientation) = orientation {
         image.apply_orientation(orientation);
     }
+    cancel.ensure_running()?;
+
+    let (width, height) = image.dimensions();
 
     let blurhash = compute_blurhash(&image)?;
+    cancel.ensure_running()?;
 
     let image_rgba = image.to_rgba8();
-    let (width, height) = image_rgba.dimensions();
 
     let webp_data = webpx::Encoder::new_rgba(&image_rgba, width, height)
         .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
-        .encode(webpx::Unstoppable)
+        .encode(cancel.clone())
         .context("WebP encode failed")?;
 
     info!(
@@ -194,6 +368,7 @@ fn load_still_image<D: ImageDecoder>(
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
+        is_animated: false,
     })
 }
 
@@ -204,13 +379,17 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
     decoder: D,
     file_size: u64,
     source: ImageFormat,
+    cancel: &ImageProcessingCancellation,
 ) -> anyhow::Result<ReencodedAttachmentImage> {
+    cancel.ensure_running()?;
     let mut frames = decoder.into_frames();
 
     let first = frames
         .next()
         .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
+    cancel.ensure_running()?;
     let first_delay = first.delay();
+
     let first_buffer = fit_to_max(
         first.into_buffer(),
         MAX_ATTACHMENT_IMAGE_WIDTH,
@@ -232,7 +411,9 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
     timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(first_delay));
 
     for frame_result in frames {
+        cancel.ensure_running()?;
         let frame = frame_result?;
+        cancel.ensure_running()?;
         let frame_delay = frame.delay();
         let resized = fit_to_max(
             frame.into_buffer(),
@@ -264,6 +445,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
+        is_animated: true,
     })
 }
 
@@ -301,4 +483,207 @@ fn resize(image: DynamicImage, max_width: u32, max_height: u32) -> DynamicImage 
         return image;
     }
     image.resize(max_width, max_height, image::imageops::FilterType::Lanczos3)
+}
+
+pub(crate) enum ThumbnailImage {
+    Encoded {
+        /// WebP encoded thumbnail
+        bytes: Vec<u8>,
+        /// Whether the source is animated
+        is_animated: bool,
+    },
+    /// Long edge is already within bounds and the image is *not* animated.
+    OriginalFits,
+}
+
+/// A static WebP thumbnail made from an upload's source file.
+pub(crate) struct SourceThumbnail {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) is_animated: bool,
+}
+
+/// Produces a static thumbnail from an attachment's stored WebP bytes.
+///
+/// Animated sources yield their first frame, and never `OriginalFits`, so the thumbnail path never
+/// hands animated bytes to a static surface.
+pub(crate) fn encode_thumbnail(original: &[u8]) -> anyhow::Result<ThumbnailImage> {
+    let decoder = webpx::Decoder::new(original).context("WebP decode failed")?;
+    let (width, height, has_animation) = {
+        let info = decoder.info();
+        (info.width, info.height, info.has_animation)
+    };
+
+    if has_animation {
+        return encode_animated_thumbnail(original);
+    }
+
+    ensure_within_supported_cap(width, height)?;
+
+    let Some((target_width, target_height)) =
+        thumbnail_dimensions(width, height, THUMBNAIL_MAX_EDGE)
+    else {
+        return Ok(ThumbnailImage::OriginalFits);
+    };
+
+    let (rgba, width, height) = decoder
+        .scale(target_width, target_height)
+        .decode_rgba_raw()
+        .context("WebP scaled decode failed")?;
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(&rgba, width, height)?,
+        is_animated: false,
+    })
+}
+
+fn encode_animated_thumbnail(original: &[u8]) -> anyhow::Result<ThumbnailImage> {
+    let mut decoder = webpx::AnimationDecoder::new(original)?;
+    let (width, height) = {
+        let info = decoder.info();
+        (info.width, info.height)
+    };
+    ensure_within_supported_cap(width, height)?;
+
+    let frame = decoder
+        .next_frame()?
+        .context("animated WebP has no frames")?;
+    let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(frame.width, frame.height, frame.data)
+        .context("frame does not match its buffer size")?;
+    let buffer = fit_to_max(buffer, THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
+    let (width, height) = buffer.dimensions();
+
+    Ok(ThumbnailImage::Encoded {
+        bytes: encode_thumbnail_webp(buffer.as_raw(), width, height)?,
+        is_animated: true,
+    })
+}
+
+fn ensure_within_supported_cap(width: u32, height: u32) -> anyhow::Result<()> {
+    ensure!(
+        width <= MAX_ATTACHMENT_IMAGE_WIDTH && height <= MAX_ATTACHMENT_IMAGE_HEIGHT,
+        "image exceeded the supported size: {width}x{height}",
+    );
+    Ok(())
+}
+
+fn encode_thumbnail_webp(rgba: &[u8], width: u32, height: u32) -> anyhow::Result<Vec<u8>> {
+    webpx::Encoder::new_rgba(rgba, width, height)
+        .quality(THUMBNAIL_QUALITY_PERCENT)
+        .encode(webpx::Unstoppable)
+        .context("WebP encode failed")
+}
+
+fn thumbnail_dimensions(width: u32, height: u32, max_edge: u32) -> Option<(u32, u32)> {
+    let long_edge = width.max(height);
+    if long_edge <= max_edge {
+        return None;
+    }
+    let scale = f64::from(max_edge) / f64::from(long_edge);
+    let edge = |e: u32| ((f64::from(e) * scale).round() as u32).max(1);
+    Some((edge(width), edge(height)))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn encode_static_webp(width: u32, height: u32) -> Vec<u8> {
+        let rgba = vec![127u8; (width * height * 4) as usize];
+        webpx::Encoder::new_rgba(&rgba, width, height)
+            .quality(80.0)
+            .encode(webpx::Unstoppable)
+            .unwrap()
+    }
+
+    #[test]
+    fn attachment_reencode_honors_early_cancellation() {
+        let original = encode_static_webp(32, 32);
+        let cancel = ImageProcessingCancellation::new();
+        drop(cancel.cancel_on_drop());
+
+        assert!(reencode_attachment_image(original, cancel).is_err());
+    }
+
+    fn encode_animated_webp(width: u32, height: u32, frames: u32) -> Vec<u8> {
+        let mut encoder = webpx::AnimationEncoder::with_options(width, height, true, 0).unwrap();
+        encoder.set_quality(80.0);
+        let mut timestamp_ms = 0;
+        for frame in 0..frames {
+            // Frames must differ, otherwise they are merged and a single-frame
+            // animation is assembled as a still image.
+            let rgba = vec![(frame * 60) as u8; (width * height * 4) as usize];
+            encoder.add_frame_rgba(&rgba, timestamp_ms).unwrap();
+            timestamp_ms += 100;
+        }
+        encoder.finish(timestamp_ms).unwrap()
+    }
+
+    fn decoded_info(bytes: &[u8]) -> (u32, u32, bool) {
+        let decoder = webpx::Decoder::new(bytes).unwrap();
+        let info = decoder.info();
+        (info.width, info.height, info.has_animation)
+    }
+
+    #[test]
+    fn thumbnail_dimensions_scales_long_edge() {
+        assert_eq!(thumbnail_dimensions(1024, 1024, 1024), None);
+        assert_eq!(thumbnail_dimensions(500, 300, 1024), None);
+        assert_eq!(thumbnail_dimensions(2048, 1024, 1024), Some((1024, 512)));
+        assert_eq!(thumbnail_dimensions(1000, 4000, 1024), Some((256, 1024)));
+        // The short edge never rounds down to zero
+        assert_eq!(thumbnail_dimensions(10000, 1, 1024), Some((1024, 1)));
+    }
+
+    #[test]
+    fn thumbnail_of_large_still_image_is_downscaled() {
+        let original = encode_static_webp(2048, 1024);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(!is_animated);
+        assert_eq!(decoded_info(&bytes), (1024, 512, false));
+    }
+
+    #[test]
+    fn thumbnail_of_small_still_image_is_the_original() {
+        let original = encode_static_webp(800, 600);
+        assert!(matches!(
+            encode_thumbnail(&original).unwrap(),
+            ThumbnailImage::OriginalFits
+        ));
+    }
+
+    #[test]
+    fn thumbnail_of_animated_image_is_a_static_frame() {
+        // Small animated images are re-encoded and never serve the original.
+        let original = encode_animated_webp(200, 100, 3);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(is_animated);
+        assert_eq!(decoded_info(&bytes), (200, 100, false));
+    }
+
+    #[test]
+    fn thumbnail_of_large_animated_image_is_downscaled() {
+        let original = encode_animated_webp(2048, 512, 2);
+        let ThumbnailImage::Encoded { bytes, is_animated } = encode_thumbnail(&original).unwrap()
+        else {
+            panic!("expected an encoded thumbnail");
+        };
+        assert!(is_animated);
+        assert_eq!(decoded_info(&bytes), (1024, 256, false));
+    }
+
+    #[test]
+    fn thumbnail_of_undecodable_bytes_fails() {
+        assert!(encode_thumbnail(b"not a webp").is_err());
+    }
+
+    #[test]
+    fn thumbnail_of_oversized_image_fails() {
+        let original = encode_static_webp(MAX_ATTACHMENT_IMAGE_WIDTH + 1, 8);
+        assert!(encode_thumbnail(&original).is_err());
+    }
 }

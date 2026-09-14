@@ -63,7 +63,7 @@ impl ApiClient {
         let (tx, rx) = mpsc::channel::<RelayFrame>(1);
 
         let payload = LinkClientRequestPayload {
-            client_metadata: Some(self.metadata().clone()),
+            client_metadata: Some(self.metadata()),
             sender: Some(qs_user_id.into()),
             session_id: Some(linking_session_id),
         };

@@ -28,11 +28,11 @@ impl DsEpochSnapshot {
     ) -> Result<(), StorageError> {
         query!(
             "INSERT INTO
-            ds_epoch_snapshot
-            (group_id, epoch, ciphertext, created_at)
-        VALUES
-            ($1, $2, $3, $4)
-        ON CONFLICT (group_id, epoch) DO NOTHING",
+                ds_epoch_snapshot
+                (group_id, epoch, ciphertext, created_at)
+            VALUES
+                ($1, $2, $3, $4)
+            ON CONFLICT (group_id, epoch) DO NOTHING",
             group_id,
             epoch.as_u64() as i64,
             BlobEncoded(ciphertext) as _,
@@ -57,11 +57,11 @@ impl DsEpochSnapshot {
         let cutoff = Utc::now() - retention;
         let ciphertext = query_scalar!(
             r#"SELECT
-            ciphertext AS "ciphertext: BlobDecoded<EncryptedEpochSnapshot>"
-        FROM
-            ds_epoch_snapshot
-        WHERE
-            group_id = $1 AND epoch = $2 AND created_at >= $3"#,
+                ciphertext AS "ciphertext: BlobDecoded<EncryptedEpochSnapshot>"
+            FROM
+                ds_epoch_snapshot
+            WHERE
+                group_id = $1 AND epoch = $2 AND created_at >= $3"#,
             group_id,
             epoch.as_u64() as i64,
             cutoff,
@@ -81,9 +81,9 @@ impl DsEpochSnapshot {
         let cutoff = Utc::now() - retention;
         query!(
             "DELETE FROM
-            ds_epoch_snapshot
-        WHERE
-            group_id = $1 AND created_at < $2",
+                ds_epoch_snapshot
+            WHERE
+                group_id = $1 AND created_at < $2",
             group_id,
             cutoff,
         )

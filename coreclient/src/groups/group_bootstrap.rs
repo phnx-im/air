@@ -60,6 +60,8 @@ impl Group {
             "seal_group_bootstrap must only be called on the self group"
         );
         let provider = AirOpenMlsProvider::new(txn.as_mut());
+        // The above write transaction serializes the calls on the same epoch which is important,
+        // because they must not be concurrent.
         let (info, secret) = self
             .mls_group()
             .next_vc_application_secret(&provider, OPERATION_CONTEXT)?;
@@ -222,7 +224,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                 user_id: context
                     .user_id
                     .context("targeted initiator context without a user id")?
-                    .try_into()?,
+                    .to_user_id()?,
                 friendship_package_ear_key: secret_field(
                     context.friendship_package_ear_key,
                     "friendship package ear key",
@@ -232,7 +234,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                 user_id: context
                     .user_id
                     .context("accept context without a user id")?
-                    .try_into()?,
+                    .to_user_id()?,
                 friendship_package: FriendshipPackage {
                     friendship_token: context
                         .friendship_token
@@ -284,11 +286,10 @@ mod tests {
         },
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
-        mls_group_config::AppComponent,
     };
     use aircommon::{crypto::aead::AEAD_KEY_SIZE, messages::FriendshipToken};
     use airprotos::client::{
-        component::AirComponent,
+        app_data::GroupAppData,
         group_bootstrap::{AcceptContext, HandleInitiatorContext, PeerUserId},
     };
     use uuid::Uuid;
@@ -330,10 +331,9 @@ mod tests {
             let (_as_key, client_signer) = create_test_credentials(user_id.clone());
             LeafSigningKey::User(client_signer)
         };
-        let air_component = if is_self_group {
-            AirComponent::default_for_self_group()
-        } else {
-            AirComponent::default_for_leaf_or_key_package()
+        let app_data = GroupAppData {
+            is_self_group,
+            safe_aad_components: None,
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
@@ -343,8 +343,7 @@ mod tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            None,
-            air_component,
+            app_data,
             vc_group_id,
         )?;
         Ok(group)

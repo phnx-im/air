@@ -15,13 +15,15 @@ use aircommon::{
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage, EncryptedConnectionOffer},
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
-        connection_package::ConnectionPackage,
     },
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
-use airprotos::client::group_bootstrap::{
-    ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext, TargetedInitiatorContext,
+use airprotos::client::{
+    group::GroupData,
+    group_bootstrap::{
+        ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext, TargetedInitiatorContext,
+    },
+    signed_connection_package::AnyConnectionPackage,
 };
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
@@ -93,11 +95,7 @@ impl CoreUser {
             };
 
         // Phase 2: Verify the connection package
-        let verified_connection_package = connection_package.verify()?;
-        // We don't need to know if the connection package is last resort here,
-        // so we can just turn it into a v2.
-        let verified_connection_package: ConnectionPackage =
-            verified_connection_package.into_current();
+        let verified_connection_package = connection_package.verify(&hash)?;
 
         // Phase 3: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
@@ -289,7 +287,7 @@ enum ConnectionGroupError {
     CreatedThenFailed(anyhow::Error),
 }
 
-struct VerifiedConnectionPackagesWithGroupId<Payload = ConnectionPackage> {
+struct VerifiedConnectionPackagesWithGroupId<Payload = AnyConnectionPackage> {
     payload: Payload,
     group_id: GroupId,
 }
@@ -326,13 +324,13 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     }
 }
 
-impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
+impl VerifiedConnectionPackagesWithGroupId<AnyConnectionPackage> {
     async fn create_local_connection_group(
         self,
         txn: &mut WriteDbTransaction<'_>,
         signing_key: &UserSigningKey,
         username: Username,
-    ) -> anyhow::Result<LocalGroup<ConnectionPackage>> {
+    ) -> anyhow::Result<LocalGroup<AnyConnectionPackage>> {
         info!("Creating local connection group");
 
         let (group, partial_params, self_group) = self
@@ -400,7 +398,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
     }
 }
 
-struct LocalGroup<Payload = ConnectionPackage> {
+struct LocalGroup<Payload = AnyConnectionPackage> {
     group: Group,
     partial_params: PartialCreateGroupParams,
     self_group: Option<SelfGroup>,
@@ -408,7 +406,7 @@ struct LocalGroup<Payload = ConnectionPackage> {
     payload: Payload,
 }
 
-impl LocalGroup<ConnectionPackage> {
+impl LocalGroup<AnyConnectionPackage> {
     async fn create_username_contact(
         self,
         txn: &mut WriteDbTransaction<'_>,
@@ -590,7 +588,7 @@ struct TargetedMessagePayload {
 
 struct UsernamePayload {
     connection_offer: EncryptedConnectionOffer,
-    verified_connection_package: ConnectionPackage,
+    verified_connection_package: AnyConnectionPackage,
 }
 
 struct LocalUsernameContact<Payload = UsernamePayload> {

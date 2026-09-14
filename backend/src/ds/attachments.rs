@@ -400,7 +400,7 @@ mod test {
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),
             download_debug_logs_expiration: Duration::seconds(60),
-            max_attachment_size: 20 * 1024 * 1024,
+            max_attachment_size: aircommon::DEFAULT_MAX_ATTACHMENT_SIZE,
             use_post_policy: false,
             require_content_length: true,
             storage_paths: Default::default(),

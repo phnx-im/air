@@ -51,9 +51,8 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => userCubit.state,
-      ).thenReturn(MockUiUser(id: 1, usernames: const []));
+      when(() => userCubit.state)
+          .thenReturn(MockUiUser(id: 1, usernames: const []));
     });
 
     Widget buildSubject({
@@ -61,15 +60,13 @@ void main() {
       List<UiUserProfile> profiles = const [],
       bool developerMode = false,
     }) {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(UserSettings(developerMode: developerMode));
+      when(() => userSettingsCubit.state)
+          .thenReturn(UserSettings(developerMode: developerMode));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: profiles.isEmpty ? userProfiles : profiles),
       );
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
 
       return MultiBlocProvider(
         providers: [

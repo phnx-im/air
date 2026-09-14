@@ -12,8 +12,11 @@ import 'package:flutter/material.dart';
 /// Smallest gap kept between a suggestion overlay and the safe area edges.
 const suggestionOverlayViewportMargin = S.s8;
 
-typedef SuggestionOverlayItemBuilder<T> =
-    Widget Function(BuildContext context, T item, bool isHighlighted);
+typedef SuggestionOverlayItemBuilder<T> = Widget Function(
+  BuildContext context,
+  T item,
+  bool isHighlighted,
+);
 
 class SuggestionOverlayStyle {
   const SuggestionOverlayStyle({

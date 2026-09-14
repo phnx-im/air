@@ -48,7 +48,7 @@ class ChatDebugInfoRow extends StatelessWidget {
           const DeveloperCaption('Developer'),
           ListRow(
             tokens: ListRowTokens.current,
-            fill: SemanticPalette.of(context).backgroundBase.secondary,
+            fill: SemanticPalette.of(context).fill.tertiary,
             label: 'Debug info',
             trailing: const AppIcon.chevronRight(size: developerRowIconSize),
             onTap: () => showChatDebugInfo(context, chat),

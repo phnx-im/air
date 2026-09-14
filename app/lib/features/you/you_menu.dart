@@ -174,7 +174,7 @@ class _MenuRow extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final radius = filled ? CornerRadius.px0 : CornerRadius.px12;
     final fill = switch ((filled, selected)) {
-      (true, _) => palette.backgroundBase.secondary,
+      (true, _) => palette.fill.tertiary,
       (false, true) => palette.backgroundBase.quinary,
       (false, false) => null,
     };

@@ -146,9 +146,8 @@ class _EmptyChatPane extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Center(
       child: Text(
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: SemanticPalette.of(context).text.tertiary,
-        ),
+        style: Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(color: SemanticPalette.of(context).text.tertiary),
         loc.chatScreen_emptyChat,
       ),
     );
@@ -477,9 +476,8 @@ class _InactiveChatFooter extends StatelessWidget {
       child: Text(
         loc.inactiveChatFooter_message,
         textAlign: .center,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: SemanticPalette.of(context).text.tertiary,
-        ),
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: SemanticPalette.of(context).text.tertiary),
       ),
     );
   }
