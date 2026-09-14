@@ -48,21 +48,21 @@ abstract final class ProductShotDevices {
 
   static const ProductShotDevice macOsWindow = ProductShotDevice(
     platform: ProductShotPlatform.macos,
-    name: 'macOS Window',
+    name: 'macOS',
     screenSize: Size(1280.0, 832.0),
     pixelRatio: 2.0,
   );
 
   static const ProductShotDevice windowsWindow = ProductShotDevice(
     platform: ProductShotPlatform.windows,
-    name: 'Windows Window',
+    name: 'Windows',
     screenSize: Size(1280.0, 800.0),
     pixelRatio: 1.5,
   );
 
   static const ProductShotDevice linuxWindow = ProductShotDevice(
     platform: ProductShotPlatform.linux,
-    name: 'Linux Window',
+    name: 'Linux',
     screenSize: Size(1280.0, 800.0),
     pixelRatio: 1.5,
   );

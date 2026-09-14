@@ -24,6 +24,7 @@ class ProductShot extends StatelessWidget {
     required this.child,
     required this.frameColor,
     this.device,
+    this.brightness = Brightness.light,
   });
 
   final Size size;
@@ -36,13 +37,17 @@ class ProductShot extends StatelessWidget {
   final Color frameColor;
   final Widget child;
 
+  /// Drives the drawn-on status bar icon color, matching the depicted OS
+  /// chrome to the brightness of the app screen inside the frame.
+  final Brightness brightness;
+
   @override
   Widget build(BuildContext context) {
     final platform = device?.platform ?? _defaultPlatform();
     final dev = device ?? ProductShotDevices.forPlatform(platform);
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
-    final statusBar = _statusBarFor(dev.platform, statusBarHeight);
+    final statusBar = _statusBarFor(dev.platform, statusBarHeight, brightness);
     final resolvedSafeArea = EdgeInsets.only(
       left: dev.safeArea.left,
       top: math.max(dev.safeArea.top, statusBarHeight),
@@ -261,12 +266,23 @@ double _statusBarHeightFor(ProductShotDevice device) {
   }
 }
 
-Widget _statusBarFor(ProductShotPlatform platform, double statusBarHeight) {
+Widget _statusBarFor(
+  ProductShotPlatform platform,
+  double statusBarHeight,
+  Brightness brightness,
+) {
+  final isLightMode = brightness == Brightness.light;
   switch (platform) {
     case ProductShotPlatform.android:
-      return AndroidStatusBar(height: statusBarHeight);
+      return AndroidStatusBar(
+        height: statusBarHeight,
+        isLightMode: isLightMode,
+      );
     case ProductShotPlatform.ios:
-      return IosStatusBar(height: statusBarHeight);
+      return IosStatusBar(
+        height: statusBarHeight,
+        color: isLightMode ? Colors.black : Colors.white,
+      );
     case ProductShotPlatform.macos:
     case ProductShotPlatform.windows:
     case ProductShotPlatform.linux:
