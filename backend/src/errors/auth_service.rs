@@ -92,26 +92,6 @@ impl From<DeleteUserError> for Status {
 }
 
 #[derive(Error, Debug)]
-pub(crate) enum PublishConnectionPackageError {
-    /// Storage provider error
-    #[error("Storage provider error")]
-    StorageError,
-    /// Invalid KeyPackage
-    #[error("Invalid KeyPackage")]
-    InvalidKeyPackage,
-}
-
-impl From<PublishConnectionPackageError> for Status {
-    fn from(e: PublishConnectionPackageError) -> Self {
-        let msg = e.to_string();
-        match e {
-            PublishConnectionPackageError::StorageError => Status::internal(msg),
-            PublishConnectionPackageError::InvalidKeyPackage => Status::invalid_argument(msg),
-        }
-    }
-}
-
-#[derive(Error, Debug)]
 pub(crate) enum IssueTokensError {
     /// Something was wrong in the request
     #[error("Bad request: {0}")]

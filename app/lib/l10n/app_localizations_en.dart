@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -43,6 +44,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
       'If turned on, the keyboard\'s \"Enter\" key sends the message.';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limit GIF autoplay';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'If turned on, GIFs loop 3 times when viewed, then can be manually replayed.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Read receipts';
@@ -913,6 +922,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to upload attachment. Try again.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'The image could not be decoded. It may be damaged or in an unsupported format.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -1066,6 +1079,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get licensesScreen_title => 'Licenses';
+
+  @override
+  String get licensesScreen_searchHint => 'Search packages';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count packages',
+      one: '$count package',
+      zero: 'No packages',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'No packages found.';
 
   @override
   String get contactUsScreen_title => 'Contact Air';
@@ -1299,10 +1330,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Open TestFlight on iOS or Google Play on Android, then update Air.';
+      'Open the App Store on iOS or Google Play on Android, then update Air.';
 
   @override
   String get appOutdatedScreen_action => 'Update';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Update Air by $date to keep using it';
+  }
 
   @override
   String get contactRequestDialog_title => 'Contact request';

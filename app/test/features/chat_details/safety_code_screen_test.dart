@@ -65,9 +65,8 @@ void main() {
         12345,
       ]);
 
-      when(
-        () => userCubit.safetyCodes(any()),
-      ).thenAnswer((_) => Future.value(dummy));
+      when(() => userCubit.safetyCodes(any()))
+          .thenAnswer((_) => Future.value(dummy));
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 

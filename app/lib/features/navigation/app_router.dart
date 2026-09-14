@@ -225,10 +225,8 @@ extension on HomeNavigationState {
       // the tab's own screen at the small breakpoint, and as the two panes of
       // the desktop layout above it. Only the phone pushes a section, which
       // the two-pane layout shows beside its list instead.
-      if ((activeTab, youSection) case (
-        HomeTab.profile,
-        final section?,
-      ) when breakpoint.isSmall)
+      if ((activeTab, youSection) case (HomeTab.profile, final section?)
+          when breakpoint.isSmall)
         MaterialPage(
           key: ValueKey("you-section-screen-$section"),
           child: YouSectionScreen(section: section),

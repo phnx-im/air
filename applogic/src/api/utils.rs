@@ -4,9 +4,20 @@
 
 //! Misc. functions
 
+use aircoreclient::clients::CoreUser;
+use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
 use crate::api::user::User;
+
+/// Version of the app: `{major}.{minor}.{patch}[-dev]+[{build_number}.]{commit_hash}`.
+///
+/// `dev` marks a build from a dirty tree. The build number is omitted when
+/// unset (local builds).
+#[frb(sync)]
+pub fn app_version() -> String {
+    CoreUser::version().to_string()
+}
 
 /// Delete all databases of this client.
 pub async fn delete_databases(db_path: String) -> anyhow::Result<()> {

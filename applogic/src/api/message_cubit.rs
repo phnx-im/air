@@ -115,15 +115,15 @@ impl MessageContext {
 
     async fn load_and_emit_state(&self) {
         let message = self.core_user.message(self.message_id).await;
-        let local_attachment_ids = self
+        let local_attachment_infos = self
             .core_user
-            .attachment_ids_for_message(self.message_id)
+            .attachment_infos_for_message(self.message_id)
             .await;
 
         debug!(?message, "load_and_emit_state");
         match message {
             Ok(Some(message)) => {
-                let message = UiChatMessage::from_message(message, &local_attachment_ids);
+                let message = UiChatMessage::from_message(message, &local_attachment_infos);
                 self.state_tx.send_modify(|state| state.message = message);
             }
             Ok(None) => {}

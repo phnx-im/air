@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:air/core/core.dart';
+
 import 'dart:ui' as ui;
 
 /// Loads an attachment image from the database via an [AttachmentsRepository].
@@ -43,23 +44,15 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
   }
 
   Future<ui.Codec> _loadAsync(
-    final UiAttachment key,
-    final ImageDecoderCallback decode,
-    final StreamController<ImageChunkEvent> chunkEvents,
+    UiAttachment key,
+    ImageDecoderCallback decode,
+    StreamController<ImageChunkEvent> chunkEvents,
   ) async {
-    LoadedImageAttachment loaded;
+    Uint8List? bytes;
     try {
-      loaded = await attachmentsRepository.loadImageAttachment(
+      bytes = await attachmentsRepository.loadImageAttachment(
         attachmentId: key.attachmentId,
         retryDownloadIfFailed: false,
-        chunkEventCallback: (cumulativeBytesLoaded) {
-          chunkEvents.add(
-            ImageChunkEvent(
-              cumulativeBytesLoaded: cumulativeBytesLoaded.toInt(),
-              expectedTotalBytes: key.size,
-            ),
-          );
-        },
       );
     } catch (e) {
       scheduleMicrotask(() {
@@ -70,7 +63,7 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
       chunkEvents.close();
     }
 
-    final buffer = await ui.ImmutableBuffer.fromUint8List(loaded.bytes);
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     return decode(buffer);
   }
 

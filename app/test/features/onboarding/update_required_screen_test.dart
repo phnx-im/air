@@ -6,6 +6,7 @@ import 'package:air/features/onboarding/update_required_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
+
 import '../../helpers.dart';
 
 void main() {

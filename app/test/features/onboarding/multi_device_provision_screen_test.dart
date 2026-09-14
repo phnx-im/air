@@ -40,9 +40,8 @@ void main() {
       navigationCubit = MockNavigationCubit();
       provisionedUser = MockMultiDeviceProvisionedUser();
       when(() => provisionedUser.take()).thenReturn(MockUser());
-      when(
-        () => registrationCubit.state,
-      ).thenReturn(const RegistrationState(domain: 'example.com'));
+      when(() => registrationCubit.state)
+          .thenReturn(const RegistrationState(domain: 'example.com'));
     });
 
     Widget buildSubject(Stream<MultiDeviceProvisionEvent> stream) =>
@@ -58,12 +57,11 @@ void main() {
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: MultiDeviceProvisionScreen(
-                  provisionClient:
-                      ({
-                        required String domain,
-                        required String dbPath,
-                        required MultiDeviceProvisionedUser provisionedUser,
-                      }) => stream,
+                  provisionClient: ({
+                    required String domain,
+                    required String dbPath,
+                    required MultiDeviceProvisionedUser provisionedUser,
+                  }) => stream,
                   dbPathResolver: () async => '/tmp/test-link-db',
                   provisionedUserFactory: () => provisionedUser,
                   onLinked: (_) {},

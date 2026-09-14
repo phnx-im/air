@@ -62,9 +62,7 @@ class TimedTasksCard extends StatelessWidget {
         for (final task in tasks)
           DeveloperInfoRow(
             label: task.name,
-            value:
-                '${_formatDateTime(task.scheduledAt.toLocal())}  '
-                '(${_formatRelative(task.scheduledAt)})',
+            value: _formatSchedule(task.scheduledAt),
             trailing: _TriggerButton(onPressed: () => _trigger(task)),
           ),
       ],
@@ -90,6 +88,15 @@ class TimedTasksCard extends StatelessWidget {
     }
     onTriggered();
   }
+}
+
+String _formatSchedule(DateTime dt) {
+  // One-shot tasks are parked far in the future once they ran, see `PARKED_AT`
+  // in coreclient.
+  if (dt.year >= 9999) {
+    return 'done';
+  }
+  return '${_formatDateTime(dt.toLocal())}  (${_formatRelative(dt)})';
 }
 
 String _formatDateTime(DateTime dt) {

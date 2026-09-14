@@ -256,7 +256,8 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
           // its own pixel ratio, landing near a real screenshot's resolution.
           logicalSize: _marketingShots
               ? _canvasSizeFor(platform)
-              : deviceShotDevice.frameBounds.size * deviceShotDevice.exportScale,
+              : deviceShotDevice.frameBounds.size *
+                    deviceShotDevice.exportScale,
           (tester) async {
             final screen = spec.buildScreen(platform);
             await tester.pumpWidget(
@@ -543,22 +544,33 @@ void main() {
 
 /// Stubs each attachment id to its own image, since the mocked repository
 /// otherwise can't tell which attachment is being requested.
+///
+/// The classification has to resolve to `false` for the still image to be
+/// painted at all, otherwise [AttachmentImage] stays on the download overlay.
 void _stubAttachments(
   MockAttachmentsRepository attachmentsRepository,
   Map<AttachmentId, ImageData> images,
 ) {
+  when(
+    () => attachmentsRepository.isAttachmentAnimated(
+      attachmentId: any(named: "attachmentId"),
+      retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
+    ),
+  ).thenAnswer((_) async => false);
+
   for (final entry in images.entries) {
+    when(
+      () => attachmentsRepository.loadThumbnail(
+        attachmentId: entry.key,
+        retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
+      ),
+    ).thenAnswer((_) async => entry.value.data);
     when(
       () => attachmentsRepository.loadImageAttachment(
         attachmentId: entry.key,
-        retryDownloadIfFailed: false,
-        chunkEventCallback: any(named: "chunkEventCallback"),
+        retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
       ),
-    ).thenAnswer(
-      (_) => Future.value(
-        LoadedImageAttachment(bytes: entry.value.data, isAnimated: false),
-      ),
-    );
+    ).thenAnswer((_) async => entry.value.data);
   }
 }
 

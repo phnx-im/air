@@ -159,7 +159,7 @@ Widget _quote(
     decoration: BoxDecoration(
       border: Border(
         left: BorderSide(
-          color: palette.separator.primary,
+          color: palette.text.quaternary,
           width: MessageTextTokens.quoteBarWidth,
         ),
       ),
@@ -382,7 +382,7 @@ Widget _errorBlock(BuildContext context, String message) {
     decoration: BoxDecoration(
       border: Border(
         left: BorderSide(
-          color: palette.separator.primary,
+          color: palette.text.quaternary,
           width: MessageTextTokens.quoteBarWidth,
         ),
       ),

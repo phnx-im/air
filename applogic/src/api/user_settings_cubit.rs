@@ -10,6 +10,7 @@ use aircoreclient::{
     db::notification::{DbEntityId, DbNotification},
 };
 use anyhow::{anyhow, bail};
+use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
@@ -31,6 +32,8 @@ pub struct UserSettings {
     pub sidebar_width: f64,
     #[frb(default = false)]
     pub send_on_enter: bool,
+    #[frb(default = false)]
+    pub limit_animated_images_loops: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
     /// Whether the developer surface is unlocked on this device.
@@ -43,6 +46,9 @@ pub struct UserSettings {
     /// Index into the client `EmojiSkinTone` enum (0 = default/none).
     #[frb(default = 0)]
     pub default_emoji_skin_tone: u8,
+    /// The version expiry announced by the server that the user dismissed the
+    /// update banner for. A different announced expiry shows the banner again.
+    pub dismissed_version_expiry: Option<DateTime<Utc>>,
 }
 
 impl Default for UserSettings {
@@ -53,10 +59,12 @@ impl Default for UserSettings {
             interface_scale: None,
             sidebar_width: 240.0,
             send_on_enter: false,
+            limit_animated_images_loops: false,
             read_receipts: true,
             developer_mode: false,
             experimental_features: false,
             default_emoji_skin_tone: 0,
+            dismissed_version_expiry: None,
         }
     }
 }
@@ -69,10 +77,12 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let interface_scale = core_user.user_setting().await;
     let sidebar_width = core_user.user_setting().await;
     let send_on_enter = core_user.user_setting().await;
+    let limit_animated_images_loops = core_user.user_setting().await;
     let read_receipts = core_user.user_setting().await;
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
+    let dismissed_version_expiry = core_user.user_setting().await;
 
     let defaults = UserSettings::default();
     UserSettings {
@@ -82,6 +92,10 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
             .map_or(defaults.sidebar_width, |SidebarWidthSetting(value)| value),
         send_on_enter: send_on_enter
             .map_or(defaults.send_on_enter, |SendOnEnterSetting(value)| value),
+        limit_animated_images_loops: limit_animated_images_loops.map_or(
+            defaults.limit_animated_images_loops,
+            |LimitAnimatedImagesLoopsSetting(value)| value,
+        ),
         read_receipts: read_receipts
             .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value),
         developer_mode: developer_mode
@@ -94,6 +108,8 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
             defaults.default_emoji_skin_tone,
             |DefaultEmojiSkinToneSetting(value)| value,
         ),
+        dismissed_version_expiry: dismissed_version_expiry
+            .map(|DismissedVersionExpirySetting(value)| value),
     }
 }
 
@@ -204,6 +220,19 @@ impl UserSettingsCubitBase {
         Ok(())
     }
 
+    pub async fn set_limit_animated_images_loops(&self, value: bool) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().limit_animated_images_loops == value {
+            return Ok(());
+        }
+        self.core_user
+            .set_user_setting(&LimitAnimatedImagesLoopsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.limit_animated_images_loops = value);
+        Ok(())
+    }
+
     pub async fn set_read_receipts(&self, value: bool) -> anyhow::Result<()> {
         if self.core.state_tx().borrow().read_receipts == value {
             return Ok(());
@@ -253,6 +282,19 @@ impl UserSettingsCubitBase {
         self.core
             .state_tx()
             .send_modify(|state| state.default_emoji_skin_tone = value);
+        Ok(())
+    }
+
+    pub async fn set_dismissed_version_expiry(&self, value: DateTime<Utc>) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().dismissed_version_expiry == Some(value) {
+            return Ok(());
+        }
+        self.core_user
+            .set_user_setting(&DismissedVersionExpirySetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.dismissed_version_expiry = Some(value));
         Ok(())
     }
 
@@ -335,6 +377,28 @@ impl UserSetting for DefaultEmojiSkinToneSetting {
     }
 }
 
+/// Device-local, since the banner is dismissed on the device in hand.
+///
+/// Stored in whole seconds, like the announced expiry it is compared against.
+struct DismissedVersionExpirySetting(DateTime<Utc>);
+
+impl UserSetting for DismissedVersionExpirySetting {
+    const KEY: &'static str = "dismissed_version_expiry";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(self.0.timestamp().to_be_bytes().to_vec())
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        let bytes: [u8; 8] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid dismissed_version_expiry bytes"))?;
+        DateTime::from_timestamp(i64::from_be_bytes(bytes), 0)
+            .map(Self)
+            .ok_or_else(|| anyhow!("dismissed_version_expiry out of range"))
+    }
+}
+
 struct InterfaceScaleSetting(f64);
 
 impl UserSetting for InterfaceScaleSetting {
@@ -402,6 +466,23 @@ impl UserSetting for SendOnEnterSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
+        }
+    }
+}
+
+struct LimitAnimatedImagesLoopsSetting(bool);
+
+impl UserSetting for LimitAnimatedImagesLoopsSetting {
+    const KEY: &'static str = "limit_animated_images_loops";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid limit_animated_images_loops bytes"),
         }
     }
 }

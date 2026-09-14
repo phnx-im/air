@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -43,6 +44,14 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
       'Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'GIF-Autoplay begrenzen';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Wenn aktiviert, werden GIFs beim Anzeigen 3-mal wiederholt und können danach manuell erneut abgespielt werden.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
@@ -934,6 +943,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'Das Bild konnte nicht dekodiert werden. Es ist möglicherweise beschädigt oder hat ein nicht unterstütztes Format.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -1089,6 +1102,24 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get licensesScreen_title => 'Lizenzen';
+
+  @override
+  String get licensesScreen_searchHint => 'Pakete suchen';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Pakete',
+      one: '$count Paket',
+      zero: 'Keine Pakete',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Keine Pakete gefunden.';
 
   @override
   String get contactUsScreen_title => 'Air kontaktieren';
@@ -1324,10 +1355,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get appOutdatedScreen_description =>
-      'Öffne TestFlight auf iOS oder Google Play auf Android und aktualisiere Air.';
+      'Öffne den App Store auf iOS oder Google Play auf Android und aktualisiere Air.';
 
   @override
   String get appOutdatedScreen_action => 'Aktualisieren';
+
+  @override
+  String versionExpiryBanner_message(String date) {
+    return 'Aktualisiere Air bis zum $date, um es weiter zu nutzen';
+  }
 
   @override
   String get contactRequestDialog_title => 'Kontaktanfrage';

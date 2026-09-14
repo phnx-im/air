@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_operation_tree\n        WHERE NOT EXISTS (\n                SELECT 1 FROM vc_derivation_epoch_log_entry\n                WHERE epoch_id = vc_operation_tree.epoch_id\n            )\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_emulation_binding\n                WHERE epoch_id = vc_operation_tree.epoch_id\n            )\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_retained_key_package_material\n                WHERE epoch_id = vc_operation_tree.epoch_id\n            )\n            AND NOT EXISTS (\n                SELECT 1 FROM vc_derivation_epoch_legacy_hold\n                WHERE epoch_id = vc_operation_tree.epoch_id\n            )\n        RETURNING epoch_id AS \"epoch_id!: Vec<u8>\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "epoch_id!: Vec<u8>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "vc_operation_tree",
+            "name": "epoch_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "63a92409f543adac3a3e6932762000c0a8640ce73d48eff9b1d0fb842532d1f2"
+}

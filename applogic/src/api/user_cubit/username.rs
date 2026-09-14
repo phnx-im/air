@@ -18,7 +18,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    api::user::User,
+    api::{user::User, user_cubit::VersionStatus},
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
@@ -73,12 +73,7 @@ impl UsernameContext {
         background_tasks: &UsernameBackgroundTasks,
     ) -> BackgroundStreamTask<Self, UsernameQueueMessage> {
         let username = self.username_record.username.clone();
-        let (prefix, suffix_len) = username
-            .plaintext()
-            .split_at_checked(2)
-            .map(|(prefix, suffix)| (prefix, suffix.len()))
-            .unwrap_or(("unknown", 0));
-        let name = format!("username-{prefix}<..{suffix_len}>");
+        let name = format!("username-{}", username.truncated_plaintext());
         background_tasks.insert(username, cancel.clone());
         BackgroundStreamTask::new(name, self, cancel)
     }
@@ -136,22 +131,22 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
         {
             Ok(stream) => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
-                    if !state.inner.unsupported_version {
+                    if let VersionStatus::Supported = state.inner.version_status {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
-                    inner.unsupported_version = false;
+                    inner.version_status = VersionStatus::Supported;
                     true
                 });
                 stream
             }
             Err(error) if error.is_unsupported_version() => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
-                    if state.inner.unsupported_version {
+                    if let VersionStatus::Unsupported = state.inner.version_status {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
-                    inner.unsupported_version = true;
+                    inner.version_status = VersionStatus::Unsupported;
                     true
                 });
                 return Err(error.into());

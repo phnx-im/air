@@ -80,7 +80,8 @@ impl TimestampedMessage {
 }
 
 /// Identifier of a message in a chat
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[display("{uuid}")]
 pub struct MessageId {
     pub uuid: Uuid,
 }
@@ -170,6 +171,37 @@ impl ChatMessage {
         let message = Message::Content(Box::new(ContentMessage::new(
             sender, false, content, group_id,
         )));
+        let timestamped_message = TimestampedMessage {
+            message,
+            timestamp: TimeStamp::now(),
+        };
+        Self {
+            chat_id,
+            message_id,
+            in_reply_to: None,
+            timestamped_message,
+            status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
+        }
+    }
+
+    /// An unsent message whose content is not final yet.
+    ///
+    /// No Mimi ID is calculated, because it depends on the content and the
+    /// final content is not known yet.
+    pub(crate) fn new_provisional_message(
+        sender: UserId,
+        chat_id: ChatId,
+        message_id: MessageId,
+        content: MimiContent,
+    ) -> Self {
+        let message = Message::Content(Box::new(ContentMessage {
+            mimi_id: None,
+            sender,
+            sent: false,
+            content,
+            edited_at: None,
+        }));
         let timestamped_message = TimestampedMessage {
             message,
             timestamp: TimeStamp::now(),
