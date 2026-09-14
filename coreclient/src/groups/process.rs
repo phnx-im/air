@@ -48,6 +48,7 @@ use crate::{
     },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
+    outbound_service::resync::Resync,
     privacy_pass,
 };
 
@@ -670,6 +671,8 @@ impl Group {
         staged_commit: &StagedCommit,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
+        // Processing a commit in this group proves the group is in sync
+        Resync::remove(&mut *txn, group_id).await?;
         if let Some(pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {
