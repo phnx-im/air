@@ -1520,4 +1520,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get shareScreen_close => 'Fermer';
+
+  @override
+  String get dbMigration_updating => 'Mise à jour de la base de données...';
 }

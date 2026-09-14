@@ -1501,4 +1501,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get shareScreen_close => 'Stäng';
+
+  @override
+  String get dbMigration_updating => 'Uppdaterar databasen...';
 }

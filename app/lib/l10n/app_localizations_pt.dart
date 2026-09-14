@@ -1516,6 +1516,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get shareScreen_close => 'Fechar';
+
+  @override
+  String get dbMigration_updating => 'Atualizando o banco de dados...';
 }
 
 /// The translations for Portuguese, as used in Portugal (`pt_PT`).
@@ -3026,4 +3029,7 @@ class AppLocalizationsPtPt extends AppLocalizationsPt {
 
   @override
   String get shareScreen_close => 'Fechar';
+
+  @override
+  String get dbMigration_updating => 'A atualizar a base de dados...';
 }

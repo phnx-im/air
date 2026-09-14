@@ -2531,6 +2531,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get shareScreen_close;
+
+  /// Progress label on the startup splash while the client database migrations run, so the user does not think the app is stuck.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating database...'**
+  String get dbMigration_updating;
 }
 
 class _AppLocalizationsDelegate

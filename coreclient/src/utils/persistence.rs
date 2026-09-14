@@ -435,6 +435,8 @@ impl From<GroupIdWrapper> for GroupId {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use aircommon::{
         codec::PersistenceCodec,
         identifiers::{QsClientId, QsUserId, UserId},
@@ -456,6 +458,7 @@ mod tests {
     use crate::{
         clients::store::{ClientRecord, ClientRecordState},
         groups::openmls_provider::storage_provider::SqliteStorageProvider,
+        utils::migration_progress::MigrationProgress,
     };
 
     #[test]
@@ -489,6 +492,76 @@ mod tests {
 
     fn legacy_db_name(user_id: &UserId) -> String {
         format!("{}@{}.db", user_id.uuid(), user_id.domain())
+    }
+
+    /// An observer that records every report it receives.
+    fn recording_observer() -> (MigrationObserver, Arc<Mutex<Vec<MigrationProgress>>>) {
+        let reports = Arc::new(Mutex::new(Vec::new()));
+        let recorded = reports.clone();
+        let observer = MigrationObserver::new(move |progress| {
+            recorded.lock().unwrap().push(progress);
+        });
+        (observer, reports)
+    }
+
+    #[tokio::test]
+    async fn reports_migration_progress() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let (observer, reports) = recording_observer();
+
+        open_client_db_with_progress(db_path, Uuid::new_v4(), &observer).await?;
+
+        assert_eq!(
+            *reports.lock().unwrap(),
+            [MigrationProgress::Running, MigrationProgress::Idle]
+        );
+
+        Ok(())
+    }
+
+    /// The common case: nothing pending, so nothing is reported and the UI has
+    /// no reason to flash a progress indicator.
+    #[tokio::test]
+    async fn reports_nothing_when_up_to_date() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        open_client_db(db_path, client_record_id).await?;
+
+        let (observer, reports) = recording_observer();
+        open_client_db_with_progress(db_path, client_record_id, &observer).await?;
+
+        assert!(reports.lock().unwrap().is_empty());
+
+        Ok(())
+    }
+
+    /// A failed run must still report `Idle`, or the indicator stays up forever.
+    #[tokio::test]
+    async fn reports_idle_after_a_failed_migration() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let db = open_client_db(db_path, client_record_id).await?;
+
+        // Make the first migration pending again. Re-applying it fails, because
+        // it creates tables that are already there.
+        sqlx::query("DELETE FROM _sqlx_migrations WHERE version = (SELECT MIN(version) FROM _sqlx_migrations)")
+            .execute(db.write().await?.as_mut())
+            .await?;
+
+        let (observer, reports) = recording_observer();
+        run_client_migrations(&db, &observer)
+            .await
+            .expect_err("re-applying the first migration must fail");
+
+        assert_eq!(
+            *reports.lock().unwrap(),
+            [MigrationProgress::Running, MigrationProgress::Idle]
+        );
+
+        Ok(())
     }
 
     /// A legacy client DB file and its SQLite journal siblings are renamed to

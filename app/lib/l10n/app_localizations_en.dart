@@ -1487,4 +1487,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareScreen_close => 'Close';
+
+  @override
+  String get dbMigration_updating => 'Updating database...';
 }
