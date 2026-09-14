@@ -278,11 +278,7 @@ impl Resync {
             // Drop the resync, mark the chat as inactive and delete the group state.
             connection
                 .with_transaction(async |txn| -> anyhow::Result<()> {
-                    handle_group_not_found_on_ds(txn, &self.group_id).await?;
-                    if let Some(chat_id) = existing_chat_id {
-                        txn.notifier().add(chat_id);
-                    }
-                    Ok(())
+                    handle_group_not_found_on_ds(txn, &self.group_id).await
                 })
                 .await
                 .map_err(OutboundServiceError::recoverable)?;
