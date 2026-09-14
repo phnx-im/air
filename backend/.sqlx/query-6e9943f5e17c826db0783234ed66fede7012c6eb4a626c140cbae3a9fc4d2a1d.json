@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n            ciphertext AS \"ciphertext: BlobDecoded<EncryptedEpochSnapshot>\"\n        FROM\n            ds_epoch_snapshot\n        WHERE\n            group_id = $1 AND epoch = $2 AND created_at >= $3",
+  "query": "SELECT\n                ciphertext AS \"ciphertext: BlobDecoded<EncryptedEpochSnapshot>\"\n            FROM\n                ds_epoch_snapshot\n            WHERE\n                group_id = $1 AND epoch = $2 AND created_at >= $3",
   "describe": {
     "columns": [
       {
@@ -26,5 +26,5 @@
       false
     ]
   },
-  "hash": "2c4af8cb278fb155b2eb2c4e338ca8db4493bf031dfc13fb3d857c77db1ae15c"
+  "hash": "6e9943f5e17c826db0783234ed66fede7012c6eb4a626c140cbae3a9fc4d2a1d"
 }
