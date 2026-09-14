@@ -186,7 +186,6 @@ impl OutboundServiceContext {
             let _is_onboarding = resync.is_onboarding();
             let result = {
                 let mut connection = self.db.write().await?;
-
                 let result = resync
                     .create_and_send_commit(
                         &mut connection,
@@ -196,7 +195,6 @@ impl OutboundServiceContext {
                     )
                     .await;
                 if let Ok(Some((chat_id, _))) = &result {
-                    info!("Got profiles infos");
                     Resync::remove(&mut connection, &group_id).await?;
                     connection.notifier().update(*chat_id);
                     // TODO: Schedule a job here that deals with fetching profile
@@ -221,7 +219,7 @@ impl OutboundServiceContext {
 
                     error!(%error, "Failed to send resync; dropping");
                     Resync::remove(self.db.write().await?, &group_id).await?;
-                    return Err(error);
+                    continue;
                 }
                 Err(OutboundServiceError::Recoverable(error)) => {
                     error!(%error, "Failed to send resync; will retry later");
@@ -262,9 +260,6 @@ impl Resync {
         signer: &LeafSigningKey,
         own_user_id: &UserId,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
-        // TODO: We should somehow mark the chat as "resyncing" in the DB and
-        // reflect that in the UI.
-
         let shares_vc_leaf = self.shares_vc_leaf;
         if shares_vc_leaf
             && SelfGroup::load(&mut connection)
