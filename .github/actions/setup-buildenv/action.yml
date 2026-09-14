@@ -221,17 +221,14 @@ runs:
     # them through the hook config instead (see app/hook/build.dart).
     - if: inputs.flutter == 'true'
       name: Configure the Rust build hook
-      shell: bash
+      shell: python
       run: |
-        mkdir -p app/.dart_tool
-        jq -n \
-          --arg build_number "$AIR_BUILD_NUMBER" \
-          --arg refresh "$AIR_REFRESH_BUILD_METADATA" \
-          --arg rustc_wrapper "${RUSTC_WRAPPER:-}" \
-          '{cargo_env: ({
-              AIR_BUILD_NUMBER: $build_number,
-              AIR_REFRESH_BUILD_METADATA: $refresh,
-              RUSTC_WRAPPER: $rustc_wrapper
-            } | with_entries(select(.value != "")))}' \
-          > app/.dart_tool/air_hook_config.json
-        cat app/.dart_tool/air_hook_config.json
+        import json, os, pathlib
+
+        pathlib.Path("app/.dart_tool").mkdir(parents=True, exist_ok=True)
+
+        keys = ["AIR_BUILD_NUMBER", "AIR_REFRESH_BUILD_METADATA", "RUSTC_WRAPPER"]
+        env = {k: v for k in keys if (v := os.getenv(k))}
+
+        data = json.dumps({"cargo_env": env})
+        pathlib.Path("app/.dart_tool/air_hook_config.json").write_text(data)
