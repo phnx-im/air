@@ -327,8 +327,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let value = f(&mut group_state, &mut group_data).await?;
         let new_epoch = group_state.group().epoch().as_u64();
-        // These callers never reach a new epoch a Welcome could refer to, so
-        // the outbox only ever carries migrated legacy entries.
+        // These callers never reach a new epoch a Welcome could refer to, so the welcome info
+        // outbox only ever carries migrated legacy entries. The epoch snapshot outbox is filled by
+        // a bootstrap-carrying join.
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
             .await?;
 
@@ -1462,7 +1463,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .map(|(group_bootstrap, epoch)| {
                             QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
                                 group_id: qgid.clone().into(),
-                                // APQ joins are rejected on this path.
+                                // Set once the APQ join connection group RPC carries a group
+                                // bootstrap.
                                 pq_group_id: None,
                                 epoch,
                                 timestamp: TimeStamp::now(),
