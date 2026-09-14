@@ -11,7 +11,9 @@ import 'package:code_assets/code_assets.dart';
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
 // Optional build configuration, written by `just test-flutter` and by CI
-// (see .github/actions/setup-buildenv). Keys:
+// (see .github/actions/setup-buildenv).
+
+Keys:
 //
 // - `skip_rust_build`: skip the Rust build, which the Flutter tests don't
 //   need. See <https://github.com/dart-lang/native/issues/3237>.
