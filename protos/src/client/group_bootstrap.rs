@@ -24,9 +24,7 @@
 //! Keys and secrets travel as plain byte strings rather than as their Rust
 //! types, so that the encoding does not depend on the `serde` shape of a type
 //! defined elsewhere. The receiver converts them into the typed keys and
-//! rejects values of the wrong size. The one exception is
-//! [`EncryptedGroupBootstrap`], whose encoding the `AppEphemeral` payloads
-//! already ship:
+//! rejects values of the wrong size.
 //!
 //! ```cddl
 //! Ciphertext = { "ciphertext": bstr, "nonce": bstr .size 12 }
