@@ -241,3 +241,7 @@ build-rpm:
 [env('APP_FLAVOR', app_flavor)]
 build-deb:
     nfpm package -p deb
+
+[working-directory('app')]
+@flutter *args:
+    flutter {{ args }}
