@@ -99,13 +99,6 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) async fn notify_pending_resyncs(&self) -> anyhow::Result<()> {
-        if Resync::any_pending(self.db().read().await?).await? {
-            self.outbound_service().notify_work();
-        }
-        Ok(())
-    }
-
     /// Onboard this emulator client into every higher-level group the virtual
     /// client is already a member of, using variant B (external commit) of the
     /// mls-virtual-clients draft: queue a resync that evicts the virtual
@@ -711,12 +704,6 @@ mod persistence {
                 queued.chat_id.as_ref() == Some(chat_id)
                     || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
             }))
-        }
-
-        pub(crate) async fn any_pending(mut connection: impl ReadConnection) -> sqlx::Result<bool> {
-            query_scalar!(r#"SELECT EXISTS(SELECT 1 FROM resync_queue) AS "exists: bool""#)
-                .fetch_one(connection.as_mut())
-                .await
         }
 
         pub(crate) async fn remove(

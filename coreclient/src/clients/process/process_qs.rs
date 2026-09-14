@@ -1631,10 +1631,6 @@ impl CoreUser {
             connection.notify();
         }
 
-        if let Err(error) = self.notify_pending_resyncs().await {
-            error!(%error, "Failed to check for pending resyncs");
-        }
-
         debug!(elapsed = ?started.elapsed(), num_messages, "Processed QS messages");
 
         result.chats_with_changed_notifications.sort_unstable();
