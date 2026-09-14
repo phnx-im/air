@@ -46,7 +46,7 @@ jobs:
 
       - name: Build app
         working-directory: app
-        run: flutter build linux -v --flavor ${{ env.APP_FLAVOR }} --build-number=${{ steps.setup-buildenv.outputs.build-number }} --build-name=${{ steps.setup-buildenv.outputs.build-name }}
+        run: flutter build linux -v --flavor ${{ env.APP_FLAVOR }} --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload app bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
