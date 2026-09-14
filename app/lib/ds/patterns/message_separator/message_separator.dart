@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_separator/message_separator_tokens.dart';
 import 'package:flutter/widgets.dart';
@@ -97,6 +98,13 @@ class MessageSeparatorPill extends StatelessWidget {
             ? palette.function.neutral.toggleBlack
             : palette.backgroundBase.quaternary,
         borderRadius: BorderRadius.circular(CornerRadius.full),
+        // The pane the pill sits on the page on a phone, the window shade in
+        // the desktop content pane.
+        border: Border.all(
+          color: PanelSurface.colorOf(context),
+          width: MessageSeparatorTokens.pillStrokeWidth,
+          strokeAlign: BorderSide.strokeAlignOutside,
+        ),
       ),
       child: Text(
         label,

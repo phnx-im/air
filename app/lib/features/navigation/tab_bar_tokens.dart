@@ -18,10 +18,6 @@ abstract final class TabBarTokens {
   /// onto it.
   static const double tabGap = -S.s8;
 
-  /// How far the active pill sits inside the bar on every side, leaving a ring
-  /// of bar background around it.
-  static const double activePillInset = StrokeWidth.px1;
-
   static const double iconSize = S.s20;
   static const double avatarSize = S.s24;
   static const double labelGap = S.s4;

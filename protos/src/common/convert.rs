@@ -24,13 +24,14 @@ use semver::BuildMetadata;
 use tonic::Status;
 
 use crate::{
+    client::component,
     common::v1::{ExpirationData, Version},
     convert::{FromRef, TryFromRef, TryRefInto},
     validation::{MissingFieldError, MissingFieldExt},
 };
 
 use super::v1::{
-    Ciphertext, Fqdn, GroupId, HpkeCiphertext, IndexedCiphertext, QualifiedGroupId,
+    AirFeatures, Ciphertext, Fqdn, GroupId, HpkeCiphertext, IndexedCiphertext, QualifiedGroupId,
     RatchetEncryptionKey, RatchetSecret, Signature, Timestamp, Uuid,
 };
 
@@ -428,17 +429,17 @@ impl From<time::ExpirationData> for ExpirationData {
     }
 }
 
+/// Formats as semver: `{major}.{minor}.{patch}[-{pre}][+[{build_number}.]{commit_hash}]`.
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
         if !self.pre.is_empty() {
             write!(f, "-{}", self.pre)?;
         }
-        if self.build_number > 0 {
-            write!(f, "+{}.", self.build_number)?;
-        }
-        for byte in self.commit_hash.iter() {
-            write!(f, "{:02x}", byte)?;
+        let mut build = String::new();
+        write_build(self, &mut build)?;
+        if !build.is_empty() {
+            write!(f, "+{build}")?;
         }
         Ok(())
     }
@@ -491,6 +492,38 @@ fn write_build(value: &Version, buf: &mut String) -> fmt::Result {
     Ok(())
 }
 
+impl From<component::AirFeatures> for AirFeatures {
+    fn from(
+        component::AirFeatures {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }: component::AirFeatures,
+    ) -> Self {
+        Self {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }
+    }
+}
+
+impl From<AirFeatures> for component::AirFeatures {
+    fn from(
+        AirFeatures {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }: AirFeatures,
+    ) -> Self {
+        Self {
+            encrypted_group_profiles,
+            empty_connection_group_attributes,
+            pq_groups,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use uuid::uuid;
@@ -536,5 +569,45 @@ mod test {
         };
         let version = semver::Version::try_from(version).unwrap().to_string();
         assert_eq!(version, "1.2.3");
+    }
+
+    #[test]
+    fn version_display() {
+        let version = Version {
+            major: 0,
+            minor: 21,
+            patch: 0,
+            pre: Default::default(),
+            build_number: 1355,
+            commit_hash: vec![0x35, 0xb8, 0x7b, 0xee],
+        };
+        assert_eq!(version.to_string(), "0.21.0+1355.35b87bee");
+
+        let version = Version {
+            build_number: 0,
+            ..version
+        };
+        assert_eq!(version.to_string(), "0.21.0+35b87bee");
+
+        let version = Version {
+            pre: "dev".to_owned(),
+            ..version
+        };
+        assert_eq!(version.to_string(), "0.21.0-dev+35b87bee");
+
+        let version = Version {
+            commit_hash: Default::default(),
+            ..version
+        };
+        assert_eq!(version.to_string(), "0.21.0-dev");
+
+        // Display output is valid semver
+        let version = Version {
+            pre: "dev".to_owned(),
+            build_number: 1355,
+            commit_hash: vec![0x35, 0xb8, 0x7b, 0xee],
+            ..version
+        };
+        semver::Version::parse(&version.to_string()).unwrap();
     }
 }

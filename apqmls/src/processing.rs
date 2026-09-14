@@ -388,7 +388,7 @@ impl ApqMlsGroupMut<'_> {
                 .safe_export_secret(provider.crypto(), APQMLS_COMPONENT_ID)
                 .map_err(ApqPskError::ExportFromProcessed)?;
 
-            let apq_exporter: Secret = apq_exporter_bytes.into();
+            let apq_exporter: Secret = apq_exporter_bytes.as_slice().to_vec().into();
 
             let apq_psk_id = apq_exporter
                 .derive_secret(provider.crypto(), self.t_group.ciphersuite(), "psk_id")

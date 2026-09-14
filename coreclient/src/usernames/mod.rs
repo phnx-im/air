@@ -7,11 +7,12 @@ use aircommon::{
     crypto::ConnectionDecryptionKey,
     identifiers::{Username, UsernameHash},
     messages::{
-        client_as::SerializedToken, client_as_out::UsernameDeleteResponse,
-        connection_package::ConnectionPackage,
+        client_as::SerializedToken,
+        client_as_out::UsernameDeleteResponse,
+        connection_package::{ConnectionPackage, ConnectionPackageMetadata},
     },
 };
-use airprotos::auth_service::v1::OperationType;
+use airprotos::auth_service::v1::{OperationType, SignedConnectionPackage};
 use anyhow::Context;
 pub use persistence::UsernameRecord;
 use tokio::task::spawn_blocking;
@@ -23,7 +24,7 @@ use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     db::access::{WriteConnection, WriteDbConnection},
     privacy_pass,
-    usernames::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 pub(crate) mod connection_packages;
@@ -127,19 +128,18 @@ impl CoreUser {
             generate_connection_packages(&record.signing_key, record.hash)?;
 
         // Store connection packages in the database
-        let mut connection_packages = Vec::with_capacity(connection_package_bundles.len());
-        for (decryption_key, connection_package) in connection_package_bundles {
-            connection_package
+        for (decryption_key, metadata) in connection_package_bundles.decryption_keys {
+            ConnectionPackageRecord::from(metadata)
                 .store_for_username(&mut txn, &username, &decryption_key)
                 .await?;
-            connection_packages.push(connection_package);
         }
         txn.commit().await?;
 
         if let Err(error) = api_client
             .as_publish_connection_packages_for_username(
                 hash,
-                connection_packages,
+                connection_package_bundles.legacy,
+                connection_package_bundles.signed,
                 &record.signing_key,
             )
             .await
@@ -263,17 +263,56 @@ impl CoreUser {
     }
 }
 
+struct GeneratedConnectionPackages {
+    legacy: Vec<ConnectionPackage>,
+    signed: Vec<SignedConnectionPackage>,
+    decryption_keys: Vec<(ConnectionDecryptionKey, ConnectionPackageMetadata)>,
+}
+
 fn generate_connection_packages(
     signing_key: &UsernameSigningKey,
     hash: UsernameHash,
-) -> anyhow::Result<Vec<(ConnectionDecryptionKey, ConnectionPackage)>> {
-    let mut connection_packages = Vec::with_capacity(CONNECTION_PACKAGES);
-    for _ in 0..CONNECTION_PACKAGES - 1 {
-        let connection_package = ConnectionPackage::new(hash, signing_key, false)?;
-        connection_packages.push(connection_package);
+) -> anyhow::Result<GeneratedConnectionPackages> {
+    // A single last resort legacy package is enough to keep old clients connecting until the legacy
+    // fetch is retired.
+    let (key, package, metadata) = ConnectionPackage::generate(hash, signing_key, true)?;
+    let legacy = vec![package];
+
+    let SignedConnectionPackages {
+        packages: signed,
+        mut decryption_keys,
+    } = generate_signed_connection_packages(signing_key, hash)?;
+    decryption_keys.push((key, metadata));
+
+    Ok(GeneratedConnectionPackages {
+        legacy,
+        signed,
+        decryption_keys,
+    })
+}
+
+pub(crate) struct SignedConnectionPackages {
+    pub(crate) packages: Vec<SignedConnectionPackage>,
+    pub(crate) decryption_keys: Vec<(ConnectionDecryptionKey, ConnectionPackageMetadata)>,
+}
+
+/// Generates a full pool of signed connection packages, the last one being a
+/// last resort package.
+pub(crate) fn generate_signed_connection_packages(
+    signing_key: &UsernameSigningKey,
+    hash: UsernameHash,
+) -> anyhow::Result<SignedConnectionPackages> {
+    let mut packages = Vec::with_capacity(CONNECTION_PACKAGES);
+    let mut decryption_keys = Vec::with_capacity(CONNECTION_PACKAGES);
+    for i in 0..CONNECTION_PACKAGES {
+        let is_last_resort = i + 1 == CONNECTION_PACKAGES;
+        let (key, package, metadata) =
+            SignedConnectionPackage::generate(hash, signing_key, is_last_resort)?;
+        decryption_keys.push((key, metadata));
+        packages.push(package);
     }
-    // Last resort connection package
-    let connection_package = ConnectionPackage::new(hash, signing_key, true)?;
-    connection_packages.push(connection_package);
-    Ok(connection_packages)
+    Ok(SignedConnectionPackages {
+        packages,
+        decryption_keys,
+    })
 }

@@ -11,7 +11,7 @@ use aircommon::{
     identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
-        connection_package::{ConnectionPackage, ConnectionPackageHash},
+        connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
 };
@@ -37,7 +37,7 @@ use crate::{
     db::access::WriteConnection,
     groups::ProfileInfo,
     job::{Job, JobContext, JobContextDb},
-    usernames::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 use super::{AsCredentials, Chat, ChatId, CoreUser};
@@ -358,7 +358,7 @@ impl CoreUser {
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
-        let decryption_key = ConnectionPackage::load_decryption_key(&mut connection, &hash)
+        let decryption_key = ConnectionPackageRecord::load_decryption_key(&mut connection, &hash)
             .await?
             .context("No decryption key found for incoming connection offer")?;
 

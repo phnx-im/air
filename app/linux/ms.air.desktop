@@ -2,6 +2,7 @@
 Name=Air
 Comment=Air is an easy-to-use, secure messenger for chatting 1:1 and in groups.
 DBusActivatable=true
+Exec=/usr/bin/air
 Icon=ms.air
 Terminal=false
 Type=Application

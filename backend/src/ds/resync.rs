@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    credentials::LeafCredential, identifiers::QsReference,
-    mls_group_config::leaf_node_is_virtual_client, utils::removed_clients,
-};
+use aircommon::{credentials::LeafCredential, identifiers::QsReference, utils::removed_clients};
+use airprotos::client::app_data::ClientAppData;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{
@@ -162,7 +160,7 @@ impl DsGroupState {
         let sibling_queue = (!self.leaf_is_virtual_client(sender_index)
             && staged_commit_message
                 .update_path_leaf_node()
-                .is_some_and(leaf_node_is_virtual_client))
+                .is_some_and(ClientAppData::leaf_is_virtual_client))
         .then(|| self.queue_config_at(sender_index))
         .flatten();
 
@@ -337,7 +335,7 @@ impl DsGroupState {
         let sibling_queue = (!t_group_state.leaf_is_virtual_client(t_sender_index)
             && t_staged_commit
                 .update_path_leaf_node()
-                .is_some_and(leaf_node_is_virtual_client))
+                .is_some_and(ClientAppData::leaf_is_virtual_client))
         .then(|| t_group_state.queue_config_at(t_sender_index))
         .flatten();
 

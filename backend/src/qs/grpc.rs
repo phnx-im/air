@@ -467,15 +467,20 @@ impl QueueService for GrpcQs {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
 
-        let client_version = self
-            .verify_client_version(
-                init_request
-                    .payload
-                    .as_ref()
-                    .and_then(|p| p.client_metadata.as_ref())
-                    .or(init_request.client_metadata.as_ref()),
-            )?
-            .version;
+        let verified_client_version = self.verify_client_version(
+            init_request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref())
+                .or(init_request.client_metadata.as_ref()),
+        )?;
+        let version_status = ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(VersionStatus {
+                expires_at: verified_client_version
+                    .expires_at
+                    .map(|ts| TimeStamp::from(ts).into()),
+            })),
+        };
 
         let payload_bytes = init_request
             .payload
@@ -498,7 +503,11 @@ impl QueueService for GrpcQs {
         let queue_messages = self
             .qs
             .queues
-            .listen(client_id, client_version, sequence_number_start)
+            .listen(
+                client_id,
+                verified_client_version.version,
+                sequence_number_start,
+            )
             .await?;
         let events = queue_messages.map(|message| match message {
             Some(event) => event,
@@ -506,6 +515,7 @@ impl QueueService for GrpcQs {
                 event: Some(listen_response::Event::Empty(QueueEmpty {})),
             },
         });
+        let events = tokio_stream::once(version_status).chain(events);
 
         self.update_client_activity_and_report_metrics(client_id)
             .await

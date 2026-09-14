@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'linked_devices_cubit.dart';
@@ -9,6 +9,7 @@ part of 'linked_devices_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $LinkedDevicesStateCopyWith<LinkedDevicesState> get copyWith => _$LinkedDevicesS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LinkedDevicesState&&const DeepCollectionEquality().equals(other.devices, devices));
+  final _this = this as LinkedDevicesState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LinkedDevicesState&&const DeepCollectionEquality().equals(other.devices, _this.devices));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(devices));
+int get hashCode {
+  final _this = this as LinkedDevicesState;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.devices));
+}
 
 @override
 String toString() {
-  return 'LinkedDevicesState(devices: $devices)';
+  final _this = this as LinkedDevicesState;
+  return 'LinkedDevicesState(devices: ${_this.devices})';
 }
 
 
@@ -63,7 +69,7 @@ class _$LinkedDevicesStateCopyWithImpl<$Res>
 /// Create a copy of LinkedDevicesState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? devices = null,}) {
-  return _then(_self.copyWith(
+  return _then(LinkedDevicesState(
 devices: null == devices ? _self.devices : devices // ignore: cast_nullable_to_non_nullable
 as List<UiLinkedDevice>,
   ));
@@ -77,7 +83,7 @@ as List<UiLinkedDevice>,
 
 
 class _LinkedDevicesState extends LinkedDevicesState {
-  const _LinkedDevicesState({required final  List<UiLinkedDevice> devices}): _devices = devices,super._();
+  const _LinkedDevicesState({required  List<UiLinkedDevice> devices}): _devices = devices,super._();
   
 
  final  List<UiLinkedDevice> _devices;
@@ -98,16 +104,18 @@ _$LinkedDevicesStateCopyWith<_LinkedDevicesState> get copyWith => __$LinkedDevic
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LinkedDevicesState&&const DeepCollectionEquality().equals(other._devices, _devices));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LinkedDevicesState&&const DeepCollectionEquality().equals(other.devices, _devices));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_devices));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_devices));
+}
 
 @override
 String toString() {
-  return 'LinkedDevicesState(devices: $devices)';
+    return 'LinkedDevicesState(devices: $devices)';
 }
 
 
@@ -159,16 +167,21 @@ $UiLinkedDeviceCopyWith<UiLinkedDevice> get copyWith => _$UiLinkedDeviceCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLinkedDevice&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.platform, platform) || other.platform == platform)&&(identical(other.linkedAt, linkedAt) || other.linkedAt == linkedAt)&&(identical(other.isThisDevice, isThisDevice) || other.isThisDevice == isThisDevice));
+  final _this = this as UiLinkedDevice;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLinkedDevice&&(identical(other.clientId, _this.clientId) || other.clientId == _this.clientId)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.platform, _this.platform) || other.platform == _this.platform)&&(identical(other.linkedAt, _this.linkedAt) || other.linkedAt == _this.linkedAt)&&(identical(other.isThisDevice, _this.isThisDevice) || other.isThisDevice == _this.isThisDevice));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,clientId,name,platform,linkedAt,isThisDevice);
+int get hashCode {
+  final _this = this as UiLinkedDevice;
+  return Object.hash(runtimeType,_this.clientId,_this.name,_this.platform,_this.linkedAt,_this.isThisDevice);
+}
 
 @override
 String toString() {
-  return 'UiLinkedDevice(clientId: $clientId, name: $name, platform: $platform, linkedAt: $linkedAt, isThisDevice: $isThisDevice)';
+  final _this = this as UiLinkedDevice;
+  return 'UiLinkedDevice(clientId: ${_this.clientId}, name: ${_this.name}, platform: ${_this.platform}, linkedAt: ${_this.linkedAt}, isThisDevice: ${_this.isThisDevice})';
 }
 
 
@@ -197,7 +210,7 @@ class _$UiLinkedDeviceCopyWithImpl<$Res>
 /// Create a copy of UiLinkedDevice
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = freezed,Object? isThisDevice = null,}) {
-  return _then(_self.copyWith(
+  return _then(UiLinkedDevice(
 clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
 as UuidValue,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,platform: null == platform ? _self.platform : platform // ignore: cast_nullable_to_non_nullable
@@ -234,16 +247,18 @@ _$UiLinkedDeviceCopyWith<_UiLinkedDevice> get copyWith => __$UiLinkedDeviceCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLinkedDevice&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.platform, platform) || other.platform == platform)&&(identical(other.linkedAt, linkedAt) || other.linkedAt == linkedAt)&&(identical(other.isThisDevice, isThisDevice) || other.isThisDevice == isThisDevice));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLinkedDevice&&(identical(other.clientId, clientId) || other.clientId == clientId)&&(identical(other.name, name) || other.name == name)&&(identical(other.platform, platform) || other.platform == platform)&&(identical(other.linkedAt, linkedAt) || other.linkedAt == linkedAt)&&(identical(other.isThisDevice, isThisDevice) || other.isThisDevice == isThisDevice));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,clientId,name,platform,linkedAt,isThisDevice);
+int get hashCode {
+    return Object.hash(runtimeType,clientId,name,platform,linkedAt,isThisDevice);
+}
 
 @override
 String toString() {
-  return 'UiLinkedDevice(clientId: $clientId, name: $name, platform: $platform, linkedAt: $linkedAt, isThisDevice: $isThisDevice)';
+    return 'UiLinkedDevice(clientId: $clientId, name: $name, platform: $platform, linkedAt: $linkedAt, isThisDevice: $isThisDevice)';
 }
 
 

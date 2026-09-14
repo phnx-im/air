@@ -6,6 +6,7 @@ use std::fmt;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
+    client::signed_connection_package::SignedConnectionPackageIn,
     common::v1::{ClientMetadata, UserId},
     signed::{SignedRequest, VerifiableRequest},
     validation::MissingFieldExt,
@@ -455,8 +456,18 @@ impl auth_service_server::AuthService for GrpcAs {
             .into_iter()
             .map(|package| package.try_into())
             .collect::<Result<Vec<_>, _>>()?;
+        let signed_connection_packages = payload
+            .signed_connection_packages
+            .into_iter()
+            .map(|package| package.try_into())
+            .collect::<Result<Vec<SignedConnectionPackageIn>, _>>()?;
         self.inner
-            .as_publish_connection_packages_for_handle(&hash, connection_packages)
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                &username_verifying_key,
+                connection_packages,
+                signed_connection_packages,
+            )
             .await?;
 
         Ok(Response::new(PublishConnectionPackagesResponse {}))

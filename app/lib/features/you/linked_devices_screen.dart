@@ -284,9 +284,8 @@ class _SingleDevice extends StatelessWidget {
       builder: (_) => ConfirmDialog(
         title: title,
         message: message,
-        confirm: AppLocalizations.of(
-          context,
-        ).linkedDevicesScreen_errorDialog_confirm,
+        confirm: AppLocalizations.of(context)
+            .linkedDevicesScreen_errorDialog_confirm,
       ),
     );
   }

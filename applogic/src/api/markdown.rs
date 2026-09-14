@@ -44,7 +44,7 @@ pub enum Error {
     InvalidUtf8,
 }
 
-type Result<T> = std::result::Result<T, Error>;
+type ParseResult<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
@@ -140,7 +140,7 @@ impl MessageContent {
     }
 
     #[frb(sync)]
-    pub fn parse_markdown_raw(string: Vec<u8>) -> Result<Self> {
+    pub fn parse_markdown_raw(string: Vec<u8>) -> ParseResult<Self> {
         Self::try_parse_markdown(&String::from_utf8(string).map_err(|_| Error::InvalidUtf8)?)
     }
 
@@ -149,7 +149,7 @@ impl MessageContent {
             .unwrap_or_else(|e| Self::error(format!("Invalid message: {e}")))
     }
 
-    fn try_parse_markdown(string: &str) -> Result<Self> {
+    fn try_parse_markdown(string: &str) -> ParseResult<Self> {
         let parsed = Parser::new_ext(
             string,
             // Do not enable Options::ENABLE_GFM, it activates special blockquotes which are not part of the GFM spec https://github.com/orgs/community/discussions/16925
@@ -177,7 +177,7 @@ fn parse_block_element<'a, I>(
     iter: &mut Peekable<I>,
     source: &str,
     depth: usize,
-) -> Result<RangedBlockElement>
+) -> ParseResult<RangedBlockElement>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -414,7 +414,7 @@ where
 fn parse_inline_elements<'a, I>(
     iter: &mut Peekable<I>,
     depth: usize,
-) -> Result<Vec<RangedInlineElement>>
+) -> ParseResult<Vec<RangedInlineElement>>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -615,7 +615,7 @@ fn parse_list_items<'a, I>(
     iter: &mut Peekable<I>,
     source: &str,
     depth: usize,
-) -> Result<Vec<Vec<RangedBlockElement>>>
+) -> ParseResult<Vec<Vec<RangedBlockElement>>>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -654,7 +654,7 @@ fn parse_table_content<'a, I>(
     iter: &mut Peekable<I>,
     source: &str,
     depth: usize,
-) -> Result<BlockElement>
+) -> ParseResult<BlockElement>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {
@@ -721,7 +721,7 @@ fn parse_table_cells<'a, I>(
     iter: &mut Peekable<I>,
     source: &str,
     depth: usize,
-) -> Result<Vec<Vec<RangedBlockElement>>>
+) -> ParseResult<Vec<Vec<RangedBlockElement>>>
 where
     I: Iterator<Item = RangedEvent<'a>>,
 {

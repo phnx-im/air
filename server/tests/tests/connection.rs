@@ -4,11 +4,15 @@
 
 use std::time::Duration;
 
-use aircommon::time::TimeStamp;
+use airapiclient::ApiClient;
+use aircommon::{identifiers::UsernameHash, time::TimeStamp};
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
-use airprotos::client::component::{AirComponent, AirFeatures};
+use airprotos::client::{
+    component::AirFeatures,
+    signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
+};
 use airserver_test_harness::utils::setup::TestBackend;
-use chrono::{DateTime, TimeZone};
+use chrono::{DateTime, TimeZone, Utc};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
@@ -19,6 +23,161 @@ async fn connect_users_via_user_handle() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Connect users via signed connection package", skip_all)]
+async fn connect_users_via_user_handle_uses_signed_package() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+
+    // A new client asks for a signed package and gets one, carrying the
+    // owner's features.
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let (package, _responder) = client.as_connect_username(record.hash).await.unwrap();
+    assert!(matches!(package, AnyConnectionPackageIn::Signed(_)));
+    let package = package.verify(&record.hash).unwrap();
+    let AnyConnectionPackage::Signed(package) = package else {
+        panic!("expected signed connection package");
+    };
+    assert_eq!(package.username_hash(), &record.hash);
+    assert!(package.air_features().pq_groups);
+
+    setup.connect_users(&alice, &bob).await;
+}
+
+/// Fetches and verifies one connection package for the username.
+async fn fetch_connection_package(
+    client: &ApiClient,
+    hash: UsernameHash,
+) -> anyhow::Result<AnyConnectionPackage> {
+    let (package, _responder) = client.as_connect_username(hash).await?;
+    Ok(package.verify(&hash)?)
+}
+
+/// Consumes connection packages until the server hands out the last resort one.
+async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> anyhow::Result<()> {
+    for _ in 0..100 {
+        if fetch_connection_package(client, hash)
+            .await?
+            .is_last_resort()
+        {
+            return Ok(());
+        }
+    }
+    anyhow::bail!("connection packages not drained after 100 fetches");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Signed connection package upload task", skip_all)]
+async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let record = setup.get_user_mut(&bob).add_username().await?;
+    let user = setup.get_user(&bob).user();
+    let client = ApiClient::with_endpoint(&setup.server_url())?;
+
+    // Use up the packages published on creation, so that new ones are observable.
+    drain_connection_packages(&client, record.hash).await?;
+    assert!(
+        fetch_connection_package(&client, record.hash)
+            .await?
+            .is_last_resort()
+    );
+
+    // Run the one-shot task as if the username predated signed connection packages.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked, "task should be parked after success");
+    assert!(state.pending_usernames.is_empty());
+
+    let package = fetch_connection_package(&client, record.hash).await?;
+    assert!(matches!(package, AnyConnectionPackage::Signed(_)));
+    assert!(
+        !package.is_last_resort(),
+        "the task should have published fresh packages"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Signed connection package upload task retry", skip_all)]
+async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let record = setup.get_user_mut(&bob).add_username().await?;
+    let user = setup.get_user(&bob).user();
+
+    // The upload fails with a network error.
+    setup.listener_control_handle().set_drop_all();
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_normal();
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(!state.parked, "failed task must be retried");
+    assert_eq!(state.pending_usernames, vec![record.hash]);
+
+    // The retry succeeds.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(state.pending_usernames, Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked);
+    assert!(state.pending_usernames.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Signed connection package upload task unknown username",
+    skip_all
+)]
+async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let bob = setup.add_user().await;
+    let user = setup.get_user(&bob).user();
+
+    // A username which does not exist locally is treated as done.
+    user.outbound_service()
+        .schedule_signed_connection_package_upload(vec![UsernameHash::new([7; 32])], Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    let state = user
+        .outbound_service()
+        .signed_connection_package_upload_state()
+        .await?
+        .expect("task should exist");
+    assert!(state.parked);
+    assert!(state.pending_usernames.is_empty());
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -503,16 +662,13 @@ async fn erase_connection_group_data_mixed_feature_support() {
 
     // Simulate Bob being an old client: downgrade his leaf node to advertise
     // empty_connection_group_attributes = false.
-    let old_air_component = AirComponent {
-        features: AirFeatures {
-            encrypted_group_profiles: true,
-            empty_connection_group_attributes: false,
-            pq_groups: setup.apq_groups,
-        },
-        is_self_group: false,
+    let old_features = AirFeatures {
+        encrypted_group_profiles: true,
+        empty_connection_group_attributes: false,
+        pq_groups: setup.apq_groups,
     };
     bob_user
-        .set_group_air_component(chat_id, old_air_component)
+        .set_group_features(chat_id, old_features)
         .await
         .unwrap();
 
@@ -577,16 +733,13 @@ async fn erase_connection_group_data_mixed_feature_support() {
     );
 
     // Bob "upgrades": commit a leaf node that sets empty_connection_group_attributes = true.
-    let new_air_component = AirComponent {
-        features: AirFeatures {
-            encrypted_group_profiles: true,
-            empty_connection_group_attributes: true,
-            pq_groups: setup.apq_groups,
-        },
-        is_self_group: false,
+    let new_features = AirFeatures {
+        encrypted_group_profiles: true,
+        empty_connection_group_attributes: true,
+        pq_groups: setup.apq_groups,
     };
     bob_user
-        .set_group_air_component(chat_id, new_air_component)
+        .set_group_features(chat_id, new_features)
         .await
         .unwrap();
 
@@ -641,5 +794,27 @@ async fn erase_connection_group_data_mixed_feature_support() {
         bob_messages_before,
         bob_user.messages(chat_id, 100).await.unwrap(),
         "Mixed feature support test should not produce messages for Bob"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "DS records the connection group joiner", skip_all)]
+async fn ds_room_state_contains_connection_group_joiner() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let users = setup
+        .get_user(&bob)
+        .user
+        .ds_room_state_users(chat_id)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        users,
+        [alice, bob].into_iter().collect(),
+        "the DS room state should list both users of the connection group"
     );
 }
