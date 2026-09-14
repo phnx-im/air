@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -170,6 +171,7 @@ class _Content {
           chatId,
           userId(lastMessage['sender'] as String),
           lastMessage['text'] as String,
+          UiMessageStatus.values.byName(lastMessage['status'] ?? "delivered"),
         ),
         mutedUntil: null,
         pendingCommitFailed: false,
@@ -268,6 +270,7 @@ class _Content {
     ChatId chatId,
     UiUserId senderId,
     String body,
+    UiMessageStatus status,
   ) => UiChatMessage(
     id: (_messageIdx++).messageId(),
     chatId: chatId,
@@ -285,7 +288,7 @@ class _Content {
         ),
       ),
     ),
-    status: UiMessageStatus.delivered,
+    status: status,
     reactions: [],
   );
 

@@ -18,6 +18,7 @@ import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/interface_scale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,12 @@ bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   _ => false,
 };
 
+/// Desktop shots render the interface at this scale, for legibility.
+const _desktopInterfaceScale = 1.5;
+
+double? _interfaceScaleFor(TargetPlatform platform) =>
+    _isDesktopPlatform(platform) ? _desktopInterfaceScale : null;
+
 /// On desktop the real app always shows the chat list beside the open chat,
 /// so the shot needs the split layout instead of just the chat on its own.
 Widget _chatShot(TargetPlatform platform, Widget chat) =>
@@ -166,9 +173,8 @@ Widget _buildProductShotSubject({
         home: Material(
           color: frameless ? Colors.transparent : null,
           child: MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(platformBrightness: brightness),
+            data: MediaQuery.of(context)
+                .copyWith(platformBrightness: brightness),
             child: frameless ? Center(child: shot) : shot,
           ),
         ),
@@ -259,7 +265,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
               : deviceShotDevice.frameBounds.size *
                     deviceShotDevice.exportScale,
           (tester) async {
-            final screen = spec.buildScreen(platform);
+            final screen = InterfaceScale(child: spec.buildScreen(platform));
             await tester.pumpWidget(
               _buildProductShotSubject(
                 providers: spec.buildProviders(platform),
@@ -338,9 +344,12 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
     when(
       () => usersCubit.state,
     ).thenReturn(MockUsersState(profiles: userProfiles, defaultUserId: ownId));
-    when(
-      () => userSettingsCubit.state,
-    ).thenReturn(const UserSettings(experimentalFeatures: false));
+    when(() => userSettingsCubit.state).thenReturn(
+      UserSettings(
+        experimentalFeatures: false,
+        interfaceScale: _interfaceScaleFor(platform),
+      ),
+    );
 
     return [
       RepositoryProvider<AttachmentsRepository>.value(
@@ -390,9 +399,8 @@ List<SingleChildWidget> _openChatProviders({
   final chatDetailsCubit = MockChatDetailsCubit();
   final messageListCubit = MockMessageListCubit();
 
-  when(
-    () => chatDetailsCubit.state,
-  ).thenReturn(ChatDetailsState(chat: chat, members: members));
+  when(() => chatDetailsCubit.state)
+      .thenReturn(ChatDetailsState(chat: chat, members: members));
   when(
     () => chatDetailsCubit.markAsRead(
       untilMessageId: any(named: "untilMessageId"),
@@ -437,7 +445,7 @@ _ProductShotSpec _chatSpec({
   darkPalette: darkPalette,
   title: title,
   subtitle: subtitle,
-  buildProviders: (_) {
+  buildProviders: (platform) {
     final navigationCubit = MockNavigationCubit();
     final userCubit = MockUserCubit();
     final contactsCubit = MockUsersCubit();
@@ -445,13 +453,15 @@ _ProductShotSpec _chatSpec({
     final attachmentsRepository = MockAttachmentsRepository();
 
     when(() => navigationCubit.state).thenReturn(
-      NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
+      NavigationState.home(
+        home: HomeNavigationState(chatOpen: true, chatId: chat.id),
+      ),
     );
     when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-    when(
-      () => contactsCubit.state,
-    ).thenReturn(MockUsersState(profiles: userProfiles));
-    when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+    when(() => contactsCubit.state)
+        .thenReturn(MockUsersState(profiles: userProfiles));
+    when(() => userSettingsCubit.state)
+        .thenReturn(UserSettings(interfaceScale: _interfaceScaleFor(platform)));
 
     return [
       RepositoryProvider<AttachmentsRepository>.value(
