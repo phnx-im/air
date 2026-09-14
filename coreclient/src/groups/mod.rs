@@ -390,6 +390,7 @@ impl Group {
         self.pending_commit_failed
     }
 
+    #[allow(unused)]
     pub(crate) async fn mark_commit_failed(
         &mut self,
         mut connection: impl WriteConnection,

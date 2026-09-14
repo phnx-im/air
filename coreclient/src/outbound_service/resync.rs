@@ -65,13 +65,9 @@ pub(crate) struct Resync {
     pub(crate) connection_contact: Option<ConnectionContact>,
 }
 
-impl CoreUser {
-    pub async fn enqueue_group_resync(&self, chat_id: ChatId) -> anyhow::Result<()> {
-        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
-            .await?
-            .context("group not found")?;
-
-        let resync = Resync {
+impl Resync {
+    pub(crate) fn for_group(chat_id: ChatId, group: &Group) -> Self {
+        Self {
             chat_id: Some(chat_id),
             group_id: group.group_id().clone(),
             pq_group_id: group.pq_group_id(),
@@ -80,12 +76,33 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: group.own_leaf_is_virtual_client(),
             connection_contact: None,
-        };
+        }
+    }
+
+    pub(crate) fn is_onboarding(&self) -> bool {
+        self.chat_id.is_none()
+    }
+}
+
+impl CoreUser {
+    pub async fn enqueue_group_resync(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+
+        let resync = Resync::for_group(chat_id, &group);
 
         resync.enqueue(self.db().write().await?).await?;
 
         self.outbound_service().notify_work();
 
+        Ok(())
+    }
+
+    pub(crate) async fn notify_pending_resyncs(&self) -> anyhow::Result<()> {
+        if Resync::any_pending(self.db().read().await?).await? {
+            self.outbound_service().notify_work();
+        }
         Ok(())
     }
 
@@ -166,6 +183,7 @@ impl OutboundServiceContext {
                 }
             };
 
+            let is_onboarding = resync.is_onboarding();
             let result = {
                 let mut connection = self.db.write().await?;
 
@@ -657,6 +675,12 @@ mod persistence {
                 queued.chat_id.as_ref() == Some(chat_id)
                     || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
             }))
+        }
+
+        pub(crate) async fn any_pending(mut connection: impl ReadConnection) -> sqlx::Result<bool> {
+            query_scalar!(r#"SELECT EXISTS(SELECT 1 FROM resync_queue) AS "exists: bool""#)
+                .fetch_one(connection.as_mut())
+                .await
         }
 
         pub(crate) async fn remove(
