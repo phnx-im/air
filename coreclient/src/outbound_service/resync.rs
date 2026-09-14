@@ -17,7 +17,7 @@ use openmls::{
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -179,11 +179,11 @@ impl OutboundServiceContext {
                 Err(error) => {
                     error!(%error, "Failed to resolve resync signer; dropping");
                     Resync::remove(self.db.write().await?, &group_id).await?;
-                    return Err(error);
+                    continue;
                 }
             };
 
-            let is_onboarding = resync.is_onboarding();
+            let _is_onboarding = resync.is_onboarding();
             let result = {
                 let mut connection = self.db.write().await?;
 
@@ -195,7 +195,7 @@ impl OutboundServiceContext {
                         self.user_id(),
                     )
                     .await;
-                if let Ok((chat_id, _)) = &result {
+                if let Ok(Some((chat_id, _))) = &result {
                     info!("Got profiles infos");
                     Resync::remove(&mut connection, &group_id).await?;
                     connection.notifier().update(*chat_id);
@@ -206,7 +206,8 @@ impl OutboundServiceContext {
             };
 
             let profile_infos = match result {
-                Ok((_, profile_infos)) => profile_infos,
+                Ok(Some((_, profile_infos))) => profile_infos,
+                Ok(None) => continue,
                 Err(OutboundServiceError::Fatal(error)) => {
                     if is_ds_not_found_error(&error) {
                         error!(%error, "Group not found during resync; cleaning up local state");
@@ -251,14 +252,16 @@ impl Resync {
     /// Resync using an external commit.
     ///
     /// Returns the chat the resync applies to, which for an onboarding resync is
-    /// only created here, once the commit has been accepted.
+    /// only created here, once the commit has been accepted. Returns `None` when
+    /// the server has no leaf of ours in the group, i.e. we were removed: the
+    /// chat is then marked inactive and the resync dropped.
     async fn create_and_send_commit(
         mut self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &LeafSigningKey,
         own_user_id: &UserId,
-    ) -> Result<(ChatId, DecryptedProfileInfos), OutboundServiceError> {
+    ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -276,8 +279,23 @@ impl Resync {
         }
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
+        let Some(original_leaf_index) =
+            self.resolve_original_leaf_index(&external_commit_info, signer)
+        else {
+            warn!(
+                group_id = ?self.group_id,
+                "No leaf carries our signature key: not a member of the group (according to the server)"
+            );
+            // Drop the resync, mark the chat as inactive and delete the group state.
+            connection
+                .with_transaction(async |txn| {
+                    handle_group_not_found_on_ds(txn, &self.group_id).await
+                })
+                .await
+                .map_err(OutboundServiceError::recoverable)?;
+            return Ok(None);
+        };
         let connection_contact = self.connection_contact.take();
-        let original_leaf_index = self.original_leaf_index;
         let existing_chat_id = self.chat_id;
         let ds_timestamp = TimeStamp::now();
 
@@ -335,7 +353,7 @@ impl Resync {
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
-        Ok((chat_id, member_profile_infos))
+        Ok(Some((chat_id, member_profile_infos)))
     }
 
     /// Create the local chat (and contact) for a connection group we just onboarded into.
@@ -390,6 +408,29 @@ impl Resync {
         chat.store(&mut *txn).await?;
 
         Ok(chat.id())
+    }
+
+    fn resolve_original_leaf_index(
+        &self,
+        external_commit_info: &ExternalCommitInfoIn,
+        signer: &LeafSigningKey,
+    ) -> Option<LeafNodeIndex> {
+        let signature_key_bytes = signer.verifying_key().as_slice();
+        external_commit_info
+            .ratchet_tree_in
+            .full_leaves()
+            .find(|(_, leaf)| leaf.signature_key().as_slice() == signature_key_bytes)
+            .map(|(index, _)| {
+                if index != self.original_leaf_index {
+                    info!(
+                        group_id = ?self.group_id,
+                        queued = %self.original_leaf_index,
+                        resolved = %index,
+                        "The leaf to resync moved since the resync was queued"
+                    );
+                }
+                index
+            })
     }
 
     async fn fetch_group_info(
