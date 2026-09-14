@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:typed_data';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -115,9 +116,8 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: 'untilMessageId'),

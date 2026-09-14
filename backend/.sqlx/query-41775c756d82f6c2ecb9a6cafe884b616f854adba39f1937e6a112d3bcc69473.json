@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH next_connection_package AS (\n                SELECT id, payload, signature\n                FROM username_signed_connection_package\n                WHERE hash = $1\n                ORDER BY is_last_resort ASC\n                LIMIT 1\n                FOR UPDATE -- make sure two concurrent queries don't return the same package\n                SKIP LOCKED -- skip rows that are already locked by other processes\n            ),\n            deleted_package AS (\n                DELETE FROM username_signed_connection_package\n                WHERE id = (SELECT id FROM next_connection_package)\n                AND NOT is_last_resort\n                AND (SELECT COUNT(*) FROM username_signed_connection_package WHERE hash = $1) > 1\n            )\n            SELECT payload, signature FROM next_connection_package",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "payload",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "username_signed_connection_package",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "signature",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "username_signed_connection_package",
+            "name": "signature"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "41775c756d82f6c2ecb9a6cafe884b616f854adba39f1937e6a112d3bcc69473"
+}

@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, fs};
+use std::{assert_matches, collections::HashMap, fs};
 
 use airapiclient::as_api::AsRequestError;
-use aircommon::{assert_matches, identifiers::Username};
+use aircommon::identifiers::Username;
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile,

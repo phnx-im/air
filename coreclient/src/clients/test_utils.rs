@@ -4,13 +4,17 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+#[cfg(any(test, feature = "test_utils"))]
+use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
+use aircommon::{
+    codec::PersistenceCodec, credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::{component::AirComponent, group::GroupData};
+use airprotos::client::group::GroupData;
 
 use crate::{
     chats::GroupDataExt,
@@ -220,6 +224,35 @@ impl CoreUser {
             .map(|group| group.members().collect())
     }
 
+    /// The users the DS lists in the room state it serves to an external joiner
+    /// of this chat's group.
+    pub async fn ds_room_state_users(&self, chat_id: ChatId) -> anyhow::Result<HashSet<UserId>> {
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+        let qgid: QualifiedGroupId = group.group_id().try_into()?;
+        let external_commit_info = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(
+                group.group_id().clone(),
+                group.pq_group_id(),
+                group.group_state_ear_key(),
+            )
+            .await?;
+        external_commit_info
+            .room_state
+            .users()
+            .keys()
+            .map(|identity| match RoomPolicyIdentity::from_bytes(identity)? {
+                RoomPolicyIdentity::User(user_id) => Ok(user_id),
+                RoomPolicyIdentity::Client(client_id) => Err(anyhow::anyhow!(
+                    "unexpected client identity {client_id} in the room state"
+                )),
+            })
+            .collect()
+    }
+
     /// Enqueues a resync with a fabricated group_id that does not exist on the
     /// server. Uses the real group's keys so the request reaches the server and
     /// gets a "not found" response.
@@ -358,24 +391,24 @@ impl CoreUser {
         Ok(Some(GroupData::decode(&bytes)?))
     }
 
-    /// Sends a self-update commit that forces the given [`AirComponent`] into the own leaf node.
+    /// Sends a self-update commit that forces the given [`AirFeatures`] into the own leaf node.
     ///
     /// Use this in tests to simulate an old client that advertises a different set of feature
     /// flags.
     #[cfg(any(test, feature = "test_utils"))]
-    pub async fn set_group_air_component(
+    pub async fn set_group_features(
         &self,
         chat_id: ChatId,
-        air_component: AirComponent,
+        features: AirFeatures,
     ) -> anyhow::Result<()> {
         let op = self
             .db()
             .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_air_component(
+                PendingChatOperation::create_update_with_features(
                     txn,
                     self.signing_key(),
                     chat_id,
-                    air_component,
+                    features,
                 )
                 .await
             })

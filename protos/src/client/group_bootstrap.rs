@@ -360,6 +360,15 @@ pub struct PeerUserId {
     pub domain: Option<String>,
 }
 
+impl PeerUserId {
+    pub fn to_user_id(&self) -> Result<UserId, PeerUserIdError> {
+        let (Some(uuid), Some(domain)) = (self.uuid, self.domain.as_ref()) else {
+            return Err(PeerUserIdError::MissingField);
+        };
+        Ok(UserId::new(uuid, domain.parse::<Fqdn>()?))
+    }
+}
+
 impl From<UserId> for PeerUserId {
     fn from(user_id: UserId) -> Self {
         let (uuid, domain) = user_id.into_parts();
@@ -381,19 +390,10 @@ pub enum PeerUserIdError {
     InvalidDomain(#[from] FqdnError),
 }
 
-impl TryFrom<PeerUserId> for UserId {
-    type Error = PeerUserIdError;
-
-    fn try_from(peer: PeerUserId) -> Result<Self, Self::Error> {
-        let (Some(uuid), Some(domain)) = (peer.uuid, peer.domain) else {
-            return Err(PeerUserIdError::MissingField);
-        };
-        Ok(UserId::new(uuid, domain.parse::<Fqdn>()?))
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use std::assert_matches;
+
     use aircommon::{
         codec::PersistenceCodec,
         crypto::{
@@ -581,7 +581,7 @@ mod test {
     fn peer_user_id_roundtrip() {
         let user_id = user_id();
         let peer = PeerUserId::from(user_id.clone());
-        assert_eq!(UserId::try_from(peer).unwrap(), user_id);
+        assert_eq!(peer.to_user_id().unwrap(), user_id);
     }
 
     #[test]
@@ -590,7 +590,7 @@ mod test {
             uuid: Some(Uuid::nil()),
             domain: Some("not a domain".to_owned()),
         };
-        assert!(UserId::try_from(peer).is_err());
+        assert!(peer.to_user_id().is_err());
     }
 
     /// An absent uuid must not decode into the nil user.
@@ -600,10 +600,7 @@ mod test {
             uuid: None,
             domain: Some("example.com".to_owned()),
         };
-        assert!(matches!(
-            UserId::try_from(peer),
-            Err(PeerUserIdError::MissingField)
-        ));
+        assert_matches!(peer.to_user_id(), Err(PeerUserIdError::MissingField))
     }
 
     #[test]

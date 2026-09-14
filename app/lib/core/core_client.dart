@@ -78,13 +78,11 @@ class CoreClient {
 
   // used in app initialization
   Future<void> loadDefaultUser() async {
-    user = await User.loadDefault(path: await dbPath()).onError((
-      error,
-      stackTrace,
-    ) {
-      _log.severe("Error loading default user $error");
-      return null;
-    });
+    user = await User.loadDefault(path: await dbPath())
+        .onError((error, stackTrace) {
+          _log.severe("Error loading default user $error");
+          return null;
+        });
   }
 
   // used in registration cubit

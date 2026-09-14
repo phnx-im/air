@@ -167,6 +167,18 @@ abstract class AppLocalizations {
   /// **'If turned on, the keyboard\'s \"Enter\" key sends the message.'**
   String get userSettingsScreen_sendWithEnterDescription;
 
+  /// Label of the preference toggle that limits how many times a GIF autoplays.
+  ///
+  /// In en, this message translates to:
+  /// **'Limit GIF autoplay'**
+  String get userSettingsScreen_limitAnimatedImagesLoops;
+
+  /// Explains the Limit GIF autoplay toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'If turned on, GIFs loop 3 times when viewed, then can be manually replayed.'**
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription;
+
   /// Label of the preference toggle that enables read receipts.
   ///
   /// In en, this message translates to:
@@ -1614,6 +1626,12 @@ abstract class AppLocalizations {
   /// **'Failed to upload attachment. Try again.'**
   String get composer_error_attachment;
 
+  /// Snack bar shown in the composer when an image attachment cannot be decoded before upload. Retrying will not help, so the text does not ask for one.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be decoded. It may be damaged or in an unsupported format.'**
+  String get composer_error_attachment_decoding;
+
   /// Error shown when an attachment exceeds the size limit. Both placeholders are already formatted sizes with their unit.
   ///
   /// In en, this message translates to:
@@ -1877,6 +1895,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Licenses'**
   String get licensesScreen_title;
+
+  /// Placeholder of the search field above the package list on the licenses screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Search packages'**
+  String get licensesScreen_searchHint;
+
+  /// Count of packages under the license list. Provide the plural forms your language needs. The zero case is worded without a number.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No packages} one {{count} package} other {{count} packages}}'**
+  String licensesScreen_packageCount(int count);
+
+  /// Shown when the package search on the licenses screen matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No packages found.'**
+  String get licensesScreen_noResults;
 
   /// Title of the modal for contacting the Air team.
   ///
@@ -2251,10 +2287,10 @@ abstract class AppLocalizations {
   /// **'Update to keep using Air'**
   String get appOutdatedScreen_message;
 
-  /// Names the store to update from on each mobile platform. TestFlight and Google Play are product names.
+  /// Names the store to update from on each mobile platform. App Store and Google Play are product names.
   ///
   /// In en, this message translates to:
-  /// **'Open TestFlight on iOS or Google Play on Android, then update Air.'**
+  /// **'Open the App Store on iOS or Google Play on Android, then update Air.'**
   String get appOutdatedScreen_description;
 
   /// Button that opens the store so the user can update.
@@ -2262,6 +2298,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Update'**
   String get appOutdatedScreen_action;
+
+  /// Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Air by {date} to keep using it'**
+  String versionExpiryBanner_message(String date);
 
   /// Title of the dialog showing an incoming contact request.
   ///

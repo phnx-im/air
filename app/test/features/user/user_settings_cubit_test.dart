@@ -48,9 +48,8 @@ void main() {
 
     test('experimental features follow developer mode', () {
       expect(
-        const UserSettings(
-          experimentalFeatures: true,
-        ).experimentalFeaturesActive,
+        const UserSettings(experimentalFeatures: true)
+            .experimentalFeaturesActive,
         isFalse,
       );
       expect(

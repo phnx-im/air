@@ -227,10 +227,9 @@ class _Actions extends StatelessWidget {
           ),
         ],
 
-        if (relationship case MemberRelationship(
-          :final groupChatId,
-          :final canKick,
-        ) when canKick) ...[
+        if (relationship
+            case MemberRelationship(:final groupChatId, :final canKick)
+            when canKick) ...[
           const SizedBox(height: S.s12),
           RemoveMemberButton(
             chatId: groupChatId,

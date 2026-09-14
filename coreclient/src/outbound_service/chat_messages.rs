@@ -58,10 +58,17 @@ enum CommitOutcome {
 
 impl OutboundService {
     /// Enqueue a chat message to be sent by the outbound service.
+    ///
+    /// A message that is already gone is skipped: an attachment message can be
+    /// deleted while its upload runs.
     pub async fn enqueue_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| {
+                if ChatMessage::load(&mut *txn, message_id).await?.is_none() {
+                    warn!(%message_id, "Message is gone, not enqueuing it");
+                    return Ok(());
+                }
                 self.enqueue_chat_message_in_transaction(txn, message_id)
                     .await
             })
@@ -92,14 +99,15 @@ impl OutboundService {
         Ok(())
     }
 
+    /// Marks a message as failed, leaving a message that is already gone.
     pub async fn fail_enqueued_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                // Load message to make sure it exists and get chat id
-                let message = ChatMessage::load(&mut *txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
+                    warn!(%message_id, "Message is gone, not marking it as failed");
+                    return Ok(());
+                };
                 let chat_id = message.chat_id();
 
                 // Load chat to check status

@@ -104,9 +104,8 @@ mod tests {
         },
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
-        mls_group_config::AppComponent,
     };
-    use airprotos::client::component::AirComponent;
+    use airprotos::client::app_data::GroupAppData;
     use uuid::Uuid;
 
     use crate::{
@@ -138,10 +137,9 @@ mod tests {
             let (_as_key, client_signer) = create_test_credentials(user_id.clone());
             LeafSigningKey::User(client_signer)
         };
-        let air_component = if is_self_group {
-            AirComponent::default_for_self_group()
-        } else {
-            AirComponent::default_for_leaf_or_key_package()
+        let app_data = GroupAppData {
+            is_self_group,
+            safe_aad_components: None,
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
@@ -151,8 +149,7 @@ mod tests {
             random_group_id(),
             random_group_id(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
-            None,
-            air_component,
+            app_data,
         )?;
         Ok(group)
     }

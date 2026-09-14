@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aircommon",
  "airmacros",
@@ -199,7 +199,7 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aes-gcm",
  "airmacros",
@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "airmacros"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "minicbor",
  "minicbor-serde",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "aircommon",
  "airmacros",
@@ -334,12 +334,13 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+ "tracing",
  "uuid",
 ]
 
 [[package]]
 name = "airserver"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -394,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -554,7 +555,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "apqmls"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "apqmls",
  "openmls",
@@ -1727,9 +1728,9 @@ dependencies = [
 
 [[package]]
 name = "chacha20"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
@@ -2854,9 +2855,9 @@ dependencies = [
 
 [[package]]
 name = "flutter_rust_bridge"
-version = "2.12.0"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0884853aae8a6517b5b58cf36f55da487f2fe110e1686938eb29b6640aae4a5"
+checksum = "24a973d15b8fc7de9fb29cdfbec58a2ac41f6252492d3b882abfdc603e32b34f"
 dependencies = [
  "allo-isolate",
  "android_logger",
@@ -2885,9 +2886,9 @@ dependencies = [
 
 [[package]]
 name = "flutter_rust_bridge_macros"
-version = "2.12.0"
+version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b5ce32f35f710ced8c5aa557f023f1a624e737b5460cee2b70fcd3a8df09e1b"
+checksum = "901eec2d226107dad1c55b30f7421c4687bebcf70ed43ca44d1b447ca087b238"
 dependencies = [
  "hex",
  "md-5 0.10.6",
@@ -3247,9 +3248,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9f37a958b41b3b19ee2707c06439c0e9e547e847223eb791ecb0cb821c65e27"
+checksum = "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -4609,16 +4610,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "minicov"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4869b6a491569605d66d3952bcdf03df789e5b536e5f0cf7758a7f08a55ae24d"
-dependencies = [
- "cc",
- "walkdir",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4675,7 +4666,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "apqmls",
  "chrono",
@@ -5078,12 +5069,10 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.9.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
- "backtrace",
  "itertools 0.14.0",
  "log",
- "once_cell",
  "openmls_basic_credential",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
@@ -5099,14 +5088,14 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tls_codec",
- "wasm-bindgen-test",
+ "web-time",
  "zeroize",
 ]
 
 [[package]]
 name = "openmls_basic_credential"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5122,7 +5111,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.4.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "aes",
  "fpe",
@@ -5145,7 +5134,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "hex",
  "log",
@@ -5158,7 +5147,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5186,7 +5175,7 @@ dependencies = [
 [[package]]
 name = "openmls_serialization_helpers"
 version = "0.1.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5197,7 +5186,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.3.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "openmls_traits",
  "refinery",
@@ -5208,7 +5197,7 @@ dependencies = [
 [[package]]
 name = "openmls_test"
 version = "0.3.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "openmls_libcrux_crypto",
  "openmls_rust_crypto",
@@ -5221,7 +5210,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=dce7c4a9ff1d0f77d38531e77eab5147a6620d1b#dce7c4a9ff1d0f77d38531e77eab5147a6620d1b"
+source = "git+https://github.com/openmls/openmls?rev=5216a30a1ae32d74b9d40a1b05b112034f696b77#5216a30a1ae32d74b9d40a1b05b112034f696b77"
 dependencies = [
  "serde",
  "tls_codec",
@@ -6079,7 +6068,7 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
 dependencies = [
- "chacha20 0.10.1",
+ "chacha20 0.10.2",
  "getrandom 0.4.3",
  "rand_core 0.10.1",
 ]
@@ -7264,7 +7253,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.52.0",
@@ -8149,45 +8138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-bindgen-test"
-version = "0.3.77"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "895a2607575412a4eda1df892084a375ea10dfeadc4d7d2ab87b854e4ddc7ba1"
-dependencies = [
- "async-trait",
- "cast",
- "js-sys",
- "libm",
- "minicov",
- "nu-ansi-term",
- "num-traits",
- "oorandom",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test-macro",
- "wasm-bindgen-test-shared",
-]
-
-[[package]]
-name = "wasm-bindgen-test-macro"
-version = "0.3.77"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288cb0ebe215033bf949ae1fd046726daa4c32a157f24b9dc6ac387a52aa759"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "wasm-bindgen-test-shared"
-version = "0.2.127"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33ff1c1b360982e93b6d8ea9c04836f71dba0817a16f91e229cf3a51bdd9d987"
-
-[[package]]
 name = "wasm-streams"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8287,6 +8237,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
+ "serde",
  "wasm-bindgen",
 ]
 
@@ -8873,7 +8824,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "askama",

@@ -128,3 +128,9 @@ message WrongEpochDetail {}
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;
 }
+
+message AirFeatures {
+  bool encrypted_group_profiles = 1;
+  bool empty_connection_group_attributes = 2;
+  bool pq_groups = 3;
+}
