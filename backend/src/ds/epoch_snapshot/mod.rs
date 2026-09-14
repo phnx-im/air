@@ -267,8 +267,6 @@ mod test {
         assert_eq!(decrypted, record());
     }
 
-    /// The AAD binds a record to its group and epoch, so a row moved to another
-    /// epoch (or another group) must not decrypt.
     #[test]
     fn epoch_snapshot_record_aad_is_bound() {
         let ear_key = GroupStateEarKey::random().unwrap();
@@ -282,8 +280,6 @@ mod test {
         assert!(DsEpochSnapshot::decrypt(&ear_key, &ciphertext, Uuid::new_v4(), epoch).is_err());
     }
 
-    /// Welcome info is encrypted under the same key for the same (group,
-    /// epoch), so only the record marker in the AAD keeps the two apart.
     #[test]
     fn welcome_info_does_not_decrypt_as_a_snapshot() {
         let ear_key = GroupStateEarKey::random().unwrap();
@@ -298,8 +294,6 @@ mod test {
         assert!(DsEpochSnapshot::decrypt(&ear_key, &reinterpreted, group_id, epoch).is_err());
     }
 
-    /// Unknown tags are ignored, so a record written by a later version that
-    /// added a field still reads.
     #[test]
     fn epoch_snapshot_record_ignores_unknown_tags() {
         #[derive(SerializeTaggedMap)]
