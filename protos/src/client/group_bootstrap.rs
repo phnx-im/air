@@ -146,11 +146,11 @@ pub struct GroupBootstrap {
     ///
     /// The receiver checks this id, and [`Self::pq_group_id`], against the
     /// `GroupInfo` it fetches. That binds the keys below to the group.
-    #[tag(1)]
-    pub group_id: Option<Vec<u8>>,
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
     /// Group id of the PQ leg, present iff the group is an APQ group.
-    #[tag(2)]
-    pub pq_group_id: Option<Vec<u8>>,
+    #[tag(2, with = "group_id_as_bytes")]
+    pub pq_group_id: Option<GroupId>,
     #[tag(3, with = "secret_as_bytes")]
     pub group_state_ear_key: Option<GroupStateEarKey>,
     #[tag(4, with = "secret_as_bytes")]
@@ -389,6 +389,26 @@ pub enum PeerUserIdError {
     InvalidDomain(#[from] FqdnError),
 }
 
+mod group_id_as_bytes {
+    use mls_assist::openmls::group::GroupId;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use serde_bytes::ByteBuf;
+
+    pub fn serialize<S>(group_id: &GroupId, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(group_id.as_slice())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<GroupId, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(GroupId::from_slice(&ByteBuf::deserialize(deserializer)?))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::assert_matches;
@@ -440,8 +460,8 @@ mod test {
 
     fn sample_bootstrap() -> GroupBootstrap {
         GroupBootstrap {
-            group_id: Some(b"t-group-id".to_vec()),
-            pq_group_id: Some(b"pq-group-id".to_vec()),
+            group_id: Some(GroupId::from_slice(b"t-group-id")),
+            pq_group_id: Some(GroupId::from_slice(b"pq-group-id")),
             group_state_ear_key: Some(key(1)),
             identity_link_wrapper_key: Some(key(2)),
             connection: Some(ConnectionContext::Accept(AcceptContext {
@@ -472,7 +492,7 @@ mod test {
     #[test]
     fn group_bootstrap_of_group_chat_omits_absent_fields() {
         let bootstrap = GroupBootstrap {
-            group_id: Some(b"t-group-id".to_vec()),
+            group_id: Some(GroupId::from_slice(b"t-group-id")),
             pq_group_id: None,
             group_state_ear_key: Some(key(1)),
             identity_link_wrapper_key: Some(key(2)),
@@ -659,7 +679,7 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
         let decoded: GroupBootstrap = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.group_id, Some(b"t-group-id".to_vec()));
+        assert_eq!(decoded.group_id, Some(GroupId::from_slice(b"t-group-id")));
         assert_eq!(decoded.group_state_ear_key, Some(key(1)));
         assert_eq!(decoded.identity_link_wrapper_key, None);
         assert_eq!(decoded.connection, None);

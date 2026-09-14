@@ -124,8 +124,8 @@ impl SelfGroup {
 /// fetches from the DS epoch snapshot.
 fn group_bootstrap_payload(group: &Group, connection: Option<ConnectionContext>) -> GroupBootstrap {
     GroupBootstrap {
-        group_id: Some(group.group_id().as_slice().to_vec()),
-        pq_group_id: group.pq_group_id().map(|id| id.as_slice().to_vec()),
+        group_id: Some(group.group_id().clone()),
+        pq_group_id: group.pq_group_id(),
         group_state_ear_key: Some(group.group_state_ear_key().clone()),
         identity_link_wrapper_key: Some(group.identity_link_wrapper_key().clone()),
         connection,
@@ -157,8 +157,8 @@ impl TryFrom<GroupBootstrap> for GroupBootstrapContents {
             connection,
         } = bootstrap;
         Ok(Self {
-            group_id: GroupId::from_slice(&group_id.context("group bootstrap without a group id")?),
-            pq_group_id: pq_group_id.map(|id| GroupId::from_slice(&id)),
+            group_id: group_id.context("group bootstrap without a group id")?,
+            pq_group_id,
             group_state_ear_key: group_state_ear_key
                 .context("group bootstrap without a group state ear key")?,
             identity_link_wrapper_key: identity_link_wrapper_key
@@ -336,7 +336,7 @@ mod tests {
 
     fn sample_bootstrap(group_id: &GroupId) -> GroupBootstrap {
         GroupBootstrap {
-            group_id: Some(group_id.as_slice().to_vec()),
+            group_id: Some(group_id.clone()),
             pq_group_id: None,
             group_state_ear_key: None,
             identity_link_wrapper_key: None,
@@ -410,7 +410,7 @@ mod tests {
 
     fn minimal_payload() -> GroupBootstrap {
         GroupBootstrap {
-            group_id: Some(b"t-group-id".to_vec()),
+            group_id: Some(GroupId::from_slice(b"t-group-id")),
             pq_group_id: None,
             group_state_ear_key: Some(key(1)),
             identity_link_wrapper_key: Some(key(2)),
@@ -503,14 +503,8 @@ mod tests {
         assert!(blob.encrypted_bootstrap.is_some());
 
         let payload = group_bootstrap_payload(&created, None);
-        assert_eq!(
-            payload.group_id.as_deref(),
-            Some(created.group_id().as_slice())
-        );
-        assert_eq!(
-            payload.pq_group_id,
-            created.pq_group_id().map(|id| id.as_slice().to_vec())
-        );
+        assert_eq!(payload.group_id.as_ref(), Some(created.group_id()));
+        assert_eq!(payload.pq_group_id, created.pq_group_id());
         assert_eq!(
             payload.group_state_ear_key.as_ref(),
             Some(created.group_state_ear_key())
