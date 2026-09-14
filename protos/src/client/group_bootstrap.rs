@@ -32,8 +32,15 @@
 
 use aircommon::{
     crypto::{
-        aead::{Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::GroupBootstrapKey},
+        aead::{
+            Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable,
+            keys::{
+                FriendshipPackageEarKey, GroupBootstrapKey, GroupStateEarKey,
+                IdentityLinkWrapperKey, WelcomeAttributionInfoEarKey,
+            },
+        },
         errors::{DecryptionError, EncryptionError},
+        indexed_aead::keys::{UserProfileBaseSecret, secret_as_bytes},
     },
     identifiers::{Fqdn, FqdnError, UserId},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
@@ -144,12 +151,10 @@ pub struct GroupBootstrap {
     /// Group id of the PQ leg, present iff the group is an APQ group.
     #[tag(2)]
     pub pq_group_id: Option<Vec<u8>>,
-    /// Raw `GroupStateEarKey`, 32 bytes.
-    #[tag(3)]
-    pub group_state_ear_key: Option<Vec<u8>>,
-    /// Raw `IdentityLinkWrapperKey`, 32 bytes.
-    #[tag(4)]
-    pub identity_link_wrapper_key: Option<Vec<u8>>,
+    #[tag(3, with = "secret_as_bytes")]
+    pub group_state_ear_key: Option<GroupStateEarKey>,
+    #[tag(4, with = "secret_as_bytes")]
+    pub identity_link_wrapper_key: Option<IdentityLinkWrapperKey>,
     /// Absent for group chats. Their chat attributes come from the group-data
     /// extension in the `GroupInfo` instead.
     #[tag(5)]
@@ -274,9 +279,8 @@ pub struct HandleInitiatorContext {
     /// The handle the offer went to. Validated into a `Username` on receive.
     #[tag(1)]
     pub username: Option<String>,
-    /// Raw `FriendshipPackageEarKey`, 32 bytes.
-    #[tag(2)]
-    pub friendship_package_ear_key: Option<Vec<u8>>,
+    #[tag(2, with = "secret_as_bytes")]
+    pub friendship_package_ear_key: Option<FriendshipPackageEarKey>,
     /// Id and value of the connection-offer PSK.
     #[tag(3)]
     pub connection_offer_hash: Option<ConnectionOfferHash>,
@@ -297,9 +301,8 @@ pub struct TargetedInitiatorContext {
     /// The user the targeted message went to.
     #[tag(1)]
     pub user_id: Option<PeerUserId>,
-    /// Raw `FriendshipPackageEarKey`, 32 bytes.
-    #[tag(2)]
-    pub friendship_package_ear_key: Option<Vec<u8>>,
+    #[tag(2, with = "secret_as_bytes")]
+    pub friendship_package_ear_key: Option<FriendshipPackageEarKey>,
 }
 
 /// The acting client accepted a connection request by externally joining the
@@ -330,12 +333,10 @@ pub struct AcceptContext {
     pub user_id: Option<PeerUserId>,
     #[tag(2)]
     pub friendship_token: Option<FriendshipToken>,
-    /// Raw `WelcomeAttributionInfoEarKey`, 32 bytes.
-    #[tag(3)]
-    pub wai_ear_key: Option<Vec<u8>>,
-    /// Raw `UserProfileBaseSecret`, 32 bytes.
-    #[tag(4)]
-    pub user_profile_base_secret: Option<Vec<u8>>,
+    #[tag(3, with = "secret_as_bytes")]
+    pub wai_ear_key: Option<WelcomeAttributionInfoEarKey>,
+    #[tag(4, with = "secret_as_bytes")]
+    pub user_profile_base_secret: Option<UserProfileBaseSecret>,
     #[tag(5)]
     pub connection_offer_hash: Option<ConnectionOfferHash>,
 }
@@ -396,7 +397,9 @@ mod test {
         codec::PersistenceCodec,
         crypto::{
             aead::AEAD_KEY_SIZE,
+            indexed_aead::keys::TypedSecret,
             kdf::{KdfDerivable, keys::VcApplicationSecret},
+            secrets::Secret,
         },
     };
 
@@ -419,7 +422,12 @@ mod test {
         }
     }
 
-    fn key(byte: u8) -> Vec<u8> {
+    fn key<KT, ST>(byte: u8) -> TypedSecret<KT, ST, AEAD_KEY_SIZE> {
+        Secret::from([byte; AEAD_KEY_SIZE]).into()
+    }
+
+    /// The raw byte string a key field is encoded as on the wire.
+    fn key_bytes(byte: u8) -> Vec<u8> {
         vec![byte; AEAD_KEY_SIZE]
     }
 
@@ -646,7 +654,7 @@ mod test {
 
         let newer = GroupBootstrapV2 {
             group_id: b"t-group-id".to_vec(),
-            group_state_ear_key: Some(key(1)),
+            group_state_ear_key: Some(key_bytes(1)),
             something_new: Some(7),
         };
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
@@ -655,5 +663,25 @@ mod test {
         assert_eq!(decoded.group_state_ear_key, Some(key(1)));
         assert_eq!(decoded.identity_link_wrapper_key, None);
         assert_eq!(decoded.connection, None);
+    }
+
+    /// The key fields are length-checked on decode, so a key of the wrong
+    /// length is a decode error rather than a silently truncated key.
+    #[test]
+    fn group_bootstrap_rejects_key_of_wrong_length() {
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct RawGroupBootstrap {
+            #[tag(1)]
+            group_id: Vec<u8>,
+            #[tag(3)]
+            group_state_ear_key: Option<Vec<u8>>,
+        }
+
+        let short = RawGroupBootstrap {
+            group_id: b"t-group-id".to_vec(),
+            group_state_ear_key: Some(vec![1; AEAD_KEY_SIZE - 1]),
+        };
+        let bytes = PersistenceCodec::to_vec(&short).unwrap();
+        assert!(PersistenceCodec::from_slice::<GroupBootstrap>(&bytes).is_err());
     }
 }

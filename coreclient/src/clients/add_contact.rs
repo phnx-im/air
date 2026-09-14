@@ -39,8 +39,8 @@ use crate::{
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PartialCreateGroupParams, group_bootstrap::secret_bytes,
-        openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
+        Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+        self_group::SelfGroup,
     },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
 };
@@ -474,7 +474,7 @@ impl LocalGroup<AnyConnectionPackage> {
         if let Some(self_group) = &self_group {
             let connection = ConnectionContext::HandleInitiator(HandleInitiatorContext {
                 username: Some(username.plaintext().to_owned()),
-                friendship_package_ear_key: Some(secret_bytes(&friendship_package_ear_key)),
+                friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
                 connection_offer_hash: Some(connection_offer_hash),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
@@ -542,7 +542,7 @@ impl LocalGroup<UserId> {
         if let Some(self_group) = &self_group {
             let connection = ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
                 user_id: Some(contact.user_id.clone().into()),
-                friendship_package_ear_key: Some(secret_bytes(&friendship_package_ear_key)),
+                friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,

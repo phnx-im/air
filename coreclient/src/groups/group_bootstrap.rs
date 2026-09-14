@@ -21,9 +21,7 @@ use aircommon::{
                 IdentityLinkWrapperKey,
             },
         },
-        indexed_aead::keys::TypedSecret,
         kdf::{KdfDerivable, keys::VcApplicationSecret},
-        secrets::Secret,
     },
     identifiers::{UserId, Username},
     messages::client_as::ConnectionOfferHash,
@@ -128,15 +126,10 @@ fn group_bootstrap_payload(group: &Group, connection: Option<ConnectionContext>)
     GroupBootstrap {
         group_id: Some(group.group_id().as_slice().to_vec()),
         pq_group_id: group.pq_group_id().map(|id| id.as_slice().to_vec()),
-        group_state_ear_key: Some(secret_bytes(group.group_state_ear_key())),
-        identity_link_wrapper_key: Some(secret_bytes(group.identity_link_wrapper_key())),
+        group_state_ear_key: Some(group.group_state_ear_key().clone()),
+        identity_link_wrapper_key: Some(group.identity_link_wrapper_key().clone()),
         connection,
     }
-}
-
-/// The raw bytes of a 32-byte secret.
-pub(crate) fn secret_bytes(secret: &impl AsRef<Secret<AEAD_KEY_SIZE>>) -> Vec<u8> {
-    secret.as_ref().secret().to_vec()
 }
 
 /// A [`GroupBootstrap`] payload whose required fields are present and of the
@@ -166,11 +159,10 @@ impl TryFrom<GroupBootstrap> for GroupBootstrapContents {
         Ok(Self {
             group_id: GroupId::from_slice(&group_id.context("group bootstrap without a group id")?),
             pq_group_id: pq_group_id.map(|id| GroupId::from_slice(&id)),
-            group_state_ear_key: secret_field(group_state_ear_key, "group state ear key")?,
-            identity_link_wrapper_key: secret_field(
-                identity_link_wrapper_key,
-                "identity link wrapper key",
-            )?,
+            group_state_ear_key: group_state_ear_key
+                .context("group bootstrap without a group state ear key")?,
+            identity_link_wrapper_key: identity_link_wrapper_key
+                .context("group bootstrap without an identity link wrapper key")?,
             connection: connection.map(BootstrapConnection::try_from).transpose()?,
         })
     }
@@ -212,10 +204,9 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                         .username
                         .context("handle initiator context without a username")?,
                 )?,
-                friendship_package_ear_key: secret_field(
-                    context.friendship_package_ear_key,
-                    "friendship package ear key",
-                )?,
+                friendship_package_ear_key: context
+                    .friendship_package_ear_key
+                    .context("handle initiator context without a friendship package ear key")?,
                 connection_offer_hash: context
                     .connection_offer_hash
                     .context("handle initiator context without a connection offer hash")?,
@@ -225,10 +216,9 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                     .user_id
                     .context("targeted initiator context without a user id")?
                     .to_user_id()?,
-                friendship_package_ear_key: secret_field(
-                    context.friendship_package_ear_key,
-                    "friendship package ear key",
-                )?,
+                friendship_package_ear_key: context
+                    .friendship_package_ear_key
+                    .context("targeted initiator context without a friendship package ear key")?,
             }),
             ConnectionContext::Accept(context) => Ok(Self::Accept {
                 user_id: context
@@ -239,11 +229,12 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                     friendship_token: context
                         .friendship_token
                         .context("accept context without a friendship token")?,
-                    wai_ear_key: secret_field(context.wai_ear_key, "wai ear key")?,
-                    user_profile_base_secret: secret_field(
-                        context.user_profile_base_secret,
-                        "user profile base secret",
-                    )?,
+                    wai_ear_key: context
+                        .wai_ear_key
+                        .context("accept context without a wai ear key")?,
+                    user_profile_base_secret: context
+                        .user_profile_base_secret
+                        .context("accept context without a user profile base secret")?,
                 },
                 connection_offer_hash: context.connection_offer_hash,
             }),
@@ -252,19 +243,6 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
             }
         }
     }
-}
-
-/// Turns a raw 32-byte blob field into its secret type, rejecting an absent
-/// field or a wrong length.
-fn secret_field<KT, ST, const N: usize>(
-    bytes: Option<Vec<u8>>,
-    field: &str,
-) -> Result<TypedSecret<KT, ST, N>> {
-    let bytes = bytes.with_context(|| format!("group bootstrap without a {field}"))?;
-    let bytes: [u8; N] = bytes
-        .try_into()
-        .map_err(|_| anyhow!("group bootstrap {field} has the wrong length"))?;
-    Ok(TypedSecret::from(Secret::from(bytes)))
 }
 
 fn bootstrap_key(secret: Vec<u8>) -> Result<GroupBootstrapKey> {
@@ -287,7 +265,10 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
-    use aircommon::{crypto::aead::AEAD_KEY_SIZE, messages::FriendshipToken};
+    use aircommon::{
+        crypto::{aead::AEAD_KEY_SIZE, indexed_aead::keys::TypedSecret, secrets::Secret},
+        messages::FriendshipToken,
+    };
     use airprotos::client::{
         app_data::GroupAppData,
         group_bootstrap::{AcceptContext, HandleInitiatorContext, PeerUserId},
@@ -367,12 +348,16 @@ mod tests {
         UserId::new(Uuid::new_v4(), "example.com".parse().unwrap())
     }
 
+    fn key<KT, ST>(byte: u8) -> TypedSecret<KT, ST, AEAD_KEY_SIZE> {
+        Secret::from([byte; AEAD_KEY_SIZE]).into()
+    }
+
     fn accept_context(user_id: &UserId) -> AcceptContext {
         AcceptContext {
             user_id: Some(user_id.clone().into()),
             friendship_token: Some(FriendshipToken::from_bytes(vec![1; 32])),
-            wai_ear_key: Some(vec![2; AEAD_KEY_SIZE]),
-            user_profile_base_secret: Some(vec![3; AEAD_KEY_SIZE]),
+            wai_ear_key: Some(key(2)),
+            user_profile_base_secret: Some(key(3)),
             connection_offer_hash: Some(ConnectionOfferHash::from_bytes([4u8; 32])),
         }
     }
@@ -395,13 +380,10 @@ mod tests {
 
         assert_eq!(&contents.group_id, created.group_id());
         assert_eq!(contents.pq_group_id, created.pq_group_id());
+        assert_eq!(&contents.group_state_ear_key, created.group_state_ear_key());
         assert_eq!(
-            secret_bytes(&contents.group_state_ear_key),
-            secret_bytes(created.group_state_ear_key())
-        );
-        assert_eq!(
-            secret_bytes(&contents.identity_link_wrapper_key),
-            secret_bytes(created.identity_link_wrapper_key())
+            &contents.identity_link_wrapper_key,
+            created.identity_link_wrapper_key()
         );
         let Some(BootstrapConnection::Accept {
             user_id,
@@ -416,10 +398,7 @@ mod tests {
             friendship_package.friendship_token,
             FriendshipToken::from_bytes(vec![1; 32])
         );
-        assert_eq!(
-            secret_bytes(&friendship_package.wai_ear_key),
-            vec![2; AEAD_KEY_SIZE]
-        );
+        assert_eq!(friendship_package.wai_ear_key, key(2));
         assert_eq!(
             connection_offer_hash,
             Some(ConnectionOfferHash::from_bytes([4u8; 32]))
@@ -433,14 +412,14 @@ mod tests {
         GroupBootstrap {
             group_id: Some(b"t-group-id".to_vec()),
             pq_group_id: None,
-            group_state_ear_key: Some(vec![1; AEAD_KEY_SIZE]),
-            identity_link_wrapper_key: Some(vec![2; AEAD_KEY_SIZE]),
+            group_state_ear_key: Some(key(1)),
+            identity_link_wrapper_key: Some(key(2)),
             connection: None,
         }
     }
 
     #[test]
-    fn contents_reject_absent_or_malformed_fields() {
+    fn contents_reject_absent_fields() {
         assert!(GroupBootstrapContents::try_from(minimal_payload()).is_ok());
 
         let payload = GroupBootstrap {
@@ -451,12 +430,6 @@ mod tests {
 
         let payload = GroupBootstrap {
             group_state_ear_key: None,
-            ..minimal_payload()
-        };
-        assert!(GroupBootstrapContents::try_from(payload).is_err());
-
-        let payload = GroupBootstrap {
-            identity_link_wrapper_key: Some(vec![2; AEAD_KEY_SIZE - 1]),
             ..minimal_payload()
         };
         assert!(GroupBootstrapContents::try_from(payload).is_err());
@@ -500,7 +473,7 @@ mod tests {
         assert!(
             with_connection(ConnectionContext::HandleInitiator(HandleInitiatorContext {
                 username: None,
-                friendship_package_ear_key: Some(vec![5; AEAD_KEY_SIZE]),
+                friendship_package_ear_key: Some(key(5)),
                 connection_offer_hash: Some(ConnectionOfferHash::from_bytes([6u8; 32])),
             }))
             .is_err()
@@ -539,12 +512,12 @@ mod tests {
             created.pq_group_id().map(|id| id.as_slice().to_vec())
         );
         assert_eq!(
-            payload.group_state_ear_key,
-            Some(secret_bytes(created.group_state_ear_key()))
+            payload.group_state_ear_key.as_ref(),
+            Some(created.group_state_ear_key())
         );
         assert_eq!(
-            payload.identity_link_wrapper_key,
-            Some(secret_bytes(created.identity_link_wrapper_key()))
+            payload.identity_link_wrapper_key.as_ref(),
+            Some(created.identity_link_wrapper_key())
         );
         assert_eq!(payload.connection, None);
 

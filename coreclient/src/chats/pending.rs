@@ -27,7 +27,7 @@ use crate::{
     },
     contacts::UsernameContact,
     db::access::WriteConnection,
-    groups::{Group, group_bootstrap::secret_bytes, self_group::SelfGroup},
+    groups::{Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
     usernames::connection_packages::ConnectionPackageRecord,
 };
@@ -203,10 +203,10 @@ impl CoreUser {
                         let connection = ConnectionContext::Accept(AcceptContext {
                             user_id: Some(sender_user_id.clone().into()),
                             friendship_token: Some(friendship_package.friendship_token.clone()),
-                            wai_ear_key: Some(secret_bytes(&friendship_package.wai_ear_key)),
-                            user_profile_base_secret: Some(secret_bytes(
-                                &friendship_package.user_profile_base_secret,
-                            )),
+                            wai_ear_key: Some(friendship_package.wai_ear_key.clone()),
+                            user_profile_base_secret: Some(
+                                friendship_package.user_profile_base_secret.clone(),
+                            ),
                             connection_offer_hash,
                         });
                         Some(self_group.seal_group_bootstrap_param(
