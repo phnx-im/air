@@ -22,11 +22,12 @@ pub(crate) fn is_ds_not_found_error(error: &anyhow::Error) -> bool {
         .is_some_and(DsRequestError::is_not_found)
 }
 
-/// Whether the DS error is a network error.
-pub(crate) fn is_ds_network_error(error: &anyhow::Error) -> bool {
+/// Whether the DS answered and refused a request.
+pub(crate) fn is_ds_rejection_error(error: &anyhow::Error) -> bool {
+    // Anything which is not a network error
     error
         .downcast_ref::<DsRequestError>()
-        .is_some_and(|error| error.is_network_error())
+        .is_some_and(|error| !error.is_network_error())
 }
 
 /// Errors that occur while running the outbound service. Fatal errors will

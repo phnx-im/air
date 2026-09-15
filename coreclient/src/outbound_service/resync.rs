@@ -41,7 +41,7 @@ use crate::{
     outbound_service::{
         OutboundServiceContext,
         error::{
-            OutboundServiceError, classify_ds_error, is_ds_network_error, is_ds_not_found_error,
+            OutboundServiceError, classify_ds_error, is_ds_not_found_error, is_ds_rejection_error,
         },
     },
 };
@@ -295,8 +295,7 @@ impl OutboundServiceContext {
         let signer = match self.signer_for_group(&group_id).await {
             Ok(signer) => signer,
             Err(error) => {
-                error!(%error, "Resync failed permanently; giving up");
-                Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string()).await?;
+                error!(%error, "Failed to get signer for group");
                 return Ok(());
             }
         };
@@ -338,13 +337,12 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                if is_ds_network_error(&error) {
+                if !is_ds_rejection_error(&error) {
                     warn!(%error, "Resync failed; retrying later");
                     return Ok(());
                 }
 
-                // The DS answered and refused the request, so the attempt was
-                // spent.
+                // The DS answered and refused the request, so the attempt was spent.
                 let attempts = attempts + 1;
                 if attempts >= MAX_RESYNC_ATTEMPTS {
                     error!(%error, "Resync failed permanently; giving up");
@@ -478,8 +476,7 @@ impl Resync {
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
-        // Insert a system message and mark chat as active once the commit is accepted by the DS.
-        connection
+        let res = connection
             .with_transaction(async |txn| -> anyhow::Result<()> {
                 if shares_vc_leaf && chat_created {
                     let system_message = ChatMessage::new_system_message(
@@ -490,11 +487,12 @@ impl Resync {
                     system_message.store(&mut *txn).await?;
                 }
                 Chat::update_status(txn, chat_id, &ChatStatus::Active).await?;
-
                 Ok(())
             })
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+            .await;
+        if let Err(error) = res {
+            error!(%error, ?chat_id, "Failed to update chat after accepted resync commit");
+        }
 
         Ok(Some((chat_id, member_profile_infos)))
     }
