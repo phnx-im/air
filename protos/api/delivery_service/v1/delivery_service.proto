@@ -29,6 +29,8 @@ service DeliveryService {
 
   rpc JoinConnectionGroup(JoinConnectionGroupRequest) returns (JoinConnectionGroupResponse);
 
+  rpc ApqJoinConnectionGroup(ApqJoinConnectionGroupRequest) returns (ApqJoinConnectionGroupResponse);
+
   rpc Resync(ResyncRequest) returns (ResyncResponse);
 
   rpc ApqResync(ApqResyncRequest) returns (ApqResyncResponse);
@@ -308,6 +310,10 @@ message ConnectionGroupInfoResponse {
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
   repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
+  // Present iff the connection group is an APQ group.
+  GroupInfo pq_group_info = 8;
+  RatchetTree pq_ratchet_tree = 9;
+  repeated MlsMessage pq_proposals = 10;
 }
 
 // join connection group
@@ -320,6 +326,19 @@ message JoinConnectionGroupRequest {
 }
 
 message JoinConnectionGroupResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq join connection group
+
+message ApqJoinConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage external_commit = 3;
+  QsReference qs_client_reference = 4;
+}
+
+message ApqJoinConnectionGroupResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
