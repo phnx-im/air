@@ -23,7 +23,7 @@ use crate::{
         chat_operation::DerivationEpoch,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
-    outbound_service::resync::Resync,
+    outbound_service::resync::{Resync, ResyncReason},
 };
 
 use super::*;
@@ -277,6 +277,8 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: false,
             connection_contact: None,
+            reason: ResyncReason::Manual,
+            attempts: 0,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())

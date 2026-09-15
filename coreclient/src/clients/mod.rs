@@ -56,7 +56,7 @@ use crate::{
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
-    outbound_service::OutboundService,
+    outbound_service::{OutboundService, resync::Resync},
     utils::{
         global_lock::GlobalLock,
         image::resize_profile_image,
@@ -958,6 +958,14 @@ impl CoreUser {
         group_id: &openmls::prelude::GroupId,
     ) -> anyhow::Result<bool> {
         Group::pending_commit_failed(self.db().read().await?, group_id).await
+    }
+
+    /// Whether the resync queued for this group was given up on.
+    pub async fn chat_resync_failed(
+        &self,
+        group_id: &openmls::prelude::GroupId,
+    ) -> anyhow::Result<bool> {
+        Ok(Resync::is_failed(self.db().read().await?, group_id).await?)
     }
 }
 

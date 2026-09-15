@@ -600,6 +600,96 @@ async fn resync() {
     );
 }
 
+/// A wrong-epoch answer to our own commit parks it and nothing more. Only a message from an epoch
+/// ahead of ours schedules the resync.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Wrong epoch on own commit", skip_all)]
+async fn wrong_epoch_on_own_commit_does_not_resync() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user.update_key(chat_id).await.unwrap();
+
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
+
+    let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
+
+    // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("commit at a stale epoch must be rejected");
+    let pending = bob_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("rejected commit should be parked");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
+    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // An outbound run changes nothing either.
+    bob_user.outbound_service().run_once().await;
+    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
+    // schedules the resync.
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
+            None,
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap();
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "a message from a future epoch must schedule a resync, not fail"
+    );
+    assert!(bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // The resync replaces the group state, which also drops the parked commit.
+    bob_user.outbound_service().run_once().await;
+    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(
+        bob_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Alice processes Bob's rejoin and Bob can send again.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
+
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+}
+
 /// When the DS returns "group not found" for a resync, the client must stop
 /// retrying and remove the resync from the queue.
 ///

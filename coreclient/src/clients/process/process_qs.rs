@@ -60,7 +60,10 @@ use crate::{
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
-    outbound_service::{chat_message_queue::ChatMessageQueue, resync::Resync},
+    outbound_service::{
+        chat_message_queue::ChatMessageQueue,
+        resync::{Resync, ResyncStatus},
+    },
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -612,12 +615,29 @@ impl CoreUser {
         match result {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
-            ProcessMessageResult::ResyncRequired => {
-                warn!(%chat_id, "group is out of sync, scheduling resync");
-                Resync::for_group(chat_id, group.group())
-                    .enqueue(&mut *txn)
-                    .await?;
-                // group.group_mut().mark_commit_failed(&mut *txn).await?;
+            ProcessMessageResult::ResyncRequired(reason) => {
+                let group_id = group.group_id().clone();
+                match Resync::status(&mut *txn, &group_id).await? {
+                    None => {
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        Resync::for_group(chat_id, group.group(), reason)
+                            .enqueue(&mut *txn)
+                            .await?;
+                        group.group_mut().mark_commit_failed(&mut *txn).await?;
+                    }
+                    Some(ResyncStatus::Pending) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; resync already scheduled"
+                        );
+                    }
+                    Some(ResyncStatus::Failed) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; earlier resync failed permanently, not scheduling"
+                        );
+                    }
+                }
                 Ok(None)
             }
         }

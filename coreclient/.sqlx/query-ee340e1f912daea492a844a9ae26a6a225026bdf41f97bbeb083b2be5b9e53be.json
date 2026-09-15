@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT chat_id AS \"chat_id: _\", group_id AS \"group_id: _\" FROM resync_queue",
+  "query": "SELECT chat_id AS \"chat_id: _\", group_id AS \"group_id: _\"\n                FROM resync_queue\n                WHERE status = ?",
   "describe": {
     "columns": [
       {
@@ -27,12 +27,12 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
       true,
       false
     ]
   },
-  "hash": "2f845b1cc3a18edbd554e0710180da56eadb1d9089e95c710b6b181a2038f8fa"
+  "hash": "ee340e1f912daea492a844a9ae26a6a225026bdf41f97bbeb083b2be5b9e53be"
 }

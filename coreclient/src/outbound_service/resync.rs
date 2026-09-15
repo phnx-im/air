@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::{fmt, str::FromStr};
+
 use aircommon::{
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
@@ -12,12 +14,13 @@ use aircommon::{
 use airprotos::client::group::GroupData;
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
+use chrono::{DateTime, TimeDelta, Utc};
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{Instrument, debug, error, info, info_span, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -37,9 +40,107 @@ use crate::{
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
         OutboundServiceContext,
-        error::{OutboundServiceError, classify_ds_error, is_ds_not_found_error},
+        error::{
+            OutboundServiceError, classify_ds_error, is_ds_network_error, is_ds_not_found_error,
+        },
     },
 };
+
+/// DS rejections before a queued resync is given up on.
+const MAX_RESYNC_ATTEMPTS: u32 = 5;
+
+/// Why a group is being resynced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResyncReason {
+    /// We missed a commit.
+    FutureEpoch,
+    /// The local PQ leg of an APQ group is gone.
+    MissingPqGroupState,
+    /// Commit built against a derivation epoch we do not hold.
+    VirtualClientDesync,
+    /// Requested by the user.
+    Manual,
+    /// Onboarding a freshly linked device into a higher-level group.
+    Onboarding,
+}
+
+impl ResyncReason {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::FutureEpoch => "future_epoch",
+            Self::MissingPqGroupState => "missing_pq_group_state",
+            Self::VirtualClientDesync => "virtual_client_desync",
+            Self::Manual => "manual",
+            Self::Onboarding => "onboarding",
+        }
+    }
+}
+
+impl FromStr for ResyncReason {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(match s {
+            "future_epoch" => Self::FutureEpoch,
+            "missing_pq_group_state" => Self::MissingPqGroupState,
+            "virtual_client_desync" => Self::VirtualClientDesync,
+            "manual" => Self::Manual,
+            "onboarding" => Self::Onboarding,
+            _ => bail!("Invalid resync reason: {s}"),
+        })
+    }
+}
+
+impl fmt::Display for ResyncReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// State of a queue entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResyncStatus {
+    Pending,
+    /// Cleared only by a manual resync or a processed commit.
+    Failed,
+}
+
+impl ResyncStatus {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+impl FromStr for ResyncStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(match s {
+            "pending" => Self::Pending,
+            "failed" => Self::Failed,
+            _ => bail!("Invalid resync status: {s}"),
+        })
+    }
+}
+
+impl fmt::Display for ResyncStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// The queue entry of a group, rendered for the debug screen.
+#[derive(Debug, Clone)]
+pub struct ResyncDebugInfo {
+    pub status: String,
+    pub reason: String,
+    pub attempts: u32,
+    pub not_before: Option<String>,
+    pub last_error: Option<String>,
+}
 
 pub(crate) struct Resync {
     /// `None` while onboarding an emulator client into a higher-level group:
@@ -63,10 +164,13 @@ pub(crate) struct Resync {
     /// The contact to create alongside the chat when this resync onboards into a
     /// connection group.
     pub(crate) connection_contact: Option<ConnectionContact>,
+    pub(crate) reason: ResyncReason,
+    /// How many DS rejections this entry has collected so far.
+    pub(crate) attempts: u32,
 }
 
 impl Resync {
-    pub(crate) fn for_group(chat_id: ChatId, group: &Group) -> Self {
+    pub(crate) fn for_group(chat_id: ChatId, group: &Group, reason: ResyncReason) -> Self {
         Self {
             chat_id: Some(chat_id),
             group_id: group.group_id().clone(),
@@ -76,11 +180,9 @@ impl Resync {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: group.own_leaf_is_virtual_client(),
             connection_contact: None,
+            reason,
+            attempts: 0,
         }
-    }
-
-    pub(crate) fn is_onboarding(&self) -> bool {
-        self.chat_id.is_none()
     }
 }
 
@@ -90,9 +192,9 @@ impl CoreUser {
             .await?
             .context("group not found")?;
 
-        let resync = Resync::for_group(chat_id, &group);
+        let resync = Resync::for_group(chat_id, &group, ResyncReason::Manual);
 
-        resync.enqueue(self.db().write().await?).await?;
+        resync.enqueue_or_reset(self.db().write().await?).await?;
 
         self.outbound_service().notify_work();
 
@@ -132,6 +234,8 @@ impl CoreUser {
                 original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
                 shares_vc_leaf: true,
                 connection_contact: connection,
+                reason: ResyncReason::Onboarding,
+                attempts: 0,
             };
 
             resync.enqueue(&mut *txn).await?;
@@ -143,6 +247,11 @@ impl CoreUser {
 }
 
 impl OutboundServiceContext {
+    /// Drains the resync queue.
+    ///
+    /// DS rejections count towards [`MAX_RESYNC_ATTEMPTS`] with backoff, then the entry is marked
+    /// `failed` until a manual resync or a processed commit clears it. Other errors retry on the
+    /// next run.
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
@@ -154,89 +263,135 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
+            let now = Utc::now();
             let Some(resync) = self
                 .db
-                .with_write_transaction(async |txn| Resync::dequeue(txn, task_id).await)
+                .with_write_transaction(async |txn| Resync::dequeue(txn, task_id, now).await)
                 .await?
             else {
                 return Ok(());
             };
-            info!(?resync.chat_id, "Performing chat resync");
 
-            let group_id = resync.group_id.clone();
-
-            // The self group is rejoined with the per-device self-group key, all other
-            // groups with the user key.
-            let signer = match self.signer_for_group(&group_id).await {
-                Ok(signer) => signer,
-                Err(error) => {
-                    error!(%error, "Failed to resolve resync signer; dropping");
-                    Resync::remove(self.db.write().await?, &group_id).await?;
-                    continue;
-                }
-            };
-
-            let _is_onboarding = resync.is_onboarding();
-            let result = {
-                let mut connection = self.db.write().await?;
-                let result = resync
-                    .create_and_send_commit(
-                        &mut connection,
-                        &self.api_clients,
-                        &signer,
-                        self.user_id(),
-                    )
-                    .await;
-                if let Ok(Some((chat_id, _))) = &result {
-                    Resync::remove(&mut connection, &group_id).await?;
-                    connection.notifier().update(*chat_id);
-                    // TODO: Schedule a job here that deals with fetching profile
-                    // infos in the background.
-                }
-                result
-            };
-
-            let profile_infos = match result {
-                Ok(Some((_, profile_infos))) => profile_infos,
-                Ok(None) => continue,
-                Err(OutboundServiceError::Fatal(error)) => {
-                    if is_ds_not_found_error(&error) {
-                        error!(%error, "Group not found during resync; cleaning up local state");
-                        self.db
-                            .with_write_transaction(async |txn| {
-                                handle_group_not_found_on_ds(txn, &group_id).await
-                            })
-                            .await?;
-                        continue;
-                    }
-
-                    error!(%error, "Failed to send resync; dropping");
-                    Resync::remove(self.db.write().await?, &group_id).await?;
-                    continue;
-                }
-                Err(OutboundServiceError::Recoverable(error)) => {
-                    error!(%error, "Failed to send resync; will retry later");
-                    continue;
-                }
-            };
-
-            let mut connection = self.db.write().await?;
-            for ProfileInfo {
-                user_credential,
-                user_profile_key,
-            } in profile_infos.members
-            {
-                if let Err(error) =
-                    FetchUserProfileOperation::new(user_credential, user_profile_key)
-                        .into_operation()
-                        .enqueue(&mut connection)
-                        .await
-                {
-                    error!(%error, "Failed to enqueue fetch profile operation");
-                }
-            }
+            let span = info_span!(
+                "resync",
+                chat_id = ?resync.chat_id,
+                group_id = ?resync.group_id,
+                reason = %resync.reason,
+                attempt = resync.attempts + 1,
+            );
+            self.perform_resync(resync, now).instrument(span).await?;
         }
     }
+
+    /// Performs a single dequeued resync and records its outcome in the queue.
+    async fn perform_resync(&self, resync: Resync, now: DateTime<Utc>) -> anyhow::Result<()> {
+        info!("Performing resync");
+
+        let group_id = resync.group_id.clone();
+        let attempts = resync.attempts;
+
+        // The self group is rejoined with the per-device self-group key, all other groups with the
+        // user key.
+        let signer = match self.signer_for_group(&group_id).await {
+            Ok(signer) => signer,
+            Err(error) => {
+                error!(%error, "Resync failed permanently; giving up");
+                Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string()).await?;
+                return Ok(());
+            }
+        };
+
+        let result = {
+            let mut connection = self.db.write().await?;
+            let result = resync
+                .create_and_send_commit(&mut connection, &self.api_clients, &signer, self.user_id())
+                .await;
+            if let Ok(Some((chat_id, _))) = &result {
+                Resync::remove(&mut connection, &group_id).await?;
+                connection.notifier().update(*chat_id);
+                // TODO: Schedule a job here that deals with fetching profile infos in the
+                // background.
+            }
+            result
+        };
+
+        let profile_infos = match result {
+            Ok(Some((_, profile_infos))) => {
+                info!("Resync succeeded");
+                profile_infos
+            }
+            // We are not a member anymore, which was already handled inside.
+            Ok(None) => return Ok(()),
+            Err(OutboundServiceError::Fatal(error)) => {
+                if is_ds_not_found_error(&error) {
+                    error!(%error, "Group not found on DS during resync; tearing down group");
+                    self.db
+                        .with_write_transaction(async |txn| {
+                            handle_group_not_found_on_ds(txn, &group_id).await
+                        })
+                        .await?;
+                    return Ok(());
+                }
+
+                error!(%error, "Resync failed permanently; giving up");
+                Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string()).await?;
+                return Ok(());
+            }
+            Err(OutboundServiceError::Recoverable(error)) => {
+                if is_ds_network_error(&error) {
+                    warn!(%error, "Resync failed; retrying later");
+                    return Ok(());
+                }
+
+                // The DS answered and refused the request, so the attempt was
+                // spent.
+                let attempts = attempts + 1;
+                if attempts >= MAX_RESYNC_ATTEMPTS {
+                    error!(%error, "Resync failed permanently; giving up");
+                    Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string())
+                        .await?;
+                } else {
+                    let retry_in = resync_backoff(attempts);
+                    warn!(%error, ?retry_in, "Resync failed; retrying later");
+                    Resync::record_failed_attempt(
+                        self.db.write().await?,
+                        &group_id,
+                        attempts,
+                        now + retry_in,
+                        &error.to_string(),
+                    )
+                    .await?;
+                }
+                return Ok(());
+            }
+        };
+
+        let mut connection = self.db.write().await?;
+        for ProfileInfo {
+            user_credential,
+            user_profile_key,
+        } in profile_infos.members
+        {
+            if let Err(error) = FetchUserProfileOperation::new(user_credential, user_profile_key)
+                .into_operation()
+                .enqueue(&mut connection)
+                .await
+            {
+                error!(%error, "Failed to enqueue fetch profile operation");
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Backoff 1m -> 2m -> 4m -> 8m -> ... with max 1h.
+fn resync_backoff(attempts: u32) -> TimeDelta {
+    const RESYNC_BACKOFF_BASE: TimeDelta = TimeDelta::seconds(30);
+    const RESYNC_BACKOFF_MAX: TimeDelta = TimeDelta::seconds(60 * 60);
+
+    let factor = 1i32 << attempts.min(16);
+    (RESYNC_BACKOFF_BASE * factor).min(RESYNC_BACKOFF_MAX)
 }
 
 impl Resync {
@@ -560,10 +715,11 @@ impl Resync {
 }
 
 mod persistence {
-
     use aircommon::codec::{BlobDecoded, BlobEncoded};
-    use sqlx::{query, query_as, query_scalar};
-    use tracing::debug;
+    use sqlx::{
+        Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query,
+        query_as, query_scalar,
+    };
     use uuid::Uuid;
 
     use crate::{
@@ -574,6 +730,35 @@ mod persistence {
 
     use super::*;
 
+    macro_rules! sqlx_text_enum {
+        ($ty:ty) => {
+            impl Type<Sqlite> for $ty {
+                fn type_info() -> <Sqlite as Database>::TypeInfo {
+                    <String as Type<Sqlite>>::type_info()
+                }
+            }
+
+            impl Encode<'_, Sqlite> for $ty {
+                fn encode_by_ref(
+                    &self,
+                    buf: &mut <Sqlite as Database>::ArgumentBuffer,
+                ) -> Result<IsNull, BoxDynError> {
+                    Encode::<Sqlite>::encode(self.as_str(), buf)
+                }
+            }
+
+            impl Decode<'_, Sqlite> for $ty {
+                fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
+                    let s: &str = Decode::<Sqlite>::decode(value)?;
+                    Ok(Self::from_str(s)?)
+                }
+            }
+        };
+    }
+
+    sqlx_text_enum!(ResyncReason);
+    sqlx_text_enum!(ResyncStatus);
+
     impl Resync {
         pub(crate) async fn enqueue(
             &self,
@@ -582,6 +767,7 @@ mod persistence {
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
+                %self.reason,
                 "Enqueueing resync"
             );
 
@@ -598,9 +784,12 @@ mod persistence {
                     identity_link_wrapper_key,
                     original_leaf_index,
                     shares_vc_leaf,
-                    connection_contact
+                    connection_contact,
+                    status,
+                    reason,
+                    attempts
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
                 ON CONFLICT DO NOTHING",
                 group_id,
                 pq_group_id,
@@ -610,17 +799,143 @@ mod persistence {
                 original_leaf_index,
                 self.shares_vc_leaf,
                 connection_contact,
+                ResyncStatus::Pending as _,
+                self.reason as _,
             )
             .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
-        /// Dequeue a resync operation for processing that has not been locked
-        /// by this task.
+        /// Like [`Resync::enqueue`], but resets an existing entry.
+        pub(crate) async fn enqueue_or_reset(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
+            debug!(
+                ?self.group_id,
+                ?self.chat_id,
+                %self.reason,
+                "Enqueueing resync, resetting any existing entry"
+            );
+
+            let group_id = GroupIdRefWrapper::from(&self.group_id);
+            let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
+            let original_leaf_index = self.original_leaf_index.u32() as i32;
+            let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
+            query!(
+                "INSERT INTO resync_queue (
+                    group_id,
+                    pq_group_id,
+                    chat_id,
+                    group_state_ear_key,
+                    identity_link_wrapper_key,
+                    original_leaf_index,
+                    shares_vc_leaf,
+                    connection_contact,
+                    status,
+                    reason,
+                    attempts
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                ON CONFLICT (group_id) DO UPDATE SET
+                    pq_group_id = excluded.pq_group_id,
+                    chat_id = excluded.chat_id,
+                    group_state_ear_key = excluded.group_state_ear_key,
+                    identity_link_wrapper_key = excluded.identity_link_wrapper_key,
+                    original_leaf_index = excluded.original_leaf_index,
+                    shares_vc_leaf = excluded.shares_vc_leaf,
+                    connection_contact = excluded.connection_contact,
+                    status = ?9,
+                    attempts = 0,
+                    not_before = NULL,
+                    last_error = NULL,
+                    reason = excluded.reason,
+                    locked_by = NULL",
+                group_id,
+                pq_group_id,
+                self.chat_id,
+                self.group_state_ear_key,
+                self.identity_link_wrapper_key,
+                original_leaf_index,
+                self.shares_vc_leaf,
+                connection_contact,
+                ResyncStatus::Pending as _,
+                self.reason as _,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// The state of the queue entry of the given group, if there is one.
+        pub(crate) async fn status(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<ResyncStatus>> {
+            let group_id = group_id.as_slice();
+            query_scalar!(
+                r#"SELECT status AS "status: ResyncStatus"
+                FROM resync_queue
+                WHERE group_id = ?"#,
+                group_id
+            )
+            .fetch_optional(connection.as_mut())
+            .await
+        }
+
+        /// Whether the group has a queue entry that was given up on.
+        pub(crate) async fn is_failed(
+            connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<bool> {
+            Ok(Self::status(connection, group_id).await? == Some(ResyncStatus::Failed))
+        }
+
+        /// The queue entry of the given group, rendered for the debug screen.
+        pub(crate) async fn debug_info(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<ResyncDebugInfo>> {
+            struct DebugRecord {
+                status: ResyncStatus,
+                reason: ResyncReason,
+                attempts: i64,
+                not_before: Option<DateTime<Utc>>,
+                last_error: Option<String>,
+            }
+
+            let group_id = group_id.as_slice();
+            let record = query_as!(
+                DebugRecord,
+                r#"SELECT
+                    status AS "status: _",
+                    reason AS "reason: _",
+                    attempts,
+                    not_before AS "not_before: _",
+                    last_error
+                FROM resync_queue
+                WHERE group_id = ?"#,
+                group_id
+            )
+            .fetch_optional(connection.as_mut())
+            .await?;
+
+            Ok(record.map(|record| ResyncDebugInfo {
+                status: record.status.to_string(),
+                reason: record.reason.to_string(),
+                attempts: record.attempts as u32,
+                not_before: record.not_before.map(|dt| dt.to_rfc3339()),
+                last_error: record.last_error,
+            }))
+        }
+
+        /// Dequeue a due resync operation for processing that has not been
+        /// locked by this task.
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
+            now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
                 chat_id: Option<ChatId>,
@@ -631,16 +946,22 @@ mod persistence {
                 original_leaf_index: i32,
                 shares_vc_leaf: bool,
                 connection_contact: Option<BlobDecoded<ConnectionContact>>,
+                reason: ResyncReason,
+                attempts: i64,
             }
 
             let Some(group_id) = query_scalar!(
                 r#"
                 SELECT group_id
                 FROM resync_queue
-                WHERE locked_by IS NULL OR locked_by != ?1
+                WHERE (locked_by IS NULL OR locked_by != ?1)
+                    AND status = ?2
+                    AND (not_before IS NULL OR not_before <= ?3)
                 LIMIT 1
                 "#,
                 task_id,
+                ResyncStatus::Pending as _,
+                now,
             )
             .fetch_optional(txn.as_mut())
             .await?
@@ -661,7 +982,9 @@ mod persistence {
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                     original_leaf_index AS "original_leaf_index: _",
                     shares_vc_leaf AS "shares_vc_leaf: _",
-                    connection_contact AS "connection_contact: _"
+                    connection_contact AS "connection_contact: _",
+                    reason AS "reason: _",
+                    attempts
                 "#,
                 group_id,
                 task_id,
@@ -677,6 +1000,8 @@ mod persistence {
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
                 shares_vc_leaf: record.shares_vc_leaf,
                 connection_contact: record.connection_contact.map(BlobDecoded::into_inner),
+                reason: record.reason,
+                attempts: record.attempts as u32,
             });
 
             Ok(resync)
@@ -695,7 +1020,10 @@ mod persistence {
 
             let queued = query_as!(
                 QueuedIds,
-                r#"SELECT chat_id AS "chat_id: _", group_id AS "group_id: _" FROM resync_queue"#
+                r#"SELECT chat_id AS "chat_id: _", group_id AS "group_id: _"
+                FROM resync_queue
+                WHERE status = ?"#,
+                ResyncStatus::Pending as _,
             )
             .fetch_all(connection.as_mut())
             .await?;
@@ -704,6 +1032,50 @@ mod persistence {
                 queued.chat_id.as_ref() == Some(chat_id)
                     || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
             }))
+        }
+
+        /// Records a spent attempt and when the next one may run.
+        pub(crate) async fn record_failed_attempt(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            attempts: u32,
+            not_before: DateTime<Utc>,
+            last_error: &str,
+        ) -> sqlx::Result<()> {
+            let group_id = group_id.as_slice();
+            let attempts = attempts as i64;
+            query!(
+                "UPDATE resync_queue
+                SET attempts = ?2, not_before = ?3, last_error = ?4
+                WHERE group_id = ?1",
+                group_id,
+                attempts,
+                not_before,
+                last_error,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// Gives up on the entry, keeping it for inspection.
+        pub(crate) async fn mark_failed(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            last_error: &str,
+        ) -> sqlx::Result<()> {
+            let group_id_bytes = group_id.as_slice();
+            query!(
+                "UPDATE resync_queue
+                SET status = ?2, not_before = NULL, last_error = ?3
+                WHERE group_id = ?1",
+                group_id_bytes,
+                ResyncStatus::Failed as _,
+                last_error,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
         }
 
         pub(crate) async fn remove(
@@ -730,4 +1102,171 @@ enum ResyncCommit {
 struct ResyncTCommit {
     commit: MlsMessageOut,
     group_info: MlsMessageOut,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
+
+    use super::*;
+
+    /// A chat and a matching queue entry. The queue only stores ids and keys,
+    /// so no MLS group is needed.
+    async fn setup(reason: ResyncReason) -> anyhow::Result<(DbAccess, Resync)> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+
+        let qgid = QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse()?);
+        let group_id = GroupId::from(qgid);
+        let chat = Chat::new_group_chat(
+            group_id.clone(),
+            ChatAttributes::new("Test chat".into(), None),
+        );
+        let chat_id = chat.id();
+        chat.store(pool.write().await?).await?;
+
+        let resync = Resync {
+            chat_id: Some(chat_id),
+            group_id,
+            pq_group_id: None,
+            group_state_ear_key: GroupStateEarKey::random()?,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            original_leaf_index: LeafNodeIndex::new(0),
+            shares_vc_leaf: false,
+            connection_contact: None,
+            reason,
+            attempts: 0,
+        };
+
+        Ok((pool, resync))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn enqueue_is_idempotent() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::FutureEpoch).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+
+        resync.enqueue(&mut connection).await?;
+        Resync::record_failed_attempt(
+            &mut connection,
+            &group_id,
+            3,
+            Utc::now() - TimeDelta::seconds(1),
+            "boom",
+        )
+        .await?;
+
+        // A second enqueue must not reset the reason or the spent attempts.
+        let mut again = resync;
+        again.reason = ResyncReason::Manual;
+        again.enqueue(&mut connection).await?;
+
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("entry should be due");
+        assert_eq!(dequeued.reason, ResyncReason::FutureEpoch);
+        assert_eq!(dequeued.attempts, 3);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failed_entry_is_inert() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::FutureEpoch).await?;
+        let group_id = resync.group_id.clone();
+        let chat_id = resync.chat_id.expect("chat id");
+        let mut connection = pool.write().await?;
+
+        resync.enqueue(&mut connection).await?;
+        Resync::mark_failed(&mut connection, &group_id, "boom").await?;
+
+        assert_eq!(
+            Resync::status(&mut connection, &group_id).await?,
+            Some(ResyncStatus::Failed)
+        );
+
+        // Re-scheduling the same group is a no-op while the entry is failed.
+        let mut again = resync;
+        again.reason = ResyncReason::Manual;
+        again.enqueue(&mut connection).await?;
+        assert_eq!(
+            Resync::status(&mut connection, &group_id).await?,
+            Some(ResyncStatus::Failed)
+        );
+
+        assert!(!Resync::is_pending_for_chat(&mut connection, &chat_id).await?);
+        assert!(
+            connection
+                .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn enqueue_or_reset_revives_failed_entry() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::FutureEpoch).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+
+        resync.enqueue(&mut connection).await?;
+        Resync::record_failed_attempt(
+            &mut connection,
+            &group_id,
+            4,
+            Utc::now() + TimeDelta::hours(1),
+            "boom",
+        )
+        .await?;
+        Resync::mark_failed(&mut connection, &group_id, "boom").await?;
+
+        let mut manual = resync;
+        manual.reason = ResyncReason::Manual;
+        manual.enqueue_or_reset(&mut connection).await?;
+
+        assert_eq!(
+            Resync::status(&mut connection, &group_id).await?,
+            Some(ResyncStatus::Pending)
+        );
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("entry should be due again");
+        assert_eq!(dequeued.reason, ResyncReason::Manual);
+        assert_eq!(dequeued.attempts, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn backoff_defers_the_next_attempt() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::FutureEpoch).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+
+        resync.enqueue(&mut connection).await?;
+
+        let now = Utc::now();
+        let not_before = now + TimeDelta::minutes(5);
+        Resync::record_failed_attempt(&mut connection, &group_id, 1, not_before, "boom").await?;
+
+        assert!(
+            connection
+                .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), now).await)
+                .await?
+                .is_none()
+        );
+
+        let later = not_before + TimeDelta::seconds(1);
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), later).await)
+            .await?
+            .expect("entry should be due");
+        assert_eq!(dequeued.attempts, 1);
+
+        Ok(())
+    }
 }

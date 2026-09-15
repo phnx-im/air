@@ -55,6 +55,7 @@ pub use crate::{
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
+    outbound_service::resync::ResyncDebugInfo,
     privacy_pass::TokenId,
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
     usernames::UsernameRecord,

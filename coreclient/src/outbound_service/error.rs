@@ -22,6 +22,13 @@ pub(crate) fn is_ds_not_found_error(error: &anyhow::Error) -> bool {
         .is_some_and(DsRequestError::is_not_found)
 }
 
+/// Whether the DS error is a network error.
+pub(crate) fn is_ds_network_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<DsRequestError>()
+        .is_some_and(|error| error.is_network_error())
+}
+
 /// Errors that occur while running the outbound service. Fatal errors will
 /// cause just the current task to be skipped, while network errors will cause
 /// the entire run to be skipped (i.e. no further tasks will be executed until

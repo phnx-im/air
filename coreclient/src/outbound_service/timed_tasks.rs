@@ -35,7 +35,7 @@ use crate::{
     },
 };
 
-use super::{OutboundServiceContext, error::OutboundServiceError};
+use super::{OutboundServiceContext, error::OutboundServiceError, resync::Resync};
 
 /// A sentinel value for a one-shot task which already ran.
 pub(crate) const PARKED_AT: DateTime<Utc> = DateTime::from_naive_utc_and_offset(
@@ -589,6 +589,19 @@ impl OutboundServiceContext {
             // If a chat operation is pending, we skip updating this chat
             match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
                 Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
+                Ok(false) => (),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
+            }
+
+            // A commit on a desynced group would only be rejected.
+            match Resync::is_pending_for_chat(&mut read_txn, &chat_id).await {
+                Ok(true) => {
+                    debug!(
+                        ?chat_id,
+                        "Skipping self-update in chat because a resync is pending"
+                    );
+                    return Ok(SelfUpdateOutcome::Skipped);
+                }
                 Ok(false) => (),
                 Err(error) => return Err(OutboundServiceError::fatal(error)),
             }

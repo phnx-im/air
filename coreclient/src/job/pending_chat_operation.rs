@@ -58,7 +58,6 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::resync::Resync,
     privacy_pass,
 };
 
@@ -209,21 +208,6 @@ impl OperationType {
         matches!(
             self,
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
-        )
-    }
-
-    /// Whether a DS rejection of this operation marks the group's commit as
-    /// failed, which raises the desync banner on the chat. Self-group
-    /// operations skip this: a self-group race is reconciled silently through
-    /// the queue and must not raise a banner on the Notes-to-self chat.
-    fn marks_commit_failed(&self) -> bool {
-        !matches!(
-            self,
-            OperationType::SettingsUpdate { .. }
-                | OperationType::TokenSeeds { .. }
-                | OperationType::BlockedContactsUpdate { .. }
-                | OperationType::SelfGroupRemove { .. }
-                | OperationType::SelfGroupAdd { .. }
         )
     }
 }
@@ -394,12 +378,6 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
-            // The queue did not resolve the queued commit, so the group is
-            // out of sync.
-            if self.operation.marks_commit_failed() {
-                self.schedule_group_resync(context.db.write().await?)
-                    .await?;
-            }
             return Err(JobError::Blocked);
         }
 
@@ -682,25 +660,6 @@ impl PendingChatOperation {
             .await?;
 
         Ok(messages)
-    }
-
-    async fn schedule_group_resync(
-        &mut self,
-        mut connection: impl WriteConnection,
-    ) -> sqlx::Result<()> {
-        // self.group
-        //     .group_mut()
-        //     .mark_commit_failed(&mut connection)
-        //     .await?;
-        let Some(chat_id) =
-            ChatId::load_from_group_id(&mut connection, self.group.group_id()).await?
-        else {
-            warn!(group_id = ?self.group.group_id(), "no chat for group; not scheduling resync");
-            return Ok(());
-        };
-        Resync::for_group(chat_id, self.group.group())
-            .enqueue(&mut connection)
-            .await
     }
 
     async fn handle_error(

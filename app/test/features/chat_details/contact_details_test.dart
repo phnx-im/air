@@ -52,6 +52,7 @@ void main() {
             isApq: chat.isApq,
             mutedUntil: mutedUntil,
             pendingCommitFailed: false,
+            resyncFailed: false,
           ),
           members: const [],
         ),
