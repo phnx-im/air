@@ -1,3 +1,6 @@
 build
 report.xml
 README.md
+# Secrets decoded by the android lane at build time
+release-key.jks
+playstorekey.json
