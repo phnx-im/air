@@ -22,6 +22,37 @@ struct FieldInfo {
     is_option_bytes: bool,
     /// Length expression when `is_bytes` is set for a fixed-size `[u8; N]` field.
     array_len: Option<syn::Expr>,
+    /// A `#[tag(N, with = "path")]` override of the field's own serde impls.
+    with: Option<WithInfo>,
+}
+
+/// A serde `with`-style module override for one field. Applies to the inner type of an `Option<T>`
+/// field, the macro handles the `Option` itself.
+struct WithInfo {
+    path: syn::Path,
+    inner_ty: syn::Type,
+    is_option: bool,
+}
+
+/// Parses `#[tag(N)]` or `#[tag(N, with = "path")]`.
+fn parse_tag_attr(attr: &syn::Attribute) -> (u32, Option<syn::Path>) {
+    attr.parse_args_with(|input: syn::parse::ParseStream| {
+        let lit: LitInt = input.parse()?;
+        let n = lit.base10_parse::<u32>()?;
+        let mut with = None;
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+            let key: syn::Ident = input.parse()?;
+            if key != "with" {
+                return Err(syn::Error::new(key.span(), "expected `with`"));
+            }
+            input.parse::<syn::Token![=]>()?;
+            let path: syn::LitStr = input.parse()?;
+            with = Some(path.parse::<syn::Path>()?);
+        }
+        Ok((n, with))
+    })
+    .expect("expected #[tag(N)] or #[tag(N, with = \"path\")]")
 }
 
 /// Returns the single path segment of a plain (no `qself`) single-segment type path, or `None`.
@@ -194,13 +225,12 @@ fn extract_variant_infos(data: &syn::DataEnum) -> Vec<VariantInfo> {
                 if attr.path().is_ident("unknown") {
                     is_unknown = true;
                 } else if attr.path().is_ident("tag") {
-                    let lit: LitInt = attr
-                        .parse_args()
-                        .expect("#[tag(N)] expects a single integer literal");
-                    let n = lit
-                        .base10_parse::<u32>()
-                        .expect("#[tag(N)] key must fit in a u32");
+                    let (n, with) = parse_tag_attr(attr);
                     assert!(n >= 1, "#[tag(N)] tags must start at 1 (got 0)");
+                    assert!(
+                        with.is_none(),
+                        "`with` is not supported on tagged union variants"
+                    );
                     tag = Some(n);
                 }
             }
@@ -279,24 +309,43 @@ fn extract_field_infos(fields: &FieldsNamed) -> Vec<FieldInfo> {
         .map(|field| {
             let ident = field.ident.clone().unwrap();
             let ty = field.ty.clone();
-            let array_len = array_u8_len(&ty);
-            let is_bytes = is_vec_u8(&ty) || array_len.is_some() || is_cow_u8_slice(&ty);
-            let is_option_bytes = is_option_bytes_type(&ty);
-
             let mut tag: Option<u32> = None;
+            let mut with_path: Option<syn::Path> = None;
             for attr in &field.attrs {
                 if attr.path().is_ident("tag") {
-                    let lit: LitInt = attr
-                        .parse_args()
-                        .expect("#[tag(N)] expects a single integer literal");
-                    let n = lit
-                        .base10_parse::<u32>()
-                        .expect("#[tag(N)] key must fit in a u32");
+                    let (n, with) = parse_tag_attr(attr);
                     assert!(n >= 1, "#[tag(N)] tags must start at 1 (got 0)");
                     tag = Some(n);
+                    with_path = with;
                     break;
                 }
             }
+
+            let with = with_path.map(|path| {
+                let is_option = is_option(&ty);
+                let inner_ty = if is_option {
+                    single_generic_arg(&ty)
+                        .expect("`with` on an Option field requires Option<T>")
+                        .clone()
+                } else {
+                    ty.clone()
+                };
+                WithInfo {
+                    path,
+                    inner_ty,
+                    is_option,
+                }
+            });
+
+            // A `with` override replaces the byte-string special casing.
+            let array_len = if with.is_none() {
+                array_u8_len(&ty)
+            } else {
+                None
+            };
+            let is_bytes =
+                with.is_none() && (is_vec_u8(&ty) || array_len.is_some() || is_cow_u8_slice(&ty));
+            let is_option_bytes = with.is_none() && is_option_bytes_type(&ty);
 
             FieldInfo {
                 ident,
@@ -305,6 +354,7 @@ fn extract_field_infos(fields: &FieldsNamed) -> Vec<FieldInfo> {
                 is_bytes,
                 is_option_bytes,
                 array_len,
+                with,
             }
         })
         .collect();
@@ -336,6 +386,10 @@ fn extract_field_infos(fields: &FieldsNamed) -> Vec<FieldInfo> {
 /// Types that can be serialized as bytes via `serde_bytes` are serialized as CBOR byte strings,
 /// e.g. `Vec<u8>`, `[u8; N]`, `Cow<'_, [u8]>`, `Option<Vec<u8>>`, `Option<Cow<'_, [u8]>>`.
 ///
+/// `#[tag(N, with = "path")]` serializes the field through `path::serialize`, like serde's
+/// `#[serde(with)]`. On an `Option<T>` field the module is used for `T`, an absent value is omitted
+/// as usual.
+///
 /// # Example
 ///
 /// ```ignore
@@ -364,6 +418,13 @@ pub fn derive_serialize_tagged_map(input: TokenStream) -> TokenStream {
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
+    // The struct's generics with a borrow lifetime prepended, for the `with` wrapper types.
+    let mut with_generics = input.generics.clone();
+    with_generics
+        .params
+        .insert(0, GenericParam::Lifetime(syn::parse_quote!('__a)));
+    let (with_impl_generics, with_ty_generics, with_where_clause) = with_generics.split_for_impl();
+
     let conditions: Vec<TokenStream2> = infos.iter().map(skip_if_default_condition).collect();
 
     let entries: Vec<TokenStream2> = infos
@@ -372,7 +433,49 @@ pub fn derive_serialize_tagged_map(input: TokenStream) -> TokenStream {
         .map(|(fi, condition)| {
             let ident = &fi.ident;
             let tag = fi.tag;
-            if fi.is_option_bytes {
+            if let Some(with) = &fi.with {
+                let path = &with.path;
+                let inner_ty = &with.inner_ty;
+                let value = if with.is_option {
+                    quote! {
+                        self.#ident.as_ref().map(|value| __With {
+                            value,
+                            phantom: ::core::marker::PhantomData,
+                        })
+                    }
+                } else {
+                    quote! {
+                        __With {
+                            value: &self.#ident,
+                            phantom: ::core::marker::PhantomData,
+                        }
+                    }
+                };
+                // Scoped to this block, so several `with` fields do not clash.
+                quote! {
+                    if #condition {
+                        struct __With #with_impl_generics #with_where_clause {
+                            value: &'__a #inner_ty,
+                            phantom: ::core::marker::PhantomData<#name #ty_generics>,
+                        }
+                        impl #with_impl_generics ::serde::Serialize
+                            for __With #with_ty_generics #with_where_clause
+                        {
+                            fn serialize<__S>(
+                                &self,
+                                serializer: __S,
+                            ) -> ::core::result::Result<__S::Ok, __S::Error>
+                            where
+                                __S: ::serde::Serializer,
+                            {
+                                #path::serialize(self.value, serializer)
+                            }
+                        }
+                        let _v = #value;
+                        _map.serialize_entry(&#tag, &_v)?;
+                    }
+                }
+            } else if fi.is_option_bytes {
                 quote! {
                     if #condition {
                         let _v = self.#ident.as_deref().map(::serde_bytes::Bytes::new);
@@ -421,6 +524,9 @@ pub fn derive_serialize_tagged_map(input: TokenStream) -> TokenStream {
 ///
 /// Types that can be deserialized from bytes via `serde_bytes` are deserialized as CBOR byte
 /// strings, e.g. `Vec<u8>`, `[u8; N]`, `Cow<'_, [u8]>`, `Option<Vec<u8>>`, `Option<Cow<'_, [u8]>>`.
+///
+/// `#[tag(N, with = "path")]` deserializes the field through `path::deserialize`. On an `Option<T>`
+/// field the module is used for `T`.
 #[proc_macro_derive(DeserializeTaggedMap, attributes(tag))]
 pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -439,7 +545,7 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
 
     // Original generics (without 'de)
     let orig_generics = &input.generics;
-    let (_, ty_generics, orig_where_clause) = orig_generics.split_for_impl();
+    let (orig_impl_generics, ty_generics, orig_where_clause) = orig_generics.split_for_impl();
 
     // Add 'de as a plain lifetime with no bounds on the struct's own lifetimes. We deliberately do
     // NOT add 'de: 'a because Cow<'a, str> (and similar types) always deserialise as owned values.
@@ -468,7 +574,45 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
         .map(|fi| {
             let ident = &fi.ident;
             let tag = fi.tag;
-            if fi.is_bytes {
+            if let Some(with) = &fi.with {
+                let path = &with.path;
+                let inner_ty = &with.inner_ty;
+                let assign = if with.is_option {
+                    quote! {
+                        #ident = _map.next_value::<Option<__With #ty_generics>>()?
+                            .map(|with| with.value);
+                    }
+                } else {
+                    quote! {
+                        #ident = _map.next_value::<__With #ty_generics>()?.value;
+                    }
+                };
+                // Scoped to this arm, so several `with` fields do not clash.
+                quote! {
+                    #tag => {
+                        struct __With #orig_impl_generics #orig_where_clause {
+                            value: #inner_ty,
+                            phantom: ::core::marker::PhantomData<#name #ty_generics>,
+                        }
+                        impl #all_impl_generics ::serde::Deserialize<'de>
+                            for __With #ty_generics #orig_where_clause
+                        {
+                            fn deserialize<__D>(
+                                deserializer: __D,
+                            ) -> ::core::result::Result<Self, __D::Error>
+                            where
+                                __D: ::serde::Deserializer<'de>,
+                            {
+                                #path::deserialize(deserializer).map(|value| __With {
+                                    value,
+                                    phantom: ::core::marker::PhantomData,
+                                })
+                            }
+                        }
+                        #assign
+                    }
+                }
+            } else if fi.is_bytes {
                 if let Some(n) = &fi.array_len {
                     quote! {
                         #tag => {

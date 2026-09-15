@@ -9,7 +9,6 @@ use aircommon::{
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
@@ -22,7 +21,6 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{ChatAttributes, GroupDataExt},
     clients::{
         CoreUser,
         api_clients::ApiClients,
@@ -350,25 +348,11 @@ impl Resync {
         own_user_id: &UserId,
         ds_timestamp: TimeStamp,
     ) -> Result<ChatId> {
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
-        let title = title.context("No group title")?;
+        let attributes =
+            CoreUser::chat_attributes_from_group_data(&mut *txn, group, own_user_id, ds_timestamp)
+                .await?;
 
-        let picture = CoreUser::resolve_group_profile_part(
-            &mut *txn,
-            group.group_id(),
-            own_user_id,
-            ds_timestamp,
-            group_profile_part,
-            true,
-        )
-        .await?;
-
-        let chat = Chat::new_pending_group_chat(
-            group.group_id().clone(),
-            ChatAttributes { title, picture },
-        );
+        let chat = Chat::new_pending_group_chat(group.group_id().clone(), attributes);
         chat.store(&mut *txn).await?;
 
         Ok(chat.id())

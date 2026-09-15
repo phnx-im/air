@@ -1859,6 +1859,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: None,
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let mut group = VerifiedGroup::new_for_test(group);
@@ -2011,6 +2012,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: None,
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -2097,6 +2099,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
 
@@ -2295,6 +2298,7 @@ mod tests {
             identity_link_wrapper_key,
             group_id.clone(),
             group_data_bytes,
+            None,
         )?;
         group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);
