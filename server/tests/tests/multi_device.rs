@@ -1078,7 +1078,11 @@ async fn multi_device_linking_a_third_device() {
         ("connection group", connection_chat_id),
     ] {
         assert!(
-            device_3.resync_status(onboarded_chat_id).await.unwrap().is_none(),
+            device_3
+                .resync_status(onboarded_chat_id)
+                .await
+                .unwrap()
+                .is_none(),
             "device 3 should have completed onboarding into the {chat_label}"
         );
         let epoch_and_index = device_1
@@ -1151,7 +1155,11 @@ async fn multi_device_onboarding_after_self_group_advanced() {
 
     device_3.outbound_service().run_once().await;
     assert!(
-        device_3.resync_status(group_chat_id).await.unwrap().is_none(),
+        device_3
+            .resync_status(group_chat_id)
+            .await
+            .unwrap()
+            .is_none(),
         "device 3 should have completed onboarding into the higher-level group"
     );
 
