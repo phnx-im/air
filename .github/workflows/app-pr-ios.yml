@@ -23,7 +23,6 @@ on:
       - "app/pubspec.lock"
       - "Cargo.lock"
       - "rust-toolchain.toml"
-      - "scripts/build-name.sh"
       - "scripts/build-number.sh"
       - ".github/workflows/ios.yml"
       - ".github/workflows/app-pr-ios.yml"
