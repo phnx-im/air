@@ -641,12 +641,12 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
         .unwrap()
         .expect("rejected commit should be parked");
     assert_eq!(pending.request_status, "waiting_for_queue_response");
-    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
     assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
 
     // An outbound run changes nothing either.
     bob_user.outbound_service().run_once().await;
-    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
     assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
 
     // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
@@ -670,12 +670,12 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
         result.errors.is_empty(),
         "a message from a future epoch must schedule a resync, not fail"
     );
-    assert!(bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_some());
     assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
 
     // The resync replaces the group state, which also drops the parked commit.
     bob_user.outbound_service().run_once().await;
-    assert!(!bob_user.is_resync_pending(chat_id).await.unwrap());
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
     assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
     assert!(
         bob_user
@@ -721,7 +721,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
         .await
         .unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -730,7 +730,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have been removed after group not found"
     );
 }
@@ -753,7 +753,7 @@ async fn resync_valid_group_succeeds() {
     let bob_user = &setup.get_user(&bob).user;
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -761,7 +761,7 @@ async fn resync_valid_group_succeeds() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -860,7 +860,7 @@ async fn resync_with_blank_leaf_succeeds() {
     let alice_user = &setup.get_user(&alice).user;
     alice_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -868,7 +868,7 @@ async fn resync_with_blank_leaf_succeeds() {
     alice_user.outbound_service().run_once().await;
 
     assert!(
-        !alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -902,14 +902,14 @@ async fn resync_with_blank_leaf_succeeds() {
     // Now Dave resyncs as well.
     dave_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     dave_user.outbound_service().run_once().await;
 
     assert!(
-        !dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 

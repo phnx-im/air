@@ -594,15 +594,16 @@ impl OutboundServiceContext {
             }
 
             // A commit on a desynced group would only be rejected.
-            match Resync::is_pending_for_chat(&mut read_txn, &chat_id).await {
-                Ok(true) => {
+            match Resync::status_for_chat(&mut read_txn, &chat_id).await {
+                Ok(Some(status)) => {
                     debug!(
                         ?chat_id,
-                        "Skipping self-update in chat because a resync is pending"
+                        ?status,
+                        "Skipping self-update in chat due to resync"
                     );
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
-                Ok(false) => (),
+                Ok(None) => (),
                 Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 

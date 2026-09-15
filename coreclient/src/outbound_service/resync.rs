@@ -99,7 +99,7 @@ impl fmt::Display for ResyncReason {
 
 /// State of a queue entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ResyncStatus {
+pub enum ResyncStatus {
     Pending,
     /// Cleared only by a manual resync or a processed commit.
     Failed,
@@ -1005,31 +1005,20 @@ mod persistence {
             Ok(resync)
         }
 
-        pub(crate) async fn is_pending_for_chat(
+        pub(crate) async fn status_for_chat(
             mut connection: impl ReadConnection,
             chat_id: &ChatId,
-        ) -> sqlx::Result<bool> {
-            // Matches either the stored chat_id or group_id: an onboarding resync
-            // has no chat yet, but an existing group does.
-            struct QueuedIds {
-                chat_id: Option<ChatId>,
-                group_id: GroupIdWrapper,
-            }
-
-            let queued = query_as!(
-                QueuedIds,
-                r#"SELECT chat_id AS "chat_id: _", group_id AS "group_id: _"
+        ) -> sqlx::Result<Option<ResyncStatus>> {
+            // An onboarding entry has no chat id yet, so also match on the chat's group.
+            query_scalar!(
+                r#"SELECT status AS "status: _"
                 FROM resync_queue
-                WHERE status = ?"#,
-                ResyncStatus::Pending as _,
+                WHERE chat_id = ?1
+                    OR group_id = (SELECT group_id FROM chat WHERE chat_id = ?1)"#,
+                chat_id,
             )
-            .fetch_all(connection.as_mut())
-            .await?;
-
-            Ok(queued.into_iter().any(|queued| {
-                queued.chat_id.as_ref() == Some(chat_id)
-                    || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
-            }))
+            .fetch_optional(connection.as_mut())
+            .await
         }
 
         /// Records a spent attempt and when the next one may run.
@@ -1104,6 +1093,8 @@ struct ResyncTCommit {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
 
     use super::*;
@@ -1188,12 +1179,15 @@ mod tests {
         let mut again = resync;
         again.reason = ResyncReason::Manual;
         again.enqueue(&mut connection).await?;
-        assert_eq!(
+        assert_matches!(
             Resync::status(&mut connection, &group_id).await?,
             Some(ResyncStatus::Failed)
         );
 
-        assert!(!Resync::is_pending_for_chat(&mut connection, &chat_id).await?);
+        assert_matches!(
+            Resync::status_for_chat(&mut connection, &chat_id).await?,
+            Some(ResyncStatus::Failed)
+        );
         assert!(
             connection
                 .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
