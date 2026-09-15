@@ -473,13 +473,6 @@ impl Group {
         ClientAppData::from_leaf(leaf_node)
     }
 
-    pub(crate) fn members_app_data(&self) -> impl Iterator<Item = Option<ClientAppData>> {
-        self.mls_group.members().map(|member| {
-            let leaf_node = self.mls_group.public_group().leaf(member.index)?;
-            ClientAppData::from_leaf(leaf_node)
-        })
-    }
-
     /// Create a group.
     pub(super) fn create_group(
         mut connection: impl WriteConnection,

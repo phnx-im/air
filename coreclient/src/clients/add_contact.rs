@@ -221,8 +221,6 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         let group_data_bytes = GroupData {
             encrypted_title: None,
             external_group_profile: None,
-            legacy_title: Some(String::new()), // Old clients still expect a title
-            legacy_picture: None,
         }
         .encode()?;
 

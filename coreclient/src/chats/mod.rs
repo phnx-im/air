@@ -380,13 +380,6 @@ impl ChatAttributes {
         Self { title, picture }
     }
 
-    pub(crate) fn empty() -> Self {
-        Self {
-            title: String::new(),
-            picture: None,
-        }
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.title.is_empty() && self.picture.is_none()
     }
@@ -424,7 +417,7 @@ pub(crate) trait GroupDataExt {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<GroupDataProfilePart>);
+    ) -> (Option<String>, Option<ExternalGroupProfile>);
 
     /// Decodes the group data and returns the contained chat title, if any.
     ///
@@ -441,16 +434,6 @@ pub(crate) trait GroupDataExt {
     }
 }
 
-/// Part of the group data that is stored in the group data extension.
-///
-/// It is either the external group profile or the legacy picture.
-pub(crate) enum GroupDataProfilePart {
-    /// External group profile stored in the object storage
-    ExternalProfile(ExternalGroupProfile),
-    /// Legacy picture stored as a blob
-    LegacyPicture(Vec<u8>),
-}
-
 impl GroupDataExt for GroupData {
     fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error> {
         PersistenceCodec::from_slice(bytes.bytes())
@@ -463,30 +446,20 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<GroupDataProfilePart>) {
+    ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
-            legacy_title,
-            legacy_picture,
             encrypted_title,
             external_group_profile,
         } = self;
-
-        let title = if let Some(encrypted_title) = encrypted_title
-            && let Ok(decrypted_title) = encrypted_title
+        let title = encrypted_title.and_then(|encrypted| {
+            encrypted
                 .decrypt(identity_link_wrapper_key)
                 .inspect_err(|error| {
-                    error!(%error, "Failed to decrypt group title; fallback to plaintext");
-                }) {
-            Some(decrypted_title)
-        } else {
-            legacy_title
-        };
-
-        let profile = external_group_profile
-            .map(GroupDataProfilePart::ExternalProfile)
-            .or_else(|| legacy_picture.map(GroupDataProfilePart::LegacyPicture));
-
-        (title, profile)
+                    error!(%error, "Failed to decrypt group title");
+                })
+                .ok()
+        });
+        (title, external_group_profile)
     }
 }
 

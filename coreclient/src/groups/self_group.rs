@@ -285,8 +285,6 @@ impl CoreUser {
             EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
                 .context("Failed to encrypt self-group title")?;
         let group_data_bytes = GroupData {
-            legacy_title: None,
-            legacy_picture: None,
             encrypted_title: Some(encrypted_title),
             external_group_profile: None,
         }
