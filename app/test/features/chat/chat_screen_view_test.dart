@@ -73,6 +73,7 @@ UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
@@ -86,6 +87,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 void main() {

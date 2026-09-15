@@ -210,21 +210,6 @@ impl OperationType {
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
     }
-
-    /// Whether a DS rejection of this operation marks the group's commit as
-    /// failed, which raises the desync banner on the chat. Self-group
-    /// operations skip this: a self-group race is reconciled silently through
-    /// the queue and must not raise a banner on the Notes-to-self chat.
-    fn marks_commit_failed(&self) -> bool {
-        !matches!(
-            self,
-            OperationType::SettingsUpdate { .. }
-                | OperationType::TokenSeeds { .. }
-                | OperationType::BlockedContactsUpdate { .. }
-                | OperationType::SelfGroupRemove { .. }
-                | OperationType::SelfGroupAdd { .. }
-        )
-    }
 }
 
 #[derive(Debug)]
@@ -393,14 +378,6 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
-            // Re-assert the flag derived from the persisted job state, in case
-            // the original write was lost.
-            if self.operation.marks_commit_failed() {
-                self.group
-                    .group_mut()
-                    .mark_commit_failed(context.db.write().await?)
-                    .await?;
-            }
             return Err(JobError::Blocked);
         }
 
@@ -697,18 +674,10 @@ impl PendingChatOperation {
             // in retrying, the group needs to be torn down instead.
             Ok(JobError::NotFound)
         } else if error.is_wrong_epoch() {
-            // If we get a WrongEpochError, we know the commit was
-            // either accepted on a previous try, or the DS rejected
-            // it because another one got there first.
+            // Either commit was accepted on a previous try, or another commit was faster. Either
+            // way the queue is expected to resolve it.
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
-            if self.operation.marks_commit_failed() {
-                self.group
-                    .group_mut()
-                    .mark_commit_failed(&mut connection)
-                    .await?;
-            }
-
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
             // If we get a network error (which means we don't know whether the request has been

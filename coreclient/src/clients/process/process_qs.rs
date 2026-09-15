@@ -60,7 +60,10 @@ use crate::{
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
-    outbound_service::{chat_message_queue::ChatMessageQueue, resync::Resync},
+    outbound_service::{
+        chat_message_queue::ChatMessageQueue,
+        resync::{Resync, ResyncStatus},
+    },
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -612,20 +615,29 @@ impl CoreUser {
         match result {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
-            ProcessMessageResult::ResyncRequired => {
-                // TODO: Once we have a UX for resyncs, we should schedule one
-                // here and re-enable the resync test in integration.rs
-                let _resync = Resync {
-                    chat_id: Some(chat_id),
-                    group_id: group.group_id().clone(),
-                    pq_group_id: group.pq_group_id(),
-                    group_state_ear_key: group.group_state_ear_key().clone(),
-                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                    original_leaf_index: group.own_index(),
-                    shares_vc_leaf: group.own_leaf_is_virtual_client(),
-                    connection_contact: None,
-                };
-                group.group_mut().mark_commit_failed(&mut *txn).await?;
+            ProcessMessageResult::ResyncRequired(reason) => {
+                let group_id = group.group_id().clone();
+                match Resync::status(&mut *txn, &group_id).await? {
+                    None => {
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        Resync::for_group(chat_id, group.group(), reason)
+                            .enqueue(&mut *txn)
+                            .await?;
+                        group.group_mut().mark_commit_failed(&mut *txn).await?;
+                    }
+                    Some(ResyncStatus::Pending) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; resync already scheduled"
+                        );
+                    }
+                    Some(ResyncStatus::Failed) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; earlier resync failed permanently, not scheduling"
+                        );
+                    }
+                }
                 Ok(None)
             }
         }

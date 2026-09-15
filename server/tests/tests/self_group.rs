@@ -57,7 +57,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
     user.enqueue_group_resync(self_chat_id).await?;
     user.outbound_service().run_once().await;
     assert!(
-        !user.is_resync_pending(self_chat_id).await?,
+        user.resync_status(self_chat_id).await?.is_none(),
         "resync should have completed"
     );
 

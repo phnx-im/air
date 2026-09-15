@@ -105,6 +105,7 @@ pub struct UiChatDetails {
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
+    pub resync_failed: bool,
 }
 
 impl UiChatDetails {

@@ -394,8 +394,8 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
     ) -> sqlx::Result<()> {
-        error!(group_id = ?self.group_id(), "Group is desynced");
         if !self.pending_commit_failed {
+            error!(group_id = ?self.group_id(), "Group is desynced");
             self.pending_commit_failed = true;
             self.store_pending_commit_failed(&mut connection).await?;
 

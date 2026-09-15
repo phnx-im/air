@@ -796,6 +796,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ResyncDebugInfo dco_decode_box_autoadd_resync_debug_info(dynamic raw);
+
+  @protected
   TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
@@ -1222,6 +1225,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
 
   @protected
+  ResyncDebugInfo? dco_decode_opt_box_autoadd_resync_debug_info(dynamic raw);
+
+  @protected
   UiAcceptContactRequestError?
   dco_decode_opt_box_autoadd_ui_accept_contact_request_error(dynamic raw);
 
@@ -1321,6 +1327,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
+
+  @protected
+  ResyncDebugInfo dco_decode_resync_debug_info(dynamic raw);
 
   @protected
   ShareState dco_decode_share_state(dynamic raw);
@@ -2159,6 +2168,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ResyncDebugInfo sse_decode_box_autoadd_resync_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
 
   @protected
@@ -2713,6 +2727,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ResyncDebugInfo? sse_decode_opt_box_autoadd_resync_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiAcceptContactRequestError?
   sse_decode_opt_box_autoadd_ui_accept_contact_request_error(
     SseDeserializer deserializer,
@@ -2844,6 +2863,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RequiredDebugCapabilities sse_decode_required_debug_capabilities(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ResyncDebugInfo sse_decode_resync_debug_info(SseDeserializer deserializer);
 
   @protected
   ShareState sse_decode_share_state(SseDeserializer deserializer);
@@ -3841,6 +3863,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_resync_debug_info(
+    ResyncDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
 
   @protected
@@ -4531,6 +4559,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_resync_debug_info(
+    ResyncDebugInfo? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_accept_contact_request_error(
     UiAcceptContactRequestError? self,
     SseSerializer serializer,
@@ -4698,6 +4732,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_required_debug_capabilities(
     RequiredDebugCapabilities self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_resync_debug_info(
+    ResyncDebugInfo self,
     SseSerializer serializer,
   );
 
