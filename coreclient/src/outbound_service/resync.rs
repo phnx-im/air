@@ -42,6 +42,7 @@ use crate::{
         OutboundServiceContext,
         error::{
             OutboundServiceError, classify_ds_error, is_ds_not_found_error, is_ds_rejection_error,
+            is_ds_wrong_epoch_error,
         },
     },
 };
@@ -337,28 +338,26 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                if !is_ds_rejection_error(&error) {
-                    warn!(%error, "Resync failed; retrying later");
-                    return Ok(());
-                }
-
-                // The DS answered and refused the request, so the attempt was spent.
-                let attempts = attempts + 1;
-                if attempts >= MAX_RESYNC_ATTEMPTS {
-                    error!(%error, "Resync failed permanently; giving up");
-                    Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string())
+                match retry_decision(&error, attempts) {
+                    RetryDecision::Retry => {
+                        warn!(%error, "Resync failed; retrying later");
+                    }
+                    RetryDecision::Backoff { attempts, retry_in } => {
+                        warn!(%error, ?retry_in, "Resync failed; retrying later");
+                        Resync::record_failed_attempt(
+                            self.db.write().await?,
+                            &group_id,
+                            attempts,
+                            now + retry_in,
+                            &error.to_string(),
+                        )
                         .await?;
-                } else {
-                    let retry_in = resync_backoff(attempts);
-                    warn!(%error, ?retry_in, "Resync failed; retrying later");
-                    Resync::record_failed_attempt(
-                        self.db.write().await?,
-                        &group_id,
-                        attempts,
-                        now + retry_in,
-                        &error.to_string(),
-                    )
-                    .await?;
+                    }
+                    RetryDecision::GiveUp => {
+                        error!(%error, "Resync failed permanently; giving up");
+                        Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string())
+                            .await?;
+                    }
                 }
                 return Ok(());
             }
@@ -383,7 +382,35 @@ impl OutboundServiceContext {
     }
 }
 
-/// Backoff 1m -> 2m -> 4m -> 8m -> ... with max 1h.
+/// What to do with a queue entry after a recoverable error.
+#[derive(Debug, PartialEq, Eq)]
+enum RetryDecision {
+    /// Leave the entry untouched. The next run picks it up again.
+    Retry,
+    /// Spend an attempt and defer the next one.
+    Backoff { attempts: u32, retry_in: TimeDelta },
+    /// Spend the last attempt and give up.
+    GiveUp,
+}
+
+fn retry_decision(error: &anyhow::Error, attempts: u32) -> RetryDecision {
+    if !is_ds_rejection_error(error) || is_ds_wrong_epoch_error(error) {
+        return RetryDecision::Retry;
+    }
+    let attempts = attempts + 1;
+    if attempts >= MAX_RESYNC_ATTEMPTS {
+        RetryDecision::GiveUp
+    } else {
+        RetryDecision::Backoff {
+            attempts,
+            retry_in: resync_backoff(attempts),
+        }
+    }
+}
+
+/// Backoff 1m -> 2m -> 4m -> 8m, doubling per spent attempt. With
+/// [`MAX_RESYNC_ATTEMPTS`] the entry is given up on after the 8m wait. The
+/// cap only matters if the attempt limit grows.
 fn resync_backoff(attempts: u32) -> TimeDelta {
     const RESYNC_BACKOFF_BASE: TimeDelta = TimeDelta::seconds(30);
     const RESYNC_BACKOFF_MAX: TimeDelta = TimeDelta::seconds(60 * 60);
@@ -844,7 +871,7 @@ mod persistence {
                     original_leaf_index = excluded.original_leaf_index,
                     shares_vc_leaf = excluded.shares_vc_leaf,
                     connection_contact = excluded.connection_contact,
-                    status = ?9,
+                    status = excluded.status,
                     attempts = 0,
                     not_before = NULL,
                     last_error = NULL,
@@ -1093,11 +1120,71 @@ struct ResyncTCommit {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
+    use std::{assert_matches, time::Duration};
+
+    use airapiclient::ds_api::DsRequestError;
+    use airprotos::common::v1::{
+        StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
+    };
 
     use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
 
     use super::*;
+
+    fn ds_rejection() -> anyhow::Error {
+        DsRequestError::Tonic(tonic::Status::invalid_argument("rejected")).into()
+    }
+
+    fn ds_wrong_epoch() -> anyhow::Error {
+        let details = StatusDetails {
+            code: StatusDetailsCode::WrongEpoch.into(),
+            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+        };
+        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch")).into()
+    }
+
+    #[test]
+    fn local_error_does_not_spend_an_attempt() {
+        let error = anyhow!("self group not joined yet");
+        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
+    }
+
+    #[test]
+    fn network_error_does_not_spend_an_attempt() {
+        let error: anyhow::Error = DsRequestError::Timeout(Duration::from_secs(1)).into();
+        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
+    }
+
+    #[test]
+    fn wrong_epoch_does_not_spend_an_attempt() {
+        assert_eq!(retry_decision(&ds_wrong_epoch(), 3), RetryDecision::Retry);
+    }
+
+    #[test]
+    fn ds_rejection_spends_an_attempt_with_backoff() {
+        assert_eq!(
+            retry_decision(&ds_rejection(), 0),
+            RetryDecision::Backoff {
+                attempts: 1,
+                retry_in: TimeDelta::minutes(1),
+            }
+        );
+        assert_eq!(
+            retry_decision(&ds_rejection(), 3),
+            RetryDecision::Backoff {
+                attempts: 4,
+                retry_in: TimeDelta::minutes(8),
+            }
+        );
+    }
+
+    #[test]
+    fn last_ds_rejection_gives_up() {
+        assert_eq!(
+            retry_decision(&ds_rejection(), MAX_RESYNC_ATTEMPTS - 1),
+            RetryDecision::GiveUp
+        );
+    }
 
     /// A chat and a matching queue entry. The queue only stores ids and keys,
     /// so no MLS group is needed.
