@@ -352,25 +352,27 @@ impl Resync {
     ) -> Result<ChatId> {
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
+        let (title, group_profile) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
-
-        let picture = CoreUser::resolve_group_profile_part(
-            &mut *txn,
-            group.group_id(),
-            own_user_id,
-            ds_timestamp,
-            group_profile_part,
-            true,
-        )
-        .await?;
-
+        if let Some(external_group_profile) = group_profile {
+            CoreUser::schedule_fetch_group_profile(
+                &mut *txn,
+                group.group_id().clone(),
+                own_user_id.clone(),
+                ds_timestamp,
+                external_group_profile,
+                true,
+            )
+            .await?;
+        }
         let chat = Chat::new_pending_group_chat(
             group.group_id().clone(),
-            ChatAttributes { title, picture },
+            ChatAttributes {
+                title,
+                picture: None,
+            },
         );
         chat.store(&mut *txn).await?;
-
         Ok(chat.id())
     }
 
