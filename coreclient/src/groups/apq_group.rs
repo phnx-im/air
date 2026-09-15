@@ -13,7 +13,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::app_data::GroupAppData;
+use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
@@ -104,6 +104,10 @@ impl Group {
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(capabilities)
+            .with_leaf_node_extensions(
+                ClientAppData::current().leaf_node_extensions(),
+                ClientAppData::current().leaf_node_extensions(),
+            )?
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
