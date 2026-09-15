@@ -48,7 +48,10 @@ use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
-    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
+    openmls::prelude::{
+        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, MlsMessageOut,
+        tls_codec::DeserializeBytes as _,
+    },
 };
 use tonic::Code;
 use tracing::error;
@@ -500,6 +503,11 @@ impl ApiClient {
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             pq,
+            join_commit: response
+                .join_commit
+                .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                .transpose()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
         })
     }
 
@@ -563,6 +571,7 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             external_commit: Some(external_commit.try_ref_into()?),
             qs_client_reference: Some(qs_client_reference.into()),
+            group_bootstrap: None,
         };
         let response = self
             .ds_grpc_client()

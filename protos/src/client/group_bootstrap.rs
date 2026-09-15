@@ -8,17 +8,14 @@
 //! When one emulator client creates a group or joins one via external commit,
 //! its siblings need the group's keys and, for connection groups, the contact
 //! context the acting client persisted. Both travel in a
-//! [`GroupBootstrapBlob`]: at creation as an opaque parameter of the
-//! create-group request which the DS echoes to the sibling queues, at an
-//! external join as an `AppEphemeral` proposal inside the commit.
+//! [`GroupBootstrapBlob`], an opaque parameter of the create-group or
+//! join-connection-group request, which the DS echoes to the sibling queues
+//! and nowhere else.
 //!
 //! The [`GroupBootstrap`] payload is padded-AEAD-encrypted under a
-//! [`GroupBootstrapKey`] derived from the emulation epoch that also derives the
-//! acting client's leaf. Only siblings hold that epoch state, so the AEAD both
-//! hides the payload from the DS and authenticates the blob as
-//! sibling-authored. The epoch id travels in the clear, it tells a receiving
-//! sibling which registered epoch to derive the key from. The padding hides the
-//! variable length of the connection context.
+//! [`GroupBootstrapKey`] derived from one application-ratchet generation of the
+//! emulation epoch's operation secret tree (`next_vc_application_secret` in
+//! OpenMLS).
 //!
 //! A tagged map defaults absent fields, so fields that are required by this
 //! protocol are still `Option`. A receiver rejects a payload that leaves them
@@ -27,23 +24,26 @@
 //! Keys and secrets travel as plain byte strings rather than as their Rust
 //! types, so that the encoding does not depend on the `serde` shape of a type
 //! defined elsewhere. The receiver converts them into the typed keys and
-//! rejects values of the wrong size. The one exception is
-//! [`EncryptedGroupBootstrap`], whose encoding the `AppEphemeral` payloads
-//! already ship:
+//! rejects values of the wrong size.
 //!
 //! ```cddl
 //! Ciphertext = { "ciphertext": bstr, "nonce": bstr .size 12 }
 //! ```
 
 use aircommon::{
-    crypto::aead::{
-        Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::GroupBootstrapKey,
+    crypto::{
+        aead::{Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::GroupBootstrapKey},
+        errors::{DecryptionError, EncryptionError},
     },
     identifiers::{Fqdn, FqdnError, UserId},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
+};
+use openmls::{
+    components::{vc_application_secret::VcApplicationSecretInfo, vc_derivation_info::EpochId},
+    prelude::{GroupId, LeafNodeIndex},
 };
 use uuid::Uuid;
 
@@ -57,28 +57,64 @@ pub type EncryptedGroupBootstrap = Ciphertext<GroupBootstrapCtype>;
 /// Cleartext wrapper around an [`EncryptedGroupBootstrap`].
 ///
 /// This is what travels on the wire: as the `group_bootstrap` parameter of a
-/// create-group request and back out of the DS in a `GroupCreationEcho`, or as
-/// the payload of an `AppEphemeral` proposal in an external commit.
+/// create-group or join-connection-group request, and back out of the DS in a
+/// `GroupBootstrapEcho` queue message to the acting user's clients.
+///
+/// The first three fields are the coordinates of the application secret that
+/// derives the decryption key. They are in the clear so a receiving sibling
+/// knows which ratchet position of which registered emulation epoch to
+/// rederive.
 ///
 /// ## CDDL Definition
 ///
 /// ```cddl
 /// GroupBootstrapBlob = {
-///   epoch_id: bstr .tag 1,
-///   ? encrypted_bootstrap: Ciphertext .tag 2,
+///   ? epoch_id: bstr .tag 1,
+///   ? sender_leaf_index: uint .tag 2,
+///   ? generation: uint .tag 3,
+///   ? encrypted_bootstrap: Ciphertext .tag 4,
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct GroupBootstrapBlob {
     /// Id of the virtual client's emulation epoch that derives the decryption
     /// key.
-    ///
-    /// In the clear so a receiving sibling knows which of its registered
-    /// emulation epochs to use.
     #[tag(1)]
-    pub epoch_id: Vec<u8>,
+    pub epoch_id: Option<Vec<u8>>,
+    /// The acting client's leaf index in the emulation group, identifying the
+    /// application ratchet.
     #[tag(2)]
+    pub sender_leaf_index: Option<u32>,
+    /// The application-ratchet generation the acting client consumed.
+    #[tag(3)]
+    pub generation: Option<u32>,
+    #[tag(4)]
     pub encrypted_bootstrap: Option<EncryptedGroupBootstrap>,
+}
+
+impl GroupBootstrapBlob {
+    /// A blob for the secret at `info`, carrying `encrypted_bootstrap`.
+    pub fn new(
+        info: &VcApplicationSecretInfo,
+        encrypted_bootstrap: EncryptedGroupBootstrap,
+    ) -> Self {
+        Self {
+            epoch_id: Some(info.epoch_id.as_bytes().to_vec()),
+            sender_leaf_index: Some(info.leaf_index.u32()),
+            generation: Some(info.generation),
+            encrypted_bootstrap: Some(encrypted_bootstrap),
+        }
+    }
+
+    /// The coordinates of the application secret that derives the decryption
+    /// key, or `None` if any of them is absent.
+    pub fn secret_info(&self) -> Option<VcApplicationSecretInfo> {
+        Some(VcApplicationSecretInfo {
+            epoch_id: EpochId::new(self.epoch_id.clone()?),
+            leaf_index: LeafNodeIndex::new(self.sender_leaf_index?),
+            generation: self.generation?,
+        })
+    }
 }
 
 /// Plaintext of an [`EncryptedGroupBootstrap`].
@@ -90,7 +126,7 @@ pub struct GroupBootstrapBlob {
 ///
 /// ```cddl
 /// GroupBootstrap = {
-///   group_id: bstr .tag 1,
+///   ? group_id: bstr .tag 1,
 ///   ? pq_group_id: bstr .tag 2,
 ///   ? group_state_ear_key: bstr .size 32 .tag 3,
 ///   ? identity_link_wrapper_key: bstr .size 32 .tag 4,
@@ -104,7 +140,7 @@ pub struct GroupBootstrap {
     /// The receiver checks this id, and [`Self::pq_group_id`], against the
     /// `GroupInfo` it fetches. That binds the keys below to the group.
     #[tag(1)]
-    pub group_id: Vec<u8>,
+    pub group_id: Option<Vec<u8>>,
     /// Group id of the PQ leg, present iff the group is an APQ group.
     #[tag(2)]
     pub pq_group_id: Option<Vec<u8>>,
@@ -122,6 +158,78 @@ pub struct GroupBootstrap {
 
 impl PaddedAeadEncryptable<GroupBootstrapKey, GroupBootstrapCtype> for GroupBootstrap {}
 impl PaddedAeadDecryptable<GroupBootstrapKey, GroupBootstrapCtype> for GroupBootstrap {}
+
+/// The DS echo of a create-group or a join-connection-group request that
+/// carries a [`GroupBootstrapBlob`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupBootstrapCarrier {
+    /// The blob was uploaded with a create-group request.
+    CreationEcho,
+    /// The blob was uploaded with a join-connection-group request.
+    JoinEcho,
+}
+
+impl GroupBootstrapCarrier {
+    fn code(self) -> u8 {
+        match self {
+            Self::CreationEcho => 1,
+            Self::JoinEcho => 2,
+        }
+    }
+}
+
+/// Binds a [`GroupBootstrap`] ciphertext to its carrier.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// GroupBootstrapAad = {
+///   carrier: uint .tag 1,
+///   group_id: bstr .tag 2,
+/// }
+/// ```
+#[derive(Debug, SerializeTaggedMap)]
+struct GroupBootstrapAad {
+    #[tag(1)]
+    carrier: u8,
+    #[tag(2)]
+    group_id: Vec<u8>,
+}
+
+impl GroupBootstrapAad {
+    /// Fixes the canonical AAD bytes of a group id. Sender and receiver must
+    /// agree on them.
+    fn new(carrier: GroupBootstrapCarrier, group_id: &GroupId) -> Self {
+        Self {
+            carrier: carrier.code(),
+            group_id: group_id.as_slice().to_vec(),
+        }
+    }
+}
+
+impl GroupBootstrap {
+    /// Encrypt under `key`, bound to the given carrier and the carried
+    /// group's id (the T leg for APQ groups).
+    pub fn seal(
+        &self,
+        key: &GroupBootstrapKey,
+        carrier: GroupBootstrapCarrier,
+        group_id: &GroupId,
+    ) -> Result<EncryptedGroupBootstrap, EncryptionError> {
+        self.encrypt_padded_with_aad(key, &GroupBootstrapAad::new(carrier, group_id))
+    }
+
+    /// Decrypt with `key`. `carrier` and `group_id` must come from the carrier
+    /// context the blob arrived in, not from the blob itself.
+    pub fn open(
+        key: &GroupBootstrapKey,
+        ciphertext: &EncryptedGroupBootstrap,
+        carrier: GroupBootstrapCarrier,
+        group_id: &GroupId,
+    ) -> Result<Self, DecryptionError> {
+        Self::decrypt_padded_with_aad(key, ciphertext, &GroupBootstrapAad::new(carrier, group_id))
+    }
+}
 
 /// Context a sibling needs to mirror the contact rows of a connection chat.
 ///
@@ -156,7 +264,7 @@ pub enum ConnectionContext {
 ///
 /// ```cddl
 /// HandleInitiatorContext = {
-///   username: tstr .tag 1,
+///   ? username: tstr .tag 1,
 ///   ? friendship_package_ear_key: bstr .size 32 .tag 2,
 ///   ? connection_offer_hash: bstr .size 32 .tag 3,
 /// }
@@ -165,7 +273,7 @@ pub enum ConnectionContext {
 pub struct HandleInitiatorContext {
     /// The handle the offer went to. Validated into a `Username` on receive.
     #[tag(1)]
-    pub username: String,
+    pub username: Option<String>,
     /// Raw `FriendshipPackageEarKey`, 32 bytes.
     #[tag(2)]
     pub friendship_package_ear_key: Option<Vec<u8>>,
@@ -238,53 +346,77 @@ pub struct AcceptContext {
 ///
 /// ```cddl
 /// PeerUserId = {
-///   uuid: bstr .size 16 .tag 1,
-///   domain: tstr .tag 2,
+///   ? uuid: bstr .size 16 .tag 1,
+///   ? domain: tstr .tag 2,
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct PeerUserId {
     #[tag(1)]
-    pub uuid: Uuid,
+    pub uuid: Option<Uuid>,
     #[tag(2)]
-    pub domain: String,
+    pub domain: Option<String>,
+}
+
+impl PeerUserId {
+    pub fn to_user_id(&self) -> Result<UserId, PeerUserIdError> {
+        let (Some(uuid), Some(domain)) = (self.uuid, self.domain.as_ref()) else {
+            return Err(PeerUserIdError::MissingField);
+        };
+        Ok(UserId::new(uuid, domain.parse::<Fqdn>()?))
+    }
 }
 
 impl From<UserId> for PeerUserId {
     fn from(user_id: UserId) -> Self {
         let (uuid, domain) = user_id.into_parts();
         Self {
-            uuid,
-            domain: domain.to_string(),
+            uuid: Some(uuid),
+            domain: Some(domain.to_string()),
         }
     }
 }
 
-impl TryFrom<&PeerUserId> for UserId {
-    type Error = FqdnError;
-
-    fn try_from(peer: &PeerUserId) -> Result<Self, Self::Error> {
-        peer.domain
-            .parse::<Fqdn>()
-            .map(|domain| UserId::new(peer.uuid, domain))
-    }
+/// Error converting a [`PeerUserId`] into a `UserId`.
+#[derive(Debug, thiserror::Error)]
+pub enum PeerUserIdError {
+    /// The uuid or the domain is absent.
+    #[error("missing field in peer user id")]
+    MissingField,
+    /// The domain is not a valid FQDN.
+    #[error(transparent)]
+    InvalidDomain(#[from] FqdnError),
 }
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches;
+
     use aircommon::{
         codec::PersistenceCodec,
         crypto::{
             aead::AEAD_KEY_SIZE,
-            kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+            kdf::{KdfDerivable, keys::VcApplicationSecret},
         },
     };
 
     use super::*;
 
     fn bootstrap_key_from(secret_bytes: [u8; 32]) -> GroupBootstrapKey {
-        let exporter = SelfGroupExporterSecret::from_bytes(secret_bytes);
-        GroupBootstrapKey::derive(&exporter, &Vec::new()).unwrap()
+        let secret = VcApplicationSecret::from_bytes(secret_bytes);
+        GroupBootstrapKey::derive(&secret, &Vec::new()).unwrap()
+    }
+
+    fn t_group_id() -> GroupId {
+        GroupId::from_slice(b"t-group-id")
+    }
+
+    fn secret_info() -> VcApplicationSecretInfo {
+        VcApplicationSecretInfo {
+            epoch_id: EpochId::new(b"emulation-epoch-id".to_vec()),
+            leaf_index: LeafNodeIndex::new(3),
+            generation: 7,
+        }
     }
 
     fn key(byte: u8) -> Vec<u8> {
@@ -300,7 +432,7 @@ mod test {
 
     fn sample_bootstrap() -> GroupBootstrap {
         GroupBootstrap {
-            group_id: b"t-group-id".to_vec(),
+            group_id: Some(b"t-group-id".to_vec()),
             pq_group_id: Some(b"pq-group-id".to_vec()),
             group_state_ear_key: Some(key(1)),
             identity_link_wrapper_key: Some(key(2)),
@@ -332,7 +464,7 @@ mod test {
     #[test]
     fn group_bootstrap_of_group_chat_omits_absent_fields() {
         let bootstrap = GroupBootstrap {
-            group_id: b"t-group-id".to_vec(),
+            group_id: Some(b"t-group-id".to_vec()),
             pq_group_id: None,
             group_state_ear_key: Some(key(1)),
             identity_link_wrapper_key: Some(key(2)),
@@ -346,34 +478,88 @@ mod test {
     }
 
     #[test]
-    fn group_bootstrap_encrypt_decrypt_roundtrip() {
+    fn group_bootstrap_seal_open_roundtrip() {
         let key = bootstrap_key_from([7u8; 32]);
         let bootstrap = sample_bootstrap();
-        let encrypted = bootstrap.encrypt_padded(&key).unwrap();
-        let decrypted = GroupBootstrap::decrypt_padded(&key, &encrypted).unwrap();
-        assert_eq!(bootstrap, decrypted);
+        let sealed = bootstrap
+            .seal(&key, GroupBootstrapCarrier::CreationEcho, &t_group_id())
+            .unwrap();
+        let opened = GroupBootstrap::open(
+            &key,
+            &sealed,
+            GroupBootstrapCarrier::CreationEcho,
+            &t_group_id(),
+        )
+        .unwrap();
+        assert_eq!(bootstrap, opened);
 
         let other_key = bootstrap_key_from([8u8; 32]);
-        assert!(GroupBootstrap::decrypt_padded(&other_key, &encrypted).is_err());
+        assert!(
+            GroupBootstrap::open(
+                &other_key,
+                &sealed,
+                GroupBootstrapCarrier::CreationEcho,
+                &t_group_id(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn group_bootstrap_open_rejects_wrong_carrier_or_group() {
+        let key = bootstrap_key_from([7u8; 32]);
+        let sealed = sample_bootstrap()
+            .seal(&key, GroupBootstrapCarrier::CreationEcho, &t_group_id())
+            .unwrap();
+        assert!(
+            GroupBootstrap::open(
+                &key,
+                &sealed,
+                GroupBootstrapCarrier::JoinEcho,
+                &t_group_id(),
+            )
+            .is_err()
+        );
+        assert!(
+            GroupBootstrap::open(
+                &key,
+                &sealed,
+                GroupBootstrapCarrier::CreationEcho,
+                &GroupId::from_slice(b"other-group-id"),
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn group_bootstrap_blob_roundtrip() {
         let key = bootstrap_key_from([9u8; 32]);
-        let blob = GroupBootstrapBlob {
-            epoch_id: b"emulation-epoch-id".to_vec(),
-            encrypted_bootstrap: Some(sample_bootstrap().encrypt_padded(&key).unwrap()),
-        };
+        let sealed = sample_bootstrap()
+            .seal(&key, GroupBootstrapCarrier::CreationEcho, &t_group_id())
+            .unwrap();
+        let blob = GroupBootstrapBlob::new(&secret_info(), sealed);
         let bytes = PersistenceCodec::to_vec(&blob).unwrap();
         let decoded: GroupBootstrapBlob = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(blob, decoded);
+        assert_eq!(decoded.secret_info(), Some(secret_info()));
+    }
+
+    #[test]
+    fn group_bootstrap_blob_without_coordinates_yields_no_secret_info() {
+        let blob = GroupBootstrapBlob {
+            epoch_id: Some(b"emulation-epoch-id".to_vec()),
+            sender_leaf_index: None,
+            generation: Some(7),
+            encrypted_bootstrap: None,
+        };
+        assert_eq!(blob.secret_info(), None);
     }
 
     #[test]
     fn connection_context_variants_roundtrip() {
         let contexts = [
             ConnectionContext::HandleInitiator(HandleInitiatorContext {
-                username: "alice".to_owned(),
+                username: Some("alice".to_owned()),
                 friendship_package_ear_key: Some(key(1)),
                 connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
             }),
@@ -393,22 +579,32 @@ mod test {
     fn peer_user_id_roundtrip() {
         let user_id = user_id();
         let peer = PeerUserId::from(user_id.clone());
-        assert_eq!(UserId::try_from(&peer).unwrap(), user_id);
+        assert_eq!(peer.to_user_id().unwrap(), user_id);
     }
 
     #[test]
     fn peer_user_id_with_invalid_domain_is_rejected() {
         let peer = PeerUserId {
-            uuid: Uuid::nil(),
-            domain: "not a domain".to_owned(),
+            uuid: Some(Uuid::nil()),
+            domain: Some("not a domain".to_owned()),
         };
-        assert!(UserId::try_from(&peer).is_err());
+        assert!(peer.to_user_id().is_err());
+    }
+
+    /// An absent uuid must not decode into the nil user.
+    #[test]
+    fn peer_user_id_with_absent_fields_is_rejected() {
+        let peer = PeerUserId {
+            uuid: None,
+            domain: Some("example.com".to_owned()),
+        };
+        assert_matches!(peer.to_user_id(), Err(PeerUserIdError::MissingField))
     }
 
     #[test]
     fn connection_context_stability() {
         let context = ConnectionContext::HandleInitiator(HandleInitiatorContext {
-            username: "alice".to_owned(),
+            username: Some("alice".to_owned()),
             friendship_package_ear_key: Some(key(1)),
             connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
         });
@@ -455,7 +651,7 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
         let decoded: GroupBootstrap = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.group_id, b"t-group-id".to_vec());
+        assert_eq!(decoded.group_id, Some(b"t-group-id".to_vec()));
         assert_eq!(decoded.group_state_ear_key, Some(key(1)));
         assert_eq!(decoded.identity_link_wrapper_key, None);
         assert_eq!(decoded.connection, None);
