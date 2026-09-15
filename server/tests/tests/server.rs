@@ -660,8 +660,11 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
         )
         .await
         .unwrap();
+    // Sending only queues the message, the outbound service delivers it.
+    alice_user.outbound_service().run_once().await;
 
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
