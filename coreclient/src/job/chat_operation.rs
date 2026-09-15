@@ -22,7 +22,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     db::access::WriteConnection,
-    groups::Group,
+    groups::{Group, GroupDataBytes},
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
 
@@ -39,6 +39,9 @@ enum ChatOperationType {
     Leave,
     Delete,
     Update(Option<ChatAttributes>, DerivationEpoch),
+    /// Self-update which replaces the group data extension verbatim, leaving
+    /// the chat attributes untouched.
+    UpdateGroupData(GroupDataBytes, DerivationEpoch),
     ApqUpdate(DerivationEpoch),
 }
 
@@ -187,6 +190,17 @@ impl ChatOperation {
         }
     }
 
+    pub(crate) fn update_group_data(
+        chat_id: ChatId,
+        group_data: GroupDataBytes,
+        derivation_epoch: DerivationEpoch,
+    ) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::UpdateGroupData(group_data, derivation_epoch),
+        }
+    }
+
     pub(crate) fn apq_update(chat_id: ChatId, derivation_epoch: DerivationEpoch) -> Self {
         ChatOperation {
             chat_id,
@@ -265,6 +279,10 @@ impl ChatOperation {
             ChatOperationType::Delete => self.execute_delete(context).await,
             ChatOperationType::Update(chat_attributes, derivation_epoch) => {
                 self.execute_update(context, chat_attributes, derivation_epoch)
+                    .await
+            }
+            ChatOperationType::UpdateGroupData(group_data, derivation_epoch) => {
+                self.execute_update_group_data(context, group_data, derivation_epoch)
                     .await
             }
             ChatOperationType::ApqUpdate(derivation_epoch) => {
@@ -481,6 +499,30 @@ impl ChatOperation {
             })
             .await?;
 
+        job.execute(context).await
+    }
+
+    async fn execute_update_group_data(
+        self,
+        context: &mut JobContext<'_, '_>,
+        group_data: GroupDataBytes,
+        derivation_epoch: DerivationEpoch,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_group_data_rewrite(
+                    txn,
+                    &key_store.signing_key,
+                    self.chat_id,
+                    group_data,
+                    derivation_epoch,
+                )
+                .await
+            })
+            .await?;
         job.execute(context).await
     }
 

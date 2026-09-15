@@ -7,7 +7,10 @@ use aircommon::{
     messages::connection_package::ConnectionPackageHash,
     mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
 };
-use airprotos::{auth_service::v1::OperationType, client::app_data::GroupAppData};
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::{app_data::GroupAppData, group::GroupData},
+};
 use anyhow::bail;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -17,6 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId,
+    chats::GroupDataExt,
     db::access::WriteConnection,
     groups::{Group, vc_epoch_retention::sweep_vc_derivation_epochs},
     job::{
@@ -620,9 +624,25 @@ impl OutboundServiceContext {
             DerivationEpoch::Keep
         };
 
-        let job = if pq_due {
-            // Both T and PQ are due and no migration is needed, so the joint APQ update covers
-            // both.
+        // Group data written by older clients still carries the title and
+        // picture in plaintext. Rewrite it once without those fields.
+        let stripped_group_data = group
+            .group_data()
+            .map(|bytes| GroupData::strip_legacy_fields(&bytes))
+            .transpose()
+            .unwrap_or_else(|error| {
+                warn!(%chat_id, %error, "Failed to decode group data, skipping rewrite");
+                None
+            })
+            .flatten();
+
+        let job = if let Some(group_data) = stripped_group_data {
+            // Takes precedence over the PQ self-update, which the next run
+            // picks up.
+            info!(%chat_id, "Rewriting group data without legacy fields");
+            ChatOperation::update_group_data(chat_id, group_data, derivation_epoch)
+        } else if pq_due {
+            // Both T and PQ are due, so the joint APQ update covers both.
             info!(%chat_id, "Performing joint APQ self-update");
             ChatOperation::apq_update(chat_id, derivation_epoch)
         } else {

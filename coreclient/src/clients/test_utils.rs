@@ -8,15 +8,17 @@ use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
+use aircommon::{
+    codec::PersistenceCodec, credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::{EncryptedGroupTitle, GroupData};
+use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 
 use crate::{
     chats::GroupDataExt,
-    groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+    groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
@@ -302,6 +304,71 @@ impl CoreUser {
         self.db()
             .with_read_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
             .await
+    }
+
+    /// Rewrites the group data of the given chat with the plaintext title and
+    /// picture fields written by older clients next to the current fields.
+    pub async fn add_legacy_group_data_fields(
+        &self,
+        chat_id: ChatId,
+        title: String,
+        picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<()> {
+        #[derive(serde::Serialize)]
+        struct LegacyGroupData {
+            encrypted_title: Option<EncryptedGroupTitle>,
+            external_group_profile: Option<ExternalGroupProfile>,
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let op = self
+            .db()
+            .with_write_transaction(async |txn| {
+                let group = Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .context("No group")?;
+                let GroupData {
+                    encrypted_title,
+                    external_group_profile,
+                } = group
+                    .group_data()
+                    .map(|bytes| GroupData::decode(&bytes))
+                    .transpose()?
+                    .unwrap_or_else(GroupData::empty);
+                let bytes: GroupDataBytes = PersistenceCodec::to_vec(&LegacyGroupData {
+                    encrypted_title,
+                    external_group_profile,
+                    title,
+                    picture,
+                })?
+                .into();
+                PendingChatOperation::create_group_data_rewrite(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    bytes,
+                    DerivationEpoch::Keep,
+                )
+                .await
+            })
+            .await?;
+        self.execute_job(op).await?;
+        Ok(())
+    }
+
+    /// Whether the group data of the given chat still carries the plaintext
+    /// title or picture fields written by older clients.
+    pub async fn group_data_has_legacy_fields(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let group = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(&mut *txn, chat_id).await)
+            .await?
+            .context("No group")?;
+        let Some(bytes) = group.group_data() else {
+            return Ok(false);
+        };
+        Ok(GroupData::strip_legacy_fields(&bytes)?.is_some())
     }
 
     /// Stages a group-title-change commit and stores the pending chat operation

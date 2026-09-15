@@ -13,7 +13,7 @@ use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use anyhow::bail;
 use chrono::{DateTime, Datelike, Utc};
 use openmls::group::GroupId;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IgnoredAny};
 use tracing::error;
 use uuid::Uuid;
 
@@ -432,6 +432,14 @@ pub(crate) trait GroupDataExt {
     {
         Ok(Self::decode(bytes)?.into_parts(identity_link_wrapper_key).0)
     }
+
+    /// Re-encodes the group data without the plaintext title and picture
+    /// fields written by older clients.
+    ///
+    /// Returns `None` if the group data has no such fields.
+    fn strip_legacy_fields(bytes: &GroupDataBytes) -> Result<Option<GroupDataBytes>, codec::Error>
+    where
+        Self: Sized;
 }
 
 impl GroupDataExt for GroupData {
@@ -441,6 +449,22 @@ impl GroupDataExt for GroupData {
 
     fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
         PersistenceCodec::to_vec(self).map(From::from)
+    }
+
+    fn strip_legacy_fields(bytes: &GroupDataBytes) -> Result<Option<GroupDataBytes>, codec::Error> {
+        #[derive(Deserialize)]
+        struct LegacyFields {
+            #[serde(default)]
+            title: Option<IgnoredAny>,
+            #[serde(default)]
+            picture: Option<IgnoredAny>,
+        }
+
+        let legacy: LegacyFields = PersistenceCodec::from_slice(bytes.bytes())?;
+        if legacy.title.is_none() && legacy.picture.is_none() {
+            return Ok(None);
+        }
+        Self::decode(bytes)?.encode().map(Some)
     }
 
     fn into_parts(
@@ -496,5 +520,40 @@ impl From<DateTime<Utc>> for ChatMuted {
         } else {
             Self::Until(dt)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Serialize)]
+    struct LegacyGroupData {
+        encrypted_title: Option<()>,
+        external_group_profile: Option<()>,
+        title: String,
+        picture: Option<Vec<u8>>,
+    }
+
+    #[test]
+    fn strip_legacy_fields_rewrites_legacy_group_data() {
+        let bytes: GroupDataBytes = PersistenceCodec::to_vec(&LegacyGroupData {
+            encrypted_title: None,
+            external_group_profile: None,
+            title: "Title".to_owned(),
+            picture: Some(vec![1, 2, 3]),
+        })
+        .unwrap()
+        .into();
+
+        let stripped = GroupData::strip_legacy_fields(&bytes).unwrap().unwrap();
+        assert_eq!(GroupData::decode(&stripped).unwrap(), GroupData::empty());
+        assert_eq!(GroupData::strip_legacy_fields(&stripped).unwrap(), None);
+    }
+
+    #[test]
+    fn strip_legacy_fields_keeps_current_group_data() {
+        let bytes = GroupData::empty().encode().unwrap();
+        assert_eq!(GroupData::strip_legacy_fields(&bytes).unwrap(), None);
     }
 }

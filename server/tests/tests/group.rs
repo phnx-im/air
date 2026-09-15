@@ -1131,6 +1131,124 @@ async fn qs_stream_processor_partially_processes_messages() {
     }
 }
 
+/// Group data written by older clients carries the title and picture in plaintext next to the
+/// encrypted fields. The self-update rewrites it without those fields. Neither side changes its
+/// chat attributes or produces system messages, and the other side does not refetch the group
+/// profile.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Strip legacy group data fields on self-update", skip_all)]
+async fn strip_legacy_group_data_fields_on_self_update() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    // Alice sets a picture, Bob fetches the group profile
+    alice_user
+        .set_chat_picture(chat_id, Some(test_picture_bytes()))
+        .await
+        .unwrap();
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    bob_user.outbound_service().run_once().await;
+
+    let attributes = alice_user
+        .chat(&chat_id)
+        .await
+        .unwrap()
+        .attributes()
+        .unwrap()
+        .clone();
+    assert!(attributes.picture().is_some());
+    assert_eq!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .clone(),
+        attributes
+    );
+
+    // Alice writes group data in the format of older clients
+    alice_user
+        .add_legacy_group_data_fields(
+            chat_id,
+            attributes.title().to_owned(),
+            attributes.picture().map(|p| p.to_vec()),
+        )
+        .await
+        .unwrap();
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(
+        alice_user
+            .group_data_has_legacy_fields(chat_id)
+            .await
+            .unwrap()
+    );
+    assert!(bob_user.group_data_has_legacy_fields(chat_id).await.unwrap());
+
+    let alice_messages_before = alice_user.messages(chat_id, 100).await.unwrap();
+    let bob_messages_before = bob_user.messages(chat_id, 100).await.unwrap();
+
+    // Alice's self-update rewrites the group data
+    alice_user
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+    assert!(
+        !alice_user
+            .group_data_has_legacy_fields(chat_id)
+            .await
+            .unwrap()
+    );
+
+    // Bob fetches Alice's commit
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(!bob_user.group_data_has_legacy_fields(chat_id).await.unwrap());
+    // No group profile fetch is scheduled: the outbound service has nothing to do
+    bob_user.outbound_service().run_once().await;
+
+    // Chat attributes and messages are unchanged on both sides
+    for user in [alice_user, bob_user] {
+        assert_eq!(
+            user.chat(&chat_id)
+                .await
+                .unwrap()
+                .attributes()
+                .unwrap()
+                .clone(),
+            attributes
+        );
+    }
+    assert_eq!(
+        alice_user.messages(chat_id, 100).await.unwrap(),
+        alice_messages_before
+    );
+    assert_eq!(
+        bob_user.messages(chat_id, 100).await.unwrap(),
+        bob_messages_before
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Create APQ group test", skip_all)]
 async fn create_apq_group() {

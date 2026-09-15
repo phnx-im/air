@@ -1367,6 +1367,7 @@ impl CoreUser {
                 OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
             }
         }
+        let old_group_data_bytes = group.group_data();
         let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)
             .await?;
@@ -1377,10 +1378,17 @@ impl CoreUser {
             let group_data = GroupData::decode(&group_data_bytes)?;
             let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            if let Some(external_group_profile) = group_profile_part {
+            // The profile in the object storage only changes together with
+            // its pointer, so an unchanged pointer needs no fetch.
+            let old_group_profile = old_group_data_bytes
+                .and_then(|bytes| GroupData::decode(&bytes).ok())
+                .and_then(|group_data| group_data.external_group_profile);
+            if let Some(external_group_profile) = group_profile_part
+                && old_group_profile.as_ref() != Some(&external_group_profile)
+            {
                 Self::schedule_fetch_group_profile(
                     &mut *txn,
-                    chat.group_id.clone(),
+                    chat.group_id().clone(),
                     sender_user_credential.user_id().clone(),
                     ds_timestamp,
                     external_group_profile,

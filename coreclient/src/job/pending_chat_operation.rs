@@ -84,6 +84,10 @@ pub(super) enum OperationType {
         /// chat picture.
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
+        /// Whether the commit leaves the chat attributes untouched, i.e. it only rewrites the
+        /// group data extension. The title carried by the group data is then not applied on merge.
+        #[serde(default)]
+        keep_chat_attributes: bool,
     },
     ApqOther {
         params: Box<ApqGroupOperationParamsOut>,
@@ -157,6 +161,15 @@ impl OperationType {
         Self::Other {
             params: Box::new(params),
             new_chat_picture,
+            keep_chat_attributes: false,
+        }
+    }
+
+    fn other_keep_chat_attributes(params: GroupOperationParamsOut) -> Self {
+        Self::Other {
+            params: Box::new(params),
+            new_chat_picture: None,
+            keep_chat_attributes: true,
         }
     }
 
@@ -462,6 +475,7 @@ impl PendingChatOperation {
             };
 
         let mut new_chat_picture = None;
+        let mut keep_chat_attributes = false;
 
         // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
@@ -483,8 +497,10 @@ impl PendingChatOperation {
             OperationType::Other {
                 params,
                 new_chat_picture: chat_picture,
+                keep_chat_attributes: keep_attributes,
             } => {
                 new_chat_picture = chat_picture;
+                keep_chat_attributes = keep_attributes;
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
@@ -607,6 +623,7 @@ impl PendingChatOperation {
                         .await?;
 
                     if let Some(bytes) = group_data_bytes
+                        && !keep_chat_attributes
                         && let Some(chat_title) =
                             GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
                     {
@@ -1024,6 +1041,40 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
+        let (group, params) =
+            Self::stage_update(txn, signer, chat_id, group_data_bytes, derivation_epoch).await?;
+        let job = Self::new(
+            group,
+            OperationType::other_with_picture(params, new_chat_picture),
+        );
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Creates and stores a PendingChatOperation for a self-update which replaces the group data
+    /// extension without touching the chat attributes.
+    pub(crate) async fn create_group_data_rewrite(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &UserSigningKey,
+        chat_id: ChatId,
+        group_data_bytes: GroupDataBytes,
+        derivation_epoch: DerivationEpoch,
+    ) -> anyhow::Result<Self> {
+        let (group, params) =
+            Self::stage_update(txn, signer, chat_id, Some(group_data_bytes), derivation_epoch)
+                .await?;
+        let job = Self::new(group, OperationType::other_keep_chat_attributes(params));
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    async fn stage_update(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &UserSigningKey,
+        chat_id: ChatId,
+        group_data_bytes: Option<GroupDataBytes>,
+        derivation_epoch: DerivationEpoch,
+    ) -> anyhow::Result<(VerifiedGroup, GroupOperationParamsOut)> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
@@ -1033,14 +1084,7 @@ impl PendingChatOperation {
             .group_mut()
             .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
             .await?;
-
-        let job = Self::new(
-            group,
-            OperationType::other_with_picture(params, new_chat_picture),
-        );
-        job.store(txn).await?;
-
-        Ok(job)
+        Ok((group, params))
     }
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
