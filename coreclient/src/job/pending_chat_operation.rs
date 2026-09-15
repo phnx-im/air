@@ -674,14 +674,10 @@ impl PendingChatOperation {
             // in retrying, the group needs to be torn down instead.
             Ok(JobError::NotFound)
         } else if error.is_wrong_epoch() {
-            // If we get a WrongEpochError, we know the commit was
-            // either accepted on a previous try, or the DS rejected
-            // it because another one got there first. Either way the
-            // queue is expected to resolve it, so the group is only
-            // marked as failed if it is still parked on the next run.
+            // Either commit was accepted on a previous try, or another commit was faster. Either
+            // way the queue is expected to resolve it.
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
-
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
             // If we get a network error (which means we don't know whether the request has been
