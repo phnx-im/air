@@ -733,7 +733,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String systemMessage_userWasAdded(String user1) {
-    return '$user1 was added to the chat';
+    return 'Se añadió a $user1 al chat';
   }
 
   @override
@@ -743,7 +743,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String systemMessage_userWasRemoved(String user1) {
-    return '$user1 was removed from the chat';
+    return 'Se quitó a $user1 del chat';
   }
 
   @override
