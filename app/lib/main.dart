@@ -4,6 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/core/frb_generated.dart' show RustLib;
+import 'package:air/features/you/rust_licenses.dart';
 import 'package:air/platform/logging.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/share/share.dart' as share;
@@ -14,6 +15,7 @@ import 'package:uuid/uuid.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerRustLicenses();
 
   await initializeDateFormatting();
   await RustLib.init();

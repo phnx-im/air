@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Crate-local toolchain required by native_toolchain_rust (the Flutter native
+# assets build hook, app/hook/build.dart). native_toolchain_rust looks for a
+# rust-toolchain.toml next to the crate (it does not walk up to the workspace
+# root) and validates that the channel is an exact version and that the target
+# being built is listed in `targets`.
+#
+# Keep `channel` in sync with the workspace root rust-toolchain.toml. This file
+# only governs cargo invocations made from within applogic/ (i.e. the app build
+# hook and FRB codegen), not the workspace-root server/backend builds.
+#
+# `targets` lists exactly the platforms we build: Linux x64, Windows x64, macOS
+# (universal: Apple Silicon + Intel), iOS (arm64 device + simulator), Android
+# arm64-v8a. Both macOS arches are required because release builds are universal.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "aarch64-apple-ios",
+  "aarch64-apple-ios-sim",
+  "aarch64-linux-android",
+  "x86_64-pc-windows-msvc",
+  "x86_64-unknown-linux-gnu",
+]

@@ -8,8 +8,8 @@ import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
@@ -18,6 +18,7 @@ import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
+import 'package:air/features/you/licenses_screen.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -340,9 +341,6 @@ class PreferencesSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final readReceiptsSetting = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
@@ -388,6 +386,8 @@ class PreferencesSection extends HookWidget {
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
+
+        const _LimitAnimatedImagesLoopsSetting(),
       ],
     );
   }
@@ -404,7 +404,7 @@ class _LanguageSettings extends StatelessWidget {
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
         // Before login there is no user to persist the locale to.
-        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
+        if (context.read<UserSessionCubit>().state.activeUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
@@ -432,9 +432,6 @@ class _SendOnEnterSetting extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final sendOnEnter = useState(
       useMemoized(() => settingsCubit.state.sendOnEnter),
@@ -456,6 +453,37 @@ class _SendOnEnterSetting extends HookWidget {
         const SizedBox(height: S.s12),
 
         FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
+      ],
+    );
+  }
+}
+
+class _LimitAnimatedImagesLoopsSetting extends HookWidget {
+  const _LimitAnimatedImagesLoopsSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final limitAnimatedImagesLoops = useState(
+      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    );
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: .start,
+      children: [
+        SwitchField(
+          label: loc.userSettingsScreen_limitAnimatedImagesLoops,
+          value: limitAnimatedImagesLoops,
+          onSubmit: (value) {
+            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          },
+        ),
+
+        const SizedBox(height: S.s12),
+
+        FieldLabel(loc.userSettingsScreen_limitAnimatedImagesLoopsDescription),
       ],
     );
   }
@@ -515,7 +543,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const LicensePage()),
+              MaterialPageRoute(
+                builder: (context) => const LicensesScreenView(),
+              ),
             );
           },
           child: Row(

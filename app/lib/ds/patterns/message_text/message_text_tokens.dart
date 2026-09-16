@@ -9,7 +9,7 @@ import 'package:flutter/widgets.dart';
 ///
 /// Geometry only: colors come from the message palette at paint time, and the
 /// type from the typescale. A body carries prose, so we tune the values to the
-/// text, not the pointer -- one set for every density.
+/// text, not the pointer -- one set for every density, the quote bar aside.
 ///
 /// The blocks themselves are the host's to render, which is why we publish
 /// their geometry here rather than apply it: quote bars, code slabs, list
@@ -22,8 +22,10 @@ abstract final class MessageTextTokens {
 
   /// A quoted passage: the rule down its leading edge, and the gap between
   /// that rule and the text. The quote carries no fill of its own, so the rule
-  /// is the whole of what marks it.
-  static const double quoteBarWidth = StrokeWidth.px2;
+  /// is the whole of what marks it. A hairline on desktop, where the denser
+  /// layout reads better with one than with the phone's 2px.
+  static double get quoteBarWidth =>
+      DeviceType.isDesktop ? StrokeWidth.px1 : StrokeWidth.px2;
   static const double quoteGap = S.s8;
 
   /// A fenced code block, which paints its own slab inside the bubble.

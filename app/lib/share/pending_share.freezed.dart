@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'pending_share.dart';
@@ -9,6 +9,7 @@ part of 'pending_share.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -30,16 +31,21 @@ $PendingShareCopyWith<PendingShare> get copyWith => _$PendingShareCopyWithImpl<P
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PendingShare&&const DeepCollectionEquality().equals(other.attachments, attachments)&&(identical(other.text, text) || other.text == text)&&(identical(other.droppedAttachments, droppedAttachments) || other.droppedAttachments == droppedAttachments));
+  final _this = this as PendingShare;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PendingShare&&const DeepCollectionEquality().equals(other.attachments, _this.attachments)&&(identical(other.text, _this.text) || other.text == _this.text)&&(identical(other.droppedAttachments, _this.droppedAttachments) || other.droppedAttachments == _this.droppedAttachments));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(attachments),text,droppedAttachments);
+int get hashCode {
+  final _this = this as PendingShare;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.attachments),_this.text,_this.droppedAttachments);
+}
 
 @override
 String toString() {
-  return 'PendingShare(attachments: $attachments, text: $text, droppedAttachments: $droppedAttachments)';
+  final _this = this as PendingShare;
+  return 'PendingShare(attachments: ${_this.attachments}, text: ${_this.text}, droppedAttachments: ${_this.droppedAttachments})';
 }
 
 
@@ -68,7 +74,7 @@ class _$PendingShareCopyWithImpl<$Res>
 /// Create a copy of PendingShare
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? attachments = null,Object? text = freezed,Object? droppedAttachments = null,}) {
-  return _then(_self.copyWith(
+  return _then(PendingShare(
 attachments: null == attachments ? _self.attachments : attachments // ignore: cast_nullable_to_non_nullable
 as List<UiSharedAttachment>,text: freezed == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
 as String?,droppedAttachments: null == droppedAttachments ? _self.droppedAttachments : droppedAttachments // ignore: cast_nullable_to_non_nullable
@@ -84,7 +90,7 @@ as int,
 
 
 class _PendingShare extends PendingShare {
-  const _PendingShare({final  List<UiSharedAttachment> attachments = const <UiSharedAttachment>[], this.text, this.droppedAttachments = 0}): _attachments = attachments,super._();
+  const _PendingShare({ List<UiSharedAttachment> attachments = const <UiSharedAttachment>[], this.text, this.droppedAttachments = 0}): _attachments = attachments,super._();
   
 
 /// Files extracted by the share activity. Whoever holds the share owns
@@ -115,16 +121,18 @@ _$PendingShareCopyWith<_PendingShare> get copyWith => __$PendingShareCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PendingShare&&const DeepCollectionEquality().equals(other._attachments, _attachments)&&(identical(other.text, text) || other.text == text)&&(identical(other.droppedAttachments, droppedAttachments) || other.droppedAttachments == droppedAttachments));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PendingShare&&const DeepCollectionEquality().equals(other.attachments, _attachments)&&(identical(other.text, text) || other.text == text)&&(identical(other.droppedAttachments, droppedAttachments) || other.droppedAttachments == droppedAttachments));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_attachments),text,droppedAttachments);
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_attachments),text,droppedAttachments);
+}
 
 @override
 String toString() {
-  return 'PendingShare(attachments: $attachments, text: $text, droppedAttachments: $droppedAttachments)';
+    return 'PendingShare(attachments: $attachments, text: $text, droppedAttachments: $droppedAttachments)';
 }
 
 

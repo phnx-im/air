@@ -21,11 +21,12 @@ use chrono::Utc;
 use tracing::info;
 
 use crate::{
+    ChatMessage,
     clients::attachment::{
         AttachmentRecord,
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
-    db::access::{DbAccess, WriteConnection},
+    db::access::DbAccess,
     outbound_service::chat_message_queue::ChatMessageQueue,
 };
 
@@ -66,15 +67,19 @@ pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> any
                 ?attachment_id,
                 "Failing an attachment whose upload was abandoned"
             );
-            // `UploadFailed` is the only status the retry API accepts, so this
-            // is what turns a stuck spinner into a retry.
-            AttachmentRecord::update_status(
-                &mut *txn,
-                attachment_id,
-                AttachmentStatus::UploadFailed,
-            )
-            .await?;
-            txn.notifier().update(attachment_id);
+            let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
+                continue;
+            };
+            if AttachmentRecord::has_content(&mut *txn, attachment_id).await? {
+                AttachmentRecord::update_status(
+                    &mut *txn,
+                    attachment_id,
+                    AttachmentStatus::UploadFailed,
+                )
+                .await?;
+            } else {
+                ChatMessage::delete(&mut *txn, record.message_id()).await?;
+            }
         }
 
         Ok(())
@@ -201,6 +206,29 @@ mod tests {
         );
         // The content never reached the server, so there is nothing to send.
         assert!(queued_message_ids(&db).await?.is_empty());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn abandoned_unprocessed_upload_is_removed(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let abandoned_at = Utc::now() - UPLOAD_STALE_AFTER - chrono::Duration::minutes(1);
+        let (message, attachment_id) =
+            unsent_attachment_message(&db, AttachmentStatus::Uploading, abandoned_at).await?;
+        sqlx::query("DELETE FROM attachment_content WHERE attachment_id = ?")
+            .bind(attachment_id)
+            .execute(db.write().await?.as_mut())
+            .await?;
+
+        recover_interrupted_attachment_uploads(&db).await?;
+
+        assert!(
+            ChatMessage::load(db.read().await?, message.id())
+                .await?
+                .is_none()
+        );
+        assert_eq!(stored_status(&db, attachment_id).await?, None);
 
         Ok(())
     }

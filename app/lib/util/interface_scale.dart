@@ -42,9 +42,8 @@ class InterfaceScale extends StatelessWidget {
     final scaledChild = systemScale == 1.0
         ? child
         : MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.noScaling),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.noScaling),
             child: child,
           );
 

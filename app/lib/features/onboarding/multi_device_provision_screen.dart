@@ -61,7 +61,7 @@ typedef MultiDeviceProvisionClientFactory =
 
 /// Wires a freshly linked user into the running app, the same way
 /// [RegistrationCubit.signUp] does. Setting [CoreClient.user] cascades
-/// through [LoadableUserCubitProvider], which builds the user-scoped cubits
+/// through [UserSessionScope], which builds the user-scoped cubits
 /// and navigates to the chat list.
 void _linkUser(User user) => CoreClient().user = user;
 

@@ -260,11 +260,13 @@ impl From<UserId> for PeerUserId {
     }
 }
 
-impl TryFrom<PeerUserId> for UserId {
+impl TryFrom<&PeerUserId> for UserId {
     type Error = FqdnError;
 
-    fn try_from(peer: PeerUserId) -> Result<Self, Self::Error> {
-        Ok(UserId::new(peer.uuid, peer.domain.parse::<Fqdn>()?))
+    fn try_from(peer: &PeerUserId) -> Result<Self, Self::Error> {
+        peer.domain
+            .parse::<Fqdn>()
+            .map(|domain| UserId::new(peer.uuid, domain))
     }
 }
 
@@ -391,7 +393,7 @@ mod test {
     fn peer_user_id_roundtrip() {
         let user_id = user_id();
         let peer = PeerUserId::from(user_id.clone());
-        assert_eq!(UserId::try_from(peer).unwrap(), user_id);
+        assert_eq!(UserId::try_from(&peer).unwrap(), user_id);
     }
 
     #[test]
@@ -400,7 +402,7 @@ mod test {
             uuid: Uuid::nil(),
             domain: "not a domain".to_owned(),
         };
-        assert!(UserId::try_from(peer).is_err());
+        assert!(UserId::try_from(&peer).is_err());
     }
 
     #[test]

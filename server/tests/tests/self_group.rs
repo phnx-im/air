@@ -57,7 +57,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
     user.enqueue_group_resync(self_chat_id).await?;
     user.outbound_service().run_once().await;
     assert!(
-        !user.is_resync_pending(self_chat_id).await?,
+        user.resync_status(self_chat_id).await?.is_none(),
         "resync should have completed"
     );
 
@@ -470,8 +470,6 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     Ok(())
 }
 
-/// A linked user is invited into someone else's group after linking. Messages
-/// sent from either of the user's devices must reach the other device.
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
     use aircoreclient::clients::MarkChatAsRead;
@@ -502,7 +500,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     }
     drain_queue(&device_b).await?;
 
-    // Bob invites Alice; device B joins from the same welcome.
+    // Bob invites Alice: device B joins from the same welcome.
     let chat_id = setup.create_group(&bob).await;
     setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
     let processed = drain_queue(&device_b).await?;

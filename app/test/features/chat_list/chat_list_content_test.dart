@@ -63,6 +63,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Connection request
   UiChatDetails(
@@ -84,8 +85,7 @@ final chats = [
           sent: true,
           edited: true,
           content: UiMimiContent(
-            plainBody:
-                'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
+            plainBody: 'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
             topicId: Uint8List(0),
             content: simpleMessage(
               'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
@@ -101,6 +101,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Group chat
   UiChatDetails(
@@ -134,6 +135,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Group chat with a draft
   UiChatDetails(
@@ -173,6 +175,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A blocked contact
   UiChatDetails(
@@ -185,6 +188,7 @@ final chats = [
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A muted contact, with our own reaction to the last message
   UiChatDetails(
@@ -217,6 +221,7 @@ final chats = [
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Chat where I sent a picture
   UiChatDetails(
@@ -255,6 +260,7 @@ final chats = [
       reactions: [],
     ),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Chat where someone sent a file
   UiChatDetails(
@@ -293,6 +299,7 @@ final chats = [
       reactions: [],
     ),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A muted group, with a reaction from someone to our own message
   UiChatDetails(
@@ -327,6 +334,7 @@ final chats = [
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
 ];
 
@@ -363,16 +371,13 @@ void main() {
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({
@@ -436,9 +441,8 @@ void main() {
       WidgetTester tester, {
       required HomeNavigationState home,
     }) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(NavigationState.home(home: home));
+      when(() => navigationCubit.state)
+          .thenReturn(NavigationState.home(home: home));
 
       await tester.pumpWidget(buildSubject(chats: [draftChat]));
     }
@@ -605,6 +609,7 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       ),
       mutedUntil: null,
       pendingCommitFailed: false,
+      resyncFailed: false,
     );
 
 /// A contact chat whose last message, "Hello Alice", carries [reaction].
@@ -644,4 +649,5 @@ UiChatDetails reactedChat({
   draft: draft,
   mutedUntil: null,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );

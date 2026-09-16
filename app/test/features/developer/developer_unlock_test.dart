@@ -30,9 +30,8 @@ void main() {
       continuedRun = [];
 
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      when(
-        () => userSettingsCubit.setDeveloperMode(value: any(named: 'value')),
-      ).thenAnswer((_) async {});
+      when(() => userSettingsCubit.setDeveloperMode(value: any(named: 'value')))
+          .thenAnswer((_) async {});
       when(() => navigationCubit.openDeveloperSettings()).thenAnswer((_) {});
     });
 

@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    status AS \"status: _\",\n                    reason AS \"reason: _\",\n                    attempts,\n                    not_before AS \"not_before: _\",\n                    last_error\n                FROM resync_queue\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "status: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "reason: _",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "not_before: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "not_before"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "last_error"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "36fa65f8e456676b048fadf45ce6cbd738726413678e0c073e36626da19165ab"
+}

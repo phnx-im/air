@@ -30,7 +30,7 @@ class AttachmentThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metadata = attachment.imageMetadata;
+    final blurhash = attachment.imageMetadata?.blurhash;
     final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
 
     return ClipRRect(
@@ -41,7 +41,7 @@ class AttachmentThumbnail extends StatelessWidget {
           fit: .expand,
           children: [
             ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
-            if (metadata != null) BlurHash(hash: metadata.blurhash),
+            if (blurhash != null) BlurHash(hash: blurhash),
             Image(
               image: ResizeImage(
                 AttachmentThumbnailProvider(

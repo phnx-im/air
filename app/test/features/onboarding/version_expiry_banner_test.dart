@@ -93,9 +93,8 @@ void main() {
       tester,
     ) async {
       announceExpiry();
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(UserSettings(dismissedVersionExpiry: expiresAt));
+      when(() => userSettingsCubit.state)
+          .thenReturn(UserSettings(dismissedVersionExpiry: expiresAt));
 
       await tester.pumpWidget(buildSubject());
 

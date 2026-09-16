@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'attachments_repository.dart';
@@ -9,6 +9,7 @@ part of 'attachments_repository.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$UiAttachmentStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiAttachmentStatus()';
+    return 'UiAttachmentStatus()';
 }
 
 
@@ -56,7 +57,7 @@ class UiAttachmentStatus_Pending extends UiAttachmentStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Pending);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Pending);
 }
 
 
@@ -65,7 +66,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiAttachmentStatus.pending()';
+    return 'UiAttachmentStatus.pending()';
 }
 
 
@@ -93,16 +94,18 @@ $UiAttachmentStatus_ProgressCopyWith<UiAttachmentStatus_Progress> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Progress&&(identical(other.field0, field0) || other.field0 == field0));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Progress&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,field0);
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
 
 @override
 String toString() {
-  return 'UiAttachmentStatus.progress(field0: $field0)';
+    return 'UiAttachmentStatus.progress(field0: $field0)';
 }
 
 
@@ -154,7 +157,7 @@ class UiAttachmentStatus_Completed extends UiAttachmentStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Completed);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Completed);
 }
 
 
@@ -163,7 +166,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiAttachmentStatus.completed()';
+    return 'UiAttachmentStatus.completed()';
 }
 
 
@@ -186,7 +189,7 @@ class UiAttachmentStatus_Failed extends UiAttachmentStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Failed);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_Failed);
 }
 
 
@@ -195,7 +198,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiAttachmentStatus.failed()';
+    return 'UiAttachmentStatus.failed()';
 }
 
 
@@ -218,7 +221,7 @@ class UiAttachmentStatus_NotFound extends UiAttachmentStatus {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_NotFound);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_NotFound);
 }
 
 
@@ -227,7 +230,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'UiAttachmentStatus.notFound()';
+    return 'UiAttachmentStatus.notFound()';
 }
 
 

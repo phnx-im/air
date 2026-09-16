@@ -14,10 +14,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 5
   CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
   RUSTFLAGS: "-D warnings"
-  # Unfortunately, flutter doesn't support flavors on Linux, so we do with env variables and CMake
+  # Flutter's flavor support on Linux only selects the output directory
+  # (build/linux/x64/<flavor>/...), the flavor-specific configuration is done
+  # with this env variable in CMake.
   APP_FLAVOR: "${{ inputs.upload && 'production' || 'staging' }}"
 
 jobs:
@@ -28,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Fetch all commit metadata (client build metadata is derived from git history)
           fetch-depth: 0
@@ -43,13 +46,14 @@ jobs:
 
       - name: Build app
         working-directory: app
-        run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }} --build-name=${{ steps.setup-buildenv.outputs.build-name }}
+        run: flutter build linux -v --flavor ${{ env.APP_FLAVOR }} --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload app bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-x64-app
-          path: app/build/linux/x64/release/bundle
+          path: app/build/linux/x64/${{ env.APP_FLAVOR }}/release/bundle
+          if-no-files-found: error
 
   # Packaging runs on every PR so a broken nfpm config surfaces before the
   # merge, while signing and publishing stay gated on `upload`.
@@ -67,16 +71,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download app bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: linux-x64-app
-          path: app/build/linux/x64/release/bundle
+          path: app/build/linux/x64/${{ env.APP_FLAVOR }}/release/bundle
 
       - name: Install just
-        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
       - name: Install nfpm
         run: |
@@ -91,6 +95,7 @@ jobs:
         with:
           name: linux-package-${{ matrix.format }}
           path: app/linux/${{ matrix.glob }}
+          if-no-files-found: error
 
   linux-publish:
     name: linux-publish
@@ -113,7 +118,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download packages
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -122,7 +127,7 @@ jobs:
           path: app/linux
 
       - name: Install awscli
-        uses: unfor19/install-aws-cli-action@f5b46b7f32cf5e7ebd652656c5036bf83dd1e60c # v1
+        uses: unfor19/install-aws-cli-action@e8b481e524a99f37fbd39fdc1dcb3341ab091367 # v1.0.7
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y gpg ${{ matrix.extra_apt_dependencies }}

@@ -19,12 +19,17 @@ impl StorableConnectionPackage {
         connection_packages: impl IntoIterator<Item = &VersionedConnectionPackage>,
         hash: &UsernameHash,
     ) -> Result<(), StorageError> {
+        let mut connection_packages = connection_packages.into_iter().peekable();
+        if connection_packages.peek().is_none() {
+            return Ok(());
+        }
+
         let mut query_args = PgArguments::default();
         let mut query_string = String::from(
             "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort) VALUES",
         );
 
-        for (i, connection_package) in connection_packages.into_iter().enumerate() {
+        for (i, connection_package) in connection_packages.enumerate() {
             let is_last_resort = connection_package.is_last_resort();
             let connection_package: StorableConnectionPackageRef = connection_package.into();
 

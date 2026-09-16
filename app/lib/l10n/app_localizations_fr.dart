@@ -6,6 +6,7 @@
 
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -43,6 +44,14 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
       'Si activée, la touche « Entrée » du clavier envoie le message.';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoops =>
+      'Limiter la lecture automatique des GIF';
+
+  @override
+  String get userSettingsScreen_limitAnimatedImagesLoopsDescription =>
+      'Si activée, les GIF sont lus en boucle 3 fois à l\'affichage, puis peuvent être relancés manuellement.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
@@ -938,6 +947,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Échec de l\'importation de la pièce jointe. Veuillez réessayer.';
 
   @override
+  String get composer_error_attachment_decoding =>
+      'L\'image n\'a pas pu être décodée. Elle est peut-être endommagée ou dans un format non pris en charge.';
+
+  @override
   String composer_error_attachment_too_large(
     String actualSize,
     String maxSize,
@@ -1092,6 +1105,24 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get licensesScreen_title => 'Licences';
+
+  @override
+  String get licensesScreen_searchHint => 'Chercher des paquets';
+
+  @override
+  String licensesScreen_packageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paquets',
+      one: '$count paquet',
+      zero: 'Aucun paquet',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get licensesScreen_noResults => 'Aucun paquet trouvé.';
 
   @override
   String get contactUsScreen_title => 'Contacter Air';
