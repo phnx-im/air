@@ -1896,21 +1896,18 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
         .filter_map(|m| {
             if let Message::Event(EventMessage::System(system_message)) = m.message() {
                 match system_message {
-                    SystemMessage::Add {
-                        adder: Some(adder),
-                        added,
-                    } => Some(format!("{adder:?} added {added:?} to the chat")),
-                    SystemMessage::Add { adder: None, added } => {
+                    SystemMessage::Add(Some(adder), added) => {
+                        Some(format!("{adder:?} added {added:?} to the chat"))
+                    }
+                    SystemMessage::Add(None, added) => {
                         Some(format!("{added:?} was added to the chat"))
                     }
-                    SystemMessage::Remove {
-                        remover: Some(remover),
-                        removed,
-                    } => Some(format!("{remover:?} removed {removed:?} from the chat")),
-                    SystemMessage::Remove {
-                        remover: None,
-                        removed,
-                    } => Some(format!("{removed:?} was removed from the chat")),
+                    SystemMessage::Remove(Some(remover), removed) => {
+                        Some(format!("{remover:?} removed {removed:?} from the chat"))
+                    }
+                    SystemMessage::Remove(None, removed) => {
+                        Some(format!("{removed:?} was removed from the chat"))
+                    }
                     SystemMessage::ChangeTitle {
                         user_id,
                         old_title,

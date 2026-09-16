@@ -500,9 +500,7 @@ async fn resync() {
     let messages = system_messages(bob_user, chat_id).await;
     let actorless_charlie_adds = messages
         .iter()
-        .filter(|message| {
-            matches!(message, SystemMessage::Add { adder: None, added } if added == &charlie)
-        })
+        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
         .count();
     assert_eq!(
         actorless_charlie_adds, 1,
@@ -510,9 +508,9 @@ async fn resync() {
     );
     let charlie_adds_with_actor = messages
         .iter()
-        .filter(|message| {
-            matches!(message, SystemMessage::Add { adder: Some(_), added } if added == &charlie)
-        })
+        .filter(
+            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == &charlie),
+        )
         .count();
     assert_eq!(
         charlie_adds_with_actor, 0,
@@ -605,9 +603,9 @@ async fn resync() {
     let messages = system_messages(bob_user, chat_id).await;
     let actorless_alice_removes = messages
         .iter()
-        .filter(|message| {
-            matches!(message, SystemMessage::Remove { remover: None, removed } if removed == &alice)
-        })
+        .filter(
+            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == &alice),
+        )
         .count();
     assert_eq!(
         actorless_alice_removes, 1,
@@ -615,12 +613,8 @@ async fn resync() {
     );
     let alice_removes_with_actor = messages
         .iter()
-        .filter(|message| match message {
-            SystemMessage::Remove {
-                remover: Some(_),
-                removed,
-            } => removed == &alice,
-            _ => false,
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == &alice)
         })
         .count();
     assert_eq!(
@@ -634,8 +628,7 @@ async fn resync() {
         .filter(|message| {
             matches!(
                 message,
-                SystemMessage::Add { adder: None, .. }
-                    | SystemMessage::Remove { remover: None, .. }
+                SystemMessage::Add(None, _) | SystemMessage::Remove(None, _)
             )
         })
         .collect();

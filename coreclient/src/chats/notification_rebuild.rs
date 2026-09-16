@@ -525,10 +525,7 @@ mod tests {
             chat.id(),
             MessageId::random(),
             TimeStamp::from(10 * 1_000_000_000),
-            EventMessage::System(SystemMessage::Remove {
-                remover: Some(remover.clone()),
-                removed: own_user.clone(),
-            }),
+            EventMessage::System(SystemMessage::Remove(Some(remover), own_user.clone())),
         );
         event.store(&mut connection).await?;
 

@@ -557,14 +557,8 @@ impl From<EventMessage> for UiEventMessage {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiSystemMessage {
-    Add {
-        adder: Option<UiUserId>,
-        added: UiUserId,
-    },
-    Remove {
-        remover: Option<UiUserId>,
-        removed: UiUserId,
-    },
+    Add(Option<UiUserId>, UiUserId),
+    Remove(Option<UiUserId>, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
     ReceivedHandleConnectionRequest {
@@ -592,14 +586,12 @@ pub enum UiSystemMessage {
 impl From<SystemMessage> for UiSystemMessage {
     fn from(system_message: SystemMessage) -> Self {
         match system_message {
-            SystemMessage::Add { adder, added } => UiSystemMessage::Add {
-                adder: adder.map(Into::into),
-                added: added.into(),
-            },
-            SystemMessage::Remove { remover, removed } => UiSystemMessage::Remove {
-                remover: remover.map(Into::into),
-                removed: removed.into(),
-            },
+            SystemMessage::Add(adder, added) => {
+                UiSystemMessage::Add(adder.map(Into::into), added.into())
+            }
+            SystemMessage::Remove(remover, removed) => {
+                UiSystemMessage::Remove(remover.map(Into::into), removed.into())
+            }
             SystemMessage::ChangeTitle {
                 user_id,
                 old_title,

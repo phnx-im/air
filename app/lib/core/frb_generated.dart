@@ -11585,13 +11585,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (raw[0]) {
       case 0:
         return UiSystemMessage_Add(
-          adder: dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
-          added: dco_decode_box_autoadd_ui_user_id(raw[2]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 1:
         return UiSystemMessage_Remove(
-          remover: dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
-          removed: dco_decode_box_autoadd_ui_user_id(raw[2]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 2:
         return UiSystemMessage_ChangeTitle(
@@ -15718,16 +15718,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_adder = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
-        var var_added = sse_decode_box_autoadd_ui_user_id(deserializer);
-        return UiSystemMessage_Add(adder: var_adder, added: var_added);
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
+        var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_Add(var_field0, var_field1);
       case 1:
-        var var_remover = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
-        var var_removed = sse_decode_box_autoadd_ui_user_id(deserializer);
-        return UiSystemMessage_Remove(
-          remover: var_remover,
-          removed: var_removed,
-        );
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
+        var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_Remove(var_field0, var_field1);
       case 2:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_String(deserializer);
@@ -19913,17 +19910,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case UiSystemMessage_Add(adder: final adder, added: final added):
+      case UiSystemMessage_Add(field0: final field0, field1: final field1):
         sse_encode_i_32(0, serializer);
-        sse_encode_opt_box_autoadd_ui_user_id(adder, serializer);
-        sse_encode_box_autoadd_ui_user_id(added, serializer);
-      case UiSystemMessage_Remove(
-        remover: final remover,
-        removed: final removed,
-      ):
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_box_autoadd_ui_user_id(field1, serializer);
+      case UiSystemMessage_Remove(field0: final field0, field1: final field1):
         sse_encode_i_32(1, serializer);
-        sse_encode_opt_box_autoadd_ui_user_id(remover, serializer);
-        sse_encode_box_autoadd_ui_user_id(removed, serializer);
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_box_autoadd_ui_user_id(field1, serializer);
       case UiSystemMessage_ChangeTitle(
         field0: final field0,
         field1: final field1,

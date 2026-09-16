@@ -587,16 +587,10 @@ pub enum EventMessage {
 // introduced and the storage logic changed accordingly.
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum SystemMessage {
-    Add {
-        /// Sometimes (e.g. resync) we don't know who added the user.
-        adder: Option<UserId>,
-        added: UserId,
-    },
-    Remove {
-        /// Sometimes (e.g. resync) we don't know who removed the user.
-        remover: Option<UserId>,
-        removed: UserId,
-    },
+    // The first user is the adder/remover, the second the added/removed. The
+    // actor is unknown for changes discovered by a resync.
+    Add(Option<UserId>, UserId),
+    Remove(Option<UserId>, UserId),
     ChangeTitle {
         user_id: UserId,
         old_title: String,
@@ -648,10 +642,7 @@ impl SystemMessage {
     /// The user who performed the group operation this message reports.
     pub fn actor(&self) -> Option<&UserId> {
         match self {
-            SystemMessage::Add { adder: user_id, .. }
-            | SystemMessage::Remove {
-                remover: user_id, ..
-            } => user_id.as_ref(),
+            SystemMessage::Add(actor, _) | SystemMessage::Remove(actor, _) => actor.as_ref(),
             SystemMessage::ChangeTitle { user_id, .. }
             | SystemMessage::ChangePicture(user_id)
             | SystemMessage::CreateGroup(user_id) => Some(user_id),
@@ -667,30 +658,21 @@ impl SystemMessage {
 
     async fn string_representation(&self, core_user: &CoreUser) -> String {
         match self {
-            SystemMessage::Add {
-                adder: Some(adder),
-                added,
-            } => {
+            SystemMessage::Add(Some(adder), added) => {
                 let adder_display_name = core_user.user_profile(adder).await.display_name;
                 let added_display_name = core_user.user_profile(added).await.display_name;
                 format!("{adder_display_name} added {added_display_name} to the chat")
             }
-            SystemMessage::Add { adder: None, added } => {
+            SystemMessage::Add(None, added) => {
                 let added_display_name = core_user.user_profile(added).await.display_name;
                 format!("{added_display_name} was added to the chat")
             }
-            SystemMessage::Remove {
-                remover: Some(remover),
-                removed,
-            } => {
+            SystemMessage::Remove(Some(remover), removed) => {
                 let remover_display_name = core_user.user_profile(remover).await.display_name;
                 let removed_display_name = core_user.user_profile(removed).await.display_name;
                 format!("{remover_display_name} removed {removed_display_name} from the chat")
             }
-            SystemMessage::Remove {
-                remover: None,
-                removed,
-            } => {
+            SystemMessage::Remove(None, removed) => {
                 let removed_display_name = core_user.user_profile(removed).await.display_name;
                 format!("{removed_display_name} was removed from the chat")
             }

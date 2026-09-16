@@ -154,7 +154,7 @@ TextSpan buildSystemMessageText(
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
 
   return switch (message) {
-    UiSystemMessage_Add(adder: final adder, added: final added) =>
+    UiSystemMessage_Add(field0: final adder, field1: final added) =>
       adder == null
           ? emphasizedText(
               (marks) => loc.systemMessage_userWasAdded(marks[0]),
@@ -166,7 +166,7 @@ TextSpan buildSystemMessageText(
               [user(adder), user(added)],
               nameStyle,
             ),
-    UiSystemMessage_Remove(remover: final remover, removed: final removed) =>
+    UiSystemMessage_Remove(field0: final remover, field1: final removed) =>
       remover == null
           ? emphasizedText(
               (marks) => loc.systemMessage_userWasRemoved(marks[0]),

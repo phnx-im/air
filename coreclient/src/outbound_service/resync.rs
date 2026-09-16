@@ -517,10 +517,7 @@ impl Resync {
                     let system_message = ChatMessage::new_system_message(
                         chat_id,
                         ds_timestamp,
-                        SystemMessage::Add {
-                            adder: None,
-                            added: user_id,
-                        },
+                        SystemMessage::Add(None, user_id),
                     );
                     system_message.store(&mut *txn).await?;
                 }
@@ -528,10 +525,7 @@ impl Resync {
                     let system_message = ChatMessage::new_system_message(
                         chat_id,
                         ds_timestamp,
-                        SystemMessage::Remove {
-                            remover: None,
-                            removed: user_id,
-                        },
+                        SystemMessage::Remove(None, user_id),
                     );
                     system_message.store(&mut *txn).await?;
                 }
