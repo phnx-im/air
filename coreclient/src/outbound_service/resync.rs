@@ -5,7 +5,7 @@
 use std::{collections::HashSet, fmt, str::FromStr};
 
 use aircommon::{
-    credentials::{LeafCredential, keys::LeafSigningKey},
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
@@ -651,24 +651,10 @@ impl Resync {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
-        // Collect other members of the group before we delete the group.
-        let other_members_before: Option<HashSet<UserId>> =
-            if let Some(group) = Group::load_verified(&mut *txn, &self.group_id).await? {
-                let members = group
-                    .mls_group()
-                    .members()
-                    .filter_map(|member| {
-                        match LeafCredential::from_credential(&member.credential).ok()? {
-                            LeafCredential::User(credential) => Some(credential.user_id().clone()),
-                            LeafCredential::SelfGroup(_) => None,
-                        }
-                    })
-                    .collect();
-                Some(members)
-            } else {
-                // No group yet (during onboarding) => no other members
-                None
-            };
+        // Collect members of the group before we delete it.
+        let members_before: Option<HashSet<UserId>> = Group::load(&mut *txn, &self.group_id)
+            .await?
+            .map(|group| group.members().collect());
 
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
@@ -729,18 +715,9 @@ impl Resync {
             )
         };
 
-        let other_members_after: HashSet<UserId> = group
-            .mls_group()
-            .members()
-            .filter_map(|member| {
-                match LeafCredential::from_credential(&member.credential).ok()? {
-                    LeafCredential::User(credential) => Some(credential.user_id().clone()),
-                    LeafCredential::SelfGroup(_) => None,
-                }
-            })
-            .collect();
-        let diff = other_members_before
-            .map(|before| MembersDiff::compute(before, other_members_after))
+        let members_after: HashSet<UserId> = group.members().collect();
+        let diff = members_before
+            .map(|before| MembersDiff::compute(before, members_after))
             .unwrap_or_default();
 
         Ok((group, commit, member_profile_infos, diff))
