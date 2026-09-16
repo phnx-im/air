@@ -23,7 +23,6 @@ ed25519 = { workspace = true, features = ["serde"] }
 futures-util.workspace = true
 hex.workspace = true
 hkdf.workspace = true
-mimi-room-policy.workspace = true
 mimi_content.workspace = true
 minicbor.workspace = true
 minicbor-serde.workspace = true

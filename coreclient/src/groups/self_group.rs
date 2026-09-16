@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::ApqGroupOperationParamsOut;
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::credentials::LeafCredentialError;
 use aircommon::{
@@ -10,10 +11,7 @@ use aircommon::{
         keys::{LeafSigningKey, SelfGroupSigningKey},
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
-    messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationAad},
-        client_ds_out::ApqGroupOperationParamsOut,
-    },
+    messages::client_ds::{AadMessage, AadPayload, GroupOperationAad},
 };
 use airprotos::client::{
     app_data::GroupAppData,

@@ -4,11 +4,12 @@
 
 use std::{fmt, str::FromStr};
 
+use airapiclient::ds_api::ExternalCommitInfoIn;
 use aircommon::{
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
+    messages::client_ds::AadPayload,
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;

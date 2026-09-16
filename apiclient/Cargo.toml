@@ -18,6 +18,7 @@ futures-util.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
 semver.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["time"] }

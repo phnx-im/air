@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ds_api::DsRequestError;
+use airapiclient::ds_api::{
+    ApqGroupOperationParamsOut, DeleteGroupParamsOut, DsRequestError, GroupOperationParamsOut,
+    SelfRemoveParamsOut,
+};
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
@@ -10,10 +13,6 @@ use aircommon::{
     },
     crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::client_ds_out::{
-        ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
-        SelfRemoveParamsOut,
-    },
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };

@@ -18,6 +18,12 @@ pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
 pub(crate) mod vc_epoch_retention;
 
+use airapiclient::ds_api::{
+    AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
+    CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn, GroupOperationParamsOut,
+    PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag, SendMessageParamsOut,
+    TargetedMessageParamsOut, WelcomeInfoIn,
+};
 #[cfg(feature = "test_utils")]
 use airprotos::client::component::AirFeatures;
 use apqmls::{
@@ -60,13 +66,6 @@ use aircommon::{
         client_ds::{
             AadMessage, AadPayload, ApqWelcomeBundle, DsJoinerInformation, GroupOperationAad,
             WelcomeBundle,
-        },
-        client_ds_out::{
-            AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
-            CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, PqExternalCommitInfoIn, SelfRemoveParamsOut,
-            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut,
-            TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -2103,10 +2102,8 @@ impl Group {
             sender: self.mls_group.own_leaf_index(),
             generation,
             collision_tags,
-            message_type: TargetedMessageType::ApplicationMessage {
-                message,
-                recipient: recipient_index,
-            },
+            message,
+            recipient: recipient_index,
         };
 
         Ok(params)

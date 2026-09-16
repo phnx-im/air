@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module contains structs and enums that represent messages that are
-//! passed between clients and the backend.
-//! TODO: We should eventually factor this module out, together with the crypto
-//! module, to allow re-use by the client implementation.
+//! Client-side request payloads for the DS and the responses it returns.
 
 use std::collections::HashMap;
 
+use aircommon::{
+    credentials::UserCredential, crypto::aead::keys::EncryptedUserProfileKey,
+    identifiers::QsReference, messages::welcome_attribution_info::EncryptedWelcomeAttributionInfo,
+};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
@@ -22,13 +23,6 @@ use mls_assist::{
     },
 };
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    credentials::UserCredential, crypto::aead::keys::EncryptedUserProfileKey,
-    identifiers::QsReference,
-};
-
-use super::welcome_attribution_info::EncryptedWelcomeAttributionInfo;
 
 pub struct ExternalCommitInfoIn {
     pub verifiable_group_info: VerifiableGroupInfo,
@@ -181,17 +175,10 @@ pub struct SendMessageParamsOut {
 }
 
 #[derive(Debug)]
-pub enum TargetedMessageType {
-    ApplicationMessage {
-        message: AssistedMessageOut,
-        recipient: LeafNodeIndex,
-    },
-}
-
-#[derive(Debug)]
 pub struct TargetedMessageParamsOut {
     pub sender: LeafNodeIndex,
-    pub message_type: TargetedMessageType,
+    pub message: AssistedMessageOut,
+    pub recipient: LeafNodeIndex,
     pub generation: u32,
     pub collision_tags: Vec<SendMessageCollisionTag>,
 }

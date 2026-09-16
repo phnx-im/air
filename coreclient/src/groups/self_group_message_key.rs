@@ -21,6 +21,7 @@
 //! epoch returns the cached key. The punctured tree and the cached key are
 //! written in the same transaction, so they can never diverge.
 
+use airapiclient::ds_api::ApqGroupOperationParamsOut;
 use aircommon::codec::PersistenceCodec;
 use aircommon::{
     credentials::keys::SelfGroupSigningKey,
@@ -30,10 +31,7 @@ use aircommon::{
         },
         kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
     },
-    messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationAad},
-        client_ds_out::ApqGroupOperationParamsOut,
-    },
+    messages::client_ds::{AadMessage, AadPayload, GroupOperationAad},
 };
 use airprotos::client::{
     app_data::GroupAppData,

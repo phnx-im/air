@@ -14,15 +14,7 @@ use aircommon::{
         signatures::{private_keys::SigningKey, signable::Signable},
     },
     identifiers::{QsReference, QualifiedGroupId, RemoteAttachmentId, UserId},
-    messages::{
-        client_ds::UserProfileKeyUpdate,
-        client_ds_out::{
-            ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
-            EpochSnapshotIn, ExternalCommitInfoIn, GroupOperationParamsOut, PqEpochSnapshotIn,
-            PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag,
-            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
-        },
-    },
+    messages::client_ds::UserProfileKeyUpdate,
     time::TimeStamp,
 };
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
@@ -40,7 +32,8 @@ use airprotos::{
         GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
         JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
         ResyncPayload, SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload,
-        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        StorageObjectType, TargetedApplicationMessage, TargetedMessagePayload,
+        UpdateProfileKeyPayload, WelcomeInfoPayload, targeted_message_payload::TargetedMessageType,
     },
     validation::MissingFieldExt,
 };
@@ -54,6 +47,9 @@ use tonic::Code;
 use tracing::error;
 
 use crate::ApiClient;
+
+mod types;
+pub use types::*;
 
 /// How long we wait for the DS to answer a send request.
 ///
@@ -769,7 +765,12 @@ impl ApiClient {
                         .collect(),
                 })
             },
-            targeted_message_type: Some(params.message_type.try_ref_into()?),
+            targeted_message_type: Some(TargetedMessageType::ApplicationMessage(
+                TargetedApplicationMessage {
+                    message: Some(params.message.try_ref_into()?),
+                    recipient: Some(params.recipient.into()),
+                },
+            )),
         };
         let request = payload.sign(signing_key)?;
         let response = self

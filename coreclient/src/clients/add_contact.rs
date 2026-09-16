@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
+use airapiclient::{
+    ApiClient,
+    as_api::AsConnectionOfferResponder,
+    ds_api::{CreateGroupParamsOut, TargetedMessageParamsOut},
+};
 use aircommon::{
     credentials::keys::UserSigningKey,
     crypto::{
@@ -12,10 +16,7 @@ use aircommon::{
         indexed_aead::keys::UserProfileKey,
     },
     identifiers::{QsReference, UserId, Username, UsernameHash},
-    messages::{
-        client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
-        client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
-    },
+    messages::client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
     time::TimeStamp,
 };
 use airprotos::client::{group::GroupData, signed_connection_package::AnyConnectionPackage};
