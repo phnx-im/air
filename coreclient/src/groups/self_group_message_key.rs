@@ -31,7 +31,7 @@ use aircommon::{
         kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
     },
     messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds::{AadMessage, AadPayload, GroupOperationAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
 };
@@ -238,7 +238,7 @@ impl Group {
         proposal: Proposal,
     ) -> Result<ApqGroupOperationParamsOut> {
         // Set the AAD for a group operation without any added users.
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         }))
         .tls_serialize_detached()?;

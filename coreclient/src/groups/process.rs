@@ -10,9 +10,7 @@ use aircommon::{
         UserCredential, VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
-    messages::client_ds::{
-        AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
-    },
+    messages::client_ds::{AadMessage, AadPayload, GroupOperationAad, JoinConnectionGroupAad},
     utils::removed_client,
 };
 use airprotos::client::{app_data::GroupAppData, self_group::SettingsUpdate};
@@ -462,7 +460,7 @@ impl Group {
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
         sender_credential: LeafCredential,
-        group_operation_payload: GroupOperationParamsAad,
+        group_operation_payload: GroupOperationAad,
     ) -> Result<Vec<(UserCredential, EncryptedUserProfileKey)>> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
@@ -564,7 +562,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        join_connection_group_payload: JoinConnectionGroupParamsAad,
+        join_connection_group_payload: JoinConnectionGroupAad,
     ) -> Result<(UserCredential, EncryptedUserProfileKey)> {
         let staged_commit = expect_staged_commit(processed_message)?;
 

@@ -8,6 +8,7 @@ use aircommon::{
     LibraryError,
     crypto::{
         RatchetEncryptionKey,
+        hpke::ClientIdEncryptionKey,
         kdf::keys::RatchetSecret,
         signatures::{
             keys::{QsClientSigningKey, QsClientVerifyingKey, QsUserSigningKey},
@@ -15,14 +16,7 @@ use aircommon::{
         },
     },
     identifiers::{QsClientId, QsUserId},
-    messages::{
-        FriendshipToken,
-        client_qs::{
-            CreateClientRecordResponse, CreateUserRecordResponse, EncryptionKeyResponse,
-            KeyPackageResponseIn,
-        },
-        push_token::EncryptedPushToken,
-    },
+    messages::{FriendshipToken, push_token::EncryptedPushToken},
     utils::{CancellableStream, CancellingStream},
     virtual_client::KeyPackageBatchId,
 };
@@ -42,7 +36,7 @@ use airprotos::{
     validation::{MissingFieldError, MissingFieldExt},
 };
 use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
-use mls_assist::openmls::prelude::KeyPackage;
+use mls_assist::openmls::prelude::{KeyPackage, KeyPackageIn};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
@@ -95,7 +89,7 @@ impl ApiClient {
         encrypted_push_token: Option<EncryptedPushToken>,
         initial_ratchet_key: RatchetSecret,
         signing_key: &QsUserSigningKey,
-    ) -> Result<CreateUserRecordResponse, QsRequestError> {
+    ) -> Result<(QsUserId, QsClientId), QsRequestError> {
         let request = CreateUserRequest {
             client_metadata: Some(self.metadata().clone()),
             user_record_auth_key: Some(signing_key.verifying_key().clone().into()),
@@ -110,24 +104,23 @@ impl ApiClient {
             .create_user(request)
             .await?
             .into_inner();
-        Ok(CreateUserRecordResponse {
-            user_id: response
-                .user_id
-                .ok_or_missing_field("user_id")?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid user_id in response");
-                    QsRequestError::UnexpectedResponse
-                })?,
-            qs_client_id: response
-                .client_id
-                .ok_or_missing_field("client_id")?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid client_id in response");
-                    QsRequestError::UnexpectedResponse
-                })?,
-        })
+        let user_id = response
+            .user_id
+            .ok_or_missing_field("user_id")?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid user_id in response");
+                QsRequestError::UnexpectedResponse
+            })?;
+        let qs_client_id = response
+            .client_id
+            .ok_or_missing_field("client_id")?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid client_id in response");
+                QsRequestError::UnexpectedResponse
+            })?;
+        Ok((user_id, qs_client_id))
     }
 
     pub async fn qs_update_user(
@@ -169,7 +162,7 @@ impl ApiClient {
         encrypted_push_token: Option<EncryptedPushToken>,
         initial_ratchet_key: RatchetSecret,
         signing_key: &QsUserSigningKey,
-    ) -> Result<CreateClientRecordResponse, QsRequestError> {
+    ) -> Result<QsClientId, QsRequestError> {
         let payload = CreateClientPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
@@ -184,16 +177,14 @@ impl ApiClient {
             .create_client(request)
             .await?
             .into_inner();
-        Ok(CreateClientRecordResponse {
-            qs_client_id: response
-                .client_id
-                .ok_or_missing_field("client_id")?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid client_id in response");
-                    QsRequestError::UnexpectedResponse
-                })?,
-        })
+        response
+            .client_id
+            .ok_or_missing_field("client_id")?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid client_id in response");
+                QsRequestError::UnexpectedResponse
+            })
     }
 
     pub async fn qs_update_client(
@@ -300,7 +291,7 @@ impl ApiClient {
     pub async fn qs_key_package(
         &self,
         sender: FriendshipToken,
-    ) -> Result<KeyPackageResponseIn, QsRequestError> {
+    ) -> Result<KeyPackageIn, QsRequestError> {
         let request = KeyPackageRequest {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(sender.into()),
@@ -310,15 +301,14 @@ impl ApiClient {
             .key_package(request)
             .await?
             .into_inner();
-        let key_package = response
+        response
             .key_package
             .ok_or_missing_field("key_package")?
             .try_into()
             .map_err(|error| {
                 error!(%error, "invalid key_package in response");
                 QsRequestError::UnexpectedResponse
-            })?;
-        Ok(KeyPackageResponseIn { key_package })
+            })
     }
 
     pub async fn qs_apq_key_package(
@@ -345,7 +335,7 @@ impl ApiClient {
         Ok(key_package)
     }
 
-    pub async fn qs_encryption_key(&self) -> Result<EncryptionKeyResponse, QsRequestError> {
+    pub async fn qs_encryption_key(&self) -> Result<ClientIdEncryptionKey, QsRequestError> {
         let request = QsEncryptionKeyRequest {
             client_metadata: Some(self.metadata().clone()),
         };
@@ -354,11 +344,10 @@ impl ApiClient {
             .qs_encryption_key(request)
             .await?
             .into_inner();
-        let encryption_key = response
+        Ok(response
             .encryption_key
             .ok_or_missing_field("encryption_key")?
-            .into();
-        Ok(EncryptionKeyResponse { encryption_key })
+            .into())
     }
 
     /// Listens to the event queue of the given client.

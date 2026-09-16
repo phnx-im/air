@@ -338,9 +338,9 @@ impl auth_service_server::AuthService for GrpcAs {
             .await?;
 
         let outcome = match outcome {
-            RegistrationOutcome::Registered(response) => {
+            RegistrationOutcome::Registered(user_credential) => {
                 counter!("air_registrations_total", "gated" => gated.to_string()).increment(1);
-                Outcome::UserCredential(response.user_credential.into())
+                Outcome::UserCredential(user_credential.into())
             }
             RegistrationOutcome::ChallengeRejected => {
                 Outcome::ChallengeRejected(ChallengeRejected {})
@@ -543,9 +543,9 @@ impl auth_service_server::AuthService for GrpcAs {
                 Status::invalid_argument(format!("invalid key index length: {}", bytes.len()))
             },
         )?);
-        let response = self.inner.as_get_user_profile(user_id, key_index).await?;
+        let encrypted_user_profile = self.inner.as_get_user_profile(user_id, key_index).await?;
         Ok(Response::new(GetUserProfileResponse {
-            encrypted_user_profile: Some(response.encrypted_user_profile.into()),
+            encrypted_user_profile: Some(encrypted_user_profile.into()),
         }))
     }
 

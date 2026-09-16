@@ -113,7 +113,7 @@ impl QueueService for GrpcQs {
             .initial_ratched_secret
             .ok_or_missing_field("initial_ratched_secret")?
             .try_into()?;
-        let response = self
+        let (user_id, qs_client_id) = self
             .qs
             .qs_create_user_record(
                 user_record_auth_key,
@@ -129,8 +129,8 @@ impl QueueService for GrpcQs {
                 Status::internal("failed to create user record")
             })?;
         let response = CreateUserResponse {
-            user_id: Some(response.user_id.into()),
-            client_id: Some(response.qs_client_id.into()),
+            user_id: Some(user_id.into()),
+            client_id: Some(qs_client_id.into()),
         };
         Ok(Response::new(response))
     }
@@ -232,7 +232,7 @@ impl QueueService for GrpcQs {
         let initial_ratchet_secret = initial_ratched_secret
             .ok_or_missing_field("initial_ratched_secret")?
             .try_into()?;
-        let response = self
+        let qs_client_id = self
             .qs
             .qs_create_client_record(
                 sender,
@@ -243,7 +243,7 @@ impl QueueService for GrpcQs {
             )
             .await?;
         Ok(Response::new(CreateClientResponse {
-            client_id: Some(response.qs_client_id.into()),
+            client_id: Some(qs_client_id.into()),
         }))
     }
 
@@ -390,9 +390,9 @@ impl QueueService for GrpcQs {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let sender = request.sender.ok_or_missing_field("sender")?.into();
-        let response = self.qs.qs_key_package(sender).await?;
+        let key_package = self.qs.qs_key_package(sender).await?;
         Ok(Response::new(KeyPackageResponse {
-            key_package: Some(response.key_package.try_into().tls_failed("key_package")?),
+            key_package: Some(key_package.try_into().tls_failed("key_package")?),
         }))
     }
 
@@ -444,9 +444,9 @@ impl QueueService for GrpcQs {
     ) -> Result<Response<QsEncryptionKeyResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let response = self.qs.qs_encryption_key().await?;
+        let encryption_key = self.qs.qs_encryption_key().await?;
         Ok(Response::new(QsEncryptionKeyResponse {
-            encryption_key: Some(response.encryption_key.into()),
+            encryption_key: Some(encryption_key.into()),
         }))
     }
 

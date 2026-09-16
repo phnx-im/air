@@ -7,11 +7,11 @@ use mls_assist::openmls_traits::types::HpkeCiphertext;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
-    credentials::{AsCredential, AsCredentialBody, AsIntermediateCredential, UserCredential},
     crypto::{
         Labeled,
         aead::Ciphertext,
         hash::{Hash, Hashable},
+        indexed_aead::{ciphertexts::IndexedCiphertext, keys::UserProfileKeyType},
     },
     messages::connection_package::ConnectionPackageHash,
 };
@@ -19,9 +19,8 @@ use crate::{
 // === User ===
 
 #[derive(Debug)]
-pub struct RegisterUserResponse {
-    pub user_credential: UserCredential,
-}
+pub struct EncryptedUserProfileCtype;
+pub type EncryptedUserProfile = IndexedCiphertext<UserProfileKeyType, EncryptedUserProfileCtype>;
 
 // === Client ===
 
@@ -147,12 +146,4 @@ pub struct BatchedTokenKeyResponse {
     /// Whether this is the newest key of its operation type, i.e. the one new
     /// token requests must be built with.
     pub is_current: bool,
-}
-
-#[derive(Debug)]
-pub struct AsCredentialsResponse {
-    pub as_credentials: Vec<AsCredential>,
-    pub as_intermediate_credentials: Vec<AsIntermediateCredential>,
-    pub revoked_credentials: Vec<Hash<AsCredentialBody>>,
-    pub batched_token_keys: Vec<BatchedTokenKeyResponse>,
 }

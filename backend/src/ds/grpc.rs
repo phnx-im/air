@@ -12,7 +12,7 @@ use aircommon::{
         },
     },
     identifiers::{self, Fqdn, QualifiedGroupId},
-    messages::client_ds::{self, QsQueueMessagePayload, UserProfileKeyUpdateParams},
+    messages::client_ds::{self, QsQueueMessagePayload, UserProfileKeyUpdate},
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
 };
@@ -1991,7 +1991,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .encrypted_user_profile_key
                     .ok_or_missing_field("user_profile_key")?
                     .try_into()?;
-                let params = UserProfileKeyUpdateParams {
+                let params = UserProfileKeyUpdate {
                     group_id: qgid.clone().into(),
                     sender_index,
                     user_profile_key,

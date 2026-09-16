@@ -11,7 +11,6 @@ use aircommon::{
     credentials::UserCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
     identifiers::{RemoteAttachmentId, UserId},
-    messages::client_as_out::GetUserProfileResponse,
     time::TimeStamp,
 };
 use airprotos::{
@@ -152,9 +151,7 @@ impl Job for FetchUserProfileOperation {
 
         // Phase 2: Fetch the user profile from the server
         let api_client = context.api_clients.get(user_id.domain())?;
-        let GetUserProfileResponse {
-            encrypted_user_profile,
-        } = api_client
+        let encrypted_user_profile = api_client
             .as_get_user_profile(user_id.clone(), user_profile_key.index().clone())
             .await?;
 

@@ -8,12 +8,8 @@ use aircommon::{
         kdf::keys::RatchetSecret,
         signatures::keys::{QsClientVerifyingKey, QsUserVerifyingKey},
     },
-    identifiers::QsUserId,
-    messages::{
-        FriendshipToken,
-        client_qs::{CreateClientRecordResponse, CreateUserRecordResponse},
-        push_token::EncryptedPushToken,
-    },
+    identifiers::{QsClientId, QsUserId},
+    messages::{FriendshipToken, push_token::EncryptedPushToken},
 };
 
 use crate::{
@@ -33,7 +29,7 @@ impl Qs {
         queue_encryption_key: RatchetEncryptionKey,
         encrypted_push_token: Option<EncryptedPushToken>,
         initial_ratchet_secret: RatchetSecret,
-    ) -> Result<CreateUserRecordResponse, QsCreateUserError> {
+    ) -> Result<(QsUserId, QsClientId), QsCreateUserError> {
         let user_record =
             UserRecord::new_and_store(&self.db_pool, user_record_auth_key, friendship_token)
                 .await
@@ -42,7 +38,7 @@ impl Qs {
                     QsCreateUserError::StorageError
                 })?;
 
-        let CreateClientRecordResponse { qs_client_id } = self
+        let qs_client_id = self
             .qs_create_client_record(
                 user_record.user_id,
                 client_record_auth_key,
@@ -53,12 +49,7 @@ impl Qs {
             .await
             .map_err(|_| QsCreateUserError::StorageError)?;
 
-        let response = CreateUserRecordResponse {
-            user_id: user_record.user_id,
-            qs_client_id,
-        };
-
-        Ok(response)
+        Ok((user_record.user_id, qs_client_id))
     }
 
     /// Update a user record.

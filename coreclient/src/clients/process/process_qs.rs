@@ -12,7 +12,7 @@ use aircommon::{
         QueueMessage,
         client_ds::{
             AadMessage, AadPayload, ApqWelcomeBundle, DsCommitResponse, ExtractedQsQueueMessage,
-            ExtractedQsQueueMessagePayload, QsQueueTargetedMessage, UserProfileKeyUpdateParams,
+            ExtractedQsQueueMessagePayload, QsQueueTargetedMessage, UserProfileKeyUpdate,
             WelcomeBundle,
         },
     },
@@ -542,7 +542,7 @@ impl CoreUser {
                 .get(qualified_group_id.owning_domain())?;
             let encrypted_profile_key =
                 own_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
-            let params = UserProfileKeyUpdateParams {
+            let params = UserProfileKeyUpdate {
                 group_id: group.group_id().clone(),
                 sender_index: group.own_index(),
                 user_profile_key: encrypted_profile_key,
@@ -1551,7 +1551,7 @@ impl CoreUser {
     async fn handle_user_profile_key_update(
         &self,
         txn: &mut WriteDbTransaction<'_>,
-        params: UserProfileKeyUpdateParams,
+        params: UserProfileKeyUpdate,
     ) -> anyhow::Result<()> {
         // Don't update the profile if the chat is blocked
         let chat_id = ChatId::try_from(&params.group_id)?;

@@ -7,7 +7,7 @@ use aircommon::{
         RatchetEncryptionKey, kdf::keys::RatchetSecret, signatures::keys::QsClientVerifyingKey,
     },
     identifiers::{QsClientId, QsUserId},
-    messages::{client_qs::CreateClientRecordResponse, push_token::EncryptedPushToken},
+    messages::push_token::EncryptedPushToken,
     time::TimeStamp,
 };
 use tracing::error;
@@ -27,7 +27,7 @@ impl Qs {
         queue_encryption_key: RatchetEncryptionKey,
         encrypted_push_token: Option<EncryptedPushToken>,
         initial_ratchet_secret: RatchetSecret,
-    ) -> Result<CreateClientRecordResponse, QsCreateClientRecordError> {
+    ) -> Result<QsClientId, QsCreateClientRecordError> {
         let ratchet_key = initial_ratchet_secret
             .try_into()
             .map_err(|_| QsCreateClientRecordError::LibraryError)?;
@@ -50,11 +50,7 @@ impl Qs {
             QsCreateClientRecordError::StorageError
         })?;
 
-        let response = CreateClientRecordResponse {
-            qs_client_id: client_record.client_id,
-        };
-
-        Ok(response)
+        Ok(client_record.client_id)
     }
 
     /// Update a client record.

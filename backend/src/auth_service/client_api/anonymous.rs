@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_as::{AsCredentialsResponse, BatchedTokenKeyResponse};
+use aircommon::{
+    credentials::{AsCredential, AsCredentialBody, AsIntermediateCredential},
+    crypto::hash::Hash,
+    messages::client_as::BatchedTokenKeyResponse,
+};
 
 use crate::{
     auth_service::{
@@ -12,6 +16,13 @@ use crate::{
     },
     errors::auth_service::AsCredentialsError,
 };
+
+pub(crate) struct AsCredentialsResponse {
+    pub(crate) as_credentials: Vec<AsCredential>,
+    pub(crate) as_intermediate_credentials: Vec<AsIntermediateCredential>,
+    pub(crate) revoked_credentials: Vec<Hash<AsCredentialBody>>,
+    pub(crate) batched_token_keys: Vec<BatchedTokenKeyResponse>,
+}
 
 impl AuthService {
     pub(crate) async fn as_credentials(&self) -> Result<AsCredentialsResponse, AsCredentialsError> {

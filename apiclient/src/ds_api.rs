@@ -15,7 +15,7 @@ use aircommon::{
     },
     identifiers::{QsReference, QualifiedGroupId, RemoteAttachmentId, UserId},
     messages::{
-        client_ds::UserProfileKeyUpdateParams,
+        client_ds::UserProfileKeyUpdate,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
             EpochSnapshotIn, ExternalCommitInfoIn, GroupOperationParamsOut, PqEpochSnapshotIn,
@@ -852,7 +852,7 @@ impl ApiClient {
     /// Update the user's user profile key
     pub async fn ds_user_profile_key_update(
         &self,
-        params: UserProfileKeyUpdateParams,
+        params: UserProfileKeyUpdate,
         signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {

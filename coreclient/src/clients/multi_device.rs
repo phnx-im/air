@@ -485,7 +485,7 @@ impl CoreUser {
         let qs_client_signing_key = QsClientSigningKey::generate()?;
         let qs_queue_decryption_key = RatchetDecryptionKey::generate()?;
         let qs_initial_ratchet_secret = RatchetSecret::random()?;
-        let response = api_client
+        let qs_client_id = api_client
             .qs_create_client(
                 qs_user_id,
                 qs_client_signing_key.verifying_key().clone(),
@@ -496,7 +496,6 @@ impl CoreUser {
                 &key_store.qs_user_signing_key,
             )
             .await?;
-        let qs_client_id = response.qs_client_id;
 
         let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
         let groups = self.higher_level_groups().await?;

@@ -22,7 +22,7 @@ use aircommon::{
         },
     },
     identifiers::UserId,
-    messages::client_as_out::EncryptedUserProfileCtype,
+    messages::client_as::EncryptedUserProfileCtype,
 };
 use display_name::BaseDisplayName;
 pub use display_name::{DisplayName, DisplayNameError};

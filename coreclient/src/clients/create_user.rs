@@ -26,8 +26,7 @@ use aircommon::{
         signatures::{DEFAULT_SIGNATURE_SCHEME, signable::Verifiable},
     },
     messages::{
-        client_as_out::EncryptedUserProfile,
-        client_qs::CreateUserRecordResponse,
+        client_as::EncryptedUserProfile,
         connection_package_v1::ConnectionPackageV1,
         push_token::{EncryptedPushToken, PushToken},
     },
@@ -85,11 +84,7 @@ impl BasicUserData {
         // it in a later step, where we otherwise don't have to perform network
         // queries and failing here means we can just start from the beginning
         // next time without incurring any costs.
-        let qs_encryption_key = api_clients
-            .default_client()?
-            .qs_encryption_key()
-            .await?
-            .encryption_key;
+        let qs_encryption_key = api_clients.default_client()?.qs_encryption_key().await?;
 
         // Create CSR for AS to sign
         let (user_credential_csr, prelim_signing_key) =
@@ -191,8 +186,8 @@ impl InitialUserState {
             )
             .await?;
 
-        let response = match outcome {
-            RegistrationOutcome::Registered(response) => response,
+        let user_credential = match outcome {
+            RegistrationOutcome::Registered(user_credential) => user_credential,
             RegistrationOutcome::ChallengeRequired(accepted) => {
                 return Err(RegistrationError::ChallengeRequired(accepted).into());
             }
@@ -203,7 +198,7 @@ impl InitialUserState {
 
         let post_registration_init_state = PostAsRegistrationState {
             initial_user_state: self,
-            user_credential: response.user_credential,
+            user_credential,
         };
 
         Ok(post_registration_init_state)
@@ -338,10 +333,7 @@ impl AsRegisteredUserState {
             encrypted_push_token,
         } = self;
 
-        let CreateUserRecordResponse {
-            user_id,
-            qs_client_id: client_id,
-        } = api_clients
+        let (user_id, client_id) = api_clients
             .default_client()?
             .qs_create_user(
                 key_store.friendship_token.clone(),

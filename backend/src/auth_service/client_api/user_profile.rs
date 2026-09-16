@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::indexed_aead::keys::UserProfileKeyIndex,
-    identifiers::UserId,
-    messages::client_as_out::{EncryptedUserProfile, GetUserProfileResponse},
+    crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId,
+    messages::client_as::EncryptedUserProfile,
 };
 use tracing::error;
 
@@ -19,20 +18,14 @@ impl AuthService {
         &self,
         user_id: UserId,
         key_index: UserProfileKeyIndex,
-    ) -> Result<GetUserProfileResponse, GetUserProfileError> {
+    ) -> Result<EncryptedUserProfile, GetUserProfileError> {
         let user_record = UserRecord::load(&self.db_pool, &user_id)
             .await?
             .ok_or(GetUserProfileError::UserNotFound)?;
 
-        let user_profile = user_record
+        user_record
             .into_user_profile(&key_index)
-            .ok_or(GetUserProfileError::NoCiphertextFound)?;
-
-        let response = GetUserProfileResponse {
-            encrypted_user_profile: user_profile,
-        };
-
-        Ok(response)
+            .ok_or(GetUserProfileError::NoCiphertextFound)
     }
 
     pub(crate) async fn as_stage_user_profile(

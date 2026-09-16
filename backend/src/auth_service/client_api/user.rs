@@ -6,7 +6,7 @@ use aircommon::{
     credentials::{UserCredential, UserCredentialPayload},
     crypto::signatures::signable::Signable,
     identifiers::UserId,
-    messages::{client_as::RegisterUserResponse, client_as_out::EncryptedUserProfile},
+    messages::client_as::EncryptedUserProfile,
     registration::RegistrationChallenge,
     time::TimeStamp,
 };
@@ -23,7 +23,7 @@ use crate::{
 
 /// What a registration attempt produced.
 pub(crate) enum RegistrationOutcome {
-    Registered(RegisterUserResponse),
+    Registered(UserCredential),
     /// The challenge response the request carried does not admit it. The
     /// transaction is rolled back, so the response stays unspent.
     ChallengeRejected,
@@ -118,9 +118,7 @@ impl AuthService {
             RegisterUserError::StorageError
         })?;
 
-        Ok(RegistrationOutcome::Registered(RegisterUserResponse {
-            user_credential,
-        }))
+        Ok(RegistrationOutcome::Registered(user_credential))
     }
 
     pub(crate) async fn as_delete_user(&self, user_id: &UserId) -> Result<(), DeleteUserError> {

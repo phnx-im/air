@@ -35,7 +35,7 @@ use aircommon::{
     messages::{
         client_ds::{
             AadMessage, AadPayload, AddUsersInfo, ApqWelcomeBundle, DsJoinerInformation,
-            GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
+            GroupOperationAad, QsQueueMessagePayload, WelcomeBundle,
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
@@ -851,7 +851,7 @@ fn validate_welcome_only(
 
 fn validate_added_users(
     staged_commit: &StagedCommit,
-    aad_payload: GroupOperationParamsAad,
+    aad_payload: GroupOperationAad,
     add_users_info: AddUsersInfo,
 ) -> Result<AddUsersState, GroupOperationError> {
     let number_of_added_users = staged_commit.add_proposals().count();

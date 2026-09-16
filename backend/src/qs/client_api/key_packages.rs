@@ -3,13 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::PersistenceCodec,
-    identifiers::QsClientId,
-    messages::{
-        FriendshipToken,
-        client_qs::{EncryptionKeyResponse, KeyPackageResponse},
-    },
-    virtual_client::KeyPackageBatchId,
+    codec::PersistenceCodec, crypto::hpke::ClientIdEncryptionKey, identifiers::QsClientId,
+    messages::FriendshipToken, virtual_client::KeyPackageBatchId,
 };
 use airprotos::queue_service;
 use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
@@ -188,21 +183,18 @@ impl Qs {
     pub(crate) async fn qs_key_package(
         &self,
         sender: FriendshipToken,
-    ) -> Result<KeyPackageResponse, QsKeyPackageError> {
+    ) -> Result<KeyPackage, QsKeyPackageError> {
         let mut connection = self.db_pool.acquire().await.map_err(|e| {
             tracing::warn!("Failed to acquire connection: {:?}", e);
             QsKeyPackageError::StorageError
         })?;
 
-        let key_package = KeyPackage::load_user_key_package(&mut connection, &sender)
+        KeyPackage::load_user_key_package(&mut connection, &sender)
             .await
             .map_err(|e| {
                 tracing::warn!("Storage provider error: {:?}", e);
                 QsKeyPackageError::StorageError
-            })?;
-
-        let response = KeyPackageResponse { key_package };
-        Ok(response)
+            })
     }
 
     /// Retrieve an APQ key package for a given client.
@@ -228,17 +220,14 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_encryption_key(
         &self,
-    ) -> Result<EncryptionKeyResponse, QsEncryptionKeyError> {
+    ) -> Result<ClientIdEncryptionKey, QsEncryptionKeyError> {
         StorableClientIdDecryptionKey::load(&self.db_pool)
             .await
             .map_err(|e| {
                 tracing::warn!("Failed to load client id decryption key: {:?}", e);
                 QsEncryptionKeyError::StorageError
             })?
-            .map(|decryption_key| {
-                let encryption_key = decryption_key.encryption_key().clone();
-                EncryptionKeyResponse { encryption_key }
-            })
+            .map(|decryption_key| decryption_key.encryption_key().clone())
             .ok_or(QsEncryptionKeyError::LibraryError)
     }
 }

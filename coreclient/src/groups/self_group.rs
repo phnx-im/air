@@ -11,7 +11,7 @@ use aircommon::{
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds::{AadMessage, AadPayload, GroupOperationAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
 };
@@ -137,7 +137,7 @@ impl SelfGroup {
         t_mls_group.set_safe_aad(vec![commit_data.to_safe_aad_item()?])?;
 
         // Regular AAD tail (required by DS commit validation)
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
@@ -196,7 +196,7 @@ impl SelfGroup {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
