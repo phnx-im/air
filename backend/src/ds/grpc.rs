@@ -1991,16 +1991,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .encrypted_user_profile_key
                     .ok_or_missing_field("user_profile_key")?
                     .try_into()?;
-                let params = UserProfileKeyUpdate {
+                let update = UserProfileKeyUpdate {
                     group_id: qgid.clone().into(),
                     sender_index,
                     user_profile_key,
                 };
 
                 let fan_out_payload =
-                    QsQueueMessagePayload::try_from(&params).tls_failed("QsQueueMessagePayload")?;
+                    QsQueueMessagePayload::try_from(&update).tls_failed("QsQueueMessagePayload")?;
 
-                group_state.update_user_profile_key(sender_index, params.user_profile_key)?;
+                group_state.update_user_profile_key(sender_index, update.user_profile_key)?;
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
