@@ -449,9 +449,9 @@ sealed class UiReaction with _$UiReaction {
 sealed class UiSystemMessage with _$UiSystemMessage {
   const UiSystemMessage._();
 
-  const factory UiSystemMessage.add(UiUserId field0, UiUserId field1) =
+  const factory UiSystemMessage.add(UiUserId? field0, UiUserId field1) =
       UiSystemMessage_Add;
-  const factory UiSystemMessage.remove(UiUserId field0, UiUserId field1) =
+  const factory UiSystemMessage.remove(UiUserId? field0, UiUserId field1) =
       UiSystemMessage_Remove;
   const factory UiSystemMessage.changeTitle(
     UiUserId field0,

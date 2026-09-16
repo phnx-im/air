@@ -13053,12 +13053,14 @@ impl SseDecode for crate::api::types::UiSystemMessage {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_field0 =
+                    <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
                 let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::Add(var_field0, var_field1);
             }
             1 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_field0 =
+                    <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
                 let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::Remove(var_field0, var_field1);
             }
@@ -19539,12 +19541,12 @@ impl SseEncode for crate::api::types::UiSystemMessage {
         match self {
             crate::api::types::UiSystemMessage::Add(field0, field1) => {
                 <i32>::sse_encode(0, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
             }
             crate::api::types::UiSystemMessage::Remove(field0, field1) => {
                 <i32>::sse_encode(1, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
             }
             crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => {

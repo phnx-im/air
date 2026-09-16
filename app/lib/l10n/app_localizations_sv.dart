@@ -721,8 +721,18 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String systemMessage_userWasAdded(String user1) {
+    return '$user1 lades till i chatten';
+  }
+
+  @override
   String systemMessage_userRemovedUser(String user1, String user2) {
     return '$user1 tog bort $user2';
+  }
+
+  @override
+  String systemMessage_userWasRemoved(String user1) {
+    return '$user1 togs bort från chatten';
   }
 
   @override

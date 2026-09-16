@@ -612,7 +612,7 @@ impl PendingChatOperation {
                     )?;
 
                     vec![TimestampedMessage::system_message(
-                        SystemMessage::Remove(own_user_id.clone(), own_user_id),
+                        SystemMessage::Remove(Some(own_user_id.clone()), own_user_id),
                         ds_timestamp,
                     )]
                 } else {

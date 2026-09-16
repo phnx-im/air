@@ -11585,12 +11585,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (raw[0]) {
       case 0:
         return UiSystemMessage_Add(
-          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
           dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 1:
         return UiSystemMessage_Remove(
-          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
           dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 2:
@@ -15718,11 +15718,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_Add(var_field0, var_field1);
       case 1:
-        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_Remove(var_field0, var_field1);
       case 2:
@@ -19912,11 +19912,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (self) {
       case UiSystemMessage_Add(field0: final field0, field1: final field1):
         sse_encode_i_32(0, serializer);
-        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_box_autoadd_ui_user_id(field1, serializer);
       case UiSystemMessage_Remove(field0: final field0, field1: final field1):
         sse_encode_i_32(1, serializer);
-        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_box_autoadd_ui_user_id(field1, serializer);
       case UiSystemMessage_ChangeTitle(
         field0: final field0,

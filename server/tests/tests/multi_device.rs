@@ -2308,12 +2308,11 @@ async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) 
         .await
         .unwrap()
         .iter()
-        .filter(|message| {
-            matches!(
-                message.message(),
-                Message::Event(EventMessage::System(SystemMessage::Remove(remover, removed)))
-                    if remover == user_id && removed == user_id
-            )
+        .filter(|message| match message.message() {
+            Message::Event(EventMessage::System(SystemMessage::Remove(Some(remover), removed))) => {
+                remover == user_id && removed == user_id
+            }
+            _ => false,
         })
         .count()
 }
