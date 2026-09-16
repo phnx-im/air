@@ -21,10 +21,10 @@ use aircommon::{
     registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
-    ChatId, DisplayName, UserProfile,
+    ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
-        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
-        registration::RegistrationError,
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        process::process_qs::ProcessedQsMessages, registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
@@ -496,6 +496,29 @@ async fn resync() {
         "Bob should process Alice's update and message without errors"
     );
 
+    // The resync diff should surface Charlie's addition without an actor.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_charlie_adds = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Add { adder: None, added } if added == &charlie)
+        })
+        .count();
+    assert_eq!(
+        actorless_charlie_adds, 1,
+        "Bob should store exactly one actor-less add of Charlie"
+    );
+    let charlie_adds_with_actor = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Add { adder: Some(_), added } if added == &charlie)
+        })
+        .count();
+    assert_eq!(
+        charlie_adds_with_actor, 0,
+        "Bob never processed the invite commit, so no add with an actor"
+    );
+
     let alice_user = &setup.get_user(&alice).user;
 
     // Alice processes Bob's rejoin
@@ -576,6 +599,50 @@ async fn resync() {
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's update without errors"
+    );
+
+    // The resync committed Alice's SelfRemove, which Bob cannot attribute.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_alice_removes = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove { remover: None, removed } if removed == &alice)
+        })
+        .count();
+    assert_eq!(
+        actorless_alice_removes, 1,
+        "Bob should store exactly one actor-less removal of Alice"
+    );
+    let alice_removes_with_actor = messages
+        .iter()
+        .filter(|message| match message {
+            SystemMessage::Remove {
+                remover: Some(_),
+                removed,
+            } => removed == &alice,
+            _ => false,
+        })
+        .count();
+    assert_eq!(
+        alice_removes_with_actor, 0,
+        "Bob never processed the leave commit, so no removal with an actor"
+    );
+
+    // No spurious membership notices for Bob or Charlie.
+    let actorless: Vec<_> = messages
+        .iter()
+        .filter(|message| {
+            matches!(
+                message,
+                SystemMessage::Add { adder: None, .. }
+                    | SystemMessage::Remove { remover: None, .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        actorless.len(),
+        2,
+        "resync should only emit the Charlie add and the Alice remove, got {actorless:?}"
     );
 
     // Alice not in the group anymore.
@@ -1631,4 +1698,17 @@ async fn listen_stream_durable_acks() {
         })),
         "acked message is not redelivered"
     );
+}
+
+/// All system messages the user stores for the chat.
+async fn system_messages(user: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(system_message)) => Some(system_message.clone()),
+            _ => None,
+        })
+        .collect()
 }
