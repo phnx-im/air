@@ -731,8 +731,18 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String systemMessage_userWasAdded(String user1) {
+    return '$user1 was added to the chat';
+  }
+
+  @override
   String systemMessage_userRemovedUser(String user1, String user2) {
     return '$user1 removeu $user2';
+  }
+
+  @override
+  String systemMessage_userWasRemoved(String user1) {
+    return '$user1 was removed from the chat';
   }
 
   @override

@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, str::FromStr};
+use std::{collections::HashSet, fmt, str::FromStr};
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::{LeafCredential, keys::LeafSigningKey},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
@@ -471,7 +471,7 @@ impl Resync {
             .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
-        let (group, commit, member_profile_infos) = Box::pin(self.create_commit(
+        let (group, commit, member_profile_infos, members_diff) = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
             signer,
@@ -510,6 +510,28 @@ impl Resync {
                         chat_id,
                         ds_timestamp,
                         SystemMessage::Onboarded,
+                    );
+                    system_message.store(&mut *txn).await?;
+                }
+                for user_id in members_diff.added {
+                    let system_message = ChatMessage::new_system_message(
+                        chat_id,
+                        ds_timestamp,
+                        SystemMessage::Add {
+                            adder: None,
+                            added: user_id,
+                        },
+                    );
+                    system_message.store(&mut *txn).await?;
+                }
+                for user_id in members_diff.removed {
+                    let system_message = ChatMessage::new_system_message(
+                        chat_id,
+                        ds_timestamp,
+                        SystemMessage::Remove {
+                            remover: None,
+                            removed: user_id,
+                        },
                     );
                     system_message.store(&mut *txn).await?;
                 }
@@ -631,9 +653,28 @@ impl Resync {
         signer: &LeafSigningKey,
         own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
-    ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos)> {
+    ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos, MembersDiff)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
+
+        // Collect other members of the group before we delete the group.
+        let other_members_before: Option<HashSet<UserId>> =
+            if let Some(group) = Group::load_verified(&mut *txn, &self.group_id).await? {
+                let members = group
+                    .mls_group()
+                    .members()
+                    .filter_map(|member| {
+                        match LeafCredential::from_credential(&member.credential).ok()? {
+                            LeafCredential::User(credential) => Some(credential.user_id().clone()),
+                            LeafCredential::SelfGroup(_) => None,
+                        }
+                    })
+                    .collect();
+                Some(members)
+            } else {
+                // No group yet (during onboarding) => no other members
+                None
+            };
 
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
@@ -649,7 +690,7 @@ impl Resync {
         };
 
         let aad = AadPayload::Resync.into();
-        if self.pq_group_id.is_some() {
+        let (group, commit, member_profile_infos) = if self.pq_group_id.is_some() {
             // APQ group
             let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
                 txn,
@@ -663,11 +704,11 @@ impl Resync {
                 vc_group_id,
             )
             .await??;
-            Ok((
+            (
                 group,
                 ResyncCommit::PQ(Box::new(bundle)),
                 member_profile_infos,
-            ))
+            )
         } else {
             // The self group is always an APQ group, so a T-only resync can never
             // concern it.
@@ -687,12 +728,28 @@ impl Resync {
                 vc_group_id,
             )
             .await??;
-            Ok((
+            (
                 group,
                 ResyncCommit::T(Box::new(ResyncTCommit { commit, group_info })),
                 member_profile_infos,
-            ))
-        }
+            )
+        };
+
+        let other_members_after: HashSet<UserId> = group
+            .mls_group()
+            .members()
+            .filter_map(|member| {
+                match LeafCredential::from_credential(&member.credential).ok()? {
+                    LeafCredential::User(credential) => Some(credential.user_id().clone()),
+                    LeafCredential::SelfGroup(_) => None,
+                }
+            })
+            .collect();
+        let diff = other_members_before
+            .map(|before| MembersDiff::compute(before, other_members_after))
+            .unwrap_or_default();
+
+        Ok((group, commit, member_profile_infos, diff))
     }
 
     async fn send_commit(
@@ -736,6 +793,24 @@ impl Resync {
 
         response.map_err(classify_ds_error)?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+struct MembersDiff {
+    added: HashSet<UserId>,
+    removed: HashSet<UserId>,
+}
+
+impl MembersDiff {
+    fn compute(mut before: HashSet<UserId>, mut after: HashSet<UserId>) -> Self {
+        let intersection: HashSet<_> = before.intersection(&after).cloned().collect();
+        before.retain(|user_id| !intersection.contains(user_id));
+        after.retain(|user_id| !intersection.contains(user_id));
+        Self {
+            added: after,
+            removed: before,
+        }
     }
 }
 

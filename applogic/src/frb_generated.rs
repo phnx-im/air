@@ -13053,14 +13053,21 @@ impl SseDecode for crate::api::types::UiSystemMessage {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::Add(var_field0, var_field1);
+                let mut var_adder = <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
+                let mut var_added = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::Add {
+                    adder: var_adder,
+                    added: var_added,
+                };
             }
             1 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::Remove(var_field0, var_field1);
+                let mut var_remover =
+                    <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
+                let mut var_removed = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::Remove {
+                    remover: var_remover,
+                    removed: var_removed,
+                };
             }
             2 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
@@ -16292,16 +16299,16 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::share_cubit::UiSharedAttachme
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::types::UiSystemMessage::Add(field0, field1) => [
+            crate::api::types::UiSystemMessage::Add { adder, added } => [
                 0.into_dart(),
-                field0.into_into_dart().into_dart(),
-                field1.into_into_dart().into_dart(),
+                adder.into_into_dart().into_dart(),
+                added.into_into_dart().into_dart(),
             ]
             .into_dart(),
-            crate::api::types::UiSystemMessage::Remove(field0, field1) => [
+            crate::api::types::UiSystemMessage::Remove { remover, removed } => [
                 1.into_dart(),
-                field0.into_into_dart().into_dart(),
-                field1.into_into_dart().into_dart(),
+                remover.into_into_dart().into_dart(),
+                removed.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => [
@@ -19537,15 +19544,15 @@ impl SseEncode for crate::api::types::UiSystemMessage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::types::UiSystemMessage::Add(field0, field1) => {
+            crate::api::types::UiSystemMessage::Add { adder, added } => {
                 <i32>::sse_encode(0, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field1, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(adder, serializer);
+                <crate::api::types::UiUserId>::sse_encode(added, serializer);
             }
-            crate::api::types::UiSystemMessage::Remove(field0, field1) => {
+            crate::api::types::UiSystemMessage::Remove { remover, removed } => {
                 <i32>::sse_encode(1, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field1, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(remover, serializer);
+                <crate::api::types::UiUserId>::sse_encode(removed, serializer);
             }
             crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => {
                 <i32>::sse_encode(2, serializer);

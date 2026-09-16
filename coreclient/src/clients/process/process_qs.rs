@@ -528,7 +528,10 @@ impl CoreUser {
         let system_message = ChatMessage::new_system_message(
             chat.id(),
             ds_timestamp,
-            SystemMessage::Add(sender_user_id.clone(), self.user_id().clone()),
+            SystemMessage::Add {
+                adder: Some(sender_user_id.clone()),
+                added: self.user_id().clone(),
+            },
         );
         system_message.store(&mut *txn).await?;
 
@@ -1341,7 +1344,10 @@ impl CoreUser {
             .room_state_change_role(sender, sender, RoleIndex::Outsider)?;
 
         messages.push(TimestampedMessage::system_message(
-            SystemMessage::Remove(sender.clone(), removed.clone()),
+            SystemMessage::Remove {
+                remover: Some(sender.clone()),
+                removed: removed.clone(),
+            },
             ds_timestamp,
         ));
 

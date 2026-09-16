@@ -154,18 +154,30 @@ TextSpan buildSystemMessageText(
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
 
   return switch (message) {
-    UiSystemMessage_Add(field0: final userId, field1: final contactId) =>
-      emphasizedText(
-        (marks) => loc.systemMessage_userAddedUser(marks[0], marks[1]),
-        [user(userId), user(contactId)],
-        nameStyle,
-      ),
-    UiSystemMessage_Remove(field0: final userId, field1: final contactId) =>
-      emphasizedText(
-        (marks) => loc.systemMessage_userRemovedUser(marks[0], marks[1]),
-        [user(userId), user(contactId)],
-        nameStyle,
-      ),
+    UiSystemMessage_Add(adder: final adder, added: final added) =>
+      adder == null
+          ? emphasizedText(
+              (marks) => loc.systemMessage_userWasAdded(marks[0]),
+              [user(added)],
+              nameStyle,
+            )
+          : emphasizedText(
+              (marks) => loc.systemMessage_userAddedUser(marks[0], marks[1]),
+              [user(adder), user(added)],
+              nameStyle,
+            ),
+    UiSystemMessage_Remove(remover: final remover, removed: final removed) =>
+      remover == null
+          ? emphasizedText(
+              (marks) => loc.systemMessage_userWasRemoved(marks[0]),
+              [user(removed)],
+              nameStyle,
+            )
+          : emphasizedText(
+              (marks) => loc.systemMessage_userRemovedUser(marks[0], marks[1]),
+              [user(remover), user(removed)],
+              nameStyle,
+            ),
     UiSystemMessage_ChangeTitle(
       field0: final userId,
       field1: final oldTitle,

@@ -72,7 +72,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        buildSubject(UiSystemMessage.add(1.userId(), 2.userId())),
+        buildSubject(UiSystemMessage.add(adder: 1.userId(), added: 2.userId())),
       );
 
       await tester.tapOnText(find.textRange.ofSubstring('Bob'));
@@ -84,7 +84,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        buildSubject(UiSystemMessage.add(1.userId(), 2.userId())),
+        buildSubject(UiSystemMessage.add(adder: 1.userId(), added: 2.userId())),
       );
 
       await tester.tapOnText(find.textRange.ofSubstring('added'));
@@ -94,7 +94,7 @@ void main() {
 
     testWidgets('opens nothing from the reader\'s own name', (tester) async {
       await tester.pumpWidget(
-        buildSubject(UiSystemMessage.add(eve, 2.userId())),
+        buildSubject(UiSystemMessage.add(adder: eve, added: 2.userId())),
       );
 
       await tester.tapOnText(find.textRange.ofSubstring('Eve'));

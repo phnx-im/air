@@ -2506,11 +2506,11 @@ $UiSystemMessageCopyWith(UiSystemMessage _, $Res Function(UiSystemMessage) __);
 
 
 class UiSystemMessage_Add extends UiSystemMessage {
-  const UiSystemMessage_Add(this.field0, this.field1): super._();
+  const UiSystemMessage_Add({this.adder, required this.added}): super._();
   
 
- final  UiUserId field0;
- final  UiUserId field1;
+ final  UiUserId? adder;
+ final  UiUserId added;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -2522,18 +2522,18 @@ $UiSystemMessage_AddCopyWith<UiSystemMessage_Add> get copyWith => _$UiSystemMess
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Add&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Add&&(identical(other.adder, adder) || other.adder == adder)&&(identical(other.added, added) || other.added == added));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,field0,field1);
+    return Object.hash(runtimeType,adder,added);
 }
 
 @override
 String toString() {
-    return 'UiSystemMessage.add(field0: $field0, field1: $field1)';
+    return 'UiSystemMessage.add(adder: $adder, added: $added)';
 }
 
 
@@ -2544,7 +2544,7 @@ abstract mixin class $UiSystemMessage_AddCopyWith<$Res> implements $UiSystemMess
   factory $UiSystemMessage_AddCopyWith(UiSystemMessage_Add value, $Res Function(UiSystemMessage_Add) _then) = _$UiSystemMessage_AddCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserId field1
+ UiUserId? adder, UiUserId added
 });
 
 
@@ -2561,10 +2561,10 @@ class _$UiSystemMessage_AddCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? adder = freezed,Object? added = null,}) {
   return _then(UiSystemMessage_Add(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+adder: freezed == adder ? _self.adder : adder // ignore: cast_nullable_to_non_nullable
+as UiUserId?,added: null == added ? _self.added : added // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }
@@ -2576,11 +2576,11 @@ as UiUserId,
 
 
 class UiSystemMessage_Remove extends UiSystemMessage {
-  const UiSystemMessage_Remove(this.field0, this.field1): super._();
+  const UiSystemMessage_Remove({this.remover, required this.removed}): super._();
   
 
- final  UiUserId field0;
- final  UiUserId field1;
+ final  UiUserId? remover;
+ final  UiUserId removed;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -2592,18 +2592,18 @@ $UiSystemMessage_RemoveCopyWith<UiSystemMessage_Remove> get copyWith => _$UiSyst
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Remove&&(identical(other.field0, field0) || other.field0 == field0)&&(identical(other.field1, field1) || other.field1 == field1));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Remove&&(identical(other.remover, remover) || other.remover == remover)&&(identical(other.removed, removed) || other.removed == removed));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,field0,field1);
+    return Object.hash(runtimeType,remover,removed);
 }
 
 @override
 String toString() {
-    return 'UiSystemMessage.remove(field0: $field0, field1: $field1)';
+    return 'UiSystemMessage.remove(remover: $remover, removed: $removed)';
 }
 
 
@@ -2614,7 +2614,7 @@ abstract mixin class $UiSystemMessage_RemoveCopyWith<$Res> implements $UiSystemM
   factory $UiSystemMessage_RemoveCopyWith(UiSystemMessage_Remove value, $Res Function(UiSystemMessage_Remove) _then) = _$UiSystemMessage_RemoveCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserId field1
+ UiUserId? remover, UiUserId removed
 });
 
 
@@ -2631,10 +2631,10 @@ class _$UiSystemMessage_RemoveCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? remover = freezed,Object? removed = null,}) {
   return _then(UiSystemMessage_Remove(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+remover: freezed == remover ? _self.remover : remover // ignore: cast_nullable_to_non_nullable
+as UiUserId?,removed: null == removed ? _self.removed : removed // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }
