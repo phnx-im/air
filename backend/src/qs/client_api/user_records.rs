@@ -2,9 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_qs::{
-    CreateClientRecordParams, CreateClientRecordResponse, CreateUserRecordParams,
-    CreateUserRecordResponse, DeleteUserRecordParams, UpdateUserRecordParams,
+use aircommon::{
+    crypto::{
+        RatchetEncryptionKey,
+        kdf::keys::RatchetSecret,
+        signatures::keys::{QsClientVerifyingKey, QsUserVerifyingKey},
+    },
+    identifiers::QsUserId,
+    messages::{
+        FriendshipToken,
+        client_qs::{CreateClientRecordResponse, CreateUserRecordResponse},
+        push_token::EncryptedPushToken,
+    },
 };
 
 use crate::{
@@ -18,17 +27,13 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_create_user_record(
         &self,
-        params: CreateUserRecordParams,
+        user_record_auth_key: QsUserVerifyingKey,
+        friendship_token: FriendshipToken,
+        client_record_auth_key: QsClientVerifyingKey,
+        queue_encryption_key: RatchetEncryptionKey,
+        encrypted_push_token: Option<EncryptedPushToken>,
+        initial_ratchet_secret: RatchetSecret,
     ) -> Result<CreateUserRecordResponse, QsCreateUserError> {
-        let CreateUserRecordParams {
-            user_record_auth_key,
-            friendship_token,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            initial_ratchet_secret,
-        } = params;
-
         let user_record =
             UserRecord::new_and_store(&self.db_pool, user_record_auth_key, friendship_token)
                 .await
@@ -37,16 +42,14 @@ impl Qs {
                     QsCreateUserError::StorageError
                 })?;
 
-        let create_client_params = CreateClientRecordParams {
-            sender: user_record.user_id,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            initial_ratchet_secret,
-        };
-
         let CreateClientRecordResponse { qs_client_id } = self
-            .qs_create_client_record(create_client_params)
+            .qs_create_client_record(
+                user_record.user_id,
+                client_record_auth_key,
+                queue_encryption_key,
+                encrypted_push_token,
+                initial_ratchet_secret,
+            )
             .await
             .map_err(|_| QsCreateUserError::StorageError)?;
 
@@ -62,14 +65,10 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_update_user_record(
         &self,
-        params: UpdateUserRecordParams,
+        sender: QsUserId,
+        user_record_auth_key: QsUserVerifyingKey,
+        friendship_token: FriendshipToken,
     ) -> Result<(), QsUpdateUserError> {
-        let UpdateUserRecordParams {
-            sender,
-            user_record_auth_key,
-            friendship_token,
-        } = params;
-
         let mut transaction = self.db_pool.begin().await.map_err(|e| {
             tracing::error!("Error starting transaction: {:?}", e);
             QsUpdateUserError::StorageError
@@ -101,10 +100,8 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_delete_user_record(
         &self,
-        params: DeleteUserRecordParams,
+        sender: QsUserId,
     ) -> Result<(), QsDeleteUserError> {
-        let DeleteUserRecordParams { sender } = params;
-
         UserRecord::delete(&self.db_pool, sender)
             .await
             .map_err(|e| {

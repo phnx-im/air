@@ -26,14 +26,7 @@ use aircommon::{
         },
     },
     identifiers,
-    messages::{
-        client_as::AsCredentialsParams,
-        client_as_out::{
-            GetUserProfileParams, MergeUserProfileParamsTbs, RegisterUserParamsIn,
-            StageUserProfileParamsTbs,
-        },
-        push_token::{PushToken, PushTokenOperator},
-    },
+    messages::push_token::{PushToken, PushTokenOperator},
 };
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
@@ -331,19 +324,17 @@ impl auth_service_server::AuthService for GrpcAs {
         };
         let gated = challenge.is_some();
 
-        let params = RegisterUserParamsIn {
-            client_payload: request
-                .user_credential_payload
-                .ok_or_missing_field("client_payload")?
-                .try_into()?,
-            encrypted_user_profile: request
-                .encrypted_user_profile
-                .ok_or_missing_field("encrypted_user_profile")?
-                .try_into()?,
-        };
+        let client_payload = request
+            .user_credential_payload
+            .ok_or_missing_field("client_payload")?
+            .try_into()?;
+        let encrypted_user_profile = request
+            .encrypted_user_profile
+            .ok_or_missing_field("encrypted_user_profile")?
+            .try_into()?;
         let outcome = self
             .inner
-            .as_init_user_registration(params, challenge)
+            .as_init_user_registration(client_payload, encrypted_user_profile, challenge)
             .await?;
 
         let outcome = match outcome {
@@ -478,7 +469,7 @@ impl auth_service_server::AuthService for GrpcAs {
         request: Request<AsCredentialsRequest>,
     ) -> Result<Response<AsCredentialsResponse>, Status> {
         self.verify_client_version(request.into_inner().client_metadata.as_ref())?;
-        let response = self.inner.as_credentials(AsCredentialsParams {}).await?;
+        let response = self.inner.as_credentials().await?;
         Ok(Response::new(AsCredentialsResponse {
             as_credentials: response
                 .as_credentials
@@ -517,14 +508,13 @@ impl auth_service_server::AuthService for GrpcAs {
             .verify_user_auth::<_, StageUserProfilePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-        let params = StageUserProfileParamsTbs {
-            user_id,
-            user_profile: payload
-                .encrypted_user_profile
-                .ok_or_missing_field("encrypted_user_profile")?
-                .try_into()?,
-        };
-        self.inner.as_stage_user_profile(params).await?;
+        let user_profile = payload
+            .encrypted_user_profile
+            .ok_or_missing_field("encrypted_user_profile")?
+            .try_into()?;
+        self.inner
+            .as_stage_user_profile(user_id, user_profile)
+            .await?;
         Ok(Response::new(StageUserProfileResponse {}))
     }
 
@@ -537,8 +527,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .verify_user_auth::<_, MergeUserProfilePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-        let params = MergeUserProfileParamsTbs { user_id };
-        self.inner.as_merge_user_profile(params).await?;
+        self.inner.as_merge_user_profile(user_id).await?;
         Ok(Response::new(MergeUserProfileResponse {}))
     }
 
@@ -554,8 +543,7 @@ impl auth_service_server::AuthService for GrpcAs {
                 Status::invalid_argument(format!("invalid key index length: {}", bytes.len()))
             },
         )?);
-        let params = GetUserProfileParams { user_id, key_index };
-        let response = self.inner.as_get_user_profile(params).await?;
+        let response = self.inner.as_get_user_profile(user_id, key_index).await?;
         Ok(Response::new(GetUserProfileResponse {
             encrypted_user_profile: Some(response.encrypted_user_profile.into()),
         }))

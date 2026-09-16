@@ -9,8 +9,8 @@
 
 use apqmls::messages::{ApqMlsMessageIn, ApqWelcome};
 use mls_assist::{
-    messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
-    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, RatchetTreeIn},
+    messages::{AssistedWelcome, SerializedMlsMessage},
+    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn},
     openmls_traits::types::HpkeCiphertext,
 };
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,6 @@ use crate::{
         hpke::{HpkeDecryptable, HpkeEncryptable, JoinerInfoKeyType},
         ratchet::QueueRatchet,
     },
-    identifiers::QsReference,
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
@@ -36,12 +35,6 @@ use super::{
     AirProtocolVersion, EncryptedQsQueueMessageCtype, client_as::EncryptedFriendshipPackage,
     welcome_attribution_info::EncryptedWelcomeAttributionInfo,
 };
-
-/// This is the pseudonymous client id used on the DS.
-#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub(crate) struct DsClientId {
-    id: Vec<u8>,
-}
 
 // === DS ===
 
@@ -357,26 +350,6 @@ impl DsEventMessage {
 }
 
 #[derive(Debug)]
-pub struct CreateGroupParams {
-    pub group_id: GroupId,
-    pub leaf_node: RatchetTreeIn,
-    pub encrypted_user_profile_key: EncryptedUserProfileKey,
-    pub creator_qs_reference: QsReference,
-    pub group_info: MlsMessageIn,
-    pub room_state: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct ExternalCommitInfoParams {
-    pub group_id: GroupId,
-}
-
-#[derive(Debug)]
-pub struct ConnectionGroupInfoParams {
-    pub group_id: GroupId,
-}
-
-#[derive(Debug)]
 pub struct AddUsersInfo {
     pub welcome: AssistedWelcome,
     pub encrypted_welcome_attribution_infos: Vec<EncryptedWelcomeAttributionInfo>,
@@ -412,43 +385,15 @@ impl ApqAddUsersInfo {
     }
 }
 
-#[derive(Debug)]
-pub struct GroupOperationParams {
-    pub commit: AssistedMessageIn,
-    pub add_users_info_option: Option<AddUsersInfo>,
-}
-
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct GroupOperationParamsAad {
     pub new_encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
-}
-
-#[derive(Debug)]
-pub struct JoinConnectionGroupParams {
-    pub external_commit: AssistedMessageIn,
-    pub qs_client_reference: QsReference,
 }
 
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct JoinConnectionGroupParamsAad {
     pub encrypted_friendship_package: EncryptedFriendshipPackage,
     pub encrypted_user_profile_key: EncryptedUserProfileKey,
-}
-
-#[derive(Debug)]
-pub struct ResyncParams {
-    pub external_commit: AssistedMessageIn,
-    pub sender_index: LeafNodeIndex,
-}
-
-#[derive(Debug)]
-pub struct SelfRemoveParams {
-    pub remove_proposal: AssistedMessageIn,
-}
-
-#[derive(Debug)]
-pub struct DeleteGroupParams {
-    pub commit: AssistedMessageIn,
 }
 
 #[derive(Debug, Clone, TlsDeserializeBytes, TlsSize, TlsSerialize)]

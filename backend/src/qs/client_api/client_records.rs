@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    messages::client_qs::{
-        CreateClientRecordParams, CreateClientRecordResponse, DeleteClientRecordParams,
-        UpdateClientRecordParams,
+    crypto::{
+        RatchetEncryptionKey, kdf::keys::RatchetSecret, signatures::keys::QsClientVerifyingKey,
     },
+    identifiers::{QsClientId, QsUserId},
+    messages::{client_qs::CreateClientRecordResponse, push_token::EncryptedPushToken},
     time::TimeStamp,
 };
 use tracing::error;
@@ -21,16 +22,12 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_create_client_record(
         &self,
-        params: CreateClientRecordParams,
+        sender: QsUserId,
+        client_record_auth_key: QsClientVerifyingKey,
+        queue_encryption_key: RatchetEncryptionKey,
+        encrypted_push_token: Option<EncryptedPushToken>,
+        initial_ratchet_secret: RatchetSecret,
     ) -> Result<CreateClientRecordResponse, QsCreateClientRecordError> {
-        let CreateClientRecordParams {
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            initial_ratchet_secret,
-        } = params;
-
         let ratchet_key = initial_ratchet_secret
             .try_into()
             .map_err(|_| QsCreateClientRecordError::LibraryError)?;
@@ -64,15 +61,11 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_update_client_record(
         &self,
-        params: UpdateClientRecordParams,
+        sender: QsClientId,
+        client_record_auth_key: QsClientVerifyingKey,
+        queue_encryption_key: RatchetEncryptionKey,
+        encrypted_push_token: Option<EncryptedPushToken>,
     ) -> Result<(), QsUpdateClientRecordError> {
-        let UpdateClientRecordParams {
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-        } = params;
-
         let mut transaction = self.db_pool.begin().await.map_err(|error| {
             error!(%error, "Error starting transaction");
             QsUpdateClientRecordError::StorageError
@@ -109,9 +102,9 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_delete_client_record(
         &self,
-        params: DeleteClientRecordParams,
+        sender: QsClientId,
     ) -> Result<(), QsUpdateClientRecordError> {
-        QsClientRecord::soft_delete(&self.db_pool, &params.sender)
+        QsClientRecord::soft_delete(&self.db_pool, &sender)
             .await
             .map_err(|e| {
                 error!("Error deleting client record: {:?}", e);

@@ -7,9 +7,7 @@ use aircommon::{
     identifiers::QsClientId,
     messages::{
         FriendshipToken,
-        client_qs::{
-            EncryptionKeyResponse, KeyPackageParams, KeyPackageResponse, PublishKeyPackagesParams,
-        },
+        client_qs::{EncryptionKeyResponse, KeyPackageResponse},
     },
     virtual_client::KeyPackageBatchId,
 };
@@ -38,13 +36,9 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_publish_key_packages(
         &self,
-        params: PublishKeyPackagesParams,
+        sender: QsClientId,
+        key_packages: Vec<KeyPackageIn>,
     ) -> Result<(), QsPublishKeyPackagesError> {
-        let PublishKeyPackagesParams {
-            sender,
-            key_packages,
-        } = params;
-
         let mut verified_key_packages = Vec::with_capacity(key_packages.len());
         let mut last_resort_key_package = None;
         for key_package in key_packages {
@@ -193,10 +187,8 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_key_package(
         &self,
-        params: KeyPackageParams,
+        sender: FriendshipToken,
     ) -> Result<KeyPackageResponse, QsKeyPackageError> {
-        let KeyPackageParams { sender } = params;
-
         let mut connection = self.db_pool.acquire().await.map_err(|e| {
             tracing::warn!("Failed to acquire connection: {:?}", e);
             QsKeyPackageError::StorageError

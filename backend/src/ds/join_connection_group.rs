@@ -4,13 +4,16 @@
 
 use aircommon::{
     credentials::LeafCredential,
-    messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
+    identifiers::QsReference,
+    messages::client_ds::{AadMessage, AadPayload},
     time::TimeStamp,
 };
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::ProcessedAssistedMessage, messages::SerializedMlsMessage,
-    openmls::prelude::ProcessedMessageContent, provider_traits::MlsAssistProvider,
+    group::ProcessedAssistedMessage,
+    messages::{AssistedMessageIn, SerializedMlsMessage},
+    openmls::prelude::ProcessedMessageContent,
+    provider_traits::MlsAssistProvider,
 };
 use tls_codec::DeserializeBytes;
 
@@ -21,12 +24,13 @@ use super::group_state::{DsGroupState, MemberProfile, leaf_credential_matches_fl
 impl DsGroupState {
     pub(super) fn join_connection_group(
         &mut self,
-        params: JoinConnectionGroupParams,
+        external_commit: AssistedMessageIn,
+        qs_client_reference: QsReference,
     ) -> Result<SerializedMlsMessage, JoinConnectionGroupError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), params.external_commit)
+            .process_assisted_message(self.provider.crypto(), external_commit)
             .map_err(|e| {
                 tracing::warn!(
                     "Processing error: Could not process assisted message: {:?}",
@@ -141,7 +145,7 @@ impl DsGroupState {
 
         let member_profile = MemberProfile {
             leaf_index: sender,
-            client_queue_config: params.qs_client_reference,
+            client_queue_config: qs_client_reference,
             activity_time: TimeStamp::now(),
             activity_epoch: self.group().epoch(),
             encrypted_user_profile_key: aad_payload.encrypted_user_profile_key,

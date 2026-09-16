@@ -2,9 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_as::{
-    AsCredentialsParams, AsCredentialsResponse, BatchedTokenKeyResponse,
-};
+use aircommon::messages::client_as::{AsCredentialsResponse, BatchedTokenKeyResponse};
 
 use crate::{
     auth_service::{
@@ -16,10 +14,7 @@ use crate::{
 };
 
 impl AuthService {
-    pub(crate) async fn as_credentials(
-        &self,
-        _params: AsCredentialsParams,
-    ) -> Result<AsCredentialsResponse, AsCredentialsError> {
+    pub(crate) async fn as_credentials(&self) -> Result<AsCredentialsResponse, AsCredentialsError> {
         let as_credentials = Credential::load_all(&self.db_pool).await.map_err(|e| {
             tracing::error!("Error loading AS credentials: {:?}", e);
             AsCredentialsError::StorageError

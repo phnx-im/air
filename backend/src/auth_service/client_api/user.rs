@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::UserCredential,
+    credentials::{UserCredential, UserCredentialPayload},
     crypto::signatures::signable::Signable,
     identifiers::UserId,
-    messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
+    messages::{client_as::RegisterUserResponse, client_as_out::EncryptedUserProfile},
     registration::RegistrationChallenge,
     time::TimeStamp,
 };
@@ -32,14 +32,10 @@ pub(crate) enum RegistrationOutcome {
 impl AuthService {
     pub(crate) async fn as_init_user_registration(
         &self,
-        params: RegisterUserParamsIn,
+        client_payload: UserCredentialPayload,
+        encrypted_user_profile: EncryptedUserProfile,
         challenge: Option<RegistrationChallenge>,
     ) -> Result<RegistrationOutcome, RegisterUserError> {
-        let RegisterUserParamsIn {
-            client_payload,
-            encrypted_user_profile,
-        } = params;
-
         // Check if a user entry with the name given in the client_csr already exists
         tracing::info!("Checking if user already exists");
         let user_name_exists = UserRecord::load(&self.db_pool, client_payload.identity())

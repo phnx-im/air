@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_as_out::{
-    GetUserProfileParams, GetUserProfileResponse, MergeUserProfileParamsTbs,
-    StageUserProfileParamsTbs,
+use aircommon::{
+    crypto::indexed_aead::keys::UserProfileKeyIndex,
+    identifiers::UserId,
+    messages::client_as_out::{EncryptedUserProfile, GetUserProfileResponse},
 };
 use tracing::error;
 
@@ -16,10 +17,9 @@ use crate::{
 impl AuthService {
     pub(crate) async fn as_get_user_profile(
         &self,
-        params: GetUserProfileParams,
+        user_id: UserId,
+        key_index: UserProfileKeyIndex,
     ) -> Result<GetUserProfileResponse, GetUserProfileError> {
-        let GetUserProfileParams { user_id, key_index } = params;
-
         let user_record = UserRecord::load(&self.db_pool, &user_id)
             .await?
             .ok_or(GetUserProfileError::UserNotFound)?;
@@ -37,13 +37,9 @@ impl AuthService {
 
     pub(crate) async fn as_stage_user_profile(
         &self,
-        params: StageUserProfileParamsTbs,
+        user_id: UserId,
+        user_profile: EncryptedUserProfile,
     ) -> Result<(), StageUserProfileError> {
-        let StageUserProfileParamsTbs {
-            user_id,
-            user_profile,
-        } = params;
-
         let mut user_record = UserRecord::load(&self.db_pool, &user_id)
             .await?
             .ok_or(StageUserProfileError::UserNotFound)?;
@@ -60,10 +56,8 @@ impl AuthService {
 
     pub(crate) async fn as_merge_user_profile(
         &self,
-        params: MergeUserProfileParamsTbs,
+        user_id: UserId,
     ) -> Result<(), MergeUserProfileError> {
-        let MergeUserProfileParamsTbs { user_id } = params;
-
         let mut user_record = UserRecord::load(&self.db_pool, &user_id)
             .await?
             .ok_or(MergeUserProfileError::UserNotFound)?;

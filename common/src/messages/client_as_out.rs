@@ -6,17 +6,13 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
     credentials::{
-        AsCredential, AsCredentialBody, UserCredentialPayload, VerifiableAsIntermediateCredential,
-        VerifiableUserCredential, keys::ClientSignature,
+        AsCredential, AsCredentialBody, VerifiableAsIntermediateCredential,
+        VerifiableUserCredential,
     },
     crypto::{
         hash::Hash,
-        indexed_aead::{
-            ciphertexts::IndexedCiphertext,
-            keys::{UserProfileKeyIndex, UserProfileKeyType},
-        },
+        indexed_aead::{ciphertexts::IndexedCiphertext, keys::UserProfileKeyType},
     },
-    identifiers::UserId,
     messages::connection_package_v1::ConnectionPackageV1In,
 };
 
@@ -43,52 +39,12 @@ pub struct RegisterUserResponseIn {
 }
 
 #[derive(Debug)]
-pub struct RegisterUserParamsIn {
-    pub client_payload: UserCredentialPayload,
-    pub encrypted_user_profile: EncryptedUserProfile,
-}
-
-pub struct GetUserProfileParams {
-    pub user_id: UserId,
-    pub key_index: UserProfileKeyIndex,
-}
-
-#[derive(Debug)]
 pub struct EncryptedUserProfileCtype;
 pub type EncryptedUserProfile = IndexedCiphertext<UserProfileKeyType, EncryptedUserProfileCtype>;
 
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct GetUserProfileResponse {
     pub encrypted_user_profile: EncryptedUserProfile,
-}
-
-#[derive(Debug)]
-pub struct UpdateUserProfileParamsTbs {
-    pub user_id: UserId,
-    pub user_profile: EncryptedUserProfile,
-}
-
-#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct StageUserProfileParamsTbs {
-    pub user_id: UserId,
-    pub user_profile: EncryptedUserProfile,
-}
-
-#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct StageUserProfileParams {
-    payload: StageUserProfileParamsTbs,
-    signature: ClientSignature,
-}
-
-#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct MergeUserProfileParamsTbs {
-    pub user_id: UserId,
-}
-
-#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct MergeUserProfileParams {
-    payload: MergeUserProfileParamsTbs,
-    signature: ClientSignature,
 }
 
 #[derive(Debug)]

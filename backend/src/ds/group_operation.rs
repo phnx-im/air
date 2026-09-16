@@ -35,7 +35,7 @@ use aircommon::{
     messages::{
         client_ds::{
             AadMessage, AadPayload, AddUsersInfo, ApqWelcomeBundle, DsJoinerInformation,
-            GroupOperationParams, GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
+            GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
@@ -331,12 +331,13 @@ impl DsGroupState {
     // TODO: Make into a sans-io-style state machine
     pub(super) async fn process_group_operation(
         &mut self,
-        params: GroupOperationParams,
+        commit: AssistedMessageIn,
+        add_users_info_option: Option<AddUsersInfo>,
     ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group
-            .process_assisted_message(self.provider.crypto(), params.commit)?;
+            .process_assisted_message(self.provider.crypto(), commit)?;
 
         // Make sure that we have the right message type.
         let ProcessedAssistedMessage::Commit(processed_message, _group_info) =
@@ -355,7 +356,7 @@ impl DsGroupState {
             added_users_state,
             external_sender_information,
             removed_clients,
-        } = self.validate_t_commit(processed_message, params.add_users_info_option, None, None)?;
+        } = self.validate_t_commit(processed_message, add_users_info_option, None, None)?;
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -536,7 +537,8 @@ impl DsGroupState {
 
     pub(super) async fn group_operation(
         &mut self,
-        params: GroupOperationParams,
+        commit: AssistedMessageIn,
+        add_users_info_option: Option<AddUsersInfo>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<
         (
@@ -550,7 +552,9 @@ impl DsGroupState {
             serialized_message,
             added_users_state,
             virtual_client_hint,
-        } = self.process_group_operation(params).await?;
+        } = self
+            .process_group_operation(commit, add_users_info_option)
+            .await?;
 
         let fan_out_messages = added_users_state
             .map(

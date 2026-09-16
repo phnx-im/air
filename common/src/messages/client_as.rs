@@ -7,30 +7,16 @@ use mls_assist::openmls_traits::types::HpkeCiphertext;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
-    credentials::{
-        AsCredential, AsCredentialBody, AsIntermediateCredential, UserCredential,
-        UserCredentialPayload,
-    },
+    credentials::{AsCredential, AsCredentialBody, AsIntermediateCredential, UserCredential},
     crypto::{
-        Labeled, RatchetEncryptionKey,
+        Labeled,
         aead::Ciphertext,
         hash::{Hash, Hashable},
-        kdf::keys::RatchetSecret,
     },
     messages::connection_package::ConnectionPackageHash,
 };
 
-use super::client_as_out::EncryptedUserProfile;
-
 // === User ===
-
-#[derive(Debug)]
-pub struct RegisterUserParams {
-    pub client_payload: UserCredentialPayload,
-    pub queue_encryption_key: RatchetEncryptionKey,
-    pub initial_ratchet_secret: RatchetSecret,
-    pub encrypted_user_profile: EncryptedUserProfile,
-}
 
 #[derive(Debug)]
 pub struct RegisterUserResponse {
@@ -151,9 +137,6 @@ impl SerializedTokenResponse {
 }
 
 // === Anonymous requests ===
-
-#[derive(Debug)]
-pub struct AsCredentialsParams {}
 
 /// A VOPRF public key for Privacy Pass token issuance.
 #[derive(Debug)]

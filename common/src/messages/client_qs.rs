@@ -10,28 +10,11 @@
 use mls_assist::openmls::prelude::{KeyPackage, KeyPackageIn};
 
 use crate::{
-    crypto::{
-        RatchetEncryptionKey,
-        hpke::ClientIdEncryptionKey,
-        kdf::keys::RatchetSecret,
-        signatures::keys::{QsClientVerifyingKey, QsUserVerifyingKey},
-    },
+    crypto::hpke::ClientIdEncryptionKey,
     identifiers::{QsClientId, QsUserId},
 };
 
-use super::{FriendshipToken, push_token::EncryptedPushToken};
-
 // === User ===
-
-#[derive(Debug)]
-pub struct CreateUserRecordParams {
-    pub user_record_auth_key: QsUserVerifyingKey,
-    pub friendship_token: FriendshipToken,
-    pub client_record_auth_key: QsClientVerifyingKey,
-    pub queue_encryption_key: RatchetEncryptionKey,
-    pub encrypted_push_token: Option<EncryptedPushToken>,
-    pub initial_ratchet_secret: RatchetSecret,
-}
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Clone, PartialEq, Eq))]
@@ -40,56 +23,11 @@ pub struct CreateUserRecordResponse {
     pub qs_client_id: QsClientId,
 }
 
-#[derive(Debug)]
-pub struct UpdateUserRecordParams {
-    pub sender: QsUserId,
-    pub user_record_auth_key: QsUserVerifyingKey,
-    pub friendship_token: FriendshipToken,
-}
-
-#[derive(Debug)]
-pub struct DeleteUserRecordParams {
-    pub sender: QsUserId,
-}
-
 // === Client ===
-
-#[derive(Debug)]
-pub struct CreateClientRecordParams {
-    pub sender: QsUserId,
-    pub client_record_auth_key: QsClientVerifyingKey,
-    pub queue_encryption_key: RatchetEncryptionKey,
-    pub encrypted_push_token: Option<EncryptedPushToken>,
-    pub initial_ratchet_secret: RatchetSecret, // TODO: This can be dropped once we support PCS
-}
 
 #[derive(Debug)]
 pub struct CreateClientRecordResponse {
     pub qs_client_id: QsClientId,
-}
-
-#[derive(Debug)]
-pub struct UpdateClientRecordParams {
-    pub sender: QsClientId,
-    pub client_record_auth_key: QsClientVerifyingKey,
-    pub queue_encryption_key: RatchetEncryptionKey,
-    pub encrypted_push_token: Option<EncryptedPushToken>,
-}
-
-#[derive(Debug)]
-pub struct DeleteClientRecordParams {
-    pub sender: QsClientId,
-}
-
-#[derive(Debug)]
-pub struct PublishKeyPackagesParams {
-    pub sender: QsClientId,
-    pub key_packages: Vec<KeyPackageIn>,
-}
-
-#[derive(Debug)]
-pub struct KeyPackageParams {
-    pub sender: FriendshipToken,
 }
 
 #[derive(Debug)]
