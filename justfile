@@ -36,7 +36,7 @@ migrate-dev:
     cd coreclient && cargo sqlx migrate run --database-url {{CLIENT_DATABASE_URL}}
     cd backend && cargo sqlx migrate run --database-url {{SERVER_DATABASE_URL}}
 
-# Check that generated l10n and icon files are up to date.
+# Report unused l10n keys and check that the icon file is up to date.
 [group('check')]
 check-app-resources: regenerate-l10n regenerate-icons && _check-unstaged-changes
 
@@ -171,6 +171,7 @@ test-flutter *args:
     mkdir -p .dart_tool
     trap 'echo "{\"skip_rust_build\": false}" > "$config"' EXIT INT TERM
     echo '{"skip_rust_build": true}' > "$config"
+    flutter gen-l10n
     flutter test {{ args }}
 
 skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
