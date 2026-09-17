@@ -1226,16 +1226,18 @@ async fn legacy_group_data_migration() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(
-    name = "Update group profile in group with profile component",
+    name = "Update group profile in a group with profile component",
     skip_all
 )]
-async fn update_group_profile_in_group_with_profile_component() {
+async fn update_group_profile_in_group_with_profile_component_inner() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
 
-    let chat_id = setup.create_group_with_profile_component(&alice).await;
+    let chat_id = setup
+        .create_group_with_profile_component(&alice, setup.apq_groups)
+        .await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     let alice_user = &setup.get_user(&alice).user;

@@ -326,7 +326,7 @@ impl CoreUser {
         let op = self
             .db()
             .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_raw_group_data(
+                PendingChatOperation::create_update_with_group_data(
                     txn,
                     self.signing_key(),
                     chat_id,
@@ -361,7 +361,7 @@ impl CoreUser {
         let job = self
             .db()
             .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_raw_group_data(
+                PendingChatOperation::create_update_with_group_data(
                     txn,
                     self.signing_key(),
                     chat_id,
@@ -375,14 +375,16 @@ impl CoreUser {
         job.staged_commit_message_bytes()
     }
 
-    /// Creates an APQ group whose group profile is stored in the group profile component.
+    /// Creates a group whose group profile is stored in the group profile component.
     pub async fn create_chat_with_profile_component(
         &self,
         title: String,
+        is_apq: bool,
     ) -> anyhow::Result<ChatId> {
         let chat_attributes = ChatAttributes::new(title, None);
         let client_reference = self.create_own_client_reference();
-        let job = CreateChat::new(chat_attributes, client_reference, true).with_profile_component();
+        let job =
+            CreateChat::new(chat_attributes, client_reference, is_apq).with_profile_component();
         Ok(self.execute_job(job).await?)
     }
 

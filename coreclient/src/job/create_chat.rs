@@ -15,7 +15,7 @@ use airprotos::client::{
     group::{EncryptedGroupTitle, GroupData, GroupProfile},
     group_bootstrap::GroupBootstrapCarrier,
 };
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use tracing::error;
 
 use crate::{
@@ -31,8 +31,8 @@ pub(crate) struct CreateChat {
     pub chat_attributes: ChatAttributes,
     pub client_reference: QsReference,
     pub is_apq: bool,
-    /// Store the group profile in the group profile component instead of the group data
-    /// extension. Requires `is_apq`.
+    /// Store the group profile in the group profile component instead of the
+    /// group data extension.
     pub profile_component: bool,
 }
 
@@ -81,9 +81,6 @@ impl CreateChat {
             is_apq,
             profile_component,
         } = self;
-        if profile_component && !is_apq {
-            return Err(anyhow!("group profile component requires an APQ group").into());
-        }
 
         let JobContext {
             api_clients,
@@ -167,6 +164,11 @@ impl CreateChat {
                 let self_group = SelfGroup::load(&mut *txn).await?;
                 let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
+                let group_app_data = GroupAppData {
+                    is_self_group: false,
+                    safe_aad_components: None,
+                    profile,
+                };
                 let (group, partial_params) = if is_apq {
                     Group::create_apq_group(
                         &mut *txn,
@@ -176,11 +178,7 @@ impl CreateChat {
                         group_id,
                         pq_group_id.context("Missing PQ group ID")?,
                         group_data_bytes.clone(),
-                        GroupAppData {
-                            is_self_group: false,
-                            safe_aad_components: None,
-                            profile,
-                        },
+                        group_app_data,
                         vc_group_id,
                     )?
                 } else {
@@ -190,6 +188,7 @@ impl CreateChat {
                         identity_link_wrapper_key,
                         group_id,
                         group_data_bytes,
+                        Some(group_app_data),
                         vc_group_id,
                     )?
                 };

@@ -769,7 +769,7 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
-        Self::create_update_with_raw_group_data(
+        Self::create_update_with_group_data(
             txn,
             signer,
             chat_id,
@@ -984,7 +984,7 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    pub(crate) async fn create_update_with_raw_group_data(
+    pub(crate) async fn create_update_with_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
@@ -2269,6 +2269,7 @@ mod tests {
             identity_link_wrapper_key,
             group_id.clone(),
             group_data_bytes,
+            None,
             None,
         )?;
         group.store(&mut connection).await?;

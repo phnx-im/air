@@ -475,12 +475,14 @@ impl Group {
     }
 
     /// Create a group.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
+        group_app_data: Option<GroupAppData>,
         vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -493,8 +495,11 @@ impl Group {
             GROUP_DATA_EXTENSION_TYPE,
             UnknownExtension(group_data_bytes.bytes),
         );
-        let gc_extensions =
-            Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
+        let mut gc_extension_vec = vec![group_data_extension, required_capabilities];
+        if let Some(group_app_data) = group_app_data {
+            gc_extension_vec.push(group_app_data.to_extension()?);
+        }
+        let gc_extensions = Extensions::from_vec(gc_extension_vec)?;
 
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -3294,6 +3299,7 @@ mod handle_group_not_found_tests {
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
+            None,
             None,
         )?;
         group.store(&mut connection).await?;

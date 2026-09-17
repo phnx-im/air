@@ -168,8 +168,8 @@ enum TestKind {
 enum GroupKind {
     /// Plain or APQ group with the profile in the group data extension.
     Apq(bool),
-    /// APQ group with the profile in the group profile component.
-    ProfileComponent,
+    /// Plain or APQ group with the profile in the group profile component.
+    ProfileComponent(bool),
 }
 
 pub struct TestBackend {
@@ -1184,9 +1184,13 @@ impl TestBackend {
             .await
     }
 
-    /// Creates an APQ group whose profile is stored in the group profile component.
-    pub async fn create_group_with_profile_component(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, GroupKind::ProfileComponent)
+    /// Creates a group whose profile is stored in the group profile component.
+    pub async fn create_group_with_profile_component(
+        &mut self,
+        user_id: &UserId,
+        is_apq: bool,
+    ) -> ChatId {
+        self.create_group_inner(user_id, GroupKind::ProfileComponent(is_apq))
             .await
     }
 
@@ -1198,8 +1202,8 @@ impl TestBackend {
         let group_name = Uuid::new_v4().to_string();
         let chat_id = match kind {
             GroupKind::Apq(is_apq) => user.create_chat(group_name.clone(), None, is_apq).await,
-            GroupKind::ProfileComponent => {
-                user.create_chat_with_profile_component(group_name.clone())
+            GroupKind::ProfileComponent(is_apq) => {
+                user.create_chat_with_profile_component(group_name.clone(), is_apq)
                     .await
             }
         }

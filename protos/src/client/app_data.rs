@@ -202,8 +202,6 @@ impl GroupAppData {
     }
 
     fn to_dictionary(&self) -> Result<AppDataDictionary, codec::Error> {
-        // Components the group carries, not the ones this client supports. The group profile
-        // component is added here once groups are created with it.
         let mut component_ids = vec![AIR_COMPONENT_ID];
         if self.safe_aad_components.is_some() {
             component_ids.push(ComponentType::SafeAad.into());

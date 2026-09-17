@@ -315,6 +315,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             identity_link_wrapper_key,
             self.group_id.clone(),
             group_data_bytes,
+            None,
             self_group.as_ref().map(|group| group.group_id()),
         )?;
 
