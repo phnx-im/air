@@ -10,7 +10,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
 import 'package:air/features/attachments/attachment_actions.dart';
-import 'package:air/features/attachments/attachment_image_provider.dart';
+import 'package:air/features/attachments/owned_picture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -66,9 +66,16 @@ class ImageViewer extends StatelessWidget {
         tokens: FullscreenImageTokens.current,
         items: [
           FullscreenImageItem(
-            image: AttachmentImageProvider(
-              attachment: attachment,
-              attachmentsRepository: RepositoryProvider.of(context),
+            picture: OwnedPicture.attachment(
+              attachmentId: attachment.attachmentId,
+              repository: RepositoryProvider.of(context),
+              error: Center(
+                child: AppIcon(
+                  type: AppIconType.imageOff,
+                  size: FullscreenImageTokens.errorIconSize,
+                  color: darkSemanticPalette.text.quaternary,
+                ),
+              ),
             ),
             naturalSize: Size(
               metadata.width.toDouble(),

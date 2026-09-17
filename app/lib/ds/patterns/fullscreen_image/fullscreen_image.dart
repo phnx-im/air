@@ -33,13 +33,13 @@ TypeStyleToken get _counterType => typeScale.body.s;
 @immutable
 class FullscreenImageItem {
   const FullscreenImageItem({
-    required this.image,
+    required this.picture,
     required this.naturalSize,
     this.placeholder,
     this.heroTag,
   });
 
-  final ImageProvider image;
+  final Widget picture;
 
   /// The picture's own pixel size. We lay the page out from it rather than
   /// from the decode, so the frame is in place before the picture arrives.
@@ -71,7 +71,6 @@ class FullscreenImage extends StatefulWidget {
     this.initialIndex = 0,
     required this.onClose,
     this.onShare,
-    this.error,
   });
 
   final FullscreenImageTokens tokens;
@@ -79,10 +78,6 @@ class FullscreenImage extends StatefulWidget {
 
   /// Which picture opens. The rest are reachable from it.
   final int initialIndex;
-
-  /// Replaces the picture when it fails to decode. Defaults to a broken-image
-  /// glyph.
-  final Widget? error;
 
   final VoidCallback onClose;
 
@@ -306,7 +301,6 @@ class _FullscreenImageState extends State<FullscreenImage> {
                 items: widget.items,
                 pageController: _pageController,
                 zoomFor: _zoomFor,
-                error: widget.error,
                 onTap: _handleTap,
                 onPointerSignal: _handlePointerSignal,
                 onPageChanged: _handlePageChanged,
@@ -404,7 +398,6 @@ class _Gallery extends StatelessWidget {
     required this.items,
     required this.pageController,
     required this.zoomFor,
-    required this.error,
     required this.onTap,
     required this.onPointerSignal,
     required this.onPageChanged,
@@ -414,7 +407,6 @@ class _Gallery extends StatelessWidget {
   final List<FullscreenImageItem> items;
   final PageController pageController;
   final _PageZoom Function(int index) zoomFor;
-  final Widget? error;
   final VoidCallback onTap;
   final ValueChanged<PointerSignalEvent> onPointerSignal;
   final ValueChanged<int> onPageChanged;
@@ -472,7 +464,7 @@ class _Gallery extends StatelessWidget {
       // The frame is the picture at its fit, so a scale of 1 is the fit and
       // whatever is drawn inside it is drawn at the size it was written for.
       childSize: applyBoxFit(.contain, item.naturalSize, viewport).destination,
-      child: _Picture(tokens: tokens, item: item, error: error),
+      child: _Picture(item: item),
       // No filterQuality on purpose: naming one has photo_view lay the picture
       // out anew at every scale, which only its image branch can do. The zoom
       // rides the transform around the frame instead, and the pictures in it
@@ -492,22 +484,15 @@ class _Gallery extends StatelessWidget {
 }
 
 /// The picture on one page, over the stand-in that holds its frame until it
-/// arrives. Both fill the frame the page laid out, so the sharp decode lands
+/// arrives. Both fill the frame the page laid out, so the sharp picture lands
 /// exactly where the stand-in was.
 class _Picture extends StatelessWidget {
-  const _Picture({
-    required this.tokens,
-    required this.item,
-    required this.error,
-  });
+  const _Picture({required this.item});
 
-  final FullscreenImageTokens tokens;
   final FullscreenImageItem item;
-  final Widget? error;
 
   @override
   Widget build(BuildContext context) {
-    final palette = darkSemanticPalette;
     final placeholder = item.placeholder;
 
     return Stack(
@@ -515,56 +500,8 @@ class _Picture extends StatelessWidget {
       children: [
         if (placeholder != null)
           Image(image: placeholder, fit: .contain, filterQuality: .medium),
-        Image(
-          image: item.image,
-          fit: .contain,
-          filterQuality: .medium,
-          // A stand-in already holds the frame, so the transfer runs behind the
-          // picture rather than behind a spinner.
-          loadingBuilder: (context, child, event) =>
-              event == null || placeholder != null
-              ? child
-              : _Loading(
-                  color: palette.text.primary,
-                  loaded: event.cumulativeBytesLoaded,
-                  total: event.expectedTotalBytes,
-                ),
-          errorBuilder: (context, exception, stackTrace) => Center(
-            child:
-                error ??
-                AppIcon(
-                  type: AppIconType.imageOff,
-                  size: FullscreenImageTokens.errorIconSize,
-                  color: palette.text.quaternary,
-                ),
-          ),
-        ),
+        item.picture,
       ],
-    );
-  }
-}
-
-/// Transfer progress while the picture is still arriving. Determinate once the
-/// size is known, so a slow attachment shows how far along it is.
-class _Loading extends StatelessWidget {
-  const _Loading({
-    required this.color,
-    required this.loaded,
-    required this.total,
-  });
-
-  final Color color;
-  final int loaded;
-  final int? total;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = this.total;
-    return Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(color),
-        value: total == null ? null : loaded / total,
-      ),
     );
   }
 }

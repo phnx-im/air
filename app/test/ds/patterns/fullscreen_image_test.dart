@@ -30,7 +30,7 @@ final _pixel = Uint8List.fromList(const [
 /// A page for the pixel. Only the chrome and the paging are under test, so the
 /// declared size just has to give the page a frame to lay out.
 FullscreenImageItem _item({Object? heroTag}) => FullscreenImageItem(
-  image: MemoryImage(_pixel),
+  picture: Image.memory(_pixel),
   naturalSize: const Size(1, 1),
   heroTag: heroTag,
 );

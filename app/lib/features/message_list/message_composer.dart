@@ -28,12 +28,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/share/pending_share.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/platform/method_channel.dart'
@@ -666,18 +666,25 @@ class _MessageComposerState extends State<MessageComposer>
               showErrorBannerStandalone((loc) => loc.composer_error_attachment);
             } finally {
               if (isTempFile) {
-                try {
-                  await File(file.path).delete();
-                } catch (e) {
-                  _log.warning("Failed to delete temp file: $e", e);
-                }
+                await _deleteTempFile(file.path);
               }
             }
           },
         ),
       ),
     );
+    if (isTempFile && !uploaded) {
+      await _deleteTempFile(file.path);
+    }
     return uploaded;
+  }
+
+  Future<void> _deleteTempFile(String path) async {
+    try {
+      await File(path).delete();
+    } catch (e) {
+      _log.warning("Failed to delete temp file: $e", e);
+    }
   }
 
   void _onTextChanged() {

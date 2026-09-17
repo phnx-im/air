@@ -2,11 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/features/attachments/owned_picture.dart';
 import 'package:air/platform/method_channel.dart' as platform_utils;
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
@@ -30,7 +29,6 @@ class AttachmentUploadView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loadedFile = useMemoized(() => File(file.path), [file]);
     final isImageFut = useMemoized(
       () => platform_utils.isImageFile(file.path),
       [file],
@@ -38,6 +36,20 @@ class AttachmentUploadView extends HookWidget {
     final isImage = useFuture(isImageFut);
 
     final palette = darkSemanticPalette;
+
+    final fileChrome = Center(
+      child: Column(
+        mainAxisSize: .min,
+        children: [
+          const AppIcon.paperclip(size: 64, color: Colors.white),
+          const SizedBox(height: S.s12),
+          Text(
+            p.basename(file.path),
+            style: typeScale.body.regular.style(color: palette.text.primary),
+          ),
+        ],
+      ),
+    );
 
     return Scaffold(
       backgroundColor: palette.function.neutral.black,
@@ -56,24 +68,23 @@ class AttachmentUploadView extends HookWidget {
           child: Stack(
             fit: .expand,
             children: [
-              if (isImage.data == true)
-                PhotoView(imageProvider: FileImage(loadedFile))
-              else if (isImage.data == false)
-                Center(
-                  child: Column(
-                    mainAxisSize: .min,
-                    children: [
-                      const AppIcon.paperclip(size: 64, color: Colors.white),
-                      const SizedBox(height: S.s12),
-                      Text(
-                        p.basename(file.path),
-                        style: typeScale.body.regular.style(
-                          color: palette.text.primary,
-                        ),
-                      ),
-                    ],
+              switch (isImage.data) {
+                true => OwnedPicture.file(
+                  file.path,
+                  loading: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(palette.text.primary),
+                    ),
                   ),
+                  error: fileChrome,
+                  // The frame is the picture at its own size, so the zoom
+                  // rides a transform around it.
+                  builder: (context, size, picture) =>
+                      PhotoView.customChild(childSize: size, child: picture),
                 ),
+                false => fileChrome,
+                null => const SizedBox.shrink(),
+              },
 
               Positioned(
                 bottom: S.s16,
