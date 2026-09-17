@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT status AS \"status: ResyncStatus\"\n                FROM resync_queue\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "status: ResyncStatus",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8e6fb71c14e754cc785d303e4b022c1b3f86989c234148d3ca3e9d34f0d10058"
+}

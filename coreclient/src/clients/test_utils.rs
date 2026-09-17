@@ -23,7 +23,7 @@ use crate::{
         chat_operation::DerivationEpoch,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
-    outbound_service::resync::Resync,
+    outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
 };
 
 use super::*;
@@ -277,14 +277,16 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: false,
             connection_contact: None,
+            reason: ResyncReason::Manual,
+            attempts: 0,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
-    pub async fn is_resync_pending(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+    pub async fn resync_status(&self, chat_id: ChatId) -> anyhow::Result<Option<ResyncStatus>> {
         let connection = self.db().read().await?;
-        Ok(Resync::is_pending_for_chat(connection, &chat_id).await?)
+        Ok(Resync::status_for_chat(connection, &chat_id).await?)
     }
 
     /// Whether any setting changes are still waiting to be synchronized.

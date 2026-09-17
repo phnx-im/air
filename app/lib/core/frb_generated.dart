@@ -9602,6 +9602,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo dco_decode_box_autoadd_resync_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_resync_debug_info(raw);
+  }
+
+  @protected
   TokenId dco_decode_box_autoadd_token_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_token_id(raw);
@@ -9950,8 +9956,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 13)
-      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
+    if (arr.length != 14)
+      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
     return GroupDebugInfo(
       groupId: dco_decode_String(arr[0]),
       epoch: dco_decode_u_64(arr[1]),
@@ -9967,6 +9973,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       groupData: dco_decode_opt_box_autoadd_group_data_debug_info(arr[10]),
       sizeBytes: dco_decode_u_64(arr[11]),
       pq: dco_decode_opt_box_autoadd_pq_group_debug_info(arr[12]),
+      resync: dco_decode_opt_box_autoadd_resync_debug_info(arr[13]),
     );
   }
 
@@ -10759,6 +10766,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo? dco_decode_opt_box_autoadd_resync_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_resync_debug_info(raw);
+  }
+
+  @protected
   UiAcceptContactRequestError?
   dco_decode_opt_box_autoadd_ui_accept_contact_request_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -11033,6 +11046,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo dco_decode_resync_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ResyncDebugInfo(
+      status: dco_decode_String(arr[0]),
+      reason: dco_decode_String(arr[1]),
+      attempts: dco_decode_u_32(arr[2]),
+      notBefore: dco_decode_opt_String(arr[3]),
+      lastError: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
   ShareState dco_decode_share_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11163,8 +11191,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
@@ -11177,6 +11205,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isApq: dco_decode_bool(arr[8]),
       mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[9]),
       pendingCommitFailed: dco_decode_bool(arr[10]),
+      resyncFailed: dco_decode_bool(arr[11]),
     );
   }
 
@@ -11556,12 +11585,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (raw[0]) {
       case 0:
         return UiSystemMessage_Add(
-          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
           dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 1:
         return UiSystemMessage_Remove(
-          dco_decode_box_autoadd_ui_user_id(raw[1]),
+          dco_decode_opt_box_autoadd_ui_user_id(raw[1]),
           dco_decode_box_autoadd_ui_user_id(raw[2]),
         );
       case 2:
@@ -13098,6 +13127,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo sse_decode_box_autoadd_resync_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_resync_debug_info(deserializer));
+  }
+
+  @protected
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_token_id(deserializer));
@@ -13530,6 +13567,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     var var_sizeBytes = sse_decode_u_64(deserializer);
     var var_pq = sse_decode_opt_box_autoadd_pq_group_debug_info(deserializer);
+    var var_resync = sse_decode_opt_box_autoadd_resync_debug_info(deserializer);
     return GroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
@@ -13544,6 +13582,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       groupData: var_groupData,
       sizeBytes: var_sizeBytes,
       pq: var_pq,
+      resync: var_resync,
     );
   }
 
@@ -14691,6 +14730,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo? sse_decode_opt_box_autoadd_resync_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_resync_debug_info(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   UiAcceptContactRequestError?
   sse_decode_opt_box_autoadd_ui_accept_contact_request_error(
     SseDeserializer deserializer,
@@ -15075,6 +15127,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ResyncDebugInfo sse_decode_resync_debug_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_status = sse_decode_String(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    var var_attempts = sse_decode_u_32(deserializer);
+    var var_notBefore = sse_decode_opt_String(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    return ResyncDebugInfo(
+      status: var_status,
+      reason: var_reason,
+      attempts: var_attempts,
+      notBefore: var_notBefore,
+      lastError: var_lastError,
+    );
+  }
+
+  @protected
   ShareState sse_decode_share_state(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_loaded = sse_decode_bool(deserializer);
@@ -15224,6 +15293,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_isApq = sse_decode_bool(deserializer);
     var var_mutedUntil = sse_decode_opt_box_autoadd_ui_chat_muted(deserializer);
     var var_pendingCommitFailed = sse_decode_bool(deserializer);
+    var var_resyncFailed = sse_decode_bool(deserializer);
     return UiChatDetails(
       id: var_id,
       status: var_status,
@@ -15236,6 +15306,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isApq: var_isApq,
       mutedUntil: var_mutedUntil,
       pendingCommitFailed: var_pendingCommitFailed,
+      resyncFailed: var_resyncFailed,
     );
   }
 
@@ -15647,11 +15718,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_Add(var_field0, var_field1);
       case 1:
-        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_field0 = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
         var var_field1 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_Remove(var_field0, var_field1);
       case 2:
@@ -17496,6 +17567,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_resync_debug_info(
+    ResyncDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_resync_debug_info(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_token_id(self, serializer);
@@ -17907,6 +17987,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     sse_encode_u_64(self.sizeBytes, serializer);
     sse_encode_opt_box_autoadd_pq_group_debug_info(self.pq, serializer);
+    sse_encode_opt_box_autoadd_resync_debug_info(self.resync, serializer);
   }
 
   @protected
@@ -18962,6 +19043,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_resync_debug_info(
+    ResyncDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_resync_debug_info(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_accept_contact_request_error(
     UiAcceptContactRequestError? self,
     SseSerializer serializer,
@@ -19323,6 +19417,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_resync_debug_info(
+    ResyncDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.status, serializer);
+    sse_encode_String(self.reason, serializer);
+    sse_encode_u_32(self.attempts, serializer);
+    sse_encode_opt_String(self.notBefore, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
+  }
+
+  @protected
   void sse_encode_share_state(ShareState self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.loaded, serializer);
@@ -19453,6 +19560,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.isApq, serializer);
     sse_encode_opt_box_autoadd_ui_chat_muted(self.mutedUntil, serializer);
     sse_encode_bool(self.pendingCommitFailed, serializer);
+    sse_encode_bool(self.resyncFailed, serializer);
   }
 
   @protected
@@ -19804,11 +19912,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     switch (self) {
       case UiSystemMessage_Add(field0: final field0, field1: final field1):
         sse_encode_i_32(0, serializer);
-        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_box_autoadd_ui_user_id(field1, serializer);
       case UiSystemMessage_Remove(field0: final field0, field1: final field1):
         sse_encode_i_32(1, serializer);
-        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+        sse_encode_opt_box_autoadd_ui_user_id(field0, serializer);
         sse_encode_box_autoadd_ui_user_id(field1, serializer);
       case UiSystemMessage_ChangeTitle(
         field0: final field0,
