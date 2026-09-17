@@ -732,8 +732,18 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String systemMessage_userWasAdded(String user1) {
+    return 'Se añadió a $user1 al chat';
+  }
+
+  @override
   String systemMessage_userRemovedUser(String user1, String user2) {
     return '$user1 quitó a $user2';
+  }
+
+  @override
+  String systemMessage_userWasRemoved(String user1) {
+    return 'Se quitó a $user1 del chat';
   }
 
   @override

@@ -268,9 +268,9 @@ impl OutboundServiceContext {
                     return Ok(None);
                 }
 
-                // Don't send messages for chats with pending resync
-                if Resync::is_pending_for_chat(&mut *txn, &chat_id).await? {
-                    debug!(?chat_id, "Skipping sending message due to pending resync");
+                // Don't send messages for chats with pending or failed resync
+                if let Some(status) = Resync::status_for_chat(&mut *txn, &chat_id).await? {
+                    debug!(?chat_id, ?status, "Skipping sending message due to resync");
                     return Ok(None);
                 }
 

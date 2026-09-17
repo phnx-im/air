@@ -1128,14 +1128,17 @@ impl InReplyToMessage {
 pub(crate) mod tests {
     use std::sync::LazyLock;
 
-    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use aircommon::{
+        identifiers::{Fqdn, UserId},
+        time::TimeStamp,
+    };
     use chrono::Utc;
     use mimi_content::MimiContent;
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
+        ContentMessage, Message, MessageId, SystemMessage, chats::persistence::tests::test_chat,
         clients::attachment::persistence::test::test_attachment_record, db::access::DbAccess,
     };
 
@@ -1334,6 +1337,47 @@ pub(crate) mod tests {
 
         assert_eq!(decoded.version, VERSIONED_MESSAGE.version);
         assert_eq!(decoded.content, VERSIONED_MESSAGE.content);
+    }
+
+    #[test]
+    fn versioned_message_deserializes_legacy_system_messages() {
+        // Shape of `SystemMessage` before the actor became optional.
+        #[derive(serde::Serialize)]
+        enum LegacySystemMessage {
+            Add(UserId, UserId),
+            Remove(UserId, UserId),
+        }
+
+        #[derive(serde::Serialize)]
+        enum LegacyEventMessage {
+            System(LegacySystemMessage),
+        }
+
+        let domain: Fqdn = "localhost".parse().unwrap();
+        let actor = UserId::random(domain.clone());
+        let subject = UserId::random(domain);
+
+        let legacy =
+            LegacyEventMessage::System(LegacySystemMessage::Add(actor.clone(), subject.clone()));
+        let versioned = VersionedMessage {
+            version: CURRENT_MESSAGE_VERSION,
+            content: PersistenceCodec::to_vec(&legacy).unwrap(),
+        };
+        assert_eq!(
+            versioned.to_event_message().unwrap(),
+            EventMessage::System(SystemMessage::Add(Some(actor.clone()), subject.clone()))
+        );
+
+        let legacy =
+            LegacyEventMessage::System(LegacySystemMessage::Remove(actor.clone(), subject.clone()));
+        let versioned = VersionedMessage {
+            version: CURRENT_MESSAGE_VERSION,
+            content: PersistenceCodec::to_vec(&legacy).unwrap(),
+        };
+        assert_eq!(
+            versioned.to_event_message().unwrap(),
+            EventMessage::System(SystemMessage::Remove(Some(actor), subject))
+        );
     }
 
     #[test]
