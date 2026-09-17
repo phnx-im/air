@@ -241,6 +241,7 @@ mod tests {
                 is_self_group: true,
                 safe_aad_components: Some(vec![VC_COMPONENT_ID]),
             },
+            None,
         )?;
         Ok(group)
     }

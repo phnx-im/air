@@ -578,6 +578,7 @@ mod derivation_tests {
                 is_self_group,
                 safe_aad_components: None,
             },
+            None,
         )?;
         Ok(group)
     }
