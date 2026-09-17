@@ -6,6 +6,7 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
+import 'package:air/features/attachments/owned_picture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,7 +31,7 @@ final _pixel = Uint8List.fromList(const [
 /// A page for the pixel. Only the chrome and the paging are under test, so the
 /// declared size just has to give the page a frame to lay out.
 FullscreenImageItem _item({Object? heroTag}) => FullscreenImageItem(
-  picture: Image.memory(_pixel),
+  picture: OwnedPicture.memory(_pixel, tag: "test"),
   naturalSize: const Size(1, 1),
   heroTag: heroTag,
 );

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:air/core/core.dart';
@@ -38,6 +39,19 @@ class OwnedPicture extends HookWidget {
     this.filterQuality = FilterQuality.medium,
   }) : _decode = (() => _decodeAttachment(repository, attachmentId)),
        _keys = [repository, attachmentId];
+
+  /// An attachment that takes ownership of a bytes buffer
+  OwnedPicture.memory(
+    Uint8List data, {
+    required String tag,
+    super.key,
+    this.loading = const SizedBox.shrink(),
+    this.error,
+    this.builder,
+    this.fit = BoxFit.contain,
+    this.filterQuality = FilterQuality.medium,
+  }) : _decode = (() => _decodeBytes(data)),
+       _keys = [tag];
 
   final Future<ui.Image> Function() _decode;
   final List<Object?> _keys;
@@ -91,6 +105,14 @@ class OwnedPicture extends HookWidget {
       picture,
     );
   }
+}
+
+Future<ui.Image> _decodeBytes(Uint8List bytes) async {
+  // The codec disposes the buffer.
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+  return _frame(
+    await ui.instantiateImageCodecWithSize(buffer, getTargetSize: _displayCap),
+  );
 }
 
 Future<ui.Image> _decodeFile(String path) async {

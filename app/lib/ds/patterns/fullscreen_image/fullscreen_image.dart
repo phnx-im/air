@@ -9,6 +9,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
+import 'package:air/features/attachments/owned_picture.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -39,7 +40,7 @@ class FullscreenImageItem {
     this.heroTag,
   });
 
-  final Widget picture;
+  final OwnedPicture picture;
 
   /// The picture's own pixel size. We lay the page out from it rather than
   /// from the decode, so the frame is in place before the picture arrives.
