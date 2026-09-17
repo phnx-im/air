@@ -236,8 +236,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       (ChatDetailsCubit cubit) =>
           cubit.state.chat?.pendingCommitFailed ?? false,
     );
+    final resyncFailed = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.resyncFailed ?? false,
+    );
     final bool showPendingCommitBanner =
-        experimentalFeatures && pendingCommitFailed;
+        experimentalFeatures && (pendingCommitFailed || resyncFailed);
 
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
@@ -266,15 +269,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             scrollToBottomController: _scrollToBottomController,
           ),
           if (showPendingCommitBanner)
-            const Positioned(
+            Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: EdgeInsets.only(top: Chrome.barHeight),
-                  child: _PendingCommitFailedBanner(),
+                  padding: const EdgeInsets.only(top: Chrome.barHeight),
+                  child: _PendingCommitFailedBanner(resyncFailed: resyncFailed),
                 ),
               ),
             ),
@@ -434,7 +437,9 @@ class _RenderMeasureHeight extends RenderProxyBox {
 }
 
 class _PendingCommitFailedBanner extends StatelessWidget {
-  const _PendingCommitFailedBanner();
+  const _PendingCommitFailedBanner({required this.resyncFailed});
+
+  final bool resyncFailed;
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +451,9 @@ class _PendingCommitFailedBanner extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                "Pending commit stuck/failed",
+                resyncFailed
+                    ? "Resync failed, chat is broken"
+                    : "Pending commit stuck/failed",
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

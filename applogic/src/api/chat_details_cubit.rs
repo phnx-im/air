@@ -10,7 +10,7 @@ use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
-    RequiredDebugCapabilities,
+    RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
     AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
@@ -874,6 +874,10 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
     let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
 
     let pending_commit_failed = core_user.chat_is_pending(&group_id).await.unwrap_or(false);
+    let resync_failed = core_user
+        .chat_resync_failed(&group_id)
+        .await
+        .unwrap_or(false);
 
     UiChatDetails {
         id: chat.id,
@@ -889,6 +893,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         is_apq,
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
+        resync_failed,
     }
 }
 
@@ -967,6 +972,16 @@ pub struct _GroupDebugInfo {
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
     pub pq: Option<PqGroupDebugInfo>,
+    pub resync: Option<ResyncDebugInfo>,
+}
+
+#[frb(mirror(ResyncDebugInfo))]
+pub struct _ResyncDebugInfo {
+    pub status: String,
+    pub reason: String,
+    pub attempts: u32,
+    pub not_before: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[frb(mirror(PqGroupDebugInfo))]

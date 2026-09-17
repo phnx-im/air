@@ -39,6 +39,7 @@ final chats = [
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   UiChatDetails(
     id: 2.chatId(),
@@ -50,6 +51,7 @@ final chats = [
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   UiChatDetails(
     id: 3.chatId(),
@@ -63,6 +65,7 @@ final chats = [
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
 ];
 
