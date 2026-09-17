@@ -63,7 +63,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
-        group_data_bytes: GroupDataBytes,
+        group_data_bytes: Option<GroupDataBytes>,
         group_app_data: GroupAppData,
         vc_group_id: Option<&GroupId>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
@@ -74,17 +74,19 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let group_data_extension = Extension::Unknown(
-            GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data_bytes.bytes),
-        );
-        let gc_extensions = Extensions::from_vec(vec![
-            group_data_extension,
+        let mut gc_extension_vec = vec![
             required_capabilities,
             // APQ groups automatically add an app data dictionary extension (to required
             // capabilities), so we can safely add it here for all APQ groups.
             group_app_data.to_extension()?,
-        ])?;
+        ];
+        if let Some(group_data_bytes) = group_data_bytes {
+            gc_extension_vec.push(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data_bytes.bytes),
+            ));
+        }
+        let gc_extensions = Extensions::from_vec(gc_extension_vec)?;
 
         // The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {

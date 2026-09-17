@@ -481,7 +481,7 @@ impl Group {
         signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
-        group_data_bytes: GroupDataBytes,
+        group_data_bytes: Option<GroupDataBytes>,
         group_app_data: Option<GroupAppData>,
         vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
@@ -491,11 +491,13 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let group_data_extension = Extension::Unknown(
-            GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data_bytes.bytes),
-        );
-        let mut gc_extension_vec = vec![group_data_extension, required_capabilities];
+        let mut gc_extension_vec = vec![required_capabilities];
+        if let Some(group_data_bytes) = group_data_bytes {
+            gc_extension_vec.push(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data_bytes.bytes),
+            ));
+        }
         if let Some(group_app_data) = group_app_data {
             gc_extension_vec.push(group_app_data.to_extension()?);
         }
@@ -3298,7 +3300,7 @@ mod handle_group_not_found_tests {
             &user_signing_key,
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
             None,
             None,
         )?;

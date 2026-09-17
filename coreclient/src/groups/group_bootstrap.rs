@@ -324,7 +324,7 @@ mod tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
             app_data,
             vc_group_id,
         )?;

@@ -323,7 +323,7 @@ impl CoreUser {
                     identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
-                    group_data_bytes,
+                    Some(group_data_bytes),
                     client_app_data,
                     // The self group is the emulation group itself, not a
                     // virtual client of one.

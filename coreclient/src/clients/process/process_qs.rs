@@ -1843,7 +1843,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),

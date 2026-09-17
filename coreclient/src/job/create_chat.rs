@@ -145,12 +145,9 @@ impl CreateChat {
             legacy_picture: None,
         };
         let (group_data_bytes, profile) = if profile_component {
-            (
-                GroupData::empty().encode()?,
-                Some(group_data.into_component()),
-            )
+            (None, Some(group_data.into_component()))
         } else {
-            (group_data.encode()?, None)
+            (Some(group_data.encode()?), None)
         };
 
         let own_user_id = key_store.signing_key.credential().user_id();
