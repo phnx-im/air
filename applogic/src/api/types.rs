@@ -105,6 +105,7 @@ pub struct UiChatDetails {
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
+    pub resync_failed: bool,
 }
 
 impl UiChatDetails {
@@ -556,8 +557,8 @@ impl From<EventMessage> for UiEventMessage {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiSystemMessage {
-    Add(UiUserId, UiUserId),
-    Remove(UiUserId, UiUserId),
+    Add(Option<UiUserId>, UiUserId),
+    Remove(Option<UiUserId>, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
     ReceivedHandleConnectionRequest {
@@ -585,11 +586,11 @@ pub enum UiSystemMessage {
 impl From<SystemMessage> for UiSystemMessage {
     fn from(system_message: SystemMessage) -> Self {
         match system_message {
-            SystemMessage::Add(user_id, contact_id) => {
-                UiSystemMessage::Add(user_id.into(), contact_id.into())
+            SystemMessage::Add(adder, added) => {
+                UiSystemMessage::Add(adder.map(Into::into), added.into())
             }
-            SystemMessage::Remove(user_id, contact_id) => {
-                UiSystemMessage::Remove(user_id.into(), contact_id.into())
+            SystemMessage::Remove(remover, removed) => {
+                UiSystemMessage::Remove(remover.map(Into::into), removed.into())
             }
             SystemMessage::ChangeTitle {
                 user_id,

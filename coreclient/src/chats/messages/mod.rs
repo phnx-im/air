@@ -80,7 +80,8 @@ impl TimestampedMessage {
 }
 
 /// Identifier of a message in a chat
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[display("{uuid}")]
 pub struct MessageId {
     pub uuid: Uuid,
 }
@@ -170,6 +171,37 @@ impl ChatMessage {
         let message = Message::Content(Box::new(ContentMessage::new(
             sender, false, content, group_id,
         )));
+        let timestamped_message = TimestampedMessage {
+            message,
+            timestamp: TimeStamp::now(),
+        };
+        Self {
+            chat_id,
+            message_id,
+            in_reply_to: None,
+            timestamped_message,
+            status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
+        }
+    }
+
+    /// An unsent message whose content is not final yet.
+    ///
+    /// No Mimi ID is calculated, because it depends on the content and the
+    /// final content is not known yet.
+    pub(crate) fn new_provisional_message(
+        sender: UserId,
+        chat_id: ChatId,
+        message_id: MessageId,
+        content: MimiContent,
+    ) -> Self {
+        let message = Message::Content(Box::new(ContentMessage {
+            mimi_id: None,
+            sender,
+            sent: false,
+            content,
+            edited_at: None,
+        }));
         let timestamped_message = TimestampedMessage {
             message,
             timestamp: TimeStamp::now(),
@@ -555,9 +587,10 @@ pub enum EventMessage {
 // introduced and the storage logic changed accordingly.
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum SystemMessage {
-    // The first UserName is the adder/remover the second is the added/removed.
-    Add(UserId, UserId),
-    Remove(UserId, UserId),
+    // The first user is the adder/remover, the second the added/removed. The
+    // actor is unknown for changes discovered by a resync.
+    Add(Option<UserId>, UserId),
+    Remove(Option<UserId>, UserId),
     ChangeTitle {
         user_id: UserId,
         old_title: String,
@@ -609,9 +642,8 @@ impl SystemMessage {
     /// The user who performed the group operation this message reports.
     pub fn actor(&self) -> Option<&UserId> {
         match self {
-            SystemMessage::Add(user_id, _)
-            | SystemMessage::Remove(user_id, _)
-            | SystemMessage::ChangeTitle { user_id, .. }
+            SystemMessage::Add(actor, _) | SystemMessage::Remove(actor, _) => actor.as_ref(),
+            SystemMessage::ChangeTitle { user_id, .. }
             | SystemMessage::ChangePicture(user_id)
             | SystemMessage::CreateGroup(user_id) => Some(user_id),
             SystemMessage::ReceivedDirectConnectionRequest { .. }
@@ -626,15 +658,23 @@ impl SystemMessage {
 
     async fn string_representation(&self, core_user: &CoreUser) -> String {
         match self {
-            SystemMessage::Add(adder, added) => {
+            SystemMessage::Add(Some(adder), added) => {
                 let adder_display_name = core_user.user_profile(adder).await.display_name;
                 let added_display_name = core_user.user_profile(added).await.display_name;
                 format!("{adder_display_name} added {added_display_name} to the chat")
             }
-            SystemMessage::Remove(remover, removed) => {
+            SystemMessage::Add(None, added) => {
+                let added_display_name = core_user.user_profile(added).await.display_name;
+                format!("{added_display_name} was added to the chat")
+            }
+            SystemMessage::Remove(Some(remover), removed) => {
                 let remover_display_name = core_user.user_profile(remover).await.display_name;
                 let removed_display_name = core_user.user_profile(removed).await.display_name;
                 format!("{remover_display_name} removed {removed_display_name} from the chat")
+            }
+            SystemMessage::Remove(None, removed) => {
+                let removed_display_name = core_user.user_profile(removed).await.display_name;
+                format!("{removed_display_name} was removed from the chat")
             }
             SystemMessage::ChangeTitle {
                 user_id,

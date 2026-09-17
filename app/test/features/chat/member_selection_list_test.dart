@@ -71,9 +71,8 @@ void main() {
 
     setUp(() {
       usersCubit = MockUsersCubit();
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: _profiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: _profiles));
     });
 
     Widget buildSubject({required bool isApq, List<UiContact>? contacts}) =>

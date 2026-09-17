@@ -8,7 +8,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicU8, Ordering},
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
 };
@@ -47,6 +47,9 @@ impl Mode {
 #[derive(Clone, Debug)]
 pub struct ControlHandle {
     mode: Arc<AtomicU8>,
+    /// How many requests the armed one-shot mode lets through before it
+    /// applies. See [`ControlHandle::take_armed`].
+    skip: Arc<AtomicUsize>,
 }
 
 impl Default for ControlHandle {
@@ -59,10 +62,12 @@ impl ControlHandle {
     pub fn new() -> Self {
         Self {
             mode: Arc::new(AtomicU8::new(Mode::Normal as u8)),
+            skip: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     pub fn set_normal(&self) {
+        self.skip.store(0, Ordering::Relaxed);
         self.mode.store(Mode::Normal as u8, Ordering::Relaxed);
     }
 
@@ -71,13 +76,17 @@ impl ControlHandle {
     }
 
     pub fn set_drop_next_response(&self) {
-        self.mode
-            .store(Mode::DropNextResponse as u8, Ordering::Relaxed);
+        self.set_drop_response_after(0);
+    }
+
+    /// Like [`Self::set_drop_next_response`], but aimed at the request that
+    /// follows the next `skip` ones.
+    pub fn set_drop_response_after(&self, skip: usize) {
+        self.arm(Mode::DropNextResponse, skip);
     }
 
     pub fn set_drop_next_request(&self) {
-        self.mode
-            .store(Mode::DropNextRequest as u8, Ordering::Relaxed);
+        self.arm(Mode::DropNextRequest, 0);
     }
 
     /// Rejects the next request with a permanent error.
@@ -86,8 +95,33 @@ impl ControlHandle {
     /// outage to the client, this simulates a request the server will never
     /// accept, however often it is retried.
     pub fn set_reject_next_request(&self) {
-        self.mode
-            .store(Mode::RejectNextRequest as u8, Ordering::Relaxed);
+        self.set_reject_request_after(0);
+    }
+
+    /// Like [`Self::set_reject_next_request`], but aimed at the request that
+    /// follows the next `skip` ones.
+    ///
+    /// One client call often produces several requests. This picks a later one
+    /// out of such a sequence, where [`Self::set_reject_next_request`] always
+    /// hits the first.
+    pub fn set_reject_request_after(&self, skip: usize) {
+        self.arm(Mode::RejectNextRequest, skip);
+    }
+
+    fn arm(&self, mode: Mode, skip: usize) {
+        self.skip.store(skip, Ordering::Relaxed);
+        self.mode.store(mode as u8, Ordering::Relaxed);
+    }
+
+    /// Whether the armed one-shot mode applies to the request being
+    /// intercepted, consuming one of the requests to let through if not.
+    pub(super) fn take_armed(&self) -> bool {
+        if self.skip.load(Ordering::Relaxed) > 0 {
+            self.skip.fetch_sub(1, Ordering::Relaxed);
+            false
+        } else {
+            true
+        }
     }
 
     pub(super) fn set_drop_connection_on_write(&self) {

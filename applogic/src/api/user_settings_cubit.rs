@@ -32,6 +32,8 @@ pub struct UserSettings {
     pub sidebar_width: f64,
     #[frb(default = false)]
     pub send_on_enter: bool,
+    #[frb(default = false)]
+    pub limit_animated_images_loops: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
     /// Whether the developer surface is unlocked on this device.
@@ -57,6 +59,7 @@ impl Default for UserSettings {
             interface_scale: None,
             sidebar_width: 240.0,
             send_on_enter: false,
+            limit_animated_images_loops: false,
             read_receipts: true,
             developer_mode: false,
             experimental_features: false,
@@ -74,6 +77,7 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let interface_scale = core_user.user_setting().await;
     let sidebar_width = core_user.user_setting().await;
     let send_on_enter = core_user.user_setting().await;
+    let limit_animated_images_loops = core_user.user_setting().await;
     let read_receipts = core_user.user_setting().await;
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
@@ -88,6 +92,10 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
             .map_or(defaults.sidebar_width, |SidebarWidthSetting(value)| value),
         send_on_enter: send_on_enter
             .map_or(defaults.send_on_enter, |SendOnEnterSetting(value)| value),
+        limit_animated_images_loops: limit_animated_images_loops.map_or(
+            defaults.limit_animated_images_loops,
+            |LimitAnimatedImagesLoopsSetting(value)| value,
+        ),
         read_receipts: read_receipts
             .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value),
         developer_mode: developer_mode
@@ -209,6 +217,19 @@ impl UserSettingsCubitBase {
         self.core
             .state_tx()
             .send_modify(|state| state.send_on_enter = value);
+        Ok(())
+    }
+
+    pub async fn set_limit_animated_images_loops(&self, value: bool) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().limit_animated_images_loops == value {
+            return Ok(());
+        }
+        self.core_user
+            .set_user_setting(&LimitAnimatedImagesLoopsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.limit_animated_images_loops = value);
         Ok(())
     }
 
@@ -445,6 +466,23 @@ impl UserSetting for SendOnEnterSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
+        }
+    }
+}
+
+struct LimitAnimatedImagesLoopsSetting(bool);
+
+impl UserSetting for LimitAnimatedImagesLoopsSetting {
+    const KEY: &'static str = "limit_animated_images_loops";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid limit_animated_images_loops bytes"),
         }
     }
 }

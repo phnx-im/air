@@ -113,22 +113,17 @@ class ContactRequestDialog extends HookWidget {
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     try {
-      switch (await chatDetailsCubit.acceptContactRequest()) {
-        case null:
-          break; // No error
-        case AcceptContactRequestError_IncompatibleClient(:final reason):
-          Logger.detached("ContactRequestDialog").severe(
-            "Failed to accept contact request due to incompatible client: $reason",
-          );
-          showErrorBannerStandalone(
-            (loc) => loc.contactRequestDialog_error_incompatibleClient,
-          );
-          break;
+      final error = await chatDetailsCubit.acceptContactRequest();
+      if (error != null) {
+        Logger.detached("ContactRequestDialog")
+            .severe("Failed to request resync: $error");
+        showErrorBannerStandalone(
+          (loc) => loc.contactRequestDialog_error_incompatibleClient,
+        );
       }
     } catch (e, stackTrace) {
-      Logger.detached(
-        "ContactRequestDialog",
-      ).severe("Failed to accept contact request: $e", e, stackTrace);
+      Logger.detached("ContactRequestDialog")
+          .severe("Failed to accept contact request: $e", e, stackTrace);
       showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
     } finally {
       isAccepting.value = false;

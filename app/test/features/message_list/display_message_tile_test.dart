@@ -39,13 +39,11 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
       navigationCubit = MockNavigationCubit();
 
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(() => userCubit.state).thenReturn(MockUiUser(id: 3));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(const ChatDetailsState(members: []));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(const ChatDetailsState(members: []));
     });
 
     Widget buildSubject(UiSystemMessage message) => MultiBlocProvider(
@@ -103,6 +101,41 @@ void main() {
 
       verifyNever(() => navigationCubit.openMemberDetails(any()));
     });
+
+    testWidgets('renders and opens the added name when the adder is unknown', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(UiSystemMessage.add(null, 2.userId())),
+      );
+
+      expect(
+        find.text('Bob was added to the chat', findRichText: true),
+        findsOneWidget,
+      );
+
+      await tester.tapOnText(find.textRange.ofSubstring('Bob'));
+
+      verify(() => navigationCubit.openMemberDetails(2.userId())).called(1);
+    });
+
+    testWidgets(
+      'renders and opens the removed name when the remover is unknown',
+      (tester) async {
+        await tester.pumpWidget(
+          buildSubject(UiSystemMessage.remove(null, 2.userId())),
+        );
+
+        expect(
+          find.text('Bob was removed from the chat', findRichText: true),
+          findsOneWidget,
+        );
+
+        await tester.tapOnText(find.textRange.ofSubstring('Bob'));
+
+        verify(() => navigationCubit.openMemberDetails(2.userId())).called(1);
+      },
+    );
 
     testWidgets('opens nothing from a group name', (tester) async {
       await tester.pumpWidget(

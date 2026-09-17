@@ -2,6 +2,7 @@
 // Generated via app/tool/compile_svg_icons.dart
 
 import 'dart:convert';
+
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';

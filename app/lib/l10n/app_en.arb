@@ -36,6 +36,14 @@
   "@userSettingsScreen_sendWithEnterDescription": {
     "description": "Explains the Send with Enter toggle. The quoted word is the name of the keyboard key."
   },
+  "userSettingsScreen_limitAnimatedImagesLoops": "Limit GIF autoplay",
+  "@userSettingsScreen_limitAnimatedImagesLoops": {
+    "description": "Label of the preference toggle that limits how many times a GIF autoplays."
+  },
+  "userSettingsScreen_limitAnimatedImagesLoopsDescription": "If turned on, GIFs loop 3 times when viewed, then can be manually replayed.",
+  "@userSettingsScreen_limitAnimatedImagesLoopsDescription": {
+    "description": "Explains the Limit GIF autoplay toggle."
+  },
   "userSettingsScreen_readReceipts": "Read receipts",
   "@userSettingsScreen_readReceipts": {
     "description": "Label of the preference toggle that enables read receipts."
@@ -932,6 +940,16 @@
     }
   },
 
+  "systemMessage_userWasAdded": "{user1} was added to the chat",
+  "@systemMessage_userWasAdded": {
+    "description": "Notice in the message list when someone was added to a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user1": {
+        "type": "String"
+      }
+    }
+  },
+
   "systemMessage_userRemovedUser": "{user1} removed {user2}",
   "@systemMessage_userRemovedUser": {
     "description": "Notice in the message list when someone removes someone else from a group. Both names are rendered in bold wherever they land, so put them where your language needs them.",
@@ -940,6 +958,16 @@
         "type": "String"
       },
       "user2": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_userWasRemoved": "{user1} was removed from the chat",
+  "@systemMessage_userWasRemoved": {
+    "description": "Notice in the message list when someone was removed from a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user1": {
         "type": "String"
       }
     }
@@ -1269,6 +1297,10 @@
   "composer_error_attachment": "Failed to upload attachment. Try again.",
   "@composer_error_attachment": {
     "description": "Error shown when uploading an attachment fails."
+  },
+  "composer_error_attachment_decoding": "The image could not be decoded. It may be damaged or in an unsupported format.",
+  "@composer_error_attachment_decoding": {
+    "description": "Snack bar shown in the composer when an image attachment cannot be decoded before upload. Retrying will not help, so the text does not ask for one."
   },
   "composer_error_attachment_too_large": "Attachment is too large. The maximum size is {maxSize} and the actual size is {actualSize}.",
   "@composer_error_attachment_too_large": {

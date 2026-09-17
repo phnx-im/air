@@ -36,15 +36,16 @@ use airprotos::{
         ChallengeType, CheckInvitationCodeRequest, CheckUsernameExistsRequest,
         ConnectUsernameRequest, ConnectUsernameResponse, CreateAdmissionSessionRequest,
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
-        EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetInvitationCodesRequest,
+        EnqueueConnectionOfferStep, FetchSignedConnectionPackageStep, GetInvitationCodesRequest,
         GetRegistrationInfoRequest, GetUserProfileRequest, InitListenUsernamePayload,
         InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse, ListenUsernameRequest,
         MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload, PushPlatform,
         RefreshUsernamePayload, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
-        StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
-        connect_username_response, issue_token_batch_response, listen_username_request,
-        register_user_response,
+        SignedConnectionPackage, StageUserProfilePayload, UsernameQueueMessage,
+        connect_username_request, connect_username_response, issue_token_batch_response,
+        listen_username_request, register_user_response,
     },
+    client::signed_connection_package::AnyConnectionPackageIn,
     common::v1::{StatusDetails, StatusDetailsCode},
 };
 use futures_util::{FutureExt, future::BoxFuture};
@@ -366,12 +367,14 @@ impl ApiClient {
         &self,
         hash: UsernameHash,
         connection_packages: Vec<ConnectionPackage>,
+        signed_connection_packages: Vec<SignedConnectionPackage>,
         signing_key: &UsernameSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = PublishConnectionPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
             connection_packages: connection_packages.into_iter().map(From::from).collect(),
+            signed_connection_packages,
         };
         let request = payload.sign(signing_key)?;
         self.as_grpc_client()
@@ -399,11 +402,13 @@ impl ApiClient {
     pub async fn as_connect_username(
         &self,
         hash: UsernameHash,
-    ) -> Result<(VersionedConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
+    ) -> Result<(AnyConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
         let fetch_request = ConnectUsernameRequest {
-            step: Some(connect_username_request::Step::Fetch(
-                FetchConnectionPackageStep {
+            // Already try to fetch a signed connection package. If there is no such package, the
+            // server will answer with a legacy connection package.
+            step: Some(connect_username_request::Step::FetchSigned(
+                FetchSignedConnectionPackageStep {
                     client_metadata: Some(self.metadata().clone()),
                     hash: Some(hash.into()),
                 },
@@ -438,22 +443,44 @@ impl ApiClient {
             AsRequestError::UnexpectedResponse
         })??;
 
-        let connection_package: VersionedConnectionPackageIn = match response {
+        let connection_package: AnyConnectionPackageIn = match response {
+            // Server answered with a signed connection package
             ConnectUsernameResponse {
-                step: Some(connect_username_response::Step::FetchResponse(fetch)),
-            } => fetch
-                .connection_package
-                .ok_or_else(|| {
-                    error!("protocol violation: missing connection package");
-                    AsRequestError::UnexpectedResponse
-                })?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid connection package");
-                    AsRequestError::UnexpectedResponse
-                })?,
+                step: Some(connect_username_response::Step::FetchSignedResponse(response)),
+            } => {
+                let signed_connection_package = response
+                    .connection_package
+                    .ok_or_else(|| {
+                        error!("protocol violation: missing connection package");
+                        AsRequestError::UnexpectedResponse
+                    })?
+                    .try_into()
+                    .map_err(|error| {
+                        error!(%error, "invalid signed connection package");
+                        AsRequestError::UnexpectedResponse
+                    })?;
+                AnyConnectionPackageIn::Signed(signed_connection_package)
+            }
+            // Server answered with a legacy connection package
+            ConnectUsernameResponse {
+                step: Some(connect_username_response::Step::FetchResponse(response)),
+            } => {
+                let connection_package: VersionedConnectionPackageIn = response
+                    .connection_package
+                    .ok_or_else(|| {
+                        error!("protocol violation: missing connection package");
+                        AsRequestError::UnexpectedResponse
+                    })?
+                    .try_into()
+                    .map_err(|error| {
+                        error!(%error, "invalid connection package");
+                        AsRequestError::UnexpectedResponse
+                    })?;
+                AnyConnectionPackageIn::Legacy(connection_package)
+            }
+            // Protocol violation
             _ => {
-                error!("protocol violation: expected fetch response");
+                error!("protocol violation: expected (signed) fetch response");
                 return Err(AsRequestError::UnexpectedResponse);
             }
         };

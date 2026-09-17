@@ -7,10 +7,16 @@ use aircommon::{
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
     time::TimeStamp,
 };
+use airprotos::client::app_data::ClientAppData;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::ProcessedAssistedMessage, messages::SerializedMlsMessage,
-    openmls::prelude::ProcessedMessageContent, provider_traits::MlsAssistProvider,
+    group::ProcessedAssistedMessage,
+    messages::SerializedMlsMessage,
+    openmls::{
+        group::StagedCommit,
+        prelude::{GroupEpoch, ProcessedMessageContent, Proposal},
+    },
+    provider_traits::MlsAssistProvider,
 };
 use tls_codec::DeserializeBytes;
 
@@ -18,11 +24,63 @@ use crate::errors::JoinConnectionGroupError;
 
 use super::group_state::{DsGroupState, MemberProfile, leaf_credential_matches_flag};
 
+/// Reject any proposal an external commit joining a connection group must not
+/// carry.
+///
+/// Permitted are the `ExternalInit` every external commit is built on and the
+/// PSK proposal carrying the connection offer. A joiner has no standing to
+/// propose anything else, membership changes least of all. The group bootstrap
+/// blob for the joiner's sibling emulator clients does not ride in the commit
+/// either: it travels as a request parameter and reaches only the sibling
+/// queues, as a DS echo.
+fn validate_join_proposal(proposal: &Proposal) -> Result<(), JoinConnectionGroupError> {
+    match proposal {
+        Proposal::ExternalInit(_) | Proposal::PreSharedKey(_) => Ok(()),
+        Proposal::Add(_)
+        | Proposal::Update(_)
+        | Proposal::Remove(_)
+        | Proposal::ReInit(_)
+        | Proposal::GroupContextExtensions(_)
+        | Proposal::AppDataUpdate(_)
+        | Proposal::AppEphemeral(_)
+        | Proposal::SelfRemove
+        | Proposal::Custom(_) => {
+            tracing::warn!(
+                proposal_type = ?proposal.proposal_type(),
+                "Unexpected proposal in a connection-group external commit"
+            );
+            Err(JoinConnectionGroupError::InvalidMessage)
+        }
+    }
+}
+
+/// Reject an external commit whose proposals a connection-group join must not
+/// contain. See [`validate_join_proposal`] for what is permitted.
+fn validate_join_proposals(staged_commit: &StagedCommit) -> Result<(), JoinConnectionGroupError> {
+    for proposal in staged_commit.queued_proposals() {
+        validate_join_proposal(proposal.proposal())?;
+    }
+    Ok(())
+}
+
+pub(super) struct JoinConnectionGroupOutcome {
+    pub(super) message: SerializedMlsMessage,
+    /// The epoch of the staged snapshot, present iff the join carried a group
+    /// bootstrap.
+    pub(super) snapshot_epoch: Option<GroupEpoch>,
+}
+
 impl DsGroupState {
+    /// Accept an external commit joining a connection group.
+    ///
+    /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
+    /// echo of the operation, so the joining leaf must be a virtual-client leaf
+    /// and the pre-commit state is staged as an epoch snapshot for them.
     pub(super) fn join_connection_group(
         &mut self,
         params: JoinConnectionGroupParams,
-    ) -> Result<SerializedMlsMessage, JoinConnectionGroupError> {
+        bootstrap_requested: bool,
+    ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
@@ -48,16 +106,12 @@ impl DsGroupState {
                 return Err(JoinConnectionGroupError::InvalidMessage);
             };
 
-        // The external commit joining the client into the group should contain only the path.
+        // The external commit joining the client into the group carries the path plus, at most, the
+        // proposals validate_join_proposals permits.
         let joiner_credential = if let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
             processed_message.content()
         {
-            if staged_commit.add_proposals().count() > 0
-                || staged_commit.update_proposals().count() > 0
-                || staged_commit.remove_proposals().count() > 0
-            {
-                return Err(JoinConnectionGroupError::InvalidMessage);
-            }
+            validate_join_proposals(staged_commit)?;
             if !self.self_group_flag_unchanged(staged_commit) {
                 tracing::warn!("Commit would toggle the self-group flag");
                 return Err(JoinConnectionGroupError::InvalidMessage);
@@ -77,9 +131,14 @@ impl DsGroupState {
                 tracing::warn!("Connection group joiner must carry a user credential");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            // Only a virtual client has siblings to echo to.
+            if bootstrap_requested && !ClientAppData::leaf_is_virtual_client(joiner_leaf) {
+                tracing::warn!("Group bootstrap requires a virtual-client joiner leaf");
+                return Err(JoinConnectionGroupError::InvalidMessage);
+            }
             joiner_credential
         } else {
-            tracing::warn!("Invalid message: External commit contained unexpected proposals.");
+            tracing::warn!("Invalid message: Commit content is not a staged commit.");
             return Err(JoinConnectionGroupError::InvalidMessage);
         };
 
@@ -119,6 +178,11 @@ impl DsGroupState {
         // Get the sender's credential s.t. we can identify them later.
         let sender_credential = processed_message.credential().clone();
 
+        // The siblings apply the commit on top of the state the joiner used, so
+        // capture it before the commit is accepted.
+        let staged_snapshot =
+            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
+
         // Finalize processing.
         let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
@@ -151,6 +215,76 @@ impl DsGroupState {
         self.stage_welcome_info(retained_welcome_info);
 
         // Finally, we create the message for distribution.
-        Ok(processed_assisted_message_plus.serialized_mls_message)
+        let message = processed_assisted_message_plus.serialized_mls_message;
+
+        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+            self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
+            epoch
+        });
+
+        Ok(JoinConnectionGroupOutcome {
+            message,
+            snapshot_epoch,
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use airprotos::client::component::AIR_COMPONENT_ID;
+    use mls_assist::{
+        openmls::{
+            prelude::{
+                AppDataUpdateProposal, AppEphemeralProposal, Ciphersuite, CustomProposal,
+                ExternalInitProposal, OpenMlsProvider, PreSharedKeyProposal,
+            },
+            schedule::{ExternalPsk, PreSharedKeyId, Psk},
+        },
+        openmls_rust_crypto::OpenMlsRustCrypto,
+    };
+
+    use super::*;
+
+    fn psk_proposal() -> Proposal {
+        let provider = OpenMlsRustCrypto::default();
+        let psk_id = PreSharedKeyId::new(
+            Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+            provider.rand(),
+            Psk::External(ExternalPsk::new(vec![1u8; 32])),
+        )
+        .unwrap();
+        Proposal::PreSharedKey(Box::new(PreSharedKeyProposal::new(psk_id)))
+    }
+
+    #[test]
+    fn external_init_and_psk_are_permitted() {
+        validate_join_proposal(&Proposal::ExternalInit(Box::new(
+            ExternalInitProposal::from(vec![1u8; 32]),
+        )))
+        .unwrap();
+        validate_join_proposal(&psk_proposal()).unwrap();
+    }
+
+    #[test]
+    fn proposals_outside_the_allowlist_are_rejected() {
+        let rejected = [
+            Proposal::SelfRemove,
+            Proposal::Custom(Box::new(CustomProposal::new(0xf00d, vec![1u8; 8]))),
+            Proposal::AppDataUpdate(Box::new(AppDataUpdateProposal::update(
+                AIR_COMPONENT_ID,
+                vec![1u8; 8],
+            ))),
+            Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+                AIR_COMPONENT_ID,
+                vec![1u8; 8],
+            ))),
+        ];
+        for proposal in rejected {
+            let result = validate_join_proposal(&proposal);
+            assert!(
+                matches!(result, Err(JoinConnectionGroupError::InvalidMessage)),
+                "{proposal:?} was permitted"
+            );
+        }
     }
 }

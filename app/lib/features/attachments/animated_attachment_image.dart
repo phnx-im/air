@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:air/core/core.dart';
 import 'package:air/features/attachments/attachment_image_overlay.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
@@ -20,10 +21,12 @@ const int _maxAutoLoops = 3;
 ///
 /// The original bytes are read from the database and a fresh codec is
 /// instantiated per mount (and per replay); frames are driven by a [Timer].
-/// Autoplays on mount up to [_maxAutoLoops] then freezes on the last frame.
-/// Tapping toggles playback (running → freeze on current frame; stopped →
-/// replay from the start). Neither bytes nor frames are held in widget state
-/// beyond the current frame; each mount drives its own animation.
+/// Autoplays on mount. With [UserSettings.limitAnimatedImagesLoops]
+/// on, playback stops after [_maxAutoLoops] and freezes on the last frame;
+/// otherwise it loops forever. Tapping toggles playback (running → freeze on
+/// current frame; stopped → replay from the start). Neither bytes nor frames
+/// are held in widget state beyond the current frame; each mount drives its
+/// own animation.
 ///
 /// Renders nothing until the first frame is decoded, so the caller's
 /// placeholder shows through.
@@ -153,7 +156,11 @@ class _AnimatedAttachmentImageState extends State<AnimatedAttachmentImage> {
     _nextFrameIndex = (_nextFrameIndex + 1) % codec.frameCount;
     if (_nextFrameIndex == 0) {
       _completedLoops++;
-      if (_completedLoops >= _maxAutoLoops) {
+      final limitLoops = context
+          .read<UserSettingsCubit>()
+          .state
+          .limitAnimatedImagesLoops;
+      if (limitLoops && _completedLoops >= _maxAutoLoops) {
         setState(() => _stopped = true);
         return;
       }

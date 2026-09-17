@@ -86,7 +86,9 @@ class AttachmentImageOverlay extends HookWidget {
                 strokeWidth: StrokeWidth.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
                 backgroundColor: Colors.transparent,
-                value: loaded / BigInt.from(size),
+                value: (size > 0 && loaded > BigInt.from(0))
+                    ? loaded / BigInt.from(size)
+                    : null,
               ),
               ButtonIcon(
                 variant: ButtonIconVariant.plain,

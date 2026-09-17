@@ -36,8 +36,10 @@ typedef LinkSession = ({
 });
 
 /// Starts a linking session for [sessionId]. Injectable for tests.
-typedef LinkSessionStarter =
-    LinkSession Function(BuildContext context, String sessionId);
+typedef LinkSessionStarter = LinkSession Function(
+  BuildContext context,
+  String sessionId,
+);
 
 LinkSession _startLinkSession(BuildContext context, String sessionId) {
   final confirmation = MultiDeviceLinkConfirmation();

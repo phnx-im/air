@@ -43,9 +43,8 @@ final _navState = NavigationState.home(
 UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
   id: id.messageId(),
   chatId: _chat.id,
-  timestamp: DateTime.parse(
-    '2023-01-01T00:00:00.000Z',
-  ).add(Duration(minutes: id * 6)),
+  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z')
+      .add(Duration(minutes: id * 6)),
   message: UiMessage_Content(
     UiContentMessage(
       sender: sender ?? 2.userId(),
@@ -74,6 +73,7 @@ UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
@@ -87,6 +87,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 void main() {
@@ -112,12 +113,10 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: _chat, members: members));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: _chat, members: members));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -164,9 +163,8 @@ void main() {
     );
 
     testWidgets('renders correctly when empty', (tester) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());

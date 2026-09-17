@@ -57,6 +57,11 @@ pub struct SelfGroup {
 }
 
 impl SelfGroup {
+    #[cfg(test)]
+    pub(crate) fn new_for_test(group: Group) -> Self {
+        Self { group }
+    }
+
     pub(crate) fn group(&self) -> &Group {
         &self.group
     }
@@ -320,6 +325,9 @@ impl CoreUser {
                     pq_group_id,
                     group_data_bytes,
                     client_app_data,
+                    // The self group is the emulation group itself, not a
+                    // virtual client of one.
+                    None,
                 )?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
