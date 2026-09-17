@@ -13,19 +13,19 @@ import 'package:air/core/core.dart';
 ///
 /// If [targetWidth] and/or [targetHeight] are provided, the image is resized to
 /// those dimensions while decoding (before caching).
-class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
-  const CachedMemoryImage(
+class TaggedMemoryImage extends ImageProvider<TaggedMemoryImage> {
+  const TaggedMemoryImage(
     this.tag,
     this.bytes, {
     this.targetWidth,
     this.targetHeight,
   });
 
-  factory CachedMemoryImage.fromImageData(
+  factory TaggedMemoryImage.fromImageData(
     ImageData imageData, {
     int? targetWidth,
     int? targetHeight,
-  }) => CachedMemoryImage(
+  }) => TaggedMemoryImage(
     imageData.hash,
     imageData.data,
     targetWidth: targetWidth,
@@ -39,7 +39,7 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
 
   @override
   ImageStreamCompleter loadImage(
-    CachedMemoryImage key,
+    TaggedMemoryImage key,
     ImageDecoderCallback decode,
   ) {
     return MultiFrameImageStreamCompleter(
@@ -50,7 +50,7 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
   }
 
   Future<ui.Codec> _loadAsync(
-    CachedMemoryImage key, {
+    TaggedMemoryImage key, {
     required ImageDecoderCallback decode,
   }) async {
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
@@ -82,14 +82,14 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
   }
 
   @override
-  Future<CachedMemoryImage> obtainKey(ImageConfiguration configuration) {
-    return SynchronousFuture<CachedMemoryImage>(this);
+  Future<TaggedMemoryImage> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<TaggedMemoryImage>(this);
   }
 
   @override
   bool operator ==(Object other) =>
       other.runtimeType == runtimeType &&
-      other is CachedMemoryImage &&
+      other is TaggedMemoryImage &&
       other.tag == tag &&
       other.targetWidth == targetWidth &&
       other.targetHeight == targetHeight;
@@ -101,4 +101,56 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
   String toString() =>
       '${objectRuntimeType(this, 'CachedMemoryImage')}($tag, '
       'targetWidth: $targetWidth, targetHeight: $targetHeight)';
+}
+
+/// Wraps a provider so its decode never enters [PaintingBinding.imageCache].
+///
+/// A full-size decode is tens of MB and would flush every thumbnail out of
+/// the shared cache. This holds the one decode instead, until [dispose].
+class RouteScopedImage<T extends Object> extends ImageProvider<T> {
+  RouteScopedImage(this.inner);
+
+  final ImageProvider<T> inner;
+
+  ImageStreamCompleter? _completer;
+  ImageStreamCompleterHandle? _handle;
+
+  @override
+  Future<T> obtainKey(ImageConfiguration configuration) =>
+      inner.obtainKey(configuration);
+
+  @override
+  ImageStreamCompleter loadImage(T key, ImageDecoderCallback decode) =>
+      inner.loadImage(key, decode);
+
+  @override
+  void resolveStreamForKey(
+    ImageConfiguration configuration,
+    ImageStream stream,
+    T key,
+    ImageErrorListener handleError,
+  ) {
+    if (stream.completer != null) return;
+    final completer = _completer ??= loadImage(
+      key,
+      PaintingBinding.instance.instantiateImageCodecWithSize,
+    );
+    // The cache normally holds this. Without it the completer disposes itself
+    // as soon as the view stops listening.
+    _handle ??= completer.keepAlive();
+    stream.setCompleter(completer);
+  }
+
+  void dispose() {
+    _handle?.dispose();
+    _handle = null;
+    _completer = null;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is RouteScopedImage<T> && other.inner == inner;
+
+  @override
+  int get hashCode => inner.hashCode;
 }

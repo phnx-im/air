@@ -9,6 +9,7 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/platform/method_channel.dart' as platform_utils;
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,7 +58,9 @@ class AttachmentUploadView extends HookWidget {
             fit: .expand,
             children: [
               if (isImage.data == true)
-                PhotoView(imageProvider: FileImage(loadedFile))
+                PhotoView(
+                  imageProvider: RouteScopedImage(FileImage(loadedFile)),
+                )
               else if (isImage.data == false)
                 Center(
                   child: Column(

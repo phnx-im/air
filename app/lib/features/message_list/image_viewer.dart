@@ -11,6 +11,7 @@ import 'package:air/ds/patterns/fullscreen_image/fullscreen_image.dart';
 import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
 import 'package:air/features/attachments/attachment_actions.dart';
 import 'package:air/features/attachments/attachment_image_provider.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -66,9 +67,11 @@ class ImageViewer extends StatelessWidget {
         tokens: FullscreenImageTokens.current,
         items: [
           FullscreenImageItem(
-            image: AttachmentImageProvider(
-              attachment: attachment,
-              attachmentsRepository: RepositoryProvider.of(context),
+            image: RouteScopedImage(
+              AttachmentImageProvider(
+                attachment: attachment,
+                attachmentsRepository: RepositoryProvider.of(context),
+              ),
             ),
             naturalSize: Size(
               metadata.width.toDouble(),
