@@ -497,18 +497,12 @@ mod persistence {
 mod derivation_tests {
     use aircommon::{
         codec::PersistenceCodec,
-        credentials::{
-            keys::{LeafSigningKey, SelfGroupSigningKey},
-            test_utils::create_test_credentials,
-        },
+        credentials::{keys::LeafSigningKey, test_utils::create_test_credentials},
         crypto::{
-            aead::{
-                PaddedAeadDecryptable, PaddedAeadEncryptable,
-                keys::{IdentityLinkWrapperKey, SelfGroupMessageKey},
-            },
+            aead::{PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey},
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
-        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
+        identifiers::UserId,
     };
     use airprotos::client::{
         app_data::GroupAppData,
@@ -519,23 +513,19 @@ mod derivation_tests {
         },
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
-    use openmls::prelude::{AppEphemeralProposal, GroupId, Proposal};
+    use openmls::prelude::{AppEphemeralProposal, Proposal};
     use openmls_traits::OpenMlsProvider;
     use uuid::Uuid;
 
     use crate::{
-        clients::own_client_info::OwnClientInfo,
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
-        groups::{Group, GroupDataBytes, openmls_provider::AirOpenMlsProvider},
+        groups::{
+            Group,
+            openmls_provider::AirOpenMlsProvider,
+            self_group::{create_apq_group, self_group_signer, store_own_client_info},
+        },
         utils::persistence::open_db_in_memory,
     };
-
-    fn random_group_id() -> GroupId {
-        GroupId::from(QualifiedGroupId::new(
-            Uuid::new_v4(),
-            "example.com".parse().unwrap(),
-        ))
-    }
 
     /// A one-entry blocked-contacts update, blocking `uuid` at `blocked_at`.
     fn blocked_contacts_update(uuid: u128, blocked_at: u64) -> BlockedContactsUpdate {
@@ -547,58 +537,6 @@ mod derivation_tests {
                 last_display_name: "Alice".to_owned(),
             })],
         }
-    }
-
-    /// Per-device self-group signer and its leaf wrapper, as used by real
-    /// self-group leaves.
-    fn self_group_signer() -> anyhow::Result<(SelfGroupSigningKey, LeafSigningKey)> {
-        let sg_signer = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let leaf_signer = LeafSigningKey::SelfGroup(sg_signer.clone());
-        Ok((sg_signer, leaf_signer))
-    }
-
-    /// Creates a fresh single-member APQ group. When `is_self_group` is set,
-    /// the group context marks the group as a self group, which is what the
-    /// accessor's guard checks.
-    fn create_group(
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
-        user_id: UserId,
-        is_self_group: bool,
-    ) -> anyhow::Result<Group> {
-        let (group, _params) = Group::create_apq_group(
-            &mut *txn,
-            signer,
-            user_id,
-            IdentityLinkWrapperKey::random()?,
-            random_group_id(),
-            random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
-            GroupAppData {
-                is_self_group,
-                safe_aad_components: None,
-            },
-            None,
-        )?;
-        Ok(group)
-    }
-
-    /// Loading a group resolves the owner's identity, which requires an own_client_info row.
-    async fn store_own_client_info(
-        txn: &mut WriteDbTransaction<'_>,
-        user_id: UserId,
-    ) -> anyhow::Result<()> {
-        OwnClientInfo {
-            qs_user_id: QsUserId::random(),
-            qs_client_id: QsClientId::random(&mut rand::rng()),
-            user_id,
-            client_id: Uuid::new_v4(),
-            self_group_id: None,
-            self_group_signing_key: None,
-        }
-        .store(&mut *txn)
-        .await?;
-        Ok(())
     }
 
     /// Advances the group's epoch by staging and merging a forced self-update.
@@ -631,7 +569,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(
+        let mut group = create_apq_group(
             &mut txn,
             &signer,
             UserId::random("example.com".parse()?),
@@ -655,7 +593,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(
+        let mut group = create_apq_group(
             &mut txn,
             &signer,
             UserId::random("example.com".parse()?),
@@ -691,7 +629,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(
+        let mut group = create_apq_group(
             &mut txn,
             &signer,
             UserId::random("example.com".parse()?),
@@ -742,7 +680,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id, false)?;
+        let mut group = create_apq_group(&mut txn, &signer, user_id, false)?;
         assert!(group.self_group_message_key(&mut txn).await.is_err());
 
         txn.commit().await?;
@@ -762,10 +700,10 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let self_group = create_group(&mut txn, &sg_leaf_signer, user_id.clone(), true)?;
+        let self_group = create_apq_group(&mut txn, &sg_leaf_signer, user_id.clone(), true)?;
         assert!(self_group.is_self_group());
 
-        let ordinary_group = create_group(&mut txn, &user_leaf_signer, user_id, false)?;
+        let ordinary_group = create_apq_group(&mut txn, &user_leaf_signer, user_id, false)?;
         assert!(!ordinary_group.is_self_group());
 
         txn.commit().await?;
@@ -784,7 +722,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(
+        let mut group = create_apq_group(
             &mut txn,
             &signer,
             UserId::random("example.com".parse()?),
@@ -837,7 +775,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_apq_group(&mut txn, &signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 
@@ -874,7 +812,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_apq_group(&mut txn, &signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 
@@ -923,7 +861,7 @@ mod derivation_tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_apq_group(&mut txn, &signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 

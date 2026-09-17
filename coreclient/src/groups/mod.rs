@@ -2037,6 +2037,9 @@ impl Group {
             .mls_group
             .create_unconfirmed_message(provider, signer, &content.serialize()?)?;
 
+        let suppress_notifications =
+            self.suppress_notifications(&content, message_status_report.as_ref());
+
         let mut collision_tags = Vec::new();
         if let Some(generation_id) = generation_id {
             collision_tags.push(SendMessageCollisionTag::Generation(
@@ -2054,7 +2057,6 @@ impl Group {
         }
 
         let message = AssistedMessageOut::new(message, None);
-        let suppress_notifications = suppress_notifications(&content);
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
@@ -2066,6 +2068,36 @@ impl Group {
         };
 
         Ok(send_message_params)
+    }
+
+    /// Returns true if the QS should suppress notifications for this message.
+    pub fn suppress_notifications(
+        &self,
+        content: &MimiContent,
+        message_status_report: Option<&MessageStatusReport>,
+    ) -> bool {
+        let has_read_receipt = message_status_report.is_some_and(|r| {
+            r.statuses
+                .iter()
+                .any(|pms| pms.status == MessageStatus::Read)
+        });
+
+        // Always notify for read-receipts through the self-group.
+        if self.is_self_group() && has_read_receipt {
+            return false;
+        }
+
+        if content.is_status_update() {
+            // Status updates should never trigger notifications.
+            return true;
+        }
+        if content.replaces.is_some() {
+            // Replaces indicates an edit or a deletion, which should not
+            // trigger notifications.
+            return true;
+        }
+        // All other messages should trigger notifications.
+        false
     }
 
     /// Send an application message to the group.
@@ -3409,21 +3441,6 @@ impl TimestampedMessage {
     }
 }
 
-/// Returns true if the QS should suppress notifications for this message.
-pub fn suppress_notifications(content: &MimiContent) -> bool {
-    if content.is_status_update() {
-        // Status updates should never trigger notifications.
-        return true;
-    }
-    if content.replaces.is_some() {
-        // Replaces indicates an edit or a deletion, which should not
-        // trigger notifications.
-        return true;
-    }
-    // All other messages should trigger notifications.
-    false
-}
-
 /// Verifies that every leaf holds the same signature key in both legs.
 ///
 /// This is the binding between a member's two leaves in our deployment: the PQ
@@ -3550,5 +3567,89 @@ mod tests {
             Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
                 .unwrap();
         assert!(params.extensions().is_none());
+    }
+}
+
+#[cfg(test)]
+mod suppress_notifications_tests {
+    use aircommon::{
+        credentials::{keys::LeafSigningKey, test_utils::create_test_credentials},
+        identifiers::UserId,
+    };
+    use mimi_content::{
+        Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
+    };
+
+    use crate::{
+        db::access::{DbAccess, WriteConnection},
+        groups::{
+            openmls_provider::AirOpenMlsProvider,
+            self_group::{create_apq_group, self_group_signer},
+        },
+        utils::persistence::open_db_in_memory,
+    };
+
+    fn report(status: MessageStatus) -> MessageStatusReport {
+        MessageStatusReport {
+            statuses: vec![PerMessageStatus {
+                mimi_id: vec![1; 32],
+                status,
+            }],
+        }
+    }
+
+    fn receipt_content(report: &MessageStatusReport) -> MimiContent {
+        MimiContent {
+            salt: vec![0; 16],
+            nested_part: NestedPart::SinglePart {
+                disposition: Disposition::Unspecified,
+                content_type: "application/mimi-message-status".to_owned(),
+                content: report.serialize().unwrap(),
+                language: Default::default(),
+            },
+            ..Default::default()
+        }
+    }
+
+    async fn suppresses(is_self_group: bool, status: MessageStatus) -> anyhow::Result<bool> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_sg_signer, signer) = self_group_signer()?;
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, client_signer) = create_test_credentials(user_id.clone());
+        let signer = if is_self_group {
+            signer
+        } else {
+            LeafSigningKey::User(client_signer)
+        };
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_apq_group(&mut txn, &signer, user_id, is_self_group)?;
+        let report = report(status);
+        let content = receipt_content(&report);
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let params = group.create_message(&provider, &signer, content, Some(report))?;
+
+        Ok(params.suppress_notifications)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_group_read_receipt_is_not_suppressed() -> anyhow::Result<()> {
+        assert!(!suppresses(true, MessageStatus::Read).await?);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_group_delivery_receipt_is_suppressed() -> anyhow::Result<()> {
+        assert!(suppresses(true, MessageStatus::Delivered).await?);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn chat_read_receipt_is_suppressed() -> anyhow::Result<()> {
+        assert!(suppresses(false, MessageStatus::Read).await?);
+        Ok(())
     }
 }

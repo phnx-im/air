@@ -121,19 +121,26 @@ mod persistence {
         pub(crate) async fn remove(
             mut connection: impl WriteConnection,
             task_id: Uuid,
+            chat_id: ChatId,
         ) -> sqlx::Result<()> {
-            query!("DELETE FROM receipt_queue WHERE locked_by = ?", task_id)
-                .execute(connection.as_mut())
-                .await?;
+            query!(
+                "DELETE FROM receipt_queue WHERE locked_by = ?1 AND chat_id = ?2",
+                task_id,
+                chat_id,
+            )
+            .execute(connection.as_mut())
+            .await?;
             Ok(())
         }
 
         /// Remove only the receipts a sibling already delivered, identified by
-        /// their `(mimi_id, status)`. Rows still locked by `task_id` that are not
-        /// listed remain queued so they are re-sent at a later generation.
+        /// their `(mimi_id, status)` in `chat_id`. Rows still locked by
+        /// `task_id` that are not listed remain queued so they are re-sent at a
+        /// later generation.
         pub(crate) async fn remove_delivered(
             mut connection: impl WriteConnection,
             task_id: Uuid,
+            chat_id: ChatId,
             delivered: &MessageStatusReport,
         ) -> sqlx::Result<()> {
             for PerMessageStatus { mimi_id, status } in &delivered.statuses {
@@ -141,8 +148,9 @@ mod persistence {
                 let status: u8 = (*status).into();
                 query!(
                     "DELETE FROM receipt_queue
-                        WHERE locked_by = ?1 AND mimi_id = ?2 AND status = ?3",
+                        WHERE locked_by = ?1 AND chat_id = ?2 AND mimi_id = ?3 AND status = ?4",
                     task_id,
+                    chat_id,
                     mimi_id,
                     status,
                 )

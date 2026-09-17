@@ -557,3 +557,93 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sibling_read_marker_empties_the_notification_rebuild_set() -> anyhow::Result<()> {
+    use mimi_content::MessageStatus;
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    device_b.outbound_service().run_once().await;
+    let device_a = setup.get_user(&alice).user().clone();
+    drain_queue(&device_a).await?;
+    drain_queue(&device_b).await?;
+
+    // Bob's group, so the message both devices see is from a third user.
+    let chat_id = setup.create_group(&bob).await;
+    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    drain_queue(&device_b).await?;
+
+    let sent = setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    drain_queue(&device_b).await?;
+
+    assert!(
+        !device_b
+            .chat_notification_rebuild_set(chat_id)
+            .await?
+            .rebuild_set
+            .entries
+            .is_empty(),
+        "device B should have something to notify about before the read marker"
+    );
+
+    // Device A reads, then queues the statuses for the chat and the self chat,
+    // the way `mark_as_read` does when read receipts are enabled.
+    let (marked, read_message_ids) = device_a
+        .mark_chat_as_read(chat_id, sent.recipient_message_id(&alice))
+        .await?;
+    assert!(marked, "device A should have moved its read marker");
+
+    let self_chat_id = device_a
+        .self_chat_id()
+        .await?
+        .expect("linked devices share a self chat");
+    for receipts_chat_id in [chat_id, self_chat_id] {
+        device_a
+            .outbound_service()
+            .enqueue_receipts(
+                receipts_chat_id,
+                read_message_ids
+                    .iter()
+                    .map(|(id, mimi_id)| (*id, mimi_id, MessageStatus::Read)),
+            )
+            .await?;
+    }
+    device_a.outbound_service().run_once().await;
+
+    // Bob's copy: the chat receipt was sent, so neither enqueue swallowed the
+    // other.
+    setup.get_user(&bob).fetch_and_process_qs_messages().await;
+    let bobs_message = setup
+        .get_user(&bob)
+        .user()
+        .last_message(chat_id)
+        .await?
+        .expect("Bob should still have his message");
+    assert_eq!(bobs_message.status(), MessageStatus::Read);
+
+    // The sibling's copy: same statuses, delivered through the self group.
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .chats_with_changed_notifications
+            .contains(&chat_id),
+        "device B should report the chat as changed: {:?}",
+        processed.chats_with_changed_notifications
+    );
+    assert!(
+        device_b
+            .chat_notification_rebuild_set(chat_id)
+            .await?
+            .rebuild_set
+            .entries
+            .is_empty(),
+        "device B should have nothing left to notify about"
+    );
+
+    Ok(())
+}

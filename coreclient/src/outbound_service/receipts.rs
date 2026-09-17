@@ -109,19 +109,24 @@ impl OutboundServiceContext {
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
                 Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
                     Ok(ReceiptSendOutcome::Sent) => {
-                        ReceiptQueue::remove(self.db.write().await?, task_id).await?;
+                        ReceiptQueue::remove(self.db.write().await?, task_id, chat_id).await?;
                     }
                     Ok(ReceiptSendOutcome::Collided { delivered }) => {
                         // A sibling already delivered `delivered`; drop just those
                         // receipts from the queue. The rest stay locked so they are
                         // re-encrypted and resent at a later generation.
-                        ReceiptQueue::remove_delivered(self.db.write().await?, task_id, &delivered)
-                            .await?;
+                        ReceiptQueue::remove_delivered(
+                            self.db.write().await?,
+                            task_id,
+                            chat_id,
+                            &delivered,
+                        )
+                        .await?;
                         continue;
                     }
                     Err(OutboundServiceError::Fatal(error)) => {
                         error!(%error, ?chat_id, "Failed to send receipt; dropping");
-                        ReceiptQueue::remove(self.db.write().await?, task_id).await?;
+                        ReceiptQueue::remove(self.db.write().await?, task_id, chat_id).await?;
                         continue;
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
@@ -132,13 +137,13 @@ impl OutboundServiceContext {
                 },
                 Ok(None) => {
                     // Nothing to send => Remove from the queue
-                    ReceiptQueue::remove(self.db.write().await?, task_id).await?;
+                    ReceiptQueue::remove(self.db.write().await?, task_id, chat_id).await?;
                 }
                 Err(error) => {
                     error!(%error, "Failed to create receipt; dropping");
                     // There is no chance we will be able to create a receipt next time
                     // => Remove from the queue
-                    ReceiptQueue::remove(self.db.write().await?, task_id).await?;
+                    ReceiptQueue::remove(self.db.write().await?, task_id, chat_id).await?;
                 }
             };
         }

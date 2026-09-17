@@ -4,6 +4,8 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::credentials::LeafCredentialError;
+#[cfg(test)]
+use aircommon::identifiers::UserId;
 use aircommon::{
     credentials::{
         LeafCredential,
@@ -428,4 +430,67 @@ impl Group {
 
         Ok(())
     }
+}
+
+#[cfg(test)]
+pub(crate) fn random_group_id() -> GroupId {
+    use aircommon::identifiers::QualifiedGroupId;
+
+    GroupId::from(QualifiedGroupId::new(
+        Uuid::new_v4(),
+        "example.com".parse().unwrap(),
+    ))
+}
+
+#[cfg(test)]
+pub(crate) fn self_group_signer() -> anyhow::Result<(SelfGroupSigningKey, LeafSigningKey)> {
+    let sg_signer = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+    let leaf_signer = LeafSigningKey::SelfGroup(sg_signer.clone());
+    Ok((sg_signer, leaf_signer))
+}
+
+#[cfg(test)]
+pub(crate) fn create_apq_group(
+    txn: &mut WriteDbTransaction<'_>,
+    signer: &LeafSigningKey,
+    user_id: UserId,
+    is_self_group: bool,
+) -> anyhow::Result<Group> {
+    use crate::groups::GroupDataBytes;
+
+    let (group, _params) = Group::create_apq_group(
+        &mut *txn,
+        signer,
+        user_id,
+        IdentityLinkWrapperKey::random()?,
+        random_group_id(),
+        random_group_id(),
+        GroupDataBytes::from(b"test-group-data".to_vec()),
+        GroupAppData {
+            is_self_group,
+            safe_aad_components: None,
+        },
+        None,
+    )?;
+    Ok(group)
+}
+
+#[cfg(test)]
+pub(crate) async fn store_own_client_info(
+    txn: &mut WriteDbTransaction<'_>,
+    user_id: UserId,
+) -> anyhow::Result<()> {
+    use aircommon::identifiers::{QsClientId, QsUserId};
+
+    OwnClientInfo {
+        qs_user_id: QsUserId::random(),
+        qs_client_id: QsClientId::random(&mut rand::rng()),
+        user_id,
+        client_id: Uuid::new_v4(),
+        self_group_id: None,
+        self_group_signing_key: None,
+    }
+    .store(&mut *txn)
+    .await?;
+    Ok(())
 }

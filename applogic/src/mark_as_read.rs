@@ -197,29 +197,39 @@ pub(crate) async fn mark_as_read(
 
     let (_, read_message_ids) = service.mark_chat_as_read(chat_id, until_message_id).await?;
 
-    // The receipt doubles as the read marker our other devices follow. The
-    // setting governs what we tell the other members, so when it is off we send
-    // the same report through the self group instead, where only our own
-    // devices see it. Without a self group there is nothing to synchronize.
     let read_receipts_enabled = user_settings_rx.borrow().read_receipts;
     let receipts_chat_id = if read_receipts_enabled {
         Some(chat_id)
     } else {
-        match service.self_chat_id().await {
-            Ok(chat_id) => chat_id,
-            Err(error) => {
-                error!(%error, "Failed to load self chat");
-                return Ok(());
-            }
+        None
+    };
+
+    // Send receipts through the self-group whether the setting is enabled or not
+    // because we use it to synchronize read statuses and cancel notifications across devices.
+    let receipts_self_chat_id = match service.self_chat_id().await {
+        // in case the call is actually doing the operation in "Notes to self"
+        Ok(chat_id) if chat_id != receipts_chat_id => chat_id,
+        Ok(_) => None,
+        Err(error) => {
+            error!(%error, "Failed to load self chat");
+            None
         }
     };
 
     if let Some(receipts_chat_id) = receipts_chat_id
         && let Err(error) = service
-            .enqueue_read_receipts(receipts_chat_id, read_message_ids)
+            .enqueue_read_receipts(receipts_chat_id, read_message_ids.clone())
             .await
     {
         error!(%error, "Failed to enqueue read receipt");
+    }
+
+    if let Some(receipts_self_chat_id) = receipts_self_chat_id
+        && let Err(error) = service
+            .enqueue_read_receipts(receipts_self_chat_id, read_message_ids)
+            .await
+    {
+        error!(%error, "Failed to enqueue read receipt to self-chat");
     }
 
     Ok(())
@@ -260,10 +270,13 @@ mod test {
         let until_message_id = MessageId::new(Uuid::from_u128(2));
         let until_timestamp = Utc::now();
         let mark_as_read_debounce = Duration::ZERO;
+        let self_chat_id = ChatId::new(Uuid::from_u128(3));
 
         let mimi_id = MimiId::from_slice(&[0; 32]).unwrap();
 
-        // Mark as read and enqueue receipts
+        // Mark as read and enqueue receipts. The chat gets the receipt because
+        // the setting is on, the self chat always gets it as the read marker
+        // our other devices follow.
         service
             .expect_mark_chat_as_read()
             .withf(move |cid, mid| *cid == chat_id && *mid == until_message_id)
@@ -271,8 +284,19 @@ mod test {
             .times(1);
 
         service
+            .expect_self_chat_id()
+            .returning(move || Ok(Some(self_chat_id)))
+            .times(1);
+
+        service
             .expect_enqueue_read_receipts()
             .withf(move |cid, mids| *cid == chat_id && mids == &[(until_message_id, mimi_id)])
+            .returning(|_, _| Ok(()))
+            .times(1);
+
+        service
+            .expect_enqueue_read_receipts()
+            .withf(move |cid, mids| *cid == self_chat_id && mids == &[(until_message_id, mimi_id)])
             .returning(|_, _| Ok(()))
             .times(1);
 
@@ -298,8 +322,6 @@ mod test {
             };
         });
         user_settings_tx.send_modify(|settings| settings.read_receipts = false);
-
-        let self_chat_id = ChatId::new(Uuid::from_u128(3));
 
         service
             .expect_mark_chat_as_read()
