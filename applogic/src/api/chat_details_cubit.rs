@@ -997,8 +997,6 @@ pub struct _PqGroupDebugInfo {
 
 #[frb(mirror(GroupDataDebugInfo))]
 pub struct _GroupDataDebugInfo {
-    pub legacy_title: Option<String>,
-    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }
