@@ -4,8 +4,6 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
-#[cfg(any(test, feature = "test_utils"))]
-use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
 use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
