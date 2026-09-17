@@ -9,11 +9,9 @@
 //! travel as `AppEphemeral` proposals with component id
 //! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
 //! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
-//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. That payload
-//! type is shared with commits in other groups, see its own documentation.
-//! Every enum in this module is a tagged union with an `#[unknown]` catch-all,
-//! so a client can adopt new tags before all of a user's devices understand
-//! them.
+//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Every enum in
+//! this module is a tagged union with an `#[unknown]` catch-all, so a client can
+//! adopt new tags before all of a user's devices understand them.
 
 use aircommon::crypto::aead::{
     Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
@@ -25,7 +23,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use super::group_bootstrap::{GroupBootstrapBlob, PeerUserId};
+use super::group_bootstrap::PeerUserId;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -36,26 +34,17 @@ pub type EncryptedSelfGroupMessages = Ciphertext<SelfGroupMessagesCtype>;
 
 /// Payload of an `AppEphemeralProposal` with component id `AIR_COMPONENT_ID`.
 ///
-/// Used in self-group commits and, for the [`Self::GroupBootstrapBlob`]
-/// variant, in external commits that join a higher-level group.
-///
 /// ## CDDL Definition
 ///
 /// ```cddl
 /// AppEphemeralPayload = {
-///   1: EncryptedSelfGroupMessages //
-///   2: GroupBootstrapBlob
+///   1: EncryptedSelfGroupMessages    ; tagged union, exactly one entry
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum AppEphemeralPayload {
     #[tag(1)]
     EncryptedSelfGroupMessages(EncryptedSelfGroupMessages),
-    /// Carried on the external commit that joins a connection group. Its
-    /// contents are readable only by the joining client's sibling emulator
-    /// clients.
-    #[tag(2)]
-    GroupBootstrapBlob(GroupBootstrapBlob),
     /// A payload type this client does not understand; ignored on receive.
     #[unknown]
     Unknown,
@@ -592,8 +581,8 @@ mod test {
 
     fn sample_peer_user_id(n: u128) -> PeerUserId {
         PeerUserId {
-            uuid: Uuid::from_u128(n),
-            domain: "example.com".to_owned(),
+            uuid: Some(Uuid::from_u128(n)),
+            domain: Some("example.com".to_owned()),
         }
     }
 
@@ -775,7 +764,7 @@ mod test {
     enum AppEphemeralPayloadV2 {
         #[tag(1)]
         EncryptedSelfGroupMessages(EncryptedSelfGroupMessages),
-        #[tag(3)]
+        #[tag(2)]
         Other(u64),
         #[unknown]
         Unknown,

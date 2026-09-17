@@ -66,6 +66,7 @@ pub enum QsQueueMessageType {
     TargetedMessage = 3,
     DsResponse = 4,
     GroupCreationEcho = 7,
+    GroupJoinEcho = 8,
 }
 
 // TODO: Check if TLS serialization is actually used
@@ -130,8 +131,14 @@ impl QsQueueMessagePayload {
                 ExtractedQsQueueMessagePayload::DsCommitResponse(response)
             }
             QsQueueMessageType::GroupCreationEcho => {
-                let echo = GroupCreationEcho::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                let echo =
+                    GroupBootstrapEcho::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::GroupCreationEcho(echo)
+            }
+            QsQueueMessageType::GroupJoinEcho => {
+                let echo =
+                    GroupBootstrapEcho::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                ExtractedQsQueueMessagePayload::GroupJoinEcho(echo)
             }
         };
         Ok(ExtractedQsQueueMessage {
@@ -155,23 +162,24 @@ pub struct DsCommitResponse {
     pub key_package_batch: Option<KeyPackageBatchId>,
 }
 
-/// Announces a group a virtual client created. Meant to be put into the QS
-/// queues of all of the creating user's clients.
+/// Announces a group a virtual client created or externally joined. Meant to
+/// be put into the QS queues of all of the acting user's clients. The message
+/// type distinguishes creation from join.
 ///
-/// The DS sends it when it accepts the creation, before any other traffic of
+/// The DS sends it when it accepts the operation, before any other traffic of
 /// that group reaches those queues. A sibling client uses it to join the group
-/// it was not part of creating.
+/// itself.
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
-pub struct GroupCreationEcho {
+pub struct GroupBootstrapEcho {
     pub group_id: GroupId,
     /// Group id of the PQ leg, present iff the group is an APQ group.
     pub pq_group_id: Option<GroupId>,
-    /// Epoch of the snapshot the sibling fetches from the DS, always 0 at
-    /// creation.
+    /// Epoch of the snapshot the sibling fetches from the DS: 0 at creation,
+    /// the pre-commit epoch at an external join.
     pub epoch: GroupEpoch,
     pub timestamp: TimeStamp,
     /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`), encrypted for the
-    /// creator's siblings. The DS echoes it unread.
+    /// acting client's siblings. The DS echoes it unread.
     pub group_bootstrap: Vec<u8>,
 }
 
@@ -190,7 +198,8 @@ pub enum ExtractedQsQueueMessagePayload {
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
     TargetedMessage(QsQueueTargetedMessage),
     DsCommitResponse(DsCommitResponse),
-    GroupCreationEcho(GroupCreationEcho),
+    GroupCreationEcho(GroupBootstrapEcho),
+    GroupJoinEcho(GroupBootstrapEcho),
 }
 
 impl QsQueueMessagePayload {
@@ -226,11 +235,20 @@ impl QsQueueMessagePayload {
         })
     }
 
-    pub fn group_creation_echo(echo: GroupCreationEcho) -> Result<Self, tls_codec::Error> {
+    pub fn group_creation_echo(echo: GroupBootstrapEcho) -> Result<Self, tls_codec::Error> {
         let payload = echo.tls_serialize_detached()?;
         Ok(Self {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::GroupCreationEcho,
+            payload,
+        })
+    }
+
+    pub fn group_join_echo(echo: GroupBootstrapEcho) -> Result<Self, tls_codec::Error> {
+        let payload = echo.tls_serialize_detached()?;
+        Ok(Self {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::GroupJoinEcho,
             payload,
         })
     }

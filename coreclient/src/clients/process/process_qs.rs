@@ -20,7 +20,10 @@ use aircommon::{
     utils::removed_client,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::{group::GroupData, virtual_client::extract_virtual_client_commit_data};
+use airprotos::client::{
+    group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    virtual_client::extract_virtual_client_commit_data,
+};
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
@@ -81,7 +84,7 @@ pub struct QsMessageOutcome {
 }
 
 impl QsMessageOutcome {
-    fn empty() -> QsMessageOutcome {
+    pub(super) fn empty() -> QsMessageOutcome {
         Self::default()
     }
 
@@ -262,11 +265,22 @@ impl CoreUser {
                 .await
                 .map(|_| QsMessageOutcome::empty()),
             ExtractedQsQueueMessagePayload::GroupCreationEcho(echo) => {
-                warn!(
-                    group_id = ?echo.group_id,
-                    "group creation echo processing not yet implemented"
-                );
-                Ok(QsMessageOutcome::empty())
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::CreationEcho,
+                    ds_timestamp,
+                ))
+                .await
+            }
+            ExtractedQsQueueMessagePayload::GroupJoinEcho(echo) => {
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::JoinEcho,
+                    ds_timestamp,
+                ))
+                .await
             }
         };
 
@@ -498,28 +512,9 @@ impl CoreUser {
         // members if they don't exist yet and store the group and the
         // new chat.
 
-        // Set the chat attributes according to the group's
-        // group data.
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
-        let title = title.context("No group title")?;
-        // An external group profile is not yet available; it is fetched later.
-        if let Some(external_group_profile) = group_profile_part {
-            Self::schedule_fetch_group_profile(
-                &mut *txn,
-                group_id.clone(),
-                sender_user_id.clone(),
-                ds_timestamp,
-                external_group_profile,
-                true,
-            )
-            .await?;
-        }
-        let attributes = ChatAttributes {
-            title,
-            picture: None,
-        };
+        let attributes =
+            Self::chat_attributes_from_group_data(txn, &group, &sender_user_id, ds_timestamp)
+                .await?;
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
         let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -562,6 +557,39 @@ impl CoreUser {
             sender_user_id,
             vec![system_message],
         ))
+    }
+
+    /// Decodes the group data extension into the attributes of the chat a
+    /// joiner creates for `group`.
+    ///
+    /// An external group profile is not yet available, so it is scheduled for
+    /// a fetch and the picture stays empty until it arrives.
+    pub(crate) async fn chat_attributes_from_group_data(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        sender_id: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ChatAttributes> {
+        let group_data_bytes = group.group_data().context("No group data")?;
+        let group_data = GroupData::decode(&group_data_bytes)?;
+        let (title, external_group_profile) =
+            group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
+        if let Some(external_group_profile) = external_group_profile {
+            Self::schedule_fetch_group_profile(
+                &mut *txn,
+                group.group_id().clone(),
+                sender_id.clone(),
+                ds_timestamp,
+                external_group_profile,
+                true,
+            )
+            .await?;
+        }
+        Ok(ChatAttributes {
+            title,
+            picture: None,
+        })
     }
 
     /// Loads the chat and the verified group for the given group id.
@@ -1782,6 +1810,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;

@@ -436,10 +436,10 @@ class _MessageShell extends StatelessWidget {
 
   bool get _withHoverActions => !isMobilePlatform && isReplyable;
 
-  /// Width the hover buttons take beside the bubble: two of them, the gap
-  /// between them, and the gap to the bubble.
+  /// Always reserve the space for hover buttons on non-mobile platforms
+  /// independently of the status of the message.
   double get _hoverSlot =>
-      _withHoverActions ? 2 * (_hoverTokens.size + _hoverTokens.gap) : 0.0;
+      isMobilePlatform ? 0.0 : 2 * (_hoverTokens.size + _hoverTokens.gap);
 
   @override
   Widget build(BuildContext context) {

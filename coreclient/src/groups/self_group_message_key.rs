@@ -305,11 +305,6 @@ impl Group {
 
             let ciphertext = match payload {
                 AppEphemeralPayload::EncryptedSelfGroupMessages(ciphertext) => ciphertext,
-                // Only carried on external commits of higher-level groups.
-                AppEphemeralPayload::GroupBootstrapBlob(_) => {
-                    debug!("Skipping group bootstrap blob in a self-group commit");
-                    continue;
-                }
                 // A payload kind added by a newer client. Nothing to do here.
                 AppEphemeralPayload::Unknown => {
                     debug!("Skipping unknown self-group app-ephemeral payload");
@@ -583,6 +578,7 @@ mod derivation_tests {
                 is_self_group,
                 safe_aad_components: None,
             },
+            None,
         )?;
         Ok(group)
     }

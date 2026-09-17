@@ -13,15 +13,21 @@ use aircommon::{
     },
     identifiers::{QsReference, UserId, Username, UsernameHash},
     messages::{
-        client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
+        client_as::{ConnectionOfferHash, ConnectionOfferMessage, EncryptedConnectionOffer},
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
     },
     time::TimeStamp,
 };
-use airprotos::client::{group::GroupData, signed_connection_package::AnyConnectionPackage};
+use airprotos::client::{
+    group::GroupData,
+    group_bootstrap::{
+        ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext, TargetedInitiatorContext,
+    },
+    signed_connection_package::AnyConnectionPackage,
+};
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{
     Chat, ChatId, ChatMessage, SystemMessage,
@@ -30,9 +36,12 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
     },
-    contacts::{TargetedMessageContact, UsernameContact},
+    contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::WriteDbTransaction,
-    groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
+    groups::{
+        Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+        self_group::SelfGroup,
+    },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
 };
 
@@ -103,38 +112,38 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        Box::pin(self.db().with_write_transaction(async |txn| {
-            // Phase 4: Create a connection group
-            let local_group = connection_package
-                .create_local_connection_group(
-                    &mut *txn,
-                    &self.inner.key_store.signing_key,
-                    username.clone(),
-                )
-                .await?;
+        // Phase 4: Create the connection group locally and commit it.
+        let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
+            let local_group = Box::pin(connection_package.create_local_connection_group(
+                &mut *txn,
+                &self.inner.key_store.signing_key,
+                username.clone(),
+            ))
+            .await?;
 
-            let local_partial_contact = local_group
-                .create_username_contact(
-                    txn,
-                    &self.inner.key_store,
-                    client_reference,
-                    self.user_id(),
-                    username,
-                )
-                .await?;
-
-            // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = local_partial_contact
-                .create_connection_group_via_username(
-                    &client,
-                    self.signing_key(),
-                    connection_offer_responder,
-                )
-                .await?;
-
-            Ok(Ok(chat_id))
+            Box::pin(local_group.create_username_contact(
+                txn,
+                &self.inner.key_store,
+                client_reference,
+                self.user_id(),
+                username,
+            ))
+            .await
         }))
-        .await
+        .await?;
+
+        // Phase 5: Create the connection group on the DS and send off the connection offer
+        let cleanup = local_partial_contact.cleanup();
+        let result = Box::pin(local_partial_contact.create_connection_group_via_username(
+            &client,
+            self.signing_key(),
+            connection_offer_responder,
+        ))
+        .await;
+        match result {
+            Ok(chat_id) => Ok(Ok(chat_id)),
+            Err(error) => Err(self.handle_connection_group_error(cleanup, error).await),
+        }
     }
 
     /// Create a connection with a new user via an existing group chat.
@@ -177,33 +186,105 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        Box::pin(self.db().with_write_transaction(async |txn| {
-            // Phase 4: Create a connection group and prepare the targeted message
+        // Phase 4: Create the connection group and the targeted message
+        // locally.
+        let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
             let local_group = connection_package
                 .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
                 .await?;
 
-            let local_partial_contact = local_group
-                .create_targeted_message_contact(
-                    &mut *txn,
-                    &self.inner.key_store,
-                    client_reference,
-                    self.user_id(),
-                    chat_id,
-                )
-                .await?;
-
-            // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = Box::pin(
-                local_partial_contact
-                    .create_connection_group_via_targeted_message(&client, self.signing_key()),
-            )
-            .await?;
-
-            Ok(chat_id)
+            Box::pin(local_group.create_targeted_message_contact(
+                txn,
+                &self.inner.key_store,
+                client_reference,
+                self.user_id(),
+                chat_id,
+            ))
+            .await
         }))
-        .await
+        .await?;
+
+        // Phase 5: Create the connection group on the DS and send off the connection offer
+        let cleanup = local_partial_contact.cleanup();
+        let result = Box::pin(
+            local_partial_contact
+                .create_connection_group_via_targeted_message(&client, self.signing_key()),
+        )
+        .await;
+        match result {
+            Ok(chat_id) => Ok(chat_id),
+            Err(error) => Err(self.handle_connection_group_error(cleanup, error).await),
+        }
     }
+
+    /// Cleans up after a failed connection group setup and returns the error
+    /// to propagate.
+    async fn handle_connection_group_error(
+        &self,
+        group: DiscardedConnectionGroup,
+        error: ConnectionGroupError,
+    ) -> anyhow::Error {
+        match error {
+            ConnectionGroupError::NotCreated(error) => {
+                self.discard_local_connection_group(group).await;
+                error
+            }
+            ConnectionGroupError::CreatedThenFailed(error) => {
+                error!(
+                    %error,
+                    chat_id = %group.chat_id,
+                    "Connection group exists on the DS and on the sibling devices, keeping it locally"
+                );
+                error
+            }
+        }
+    }
+
+    /// Removes the local state of a connection group the DS did not accept.
+    async fn discard_local_connection_group(&self, group: DiscardedConnectionGroup) {
+        let DiscardedConnectionGroup {
+            group_id,
+            chat_id,
+            contact,
+            connection_offer_hash,
+        } = group;
+        let result = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                Group::delete_from_db(&mut *txn, &group_id).await?;
+                Chat::delete(&mut *txn, chat_id).await?;
+                if let Some(contact) = PartialContact::load(&mut *txn, &contact).await? {
+                    contact.delete(&mut *txn).await?;
+                }
+                if let Some(hash) = connection_offer_hash {
+                    Group::delete_connection_offer_psk(txn, hash)?;
+                }
+                Ok(())
+            })
+            .await;
+        if let Err(error) = result {
+            error!(%error, "Failed to clean up the rejected connection group");
+        }
+    }
+}
+
+/// The local rows of a connection group the DS did not accept.
+struct DiscardedConnectionGroup {
+    group_id: GroupId,
+    chat_id: ChatId,
+    contact: PartialContactType,
+    connection_offer_hash: Option<ConnectionOfferHash>,
+}
+
+/// A failure while establishing a connection group on the DS.
+enum ConnectionGroupError {
+    /// The DS did not accept the create-group request, so nothing outside this
+    /// device knows about the group and the local rows can go.
+    NotCreated(anyhow::Error),
+    /// The DS accepted the group and a later send failed. The DS echoed the
+    /// creation to the sibling queues when it accepted it, so the siblings
+    /// install the group.
+    CreatedThenFailed(anyhow::Error),
 }
 
 struct VerifiedConnectionPackagesWithGroupId<Payload = AnyConnectionPackage> {
@@ -216,7 +297,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         signing_key: &UserSigningKey,
-    ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
+    ) -> anyhow::Result<(Group, PartialCreateGroupParams, Option<SelfGroup>)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
         let group_data_bytes = GroupData {
             encrypted_title: None,
@@ -224,17 +305,20 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         }
         .encode()?;
 
+        let self_group = SelfGroup::load(&mut *txn).await?;
+
         let (group, partial_params) = Group::create_group(
             &mut *txn,
             signing_key,
             identity_link_wrapper_key,
             self.group_id.clone(),
             group_data_bytes,
+            self_group.as_ref().map(|group| group.group_id()),
         )?;
 
         group.store(txn).await?;
 
-        Ok((group, partial_params))
+        Ok((group, partial_params, self_group))
     }
 }
 
@@ -247,7 +331,7 @@ impl VerifiedConnectionPackagesWithGroupId<AnyConnectionPackage> {
     ) -> anyhow::Result<LocalGroup<AnyConnectionPackage>> {
         info!("Creating local connection group");
 
-        let (group, partial_params) = self
+        let (group, partial_params, self_group) = self
             .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
@@ -269,6 +353,7 @@ impl VerifiedConnectionPackagesWithGroupId<AnyConnectionPackage> {
         Ok(LocalGroup {
             group,
             partial_params,
+            self_group,
             chat_id: chat.id(),
             payload: method_payload,
         })
@@ -282,7 +367,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         signing_key: &UserSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
-        let (group, partial_params) = self
+        let (group, partial_params, self_group) = self
             .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
@@ -304,6 +389,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         Ok(LocalGroup {
             group,
             partial_params,
+            self_group,
             chat_id: chat.id(),
             payload: user_id,
         })
@@ -313,6 +399,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
 struct LocalGroup<Payload = AnyConnectionPackage> {
     group: Group,
     partial_params: PartialCreateGroupParams,
+    self_group: Option<SelfGroup>,
     chat_id: ChatId,
     payload: Payload,
 }
@@ -329,6 +416,7 @@ impl LocalGroup<AnyConnectionPackage> {
         let Self {
             group,
             partial_params,
+            self_group,
             chat_id,
             payload: verified_connection_package,
         } = self;
@@ -368,9 +456,9 @@ impl LocalGroup<AnyConnectionPackage> {
 
         // Create and persist a new partial contact
         UsernameContact::new(
-            username,
+            username.clone(),
             chat_id,
-            friendship_package_ear_key,
+            friendship_package_ear_key.clone(),
             connection_offer_hash,
         )
         .upsert(&mut *txn)
@@ -378,12 +466,29 @@ impl LocalGroup<AnyConnectionPackage> {
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
-        let params = partial_params.into_params(own_client_reference, encrypted_user_profile_key);
+        let mut params =
+            partial_params.into_params(own_client_reference, encrypted_user_profile_key);
+
+        if let Some(self_group) = &self_group {
+            let connection = ConnectionContext::HandleInitiator(HandleInitiatorContext {
+                username: Some(username.plaintext().to_owned()),
+                friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
+                connection_offer_hash: Some(connection_offer_hash),
+            });
+            params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
+                txn,
+                &group,
+                GroupBootstrapCarrier::CreationEcho,
+                Some(connection),
+            )?);
+        }
 
         Ok(LocalUsernameContact::<UsernamePayload> {
             group,
             params,
             chat_id,
+            contact: PartialContactType::Handle(username),
+            connection_offer_hash: Some(connection_offer_hash),
             payload: UsernamePayload {
                 connection_offer,
                 verified_connection_package,
@@ -404,6 +509,7 @@ impl LocalGroup<UserId> {
         let Self {
             group,
             partial_params,
+            self_group,
             chat_id,
             payload: user_id,
         } = self;
@@ -419,13 +525,30 @@ impl LocalGroup<UserId> {
         let friendship_package_ear_key = FriendshipPackageEarKey::random()?;
 
         // Create and persist a new partial contact
-        let contact =
-            TargetedMessageContact::new(user_id, chat_id, friendship_package_ear_key.clone());
+        let contact = TargetedMessageContact::new(
+            user_id.clone(),
+            chat_id,
+            friendship_package_ear_key.clone(),
+        );
         contact.upsert(&mut *txn).await?;
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
-        let params = partial_params.into_params(own_client_reference, encrypted_user_profile_key);
+        let mut params =
+            partial_params.into_params(own_client_reference, encrypted_user_profile_key);
+
+        if let Some(self_group) = &self_group {
+            let connection = ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
+                user_id: Some(contact.user_id.clone().into()),
+                friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
+            });
+            params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
+                txn,
+                &group,
+                GroupBootstrapCarrier::CreationEcho,
+                Some(connection),
+            )?);
+        }
 
         // Prepare targeted message
         let connection_info =
@@ -446,6 +569,8 @@ impl LocalGroup<UserId> {
             group,
             params,
             chat_id,
+            contact: PartialContactType::TargetedMessage(user_id),
+            connection_offer_hash: None,
             payload: TargetedMessagePayload {
                 targeted_message_params,
                 targeted_group_state_ear_key: targeted_message_group.group_state_ear_key().clone(),
@@ -468,16 +593,34 @@ struct LocalUsernameContact<Payload = UsernamePayload> {
     group: Group,
     params: CreateGroupParamsOut,
     chat_id: ChatId,
+    contact: PartialContactType,
+    connection_offer_hash: Option<ConnectionOfferHash>,
     payload: Payload,
 }
 
+impl<Payload> LocalUsernameContact<Payload> {
+    /// The local rows to remove if the DS does not accept the group.
+    fn cleanup(&self) -> DiscardedConnectionGroup {
+        DiscardedConnectionGroup {
+            group_id: self.group.group_id().clone(),
+            chat_id: self.chat_id,
+            contact: self.contact.clone(),
+            connection_offer_hash: self.connection_offer_hash,
+        }
+    }
+}
+
 impl LocalUsernameContact<UsernamePayload> {
+    /// Creates the group on the DS and sends off the connection offer.
+    ///
+    /// The error tells the caller whether the DS accepted the group before the
+    /// failure, which decides whether the local state may be discarded.
     async fn create_connection_group_via_username(
         self,
         client: &ApiClient,
         signer: &UserSigningKey,
         responder: AsConnectionOfferResponder,
-    ) -> anyhow::Result<ChatId> {
+    ) -> Result<ChatId, ConnectionGroupError> {
         let Self {
             group,
             params,
@@ -487,28 +630,39 @@ impl LocalUsernameContact<UsernamePayload> {
                     connection_offer,
                     verified_connection_package,
                 },
+            ..
         } = self;
 
         info!("Creating connection group on DS");
         client
             .ds_create_group(params, signer, group.group_state_ear_key())
-            .await?;
+            .await
+            .map_err(|error| ConnectionGroupError::NotCreated(error.into()))?;
 
-        // Send off the connection offer.
+        // Send off the connection offer. The group exists on the DS from here
+        // on, so a failure must not take the local state with it.
         let hash = verified_connection_package.hash();
         let message = ConnectionOfferMessage::new(hash, connection_offer);
-        responder.send(message).await?;
+        responder
+            .send(message)
+            .await
+            .map_err(|error| ConnectionGroupError::CreatedThenFailed(error.into()))?;
 
         Ok(chat_id)
     }
 }
 
 impl LocalUsernameContact<TargetedMessagePayload> {
+    /// Creates the group on the DS and sends off the targeted message carrying
+    /// the connection offer.
+    ///
+    /// The error tells the caller whether the DS accepted the group before the
+    /// failure, which decides whether the local state may be discarded.
     async fn create_connection_group_via_targeted_message(
         self,
         client: &ApiClient,
         signer: &UserSigningKey,
-    ) -> anyhow::Result<ChatId> {
+    ) -> Result<ChatId, ConnectionGroupError> {
         let Self {
             group,
             params,
@@ -518,14 +672,17 @@ impl LocalUsernameContact<TargetedMessagePayload> {
                     targeted_message_params,
                     targeted_group_state_ear_key,
                 },
+            ..
         } = self;
 
         info!("Creating connection group on DS");
         client
             .ds_create_group(params, signer, group.group_state_ear_key())
-            .await?;
+            .await
+            .map_err(|error| ConnectionGroupError::NotCreated(error.into()))?;
 
-        // Send off the targeted message.
+        // Send off the targeted message. The group exists on the DS from here
+        // on, so a failure must not take the local state with it.
         // TODO: This should be scheduled in the outbound service
         client
             .ds_targeted_message(
@@ -533,7 +690,8 @@ impl LocalUsernameContact<TargetedMessagePayload> {
                 signer,
                 &targeted_group_state_ear_key,
             )
-            .await?;
+            .await
+            .map_err(|error| ConnectionGroupError::CreatedThenFailed(error.into()))?;
 
         Ok(chat_id)
     }
