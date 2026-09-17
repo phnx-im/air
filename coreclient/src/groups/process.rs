@@ -48,6 +48,7 @@ use crate::{
     },
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
+    outbound_service::resync::{Resync, ResyncReason},
     privacy_pass,
 };
 
@@ -107,7 +108,7 @@ pub(crate) enum ProcessMessageResult {
     /// We got a message that we can't process from our current group state, e.g. because it's too
     /// far in the future or because the local PQ group state is missing. Only a resync can recover
     /// the group.
-    ResyncRequired,
+    ResyncRequired(ResyncReason),
 }
 
 pub(crate) struct ProcessMessageProcessed {
@@ -164,7 +165,9 @@ impl Group {
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
-                    return Ok(ProcessMessageResult::ResyncRequired);
+                    return Ok(ProcessMessageResult::ResyncRequired(
+                        ResyncReason::FutureEpoch,
+                    ));
                 }
                 Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
                     error @ VirtualClientsError::MissingDerivationEpochState
@@ -174,13 +177,13 @@ impl Group {
                 ))) => {
                     // The commit was not built against a virtual client derivation epoch we hold.
                     // Only a resync can get us back onto the same shared leaf.
-                    //
-                    // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
                     error!(
                         %error,
                         "Cannot follow a virtual-client commit onto our shared leaf"
                     );
-                    return Ok(ProcessMessageResult::ResyncRequired);
+                    return Ok(ProcessMessageResult::ResyncRequired(
+                        ResyncReason::VirtualClientDesync,
+                    ));
                 }
                 Err(ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
                     MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
@@ -670,6 +673,9 @@ impl Group {
         staged_commit: &StagedCommit,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
+        // Processing a commit in this group proves the group is in sync, so
+        // this also clears a `failed` entry
+        Resync::remove(&mut *txn, group_id).await?;
         if let Some(pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {
@@ -852,7 +858,9 @@ impl Group {
             // this state, but a resync restores both legs, so report the
             // message as too distant instead of failing.
             warn!("No local PQ group state; a resync is required");
-            return Ok(ProcessMessageResult::ResyncRequired);
+            return Ok(ProcessMessageResult::ResyncRequired(
+                ResyncReason::MissingPqGroupState,
+            ));
         }
 
         let message: ApqProtocolMessage = message.into();
@@ -886,7 +894,9 @@ impl Group {
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
-                return Ok(ProcessMessageResult::ResyncRequired);
+                return Ok(ProcessMessageResult::ResyncRequired(
+                    ResyncReason::FutureEpoch,
+                ));
             }
             Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
                 StageCommitError::VirtualClientsError(
@@ -902,7 +912,9 @@ impl Group {
                     %error,
                     "Cannot follow a virtual-client APQ commit onto our shared leaf"
                 );
-                return Ok(ProcessMessageResult::ResyncRequired);
+                return Ok(ProcessMessageResult::ResyncRequired(
+                    ResyncReason::VirtualClientDesync,
+                ));
             }
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
                 ValidationError::UnableToDecrypt(MessageDecryptionError::SecretTreeError(

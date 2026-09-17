@@ -89,9 +89,9 @@ impl OutboundServiceContext {
                 return Ok(());
             };
 
-            // If a resync is pending, we skip sending receipts for this chat
-            if Resync::is_pending_for_chat(self.db.read().await?, &chat_id).await? {
-                debug!(?chat_id, "Skipping sending receipt due to pending resync");
+            // If a resync is pending or failed, we skip sending receipts for this chat
+            if let Some(status) = Resync::status_for_chat(self.db.read().await?, &chat_id).await? {
+                debug!(?chat_id, ?status, "Skipping sending receipt due to resync");
                 continue;
             }
 
