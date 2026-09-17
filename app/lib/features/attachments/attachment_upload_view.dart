@@ -37,6 +37,11 @@ class AttachmentUploadView extends HookWidget {
       [file],
     );
     final isImage = useFuture(isImageFut);
+    final keepAliveImage = useMemoized(
+      () => KeepAliveImage(FileImage(loadedFile)),
+      [loadedFile],
+    );
+    useEffect(() => keepAliveImage.dispose, [keepAliveImage]);
 
     final palette = darkSemanticPalette;
 
@@ -58,9 +63,7 @@ class AttachmentUploadView extends HookWidget {
             fit: .expand,
             children: [
               if (isImage.data == true)
-                PhotoView(
-                  imageProvider: RouteScopedImage(FileImage(loadedFile)),
-                )
+                PhotoView(imageProvider: keepAliveImage)
               else if (isImage.data == false)
                 Center(
                   child: Column(

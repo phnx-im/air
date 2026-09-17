@@ -107,8 +107,8 @@ class TaggedMemoryImage extends ImageProvider<TaggedMemoryImage> {
 ///
 /// A full-size decode is tens of MB and would flush every thumbnail out of
 /// the shared cache. This holds the one decode instead, until [dispose].
-class RouteScopedImage<T extends Object> extends ImageProvider<T> {
-  RouteScopedImage(this.inner);
+class KeepAliveImage<T extends Object> extends ImageProvider<T> {
+  KeepAliveImage(this.inner);
 
   final ImageProvider<T> inner;
 
@@ -149,7 +149,7 @@ class RouteScopedImage<T extends Object> extends ImageProvider<T> {
 
   @override
   bool operator ==(Object other) =>
-      other is RouteScopedImage<T> && other.inner == inner;
+      other is KeepAliveImage<T> && other.inner == inner;
 
   @override
   int get hashCode => inner.hashCode;

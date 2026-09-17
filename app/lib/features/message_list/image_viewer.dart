@@ -14,6 +14,7 @@ import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/util/image_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 String imageViewerHeroTag(UiAttachment attachment) =>
     'image-viewer-${attachment.attachmentId.uuid}';
@@ -44,7 +45,7 @@ Route<void> imageViewerRoute({
 
 /// Hosts the fullscreen takeover for one attachment: it supplies the picture
 /// and the actions, the takeover owns everything the viewer does with them.
-class ImageViewer extends StatelessWidget {
+class ImageViewer extends HookWidget {
   const ImageViewer({
     required this.attachment,
     required this.metadata,
@@ -61,18 +62,27 @@ class ImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final attachmentsRepository = RepositoryProvider.of<AttachmentsRepository>(
+      context,
+    );
+    final keepAliveImage = useMemoized(
+      () => KeepAliveImage(
+        AttachmentImageProvider(
+          attachment: attachment,
+          attachmentsRepository: attachmentsRepository,
+        ),
+      ),
+      [attachment, attachmentsRepository],
+    );
+    useEffect(() => keepAliveImage.dispose, [keepAliveImage]);
+
     return Scaffold(
       backgroundColor: darkSemanticPalette.function.neutral.black,
       body: FullscreenImage(
         tokens: FullscreenImageTokens.current,
         items: [
           FullscreenImageItem(
-            image: RouteScopedImage(
-              AttachmentImageProvider(
-                attachment: attachment,
-                attachmentsRepository: RepositoryProvider.of(context),
-              ),
-            ),
+            image: keepAliveImage,
             naturalSize: Size(
               metadata.width.toDouble(),
               metadata.height.toDouble(),
