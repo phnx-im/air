@@ -19,7 +19,7 @@ use aircommon::{
 };
 use airprotos::client::{
     group::GroupData,
-    self_group::{LinkedDevice, SettingsUpdate, TokenSeed},
+    self_group::{BlockedContactEntry, LinkedDevice, SettingsUpdate, TokenSeed},
 };
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::{commit_builder::ApqCommitMessageBundle, messages::ApqKeyPackage};
@@ -37,6 +37,7 @@ use crate::{
     clients::{
         CoreUser,
         api_clients::ApiClients,
+        block_contact::pending,
         linked_devices::merge_device_entry_locally,
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
@@ -107,6 +108,10 @@ pub(super) enum OperationType {
         /// accepted the commit is what decides the first writer.
         seeds: Vec<TokenSeed>,
     },
+    BlockedContactsUpdate {
+        params: Box<ApqGroupOperationParamsOut>,
+        contacts: Vec<BlockedContactEntry>,
+    },
     SelfGroupKeyPackageUpload {
         params: Box<ApqGroupOperationParamsOut>,
         batch_id: KeyPackageBatchId,
@@ -131,6 +136,7 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqOther { .. } => "apq_other",
             OperationType::SettingsUpdate { .. } => "settings_update",
             OperationType::TokenSeeds { .. } => "token_seeds",
+            OperationType::BlockedContactsUpdate { .. } => "blocked_contacts_update",
             OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
             OperationType::SelfGroupRemove { .. } => "self_group_remove",
             OperationType::SelfGroupAdd { .. } => "self_group_add",
@@ -191,6 +197,7 @@ impl OperationType {
             | OperationType::ApqOther { .. }
             | OperationType::SettingsUpdate { .. }
             | OperationType::TokenSeeds { .. }
+            | OperationType::BlockedContactsUpdate { .. }
             | OperationType::SelfGroupKeyPackageUpload { .. }
             | OperationType::SelfGroupRemove { .. }
             | OperationType::SelfGroupAdd { .. } => true,
@@ -201,20 +208,6 @@ impl OperationType {
         matches!(
             self,
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
-        )
-    }
-
-    /// Whether a DS rejection of this operation marks the group's commit as
-    /// failed, which raises the desync banner on the chat. Self-group
-    /// operations skip this: a self-group race is reconciled silently through
-    /// the queue and must not raise a banner on the Notes-to-self chat.
-    fn marks_commit_failed(&self) -> bool {
-        !matches!(
-            self,
-            OperationType::SettingsUpdate { .. }
-                | OperationType::TokenSeeds { .. }
-                | OperationType::SelfGroupRemove { .. }
-                | OperationType::SelfGroupAdd { .. }
         )
     }
 }
@@ -335,6 +328,9 @@ impl PendingChatOperation {
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
             }
+            OperationType::BlockedContactsUpdate { contacts, .. } => {
+                Ok(pending::complete_sent_entries(txn, contacts).await?)
+            }
             _ => Ok(()),
         }
     }
@@ -352,8 +348,7 @@ impl PendingChatOperation {
         Ok(())
     }
 
-    /// Gives up the pending intent on terminal failure. No-op for operations
-    /// that carry no self-group state.
+    /// Gives up the pending intent on terminal failure.
     async fn roll_back_self_group_intent(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -383,14 +378,6 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
-            // Re-assert the flag derived from the persisted job state, in case
-            // the original write was lost.
-            if self.operation.marks_commit_failed() {
-                self.group
-                    .group_mut()
-                    .mark_commit_failed(context.db.write().await?)
-                    .await?;
-            }
             return Err(JobError::Blocked);
         }
 
@@ -510,6 +497,7 @@ impl PendingChatOperation {
             }
             OperationType::SettingsUpdate { params, .. }
             | OperationType::TokenSeeds { params, .. }
+            | OperationType::BlockedContactsUpdate { params, .. }
             | OperationType::SelfGroupRemove { params }
             | OperationType::SelfGroupAdd { params }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
@@ -624,7 +612,7 @@ impl PendingChatOperation {
                     )?;
 
                     vec![TimestampedMessage::system_message(
-                        SystemMessage::Remove(own_user_id.clone(), own_user_id),
+                        SystemMessage::Remove(Some(own_user_id.clone()), own_user_id),
                         ds_timestamp,
                     )]
                 } else {
@@ -686,18 +674,10 @@ impl PendingChatOperation {
             // in retrying, the group needs to be torn down instead.
             Ok(JobError::NotFound)
         } else if error.is_wrong_epoch() {
-            // If we get a WrongEpochError, we know the commit was
-            // either accepted on a previous try, or the DS rejected
-            // it because another one got there first.
+            // Either commit was accepted on a previous try, or another commit was faster. Either
+            // way the queue is expected to resolve it.
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
-            if self.operation.marks_commit_failed() {
-                self.group
-                    .group_mut()
-                    .mark_commit_failed(&mut connection)
-                    .await?;
-            }
-
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
             // If we get a network error (which means we don't know whether the request has been
@@ -868,6 +848,28 @@ impl PendingChatOperation {
             OperationType::TokenSeeds {
                 params: Box::new(params),
                 seeds,
+            },
+        );
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    pub(crate) async fn create_blocked_contacts_update(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        mut group: VerifiedGroup,
+        contacts: Vec<BlockedContactEntry>,
+    ) -> anyhow::Result<Self> {
+        let params = group
+            .group_mut()
+            .stage_blocked_contacts_update(txn, signer, &contacts)
+            .await?;
+
+        let job = Self::new(
+            group,
+            OperationType::BlockedContactsUpdate {
+                params: Box::new(params),
+                contacts,
             },
         );
         job.store(txn).await?;
@@ -1826,6 +1828,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: None,
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let mut group = VerifiedGroup::new_for_test(group);
@@ -1978,6 +1981,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: None,
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -2064,6 +2068,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
 
@@ -2262,6 +2267,7 @@ mod tests {
             identity_link_wrapper_key,
             group_id.clone(),
             group_data_bytes,
+            None,
         )?;
         group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);

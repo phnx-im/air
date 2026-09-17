@@ -2,10 +2,48 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:convert';
+import 'dart:io';
+
 // ignore: depend_on_referenced_packages
 import 'package:code_assets/code_assets.dart';
 // ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
+
+// Optional build configuration, written by `just test-flutter` and by CI
+// (see .github/actions/setup-buildenv).
+//
+// Keys:
+// - `skip_rust_build`: skip the Rust build, which the Flutter tests don't
+//   need. See <https://github.com/dart-lang/native/issues/3237>.
+// - `cargo_env`: extra environment variables for `cargo build`. The hook runs
+//   with an allowlisted environment, so CI variables such as the build number
+//   only reach cargo when forwarded here.
+const _hookConfigPath = '.dart_tool/air_hook_config.json';
+
+class _HookConfig {
+  const _HookConfig({this.skipRustBuild = false, this.cargoEnv = const {}});
+
+  final bool skipRustBuild;
+  final Map<String, String> cargoEnv;
+
+  static _HookConfig load(BuildInput input, BuildOutputBuilder output) {
+    final file = File.fromUri(input.packageRoot.resolve(_hookConfigPath));
+    if (!file.existsSync()) {
+      return const _HookConfig();
+    }
+    output.dependencies.add(file.uri);
+    final config = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    final cargoEnv = config['cargo_env'] as Map<String, Object?>? ?? const {};
+    return _HookConfig(
+      skipRustBuild: config['skip_rust_build'] == true,
+      cargoEnv: {
+        for (final MapEntry(:key, :value) in cargoEnv.entries)
+          key: value as String,
+      },
+    );
+  }
+}
 
 // The native-assets hook protocol does not carry the Flutter build mode
 // (debug/profile/release). However, the flutter tool enables link hooks only
@@ -16,8 +54,34 @@ FlutterRustBridgeBuildMode _rustBuildMode({required bool linkingEnabled}) =>
     ? FlutterRustBridgeBuildMode.release
     : FlutterRustBridgeBuildMode.debug;
 
+// Android runs 64-bit devices with 16 KB memory pages, which requires shared
+// libraries aligned to the same size.
+// See <https://developer.android.com/guide/practices/page-sizes>
+const _pageSizeRustFlags =
+    '-C link-arg=-Wl,-z,max-page-size=16384 '
+    '-C link-arg=-Wl,-z,common-page-size=16384';
+
+const _pageSizeAlignedArchitectures = [Architecture.arm64, Architecture.x64];
+
+bool _needsPageSizeRustFlags(BuildInput input) {
+  final config = input.config;
+  return config.buildCodeAssets &&
+      config.code.targetOS == OS.android &&
+      _pageSizeAlignedArchitectures.contains(config.code.targetArchitecture);
+}
+
+// Extend the ambient RUSTFLAGS with the page size flags
+String _pageSizeRustFlagsWithAmbient() {
+  final ambient = Platform.environment['RUSTFLAGS'] ?? '';
+  return ambient.isEmpty ? _pageSizeRustFlags : '$ambient $_pageSizeRustFlags';
+}
+
 void main(List<String> args) async {
   await build(args, (input, output) async {
+    final config = _HookConfig.load(input, output);
+    if (config.skipRustBuild) {
+      return;
+    }
     await FlutterRustBridgeNativeAssetsBuilder(
       buildMode: _rustBuildMode(linkingEnabled: input.config.linkingEnabled),
       cratePath: '../applogic',
@@ -32,12 +96,15 @@ void main(List<String> args) async {
         // instead of trying to open a live database (which has none during the
         // app build, on CI or locally).
         'SQLX_OFFLINE': '1',
+        if (_needsPageSizeRustFlags(input))
+          'RUSTFLAGS': _pageSizeRustFlagsWithAmbient(),
         // Must match the MinimumOSVersion Flutter writes into the framework's
         // Info.plist, otherwise App Store Connect rejects the upload.
         if (input.config.buildCodeAssets &&
             input.config.code.targetOS == OS.iOS)
           'IPHONEOS_DEPLOYMENT_TARGET':
               '${input.config.code.iOS.targetVersion}.0',
+        ...config.cargoEnv,
       },
     ).run(input: input, output: output);
   });

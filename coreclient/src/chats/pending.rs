@@ -8,10 +8,11 @@ use aircommon::{
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
-        connection_package::{ConnectionPackage, ConnectionPackageHash},
+        connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
 };
+use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
 use anyhow::{Context, bail, ensure};
 use openmls::treesync::errors::LeafNodeValidationError;
 use tls_codec::DeserializeBytes;
@@ -26,9 +27,9 @@ use crate::{
     },
     contacts::UsernameContact,
     db::access::WriteConnection,
-    groups::Group,
+    groups::{Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
-    usernames::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 pub(crate) struct PendingConnectionInfo {
@@ -126,6 +127,9 @@ impl CoreUser {
                     }
                 }
 
+                let self_group = SelfGroup::load(&mut *txn).await?;
+                let vc_group_id = self_group.as_ref().map(|group| group.group_id().clone());
+
                 // Join group
                 let res = Group::join_group_externally(
                     txn,
@@ -139,9 +143,7 @@ impl CoreUser {
                     aad,
                     connection_offer_hash,
                     Some(&sender_user_id),
-                    // TODO(gabriel): joining a connection group is currently never a virtual-client
-                    // onboarding: we are not a member of the group yet.
-                    None,
+                    vc_group_id,
                 )
                 .await?;
                 let (mut group, commit, group_info, mut member_profile_info) = match res {
@@ -185,25 +187,45 @@ impl CoreUser {
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
                     let is_last_resort =
-                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            &mut *txn, &hash,
-                        )
-                        .await?
-                        .unwrap_or(false);
+                        ConnectionPackageRecord::load_is_last_resort(&mut *txn, &hash)
+                            .await?
+                            .unwrap_or(false);
                     if !is_last_resort {
-                        ConnectionPackage::delete(&mut *txn, &hash)
+                        ConnectionPackageRecord::delete(&mut *txn, &hash)
                             .await
                             .context("Failed to delete connection package")?;
                     }
                 }
 
-                Ok(Ok((commit, group_info)))
+                let group_bootstrap = match &self_group {
+                    Some(self_group) => {
+                        let friendship_package = &connection_info.friendship_package;
+                        let connection = ConnectionContext::Accept(AcceptContext {
+                            user_id: Some(sender_user_id.clone().into()),
+                            friendship_token: Some(friendship_package.friendship_token.clone()),
+                            wai_ear_key: Some(friendship_package.wai_ear_key.clone()),
+                            user_profile_base_secret: Some(
+                                friendship_package.user_profile_base_secret.clone(),
+                            ),
+                            connection_offer_hash,
+                        });
+                        Some(self_group.seal_group_bootstrap_param(
+                            txn,
+                            &group,
+                            GroupBootstrapCarrier::JoinEcho,
+                            Some(connection),
+                        )?)
+                    }
+                    None => None,
+                };
+
+                Ok(Ok((commit, group_info, group_bootstrap)))
             },
         ))
         .await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
-        let (commit, group_info) = match result {
+        let (commit, group_info, group_bootstrap) = match result {
             Ok(value) => value,
             Err(error) => return Ok(Err(error.into())),
         };
@@ -217,6 +239,7 @@ impl CoreUser {
                 group_info,
                 qs_client_reference,
                 &connection_info.connection_group_ear_key,
+                group_bootstrap,
             )
             .await?;
 
@@ -341,7 +364,7 @@ mod persistence {
             Ok(())
         }
 
-        pub(super) async fn delete(
+        pub(crate) async fn delete(
             mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {

@@ -341,9 +341,6 @@ class PreferencesSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final readReceiptsSetting = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
@@ -389,6 +386,8 @@ class PreferencesSection extends HookWidget {
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
+
+        const _LimitAnimatedImagesLoopsSetting(),
       ],
     );
   }
@@ -433,9 +432,6 @@ class _SendOnEnterSetting extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final sendOnEnter = useState(
       useMemoized(() => settingsCubit.state.sendOnEnter),
@@ -457,6 +453,37 @@ class _SendOnEnterSetting extends HookWidget {
         const SizedBox(height: S.s12),
 
         FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
+      ],
+    );
+  }
+}
+
+class _LimitAnimatedImagesLoopsSetting extends HookWidget {
+  const _LimitAnimatedImagesLoopsSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final limitAnimatedImagesLoops = useState(
+      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    );
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: .start,
+      children: [
+        SwitchField(
+          label: loc.userSettingsScreen_limitAnimatedImagesLoops,
+          value: limitAnimatedImagesLoops,
+          onSubmit: (value) {
+            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          },
+        ),
+
+        const SizedBox(height: S.s12),
+
+        FieldLabel(loc.userSettingsScreen_limitAnimatedImagesLoopsDescription),
       ],
     );
   }

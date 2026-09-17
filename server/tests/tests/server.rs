@@ -21,10 +21,10 @@ use aircommon::{
     registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
-    ChatId, DisplayName, UserProfile,
+    ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
-        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
-        registration::RegistrationError,
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        process::process_qs::ProcessedQsMessages, registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
@@ -440,9 +440,7 @@ async fn ratchet_tolerance() {
 //     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
 // }
 
-// TODO: Re-enable once we have implemented a resync UX.
-//#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[allow(dead_code)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;
@@ -496,6 +494,27 @@ async fn resync() {
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's update and message without errors"
+    );
+
+    // The resync diff should surface Charlie's addition without an actor.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_charlie_adds = messages
+        .iter()
+        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
+        .count();
+    assert_eq!(
+        actorless_charlie_adds, 1,
+        "Bob should store exactly one actor-less add of Charlie"
+    );
+    let charlie_adds_with_actor = messages
+        .iter()
+        .filter(
+            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == &charlie),
+        )
+        .count();
+    assert_eq!(
+        charlie_adds_with_actor, 0,
+        "Bob never processed the invite commit, so no add with an actor"
     );
 
     let alice_user = &setup.get_user(&alice).user;
@@ -580,6 +599,45 @@ async fn resync() {
         "Bob should process Alice's update without errors"
     );
 
+    // The resync committed Alice's SelfRemove, which Bob cannot attribute.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_alice_removes = messages
+        .iter()
+        .filter(
+            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == &alice),
+        )
+        .count();
+    assert_eq!(
+        actorless_alice_removes, 1,
+        "Bob should store exactly one actor-less removal of Alice"
+    );
+    let alice_removes_with_actor = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == &alice)
+        })
+        .count();
+    assert_eq!(
+        alice_removes_with_actor, 0,
+        "Bob never processed the leave commit, so no removal with an actor"
+    );
+
+    // No spurious membership notices for Bob or Charlie.
+    let actorless: Vec<_> = messages
+        .iter()
+        .filter(|message| {
+            matches!(
+                message,
+                SystemMessage::Add(None, _) | SystemMessage::Remove(None, _)
+            )
+        })
+        .collect();
+    assert_eq!(
+        actorless.len(),
+        2,
+        "resync should only emit the Charlie add and the Alice remove, got {actorless:?}"
+    );
+
     // Alice not in the group anymore.
     let participants = bob_user.group_members(chat_id).await.unwrap();
     assert_eq!(
@@ -600,6 +658,99 @@ async fn resync() {
         participants,
         [bob.clone(), charlie.clone()].into_iter().collect()
     );
+}
+
+/// A wrong-epoch answer to our own commit parks it and nothing more. Only a message from an epoch
+/// ahead of ours schedules the resync.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Wrong epoch on own commit", skip_all)]
+async fn wrong_epoch_on_own_commit_does_not_resync() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user.update_key(chat_id).await.unwrap();
+
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
+
+    let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
+
+    // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("commit at a stale epoch must be rejected");
+    let pending = bob_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("rejected commit should be parked");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // An outbound run changes nothing either.
+    bob_user.outbound_service().run_once().await;
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
+    // schedules the resync.
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
+            None,
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap();
+    // Sending only queues the message, the outbound service delivers it.
+    alice_user.outbound_service().run_once().await;
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "a message from a future epoch must schedule a resync, not fail"
+    );
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_some());
+    assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // The resync replaces the group state, which also drops the parked commit.
+    bob_user.outbound_service().run_once().await;
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(
+        bob_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Alice processes Bob's rejoin and Bob can send again.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
+
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
 /// When the DS returns "group not found" for a resync, the client must stop
@@ -630,7 +781,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
         .await
         .unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -639,7 +790,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have been removed after group not found"
     );
 }
@@ -662,7 +813,7 @@ async fn resync_valid_group_succeeds() {
     let bob_user = &setup.get_user(&bob).user;
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -670,7 +821,7 @@ async fn resync_valid_group_succeeds() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -769,7 +920,7 @@ async fn resync_with_blank_leaf_succeeds() {
     let alice_user = &setup.get_user(&alice).user;
     alice_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -777,7 +928,7 @@ async fn resync_with_blank_leaf_succeeds() {
     alice_user.outbound_service().run_once().await;
 
     assert!(
-        !alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -811,14 +962,14 @@ async fn resync_with_blank_leaf_succeeds() {
     // Now Dave resyncs as well.
     dave_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     dave_user.outbound_service().run_once().await;
 
     assert!(
-        !dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -1540,4 +1691,17 @@ async fn listen_stream_durable_acks() {
         })),
         "acked message is not redelivered"
     );
+}
+
+/// All system messages the user stores for the chat.
+async fn system_messages(user: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(system_message)) => Some(system_message.clone()),
+            _ => None,
+        })
+        .collect()
 }

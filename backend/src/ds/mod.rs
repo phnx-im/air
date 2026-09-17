@@ -21,6 +21,7 @@ mod attachments;
 mod collision_tags;
 mod create_group;
 mod delete_group;
+mod epoch_snapshot;
 mod group_operation;
 pub mod group_state;
 pub mod grpc;
@@ -38,6 +39,10 @@ pub const GROUP_STATE_EXPIRATION: Duration = Duration::days(90);
 
 /// How long the welcome information of an epoch is kept.
 pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(90);
+
+/// How long the snapshot of an epoch is kept. A sibling emulator client that
+/// comes back later falls back to a resync at the current epoch.
+pub const EPOCH_SNAPSHOT_EXPIRATION: Duration = Duration::days(90);
 
 #[derive(Debug, Clone)]
 pub struct Ds {

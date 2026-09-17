@@ -130,6 +130,38 @@ impl<KT, ST, const LENGTH: usize> From<Secret<LENGTH>> for TypedSecret<KT, ST, L
     }
 }
 
+/// Serde adapter for `#[tag(N, with = "secret_as_bytes")]` fields of tagged
+/// CBOR types: a [`TypedSecret`] as a bare byte string of exactly its size.
+///
+/// The derived serde format of [`Secret`] is a struct. Stored data and
+/// existing wire types depend on it, so this adapter is opt-in per field.
+pub mod secret_as_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use serde_bytes::ByteArray;
+
+    use super::{Secret, TypedSecret};
+
+    pub fn serialize<KT, ST, const N: usize, S>(
+        secret: &TypedSecret<KT, ST, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(secret.secret.secret())
+    }
+
+    pub fn deserialize<'de, KT, ST, const N: usize, D>(
+        deserializer: D,
+    ) -> Result<TypedSecret<KT, ST, N>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = ByteArray::<N>::deserialize(deserializer)?;
+        Ok(Secret::from(bytes.into_array()).into())
+    }
+}
+
 impl<KT> Index<KT> {
     #[cfg(any(test, feature = "test_utils"))]
     pub fn dummy() -> Self {
