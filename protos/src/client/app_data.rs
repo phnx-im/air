@@ -254,6 +254,17 @@ impl GroupAppData {
     }
 }
 
+pub trait GroupAppDataExt {
+    fn has_group_profile_component(&self) -> bool;
+}
+
+impl GroupAppDataExt for Extensions<GroupContext> {
+    fn has_group_profile_component(&self) -> bool {
+        self.app_data_dictionary()
+            .is_some_and(|ext| ext.dictionary().contains(&AIR_GROUP_PROFILE_COMPONENT_ID))
+    }
+}
+
 /// Returns the components list for the given component id.
 ///
 /// Note that both components `AppComponents` and `SafeAad` are stored in the app data as a

@@ -46,9 +46,8 @@ use crate::{
     contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
-        client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
+        handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -770,12 +769,11 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
         Self::create_update_with_raw_group_data(
             txn,
             signer,
             chat_id,
-            group_data_bytes,
+            new_group_data,
             new_chat_picture,
             derivation_epoch,
         )
@@ -990,7 +988,7 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        group_data_bytes: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
@@ -1001,7 +999,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
+            .update(&mut *txn, &signer, new_group_data, derivation_epoch)
             .await?;
 
         let job = Self::new(

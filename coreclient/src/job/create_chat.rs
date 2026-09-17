@@ -15,7 +15,7 @@ use airprotos::client::{
     group::{EncryptedGroupTitle, GroupData, GroupProfile},
     group_bootstrap::GroupBootstrapCarrier,
 };
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use tracing::error;
 
 use crate::{
@@ -31,6 +31,9 @@ pub(crate) struct CreateChat {
     pub chat_attributes: ChatAttributes,
     pub client_reference: QsReference,
     pub is_apq: bool,
+    /// Store the group profile in the group profile component instead of the group data
+    /// extension. Requires `is_apq`.
+    pub profile_component: bool,
 }
 
 type DomainError = Infallible;
@@ -58,7 +61,14 @@ impl CreateChat {
             chat_attributes,
             client_reference,
             is_apq,
+            profile_component: false,
         }
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn with_profile_component(mut self) -> Self {
+        self.profile_component = true;
+        self
     }
 
     async fn execute_internal(
@@ -69,7 +79,11 @@ impl CreateChat {
             chat_attributes,
             client_reference,
             is_apq,
+            profile_component,
         } = self;
+        if profile_component && !is_apq {
+            return Err(anyhow!("group profile component requires an APQ group").into());
+        }
 
         let JobContext {
             api_clients,
@@ -127,13 +141,20 @@ impl CreateChat {
         };
 
         // Encode the group data to be stored in the group context
-        let group_data_bytes = GroupData {
+        let group_data = GroupData {
             encrypted_title: Some(encrypted_title),
             external_group_profile,
             legacy_title: Some(chat_attributes.title.clone()),
             legacy_picture: None,
-        }
-        .encode()?;
+        };
+        let (group_data_bytes, profile) = if profile_component {
+            (
+                GroupData::empty().encode()?,
+                Some(group_data.into_component()),
+            )
+        } else {
+            (group_data.encode()?, None)
+        };
 
         let own_user_id = key_store.signing_key.credential().user_id();
 
@@ -158,7 +179,7 @@ impl CreateChat {
                         GroupAppData {
                             is_self_group: false,
                             safe_aad_components: None,
-                            profile: None,
+                            profile,
                         },
                         vc_group_id,
                     )?

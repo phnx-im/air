@@ -18,21 +18,18 @@ const _allFeatures = AirFeatures(
   encryptedGroupProfiles: true,
   emptyConnectionGroupAttributes: true,
   pqGroups: true,
-  groupProfileComponent: true,
 );
 
 const _noPqFeatures = AirFeatures(
   encryptedGroupProfiles: true,
   emptyConnectionGroupAttributes: true,
   pqGroups: false,
-  groupProfileComponent: true,
 );
 
 const _noEgpFeatures = AirFeatures(
   encryptedGroupProfiles: false,
   emptyConnectionGroupAttributes: true,
   pqGroups: true,
-  groupProfileComponent: true,
 );
 
 final _profiles = [

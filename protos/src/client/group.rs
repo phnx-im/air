@@ -16,9 +16,12 @@ use aircommon::{
 };
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+use openmls::component::ComponentData;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+use crate::client::component::AIR_GROUP_PROFILE_COMPONENT_ID;
 
 /// Data stored in the group data extension as blob.
 ///
@@ -69,6 +72,13 @@ impl GroupData {
             && self.encrypted_title.is_none()
             && self.external_group_profile.is_none()
     }
+
+    pub fn into_component(self) -> GroupProfileComponent {
+        GroupProfileComponent {
+            encrypted_title: self.encrypted_title,
+            external_group_profile: self.external_group_profile,
+        }
+    }
 }
 
 impl From<GroupProfileComponent> for GroupData {
@@ -109,6 +119,13 @@ impl GroupProfileComponent {
 
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
         PersistenceCodec::from_slice(bytes)
+    }
+
+    pub fn to_component_data(&self) -> Result<ComponentData, codec::Error> {
+        Ok(ComponentData::from_parts(
+            AIR_GROUP_PROFILE_COMPONENT_ID,
+            self.to_bytes()?.into(),
+        ))
     }
 }
 

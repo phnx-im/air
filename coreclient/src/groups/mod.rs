@@ -83,7 +83,8 @@ use aircommon::{
     utils::removed_client,
 };
 use airprotos::client::{
-    app_data::{ClientAppData, GroupAppData},
+    app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
+    component::AIR_GROUP_PROFILE_COMPONENT_ID,
     group::GroupData,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -125,11 +126,11 @@ use openmls::{
         VcDerivationEpochRetentionPolicy,
     },
     prelude::{
-        AppDataDictionaryExtension, Capabilities, Credential, CredentialType, CredentialWithKey,
-        Extension, Extensions, GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities, Credential,
+        CredentialType, CredentialWithKey, Extension, Extensions, GroupId, LeafNode, LeafNodeIndex,
+        LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -2157,7 +2158,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
-        new_group_data: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
@@ -2166,15 +2167,23 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        let extensions = new_group_data
-            .map(|gd| -> Result<_> {
+        // Update group profile if needed.
+        let (component, extensions) = if let Some(group_data) = new_group_data {
+            if self.mls_group.extensions().has_group_profile_component() {
+                // If the group profile component exists, then update it.
+                (Some(group_data.into_component()), None)
+            } else {
+                // Otherwise, update the group context extension.
+                let bytes = group_data.encode()?;
                 let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-                let mut exts = self.mls_group().extensions().clone();
-                exts.add_or_replace(group_data_extension)?;
-                Ok(exts)
-            })
-            .transpose()?;
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes.bytes));
+                let mut extensions = self.mls_group().extensions().clone();
+                extensions.add_or_replace(group_data_extension)?;
+                (None, Some(extensions))
+            }
+        } else {
+            (None, None)
+        };
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2204,8 +2213,27 @@ impl Group {
                 builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
+            let component_data = component
+                .map(|component| component.to_component_data())
+                .transpose()?;
+            if let Some(component_data) = &component_data {
+                builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                    AppDataUpdateProposal::update(
+                        AIR_GROUP_PROFILE_COMPONENT_ID,
+                        component_data.data().to_vec(),
+                    ),
+                )));
+            }
+
+            let mut builder = builder.load_psks(provider.storage())?;
+
+            if let Some(component_data) = component_data {
+                let mut updater = builder.app_data_dictionary_updater();
+                updater.set(component_data);
+                builder.with_app_data_dictionary_updates(updater.changes());
+            }
+
             let (mls_message, _welcome_option, group_info_option) = builder
-                .load_psks(provider.storage())?
                 .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?

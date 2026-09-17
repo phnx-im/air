@@ -498,14 +498,12 @@ impl From<component::AirFeatures> for AirFeatures {
             encrypted_group_profiles,
             empty_connection_group_attributes,
             pq_groups,
-            group_profile_component,
         }: component::AirFeatures,
     ) -> Self {
         Self {
             encrypted_group_profiles,
             empty_connection_group_attributes,
             pq_groups,
-            group_profile_component,
         }
     }
 }
@@ -516,14 +514,12 @@ impl From<AirFeatures> for component::AirFeatures {
             encrypted_group_profiles,
             empty_connection_group_attributes,
             pq_groups,
-            group_profile_component,
         }: AirFeatures,
     ) -> Self {
         Self {
             encrypted_group_profiles,
             empty_connection_group_attributes,
             pq_groups,
-            group_profile_component,
         }
     }
 }

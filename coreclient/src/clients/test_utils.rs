@@ -8,19 +8,18 @@ use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{
-    codec::PersistenceCodec, credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId,
-};
+use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::GroupData;
+use airprotos::client::{app_data::GroupAppDataExt, group::GroupData};
 
 use crate::{
-    chats::GroupDataExt,
-    groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+    ChatAttributes,
+    groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
+        create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
@@ -317,14 +316,12 @@ impl CoreUser {
         title: String,
         picture: Option<Vec<u8>>,
     ) -> anyhow::Result<()> {
-        #[derive(serde::Serialize)]
-        struct LegacyGroupData {
-            title: String,
-            picture: Option<Vec<u8>>,
-        }
-
-        let legacy_group_data: GroupDataBytes =
-            PersistenceCodec::to_vec(&LegacyGroupData { title, picture })?.into();
+        let legacy_group_data = GroupData {
+            encrypted_title: None,
+            external_group_profile: None,
+            legacy_title: Some(title),
+            legacy_picture: picture,
+        };
 
         let op = self
             .db()
@@ -361,7 +358,6 @@ impl CoreUser {
             legacy_title: Some(title),
             legacy_picture: None,
         };
-        let group_data_bytes = group_data.encode()?;
         let job = self
             .db()
             .with_write_transaction(async |txn| {
@@ -369,7 +365,7 @@ impl CoreUser {
                     txn,
                     self.signing_key(),
                     chat_id,
-                    Some(group_data_bytes),
+                    Some(group_data),
                     None,
                     DerivationEpoch::Keep,
                 )
@@ -377,6 +373,29 @@ impl CoreUser {
             })
             .await?;
         job.staged_commit_message_bytes()
+    }
+
+    /// Creates an APQ group whose group profile is stored in the group profile component.
+    pub async fn create_chat_with_profile_component(
+        &self,
+        title: String,
+    ) -> anyhow::Result<ChatId> {
+        let chat_attributes = ChatAttributes::new(title, None);
+        let client_reference = self.create_own_client_reference();
+        let job = CreateChat::new(chat_attributes, client_reference, true).with_profile_component();
+        Ok(self.execute_job(job).await?)
+    }
+
+    /// Whether the group context of the chat carries the group profile component.
+    pub async fn has_group_profile_component(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(false);
+        };
+        Ok(group.mls_group().extensions().has_group_profile_component())
     }
 
     pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
