@@ -4,7 +4,7 @@
 
 use aircommon::{
     crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId,
-    messages::client_as_out::EncryptedUserProfile,
+    messages::client_as::EncryptedUserProfile,
 };
 use thiserror::Error;
 
@@ -79,7 +79,7 @@ impl UserRecord {
 }
 
 pub(crate) mod persistence {
-    use aircommon::{identifiers::UserId, messages::client_as_out::EncryptedUserProfile};
+    use aircommon::{identifiers::UserId, messages::client_as::EncryptedUserProfile};
     use sqlx::{PgExecutor, query, query_as};
 
     use crate::errors::StorageError;
@@ -181,7 +181,7 @@ pub(crate) mod persistence {
 
     #[cfg(test)]
     pub(crate) mod tests {
-        use aircommon::messages::client_as_out::EncryptedUserProfile;
+        use aircommon::messages::client_as::EncryptedUserProfile;
         use sqlx::PgPool;
 
         use super::*;

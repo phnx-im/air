@@ -4,7 +4,7 @@
 
 use aircommon::{
     crypto::indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
-    messages::client_ds::UserProfileKeyUpdateParams,
+    messages::client_ds::UserProfileKeyUpdate,
 };
 use anyhow::Context;
 use tracing::warn;
@@ -93,7 +93,7 @@ impl CoreUser {
             let signer =
                 OwnClientInfo::signer_for_group(&mut connection, &group_id, self.signing_key())
                     .await?;
-            let params = UserProfileKeyUpdateParams {
+            let params = UserProfileKeyUpdate {
                 group_id,
                 sender_index: own_index,
                 user_profile_key: user_profile_key.clone(),

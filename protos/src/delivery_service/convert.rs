@@ -6,7 +6,7 @@ use aircommon::{
     credentials::{self, keys},
     crypto::{aead, secrets},
     identifiers,
-    messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
+    messages::{client_ds, welcome_attribution_info},
 };
 use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
 use mls_assist::messages::AssistedWelcome;
@@ -17,10 +17,7 @@ use tonic::Status;
 use crate::{
     common::convert::InvalidNonceLen,
     convert::{FromRef, TryFromRef, TryRefInto},
-    delivery_service::v1::{
-        ApqAddUsersInfo, ApqMlsMessage, TargetedApplicationMessage,
-        targeted_message_payload::TargetedMessageType,
-    },
+    delivery_service::v1::{ApqAddUsersInfo, ApqMlsMessage},
     validation::{MissingFieldError, MissingFieldExt},
 };
 
@@ -353,21 +350,6 @@ impl From<EncryptedWelcomeAttributionInfoError> for Status {
     }
 }
 
-impl TryFrom<AddUsersInfoOut> for AddUsersInfo {
-    type Error = tls_codec::Error;
-
-    fn try_from(value: AddUsersInfoOut) -> Result<Self, Self::Error> {
-        Ok(Self {
-            welcome: Some(value.welcome.try_ref_into()?),
-            encrypted_welcome_attribution_info: value
-                .encrypted_welcome_attribution_infos
-                .into_iter()
-                .map(From::from)
-                .collect(),
-        })
-    }
-}
-
 impl TryFrom<AddUsersInfo> for client_ds::AddUsersInfo {
     type Error = AddUsersInfoError;
 
@@ -450,27 +432,5 @@ impl TryFromRef<'_, GroupInfo> for group_info::VerifiableGroupInfo {
 
     fn try_from_ref(proto: &GroupInfo) -> Result<Self, Self::Error> {
         DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
-    }
-}
-
-impl TryFromRef<'_, aircommon::messages::client_ds_out::TargetedMessageType>
-    for TargetedMessageType
-{
-    type Error = tls_codec::Error;
-
-    fn try_from_ref(
-        value: &aircommon::messages::client_ds_out::TargetedMessageType,
-    ) -> Result<Self, Self::Error> {
-        match value {
-            aircommon::messages::client_ds_out::TargetedMessageType::ApplicationMessage {
-                message,
-                recipient,
-            } => Ok(TargetedMessageType::ApplicationMessage(
-                TargetedApplicationMessage {
-                    message: Some(message.try_ref_into()?),
-                    recipient: Some((*recipient).into()),
-                },
-            )),
-        }
     }
 }

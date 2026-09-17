@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+use airapiclient::ds_api::SendMessageCollisionTag;
 use aircoreclient::{
     ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting,
     clients::{CoreUser, MarkChatAsRead},

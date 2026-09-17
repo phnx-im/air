@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::ApqGroupOperationParamsOut;
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::credentials::LeafCredentialError;
 use aircommon::{
@@ -10,10 +11,7 @@ use aircommon::{
         keys::{LeafSigningKey, SelfGroupSigningKey},
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
-    messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
-        client_ds_out::ApqGroupOperationParamsOut,
-    },
+    messages::client_ds::{AadMessage, AadPayload, GroupOperationAad},
 };
 use airprotos::client::{
     app_data::GroupAppData,
@@ -137,7 +135,7 @@ impl SelfGroup {
         t_mls_group.set_safe_aad(vec![commit_data.to_safe_aad_item()?])?;
 
         // Regular AAD tail (required by DS commit validation)
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
@@ -196,7 +194,7 @@ impl SelfGroup {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;

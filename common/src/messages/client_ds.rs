@@ -2,15 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! This module contains structs and enums that represent messages that are
-//! passed between clients and the backend.
-//! TODO: We should eventually factor this module out, together with the crypto
-//! module, to allow re-use by the client implementation.
+//! Messages exchanged between clients and the DS, and DS queue payloads.
 
 use apqmls::messages::{ApqMlsMessageIn, ApqWelcome};
 use mls_assist::{
-    messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
-    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, RatchetTreeIn},
+    messages::{AssistedWelcome, SerializedMlsMessage},
+    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn},
     openmls_traits::types::HpkeCiphertext,
 };
 use serde::{Deserialize, Serialize};
@@ -27,7 +24,6 @@ use crate::{
         hpke::{HpkeDecryptable, HpkeEncryptable, JoinerInfoKeyType},
         ratchet::QueueRatchet,
     },
-    identifiers::QsReference,
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
@@ -36,12 +32,6 @@ use super::{
     AirProtocolVersion, EncryptedQsQueueMessageCtype, client_as::EncryptedFriendshipPackage,
     welcome_attribution_info::EncryptedWelcomeAttributionInfo,
 };
-
-/// This is the pseudonymous client id used on the DS.
-#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub(crate) struct DsClientId {
-    id: Vec<u8>,
-}
 
 // === DS ===
 
@@ -114,9 +104,8 @@ impl QsQueueMessagePayload {
                 ExtractedQsQueueMessagePayload::ApqMlsMessage(Box::new(message))
             }
             QsQueueMessageType::UserProfileKeyUpdate => {
-                let message = UserProfileKeyUpdateParams::tls_deserialize_exact_bytes(
-                    self.payload.as_slice(),
-                )?;
+                let message =
+                    UserProfileKeyUpdate::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(message)
             }
             QsQueueMessageType::TargetedMessage => {
@@ -187,7 +176,7 @@ pub enum ExtractedQsQueueMessagePayload {
     ApqWelcomeBundle(ApqWelcomeBundle),
     MlsMessage(Box<MlsMessageIn>),
     ApqMlsMessage(Box<ApqMlsMessageIn>),
-    UserProfileKeyUpdate(UserProfileKeyUpdateParams),
+    UserProfileKeyUpdate(UserProfileKeyUpdate),
     TargetedMessage(QsQueueTargetedMessage),
     DsCommitResponse(DsCommitResponse),
     GroupCreationEcho(GroupCreationEcho),
@@ -262,10 +251,10 @@ impl TryFrom<ApqWelcomeBundle> for QsQueueMessagePayload {
     }
 }
 
-impl TryFrom<&UserProfileKeyUpdateParams> for QsQueueMessagePayload {
+impl TryFrom<&UserProfileKeyUpdate> for QsQueueMessagePayload {
     type Error = tls_codec::Error;
 
-    fn try_from(params: &UserProfileKeyUpdateParams) -> Result<Self, Self::Error> {
+    fn try_from(params: &UserProfileKeyUpdate) -> Result<Self, Self::Error> {
         let payload = params.tls_serialize_detached()?;
         Ok(Self {
             timestamp: TimeStamp::now(),
@@ -316,8 +305,8 @@ impl AadMessage {
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 #[repr(u8)]
 pub enum AadPayload {
-    GroupOperation(GroupOperationParamsAad),
-    JoinConnectionGroup(JoinConnectionGroupParamsAad),
+    GroupOperation(GroupOperationAad),
+    JoinConnectionGroup(JoinConnectionGroupAad),
     Resync,
     DeleteGroup,
     // There is no SelfRemoveClient entry, since that message consists of a
@@ -357,26 +346,6 @@ impl DsEventMessage {
 }
 
 #[derive(Debug)]
-pub struct CreateGroupParams {
-    pub group_id: GroupId,
-    pub leaf_node: RatchetTreeIn,
-    pub encrypted_user_profile_key: EncryptedUserProfileKey,
-    pub creator_qs_reference: QsReference,
-    pub group_info: MlsMessageIn,
-    pub room_state: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct ExternalCommitInfoParams {
-    pub group_id: GroupId,
-}
-
-#[derive(Debug)]
-pub struct ConnectionGroupInfoParams {
-    pub group_id: GroupId,
-}
-
-#[derive(Debug)]
 pub struct AddUsersInfo {
     pub welcome: AssistedWelcome,
     pub encrypted_welcome_attribution_infos: Vec<EncryptedWelcomeAttributionInfo>,
@@ -412,47 +381,19 @@ impl ApqAddUsersInfo {
     }
 }
 
-#[derive(Debug)]
-pub struct GroupOperationParams {
-    pub commit: AssistedMessageIn,
-    pub add_users_info_option: Option<AddUsersInfo>,
-}
-
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct GroupOperationParamsAad {
+pub struct GroupOperationAad {
     pub new_encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
 }
 
-#[derive(Debug)]
-pub struct JoinConnectionGroupParams {
-    pub external_commit: AssistedMessageIn,
-    pub qs_client_reference: QsReference,
-}
-
 #[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
-pub struct JoinConnectionGroupParamsAad {
+pub struct JoinConnectionGroupAad {
     pub encrypted_friendship_package: EncryptedFriendshipPackage,
     pub encrypted_user_profile_key: EncryptedUserProfileKey,
 }
 
-#[derive(Debug)]
-pub struct ResyncParams {
-    pub external_commit: AssistedMessageIn,
-    pub sender_index: LeafNodeIndex,
-}
-
-#[derive(Debug)]
-pub struct SelfRemoveParams {
-    pub remove_proposal: AssistedMessageIn,
-}
-
-#[derive(Debug)]
-pub struct DeleteGroupParams {
-    pub commit: AssistedMessageIn,
-}
-
 #[derive(Debug, Clone, TlsDeserializeBytes, TlsSize, TlsSerialize)]
-pub struct UserProfileKeyUpdateParams {
+pub struct UserProfileKeyUpdate {
     pub group_id: GroupId,
     pub sender_index: LeafNodeIndex,
     pub user_profile_key: EncryptedUserProfileKey,

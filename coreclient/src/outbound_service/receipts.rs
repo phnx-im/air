@@ -4,11 +4,9 @@
 
 use std::collections::HashSet;
 
+use airapiclient::ds_api::{SendMessageCollisionTag, SendMessageParamsOut};
 use aircommon::{
-    credentials::keys::LeafSigningKey,
-    crypto::aead::keys::GroupStateEarKey,
-    identifiers::MimiId,
-    messages::client_ds_out::{SendMessageCollisionTag, SendMessageParamsOut},
+    credentials::keys::LeafSigningKey, crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
     time::TimeStamp,
 };
 use anyhow::Context;
@@ -395,7 +393,7 @@ impl UnsentReceipt {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+    use airapiclient::ds_api::SendMessageCollisionTag;
     use mimi_content::{MessageStatus, MessageStatusReport, PerMessageStatus};
 
     use super::partition_collided_receipts;

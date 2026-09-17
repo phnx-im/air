@@ -77,8 +77,7 @@ impl Contact {
             let key_package_in = api_clients
                 .get(invited_user_domain)?
                 .qs_key_package(self.friendship_token.clone())
-                .await?
-                .key_package;
+                .await?;
             let key_package =
                 key_package_in.validate(&RustCrypto::default(), ProtocolVersion::default())?;
             ContactKeyPackage::Traditional(key_package.into())

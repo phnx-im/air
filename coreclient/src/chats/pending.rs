@@ -7,7 +7,7 @@ use aircommon::{
     identifiers::{QualifiedGroupId, Username},
     messages::{
         client_as::ConnectionOfferHash,
-        client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
+        client_ds::{AadMessage, AadPayload, JoinConnectionGroupAad},
         connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
@@ -273,7 +273,7 @@ impl CoreUser {
         }
         .encrypt(&connection_info.friendship_package_ear_key)?;
 
-        let aad: AadMessage = AadPayload::JoinConnectionGroup(JoinConnectionGroupParamsAad {
+        let aad: AadMessage = AadPayload::JoinConnectionGroup(JoinConnectionGroupAad {
             encrypted_friendship_package,
             encrypted_user_profile_key,
         })

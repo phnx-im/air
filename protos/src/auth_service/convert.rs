@@ -448,15 +448,15 @@ impl From<ConnectionEncryptionKey> for crypto::ConnectionEncryptionKey {
     }
 }
 
-impl From<messages::client_as_out::EncryptedUserProfile> for EncryptedUserProfile {
-    fn from(value: messages::client_as_out::EncryptedUserProfile) -> Self {
+impl From<messages::client_as::EncryptedUserProfile> for EncryptedUserProfile {
+    fn from(value: messages::client_as::EncryptedUserProfile) -> Self {
         Self {
             ciphertext: Some(value.into()),
         }
     }
 }
 
-impl TryFrom<EncryptedUserProfile> for messages::client_as_out::EncryptedUserProfile {
+impl TryFrom<EncryptedUserProfile> for messages::client_as::EncryptedUserProfile {
     type Error = InvalidIndexedCiphertext;
 
     fn try_from(proto: EncryptedUserProfile) -> Result<Self, Self::Error> {

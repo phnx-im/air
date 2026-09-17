@@ -18,6 +18,12 @@ pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
 pub(crate) mod vc_epoch_retention;
 
+use airapiclient::ds_api::{
+    AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
+    CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn, GroupOperationParamsOut,
+    PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag, SendMessageParamsOut,
+    TargetedMessageParamsOut, WelcomeInfoIn,
+};
 #[cfg(feature = "test_utils")]
 use airprotos::client::component::AirFeatures;
 use apqmls::{
@@ -58,15 +64,8 @@ use aircommon::{
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{
-            AadMessage, AadPayload, ApqWelcomeBundle, DsJoinerInformation, GroupOperationParamsAad,
+            AadMessage, AadPayload, ApqWelcomeBundle, DsJoinerInformation, GroupOperationAad,
             WelcomeBundle,
-        },
-        client_ds_out::{
-            AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
-            CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, PqExternalCommitInfoIn, SelfRemoveParamsOut,
-            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut,
-            TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -1449,7 +1448,7 @@ impl Group {
             wai_keys.push(wai_key);
         }
 
-        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys,
         })
         .into();
@@ -1575,7 +1574,7 @@ impl Group {
             wai_keys.push(wai_key);
         }
 
-        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys,
         })
         .into();
@@ -1675,7 +1674,7 @@ impl Group {
         }
         ensure!(members.is_empty(), "Not all members to remove were found");
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: vec![],
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
@@ -1752,7 +1751,7 @@ impl Group {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad_payload = AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
@@ -2103,10 +2102,8 @@ impl Group {
             sender: self.mls_group.own_leaf_index(),
             generation,
             collision_tags,
-            message_type: TargetedMessageType::ApplicationMessage {
-                message,
-                recipient: recipient_index,
-            },
+            message,
+            recipient: recipient_index,
         };
 
         Ok(params)
@@ -2161,7 +2158,7 @@ impl Group {
         derivation_epoch: DerivationEpoch,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         }))
         .tls_serialize_detached()?;
@@ -2235,7 +2232,7 @@ impl Group {
         signer: &LeafSigningKey,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         }))
         .tls_serialize_detached()?;
@@ -2971,7 +2968,7 @@ impl Group {
         signer: &LeafSigningKey,
         features: AirFeatures,
     ) -> Result<GroupOperationParamsOut> {
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationAad {
             new_encrypted_user_profile_keys: Vec::new(),
         }))
         .tls_serialize_detached()?;

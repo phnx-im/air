@@ -7,35 +7,20 @@ use mls_assist::openmls_traits::types::HpkeCiphertext;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
-    credentials::{
-        AsCredential, AsCredentialBody, AsIntermediateCredential, UserCredential,
-        UserCredentialPayload,
-    },
     crypto::{
-        Labeled, RatchetEncryptionKey,
+        Labeled,
         aead::Ciphertext,
         hash::{Hash, Hashable},
-        kdf::keys::RatchetSecret,
+        indexed_aead::{ciphertexts::IndexedCiphertext, keys::UserProfileKeyType},
     },
     messages::connection_package::ConnectionPackageHash,
 };
 
-use super::client_as_out::EncryptedUserProfile;
-
 // === User ===
 
 #[derive(Debug)]
-pub struct RegisterUserParams {
-    pub client_payload: UserCredentialPayload,
-    pub queue_encryption_key: RatchetEncryptionKey,
-    pub initial_ratchet_secret: RatchetSecret,
-    pub encrypted_user_profile: EncryptedUserProfile,
-}
-
-#[derive(Debug)]
-pub struct RegisterUserResponse {
-    pub user_credential: UserCredential,
-}
+pub struct EncryptedUserProfileCtype;
+pub type EncryptedUserProfile = IndexedCiphertext<UserProfileKeyType, EncryptedUserProfileCtype>;
 
 // === Client ===
 
@@ -152,9 +137,6 @@ impl SerializedTokenResponse {
 
 // === Anonymous requests ===
 
-#[derive(Debug)]
-pub struct AsCredentialsParams {}
-
 /// A VOPRF public key for Privacy Pass token issuance.
 #[derive(Debug)]
 pub struct BatchedTokenKeyResponse {
@@ -164,12 +146,4 @@ pub struct BatchedTokenKeyResponse {
     /// Whether this is the newest key of its operation type, i.e. the one new
     /// token requests must be built with.
     pub is_current: bool,
-}
-
-#[derive(Debug)]
-pub struct AsCredentialsResponse {
-    pub as_credentials: Vec<AsCredential>,
-    pub as_intermediate_credentials: Vec<AsIntermediateCredential>,
-    pub revoked_credentials: Vec<Hash<AsCredentialBody>>,
-    pub batched_token_keys: Vec<BatchedTokenKeyResponse>,
 }

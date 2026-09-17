@@ -9,19 +9,16 @@ use std::convert::identity;
 use aircommon::{
     LibraryError,
     credentials::{
-        UserCredentialPayload,
+        AsCredential, AsCredentialBody, UserCredentialPayload, VerifiableAsIntermediateCredential,
+        VerifiableUserCredential,
         keys::{UserSigningKey, UsernameSigningKey},
     },
-    crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
+    crypto::{hash::Hash, indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
     identifiers::{UserId, Username, UsernameHash},
     messages::{
         client_as::{
-            BatchedTokenKeyResponse, ConnectionOfferMessage, SerializedToken,
+            BatchedTokenKeyResponse, ConnectionOfferMessage, EncryptedUserProfile, SerializedToken,
             SerializedTokenRequest, SerializedTokenResponse,
-        },
-        client_as_out::{
-            AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
-            RegisterUserResponseIn, UsernameDeleteResponse,
         },
         connection_package::ConnectionPackage,
         connection_package::VersionedConnectionPackageIn,
@@ -129,7 +126,7 @@ impl AsRequestError {
 /// What the server did with a registration.
 #[derive(Debug)]
 pub enum RegistrationOutcome {
-    Registered(RegisterUserResponseIn),
+    Registered(VerifiableUserCredential),
     /// The gate is closed and the request carried no challenge of an accepted
     /// kind. Kinds this build does not know are dropped.
     ChallengeRequired(Vec<ChallengeKind>),
@@ -143,14 +140,12 @@ impl TryFrom<RegisterUserResponse> for RegistrationOutcome {
     fn try_from(response: RegisterUserResponse) -> Result<Self, Self::Error> {
         use register_user_response::Outcome;
         match response.outcome {
-            Some(Outcome::UserCredential(credential)) => {
-                Ok(Self::Registered(RegisterUserResponseIn {
-                    user_credential: credential.try_into().map_err(|error| {
-                        error!(%error, "invalid user_credential in response");
-                        AsRequestError::UnexpectedResponse
-                    })?,
-                }))
-            }
+            Some(Outcome::UserCredential(credential)) => Ok(Self::Registered(
+                credential.try_into().map_err(|error| {
+                    error!(%error, "invalid user_credential in response");
+                    AsRequestError::UnexpectedResponse
+                })?,
+            )),
             Some(Outcome::ChallengeRequired(detail)) => Ok(Self::ChallengeRequired(
                 detail
                     .accepted_challenges()
@@ -164,6 +159,24 @@ impl TryFrom<RegisterUserResponse> for RegistrationOutcome {
             }
         }
     }
+}
+
+/// AS credentials and trust anchors, as returned by the server.
+#[derive(Debug)]
+pub struct AsCredentialsResponseIn {
+    // TODO: We might want a Verifiable... type variant here that ensures that
+    // this is matched against the local trust store or something.
+    pub as_credentials: Vec<AsCredential>,
+    pub as_intermediate_credentials: Vec<VerifiableAsIntermediateCredential>,
+    pub revoked_credentials: Vec<Hash<AsCredentialBody>>,
+    pub batched_token_keys: Vec<BatchedTokenKeyResponse>,
+}
+
+/// Outcome of a username deletion request.
+#[derive(Debug)]
+pub enum UsernameDeleteResponse {
+    Success,
+    NotFound,
 }
 
 impl From<LibraryError> for AsRequestError {
@@ -293,7 +306,7 @@ impl ApiClient {
         &self,
         user_id: UserId,
         key_index: UserProfileKeyIndex,
-    ) -> Result<GetUserProfileResponse, AsRequestError> {
+    ) -> Result<EncryptedUserProfile, AsRequestError> {
         let request = GetUserProfileRequest {
             client_metadata: Some(self.metadata().clone()),
             user_id: Some(user_id.into()),
@@ -304,19 +317,17 @@ impl ApiClient {
             .get_user_profile(request)
             .await?
             .into_inner();
-        Ok(GetUserProfileResponse {
-            encrypted_user_profile: response
-                .encrypted_user_profile
-                .ok_or_else(|| {
-                    error!("missing `encrypted_user_profile` in response");
-                    AsRequestError::UnexpectedResponse
-                })?
-                .try_into()
-                .map_err(|error| {
-                    error!(%error, "invalid encrypted_user_profile in response");
-                    AsRequestError::UnexpectedResponse
-                })?,
-        })
+        response
+            .encrypted_user_profile
+            .ok_or_else(|| {
+                error!("missing `encrypted_user_profile` in response");
+                AsRequestError::UnexpectedResponse
+            })?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid encrypted_user_profile in response");
+                AsRequestError::UnexpectedResponse
+            })
     }
 
     pub async fn as_stage_user_profile(

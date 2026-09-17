@@ -15,10 +15,7 @@ use crate::crypto::{
 };
 
 pub mod client_as;
-pub mod client_as_out;
 pub mod client_ds;
-pub mod client_ds_out;
-pub mod client_qs;
 pub mod connection_package;
 pub mod connection_package_v1;
 pub mod push_token;

@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::{ApiClient, as_api::UsernameDeleteResponse};
 use aircommon::{
     credentials::keys::UsernameSigningKey,
     crypto::ConnectionDecryptionKey,
     identifiers::{Username, UsernameHash},
     messages::{
         client_as::SerializedToken,
-        client_as_out::UsernameDeleteResponse,
         connection_package::{ConnectionPackage, ConnectionPackageMetadata},
     },
 };
@@ -17,8 +17,6 @@ use anyhow::Context;
 pub use persistence::UsernameRecord;
 use tokio::task::spawn_blocking;
 use tracing::{error, info, warn};
-
-use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},

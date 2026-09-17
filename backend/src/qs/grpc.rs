@@ -11,16 +11,7 @@ use airprotos::{
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 
-use aircommon::{
-    identifiers,
-    messages::client_qs::{
-        CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
-        DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
-        UpdateClientRecordParams, UpdateUserRecordParams,
-    },
-    time::TimeStamp,
-    virtual_client::KeyPackageBatchId,
-};
+use aircommon::{identifiers, time::TimeStamp, virtual_client::KeyPackageBatchId};
 use chrono::Utc;
 use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
@@ -98,43 +89,48 @@ impl QueueService for GrpcQs {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
 
-        let params = CreateUserRecordParams {
-            user_record_auth_key: request
-                .user_record_auth_key
-                .ok_or_missing_field("user_record_auth_key")?
-                .into(),
-            friendship_token: request
-                .friendship_token
-                .ok_or_missing_field("friendship_token")?
-                .into(),
-            client_record_auth_key: request
-                .client_record_auth_key
-                .ok_or_missing_field("client_record_auth_key")?
-                .into(),
-            queue_encryption_key: request
-                .queue_encryption_key
-                .ok_or_missing_field("queue_encryption_key")?
-                .into(),
-            encrypted_push_token: request
-                .encrypted_push_token
-                .map(|token| token.try_into())
-                .transpose()?,
-            initial_ratchet_secret: request
-                .initial_ratched_secret
-                .ok_or_missing_field("initial_ratched_secret")?
-                .try_into()?,
-        };
-        let response = self
+        let user_record_auth_key = request
+            .user_record_auth_key
+            .ok_or_missing_field("user_record_auth_key")?
+            .into();
+        let friendship_token = request
+            .friendship_token
+            .ok_or_missing_field("friendship_token")?
+            .into();
+        let client_record_auth_key = request
+            .client_record_auth_key
+            .ok_or_missing_field("client_record_auth_key")?
+            .into();
+        let queue_encryption_key = request
+            .queue_encryption_key
+            .ok_or_missing_field("queue_encryption_key")?
+            .into();
+        let encrypted_push_token = request
+            .encrypted_push_token
+            .map(|token| token.try_into())
+            .transpose()?;
+        let initial_ratchet_secret = request
+            .initial_ratched_secret
+            .ok_or_missing_field("initial_ratched_secret")?
+            .try_into()?;
+        let (user_id, qs_client_id) = self
             .qs
-            .qs_create_user_record(params)
+            .qs_create_user_record(
+                user_record_auth_key,
+                friendship_token,
+                client_record_auth_key,
+                queue_encryption_key,
+                encrypted_push_token,
+                initial_ratchet_secret,
+            )
             .await
             .map_err(|error| {
                 error!(%error, "failed to create user record");
                 Status::internal("failed to create user record")
             })?;
         let response = CreateUserResponse {
-            user_id: Some(response.user_id.into()),
-            client_id: Some(response.qs_client_id.into()),
+            user_id: Some(user_id.into()),
+            client_id: Some(qs_client_id.into()),
         };
         Ok(Response::new(response))
     }
@@ -161,17 +157,15 @@ impl QueueService for GrpcQs {
             friendship_token,
         } = self.verify_user_auth(request).await?;
 
-        let params = UpdateUserRecordParams {
-            sender: sender.ok_or_missing_field("sender")?.try_into()?,
-            user_record_auth_key: user_record_auth_key
-                .ok_or_missing_field("user_record_auth_key")?
-                .into(),
-            friendship_token: friendship_token
-                .ok_or_missing_field("friendship_token")?
-                .into(),
-        };
+        let sender = sender.ok_or_missing_field("sender")?.try_into()?;
+        let user_record_auth_key = user_record_auth_key
+            .ok_or_missing_field("user_record_auth_key")?
+            .into();
+        let friendship_token = friendship_token
+            .ok_or_missing_field("friendship_token")?
+            .into();
         self.qs
-            .qs_update_user_record(params)
+            .qs_update_user_record(sender, user_record_auth_key, friendship_token)
             .await
             .map_err(|error| {
                 error!(%error, "failed to update user record");
@@ -200,11 +194,9 @@ impl QueueService for GrpcQs {
             sender,
         } = self.verify_user_auth(request).await?;
 
-        let params = DeleteUserRecordParams {
-            sender: sender.ok_or_missing_field("sender")?.try_into()?,
-        };
+        let sender = sender.ok_or_missing_field("sender")?.try_into()?;
         self.qs
-            .qs_delete_user_record(params)
+            .qs_delete_user_record(sender)
             .await
             .map_err(|error| {
                 error!(%error, "failed to delete user record");
@@ -227,24 +219,31 @@ impl QueueService for GrpcQs {
             initial_ratched_secret,
         } = self.verify_user_auth(request).await?;
         self.verify_client_version(client_metadata.as_ref())?;
-        let params = CreateClientRecordParams {
-            sender: sender.ok_or_missing_field("sender")?.try_into()?,
-            client_record_auth_key: client_record_auth_key
-                .ok_or_missing_field("client_record_auth_key")?
-                .into(),
-            queue_encryption_key: queue_encryption_key
-                .ok_or_missing_field("queue_encryption_key")?
-                .into(),
-            encrypted_push_token: encrypted_push_token
-                .map(|token| token.try_into())
-                .transpose()?,
-            initial_ratchet_secret: initial_ratched_secret
-                .ok_or_missing_field("initial_ratched_secret")?
-                .try_into()?,
-        };
-        let response = self.qs.qs_create_client_record(params).await?;
+        let sender = sender.ok_or_missing_field("sender")?.try_into()?;
+        let client_record_auth_key = client_record_auth_key
+            .ok_or_missing_field("client_record_auth_key")?
+            .into();
+        let queue_encryption_key = queue_encryption_key
+            .ok_or_missing_field("queue_encryption_key")?
+            .into();
+        let encrypted_push_token = encrypted_push_token
+            .map(|token| token.try_into())
+            .transpose()?;
+        let initial_ratchet_secret = initial_ratched_secret
+            .ok_or_missing_field("initial_ratched_secret")?
+            .try_into()?;
+        let qs_client_id = self
+            .qs
+            .qs_create_client_record(
+                sender,
+                client_record_auth_key,
+                queue_encryption_key,
+                encrypted_push_token,
+                initial_ratchet_secret,
+            )
+            .await?;
         Ok(Response::new(CreateClientResponse {
-            client_id: Some(response.qs_client_id.into()),
+            client_id: Some(qs_client_id.into()),
         }))
     }
 
@@ -268,19 +267,24 @@ impl QueueService for GrpcQs {
             queue_encryption_key,
             encrypted_push_token,
         } = self.verify_client_auth(request).await?;
-        let params = UpdateClientRecordParams {
-            sender: sender.ok_or_missing_field("sender")?.try_into()?,
-            client_record_auth_key: client_record_auth_key
-                .ok_or_missing_field("client_record_auth_key")?
-                .into(),
-            queue_encryption_key: queue_encryption_key
-                .ok_or_missing_field("queue_encryption_key")?
-                .into(),
-            encrypted_push_token: encrypted_push_token
-                .map(|token| token.try_into())
-                .transpose()?,
-        };
-        self.qs.qs_update_client_record(params).await?;
+        let sender = sender.ok_or_missing_field("sender")?.try_into()?;
+        let client_record_auth_key = client_record_auth_key
+            .ok_or_missing_field("client_record_auth_key")?
+            .into();
+        let queue_encryption_key = queue_encryption_key
+            .ok_or_missing_field("queue_encryption_key")?
+            .into();
+        let encrypted_push_token = encrypted_push_token
+            .map(|token| token.try_into())
+            .transpose()?;
+        self.qs
+            .qs_update_client_record(
+                sender,
+                client_record_auth_key,
+                queue_encryption_key,
+                encrypted_push_token,
+            )
+            .await?;
         Ok(Response::new(UpdateClientResponse {}))
     }
 
@@ -301,10 +305,8 @@ impl QueueService for GrpcQs {
             client_metadata: _,
             sender,
         } = self.verify_client_auth(request).await?;
-        let params = DeleteClientRecordParams {
-            sender: sender.ok_or_missing_field("sender")?.try_into()?,
-        };
-        self.qs.qs_delete_client_record(params).await?;
+        let sender = sender.ok_or_missing_field("sender")?.try_into()?;
+        self.qs.qs_delete_client_record(sender).await?;
         Ok(Response::new(DeleteClientResponse {}))
     }
 
@@ -326,15 +328,15 @@ impl QueueService for GrpcQs {
             client_id,
             key_packages,
         } = self.verify_client_auth(request).await?;
-        let params = PublishKeyPackagesParams {
-            sender: client_id.ok_or_missing_field("client_id")?.try_into()?,
-            key_packages: key_packages
-                .into_iter()
-                .map(|key_package| key_package.try_into())
-                .collect::<Result<Vec<_>, _>>()
-                .invalid_tls("key_packages")?,
-        };
-        self.qs.qs_publish_key_packages(params).await?;
+        let sender = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        let key_packages = key_packages
+            .into_iter()
+            .map(|key_package| key_package.try_into())
+            .collect::<Result<Vec<_>, _>>()
+            .invalid_tls("key_packages")?;
+        self.qs
+            .qs_publish_key_packages(sender, key_packages)
+            .await?;
         Ok(Response::new(PublishKeyPackagesResponse {}))
     }
 
@@ -387,12 +389,10 @@ impl QueueService for GrpcQs {
     ) -> Result<Response<KeyPackageResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let params = KeyPackageParams {
-            sender: request.sender.ok_or_missing_field("sender")?.into(),
-        };
-        let response = self.qs.qs_key_package(params).await?;
+        let sender = request.sender.ok_or_missing_field("sender")?.into();
+        let key_package = self.qs.qs_key_package(sender).await?;
         Ok(Response::new(KeyPackageResponse {
-            key_package: Some(response.key_package.try_into().tls_failed("key_package")?),
+            key_package: Some(key_package.try_into().tls_failed("key_package")?),
         }))
     }
 
@@ -444,9 +444,9 @@ impl QueueService for GrpcQs {
     ) -> Result<Response<QsEncryptionKeyResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let response = self.qs.qs_encryption_key().await?;
+        let encryption_key = self.qs.qs_encryption_key().await?;
         Ok(Response::new(QsEncryptionKeyResponse {
-            encryption_key: Some(response.encryption_key.into()),
+            encryption_key: Some(encryption_key.into()),
         }))
     }
 

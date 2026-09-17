@@ -12,10 +12,7 @@ use aircommon::{
         },
     },
     identifiers::{self, Fqdn, QualifiedGroupId},
-    messages::client_ds::{
-        self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        UserProfileKeyUpdateParams,
-    },
+    messages::client_ds::{self, QsQueueMessagePayload, UserProfileKeyUpdate},
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
 };
@@ -1248,18 +1245,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         ));
                     }
 
-                    let params = JoinConnectionGroupParams {
-                        external_commit,
-                        qs_client_reference: request
-                            .qs_client_reference
-                            .ok_or_missing_field("qs_client_reference")?
-                            .try_into()?,
-                    };
+                    let qs_client_reference = request
+                        .qs_client_reference
+                        .ok_or_missing_field("qs_client_reference")?
+                        .try_into()?;
 
                     // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
 
-                    let group_message = group_state.join_connection_group(params)?;
+                    let group_message =
+                        group_state.join_connection_group(external_commit, qs_client_reference)?;
 
                     group_state.proposals.clear();
 
@@ -1764,13 +1759,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     );
                 }
 
-                let params = GroupOperationParams {
-                    commit,
-                    add_users_info_option: payload
-                        .add_users_info
-                        .map(|info| info.try_into())
-                        .transpose()?,
-                };
+                let add_users_info_option = payload
+                    .add_users_info
+                    .map(|info| info.try_into())
+                    .transpose()?;
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -1778,7 +1770,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
-                    group_state.group_operation(params, ear_key).await?;
+                    group_state
+                        .group_operation(commit, add_users_info_option, ear_key)
+                        .await?;
 
                 group_state.proposals.clear();
 
@@ -1997,16 +1991,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .encrypted_user_profile_key
                     .ok_or_missing_field("user_profile_key")?
                     .try_into()?;
-                let params = UserProfileKeyUpdateParams {
+                let update = UserProfileKeyUpdate {
                     group_id: qgid.clone().into(),
                     sender_index,
                     user_profile_key,
                 };
 
                 let fan_out_payload =
-                    QsQueueMessagePayload::try_from(&params).tls_failed("QsQueueMessagePayload")?;
+                    QsQueueMessagePayload::try_from(&update).tls_failed("QsQueueMessagePayload")?;
 
-                group_state.update_user_profile_key(sender_index, params.user_profile_key)?;
+                group_state.update_user_profile_key(sender_index, update.user_profile_key)?;
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)

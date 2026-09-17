@@ -58,7 +58,7 @@ mod v1 {
         crypto::kdf::keys::RatchetSecret,
         identifiers::UserId,
         messages::{
-            client_as_out::EncryptedUserProfile,
+            client_as::EncryptedUserProfile,
             push_token::{EncryptedPushToken, PushToken},
         },
     };
