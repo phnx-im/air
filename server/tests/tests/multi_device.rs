@@ -318,7 +318,7 @@ async fn multi_device_linking_session() {
             "linked device should have inherited pre-existing group {label}"
         );
         assert!(
-            !new_device.is_resync_pending(chat_id).await.unwrap(),
+            new_device.resync_status(chat_id).await.unwrap().is_none(),
             "onboarding into group {label} should have completed, not still be queued"
         );
 
@@ -1083,7 +1083,11 @@ async fn multi_device_linking_a_third_device() {
         ("connection group", connection_chat_id),
     ] {
         assert!(
-            !device_3.is_resync_pending(onboarded_chat_id).await.unwrap(),
+            device_3
+                .resync_status(onboarded_chat_id)
+                .await
+                .unwrap()
+                .is_none(),
             "device 3 should have completed onboarding into the {chat_label}"
         );
         let epoch_and_index = device_1
@@ -1156,7 +1160,11 @@ async fn multi_device_onboarding_after_self_group_advanced() {
 
     device_3.outbound_service().run_once().await;
     assert!(
-        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
+        device_3
+            .resync_status(group_chat_id)
+            .await
+            .unwrap()
+            .is_none(),
         "device 3 should have completed onboarding into the higher-level group"
     );
 
@@ -1678,12 +1686,12 @@ async fn multi_device_self_group_resync() {
     // The old device resyncs into the self group.
     old_device.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        old_device.is_resync_pending(chat_id).await.unwrap(),
+        old_device.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
     old_device.outbound_service().run_once().await;
     assert!(
-        !old_device.is_resync_pending(chat_id).await.unwrap(),
+        old_device.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -1726,10 +1734,11 @@ async fn multi_device_inherits_connection_chats() {
     new_device.outbound_service().run_once().await;
 
     assert!(
-        !new_device
-            .is_resync_pending(connection_chat_id)
+        new_device
+            .resync_status(connection_chat_id)
             .await
-            .unwrap(),
+            .unwrap()
+            .is_none(),
         "onboarding into the connection group should have completed"
     );
 
@@ -2304,12 +2313,11 @@ async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) 
         .await
         .unwrap()
         .iter()
-        .filter(|message| {
-            matches!(
-                message.message(),
-                Message::Event(EventMessage::System(SystemMessage::Remove(remover, removed)))
-                    if remover == user_id && removed == user_id
-            )
+        .filter(|message| match message.message() {
+            Message::Event(EventMessage::System(SystemMessage::Remove(Some(remover), removed))) => {
+                remover == user_id && removed == user_id
+            }
+            _ => false,
         })
         .count()
 }

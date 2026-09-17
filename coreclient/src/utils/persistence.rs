@@ -712,7 +712,8 @@ mod tests {
     async fn seed_legacy_vc_state(db: &DbAccess, epochs: &LegacyEpochs) -> anyhow::Result<()> {
         let mut write = db.write().await?;
         for statement in [
-            "DELETE FROM _sqlx_migrations WHERE version >= 20260902120000",
+            "DELETE FROM _sqlx_migrations
+             WHERE version IN (20260902120000, 20260902120100)",
             "DROP TABLE vc_derivation_epoch_log_entry",
             "DROP TABLE vc_derivation_epoch_legacy_hold",
             "DROP TABLE vc_emulation_binding",

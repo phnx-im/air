@@ -92,9 +92,9 @@ impl OutboundServiceContext {
                 }
             }
 
-            // If a resync is pending, skip sending reactions for this chat.
-            if Resync::is_pending_for_chat(self.db.read().await?, &chat_id).await? {
-                debug!(?chat_id, "Skipping sending reaction due to pending resync");
+            // If a resync is pending/failed, skip sending reactions for this chat.
+            if let Some(status) = Resync::status_for_chat(self.db.read().await?, &chat_id).await? {
+                debug!(?chat_id, ?status, "Skipping sending reaction due to resync");
                 continue;
             }
 

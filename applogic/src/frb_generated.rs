@@ -9306,6 +9306,7 @@ const _: fn() = || {
             GroupDebugInfo.group_data;
         let _: u64 = GroupDebugInfo.size_bytes;
         let _: Option<crate::api::chat_details_cubit::PqGroupDebugInfo> = GroupDebugInfo.pq;
+        let _: Option<crate::api::chat_details_cubit::ResyncDebugInfo> = GroupDebugInfo.resync;
     }
     {
         let InvitationCode = None::<crate::api::invitation_codes_cubit::InvitationCode>.unwrap();
@@ -9351,6 +9352,14 @@ const _: fn() = || {
         let _: Vec<String> = RequiredDebugCapabilities.extension_types;
         let _: Vec<String> = RequiredDebugCapabilities.proposal_types;
         let _: Vec<String> = RequiredDebugCapabilities.credential_types;
+    }
+    {
+        let ResyncDebugInfo = None::<crate::api::chat_details_cubit::ResyncDebugInfo>.unwrap();
+        let _: String = ResyncDebugInfo.status;
+        let _: String = ResyncDebugInfo.reason;
+        let _: u32 = ResyncDebugInfo.attempts;
+        let _: Option<String> = ResyncDebugInfo.not_before;
+        let _: Option<String> = ResyncDebugInfo.last_error;
     }
     {
         let TimedTaskDebugInfo = None::<crate::api::user::TimedTaskDebugInfo>.unwrap();
@@ -10746,6 +10755,8 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
         let mut var_sizeBytes = <u64>::sse_decode(deserializer);
         let mut var_pq =
             <Option<crate::api::chat_details_cubit::PqGroupDebugInfo>>::sse_decode(deserializer);
+        let mut var_resync =
+            <Option<crate::api::chat_details_cubit::ResyncDebugInfo>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDebugInfo {
             group_id: var_groupId,
             epoch: var_epoch,
@@ -10760,6 +10771,7 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             group_data: var_groupData,
             size_bytes: var_sizeBytes,
             pq: var_pq,
+            resync: var_resync,
         };
     }
 }
@@ -11957,6 +11969,19 @@ impl SseDecode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
     }
 }
 
+impl SseDecode for Option<crate::api::chat_details_cubit::ResyncDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::api::chat_details_cubit::ResyncDebugInfo>::sse_decode(deserializer),
+            );
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::chat_details_cubit::UiAcceptContactRequestError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12342,6 +12367,24 @@ impl SseDecode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseDecode for crate::api::chat_details_cubit::ResyncDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_status = <String>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        let mut var_attempts = <u32>::sse_decode(deserializer);
+        let mut var_notBefore = <Option<String>>::sse_decode(deserializer);
+        let mut var_lastError = <Option<String>>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::ResyncDebugInfo {
+            status: var_status,
+            reason: var_reason,
+            attempts: var_attempts,
+            not_before: var_notBefore,
+            last_error: var_lastError,
+        };
+    }
+}
+
 impl SseDecode for crate::api::share_cubit::ShareState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12514,6 +12557,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_isApq = <bool>::sse_decode(deserializer);
         let mut var_mutedUntil = <Option<crate::api::types::UiChatMuted>>::sse_decode(deserializer);
         let mut var_pendingCommitFailed = <bool>::sse_decode(deserializer);
+        let mut var_resyncFailed = <bool>::sse_decode(deserializer);
         return crate::api::types::UiChatDetails {
             id: var_id,
             status: var_status,
@@ -12526,6 +12570,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             is_apq: var_isApq,
             muted_until: var_mutedUntil,
             pending_commit_failed: var_pendingCommitFailed,
+            resync_failed: var_resyncFailed,
         };
     }
 }
@@ -13008,12 +13053,14 @@ impl SseDecode for crate::api::types::UiSystemMessage {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_field0 =
+                    <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
                 let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::Add(var_field0, var_field1);
             }
             1 => {
-                let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_field0 =
+                    <Option<crate::api::types::UiUserId>>::sse_decode(deserializer);
                 let mut var_field1 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::Remove(var_field0, var_field1);
             }
@@ -14572,6 +14619,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit
             self.0.group_data.into_into_dart().into_dart(),
             self.0.size_bytes.into_into_dart().into_dart(),
             self.0.pq.into_into_dart().into_dart(),
+            self.0.resync.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -15406,6 +15454,30 @@ impl
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit::ResyncDebugInfo> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.status.into_into_dart().into_dart(),
+            self.0.reason.into_into_dart().into_dart(),
+            self.0.attempts.into_into_dart().into_dart(),
+            self.0.not_before.into_into_dart().into_dart(),
+            self.0.last_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::ResyncDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::chat_details_cubit::ResyncDebugInfo>>
+    for crate::api::chat_details_cubit::ResyncDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::ResyncDebugInfo> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::ShareState {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15606,6 +15678,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.is_apq.into_into_dart().into_dart(),
             self.muted_until.into_into_dart().into_dart(),
             self.pending_commit_failed.into_into_dart().into_dart(),
+            self.resync_failed.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17611,6 +17684,10 @@ impl SseEncode for crate::api::chat_details_cubit::GroupDebugInfo {
         );
         <u64>::sse_encode(self.size_bytes, serializer);
         <Option<crate::api::chat_details_cubit::PqGroupDebugInfo>>::sse_encode(self.pq, serializer);
+        <Option<crate::api::chat_details_cubit::ResyncDebugInfo>>::sse_encode(
+            self.resync,
+            serializer,
+        );
     }
 }
 
@@ -18590,6 +18667,16 @@ impl SseEncode for Option<crate::api::chat_details_cubit::RequiredDebugCapabilit
     }
 }
 
+impl SseEncode for Option<crate::api::chat_details_cubit::ResyncDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::ResyncDebugInfo>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::chat_details_cubit::UiAcceptContactRequestError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18897,6 +18984,17 @@ impl SseEncode for crate::api::chat_details_cubit::RequiredDebugCapabilities {
     }
 }
 
+impl SseEncode for crate::api::chat_details_cubit::ResyncDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.status, serializer);
+        <String>::sse_encode(self.reason, serializer);
+        <u32>::sse_encode(self.attempts, serializer);
+        <Option<String>>::sse_encode(self.not_before, serializer);
+        <Option<String>>::sse_encode(self.last_error, serializer);
+    }
+}
+
 impl SseEncode for crate::api::share_cubit::ShareState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19045,6 +19143,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <bool>::sse_encode(self.is_apq, serializer);
         <Option<crate::api::types::UiChatMuted>>::sse_encode(self.muted_until, serializer);
         <bool>::sse_encode(self.pending_commit_failed, serializer);
+        <bool>::sse_encode(self.resync_failed, serializer);
     }
 }
 
@@ -19442,12 +19541,12 @@ impl SseEncode for crate::api::types::UiSystemMessage {
         match self {
             crate::api::types::UiSystemMessage::Add(field0, field1) => {
                 <i32>::sse_encode(0, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
             }
             crate::api::types::UiSystemMessage::Remove(field0, field1) => {
                 <i32>::sse_encode(1, serializer);
-                <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+                <Option<crate::api::types::UiUserId>>::sse_encode(field0, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field1, serializer);
             }
             crate::api::types::UiSystemMessage::ChangeTitle(field0, field1, field2) => {

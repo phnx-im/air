@@ -1307,11 +1307,23 @@ abstract class AppLocalizations {
   /// **'{user1} added {user2}'**
   String systemMessage_userAddedUser(String user1, String user2);
 
+  /// Notice in the message list when someone was added to a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.
+  ///
+  /// In en, this message translates to:
+  /// **'{user1} was added to the chat'**
+  String systemMessage_userWasAdded(String user1);
+
   /// Notice in the message list when someone removes someone else from a group. Both names are rendered in bold wherever they land, so put them where your language needs them.
   ///
   /// In en, this message translates to:
   /// **'{user1} removed {user2}'**
   String systemMessage_userRemovedUser(String user1, String user2);
+
+  /// Notice in the message list when someone was removed from a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.
+  ///
+  /// In en, this message translates to:
+  /// **'{user1} was removed from the chat'**
+  String systemMessage_userWasRemoved(String user1);
 
   /// Notice in the message list when someone renames a group. The person's name and both group names are rendered in bold wherever they land, so put them where your language needs them.
   ///

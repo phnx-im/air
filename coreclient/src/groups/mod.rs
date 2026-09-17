@@ -396,8 +396,8 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
     ) -> sqlx::Result<()> {
-        error!(group_id = ?self.group_id(), "Group is desynced");
         if !self.pending_commit_failed {
+            error!(group_id = ?self.group_id(), "Group is desynced");
             self.pending_commit_failed = true;
             self.store_pending_commit_failed(&mut connection).await?;
 
@@ -3354,7 +3354,7 @@ impl TimestampedMessage {
         }
         let remove_messages = removed_set.into_iter().map(|(remover, removed)| {
             TimestampedMessage::system_message(
-                SystemMessage::Remove(remover, removed),
+                SystemMessage::Remove(Some(remover), removed),
                 ds_timestamp,
             )
         });
@@ -3382,8 +3382,8 @@ impl TimestampedMessage {
 
             adds_set.insert((sender_id, addee_id));
         }
-        let add_messages = adds_set.into_iter().map(|(adder, addee)| {
-            TimestampedMessage::system_message(SystemMessage::Add(adder, addee), ds_timestamp)
+        let add_messages = adds_set.into_iter().map(|(adder, added)| {
+            TimestampedMessage::system_message(SystemMessage::Add(Some(adder), added), ds_timestamp)
         });
 
         let event_messages = remove_messages.chain(add_messages).collect();

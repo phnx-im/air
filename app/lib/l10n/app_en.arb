@@ -940,6 +940,16 @@
     }
   },
 
+  "systemMessage_userWasAdded": "{user1} was added to the chat",
+  "@systemMessage_userWasAdded": {
+    "description": "Notice in the message list when someone was added to a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user1": {
+        "type": "String"
+      }
+    }
+  },
+
   "systemMessage_userRemovedUser": "{user1} removed {user2}",
   "@systemMessage_userRemovedUser": {
     "description": "Notice in the message list when someone removes someone else from a group. Both names are rendered in bold wherever they land, so put them where your language needs them.",
@@ -948,6 +958,16 @@
         "type": "String"
       },
       "user2": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_userWasRemoved": "{user1} was removed from the chat",
+  "@systemMessage_userWasRemoved": {
+    "description": "Notice in the message list when someone was removed from a group but we don't know by whom. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user1": {
         "type": "String"
       }
     }
