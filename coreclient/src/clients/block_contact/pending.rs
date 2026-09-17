@@ -86,13 +86,13 @@ impl BlockedState {
                     })
                     .ok()?;
                 Some(Self::Blocked(BlockedContact {
-                    user_id: user_id.try_into().ok()?,
+                    user_id: user_id.to_user_id().ok()?,
                     last_display_name,
                     blocked_at,
                 }))
             }
             BlockedContactEntry::Unblocked(ContactUnblocked { user_id }) => Some(Self::Unblocked {
-                user_id: user_id.try_into().ok()?,
+                user_id: user_id.to_user_id().ok()?,
             }),
             BlockedContactEntry::Unknown => {
                 debug!("Skipping a blocked-contact entry with an unknown state");
@@ -162,8 +162,8 @@ impl From<SqlOutgoingEntry> for BlockedContactEntry {
         }: SqlOutgoingEntry,
     ) -> Self {
         let user_id = PeerUserId {
-            uuid: user_uuid,
-            domain: user_domain,
+            uuid: Some(user_uuid),
+            domain: Some(user_domain),
         };
         match blocked_at.zip(last_display_name) {
             Some((blocked_at, last_display_name)) => Self::Blocked(ContactBlocked {
@@ -257,8 +257,9 @@ async fn load_outgoing_entry(
     mut connection: impl ReadConnection,
     user_id: &PeerUserId,
 ) -> sqlx::Result<Option<BlockedContactEntry>> {
-    let uuid = user_id.uuid;
-    let domain = &user_id.domain;
+    let (Some(uuid), Some(domain)) = (user_id.uuid, user_id.domain.as_deref()) else {
+        return Ok(None);
+    };
     query_as!(
         SqlOutgoingEntry,
         r#"SELECT
@@ -280,8 +281,9 @@ async fn delete_outgoing_entry(
     mut connection: impl WriteConnection,
     user_id: &PeerUserId,
 ) -> sqlx::Result<()> {
-    let uuid = user_id.uuid;
-    let domain = &user_id.domain;
+    let (Some(uuid), Some(domain)) = (user_id.uuid, user_id.domain.as_deref()) else {
+        return Ok(());
+    };
     query!(
         "DELETE FROM blocked_contact_change
         WHERE user_uuid = ?1 AND user_domain = ?2",
