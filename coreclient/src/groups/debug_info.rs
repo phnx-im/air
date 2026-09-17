@@ -78,8 +78,6 @@ pub struct PqGroupDebugInfo {
 
 #[derive(Debug, Clone)]
 pub struct GroupDataDebugInfo {
-    pub legacy_title: Option<String>,
-    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }
@@ -153,8 +151,6 @@ impl GroupDebugInfo {
             .unknown(GROUP_DATA_EXTENSION_TYPE)
             .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
             .map(|gd| GroupDataDebugInfo {
-                legacy_title: gd.legacy_title,
-                legacy_picture: gd.legacy_picture.is_some(),
                 encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
                 external_group_profile: gd
                     .external_group_profile

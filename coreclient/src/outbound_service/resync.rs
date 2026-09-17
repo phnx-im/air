@@ -574,7 +574,6 @@ impl Resync {
 
         let chat = Chat::new_pending_group_chat(group.group_id().clone(), attributes);
         chat.store(&mut *txn).await?;
-
         Ok(chat.id())
     }
 
