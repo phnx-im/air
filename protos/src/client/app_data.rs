@@ -473,6 +473,13 @@ mod test {
     }
 
     #[test]
+    fn group_profile_component_stability() {
+        let bytes = test_profile().to_bytes().unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
     fn group_profile_is_carried_only_when_set() {
         let dict = dictionary_of(
             GroupAppData {

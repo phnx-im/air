@@ -1229,7 +1229,7 @@ async fn legacy_group_data_migration() {
     name = "Update group profile in a group with profile component",
     skip_all
 )]
-async fn update_group_profile_in_group_with_profile_component_inner() {
+async fn update_group_profile_in_group_with_profile_component() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;

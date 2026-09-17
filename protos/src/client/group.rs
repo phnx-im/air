@@ -538,27 +538,4 @@ mod test {
         let decrypted = GroupProfile::decrypt(&key, &external, ciphertext).unwrap();
         assert_eq!(decrypted, profile);
     }
-
-    #[test]
-    fn group_profile_component_stability() {
-        let component = GroupProfileComponent {
-            encrypted_title: Some(EncryptedGroupTitle {
-                ciphertext: b"title-ciphertext".to_vec(),
-                nonce: [0xAA; _],
-                aad: b"group-title".to_vec(),
-            }),
-            external_group_profile: Some(ExternalGroupProfile {
-                object_id: uuid!("89fea7df-3823-4688-8915-00ab38db1577"),
-                size: 42,
-                enc_alg: Some(EncryptionAlgorithm::Aes256Gcm),
-                nonce: [0xBB; _],
-                aad: b"group-profile".to_vec(),
-                hash_alg: HashAlgorithm::Sha256,
-                content_hash: [0xCC; 32].to_vec(),
-            }),
-        };
-        let bytes = PersistenceCodec::to_vec(&component).unwrap();
-        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
-        insta::assert_snapshot!(diag);
-    }
 }
