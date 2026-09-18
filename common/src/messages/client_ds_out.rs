@@ -62,7 +62,7 @@ pub struct EpochSnapshotIn {
     pub pq: Option<PqEpochSnapshotIn>,
     /// The external commit accepted at this epoch, present iff the snapshot
     /// was written at an external join. A sibling of the joiner applies it on
-    /// top of the snapshot state.
+    /// top of the snapshot state. For an APQ join this is the T leg's commit.
     pub join_commit: Option<MlsMessageIn>,
 }
 
@@ -70,6 +70,9 @@ pub struct EpochSnapshotIn {
 pub struct PqEpochSnapshotIn {
     pub verifiable_group_info: VerifiableGroupInfo,
     pub ratchet_tree_in: RatchetTreeIn,
+    /// The PQ leg's commit, present iff [`EpochSnapshotIn::join_commit`] is the
+    /// T leg's commit of an APQ join.
+    pub join_commit: Option<MlsMessageIn>,
 }
 
 #[derive(Debug)]

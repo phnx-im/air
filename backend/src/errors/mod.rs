@@ -197,37 +197,6 @@ impl From<GroupOperationError> for Status {
     }
 }
 
-/// Potential errors when joining a connection group.
-#[derive(Debug, Error)]
-pub(crate) enum JoinConnectionGroupError {
-    /// Invalid assisted message.
-    #[error("Invalid assisted message")]
-    InvalidMessage,
-    /// Error processing message.
-    #[error("Error processing message")]
-    ProcessingError,
-    /// Not a connection group.
-    #[error("Not a connection group")]
-    NotAConnectionGroup,
-    #[error("Error merging commit")]
-    MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
-}
-
-impl From<JoinConnectionGroupError> for Status {
-    fn from(e: JoinConnectionGroupError) -> Self {
-        let msg = e.to_string();
-        match e {
-            JoinConnectionGroupError::InvalidMessage
-            | JoinConnectionGroupError::NotAConnectionGroup => Status::invalid_argument(msg),
-            JoinConnectionGroupError::ProcessingError => Status::internal(msg),
-            JoinConnectionGroupError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
-                Status::internal(msg)
-            }
-        }
-    }
-}
-
 /// Potential errors when deleting a group.
 #[derive(Debug, Error)]
 pub(crate) enum GroupDeletionError {
