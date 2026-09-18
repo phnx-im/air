@@ -103,6 +103,7 @@ pub struct UiChatDetails {
     pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
+    pub is_self_chat: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
     pub resync_failed: bool,
@@ -581,6 +582,7 @@ pub enum UiSystemMessage {
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
     Onboarded,
+    DeviceAdded(Uuid),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -633,6 +635,7 @@ impl From<SystemMessage> for UiSystemMessage {
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
+            SystemMessage::DeviceAdded(client_id) => UiSystemMessage::DeviceAdded(client_id),
         }
     }
 }

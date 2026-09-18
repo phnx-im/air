@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/avatar/avatar.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/util/image_providers.dart';
 import 'package:flutter/widgets.dart';
@@ -88,6 +89,7 @@ class ChatDetailsAvatar extends StatelessWidget {
       size: size,
       onPressed: onPressed,
       gradientKey: gradientKey,
+      icon: (chat?.isSelfChat ?? false) ? AppIconType.notepadText : null,
     );
   }
 }
@@ -122,6 +124,7 @@ class ChatAvatarView extends StatelessWidget {
       size: size,
       onPressed: onPressed,
       gradientKey: gradientKey,
+      icon: chat.isSelfChat ? AppIconType.notepadText : null,
     );
   }
 }
@@ -134,6 +137,7 @@ class _Avatar extends StatelessWidget {
     required this.size,
     required this.onPressed,
     required this.gradientKey,
+    this.icon,
   });
 
   final String displayName;
@@ -141,6 +145,7 @@ class _Avatar extends StatelessWidget {
   final double size;
   final VoidCallback? onPressed;
   final UuidValue? gradientKey;
+  final AppIconType? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +165,7 @@ class _Avatar extends StatelessWidget {
             )
           : null,
       gradientSeed: gradientKey?.uuid,
+      icon: icon,
       onTap: onPressed,
     );
   }

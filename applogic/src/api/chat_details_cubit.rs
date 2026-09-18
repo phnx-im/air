@@ -879,6 +879,11 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .await
         .unwrap_or(false);
 
+    let is_self_chat = core_user
+        .chat_is_self_group(&group_id)
+        .await
+        .unwrap_or(false);
+
     UiChatDetails {
         id: chat.id,
         status: chat.status.into(),
@@ -891,6 +896,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_reaction: last_reaction.map(Into::into),
         draft,
         is_apq,
+        is_self_chat,
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
         resync_failed,

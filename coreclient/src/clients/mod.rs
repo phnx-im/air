@@ -967,6 +967,14 @@ impl CoreUser {
     ) -> anyhow::Result<bool> {
         Ok(Resync::is_failed(self.db().read().await?, group_id).await?)
     }
+
+    /// Whether `group_id` is this client's own self group.
+    pub async fn chat_is_self_group(
+        &self,
+        group_id: &openmls::prelude::GroupId,
+    ) -> anyhow::Result<bool> {
+        Ok(OwnClientInfo::is_own_self_group(self.db().read().await?, group_id).await?)
+    }
 }
 
 /// Error which can occur when listening to the queue.

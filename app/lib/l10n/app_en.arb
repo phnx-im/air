@@ -1087,6 +1087,21 @@
     "description": "System message marking where a newly linked device joined the chat."
   },
 
+  "systemMessage_deviceAdded": "{device} was linked",
+  "@systemMessage_deviceAdded": {
+    "description": "Notice in the message list when one of our own other devices got linked and added to this chat. The device name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceAddedUnknown": "A new device was linked",
+  "@systemMessage_deviceAddedUnknown": {
+    "description": "Same as systemMessage_deviceAdded, for when the device's name isn't known yet (e.g. not synced)."
+  },
+
   "timestamp_now": "Now",
   "@timestamp_now": {
     "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."

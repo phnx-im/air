@@ -119,6 +119,7 @@ final chats = [
     id: fredChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(fredProfile),
     unreadMessages: 1,
     lastUsed: now,
@@ -136,6 +137,7 @@ final chats = [
     id: jessicaChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(jessicaProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 1)),
@@ -153,6 +155,7 @@ final chats = [
     id: scienceClubId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Science club',
@@ -175,6 +178,7 @@ final chats = [
     id: daveChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(daveProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 15)),
@@ -192,6 +196,7 @@ final chats = [
     id: gardeningPartyId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Gardening club',
@@ -214,6 +219,7 @@ final chats = [
     id: frankChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(frankProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(minutes: 30)),
@@ -231,6 +237,7 @@ final chats = [
     id: alexChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(alexProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(days: 1)),
@@ -244,6 +251,7 @@ final chats = [
     id: ireneChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(ireneProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(days: 1)),
@@ -261,6 +269,7 @@ final chats = [
     id: dinnerPartyId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Dinner party',
@@ -284,6 +293,7 @@ final chats = [
     id: kamalChatId,
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(kamalProfile),
     unreadMessages: 0,
     lastUsed: now.subtract(const Duration(days: 1)),

@@ -50,6 +50,7 @@ void main() {
             lastMessage: chat.lastMessage,
             draft: chat.draft,
             isApq: chat.isApq,
+            isSelfChat: chat.isSelfChat,
             mutedUntil: mutedUntil,
             pendingCommitFailed: false,
             resyncFailed: false,

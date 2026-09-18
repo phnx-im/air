@@ -223,6 +223,8 @@
   "systemMessage_userChangedPicture": "{user} alterou a fotografia do grupo",
   "systemMessage_userCreatedGroup": "{user} criou o grupo",
   "systemMessage_onboarded": "Este cliente entrou no chat depois da associação.",
+  "systemMessage_deviceAdded": "{device} foi associado",
+  "systemMessage_deviceAddedUnknown": "Um novo dispositivo foi associado",
   "timestamp_now": "Agora",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Hoje",
