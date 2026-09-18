@@ -5,22 +5,40 @@
 //! Wire format for data synchronized across a user's own clients through the
 //! self-group.
 //!
-//! Settings updates, Privacy Pass token seeds and blocked-contact updates
-//! travel as `AppEphemeral` proposals with component id
-//! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
-//! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
-//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Every enum in
-//! this module is a tagged union with an `#[unknown]` catch-all, so a client can
-//! adopt new tags before all of a user's devices understand them.
+//! [`SelfGroupMessage`] travels on self-group commits as `AppEphemeral`
+//! proposals with component id `AIR_COMPONENT_ID`. The proposal data decodes
+//! to an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
+//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Updates that
+//! need the commit order go here.
+//!
+//! [`SelfGroupAppMessage`] travels on plain MLS application messages under a
+//! MIMI content extension. Updates that commute go here and save the commit.
+//!
+//! Every enum in this module is a tagged union with an `#[unknown]` catch-all,
+//! so a client can adopt new tags before all of a user's devices understand
+//! them.
 
-use aircommon::crypto::aead::{
-    Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+use std::collections::BTreeMap;
+
+use aircommon::{
+    codec::{self, PersistenceCodec},
+    crypto::{
+        aead::{
+            Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+        },
+        errors::RandomnessError,
+        secrets::Secret,
+    },
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use mimi_content::{
+    Disposition, MimiContent, NestedPart, cbor::Value, content_container::ExtensionName,
+};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use tracing::warn;
 use uuid::Uuid;
 
 use super::group_bootstrap::PeerUserId;
@@ -90,6 +108,79 @@ pub enum SelfGroupMessage {
     Unknown,
 }
 
+/// Key of the MIMI content extension that carries a [`SelfGroupAppMessage`].
+///
+/// draft-ietf-mimi-content reserves negative keys for private use.
+pub const SELF_GROUP_APP_MESSAGE_EXTENSION: i64 = -1;
+
+/// A message carried as a plain MLS application message in the self group.
+///
+/// Sent as a body-less [`MimiContent`], encoded with `PersistenceCodec` under
+/// the [`SELF_GROUP_APP_MESSAGE_EXTENSION`] extension.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// SelfGroupAppMessage = {
+///   1: RedeemedTokens    ; tagged union, exactly one entry
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum SelfGroupAppMessage {
+    #[tag(1)]
+    RedeemedTokens(RedeemedTokens),
+    /// A message kind this client does not understand, skipped on receive.
+    #[unknown]
+    Unknown,
+}
+
+impl SelfGroupAppMessage {
+    /// Wraps the message into the MIMI content that carries it.
+    pub fn to_mimi_content(&self) -> Result<MimiContent, SelfGroupAppMessageError> {
+        Ok(MimiContent {
+            salt: Secret::<16>::random()?.secret().to_vec(),
+            extensions: BTreeMap::from([(
+                ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
+                Value::Bytes(PersistenceCodec::to_vec(self)?),
+            )]),
+            // Explicit, since older siblings render a body-less message as nothing.
+            nested_part: NestedPart::NullPart {
+                disposition: Disposition::Unspecified,
+                language: Default::default(),
+            },
+            ..Default::default()
+        })
+    }
+
+    /// Extracts the message from a [`MimiContent`], or `None` if the content
+    /// is not a self-group application message.
+    pub fn from_mimi_content(content: &MimiContent) -> Option<Self> {
+        if !matches!(content.nested_part, NestedPart::NullPart { .. }) {
+            return None;
+        }
+        let value = content
+            .extensions
+            .get(&ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION))?;
+        let Value::Bytes(body) = value else {
+            warn!("self group application message with an unexpected extension value");
+            return Some(Self::Unknown);
+        };
+        Some(PersistenceCodec::from_slice(body).unwrap_or_else(|error| {
+            warn!(%error, "undecodable self group application message");
+            Self::Unknown
+        }))
+    }
+}
+
+/// Error wrapping a [`SelfGroupAppMessage`] into its MIMI content.
+#[derive(Debug, thiserror::Error)]
+pub enum SelfGroupAppMessageError {
+    #[error(transparent)]
+    Codec(#[from] codec::Error),
+    #[error(transparent)]
+    Salt(#[from] RandomnessError),
+}
+
 /// The Privacy Pass token seed of one (operation type, VOPRF key).
 ///
 /// All of a user's devices derive their token requests from the same seed, which
@@ -119,6 +210,33 @@ pub struct TokenSeed {
     pub key_fingerprint: [u8; 32],
     #[tag(3)]
     pub seed: [u8; 32],
+}
+
+/// The positions of the Privacy Pass tokens the sender redeemed at the AS.
+///
+/// Travels as a [`SelfGroupAppMessage`] since the redeemed set only grows and
+/// needs no commit order.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// RedeemedTokens = {
+///   1: uint,           ; operation_type, the proto enum value
+///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
+///   3: uint,           ; allowance_epoch
+///   4: [* uint],       ; token_indices, ascending, no duplicates
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct RedeemedTokens {
+    #[tag(1)]
+    pub operation_type: u32,
+    #[tag(2)]
+    pub key_fingerprint: [u8; 32],
+    #[tag(3)]
+    pub allowance_epoch: u32,
+    #[tag(4)]
+    pub token_indices: Vec<u16>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -318,13 +436,13 @@ pub struct ContactUnblocked {
 
 #[cfg(test)]
 mod test {
-    use aircommon::{
-        codec::PersistenceCodec,
-        crypto::{
-            aead::{AeadCiphertext, keys::SelfGroupMessageKey},
-            kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
-        },
+    use std::collections::BTreeMap;
+
+    use aircommon::crypto::{
+        aead::{AeadCiphertext, keys::SelfGroupMessageKey},
+        kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
     };
+    use mimi_content::Disposition;
 
     use super::*;
 
@@ -699,7 +817,36 @@ mod test {
         );
     }
 
-    // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
+    // 1d. `RedeemedTokens` encode/decode and wire shape.
+
+    fn sample_redeemed() -> RedeemedTokens {
+        RedeemedTokens {
+            operation_type: 1,
+            key_fingerprint: [0xab; 32],
+            allowance_epoch: 679,
+            token_indices: vec![0, 3, 7],
+        }
+    }
+
+    #[test]
+    fn redeemed_tokens_roundtrip_and_wire_shape() {
+        let redeemed = sample_redeemed();
+        let bytes = PersistenceCodec::to_vec(&redeemed).unwrap();
+        let decoded: RedeemedTokens = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(redeemed, decoded);
+
+        // The first byte is the persistence codec version, then a 4-entry map.
+        assert_eq!(bytes[1], 0xA4);
+    }
+
+    #[test]
+    fn redeemed_tokens_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_redeemed()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
     //    `Unknown`.
 
     /// A "newer" message enum with a variant unknown to [`SelfGroupMessage`].
@@ -722,6 +869,131 @@ mod test {
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
         let decoded: SelfGroupMessage = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(decoded, SelfGroupMessage::Unknown);
+    }
+
+    // 2b. `SelfGroupAppMessage` forward compatibility: an unknown tag decodes
+    //     to `Unknown`.
+
+    /// A "newer" message enum with a variant unknown to
+    /// [`SelfGroupAppMessage`].
+    #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+    enum SelfGroupAppMessageV2 {
+        #[tag(99)]
+        Something(u64),
+        #[unknown]
+        Unknown,
+    }
+
+    #[test]
+    fn self_group_app_message_unknown_tag_decodes_to_unknown() {
+        let newer = SelfGroupAppMessageV2::Something(42);
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+        let decoded: SelfGroupAppMessage = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, SelfGroupAppMessage::Unknown);
+    }
+
+    // 2c. The MIMI content framing around a [`SelfGroupAppMessage`].
+
+    fn content_with_extension(value: Value) -> MimiContent {
+        MimiContent {
+            extensions: BTreeMap::from([(
+                ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
+                value,
+            )]),
+            ..Default::default()
+        }
+    }
+
+    /// An encoded [`SelfGroupAppMessageV2`] variant this version does not know.
+    fn a_newer_kind() -> Value {
+        Value::Bytes(PersistenceCodec::to_vec(&SelfGroupAppMessageV2::Something(42)).unwrap())
+    }
+
+    #[test]
+    fn a_message_roundtrips_through_its_mimi_content() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        let content = message.to_mimi_content().unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content),
+            Some(message)
+        );
+    }
+
+    #[test]
+    fn a_message_survives_the_mimi_encoding() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        let bytes = message.to_mimi_content().unwrap().serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(message)
+        );
+    }
+
+    /// Distinct salts keep equal payloads from sharing a Mimi ID.
+    #[test]
+    fn each_message_gets_a_fresh_salt() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        assert_ne!(
+            message.to_mimi_content().unwrap().salt,
+            message.to_mimi_content().unwrap().salt
+        );
+    }
+
+    /// `Some(Unknown)` rather than `None`, so it is not stored as a chat
+    /// message.
+    #[test]
+    fn a_kind_from_a_newer_sibling_is_unknown() {
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content_with_extension(a_newer_kind())),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    #[test]
+    fn the_envelope_survives_the_mimi_encoding() {
+        let bytes = content_with_extension(a_newer_kind()).serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    #[test]
+    fn an_undecodable_body_is_unknown() {
+        let content = content_with_extension(Value::Bytes(b"garbage".to_vec()));
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    #[test]
+    fn an_unexpected_extension_value_is_unknown() {
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content_with_extension(Value::Int(7))),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    /// A body makes it a chat message, whatever its extensions.
+    #[test]
+    fn a_message_with_a_body_is_not_ours() {
+        let mut content = content_with_extension(Value::Bytes(Vec::new()));
+        content.nested_part = NestedPart::SinglePart {
+            disposition: Disposition::Render,
+            language: Default::default(),
+            content_type: "text/markdown".to_owned(),
+            content: b"hello".to_vec(),
+        };
+        assert_eq!(SelfGroupAppMessage::from_mimi_content(&content), None);
+    }
+
+    #[test]
+    fn other_content_is_not_ours() {
+        let note = MimiContent::simple_markdown_message("a note to self".to_owned(), [0; 16]);
+        assert_eq!(SelfGroupAppMessage::from_mimi_content(&note), None);
     }
 
     // 3. `SelfGroupMessages` encrypt/decrypt roundtrip with exact padded length.
