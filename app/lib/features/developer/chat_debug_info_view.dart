@@ -48,7 +48,7 @@ class ChatDebugInfoRow extends StatelessWidget {
           const DeveloperCaption('Developer'),
           ListRow(
             tokens: ListRowTokens.current,
-            fill: SemanticPalette.of(context).backgroundBase.secondary,
+            fill: SemanticPalette.of(context).fill.tertiary,
             label: 'Debug info',
             trailing: const AppIcon.chevronRight(size: developerRowIconSize),
             onTap: () => showChatDebugInfo(context, chat),
@@ -239,6 +239,31 @@ class _GroupDebugInfoBody extends StatelessWidget {
             caption: 'Post-Quantum',
             children: [DeveloperInfoRow(label: 'Enabled', value: 'no')],
           ),
+        if (info.resync case final resync?)
+          DeveloperCard(
+            caption: 'Resync',
+            children: [
+              DeveloperInfoRow(label: 'Status', value: resync.status),
+              DeveloperInfoRow(label: 'Reason', value: resync.reason),
+              DeveloperInfoRow(
+                label: 'Attempts',
+                value: resync.attempts.toString(),
+              ),
+              DeveloperInfoRow(
+                label: 'Next Attempt',
+                value: resync.notBefore ?? '—',
+              ),
+              DeveloperInfoRow(
+                label: 'Last Error',
+                value: resync.lastError ?? '—',
+              ),
+            ],
+          )
+        else
+          const DeveloperCard(
+            caption: 'Resync',
+            children: [DeveloperInfoRow(label: 'Queued', value: 'no')],
+          ),
         if (info.groupData case final data?) _GroupDataCard(data: data),
         if (info.requiredCapabilities case final caps?)
           DeveloperCard(
@@ -361,13 +386,6 @@ class _GroupDataCard extends StatelessWidget {
     return DeveloperCard(
       caption: 'Group Data',
       children: [
-        DeveloperInfoRow(label: 'Legacy Title', value: data.legacyTitle ?? '—'),
-
-        DeveloperInfoRow(
-          label: 'Legacy Picture',
-          value: data.legacyPicture ? 'yes' : 'no',
-        ),
-
         if (data.encryptedTitle case final title?) ...[
           const _RowGroupHeader('Encrypted Title'),
           DeveloperInfoRow(

@@ -30,6 +30,8 @@ pub struct AirComponent {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct AirFeatures {
     /// Whether the client supports encrypted group profiles.
+    ///
+    /// Note: Legacy clients not supporting this feature are not supported anymore.
     #[tag(1)]
     pub encrypted_group_profiles: bool,
     /// Whether the client supports connection groups without attributes, in particular without a

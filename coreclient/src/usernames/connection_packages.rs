@@ -98,8 +98,9 @@ impl ConnectionPackageRecord {
             WHERE connection_package_hash = $1"#,
             hash
         )
-        .fetch_one(connection.as_mut())
+        .fetch_optional(connection.as_mut())
         .await
+        .map(Option::flatten)
     }
 }
 
@@ -149,5 +150,45 @@ mod tests {
                 .await
                 .unwrap();
         assert!(loaded_decryption_key_after_delete.is_none());
+    }
+
+    /// Accepting a connection consumes the package before the DS is asked, so a retried accept
+    /// looks the package up again after it is gone.
+    #[sqlx::test]
+    async fn load_is_last_resort_of_a_deleted_package_is_none(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await.unwrap();
+
+        let username = Username::new("test-handle".to_string()).unwrap();
+        let signing_key = UsernameSigningKey::generate().unwrap();
+        let hash = username.calculate_hash().unwrap();
+        let username_record = UsernameRecord::new(username, hash, signing_key);
+        username_record.store(&mut connection).await.unwrap();
+        let (decryption_key, _package, metadata) =
+            ConnectionPackage::generate(username_record.hash, &username_record.signing_key, false)
+                .unwrap();
+        let record = ConnectionPackageRecord::from(metadata);
+        record
+            .store_for_username(&mut connection, &username_record.username, &decryption_key)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            ConnectionPackageRecord::load_is_last_resort(&mut connection, &record.hash)
+                .await
+                .unwrap(),
+            Some(false)
+        );
+
+        ConnectionPackageRecord::delete(&mut connection, &record.hash)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            ConnectionPackageRecord::load_is_last_resort(&mut connection, &record.hash)
+                .await
+                .unwrap(),
+            None
+        );
     }
 }

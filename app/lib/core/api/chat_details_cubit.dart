@@ -276,32 +276,19 @@ class ExternalGroupProfileDebugInfo {
 }
 
 class GroupDataDebugInfo {
-  final String? legacyTitle;
-  final bool legacyPicture;
   final EncryptedGroupTitleDebugInfo? encryptedTitle;
   final ExternalGroupProfileDebugInfo? externalGroupProfile;
 
-  const GroupDataDebugInfo({
-    this.legacyTitle,
-    required this.legacyPicture,
-    this.encryptedTitle,
-    this.externalGroupProfile,
-  });
+  const GroupDataDebugInfo({this.encryptedTitle, this.externalGroupProfile});
 
   @override
-  int get hashCode =>
-      legacyTitle.hashCode ^
-      legacyPicture.hashCode ^
-      encryptedTitle.hashCode ^
-      externalGroupProfile.hashCode;
+  int get hashCode => encryptedTitle.hashCode ^ externalGroupProfile.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is GroupDataDebugInfo &&
           runtimeType == other.runtimeType &&
-          legacyTitle == other.legacyTitle &&
-          legacyPicture == other.legacyPicture &&
           encryptedTitle == other.encryptedTitle &&
           externalGroupProfile == other.externalGroupProfile;
 }
@@ -320,6 +307,7 @@ class GroupDebugInfo {
   final GroupDataDebugInfo? groupData;
   final BigInt sizeBytes;
   final PqGroupDebugInfo? pq;
+  final ResyncDebugInfo? resync;
 
   const GroupDebugInfo({
     required this.groupId,
@@ -335,6 +323,7 @@ class GroupDebugInfo {
     this.groupData,
     required this.sizeBytes,
     this.pq,
+    this.resync,
   });
 
   @override
@@ -351,7 +340,8 @@ class GroupDebugInfo {
       members.hashCode ^
       groupData.hashCode ^
       sizeBytes.hashCode ^
-      pq.hashCode;
+      pq.hashCode ^
+      resync.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -370,7 +360,8 @@ class GroupDebugInfo {
           members == other.members &&
           groupData == other.groupData &&
           sizeBytes == other.sizeBytes &&
-          pq == other.pq;
+          pq == other.pq &&
+          resync == other.resync;
 }
 
 class PqGroupDebugInfo {
@@ -441,6 +432,41 @@ class RequiredDebugCapabilities {
           extensionTypes == other.extensionTypes &&
           proposalTypes == other.proposalTypes &&
           credentialTypes == other.credentialTypes;
+}
+
+class ResyncDebugInfo {
+  final String status;
+  final String reason;
+  final int attempts;
+  final String? notBefore;
+  final String? lastError;
+
+  const ResyncDebugInfo({
+    required this.status,
+    required this.reason,
+    required this.attempts,
+    this.notBefore,
+    this.lastError,
+  });
+
+  @override
+  int get hashCode =>
+      status.hashCode ^
+      reason.hashCode ^
+      attempts.hashCode ^
+      notBefore.hashCode ^
+      lastError.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ResyncDebugInfo &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          reason == other.reason &&
+          attempts == other.attempts &&
+          notBefore == other.notBefore &&
+          lastError == other.lastError;
 }
 
 /// Accepting a contact request failed.

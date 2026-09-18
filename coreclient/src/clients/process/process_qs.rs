@@ -20,7 +20,10 @@ use aircommon::{
     utils::removed_client,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::{group::GroupData, virtual_client::extract_virtual_client_commit_data};
+use airprotos::client::{
+    group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    virtual_client::extract_virtual_client_commit_data,
+};
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
@@ -39,7 +42,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
-        GroupDataExt, GroupDataProfilePart, StatusRecord,
+        GroupDataExt, StatusRecord,
         messages::edit::{MessageEdit, handle_message_edit},
         reactions::Reaction,
     },
@@ -48,7 +51,7 @@ use crate::{
         own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::{update_chat_attributes, update_chat_title},
+        update_key::update_chat_title,
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
@@ -60,7 +63,10 @@ use crate::{
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
-    outbound_service::{chat_message_queue::ChatMessageQueue, resync::Resync},
+    outbound_service::{
+        chat_message_queue::ChatMessageQueue,
+        resync::{Resync, ResyncStatus},
+    },
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -78,7 +84,7 @@ pub struct QsMessageOutcome {
 }
 
 impl QsMessageOutcome {
-    fn empty() -> QsMessageOutcome {
+    pub(super) fn empty() -> QsMessageOutcome {
         Self::default()
     }
 
@@ -259,11 +265,22 @@ impl CoreUser {
                 .await
                 .map(|_| QsMessageOutcome::empty()),
             ExtractedQsQueueMessagePayload::GroupCreationEcho(echo) => {
-                warn!(
-                    group_id = ?echo.group_id,
-                    "group creation echo processing not yet implemented"
-                );
-                Ok(QsMessageOutcome::empty())
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::CreationEcho,
+                    ds_timestamp,
+                ))
+                .await
+            }
+            ExtractedQsQueueMessagePayload::GroupJoinEcho(echo) => {
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::JoinEcho,
+                    ds_timestamp,
+                ))
+                .await
             }
         };
 
@@ -495,23 +512,9 @@ impl CoreUser {
         // members if they don't exist yet and store the group and the
         // new chat.
 
-        // Set the chat attributes according to the group's
-        // group data.
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
-        let title = title.context("No group title")?;
-        // An external group profile is not yet available; it is fetched later.
-        let picture = Self::resolve_group_profile_part(
-            txn,
-            &group_id,
-            &sender_user_id,
-            ds_timestamp,
-            group_profile_part,
-            true,
-        )
-        .await?;
-        let attributes = ChatAttributes { title, picture };
+        let attributes =
+            Self::chat_attributes_from_group_data(txn, &group, &sender_user_id, ds_timestamp)
+                .await?;
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
         let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -525,7 +528,7 @@ impl CoreUser {
         let system_message = ChatMessage::new_system_message(
             chat.id(),
             ds_timestamp,
-            SystemMessage::Add(sender_user_id.clone(), self.user_id().clone()),
+            SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone()),
         );
         system_message.store(&mut *txn).await?;
 
@@ -556,33 +559,37 @@ impl CoreUser {
         ))
     }
 
-    /// Handles the profile part of decoded group data: schedules a fetch for
-    /// an external group profile, or returns the picture for the legacy
-    /// variant.
-    pub(crate) async fn resolve_group_profile_part(
+    /// Decodes the group data extension into the attributes of the chat a
+    /// joiner creates for `group`.
+    ///
+    /// An external group profile is not yet available, so it is scheduled for
+    /// a fetch and the picture stays empty until it arrives.
+    pub(crate) async fn chat_attributes_from_group_data(
         txn: &mut WriteDbTransaction<'_>,
-        group_id: &GroupId,
+        group: &Group,
         sender_id: &UserId,
         ds_timestamp: TimeStamp,
-        group_profile_part: Option<GroupDataProfilePart>,
-        is_initial_fetch: bool,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
-        match group_profile_part {
-            Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
-                Self::schedule_fetch_group_profile(
-                    &mut *txn,
-                    group_id.clone(),
-                    sender_id.clone(),
-                    ds_timestamp,
-                    external_group_profile,
-                    is_initial_fetch,
-                )
-                .await?;
-                Ok(None)
-            }
-            Some(GroupDataProfilePart::LegacyPicture(picture)) => Ok(Some(picture)),
-            None => Ok(None),
+    ) -> anyhow::Result<ChatAttributes> {
+        let group_data_bytes = group.group_data().context("No group data")?;
+        let group_data = GroupData::decode(&group_data_bytes)?;
+        let (title, external_group_profile) =
+            group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
+        if let Some(external_group_profile) = external_group_profile {
+            Self::schedule_fetch_group_profile(
+                &mut *txn,
+                group.group_id().clone(),
+                sender_id.clone(),
+                ds_timestamp,
+                external_group_profile,
+                true,
+            )
+            .await?;
         }
+        Ok(ChatAttributes {
+            title,
+            picture: None,
+        })
     }
 
     /// Loads the chat and the verified group for the given group id.
@@ -612,20 +619,29 @@ impl CoreUser {
         match result {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
-            ProcessMessageResult::ResyncRequired => {
-                // TODO: Once we have a UX for resyncs, we should schedule one
-                // here and re-enable the resync test in integration.rs
-                let _resync = Resync {
-                    chat_id: Some(chat_id),
-                    group_id: group.group_id().clone(),
-                    pq_group_id: group.pq_group_id(),
-                    group_state_ear_key: group.group_state_ear_key().clone(),
-                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                    original_leaf_index: group.own_index(),
-                    shares_vc_leaf: group.own_leaf_is_virtual_client(),
-                    connection_contact: None,
-                };
-                group.group_mut().mark_commit_failed(&mut *txn).await?;
+            ProcessMessageResult::ResyncRequired(reason) => {
+                let group_id = group.group_id().clone();
+                match Resync::status(&mut *txn, &group_id).await? {
+                    None => {
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        Resync::for_group(chat_id, group.group(), reason)
+                            .enqueue(&mut *txn)
+                            .await?;
+                        group.group_mut().mark_commit_failed(&mut *txn).await?;
+                    }
+                    Some(ResyncStatus::Pending) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; resync already scheduled"
+                        );
+                    }
+                    Some(ResyncStatus::Failed) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; earlier resync failed permanently, not scheduling"
+                        );
+                    }
+                }
                 Ok(None)
             }
         }
@@ -1329,7 +1345,7 @@ impl CoreUser {
             .room_state_change_role(sender, sender, RoleIndex::Outsider)?;
 
         messages.push(TimestampedMessage::system_message(
-            SystemMessage::Remove(sender.clone(), removed.clone()),
+            SystemMessage::Remove(Some(sender.clone()), removed.clone()),
             ds_timestamp,
         ));
 
@@ -1401,44 +1417,28 @@ impl CoreUser {
             let group_data = GroupData::decode(&group_data_bytes)?;
             let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            let chat_picture = Self::resolve_group_profile_part(
-                txn,
-                chat.group_id(),
-                sender_user_credential.user_id(),
-                ds_timestamp,
-                group_profile_part,
-                false,
-            )
-            .await?;
+            if let Some(external_group_profile) = group_profile_part {
+                Self::schedule_fetch_group_profile(
+                    &mut *txn,
+                    chat.group_id().clone(),
+                    sender_user_credential.user_id().clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                    false,
+                )
+                .await?;
+            }
             // Update chat title according to new group data
-            match (chat_title, chat_picture) {
-                (Some(title), Some(picture)) => {
-                    update_chat_attributes(
-                        txn,
-                        &mut chat,
-                        sender_user_credential.user_id(),
-                        ChatAttributes {
-                            title,
-                            picture: Some(picture),
-                        },
-                        ds_timestamp,
-                        &mut group_messages,
-                    )
-                    .await?;
-                }
-                (Some(title), None) => {
-                    update_chat_title(
-                        txn,
-                        &mut chat,
-                        sender_user_credential.user_id(),
-                        title,
-                        ds_timestamp,
-                        &mut group_messages,
-                    )
-                    .await?;
-                }
-                (None, Some(_)) => error!("Received group data with legacy picture and no title"),
-                (None, None) => (),
+            if let Some(title) = chat_title {
+                update_chat_title(
+                    txn,
+                    &mut chat,
+                    sender_user_credential.user_id(),
+                    title,
+                    ds_timestamp,
+                    &mut group_messages,
+                )
+                .await?;
             }
         }
 
@@ -1810,6 +1810,7 @@ mod tests {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
                     },
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;

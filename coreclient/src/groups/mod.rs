@@ -11,15 +11,15 @@ pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
+pub(crate) mod group_bootstrap;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
 pub(crate) mod self_group_message_key;
 pub(crate) mod vc_epoch_retention;
+pub(crate) mod vc_sibling_join;
 
-#[cfg(feature = "test_utils")]
-use airprotos::client::component::AirFeatures;
 use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
@@ -394,8 +394,8 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
     ) -> sqlx::Result<()> {
-        error!(group_id = ?self.group_id(), "Group is desynced");
         if !self.pending_commit_failed {
+            error!(group_id = ?self.group_id(), "Group is desynced");
             self.pending_commit_failed = true;
             self.store_pending_commit_failed(&mut connection).await?;
 
@@ -473,13 +473,6 @@ impl Group {
         ClientAppData::from_leaf(leaf_node)
     }
 
-    pub(crate) fn members_app_data(&self) -> impl Iterator<Item = Option<ClientAppData>> {
-        self.mls_group.members().map(|member| {
-            let leaf_node = self.mls_group.public_group().leaf(member.index)?;
-            ClientAppData::from_leaf(leaf_node)
-        })
-    }
-
     /// Create a group.
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
@@ -487,6 +480,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
+        vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let group_state_ear_key = GroupStateEarKey::random()?;
@@ -506,16 +500,25 @@ impl Group {
             signature_key: signer.credential().verifying_key().clone().into(),
         };
 
-        let mls_group = MlsGroup::builder()
+        let leaf_node_extensions = if vc_group_id.is_some() {
+            ClientAppData::current_virtual_client().leaf_node_extensions()
+        } else {
+            ClientAppData::current().leaf_node_extensions()
+        };
+        let mut builder = MlsGroup::builder()
             .with_group_id(group_id.clone())
             .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions)
-            .with_leaf_node_extensions(ClientAppData::current().leaf_node_extensions())?
+            .with_leaf_node_extensions(leaf_node_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             // Not an emulation group, but keeps the stored configs uniform.
             .set_vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
+        if let Some(vc_group_id) = vc_group_id {
+            builder = builder.vc_emulation(vc_group_id);
+        }
+        let mls_group = builder
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
@@ -1081,8 +1084,8 @@ impl Group {
         // Should be Some if we are joining a connection group: the sole member of
         // that group, whose invitation admits us to its room state.
         inviter: Option<&UserId>,
-        // Should be Some if we are joining as an emulator of a virtual client
-        // that is already a member.
+        // Should be Some if we act as a virtual client emulated from that self
+        // group, whether joining anew or resyncing an existing membership.
         vc_group_id: Option<GroupId>,
     ) -> anyhow::Result<
         Result<
@@ -1123,19 +1126,16 @@ impl Group {
         let (mls_group, commit, group_info, encrypted_profile_keys_fallback) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
-            let psk_proposal = match connection_offer_hash {
-                Some(co_hash) => {
-                    let psk_value = co_hash.into_bytes();
-                    let psk_id = PreSharedKeyId::new(
+            let psk_proposal = connection_offer_hash
+                .map(|co_hash| {
+                    store_connection_offer_psk(
+                        &provider,
                         verifiable_group_info.ciphersuite(),
-                        provider.rand(),
-                        Psk::External(ExternalPsk::new(psk_value.to_vec())),
-                    )?;
-                    psk_id.store(&provider, &psk_value)?;
-                    Some(PreSharedKeyProposal::new(psk_id))
-                }
-                None => None,
-            };
+                        co_hash,
+                    )
+                    .map(PreSharedKeyProposal::new)
+                })
+                .transpose()?;
 
             let leaf_node_extensions = if vc_group_id.is_some() {
                 ClientAppData::current_virtual_client().leaf_node_extensions()
@@ -2579,6 +2579,12 @@ impl Group {
         )
     }
 
+    /// The role of `user_id` in the room state, or `None` if it is not listed.
+    pub(crate) fn room_state_role(&self, user_id: &UserId) -> Result<Option<RoleIndex>> {
+        let identity = RoomPolicyIdentity::User(user_id.clone()).to_bytes()?;
+        Ok(self.room_state.users().get(&identity).cloned())
+    }
+
     pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
         self.mls_group().extensions().iter().find_map(|e| match e {
             Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
@@ -2624,15 +2630,11 @@ impl Group {
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let psk_value = connection_offer_hash.into_bytes();
-        PreSharedKeyId::new(
+        store_connection_offer_psk(
+            &provider,
             self.mls_group().ciphersuite(),
-            provider.rand(),
-            Psk::External(ExternalPsk::new(
-                connection_offer_hash.into_bytes().to_vec(),
-            )),
-        )?
-        .store(&provider, &psk_value)?;
+            connection_offer_hash,
+        )?;
         Ok(())
     }
 
@@ -2740,6 +2742,52 @@ async fn verify_member_credentials(
         verified.push(credential);
     }
     Ok(verified)
+}
+
+/// Stores the connection-offer PSK, so a commit referencing it can be created
+/// or processed. Returns the id the commit's PSK proposal must carry.
+fn store_connection_offer_psk(
+    provider: &AirOpenMlsProvider<'_>,
+    ciphersuite: openmls::prelude::Ciphersuite,
+    connection_offer_hash: ConnectionOfferHash,
+) -> Result<PreSharedKeyId> {
+    let psk_value = connection_offer_hash.into_bytes();
+    let psk_id = PreSharedKeyId::new(
+        ciphersuite,
+        provider.rand(),
+        Psk::External(ExternalPsk::new(psk_value.to_vec())),
+    )?;
+    psk_id.store(provider, &psk_value)?;
+    Ok(psk_id)
+}
+
+/// Ensure that every user of `room_state` is a member of `mls_group`.
+///
+/// Members missing from the room state are tolerated: the DS does not add external joiners of
+/// connection groups to its room state, clients patch that locally.
+fn ensure_room_state_users_are_members(
+    room_state: &VerifiedRoomState,
+    mls_group: &MlsGroup,
+) -> anyhow::Result<()> {
+    let mut members = HashSet::new();
+    for member in mls_group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)?
+            .room_policy_identity()
+            .to_bytes()?;
+        members.insert(identity);
+    }
+    let users = room_state.users();
+    ensure!(
+        users.keys().all(|identity| members.contains(identity)),
+        "room state lists users which are not group members"
+    );
+    if users.len() < members.len() {
+        warn!(
+            group_id = ?mls_group.group_id(),
+            "room state is missing group members",
+        );
+    }
+    Ok(())
 }
 
 /// Record the role change that admits us to a connection group.
@@ -2960,77 +3008,6 @@ mod test_utils {
     }
 }
 
-#[cfg(feature = "test_utils")]
-impl Group {
-    /// Creates a self-update commit forcing a specific [`AirFeatures`] into the leaf node.
-    ///
-    /// Useful for simulating old clients that lack certain feature flags.
-    pub(crate) async fn update_with_features(
-        &mut self,
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
-        features: AirFeatures,
-    ) -> Result<GroupOperationParamsOut> {
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
-
-        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters = Self::forced_features_leaf_params(
-            own_leaf_node.extensions(),
-            self.own_leaf_capabilities(),
-            features,
-        )?;
-
-        self.mls_group.set_aad(aad);
-        let (mls_message, group_info) = {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let (mls_message, _welcome_option, group_info_option) = self
-                .mls_group
-                .commit_builder()
-                .force_self_update(true)
-                .leaf_node_parameters(leaf_node_parameters)
-                .load_psks(provider.storage())?
-                .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents();
-            (
-                mls_message,
-                group_info_option.ok_or_else(|| anyhow!("No group info after commit"))?,
-            )
-        };
-
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-        Ok(GroupOperationParamsOut {
-            commit,
-            add_users_info_option: None,
-        })
-    }
-
-    fn forced_features_leaf_params(
-        leaf_node_extensions: &Extensions<LeafNode>,
-        capabilities: Capabilities,
-        features: AirFeatures,
-    ) -> anyhow::Result<LeafNodeParameters> {
-        let mut dict = leaf_node_extensions
-            .app_data_dictionary()
-            .map(|e| e.dictionary().clone())
-            .unwrap_or_default();
-        ClientAppData::refresh_features(&mut dict, features);
-
-        let mut leaf_node_extensions = leaf_node_extensions.clone();
-        leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
-            AppDataDictionaryExtension::new(dict),
-        ))?;
-        Ok(LeafNodeParameters::builder()
-            .with_capabilities(capabilities)
-            .with_extensions(leaf_node_extensions)
-            .build())
-    }
-}
-
 #[cfg(test)]
 mod member_credential_validation_tests {
     use aircommon::{
@@ -3182,6 +3159,7 @@ mod handle_group_not_found_tests {
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
+            None,
         )?;
         group.store(&mut connection).await?;
 
@@ -3296,7 +3274,7 @@ impl TimestampedMessage {
         }
         let remove_messages = removed_set.into_iter().map(|(remover, removed)| {
             TimestampedMessage::system_message(
-                SystemMessage::Remove(remover, removed),
+                SystemMessage::Remove(Some(remover), removed),
                 ds_timestamp,
             )
         });
@@ -3324,8 +3302,8 @@ impl TimestampedMessage {
 
             adds_set.insert((sender_id, addee_id));
         }
-        let add_messages = adds_set.into_iter().map(|(adder, addee)| {
-            TimestampedMessage::system_message(SystemMessage::Add(adder, addee), ds_timestamp)
+        let add_messages = adds_set.into_iter().map(|(adder, added)| {
+            TimestampedMessage::system_message(SystemMessage::Add(Some(adder), added), ds_timestamp)
         });
 
         let event_messages = remove_messages.chain(add_messages).collect();
