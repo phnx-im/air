@@ -103,6 +103,7 @@ pub struct UiChatDetails {
     pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
+    pub is_self_chat: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
     pub resync_failed: bool,

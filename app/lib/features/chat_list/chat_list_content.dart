@@ -343,7 +343,7 @@ class _ChatRow extends StatelessWidget {
       hideSeparator: hideSeparator,
       enabled: selectable,
       onTap: onTap,
-      onLongPress: onLongPress,
+      onLongPress: chat.isSelfChat ? null : onLongPress,
     );
   }
 }

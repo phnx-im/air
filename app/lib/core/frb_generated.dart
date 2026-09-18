@@ -11189,8 +11189,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
@@ -11201,9 +11201,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       lastReaction: dco_decode_opt_box_autoadd_ui_last_reaction(arr[6]),
       draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[7]),
       isApq: dco_decode_bool(arr[8]),
-      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[9]),
-      pendingCommitFailed: dco_decode_bool(arr[10]),
-      resyncFailed: dco_decode_bool(arr[11]),
+      isSelfChat: dco_decode_bool(arr[9]),
+      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[10]),
+      pendingCommitFailed: dco_decode_bool(arr[11]),
+      resyncFailed: dco_decode_bool(arr[12]),
     );
   }
 
@@ -15285,6 +15286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     var var_draft = sse_decode_opt_box_autoadd_ui_message_draft(deserializer);
     var var_isApq = sse_decode_bool(deserializer);
+    var var_isSelfChat = sse_decode_bool(deserializer);
     var var_mutedUntil = sse_decode_opt_box_autoadd_ui_chat_muted(deserializer);
     var var_pendingCommitFailed = sse_decode_bool(deserializer);
     var var_resyncFailed = sse_decode_bool(deserializer);
@@ -15298,6 +15300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       lastReaction: var_lastReaction,
       draft: var_draft,
       isApq: var_isApq,
+      isSelfChat: var_isSelfChat,
       mutedUntil: var_mutedUntil,
       pendingCommitFailed: var_pendingCommitFailed,
       resyncFailed: var_resyncFailed,
@@ -19550,6 +19553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_ui_last_reaction(self.lastReaction, serializer);
     sse_encode_opt_box_autoadd_ui_message_draft(self.draft, serializer);
     sse_encode_bool(self.isApq, serializer);
+    sse_encode_bool(self.isSelfChat, serializer);
     sse_encode_opt_box_autoadd_ui_chat_muted(self.mutedUntil, serializer);
     sse_encode_bool(self.pendingCommitFailed, serializer);
     sse_encode_bool(self.resyncFailed, serializer);
