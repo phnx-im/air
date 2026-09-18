@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/avatar/avatar.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/util/cached_memory_image.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -153,7 +153,7 @@ class _Avatar extends StatelessWidget {
       displayName: displayName,
       size: size,
       image: image != null
-          ? CachedMemoryImage.fromImageData(
+          ? TaggedMemoryImage.fromImageData(
               image,
               targetWidth: targetSize,
               targetHeight: targetSize,
