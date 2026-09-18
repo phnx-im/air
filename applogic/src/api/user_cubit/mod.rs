@@ -472,10 +472,11 @@ impl UserCubitBase {
         &self,
         chat_id: ChatId,
         user_id: UiUserId,
+        prefer_apq: bool,
     ) -> anyhow::Result<ChatId> {
         self.context
             .core_user
-            .add_contact_from_group(chat_id, user_id.into())
+            .add_contact_from_group(chat_id, user_id.into(), prefer_apq)
             .await
     }
 

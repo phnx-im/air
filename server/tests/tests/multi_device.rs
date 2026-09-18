@@ -1870,7 +1870,7 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
     let pending_chat_id = setup
         .get_user(&alice)
         .user()
-        .add_contact(bob_username, username_hash)
+        .add_contact(bob_username, username_hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();

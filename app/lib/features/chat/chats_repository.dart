@@ -32,6 +32,7 @@ abstract interface class ChatsRepository {
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
+    required bool preferApq,
   });
 
   Future<ChatId> createGroupChat({
@@ -121,7 +122,12 @@ class RustChatsRepository implements ChatsRepository {
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
-  }) => _dataSource.createContactChat(username: username, hash: hash);
+    required bool preferApq,
+  }) => _dataSource.createContactChat(
+    username: username,
+    hash: hash,
+    preferApq: preferApq,
+  );
 
   @override
   Future<ChatId> createGroupChat({
