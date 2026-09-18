@@ -1973,6 +1973,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::Onboarded => Some(
                         "This client has been onboarded into the group after linking".to_owned(),
                     ),
+                    SystemMessage::DeviceAdded(uuid) => {
+                        Some(format!("You linked a new device with UUID {uuid}"))
+                    }
                 }
             } else {
                 None

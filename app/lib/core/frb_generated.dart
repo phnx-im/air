@@ -11636,6 +11636,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 11:
         return UiSystemMessage_Onboarded();
+      case 12:
+        return UiSystemMessage_DeviceAdded(dco_decode_Uuid(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -15769,6 +15771,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_CreateGroup(var_field0);
       case 11:
         return UiSystemMessage_Onboarded();
+      case 12:
+        var var_field0 = sse_decode_Uuid(deserializer);
+        return UiSystemMessage_DeviceAdded(var_field0);
       default:
         throw UnimplementedError('');
     }
@@ -19965,6 +19970,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
       case UiSystemMessage_Onboarded():
         sse_encode_i_32(11, serializer);
+      case UiSystemMessage_DeviceAdded(field0: final field0):
+        sse_encode_i_32(12, serializer);
+        sse_encode_Uuid(field0, serializer);
     }
   }
 

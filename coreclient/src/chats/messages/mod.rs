@@ -626,6 +626,8 @@ pub enum SystemMessage {
     CreateGroup(UserId),
     /// We got onboarded into a group after linking.
     Onboarded,
+    /// A device was linked and added to this chat, identified by its client id.
+    DeviceAdded(Uuid),
 }
 
 impl EventMessage {
@@ -652,7 +654,8 @@ impl SystemMessage {
             | SystemMessage::ReceivedConnectionConfirmation { .. }
             | SystemMessage::NewHandleConnectionChat(_)
             | SystemMessage::NewDirectConnectionChat(_)
-            | SystemMessage::Onboarded => None,
+            | SystemMessage::Onboarded
+            | SystemMessage::DeviceAdded(_) => None,
         }
     }
 
@@ -740,6 +743,13 @@ impl SystemMessage {
             }
             SystemMessage::Onboarded => {
                 "This client has been onboarded into the group after linking".into()
+            }
+            SystemMessage::DeviceAdded(client_id) => {
+                let devices = core_user.linked_devices().await.unwrap_or_default();
+                match devices.iter().find(|device| &device.client_id == client_id) {
+                    Some(device) => format!("{} was linked", device.name),
+                    None => "A new device was linked".into(),
+                }
             }
         }
     }

@@ -13121,6 +13121,10 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             11 => {
                 return crate::api::types::UiSystemMessage::Onboarded;
             }
+            12 => {
+                let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::DeviceAdded(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16354,6 +16358,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 [10.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::UiSystemMessage::Onboarded => [11.into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::DeviceAdded(field0) => {
+                [12.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -19596,6 +19603,10 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::Onboarded => {
                 <i32>::sse_encode(11, serializer);
+            }
+            crate::api::types::UiSystemMessage::DeviceAdded(field0) => {
+                <i32>::sse_encode(12, serializer);
+                <uuid::Uuid>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

@@ -223,6 +223,8 @@
   "systemMessage_userChangedPicture": "{user} ändrade gruppbilden",
   "systemMessage_userCreatedGroup": "{user} skapade gruppen",
   "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",
+  "systemMessage_deviceAdded": "{device} länkades",
+  "systemMessage_deviceAddedUnknown": "En ny enhet länkades",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",

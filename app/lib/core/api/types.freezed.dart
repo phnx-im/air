@@ -3341,6 +3341,74 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiSystemMessage_DeviceAdded extends UiSystemMessage {
+  const UiSystemMessage_DeviceAdded(this.field0): super._();
+  
+
+ final  UuidValue field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_DeviceAddedCopyWith<UiSystemMessage_DeviceAdded> get copyWith => _$UiSystemMessage_DeviceAddedCopyWithImpl<UiSystemMessage_DeviceAdded>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_DeviceAdded&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.deviceAdded(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_DeviceAddedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_DeviceAddedCopyWith(UiSystemMessage_DeviceAdded value, $Res Function(UiSystemMessage_DeviceAdded) _then) = _$UiSystemMessage_DeviceAddedCopyWithImpl;
+@useResult
+$Res call({
+ UuidValue field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_DeviceAddedCopyWithImpl<$Res>
+    implements $UiSystemMessage_DeviceAddedCopyWith<$Res> {
+  _$UiSystemMessage_DeviceAddedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_DeviceAdded _self;
+  final $Res Function(UiSystemMessage_DeviceAdded) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_DeviceAdded(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UuidValue,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;
