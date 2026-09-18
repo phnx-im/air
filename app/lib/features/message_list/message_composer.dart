@@ -665,18 +665,26 @@ class _MessageComposerState extends State<MessageComposer>
               showErrorBannerStandalone((loc) => loc.composer_error_attachment);
             } finally {
               if (isTempFile) {
-                try {
-                  await File(file.path).delete();
-                } catch (e) {
-                  _log.warning("Failed to delete temp file: $e", e);
-                }
+                await _deleteTempFile(file.path);
               }
             }
           },
         ),
       ),
     );
+
+    if (isTempFile && !uploaded) {
+      await _deleteTempFile(file.path);
+    }
     return uploaded;
+  }
+
+  Future<void> _deleteTempFile(String path) async {
+    try {
+      await File(path).delete();
+    } catch (e) {
+      _log.warning("Failed to delete temp file: $e", e);
+    }
   }
 
   void _onTextChanged() {

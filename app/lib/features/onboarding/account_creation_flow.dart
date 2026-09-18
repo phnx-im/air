@@ -18,7 +18,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/util/cached_memory_image.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter/material.dart';
@@ -705,7 +705,7 @@ class _AvatarPicker extends StatelessWidget {
         width: _size,
         height: _size,
         fit: .cover,
-        image: CachedMemoryImage.fromImageData(avatar),
+        image: TaggedMemoryImage.fromImageData(avatar),
       ),
     );
   }
