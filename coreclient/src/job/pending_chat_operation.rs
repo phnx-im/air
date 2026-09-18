@@ -1626,9 +1626,6 @@ mod persistence {
 
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
-
-    use airprotos::client::component::AirFeatures;
-
     use crate::db::access::ReadConnection;
 
     use super::*;
@@ -1672,37 +1669,6 @@ pub mod test_utils {
     }
 
     impl PendingChatOperation {
-        /// Creates a self-update commit that forces the given [`AirFeatures`] into the own leaf
-        /// node.
-        ///
-        /// Use this in tests to simulate an old client that advertises a different set of feature
-        /// flags.
-        pub(crate) async fn create_update_with_features(
-            txn: &mut WriteDbTransaction<'_>,
-            signer: &UserSigningKey,
-            chat_id: ChatId,
-            features: AirFeatures,
-        ) -> anyhow::Result<Self> {
-            let chat = Chat::load(&mut *txn, &chat_id)
-                .await?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-            let group_id = chat.group_id();
-            let mut group = Group::load_clean_verified(&mut *txn, group_id)
-                .await?
-                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-
-            let signer =
-                OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-            let params = group
-                .group_mut()
-                .update_with_features(&mut *txn, &signer, features)
-                .await?;
-
-            let job = Self::new(group, OperationType::other(params));
-            job.store(txn).await?;
-            Ok(job)
-        }
-
         /// Serialized bytes of the staged commit's MLS message. Feed this
         /// back through the QS processing path (as a replayed or stale
         /// delivery would arrive) to exercise the `OwnPendingCommit` merge

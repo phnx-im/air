@@ -20,8 +20,6 @@ pub(crate) mod self_group_message_key;
 pub(crate) mod vc_epoch_retention;
 pub(crate) mod vc_sibling_join;
 
-#[cfg(feature = "test_utils")]
-use airprotos::client::component::AirFeatures;
 use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
@@ -465,13 +463,6 @@ impl Group {
 
         let leaf_node = self.mls_group.public_group().leaf(member.index)?;
         ClientAppData::from_leaf(leaf_node)
-    }
-
-    pub(crate) fn members_app_data(&self) -> impl Iterator<Item = Option<ClientAppData>> {
-        self.mls_group.members().map(|member| {
-            let leaf_node = self.mls_group.public_group().leaf(member.index)?;
-            ClientAppData::from_leaf(leaf_node)
-        })
     }
 
     /// Create a group.
@@ -3076,77 +3067,6 @@ mod test_utils {
         ) -> sqlx::Result<()> {
             Chat::set_pq_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
-    }
-}
-
-#[cfg(feature = "test_utils")]
-impl Group {
-    /// Creates a self-update commit forcing a specific [`AirFeatures`] into the leaf node.
-    ///
-    /// Useful for simulating old clients that lack certain feature flags.
-    pub(crate) async fn update_with_features(
-        &mut self,
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
-        features: AirFeatures,
-    ) -> Result<GroupOperationParamsOut> {
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
-
-        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters = Self::forced_features_leaf_params(
-            own_leaf_node.extensions(),
-            self.own_leaf_capabilities(),
-            features,
-        )?;
-
-        self.mls_group.set_aad(aad);
-        let (mls_message, group_info) = {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let (mls_message, _welcome_option, group_info_option) = self
-                .mls_group
-                .commit_builder()
-                .force_self_update(true)
-                .leaf_node_parameters(leaf_node_parameters)
-                .load_psks(provider.storage())?
-                .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents();
-            (
-                mls_message,
-                group_info_option.ok_or_else(|| anyhow!("No group info after commit"))?,
-            )
-        };
-
-        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
-        Ok(GroupOperationParamsOut {
-            commit,
-            add_users_info_option: None,
-        })
-    }
-
-    fn forced_features_leaf_params(
-        leaf_node_extensions: &Extensions<LeafNode>,
-        capabilities: Capabilities,
-        features: AirFeatures,
-    ) -> anyhow::Result<LeafNodeParameters> {
-        let mut dict = leaf_node_extensions
-            .app_data_dictionary()
-            .map(|e| e.dictionary().clone())
-            .unwrap_or_default();
-        ClientAppData::refresh_features(&mut dict, features);
-
-        let mut leaf_node_extensions = leaf_node_extensions.clone();
-        leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
-            AppDataDictionaryExtension::new(dict),
-        ))?;
-        Ok(LeafNodeParameters::builder()
-            .with_capabilities(capabilities)
-            .with_extensions(leaf_node_extensions)
-            .build())
     }
 }
 

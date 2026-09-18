@@ -386,13 +386,6 @@ class _GroupDataCard extends StatelessWidget {
     return DeveloperCard(
       caption: 'Group Data',
       children: [
-        DeveloperInfoRow(label: 'Legacy Title', value: data.legacyTitle ?? '—'),
-
-        DeveloperInfoRow(
-          label: 'Legacy Picture',
-          value: data.legacyPicture ? 'yes' : 'no',
-        ),
-
         if (data.encryptedTitle case final title?) ...[
           const _RowGroupHeader('Encrypted Title'),
           DeveloperInfoRow(

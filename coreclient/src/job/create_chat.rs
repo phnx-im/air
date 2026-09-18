@@ -141,8 +141,6 @@ impl CreateChat {
         let group_data = GroupData {
             encrypted_title: Some(encrypted_title),
             external_group_profile,
-            legacy_title: Some(chat_attributes.title.clone()),
-            legacy_picture: None,
         };
         let (group_data_bytes, profile) = if profile_component {
             (None, Some(group_data.into_component()))
