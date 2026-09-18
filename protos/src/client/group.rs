@@ -16,9 +16,12 @@ use aircommon::{
 };
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+use openmls::component::ComponentData;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+use crate::client::component::AIR_GROUP_PROFILE_COMPONENT_ID;
 
 /// Data stored in the group data extension as blob.
 ///
@@ -51,6 +54,59 @@ impl GroupData {
 
     pub fn is_empty(&self) -> bool {
         self.encrypted_title.is_none() && self.external_group_profile.is_none()
+    }
+
+    pub fn into_component(self) -> GroupProfileComponent {
+        GroupProfileComponent {
+            encrypted_title: self.encrypted_title,
+            external_group_profile: self.external_group_profile,
+        }
+    }
+}
+
+impl From<GroupProfileComponent> for GroupData {
+    fn from(component: GroupProfileComponent) -> Self {
+        Self {
+            encrypted_title: component.encrypted_title,
+            external_group_profile: component.external_group_profile,
+        }
+    }
+}
+
+/// A component inside group app data that carries the group profile.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// GroupProfileComponent = {
+///   encryptedTitle: EncryptedGroupTitle .tag 1,
+///   externalGroupProfile: ExternalGroupProfile .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, Eq, PartialEq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct GroupProfileComponent {
+    /// The encrypted group title of the group.
+    #[tag(1)]
+    pub encrypted_title: Option<EncryptedGroupTitle>,
+    /// A pointer to an encrypted group profile stored externally.
+    #[tag(2)]
+    pub external_group_profile: Option<ExternalGroupProfile>,
+}
+
+impl GroupProfileComponent {
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, codec::Error> {
+        PersistenceCodec::to_vec(self)
+    }
+
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes)
+    }
+
+    pub fn to_component_data(&self) -> Result<ComponentData, codec::Error> {
+        Ok(ComponentData::from_parts(
+            AIR_GROUP_PROFILE_COMPONENT_ID,
+            self.to_bytes()?.into(),
+        ))
     }
 }
 

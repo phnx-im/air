@@ -573,10 +573,11 @@ mod derivation_tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
             GroupAppData {
                 is_self_group,
                 safe_aad_components: None,
+                profile: None,
             },
             None,
         )?;
@@ -799,8 +800,10 @@ mod derivation_tests {
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
+                profile: None,
             }
-            .to_extension(),
+            .to_extension()
+            .unwrap(),
         )?;
         assert!(!GroupAppData::is_self_group_context(&flipped));
 

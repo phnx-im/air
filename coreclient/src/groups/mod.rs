@@ -80,7 +80,11 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::app_data::{ClientAppData, GroupAppData};
+use airprotos::client::{
+    app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
+    component::AIR_GROUP_PROFILE_COMPONENT_ID,
+    group::GroupData,
+};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
 use mimi_content::{MessageStatus, MessageStatusReport, MimiContent, PerMessageStatus};
@@ -97,7 +101,7 @@ use uuid::Uuid;
 
 use crate::{
     ChatId, ChatStatus, SystemMessage,
-    chats::messages::TimestampedMessage,
+    chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
         api_clients::ApiClients,
         block_contact::{BlockedContact, BlockedContactError},
@@ -120,11 +124,11 @@ use openmls::{
         VcDerivationEpochRetentionPolicy,
     },
     prelude::{
-        AppDataDictionaryExtension, Capabilities, Credential, CredentialType, CredentialWithKey,
-        Extension, Extensions, GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities, Credential,
+        CredentialType, CredentialWithKey, Extension, Extensions, GroupId, LeafNode, LeafNodeIndex,
+        LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -236,18 +240,6 @@ pub(crate) struct GroupDataBytes {
 impl GroupDataBytes {
     pub(crate) fn bytes(&self) -> &[u8] {
         &self.bytes
-    }
-
-    fn from_staged_commit(staged_commit: &StagedCommit) -> Option<Self> {
-        staged_commit.queued_proposals().find_map(|p| {
-            if let Proposal::GroupContextExtensions(extensions) = p.proposal()
-                && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
-            {
-                Some(GroupDataBytes::from(ext.0.clone()))
-            } else {
-                None
-            }
-        })
     }
 }
 
@@ -474,12 +466,14 @@ impl Group {
     }
 
     /// Create a group.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
-        group_data_bytes: GroupDataBytes,
+        group_data_bytes: Option<GroupDataBytes>,
+        group_app_data: Option<GroupAppData>,
         vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -488,12 +482,17 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let group_data_extension = Extension::Unknown(
-            GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data_bytes.bytes),
-        );
-        let gc_extensions =
-            Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
+        let mut gc_extension_vec = vec![required_capabilities];
+        if let Some(group_data_bytes) = group_data_bytes {
+            gc_extension_vec.push(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data_bytes.bytes),
+            ));
+        }
+        if let Some(group_app_data) = group_app_data {
+            gc_extension_vec.push(group_app_data.to_extension()?);
+        }
+        let gc_extensions = Extensions::from_vec(gc_extension_vec)?;
 
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -1913,7 +1912,7 @@ impl Group {
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
         let provider = AirOpenMlsProvider::new(txn.as_mut());
 
@@ -1929,7 +1928,7 @@ impl Group {
                 ds_timestamp,
             )?;
 
-            let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
+            let group_data = self.group_data_from_staged_commit(&staged_commit)?;
 
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
@@ -1945,7 +1944,7 @@ impl Group {
             // create a notification message.
             let (staged_commit_messages, group_data) =
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
-                    let group_data = GroupDataBytes::from_staged_commit(staged_commit);
+                    let group_data = self.group_data_from_staged_commit(staged_commit)?;
                     let messages = TimestampedMessage::from_staged_commit(
                         self,
                         verified,
@@ -2157,7 +2156,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
-        new_group_data: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
@@ -2166,15 +2165,23 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        let extensions = new_group_data
-            .map(|gd| -> Result<_> {
+        // Update group profile if needed.
+        let (component, extensions) = if let Some(group_data) = new_group_data {
+            if self.mls_group.extensions().has_group_profile_component() {
+                // If the group profile component exists, then update it.
+                (Some(group_data.into_component()), None)
+            } else {
+                // Otherwise, update the group context extension.
+                let bytes = group_data.encode()?;
                 let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-                let mut exts = self.mls_group().extensions().clone();
-                exts.add_or_replace(group_data_extension)?;
-                Ok(exts)
-            })
-            .transpose()?;
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes.bytes));
+                let mut extensions = self.mls_group().extensions().clone();
+                extensions.add_or_replace(group_data_extension)?;
+                (None, Some(extensions))
+            }
+        } else {
+            (None, None)
+        };
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2204,8 +2211,27 @@ impl Group {
                 builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
+            let component_data = component
+                .map(|component| component.to_component_data())
+                .transpose()?;
+            if let Some(component_data) = &component_data {
+                builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                    AppDataUpdateProposal::update(
+                        AIR_GROUP_PROFILE_COMPONENT_ID,
+                        component_data.data().to_vec(),
+                    ),
+                )));
+            }
+
+            let mut builder = builder.load_psks(provider.storage())?;
+
+            if let Some(component_data) = component_data {
+                let mut updater = builder.app_data_dictionary_updater();
+                updater.set(component_data);
+                builder.with_app_data_dictionary_updates(updater.changes());
+            }
+
             let (mls_message, _welcome_option, group_info_option) = builder
-                .load_psks(provider.storage())?
                 .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
@@ -2468,13 +2494,6 @@ impl Group {
         pending_removes
     }
 
-    /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
-    #[expect(dead_code)]
-    pub(crate) fn pending_group_data_update(&self) -> Option<GroupDataBytes> {
-        let pending_commit = self.mls_group().pending_commit()?;
-        GroupDataBytes::from_staged_commit(pending_commit)
-    }
-
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
         self.mls_group().member_at(index).and_then(|m| {
             LeafCredential::from_credential(&m.credential)
@@ -2585,13 +2604,56 @@ impl Group {
         Ok(self.room_state.users().get(&identity).cloned())
     }
 
-    pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
-        self.mls_group().extensions().iter().find_map(|e| match e {
+    pub(crate) fn group_data(&self) -> anyhow::Result<Option<GroupData>> {
+        // First try to get the group data from the group profile component.
+        if let Some(group_profile) = GroupAppData::group_profile(self.mls_group().extensions()) {
+            return Ok(Some(group_profile.into()));
+        }
+        // Otherwise fall back to the group data extension.
+        let Some(group_data_bytes) = self.mls_group().extensions().iter().find_map(|e| match e {
             Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
                 Some(GroupDataBytes::from(extension_bytes.0.clone()))
             }
             _ => None,
-        })
+        }) else {
+            return Ok(None);
+        };
+        Ok(Some(GroupData::decode(&group_data_bytes)?))
+    }
+
+    /// Group data changed by `staged_commit` if any.
+    ///
+    /// If the staged group context carries a group profile component, only a change of that
+    /// component counts. A legacy group data extension in the same commit is ignored. Without a
+    /// component, the legacy extension of a group context extensions proposal is returned.
+    fn group_data_from_staged_commit(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> anyhow::Result<Option<GroupData>> {
+        if let Some(staged) =
+            GroupAppData::group_profile(staged_commit.group_context().extensions())
+        {
+            let current = GroupAppData::group_profile(self.mls_group().extensions());
+            return Ok((current.as_ref() != Some(&staged)).then(|| staged.into()));
+        }
+
+        // Fallback
+        staged_commit
+            .queued_proposals()
+            .find_map(|p| {
+                if let Proposal::GroupContextExtensions(extensions) = p.proposal()
+                    && let Some(extension) =
+                        extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
+                {
+                    Some(GroupData::decode(&GroupDataBytes::from(
+                        extension.0.clone(),
+                    )))
+                } else {
+                    None
+                }
+            })
+            .transpose()
+            .map_err(From::from)
     }
 
     pub(crate) fn own_index(&self) -> LeafNodeIndex {
@@ -3158,7 +3220,8 @@ mod handle_group_not_found_tests {
             &user_signing_key,
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
+            None,
             None,
         )?;
         group.store(&mut connection).await?;

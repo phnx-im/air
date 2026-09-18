@@ -666,7 +666,7 @@ impl<'a> ValidationParams<'a> {
 }
 
 /// Resolves an [`UnresolvedAppDataCommit`] into a [`ProcessedMessage`].
-fn resolve_app_data_commit<Provider: OpenMlsProvider>(
+pub fn resolve_app_data_commit<Provider: OpenMlsProvider>(
     group: &MlsGroup,
     provider: &Provider,
     message: ProcessedMessage,
@@ -775,7 +775,7 @@ mod tests {
     use super::*;
     use crate::extension::tests::test_apq_info;
 
-    const OTHER_COMPONENT_ID: ComponentId = 0x8002;
+    const OTHER_COMPONENT_ID: ComponentId = 0x8100;
 
     /// The dictionary changes a commit results in, keyed by component ID. A
     /// `None` value is a removal.

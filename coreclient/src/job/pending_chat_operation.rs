@@ -46,9 +46,8 @@ use crate::{
     contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
-        client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
+        handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -578,14 +577,15 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data_bytes) = self
+                    let (mut group_messages, group_data) = self
                         .group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(bytes) = group_data_bytes
-                        && let Some(chat_title) =
-                            GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
+                    if let Some(group_data) = group_data
+                        && let (chat_title, _profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key())
+                        && let Some(chat_title) = chat_title
                     {
                         let attributes = ChatAttributes::new(chat_title, new_chat_picture);
                         update_chat_attributes(
@@ -769,12 +769,11 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
-        Self::create_update_with_raw_group_data(
+        Self::create_update_with_group_data(
             txn,
             signer,
             chat_id,
-            group_data_bytes,
+            new_group_data,
             new_chat_picture,
             derivation_epoch,
         )
@@ -985,11 +984,11 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    pub(crate) async fn create_update_with_raw_group_data(
+    pub(crate) async fn create_update_with_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        group_data_bytes: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
@@ -1000,7 +999,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
+            .update(&mut *txn, &signer, new_group_data, derivation_epoch)
             .await?;
 
         let job = Self::new(
@@ -1789,10 +1788,11 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: None,
+                        profile: None,
                     },
                     None,
                 )?;
@@ -1942,10 +1942,11 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: None,
+                        profile: None,
                     },
                     None,
                 )?;
@@ -2029,10 +2030,11 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
                     GroupAppData {
                         is_self_group: true,
                         safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                        profile: None,
                     },
                     None,
                 )?;
@@ -2232,7 +2234,8 @@ mod tests {
             &signing_key,
             identity_link_wrapper_key,
             group_id.clone(),
-            group_data_bytes,
+            Some(group_data_bytes),
+            None,
             None,
         )?;
         group.store(&mut connection).await?;

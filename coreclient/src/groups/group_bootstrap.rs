@@ -315,6 +315,7 @@ mod tests {
         let app_data = GroupAppData {
             is_self_group,
             safe_aad_components: None,
+            profile: None,
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
@@ -323,7 +324,7 @@ mod tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
             app_data,
             vc_group_id,
         )?;

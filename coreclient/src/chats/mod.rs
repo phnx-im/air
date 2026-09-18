@@ -418,20 +418,6 @@ pub(crate) trait GroupDataExt {
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> (Option<String>, Option<ExternalGroupProfile>);
-
-    /// Decodes the group data and returns the contained chat title, if any.
-    ///
-    /// The group profile part is dropped. Use this for our own commits and
-    /// the self group, where the profile data is already available locally.
-    fn decode_title(
-        bytes: &GroupDataBytes,
-        identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> Result<Option<String>, codec::Error>
-    where
-        Self: Sized,
-    {
-        Ok(Self::decode(bytes)?.into_parts(identity_link_wrapper_key).0)
-    }
 }
 
 impl GroupDataExt for GroupData {

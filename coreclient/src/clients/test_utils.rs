@@ -10,13 +10,17 @@ use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::{EncryptedGroupTitle, GroupData};
+use airprotos::client::{
+    app_data::GroupAppDataExt,
+    group::{EncryptedGroupTitle, GroupData},
+};
 
 use crate::{
-    chats::GroupDataExt,
+    ChatAttributes,
     groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
+        create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
@@ -322,16 +326,15 @@ impl CoreUser {
                     .context("No group")?;
                 let encrypted_title =
                     EncryptedGroupTitle::encrypt(&title, group.identity_link_wrapper_key())?;
-                let group_data_bytes = GroupData {
+                let group_data = GroupData {
                     encrypted_title: Some(encrypted_title),
                     external_group_profile: None,
-                }
-                .encode()?;
-                PendingChatOperation::create_update_with_raw_group_data(
+                };
+                PendingChatOperation::create_update_with_group_data(
                     txn,
                     self.signing_key(),
                     chat_id,
-                    Some(group_data_bytes),
+                    Some(group_data),
                     None,
                     DerivationEpoch::Keep,
                 )
@@ -339,6 +342,31 @@ impl CoreUser {
             })
             .await?;
         job.staged_commit_message_bytes()
+    }
+
+    /// Creates a group whose group profile is stored in the group profile component.
+    pub async fn create_chat_with_profile_component(
+        &self,
+        title: String,
+        is_apq: bool,
+    ) -> anyhow::Result<ChatId> {
+        let chat_attributes = ChatAttributes::new(title, None);
+        let client_reference = self.create_own_client_reference();
+        let job =
+            CreateChat::new(chat_attributes, client_reference, is_apq).with_profile_component();
+        Ok(self.execute_job(job).await?)
+    }
+
+    /// Whether the group context of the chat carries the group profile component.
+    pub async fn has_group_profile_component(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(false);
+        };
+        Ok(group.mls_group().extensions().has_group_profile_component())
     }
 
     pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
@@ -349,10 +377,7 @@ impl CoreUser {
         else {
             return Ok(None);
         };
-        let Some(bytes) = group.group_data() else {
-            return Ok(None);
-        };
-        Ok(Some(GroupData::decode(&bytes)?))
+        group.group_data()
     }
 
     /// Send a message to the DS using the given collision tags instead of

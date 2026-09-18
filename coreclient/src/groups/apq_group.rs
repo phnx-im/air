@@ -63,7 +63,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
-        group_data_bytes: GroupDataBytes,
+        group_data_bytes: Option<GroupDataBytes>,
         group_app_data: GroupAppData,
         vc_group_id: Option<&GroupId>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
@@ -74,17 +74,27 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let group_data_extension = Extension::Unknown(
-            GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data_bytes.bytes),
-        );
-        let gc_extensions = Extensions::from_vec(vec![
-            group_data_extension,
-            required_capabilities,
-            // APQ groups automatically add an app data dictionary extension (to required
-            // capabilities), so we can safely add it here for all APQ groups.
-            group_app_data.to_extension(),
+        // The group profile lives only in the T group context. Profile updates are T-only
+        // commits, so the PQ leg carries neither the component nor the legacy extension.
+        let pq_group_app_data = GroupAppData {
+            profile: None,
+            ..group_app_data.clone()
+        };
+        // APQ groups automatically add an app data dictionary extension (to required
+        // capabilities), so we can safely add it here for all APQ groups.
+        let pq_gc_extensions = Extensions::from_vec(vec![
+            required_capabilities.clone(),
+            pq_group_app_data.to_extension()?,
         ])?;
+
+        let mut t_gc_extension_vec = vec![required_capabilities, group_app_data.to_extension()?];
+        if let Some(group_data_bytes) = group_data_bytes {
+            t_gc_extension_vec.push(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data_bytes.bytes),
+            ));
+        }
+        let t_gc_extensions = Extensions::from_vec(t_gc_extension_vec)?;
 
         // The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {
@@ -110,7 +120,7 @@ impl Group {
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(capabilities)
-            .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
+            .with_group_context_extensions(t_gc_extensions, pq_gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             // Air prunes derivation epochs on a wall-clock window instead, see

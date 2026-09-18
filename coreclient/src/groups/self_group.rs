@@ -312,6 +312,7 @@ impl CoreUser {
                 let client_app_data = GroupAppData {
                     is_self_group: true,
                     safe_aad_components: Some(vec![VC_COMPONENT_ID]),
+                    profile: None,
                 };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
@@ -320,7 +321,7 @@ impl CoreUser {
                     identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
-                    group_data_bytes,
+                    Some(group_data_bytes),
                     client_app_data,
                     // The self group is the emulation group itself, not a
                     // virtual client of one.
