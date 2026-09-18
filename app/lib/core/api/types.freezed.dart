@@ -2512,7 +2512,7 @@ class UiSystemMessage_Add extends UiSystemMessage {
   const UiSystemMessage_Add(this.field0, this.field1): super._();
   
 
- final  UiUserId field0;
+ final  UiUserId? field0;
  final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
@@ -2547,7 +2547,7 @@ abstract mixin class $UiSystemMessage_AddCopyWith<$Res> implements $UiSystemMess
   factory $UiSystemMessage_AddCopyWith(UiSystemMessage_Add value, $Res Function(UiSystemMessage_Add) _then) = _$UiSystemMessage_AddCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserId field1
+ UiUserId? field0, UiUserId field1
 });
 
 
@@ -2564,10 +2564,10 @@ class _$UiSystemMessage_AddCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? field0 = freezed,Object? field1 = null,}) {
   return _then(UiSystemMessage_Add(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+freezed == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserId?,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }
@@ -2582,7 +2582,7 @@ class UiSystemMessage_Remove extends UiSystemMessage {
   const UiSystemMessage_Remove(this.field0, this.field1): super._();
   
 
- final  UiUserId field0;
+ final  UiUserId? field0;
  final  UiUserId field1;
 
 /// Create a copy of UiSystemMessage
@@ -2617,7 +2617,7 @@ abstract mixin class $UiSystemMessage_RemoveCopyWith<$Res> implements $UiSystemM
   factory $UiSystemMessage_RemoveCopyWith(UiSystemMessage_Remove value, $Res Function(UiSystemMessage_Remove) _then) = _$UiSystemMessage_RemoveCopyWithImpl;
 @useResult
 $Res call({
- UiUserId field0, UiUserId field1
+ UiUserId? field0, UiUserId field1
 });
 
 
@@ -2634,10 +2634,10 @@ class _$UiSystemMessage_RemoveCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? field0 = null,Object? field1 = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? field0 = freezed,Object? field1 = null,}) {
   return _then(UiSystemMessage_Remove(
-null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
-as UiUserId,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
+freezed == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserId?,null == field1 ? _self.field1 : field1 // ignore: cast_nullable_to_non_nullable
 as UiUserId,
   ));
 }

@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:flutter/foundation.dart';
@@ -162,7 +163,9 @@ class _Title extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final fill = palette.backgroundElevated.primary;
-    final border = palette.separator.primary;
+    final border = palette.brightness == .dark
+        ? PanelSurface.colorOf(context)
+        : palette.separator.primary;
 
     return ConstrainedBox(
       constraints: BoxConstraints(minHeight: tokens.pillMinHeight),

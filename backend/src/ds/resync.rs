@@ -223,6 +223,8 @@ impl DsGroupState {
             t_staged_commit,
             pq_staged_commit,
             aad: _,
+            t_new_leaf: _,
+            pq_new_leaf: _,
             new_credential: t_new_credential,
             new_sender_index: t_new_sender_index,
         } = Self::validate_apq_external_commit(
@@ -297,7 +299,10 @@ impl DsGroupState {
         pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
         Ok(ResyncOutcome {
-            message: processed_assisted_message_plus.serialized_apq_message,
+            message: SerializedMlsMessage::combine_apq(
+                processed_assisted_message_plus.t_serialized_message,
+                processed_assisted_message_plus.pq_serialized_message,
+            ),
             sibling_queue,
         })
     }

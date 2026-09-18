@@ -208,6 +208,7 @@ pub enum ContactType {
     Partial(PartialContact),
 }
 
+#[derive(Clone)]
 pub enum PartialContactType {
     Handle(Username),
     TargetedMessage(UserId),

@@ -1928,11 +1928,17 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
         .filter_map(|m| {
             if let Message::Event(EventMessage::System(system_message)) = m.message() {
                 match system_message {
-                    SystemMessage::Add(adder, added) => {
+                    SystemMessage::Add(Some(adder), added) => {
                         Some(format!("{adder:?} added {added:?} to the chat"))
                     }
-                    SystemMessage::Remove(remover, removed) => {
+                    SystemMessage::Add(None, added) => {
+                        Some(format!("{added:?} was added to the chat"))
+                    }
+                    SystemMessage::Remove(Some(remover), removed) => {
                         Some(format!("{remover:?} removed {removed:?} from the chat"))
+                    }
+                    SystemMessage::Remove(None, removed) => {
+                        Some(format!("{removed:?} was removed from the chat"))
                     }
                     SystemMessage::ChangeTitle {
                         user_id,
@@ -1951,7 +1957,10 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         let user_handle_str = user_handle.plaintext();
                         Some(format!("You requested a connection with {user_handle_str}"))
                     }
-                    SystemMessage::AcceptedConnectionRequest { contact, user_handle } => {
+                    SystemMessage::AcceptedConnectionRequest {
+                        contact,
+                        user_handle,
+                    } => {
                         let base_str =
                             format!("You accepted a connection request from {contact:?}");
                         if let Some(user_handle) = user_handle {
@@ -1961,9 +1970,11 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             Some(base_str)
                         }
                     }
-                    SystemMessage::ReceivedConnectionConfirmation { sender, user_handle } => {
-                        let base_str =
-                            format!("User {sender:?} confirmed your connection request");
+                    SystemMessage::ReceivedConnectionConfirmation {
+                        sender,
+                        user_handle,
+                    } => {
+                        let base_str = format!("User {sender:?} confirmed your connection request");
                         if let Some(user_handle) = user_handle {
                             let user_handle_str = user_handle.plaintext();
                             Some(format!("{base_str} to handle {user_handle_str}"))
@@ -1971,25 +1982,30 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             Some(base_str)
                         }
                     }
-                    SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle } => {
+                    SystemMessage::ReceivedHandleConnectionRequest {
+                        sender,
+                        user_handle,
+                    } => {
                         let user_handle_str = user_handle.plaintext();
                         Some(format!(
-                            "User {sender:?} requested a connection to your handle {user_handle_str}"
+                            "User {sender:?} requested a connection to your \
+                            handle {user_handle_str}"
                         ))
                     }
                     SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
                         format!(
-                            "User {sender:?} requested a direct connection to your contact through the chat {chat_name}"
+                            "User {sender:?} requested a direct connection to your \
+                            contact through the chat {chat_name}"
                         )
                         .into()
-                    },
+                    }
                     SystemMessage::NewDirectConnectionChat(user_id) => {
                         format!("You requested a connection with {user_id:?}").into()
-                    },
-                    SystemMessage::Onboarded => {
-                        Some("This client has been onboarded into the group after linking".to_owned())
-                    },
-                                    }
+                    }
+                    SystemMessage::Onboarded => Some(
+                        "This client has been onboarded into the group after linking".to_owned(),
+                    ),
+                }
             } else {
                 None
             }

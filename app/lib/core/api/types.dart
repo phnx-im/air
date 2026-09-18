@@ -152,6 +152,7 @@ class UiChatDetails {
   final bool isApq;
   final UiChatMuted? mutedUntil;
   final bool pendingCommitFailed;
+  final bool resyncFailed;
 
   const UiChatDetails({
     required this.id,
@@ -165,6 +166,7 @@ class UiChatDetails {
     required this.isApq,
     this.mutedUntil,
     required this.pendingCommitFailed,
+    required this.resyncFailed,
   });
 
   @override
@@ -179,7 +181,8 @@ class UiChatDetails {
       draft.hashCode ^
       isApq.hashCode ^
       mutedUntil.hashCode ^
-      pendingCommitFailed.hashCode;
+      pendingCommitFailed.hashCode ^
+      resyncFailed.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -196,7 +199,8 @@ class UiChatDetails {
           draft == other.draft &&
           isApq == other.isApq &&
           mutedUntil == other.mutedUntil &&
-          pendingCommitFailed == other.pendingCommitFailed;
+          pendingCommitFailed == other.pendingCommitFailed &&
+          resyncFailed == other.resyncFailed;
 }
 
 /// A message in a chat
@@ -446,9 +450,9 @@ sealed class UiReaction with _$UiReaction {
 sealed class UiSystemMessage with _$UiSystemMessage {
   const UiSystemMessage._();
 
-  const factory UiSystemMessage.add(UiUserId field0, UiUserId field1) =
+  const factory UiSystemMessage.add(UiUserId? field0, UiUserId field1) =
       UiSystemMessage_Add;
-  const factory UiSystemMessage.remove(UiUserId field0, UiUserId field1) =
+  const factory UiSystemMessage.remove(UiUserId? field0, UiUserId field1) =
       UiSystemMessage_Remove;
   const factory UiSystemMessage.changeTitle(
     UiUserId field0,

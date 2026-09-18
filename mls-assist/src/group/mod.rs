@@ -262,8 +262,15 @@ impl ProcessedAssistedMessage {
 
 pub struct ApqProcessedAssistedMessagePlus {
     pub processed_assisted_message: ApqProcessedAssistedMessage,
+    pub t_serialized_message: SerializedMlsMessage,
+    pub pq_serialized_message: SerializedMlsMessage,
+}
+
+impl ApqProcessedAssistedMessagePlus {
     /// Concat of t + pq serialized bytes
-    pub serialized_apq_message: SerializedMlsMessage,
+    pub fn serialized_apq_message(self) -> SerializedMlsMessage {
+        SerializedMlsMessage::combine_apq(self.t_serialized_message, self.pq_serialized_message)
+    }
 }
 
 /// APQ processed assisted messages are always commits.

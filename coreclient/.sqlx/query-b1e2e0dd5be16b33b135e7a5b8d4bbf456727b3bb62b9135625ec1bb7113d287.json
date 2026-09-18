@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT status AS \"status: _\"\n                FROM resync_queue\n                WHERE chat_id = ?1\n                    OR group_id = (SELECT group_id FROM chat WHERE chat_id = ?1)",
+  "describe": {
+    "columns": [
+      {
+        "name": "status: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b1e2e0dd5be16b33b135e7a5b8d4bbf456727b3bb62b9135625ec1bb7113d287"
+}

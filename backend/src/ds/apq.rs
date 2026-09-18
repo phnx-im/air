@@ -7,7 +7,7 @@
 use aircommon::credentials::LeafCredential;
 use mls_assist::{
     group::ApqProcessedAssistedMessage,
-    openmls::prelude::{LeafNodeIndex, ProcessedMessageContent, Sender, StagedCommit},
+    openmls::prelude::{LeafNode, LeafNodeIndex, ProcessedMessageContent, Sender, StagedCommit},
 };
 use tracing::error;
 
@@ -21,6 +21,9 @@ pub(super) struct ApqExternalCommit<'a> {
     pub(super) pq_staged_commit: &'a StagedCommit,
     /// AAD of the T leg. The PQ leg carries the same bytes.
     pub(super) aad: &'a [u8],
+    /// Update-path leaves the committer lands at, one per leg.
+    pub(super) t_new_leaf: &'a LeafNode,
+    pub(super) pq_new_leaf: &'a LeafNode,
     /// Credential of the T update-path leaf. The PQ leaf is bound to it by the
     /// shared signature key.
     pub(super) new_credential: LeafCredential,
@@ -129,6 +132,8 @@ impl DsGroupState {
             t_staged_commit,
             pq_staged_commit,
             aad: t_processed_message.tail_aad(),
+            t_new_leaf,
+            pq_new_leaf,
             new_credential,
             new_sender_index,
         })

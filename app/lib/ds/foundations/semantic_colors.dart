@@ -98,12 +98,13 @@ class SeparatorPalette {
 }
 
 class FillPalette {
-  final Color primary, secondary, tertiary;
+  final Color primary, secondary, tertiary, quaternary;
 
   const FillPalette({
     required this.primary,
     required this.secondary,
     required this.tertiary,
+    required this.quaternary,
   });
 }
 
@@ -150,18 +151,16 @@ class FunctionPalette {
   });
 }
 
-/// Message-bubble colors. An Air-specific extension of the design system:
-/// the reference DS carries these in its message-bubble pattern tokens.
+/// Ink and rules inside a message bubble. An Air-specific extension of the
+/// design system: the reference DS carries these in its message pattern
+/// tokens. The bubble's fill is the pattern's own, see `MessageBubble.fillOf`.
 class MessagePalette {
-  final Color selfBackground, otherBackground;
   final Color selfText, otherText;
   final Color selfListPrefix, otherListPrefix;
   final Color selfTableBorder, otherTableBorder;
   final Color selfCheckboxCheck, otherCheckboxCheck;
 
   const MessagePalette({
-    required this.selfBackground,
-    required this.otherBackground,
     required this.selfText,
     required this.otherText,
     required this.selfListPrefix,
@@ -249,6 +248,7 @@ enum SemanticColor {
   fillPrimary,
   fillSecondary,
   fillTertiary,
+  fillQuaternary,
   functionNeutralWhite,
   functionNeutralBlack,
   functionNeutralToggleWhite,
@@ -375,6 +375,10 @@ extension SemanticColorAlias on SemanticColor {
       light: NeutralRef(NeutralShade.s900, 0.05),
       dark: NeutralRef(NeutralShade.s0, 0.10),
     ),
+    SemanticColor.fillQuaternary => const SemanticAlias(
+      light: NeutralRef(NeutralShade.s900, 0.03),
+      dark: NeutralRef(NeutralShade.s0, 0.05),
+    ),
     // White and black stay put across modes: they are ink for a surface whose
     // color is fixed, such as avatar initials or lightbox glass. The
     // mode-following counterparts are toggleWhite and toggleBlack.
@@ -432,6 +436,9 @@ extension SemanticColorAlias on SemanticColor {
 }
 
 class SemanticPalette {
+  /// The theme this palette resolves, for the few slots whose tier flips
+  /// between themes instead of following one alias.
+  final Brightness brightness;
   final AccentBrand accentBrand;
   final BackgroundBase backgroundBase;
   final BackgroundElevated backgroundElevated;
@@ -443,6 +450,7 @@ class SemanticPalette {
   final MessagePalette message;
 
   const SemanticPalette({
+    required this.brightness,
     required this.accentBrand,
     required this.backgroundBase,
     required this.backgroundElevated,
@@ -457,6 +465,7 @@ class SemanticPalette {
   factory SemanticPalette.from(Brightness brightness) {
     Color r(SemanticColor slot) => slot.resolve(brightness);
     return SemanticPalette(
+      brightness: brightness,
       accentBrand: AccentBrand(
         primary: r(SemanticColor.accentBrandPrimary),
         secondary: r(SemanticColor.accentBrandSecondary),
@@ -497,6 +506,7 @@ class SemanticPalette {
         primary: r(SemanticColor.fillPrimary),
         secondary: r(SemanticColor.fillSecondary),
         tertiary: r(SemanticColor.fillTertiary),
+        quaternary: r(SemanticColor.fillQuaternary),
       ),
       function: FunctionPalette(
         neutral: FunctionNeutral(
@@ -533,12 +543,10 @@ final SemanticPalette lightSemanticPalette = SemanticPalette.from(.light);
 
 final SemanticPalette darkSemanticPalette = SemanticPalette.from(.dark);
 
-/// Message-bubble colors are the one bundle without aliases: they are an
-/// Air-specific extension that the reference DS carries in its message-bubble
-/// pattern tokens rather than in the semantic palette.
+/// Message colors are the one bundle without aliases: they are an Air-specific
+/// extension that the reference DS carries in its message pattern tokens rather
+/// than in the semantic palette.
 final MessagePalette _lightMessagePalette = MessagePalette(
-  selfBackground: Primitive.neutral(NeutralShade.s150),
-  otherBackground: Primitive.neutral(NeutralShade.s100),
   selfText: Primitive.neutral(NeutralShade.s1000),
   otherText: Primitive.neutral(NeutralShade.s1000),
   selfListPrefix: Primitive.neutral(NeutralShade.s800),
@@ -550,8 +558,6 @@ final MessagePalette _lightMessagePalette = MessagePalette(
 );
 
 final MessagePalette _darkMessagePalette = MessagePalette(
-  selfBackground: Primitive.neutral(NeutralShade.s800),
-  otherBackground: Primitive.neutral(NeutralShade.s850),
   selfText: Primitive.neutral(NeutralShade.s0),
   otherText: Primitive.neutral(NeutralShade.s0),
   selfListPrefix: Primitive.neutral(NeutralShade.s200),

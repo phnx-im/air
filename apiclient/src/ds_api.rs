@@ -49,7 +49,10 @@ use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
-    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
+    openmls::prelude::{
+        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, MlsMessageOut,
+        tls_codec::DeserializeBytes as _,
+    },
 };
 use tonic::Code;
 use tracing::error;
@@ -475,8 +478,13 @@ impl ApiClient {
             (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqEpochSnapshotIn {
                 verifiable_group_info: pq_group_info.try_ref_into()?,
                 ratchet_tree_in: pq_ratchet_tree.try_ref_into()?,
+                join_commit: response
+                    .pq_join_commit
+                    .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                    .transpose()
+                    .map_err(|_| DsRequestError::UnexpectedResponse)?,
             }),
-            (None, None) => None,
+            (None, None) if response.pq_join_commit.is_none() => None,
             _ => return Err(DsRequestError::UnexpectedResponse),
         };
 
@@ -497,6 +505,11 @@ impl ApiClient {
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             pq,
+            join_commit: response
+                .join_commit
+                .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                .transpose()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
         })
     }
 
@@ -557,6 +570,9 @@ impl ApiClient {
         group_info: MlsMessageOut,
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
+        // A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for
+        // the joiner's sibling clients.
+        group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         let request = JoinConnectionGroupRequest {
@@ -564,6 +580,7 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             external_commit: Some(external_commit.try_ref_into()?),
             qs_client_reference: Some(qs_client_reference.into()),
+            group_bootstrap,
         };
         let response = self
             .ds_grpc_client()
@@ -582,6 +599,9 @@ impl ApiClient {
         external_commit_bundle: ApqCommitMessageBundle,
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
+        // A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for
+        // the joiner's sibling clients.
+        group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = apq_external_commit_message(external_commit_bundle)?;
         let request = ApqJoinConnectionGroupRequest {
@@ -589,6 +609,7 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             external_commit: Some(external_commit),
             qs_client_reference: Some(qs_client_reference.into()),
+            group_bootstrap,
         };
         let response = self
             .ds_grpc_client()

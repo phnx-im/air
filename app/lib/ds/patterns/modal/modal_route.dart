@@ -68,21 +68,35 @@ class ModalCardRoute<T> extends PageRoute<T> {
 
   /// The scrim
   @override
-  Widget buildModalBarrier() => AnimatedModalBarrier(
-    color: animation!.drive(
-      ColorTween(
-        begin: barrierColor.withValues(alpha: 0),
-        end: barrierColor,
-      ).chain(CurveTween(curve: barrierCurve)),
-    ),
-    // The modal's own dismiss rather than the pop the framework would do: a
-    // card can sit several levels deep, where popping the route reads as "go
-    // back one" instead of closing what the click landed beside. Inert while
-    // nothing is published, which is how a modal that has to be seen through
-    // keeps the scrim from letting anyone past it.
-    onDismiss: () => _onDismiss?.call(),
-    barrierSemanticsDismissible: false,
-  );
+  Widget buildModalBarrier() {
+    // The hero controller parks a page route offstage for its first frame,
+    // which pins its animation at 1. A scrim painted off that value flashes in
+    // before it fades in, so hold the color back.
+    //
+    // See <packages/flutter/lib/src/widgets/routes.dart> which applies exactly
+    // the same trick.
+    if (offstage) {
+      return const ModalBarrier(
+        dismissible: false,
+        barrierSemanticsDismissible: false,
+      );
+    }
+    return AnimatedModalBarrier(
+      color: animation!.drive(
+        ColorTween(
+          begin: barrierColor.withValues(alpha: 0),
+          end: barrierColor,
+        ).chain(CurveTween(curve: barrierCurve)),
+      ),
+      // The modal's own dismiss rather than the pop the framework would do: a
+      // card can sit several levels deep, where popping the route reads as "go
+      // back one" instead of closing what the click landed beside. Inert while
+      // nothing is published, which is how a modal that has to be seen through
+      // keeps the scrim from letting anyone past it.
+      onDismiss: () => _onDismiss?.call(),
+      barrierSemanticsDismissible: false,
+    );
+  }
 
   @override
   Duration get transitionDuration => Effect.duration(MotionPreset.regular);

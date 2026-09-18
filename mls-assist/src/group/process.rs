@@ -183,11 +183,10 @@ impl ApqGroupRef<'_> {
             group_info,
         };
 
-        let serialized_apq_message =
-            SerializedMlsMessage::combine_apq(t_serialized_message, pq_serialized_message);
         Ok(ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
-            serialized_apq_message,
+            t_serialized_message,
+            pq_serialized_message,
         })
     }
 }

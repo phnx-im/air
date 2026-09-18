@@ -57,6 +57,11 @@ pub struct SelfGroup {
 }
 
 impl SelfGroup {
+    #[cfg(test)]
+    pub(crate) fn new_for_test(group: Group) -> Self {
+        Self { group }
+    }
+
     pub(crate) fn group(&self) -> &Group {
         &self.group
     }
@@ -285,8 +290,6 @@ impl CoreUser {
             EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
                 .context("Failed to encrypt self-group title")?;
         let group_data_bytes = GroupData {
-            legacy_title: None,
-            legacy_picture: None,
             encrypted_title: Some(encrypted_title),
             external_group_profile: None,
         }
@@ -319,6 +322,9 @@ impl CoreUser {
                     pq_group_id,
                     group_data_bytes,
                     client_app_data,
+                    // The self group is the emulation group itself, not a
+                    // virtual client of one.
+                    None,
                 )?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;

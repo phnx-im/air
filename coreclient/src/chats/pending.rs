@@ -13,6 +13,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
+use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
 use anyhow::{Context, bail, ensure};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{prelude::MlsMessageOut, treesync::errors::LeafNodeValidationError};
@@ -28,7 +29,7 @@ use crate::{
     },
     contacts::UsernameContact,
     db::access::WriteConnection,
-    groups::{ConnectionGroupJoin, Group},
+    groups::{ConnectionGroupJoin, Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
     usernames::connection_packages::ConnectionPackageRecord,
 };
@@ -129,6 +130,9 @@ impl CoreUser {
                     }
                 }
 
+                let self_group = SelfGroup::load(&mut *txn).await?;
+                let vc_group_id = self_group.as_ref().map(|group| group.group_id().clone());
+
                 let connection_group = Some(ConnectionGroupJoin {
                     inviter: &sender_user_id,
                     connection_offer_hash,
@@ -146,9 +150,7 @@ impl CoreUser {
                             .connection_group_identity_link_wrapper_key
                             .clone(),
                         aad,
-                        // TODO(gabriel): joining a connection group is currently never a
-                        // virtual-client onboarding: we are not a member of the group yet.
-                        None,
+                        vc_group_id,
                         connection_group,
                     ))
                     .await?;
@@ -170,9 +172,7 @@ impl CoreUser {
                             .clone(),
                         aad,
                         connection_group,
-                        // TODO(gabriel): joining a connection group is currently never a virtual-client
-                        // onboarding: we are not a member of the group yet.
-                        None,
+                        vc_group_id,
                     )
                     .await?;
                     match res {
@@ -230,13 +230,35 @@ impl CoreUser {
                     }
                 }
 
-                Ok(Ok(commit))
+                let group_bootstrap = match &self_group {
+                    Some(self_group) => {
+                        let friendship_package = &connection_info.friendship_package;
+                        let connection = ConnectionContext::Accept(AcceptContext {
+                            user_id: Some(sender_user_id.clone().into()),
+                            friendship_token: Some(friendship_package.friendship_token.clone()),
+                            wai_ear_key: Some(friendship_package.wai_ear_key.clone()),
+                            user_profile_base_secret: Some(
+                                friendship_package.user_profile_base_secret.clone(),
+                            ),
+                            connection_offer_hash,
+                        });
+                        Some(self_group.seal_group_bootstrap_param(
+                            txn,
+                            &group,
+                            GroupBootstrapCarrier::JoinEcho,
+                            Some(connection),
+                        )?)
+                    }
+                    None => None,
+                };
+
+                Ok(Ok((commit, group_bootstrap)))
             },
         ))
         .await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
-        let commit = match result {
+        let (commit, group_bootstrap) = match result {
             Ok(value) => value,
             Err(error) => return Ok(Err(error.into())),
         };
@@ -252,6 +274,7 @@ impl CoreUser {
                         bundle.group_info,
                         qs_client_reference,
                         &connection_info.connection_group_ear_key,
+                        group_bootstrap,
                     )
                     .await?;
             }
@@ -261,6 +284,7 @@ impl CoreUser {
                         *bundle,
                         qs_client_reference,
                         &connection_info.connection_group_ear_key,
+                        group_bootstrap,
                     )
                     .await?;
             }
@@ -387,7 +411,7 @@ mod persistence {
             Ok(())
         }
 
-        pub(super) async fn delete(
+        pub(crate) async fn delete(
             mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
