@@ -7,7 +7,6 @@ use aircommon::{
     crypto::ConnectionDecryptionKey,
     identifiers::{Username, UsernameHash},
     messages::{
-        client_as::SerializedToken,
         client_as_out::UsernameDeleteResponse,
         connection_package::{ConnectionPackage, ConnectionPackageMetadata},
     },
@@ -23,7 +22,7 @@ use airapiclient::ApiClient;
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     db::access::{WriteConnection, WriteDbConnection},
-    privacy_pass,
+    privacy_pass::{self, ConsumedToken},
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -62,7 +61,7 @@ impl CoreUser {
 
         let api_client = self.api_client()?;
 
-        let token: SerializedToken = self
+        let ConsumedToken { token, position } = self
             .consume_or_replenish_token(&api_client, OperationType::AddUsername)
             .await
             .inspect_err(|e| warn!(%e, "no privacy pass token available for username creation"))?;
@@ -85,6 +84,14 @@ impl CoreUser {
         };
         if !created {
             return Ok(None);
+        }
+
+        // Privacy Pass tokens are only redeemed when the username is successfully created.
+        if let Some(position) = position
+            && let Err(error) =
+                privacy_pass::mark_redeemed(self.db().write().await?, &position).await
+        {
+            warn!(%error, "failed to record a redeemed privacy pass token");
         }
 
         let record = UsernameRecord::new(username.clone(), hash, signing_key);
@@ -205,11 +212,11 @@ impl CoreUser {
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> anyhow::Result<SerializedToken> {
-        if let Some(token) =
+    ) -> anyhow::Result<ConsumedToken> {
+        if let Some(consumed) =
             privacy_pass::consume_token(self.db().write().await?, operation_type).await?
         {
-            return Ok(token);
+            return Ok(consumed);
         }
 
         let credentials_response = api_client.as_as_credentials().await?;

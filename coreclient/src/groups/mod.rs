@@ -80,7 +80,10 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::app_data::{ClientAppData, GroupAppData};
+use airprotos::client::{
+    app_data::{ClientAppData, GroupAppData},
+    self_group::SelfGroupAppMessage,
+};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
 use mimi_content::{MessageStatus, MessageStatusReport, MimiContent, PerMessageStatus};
@@ -3333,6 +3336,10 @@ impl TimestampedMessage {
 pub fn suppress_notifications(content: &MimiContent) -> bool {
     if content.is_status_update() {
         // Status updates should never trigger notifications.
+        return true;
+    }
+    if SelfGroupAppMessage::from_mimi_content(content).is_some() {
+        // Bookkeeping among the user's own devices, never shown.
         return true;
     }
     if content.replaces.is_some() {
