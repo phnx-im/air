@@ -9,7 +9,8 @@ use chrono::{DateTime, Utc};
 use crate::{
     db::access::{ReadConnection, WriteConnection},
     privacy_pass::{
-        KeyFingerprint, SeedRecord, SeedState, StoredSeed, TokenId, derivation::SEED_LEN,
+        ConsumedToken, KeyFingerprint, SeedRecord, SeedState, StoredSeed, TokenId, TokenPosition,
+        derivation::SEED_LEN,
     },
 };
 
@@ -91,28 +92,25 @@ pub(crate) async fn store_token(
 /// no-op.
 pub(crate) async fn store_batch_token(
     mut connection: impl WriteConnection,
-    operation_type: OperationType,
     token_key_id: u8,
-    allowance_epoch: u32,
-    token_index: u16,
+    position: &TokenPosition,
     token: &[u8],
 ) -> Result<(), sqlx::Error> {
-    let operation_type = i32::from(operation_type);
+    let (operation_type, key_fingerprint, allowance_epoch, token_index) = position.sql_params();
     let key_id = i32::from(token_key_id);
-    let allowance_epoch = i64::from(allowance_epoch);
-    let token_index = i64::from(token_index);
     let now = Utc::now();
     sqlx::query!(
         "INSERT INTO privacy_pass_token (
             operation_type, token_key_id, token, created_at,
-            allowance_epoch, token_index
+            key_fingerprint, allowance_epoch, token_index
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (token) DO NOTHING",
         operation_type,
         key_id,
         token,
         now,
+        key_fingerprint,
         allowance_epoch,
         token_index
     )
@@ -135,36 +133,66 @@ impl TokenId {
         .map(|bytes| bytes.map(SerializedToken::new))
     }
 
+    /// Deletes the token and returns the position it held in its batch.
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
         token_id: &TokenId,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query!("DELETE FROM privacy_pass_token WHERE id = ?", token_id.id)
-            .execute(connection.as_mut())
-            .await?;
-        Ok(())
+    ) -> sqlx::Result<Option<TokenPosition>> {
+        let row = sqlx::query!(
+            "DELETE FROM privacy_pass_token WHERE id = ?
+             RETURNING operation_type, key_fingerprint, allowance_epoch, token_index",
+            token_id.id
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        TokenPosition::from_token_row(
+            decode_operation_type(row.operation_type)?,
+            row.key_fingerprint,
+            row.allowance_epoch,
+            row.token_index,
+        )
     }
 }
 
-/// Loads and deletes one token (FIFO order).
+/// Loads and deletes one token, together with the position it held in its
+/// batch.
 pub(crate) async fn consume_token(
     mut connection: impl WriteConnection,
     operation_type: OperationType,
-) -> Result<Option<Vec<u8>>, sqlx::Error> {
-    let operation_type = i32::from(operation_type);
-    let row = sqlx::query_scalar!(
+) -> Result<Option<ConsumedToken>, sqlx::Error> {
+    let operation_type_value = i32::from(operation_type);
+    let row = sqlx::query!(
         "DELETE FROM privacy_pass_token
          WHERE
             operation_type = $1 AND
-            id = (SELECT MIN(id)
+            id = (SELECT id
                     FROM privacy_pass_token
-                    WHERE operation_type = $1)
-         RETURNING token",
-        operation_type
+                    WHERE operation_type = $1
+                    ORDER BY
+                        key_fingerprint IS NOT NULL,
+                        CASE WHEN key_fingerprint IS NULL THEN id END,
+                        RANDOM()
+                    LIMIT 1)
+         RETURNING token, key_fingerprint, allowance_epoch, token_index",
+        operation_type_value
     )
     .fetch_optional(connection.as_mut())
     .await?;
-    Ok(row)
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    Ok(Some(ConsumedToken {
+        token: SerializedToken::new(row.token),
+        position: TokenPosition::from_token_row(
+            operation_type,
+            row.key_fingerprint,
+            row.allowance_epoch,
+            row.token_index,
+        )?,
+    }))
 }
 
 /// Returns the number of stored tokens.
@@ -546,18 +574,21 @@ pub(crate) async fn load_committed_seeds(
 
 impl SeedRecord {
     fn decode(operation_type: i64, key_fingerprint: Vec<u8>, seed: Vec<u8>) -> sqlx::Result<Self> {
-        let decoded = i32::try_from(operation_type)
-            .ok()
-            .and_then(|value| OperationType::try_from(value).ok())
-            .ok_or_else(|| {
-                sqlx::Error::Decode(format!("unknown operation type {operation_type}").into())
-            })?;
         Ok(Self {
-            operation_type: decoded,
+            operation_type: decode_operation_type(operation_type)?,
             key_fingerprint: decode_fingerprint(key_fingerprint)?,
             seed: decode_seed(seed)?,
         })
     }
+}
+
+fn decode_operation_type(operation_type: i64) -> sqlx::Result<OperationType> {
+    i32::try_from(operation_type)
+        .ok()
+        .and_then(|value| OperationType::try_from(value).ok())
+        .ok_or_else(|| {
+            sqlx::Error::Decode(format!("unknown operation type {operation_type}").into())
+        })
 }
 
 fn decode_seed(seed: Vec<u8>) -> sqlx::Result<[u8; SEED_LEN]> {
@@ -569,6 +600,17 @@ fn decode_fingerprint(fingerprint: Vec<u8>) -> sqlx::Result<KeyFingerprint> {
     fingerprint
         .try_into()
         .map_err(|_| sqlx::Error::Decode("key fingerprint is not 32 bytes".into()))
+}
+
+fn decode_allowance_epoch(allowance_epoch: i64) -> sqlx::Result<u32> {
+    u32::try_from(allowance_epoch).map_err(|_| {
+        sqlx::Error::Decode(format!("allowance epoch {allowance_epoch} out of range").into())
+    })
+}
+
+fn decode_token_index(token_index: i64) -> sqlx::Result<u16> {
+    u16::try_from(token_index)
+        .map_err(|_| sqlx::Error::Decode(format!("token index {token_index} out of range").into()))
 }
 
 /// Deletes the token seed of a (operation type, key).
@@ -675,6 +717,251 @@ pub(crate) async fn delete_all_batches(
     Ok(())
 }
 
+impl TokenPosition {
+    /// The position as the column values that store it.
+    fn sql_params(&self) -> (i32, &[u8], i64, i64) {
+        (
+            i32::from(self.operation_type),
+            self.key_fingerprint.as_slice(),
+            i64::from(self.allowance_epoch),
+            i64::from(self.token_index),
+        )
+    }
+
+    /// Reads a position off a token row. Optional for backwards compatibility.
+    fn from_token_row(
+        operation_type: OperationType,
+        key_fingerprint: Option<Vec<u8>>,
+        allowance_epoch: Option<i64>,
+        token_index: Option<i64>,
+    ) -> sqlx::Result<Option<Self>> {
+        let (Some(key_fingerprint), Some(allowance_epoch), Some(token_index)) =
+            (key_fingerprint, allowance_epoch, token_index)
+        else {
+            return Ok(None);
+        };
+        Ok(Some(Self {
+            operation_type,
+            key_fingerprint: decode_fingerprint(key_fingerprint)?,
+            allowance_epoch: decode_allowance_epoch(allowance_epoch)?,
+            token_index: decode_token_index(token_index)?,
+        }))
+    }
+}
+
+/// A row of `privacy_pass_redeemed`.
+#[derive(sqlx::FromRow)]
+struct RedeemedRow {
+    operation_type: i64,
+    key_fingerprint: Vec<u8>,
+    allowance_epoch: i64,
+    token_index: i64,
+}
+
+impl RedeemedRow {
+    fn decode(self) -> sqlx::Result<TokenPosition> {
+        Ok(TokenPosition {
+            operation_type: decode_operation_type(self.operation_type)?,
+            key_fingerprint: decode_fingerprint(self.key_fingerprint)?,
+            allowance_epoch: decode_allowance_epoch(self.allowance_epoch)?,
+            token_index: decode_token_index(self.token_index)?,
+        })
+    }
+}
+
+/// Records a redemption of this device, to be broadcast to the siblings at
+/// `broadcast_after`.
+pub(crate) async fn mark_redeemed(
+    mut connection: impl WriteConnection,
+    position: &TokenPosition,
+    broadcast_after: DateTime<Utc>,
+) -> sqlx::Result<()> {
+    let (operation_type, key_fingerprint, allowance_epoch, token_index) = position.sql_params();
+    sqlx::query!(
+        "INSERT INTO privacy_pass_redeemed (
+            operation_type, key_fingerprint, allowance_epoch, token_index, broadcast_after
+        )
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT (operation_type, key_fingerprint, allowance_epoch, token_index)
+        DO NOTHING",
+        operation_type,
+        key_fingerprint,
+        allowance_epoch,
+        token_index,
+        broadcast_after
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
+}
+
+/// Records a redemption this device has nothing to broadcast about: learned
+/// from a sibling or the provisioning package, or already sent by us.
+pub(crate) async fn settle_redeemed(
+    mut connection: impl WriteConnection,
+    position: &TokenPosition,
+) -> sqlx::Result<()> {
+    let (operation_type, key_fingerprint, allowance_epoch, token_index) = position.sql_params();
+    sqlx::query!(
+        "INSERT INTO privacy_pass_redeemed (
+            operation_type, key_fingerprint, allowance_epoch, token_index, broadcast_after
+        )
+        VALUES (?, ?, ?, ?, NULL)
+        ON CONFLICT (operation_type, key_fingerprint, allowance_epoch, token_index)
+        DO UPDATE SET broadcast_after = NULL",
+        operation_type,
+        key_fingerprint,
+        allowance_epoch,
+        token_index
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
+}
+
+/// Deletes the token at `position`. Returns how many rows that was, zero when
+/// the token was already gone.
+pub(crate) async fn delete_token_at(
+    mut connection: impl WriteConnection,
+    position: &TokenPosition,
+) -> sqlx::Result<u64> {
+    let (operation_type, key_fingerprint, allowance_epoch, token_index) = position.sql_params();
+    let result = sqlx::query!(
+        "DELETE FROM privacy_pass_token
+         WHERE operation_type = ? AND key_fingerprint = ?
+            AND allowance_epoch = ? AND token_index = ?",
+        operation_type,
+        key_fingerprint,
+        allowance_epoch,
+        token_index
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Loads every redemption whose broadcast is due at `now`.
+pub(crate) async fn load_redeemed_due(
+    mut connection: impl ReadConnection,
+    now: DateTime<Utc>,
+) -> sqlx::Result<Vec<TokenPosition>> {
+    let rows = sqlx::query_as!(
+        RedeemedRow,
+        "SELECT operation_type, key_fingerprint, allowance_epoch, token_index
+         FROM privacy_pass_redeemed
+         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?
+         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
+        now
+    )
+    .fetch_all(connection.as_mut())
+    .await?;
+    rows.into_iter().map(RedeemedRow::decode).collect()
+}
+
+/// Loads every recorded redemption, for the snapshot a newly linked device
+/// receives.
+pub(crate) async fn load_all_redeemed(
+    mut connection: impl ReadConnection,
+) -> sqlx::Result<Vec<TokenPosition>> {
+    let rows = sqlx::query_as!(
+        RedeemedRow,
+        "SELECT operation_type, key_fingerprint, allowance_epoch, token_index
+         FROM privacy_pass_redeemed
+         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index"
+    )
+    .fetch_all(connection.as_mut())
+    .await?;
+    rows.into_iter().map(RedeemedRow::decode).collect()
+}
+
+/// The redeemed indices of one batch, ascending.
+pub(crate) async fn load_redeemed_indices(
+    mut connection: impl ReadConnection,
+    operation_type: OperationType,
+    key_fingerprint: &KeyFingerprint,
+    allowance_epoch: u32,
+) -> sqlx::Result<Vec<u16>> {
+    let operation_type = i32::from(operation_type);
+    let key_fingerprint = key_fingerprint.as_slice();
+    let allowance_epoch = i64::from(allowance_epoch);
+    let rows = sqlx::query_scalar!(
+        "SELECT token_index FROM privacy_pass_redeemed
+         WHERE operation_type = ? AND key_fingerprint = ? AND allowance_epoch = ?
+         ORDER BY token_index",
+        operation_type,
+        key_fingerprint,
+        allowance_epoch
+    )
+    .fetch_all(connection.as_mut())
+    .await?;
+    rows.into_iter().map(decode_token_index).collect()
+}
+
+/// The distinct keys the recorded redemptions of an operation type belong to.
+pub(crate) async fn load_redeemed_fingerprints(
+    mut connection: impl ReadConnection,
+    operation_type: OperationType,
+) -> sqlx::Result<Vec<KeyFingerprint>> {
+    let operation_type = i32::from(operation_type);
+    let rows = sqlx::query_scalar!(
+        "SELECT DISTINCT key_fingerprint FROM privacy_pass_redeemed
+         WHERE operation_type = ?",
+        operation_type
+    )
+    .fetch_all(connection.as_mut())
+    .await?;
+    rows.into_iter().map(decode_fingerprint).collect()
+}
+
+/// Deletes the recorded redemptions of a single key.
+pub(crate) async fn delete_redeemed_for_key(
+    mut connection: impl WriteConnection,
+    operation_type: OperationType,
+    key_fingerprint: &KeyFingerprint,
+) -> sqlx::Result<()> {
+    let operation_type = i32::from(operation_type);
+    let key_fingerprint = key_fingerprint.as_slice();
+    sqlx::query!(
+        "DELETE FROM privacy_pass_redeemed
+         WHERE operation_type = ? AND key_fingerprint = ?",
+        operation_type,
+        key_fingerprint
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
+}
+
+/// Deletes every recorded redemption, as a VOPRF key rotation does.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn delete_all_redeemed(mut connection: impl WriteConnection) -> sqlx::Result<()> {
+    // Unchecked, see `expedite_redeemed_broadcast`.
+    sqlx::query("DELETE FROM privacy_pass_redeemed")
+        .execute(connection.as_mut())
+        .await?;
+    Ok(())
+}
+
+/// Pulls the broadcast time of every pending redemption forward to `now`.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn expedite_redeemed_broadcast(
+    mut connection: impl WriteConnection,
+    now: DateTime<Utc>,
+) -> sqlx::Result<()> {
+    // Unchecked. The offline query metadata is prepared without the test
+    // features, so a checked query here would have no entry to compile
+    // against.
+    sqlx::query(
+        "UPDATE privacy_pass_redeemed
+         SET broadcast_after = ?
+         WHERE broadcast_after IS NOT NULL",
+    )
+    .bind(now)
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use sqlx::SqlitePool;
@@ -686,7 +973,7 @@ mod tests {
     const OP1: OperationType = OperationType::AddUsername;
     const OP2: OperationType = OperationType::GetInviteCode;
 
-    /// Tokens are consumed in FIFO order.
+    /// Tokens without a position are consumed in FIFO order.
     #[sqlx::test]
     async fn store_and_consume_fifo(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
@@ -698,15 +985,15 @@ mod tests {
 
         assert_eq!(token_count(pool.read().await?, OP1).await?, 2);
 
-        // Consume returns FIFO order.
+        // Unpositioned tokens come back oldest first.
         let first = consume_token(pool.write().await?, OP1)
             .await?
             .expect("should have a token");
-        assert_eq!(first, token_a);
+        assert_eq!(first.token.as_bytes(), token_a);
         let second = consume_token(pool.write().await?, OP1)
             .await?
             .expect("should have a token");
-        assert_eq!(second, token_b);
+        assert_eq!(second.token.as_bytes(), token_b);
 
         // Empty after consuming both.
         assert_eq!(token_count(pool.read().await?, OP1).await?, 0);
@@ -838,7 +1125,7 @@ mod tests {
         let consumed = consume_token(pool.write().await?, OP1)
             .await?
             .expect("should have a token");
-        assert_eq!(consumed, token_op1);
+        assert_eq!(consumed.token.as_bytes(), token_op1);
         assert_eq!(token_count(pool.read().await?, OP1).await?, 0);
         assert_eq!(token_count(pool.read().await?, OP2).await?, 1);
 
@@ -846,7 +1133,7 @@ mod tests {
         let consumed = consume_token(pool.write().await?, OP2)
             .await?
             .expect("should have a token");
-        assert_eq!(consumed, token_op2);
+        assert_eq!(consumed.token.as_bytes(), token_op2);
         assert_eq!(token_count(pool.read().await?, OP2).await?, 0);
 
         Ok(())

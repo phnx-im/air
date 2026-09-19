@@ -372,13 +372,13 @@ impl OutboundServiceContext {
         if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for username_record in usernames {
-                let token = match privacy_pass::consume_token(
+                let consumed = match privacy_pass::consume_token(
                     self.db.write().await?,
                     OperationType::AddUsername,
                 )
                 .await
                 {
-                    Ok(Some(t)) => t,
+                    Ok(Some(consumed)) => consumed,
                     Ok(None) => {
                         info!("skipping username refresh: no tokens available");
                         break;
@@ -390,7 +390,11 @@ impl OutboundServiceContext {
                 };
                 info!("refreshing username");
                 let result = api_client
-                    .as_refresh_username(username_record.hash, &username_record.signing_key, token)
+                    .as_refresh_username(
+                        username_record.hash,
+                        &username_record.signing_key,
+                        consumed.token,
+                    )
                     .await;
 
                 if let Err(e) = &result {
@@ -413,12 +417,17 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UsernameRecord::update_refreshed_at(
-                    self.db.write().await?,
-                    &username_record.hash,
-                    now,
-                )
-                .await?;
+                // The redemption and the refresh should be atomic
+                self.db
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        if let Some(position) = &consumed.position {
+                            privacy_pass::mark_redeemed(&mut *txn, position).await?;
+                        }
+                        UsernameRecord::update_refreshed_at(&mut *txn, &username_record.hash, now)
+                            .await?;
+                        Ok(())
+                    })
+                    .await?;
             }
         }
 

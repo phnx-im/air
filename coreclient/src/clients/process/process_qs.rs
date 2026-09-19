@@ -21,7 +21,7 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    group::GroupData, group_bootstrap::GroupBootstrapCarrier, self_group::SelfGroupAppMessage,
     virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
@@ -67,6 +67,7 @@ use crate::{
         chat_message_queue::ChatMessageQueue,
         resync::{Resync, ResyncStatus},
     },
+    privacy_pass,
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -1019,6 +1020,18 @@ impl CoreUser {
     ) -> anyhow::Result<HandledMessages> {
         let mut content = MimiContent::deserialize(&application_message.into_bytes());
 
+        // Application messages in the self group with extensions
+        if let Ok(content) = &content
+            && let Some(message) = SelfGroupAppMessage::from_mimi_content(content)
+        {
+            if group.is_self_group() && sender == self.user_id() {
+                self.handle_self_group_app_message(txn, message).await?;
+            } else {
+                warn!("ignoring a self group application message sent elsewhere");
+            }
+            return Ok(Default::default());
+        }
+
         // Delivery receipt
         if let Ok(content) = &content
             && let NestedPart::SinglePart {
@@ -1150,6 +1163,23 @@ impl CoreUser {
             new_messages: vec![message],
             ..Default::default()
         })
+    }
+
+    /// Applies a message another device of ours sent through the self group.
+    async fn handle_self_group_app_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        message: SelfGroupAppMessage,
+    ) -> anyhow::Result<()> {
+        match message {
+            SelfGroupAppMessage::RedeemedTokens(redeemed) => {
+                privacy_pass::apply_redeemed_tokens(txn, &[redeemed]).await
+            }
+            SelfGroupAppMessage::Unknown => {
+                debug!("skipping a self group application message of an unknown kind");
+                Ok(())
+            }
+        }
     }
 
     /// Reconciles an inbound message whose Mimi ID we already store. Returns
