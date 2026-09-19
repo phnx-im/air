@@ -173,6 +173,12 @@ impl OutboundServiceContext {
             if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                 return Ok(SendOutcome::Collided);
             }
+
+            if ds_error.is_wrong_epoch() {
+                debug!(chat_id = %dequeued.chat_id, "Reaction epoch too old: re-enqueuing");
+                return Ok(SendOutcome::Collided);
+            }
+
             return Err(ds_error.into());
         }
 

@@ -194,6 +194,15 @@ impl OutboundServiceContext {
                 return Err(classify_ds_error(ds_error));
             }
 
+            if ds_error.is_wrong_epoch() {
+                debug!(%chat_id, "Receipt epoch too old: re-enqueuing");
+                return Ok(ReceiptSendOutcome::Collided {
+                    delivered: MessageStatusReport {
+                        statuses: Vec::new(),
+                    },
+                });
+            }
+
             let collisions = ds_error.process_tag_collisions(&sent_tags);
             if collisions.is_empty() {
                 // Not a collision we can recover from; propagate the error.
