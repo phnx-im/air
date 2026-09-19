@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT key_fingerprint FROM privacy_pass_redeemed\n         WHERE operation_type = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "key_fingerprint",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "key_fingerprint"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aa41f8297cb03fa85eba155c5ae29a8266ff0e09411033d5cfa31da3b1521581"
+}

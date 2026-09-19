@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_token\n         WHERE\n            operation_type = $1 AND\n            id = (SELECT id\n                    FROM privacy_pass_token\n                    WHERE operation_type = $1\n                    ORDER BY\n                        key_fingerprint IS NOT NULL,\n                        CASE WHEN key_fingerprint IS NULL THEN id END,\n                        RANDOM()\n                    LIMIT 1)\n         RETURNING token, key_fingerprint, allowance_epoch, token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "token",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "token"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "allowance_epoch",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "allowance_epoch"
+          }
+        }
+      },
+      {
+        "name": "token_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "token_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "606e5e6f7d7e51515d7559fe654f9890a83a1b6cb39fec09170c7ceb447912e5"
+}
