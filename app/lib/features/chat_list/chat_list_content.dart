@@ -296,6 +296,7 @@ class _ChatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final tokens = ChatListItemTokens.current;
     final palette = SemanticPalette.of(context);
 
@@ -326,7 +327,7 @@ class _ChatRow extends StatelessWidget {
 
     return ChatListItem(
       tokens: tokens,
-      title: chat.title,
+      title: chat.title(loc),
       avatar: ChatAvatarView(chat: chat, size: tokens.avatarSize),
       titleIcon: chat.isMuted
           ? AppIcon.bellOff(

@@ -173,6 +173,11 @@
     "description": "Fallback title when a chat has no name and no members to name it after."
   },
 
+  "selfChatTitle": "Notes to self",
+  "@selfChatTitle": {
+    "description": "Title of the chat used to sync notes and messages between the user's own devices."
+  },
+
   "muteDurationSheet_title": "Mute chat?",
   "@muteDurationSheet_title": {
     "description": "Title of the sheet asking how long to mute a chat. Phrased as a question about the chat, not about notifications."

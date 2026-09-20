@@ -40,6 +40,7 @@
   "safetyCodeScreen_copiedToClipboard": "Kopierat till urklipp",
   "safetyCodeScreen_safetyCodeExplanation": "Jämför säkerhetskoden du ser med den {displayName} ser. Om koderna matchar vet du att du skickar och tar emot ände-till-ände-krypterade meddelanden med rätt person.",
   "chatDetailsScreen_unknownChat": "Okänd chatt",
+  "selfChatTitle": "Anteckningar till mig själv",
 
   "muteDurationSheet_title": "Tysta chatten?",
   "muteDurationSheet_body": "Välj hur länge du vill tysta chatten.",

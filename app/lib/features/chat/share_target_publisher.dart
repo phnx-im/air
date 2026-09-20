@@ -4,9 +4,14 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/app_locale_cubit.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:logging/logging.dart';
 
@@ -17,7 +22,11 @@ final _log = Logger('ShareTargetPublisher');
 /// donations), keeps them in sync with the chats and withdraws them on
 /// [dispose].
 class ShareTargetPublisher {
-  ShareTargetPublisher({required this._chatsRepository}) {
+  ShareTargetPublisher({
+    required this._chatsRepository,
+    required this._userSettingsCubit,
+    required this._appLocaleCubit,
+  }) {
     _changes = _chatsRepository.watchChanges().listen(_onChatsChanged);
     if (Platform.isAndroid) {
       unawaited(_enqueue('reconcile share targets', _reconcile));
@@ -25,6 +34,16 @@ class ShareTargetPublisher {
   }
 
   final ChatsRepository _chatsRepository;
+  final UserSettingsCubit _userSettingsCubit;
+  final AppLocaleCubit _appLocaleCubit;
+
+  AppLocalizations get _loc => lookupAppLocalizations(
+    resolveSupportedLocale(
+      localeFromTag(_userSettingsCubit.state.locale) ??
+          _appLocaleCubit.state ??
+          PlatformDispatcher.instance.locale,
+    ),
+  );
 
   // State
 
@@ -166,16 +185,16 @@ class ShareTargetPublisher {
       _encodeTarget(chatId, _shareTarget(chat)),
     );
   }
+
+  _ShareTarget _shareTarget(UiChatDetails chat) => (
+    title: chat.title(_loc),
+    isGroup: chat.chatType is UiChatType_Group,
+    picture: chat.picture,
+  );
 }
 
 /// What the OS shows for a chat as a share target.
 typedef _ShareTarget = ({String title, bool isGroup, ImageData? picture});
-
-_ShareTarget _shareTarget(UiChatDetails chat) => (
-  title: chat.title,
-  isGroup: chat.chatType is UiChatType_Group,
-  picture: chat.picture,
-);
 
 Map<String, dynamic> _encodeTarget(ChatId chatId, _ShareTarget target) => {
   'chatId': chatId.uuid.toString(),

@@ -12,6 +12,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, MaterialPageRoute;
@@ -63,12 +64,13 @@ class ChatDebugInfoRow extends StatelessWidget {
 ///
 /// Pageless, so it stays out of the navigation state.
 void showChatDebugInfo(BuildContext context, UiChatDetails chat) {
+  final loc = AppLocalizations.of(context);
   final chatDetailsCubit = context.read<ChatDetailsCubit>();
   final userCubit = context.read<UserCubit>();
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (context) => ChatDebugInfoView(
-        title: chat.title,
+        title: chat.title(loc),
         loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
         onUpdateGroup: () => chatDetailsCubit.updateKey(),
         onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),

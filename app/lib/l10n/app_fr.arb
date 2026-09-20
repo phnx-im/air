@@ -40,6 +40,7 @@
   "safetyCodeScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "safetyCodeScreen_safetyCodeExplanation": "Comparez le code de sécurité affiché avec celui de {displayName}. S'ils correspondent, vous savez que vous échangez des messages chiffrés de bout en bout avec la bonne personne.",
   "chatDetailsScreen_unknownChat": "Discussion inconnue",
+  "selfChatTitle": "Notes personnelles",
 
   "muteDurationSheet_title": "Mettre la discussion en sourdine ?",
   "muteDurationSheet_body": "Choisissez la durée de la mise en sourdine.",

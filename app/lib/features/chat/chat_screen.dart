@@ -306,6 +306,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final developerMode = context.select(
       (UserSettingsCubit cubit) => cubit.state.developerMode,
     );
@@ -326,7 +327,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         onTap = () => showChatDebugInfo(context, chat);
       }
 
-      return (chat?.id, chat?.title, onTap);
+      return (chat?.id, chat?.title(loc), onTap);
     });
 
     final tokens = ChatHeaderBarTokens.current;

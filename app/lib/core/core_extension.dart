@@ -21,17 +21,19 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection(field0: final profile) => profile.userId,
   };
 
-  /// Title of the chat
-  String get title => switch (chatType) {
-    UiChatType_HandleConnection(field0: final handle) =>
-      "⏳ ${handle.plaintext}",
-    UiChatType_Connection(field0: final profile) => profile.displayName,
-    UiChatType_TargetedMessageConnection(field0: final profile) =>
-      "⏳${profile.displayName}",
-    UiChatType_Group(field0: final attributes) => attributes.title,
-    UiChatType_PendingConnection(field0: final profile) =>
-      "⏳${profile.displayName}",
-  };
+  /// Title of the chat (hardcoded if self-chat)
+  String title(AppLocalizations loc) => isSelfChat
+      ? loc.selfChatTitle
+      : switch (chatType) {
+          UiChatType_HandleConnection(field0: final handle) =>
+            "⏳ ${handle.plaintext}",
+          UiChatType_Connection(field0: final profile) => profile.displayName,
+          UiChatType_TargetedMessageConnection(field0: final profile) =>
+            "⏳${profile.displayName}",
+          UiChatType_Group(field0: final attributes) => attributes.title,
+          UiChatType_PendingConnection(field0: final profile) =>
+            "⏳${profile.displayName}",
+        };
 
   /// Display name of the user if this is a 1:1 chat
   String? get displayName => switch (chatType) {

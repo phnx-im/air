@@ -40,6 +40,7 @@
   "safetyCodeScreen_copiedToClipboard": "Copiado para a área de transferência",
   "safetyCodeScreen_safetyCodeExplanation": "Compara o código de segurança que vês com o que {displayName} vê. Se os códigos forem iguais, sabes que envias e recebes mensagens cifradas de ponta a ponta com a pessoa certa.",
   "chatDetailsScreen_unknownChat": "Chat desconhecido",
+  "selfChatTitle": "Notas para mim",
 
   "muteDurationSheet_title": "Silenciar o chat?",
   "muteDurationSheet_body": "Escolhe durante quanto tempo queres silenciar o chat.",
