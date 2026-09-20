@@ -9,7 +9,6 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -32,11 +31,9 @@ class LinkedDevicesContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) =>
-          LinkedDevicesCubit(userCubit: context.read<UserCubit>()),
-      child: const LinkedDevicesView(),
-    );
+    // The cubit is provided once, app-wide, in UserSessionScope (so that
+    // system messages elsewhere can resolve device names).
+    return const LinkedDevicesView();
   }
 }
 

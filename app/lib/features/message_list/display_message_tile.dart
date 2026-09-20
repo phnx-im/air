@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/system_message/system_message.dart';
@@ -11,12 +12,14 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/emphasized_text.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
 import 'package:air/features/message_list/timestamp.dart';
+import 'package:uuid/uuid_value.dart';
 
 class DisplayMessageTile extends StatelessWidget {
   final UiEventMessage eventMessage;
@@ -150,6 +153,12 @@ TextSpan buildSystemMessageText(
   String nameOf(UiUserId id) =>
       context.select((UsersCubit c) => c.state.profile(userId: id).displayName);
 
+  String? deviceNameOf(UuidValue clientId) => context.select(
+    (LinkedDevicesCubit c) => c.state.devices
+        .firstWhereOrNull((device) => device.clientId == clientId)
+        ?.name,
+  );
+
   EmphasizedValue user(UiUserId id) =>
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
 
@@ -238,5 +247,21 @@ TextSpan buildSystemMessageText(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
+    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(field0)) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceLinked(marks[0]),
+        [EmphasizedValue(deviceName)],
+        nameStyle,
+      ),
+      null => TextSpan(text: loc.systemMessage_deviceLinkedUnknown),
+    },
+    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(field0)) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceUnlinked(marks[0]),
+        [EmphasizedValue(deviceName)],
+        nameStyle,
+      ),
+      null => TextSpan(text: loc.systemMessage_deviceUnlinkedUnknown),
+    },
   };
 }

@@ -3341,6 +3341,142 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiSystemMessage_DeviceLinked extends UiSystemMessage {
+  const UiSystemMessage_DeviceLinked(this.field0): super._();
+  
+
+ final  UuidValue field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_DeviceLinkedCopyWith<UiSystemMessage_DeviceLinked> get copyWith => _$UiSystemMessage_DeviceLinkedCopyWithImpl<UiSystemMessage_DeviceLinked>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_DeviceLinked&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.deviceLinked(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_DeviceLinkedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_DeviceLinkedCopyWith(UiSystemMessage_DeviceLinked value, $Res Function(UiSystemMessage_DeviceLinked) _then) = _$UiSystemMessage_DeviceLinkedCopyWithImpl;
+@useResult
+$Res call({
+ UuidValue field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_DeviceLinkedCopyWithImpl<$Res>
+    implements $UiSystemMessage_DeviceLinkedCopyWith<$Res> {
+  _$UiSystemMessage_DeviceLinkedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_DeviceLinked _self;
+  final $Res Function(UiSystemMessage_DeviceLinked) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_DeviceLinked(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UuidValue,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_DeviceUnlinked extends UiSystemMessage {
+  const UiSystemMessage_DeviceUnlinked(this.field0): super._();
+  
+
+ final  UuidValue field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_DeviceUnlinkedCopyWith<UiSystemMessage_DeviceUnlinked> get copyWith => _$UiSystemMessage_DeviceUnlinkedCopyWithImpl<UiSystemMessage_DeviceUnlinked>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_DeviceUnlinked&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.deviceUnlinked(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_DeviceUnlinkedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_DeviceUnlinkedCopyWith(UiSystemMessage_DeviceUnlinked value, $Res Function(UiSystemMessage_DeviceUnlinked) _then) = _$UiSystemMessage_DeviceUnlinkedCopyWithImpl;
+@useResult
+$Res call({
+ UuidValue field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_DeviceUnlinkedCopyWithImpl<$Res>
+    implements $UiSystemMessage_DeviceUnlinkedCopyWith<$Res> {
+  _$UiSystemMessage_DeviceUnlinkedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_DeviceUnlinked _self;
+  final $Res Function(UiSystemMessage_DeviceUnlinked) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_DeviceUnlinked(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UuidValue,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

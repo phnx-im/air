@@ -525,12 +525,13 @@ impl CoreUser {
 
         // Add system message who added us to the group.
         // TODO(gabriel): here, we could inform _other_ users that a new client has been linked.
-        let system_message = ChatMessage::new_system_message(
-            chat.id(),
-            ds_timestamp,
-            SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone()),
-        );
+        let system_message_content =
+            SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone());
+
+        let system_message: ChatMessage =
+            ChatMessage::new_system_message(chat.id(), ds_timestamp, system_message_content);
         system_message.store(&mut *txn).await?;
+        let messages = vec![system_message];
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
@@ -555,7 +556,7 @@ impl CoreUser {
         Ok(QsMessageOutcome::new_chat(
             chat.id(),
             sender_user_id,
-            vec![system_message],
+            messages,
         ))
     }
 

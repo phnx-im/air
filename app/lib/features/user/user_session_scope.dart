@@ -14,6 +14,7 @@ import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -56,6 +57,11 @@ class UserSessionScope extends StatelessWidget {
                   BlocProvider<UsersCubit>(
                     create: (context) =>
                         UsersCubit(userCubit: context.read<UserCubit>()),
+                  ),
+                  BlocProvider<LinkedDevicesCubit>(
+                    create: (context) => LinkedDevicesCubit(
+                      userCubit: context.read<UserCubit>(),
+                    ),
                   ),
                 ],
                 child: MultiRepositoryProvider(

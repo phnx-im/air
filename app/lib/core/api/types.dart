@@ -487,6 +487,10 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
   const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
+  const factory UiSystemMessage.deviceLinked(UuidValue field0) =
+      UiSystemMessage_DeviceLinked;
+  const factory UiSystemMessage.deviceUnlinked(UuidValue field0) =
+      UiSystemMessage_DeviceUnlinked;
 }
 
 /// UI representation of an [`UserId`]
