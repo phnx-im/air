@@ -27,6 +27,7 @@ use super::{AppState, CubitContext, UiUser};
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
+    initial_backlog_drained: bool,
 }
 
 impl CubitContext {
@@ -150,28 +151,44 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             }
         };
 
-        let is_partially_processed = result.is_partially_processed();
-        match result {
-            QsProcessEventResult::FullyProcessed { processed }
-            | QsProcessEventResult::PartiallyProcessed { processed, .. } => {
+        let is_desktop = cfg!(any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "windows"
+        ));
+
+        let on_processed_messages = async |processed| {
+            // On desktop, the app is in foreground when it first catches up, so we don't want to
+            // surface notifications from the history that's being loaded
+            if !is_desktop || self.initial_backlog_drained {
                 self.cubit_context
                     .show_notifications_for_processed_qs_messages(processed)
                     .await;
-                // A commit in this batch may have removed this device from the
-                // self group, which the app has to act on.
-                UiUser::reload_account_unlinked(
-                    &self.cubit_context.state_tx,
-                    &self.cubit_context.core_user,
-                )
-                .await;
             }
-            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
+            // A commit in this batch may have removed this device from the
+            // self group, which the app has to act on.
+            UiUser::reload_account_unlinked(
+                &self.cubit_context.state_tx,
+                &self.cubit_context.core_user,
+            )
+            .await;
         };
 
-        // Stop stream if partially processed
-        // => There is a hole in the sequence of the messages, therefore we cannot continue
-        // processing them.
-        !is_partially_processed
+        match result {
+            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => true,
+            QsProcessEventResult::FullyProcessed { processed } => {
+                on_processed_messages(processed).await;
+                self.initial_backlog_drained = true;
+                true
+            }
+            QsProcessEventResult::PartiallyProcessed { processed, .. } => {
+                on_processed_messages(processed).await;
+                // Stop stream if partially processed
+                // => There is a hole in the sequence of the messages, therefore we cannot continue
+                // processing them.
+                false
+            }
+        }
     }
 
     async fn in_foreground(&self) {
@@ -200,7 +217,10 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
 
 impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
-        Self { cubit_context }
+        Self {
+            cubit_context,
+            initial_backlog_drained: false,
+        }
     }
 
     pub(super) fn into_task(
