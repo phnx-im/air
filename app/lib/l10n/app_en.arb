@@ -1092,39 +1092,55 @@
     "description": "System message marking where a newly linked device joined the chat."
   },
 
-  "systemMessage_deviceLinked": "You linked a new device named {device} to your account.",
+  "systemMessage_deviceLinked": "You linked a new device named {device} to your account. {tapToView}",
   "@systemMessage_deviceLinked": {
-    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
     "placeholders": {
       "device": {
+        "type": "String"
+      },
+      "tapToView": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account.",
+  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account. {tapToView}",
   "@systemMessage_deviceLinkedUnknown": {
-    "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced)."
-  },
-
-  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account.",
-  "@systemMessage_deviceUnlinked": {
-    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced).",
     "placeholders": {
-      "device": {
+      "tapToView": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account.",
-  "@systemMessage_deviceUnlinkedUnknown": {
-    "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked)."
+  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account. {tapToView}",
+  "@systemMessage_deviceUnlinked": {
+    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "tapToView": {
+        "type": "String"
+      }
+    }
   },
 
-  "systemMessage_devicesTapToView": " Tap to view your devices.",
+  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account. {tapToView}",
+  "@systemMessage_deviceUnlinkedUnknown": {
+    "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked).",
+    "placeholders": {
+      "tapToView": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_devicesTapToView": "Tap to view your devices.",
   "@systemMessage_devicesTapToView": {
-    "description": "Appended to the device-unlinked system message as a call to action, leading with a space so it runs on from the sentence before it. Tapping it opens the devices section of settings."
+    "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
   },
 
   "timestamp_now": "Now",
