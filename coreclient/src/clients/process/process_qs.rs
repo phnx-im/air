@@ -57,7 +57,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupDataBytes, JoinSigners, VerifiedGroup,
+        DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
@@ -319,7 +319,7 @@ impl CoreUser {
         }
 
         // If yes, merge the commit and store the updated group
-        let (mut group_messages, group_data_bytes) =
+        let (mut group_messages, group_data) =
             group.merge_pending_commit(txn, None, timestamp).await?;
         group
             .group_mut()
@@ -340,7 +340,7 @@ impl CoreUser {
             txn,
             &group,
             &mut chat,
-            group_data_bytes,
+            group_data,
             &mut group_messages,
             key_package_batch,
             timestamp,
@@ -368,15 +368,15 @@ impl CoreUser {
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         chat: &mut Chat,
-        group_data_bytes: Option<GroupDataBytes>,
+        group_data: Option<GroupData>,
         group_messages: &mut Vec<TimestampedMessage>,
         key_package_batch: Option<KeyPackageBatchId>,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
-        if let Some(group_data_bytes) = group_data_bytes
-            && let Some(title) =
-                GroupData::decode_title(&group_data_bytes, group.identity_link_wrapper_key())?
+        if let Some(group_data) = group_data
+            && let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key())
+            && let Some(title) = title
         {
             update_chat_title(
                 &mut *txn,
@@ -462,9 +462,10 @@ impl CoreUser {
 
         if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
             debug!("joined self group as a linked device");
-            let group_data_bytes = group.group_data().context("self group has no group data")?;
-            let title =
-                GroupData::decode_title(&group_data_bytes, group.identity_link_wrapper_key())?;
+            let group_data = group
+                .group_data()?
+                .context("self group has no group data")?;
+            let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key());
             let attributes = ChatAttributes {
                 title: title.context("self group has no title")?,
                 picture: None,
@@ -570,8 +571,7 @@ impl CoreUser {
         sender_id: &UserId,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<ChatAttributes> {
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
+        let group_data = group.group_data()?.context("No group data")?;
         let (title, external_group_profile) =
             group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
@@ -912,7 +912,7 @@ impl CoreUser {
                 // Our own commit was echoed back before the matching
                 // `DsCommitResponse` arrived, so we merge it here and run
                 // the same side effects the response would have.
-                let (mut group_messages, group_data_bytes) = group
+                let (mut group_messages, group_data) = group
                     .merge_pending_commit(&mut *txn, None, ds_timestamp)
                     .await?;
                 let pq_updated_at = group.is_apq().then_some(ds_timestamp);
@@ -924,7 +924,7 @@ impl CoreUser {
                     &mut *txn,
                     &group,
                     &mut chat,
-                    group_data_bytes,
+                    group_data,
                     &mut group_messages,
                     key_package_batch,
                     ds_timestamp,
@@ -1407,14 +1407,13 @@ impl CoreUser {
                 OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
             }
         }
-        let (messages_from_commit, group_data_bytes) = group
+        let (messages_from_commit, group_data) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(group_data_bytes) = group_data_bytes {
-            let group_data = GroupData::decode(&group_data_bytes)?;
+        if let Some(group_data) = group_data {
             let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
             if let Some(external_group_profile) = group_profile_part {
@@ -1749,17 +1748,15 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId},
     };
-    use airprotos::client::app_data::GroupAppData;
     use openmls::{
-        components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
-        prelude::tls_codec::Serialize as _,
+        components::vc_derivation_info::KeyPackageUpload, prelude::tls_codec::Serialize as _,
     };
     use openmls_traits::OpenMlsProvider as _;
     use uuid::Uuid;
 
     use crate::{
         db::access::DbAccess,
-        groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+        groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
         utils::persistence::open_db_in_memory,
     };
 
@@ -1805,11 +1802,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;

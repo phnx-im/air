@@ -11,7 +11,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::client::{
-    app_data::GroupAppData,
     group::{EncryptedGroupTitle, GroupData, GroupProfile},
     group_bootstrap::GroupBootstrapCarrier,
 };
@@ -20,9 +19,8 @@ use tracing::error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
-    chats::GroupDataExt,
     db::access::WriteConnection,
-    groups::{Group, self_group::SelfGroup},
+    groups::{Group, NewGroupContext, self_group::SelfGroup},
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
 };
@@ -31,6 +29,9 @@ pub(crate) struct CreateChat {
     pub chat_attributes: ChatAttributes,
     pub client_reference: QsReference,
     pub is_apq: bool,
+    /// Store the group profile in the group profile component instead of the
+    /// group data extension.
+    pub profile_component: bool,
 }
 
 type DomainError = Infallible;
@@ -58,7 +59,14 @@ impl CreateChat {
             chat_attributes,
             client_reference,
             is_apq,
+            profile_component: false,
         }
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn with_profile_component(mut self) -> Self {
+        self.profile_component = true;
+        self
     }
 
     async fn execute_internal(
@@ -69,6 +77,7 @@ impl CreateChat {
             chat_attributes,
             client_reference,
             is_apq,
+            profile_component,
         } = self;
 
         let JobContext {
@@ -127,11 +136,15 @@ impl CreateChat {
         };
 
         // Encode the group data to be stored in the group context
-        let group_data_bytes = GroupData {
+        let group_data = GroupData {
             encrypted_title: Some(encrypted_title),
             external_group_profile,
-        }
-        .encode()?;
+        };
+        let context = if profile_component {
+            NewGroupContext::Chat(group_data)
+        } else {
+            NewGroupContext::LegacyChat(group_data)
+        };
 
         let own_user_id = key_store.signing_key.credential().user_id();
 
@@ -152,11 +165,7 @@ impl CreateChat {
                         identity_link_wrapper_key,
                         group_id,
                         pq_group_id.context("Missing PQ group ID")?,
-                        group_data_bytes.clone(),
-                        GroupAppData {
-                            is_self_group: false,
-                            safe_aad_components: None,
-                        },
+                        context,
                         vc_group_id,
                     )?
                 } else {
@@ -165,7 +174,7 @@ impl CreateChat {
                         &key_store.signing_key,
                         identity_link_wrapper_key,
                         group_id,
-                        group_data_bytes,
+                        context,
                         vc_group_id,
                     )?
                 };

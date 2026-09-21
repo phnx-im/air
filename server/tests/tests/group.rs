@@ -1132,6 +1132,106 @@ async fn qs_stream_processor_partially_processes_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Update group profile in a group with profile component",
+    skip_all
+)]
+async fn update_group_profile_in_group_with_profile_component() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup
+        .create_group_with_profile_component(&alice, setup.apq_groups)
+        .await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+    for user in [alice_user, bob_user] {
+        assert!(user.has_group_profile_component(chat_id).await.unwrap());
+        // The profile is read from the component, not from the group data extension.
+        let group_data = user.group_data(chat_id).await.unwrap().unwrap();
+        assert!(group_data.encrypted_title.is_some());
+    }
+
+    // Alice updates the title
+    let title = "Component Title".to_string();
+    alice_user
+        .set_chat_title(chat_id, title.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title(),
+        &title
+    );
+    assert!(
+        alice_user
+            .has_group_profile_component(chat_id)
+            .await
+            .unwrap()
+    );
+
+    // Bob sees the new title
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's update without errors: {:?}",
+        result.errors
+    );
+    assert_eq!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title(),
+        &title
+    );
+
+    // Bob updates the picture
+    let picture = test_picture_bytes();
+    bob_user
+        .set_chat_picture(chat_id, Some(picture))
+        .await
+        .unwrap();
+    let expected_picture = bob_user
+        .chat(&chat_id)
+        .await
+        .unwrap()
+        .attributes()
+        .unwrap()
+        .picture()
+        .unwrap()
+        .to_owned();
+
+    // Alice fetches the new external group profile
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's update without errors: {:?}",
+        result.errors
+    );
+    alice_user.outbound_service().run_once().await;
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    assert_eq!(alice_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        alice_chat.attributes().unwrap().picture(),
+        Some(expected_picture.as_slice())
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Create APQ group test", skip_all)]
 async fn create_apq_group() {
     let mut setup = TestBackend::single().await;
