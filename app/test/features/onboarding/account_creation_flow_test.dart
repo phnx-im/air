@@ -26,6 +26,12 @@ import '../../mocks.dart';
 /// past it.
 const _validCode = 'ABCD2345';
 
+/// A gated server that takes an invitation code.
+const _codeGatedRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [ChallengeKind.invitationCode],
+);
+
 /// A server that admits anyone without a challenge.
 const _openRegistration = RegistrationInfo(
   challengeRequired: false,
@@ -79,8 +85,12 @@ void main() {
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
       when(() => navigationCubit.pop()).thenReturn(true);
-      when(() => registrationCubit.state)
-          .thenReturn(const RegistrationState(invitationCode: _validCode));
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: _validCode,
+          registrationInfo: _codeGatedRegistration,
+        ),
+      );
       when(() => registrationCubit.submitInvitationCode())
           .thenAnswer((_) async => null);
       when(() => registrationCubit.signUp()).thenAnswer((_) async => null);
@@ -150,8 +160,12 @@ void main() {
     });
 
     testWidgets('a short code never reaches the server', (tester) async {
-      when(() => registrationCubit.state)
-          .thenReturn(const RegistrationState(invitationCode: 'ABC'));
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: 'ABC',
+          registrationInfo: _codeGatedRegistration,
+        ),
+      );
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
@@ -169,6 +183,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           domain: 'not a host',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -207,6 +222,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -234,6 +250,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -265,6 +282,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -289,6 +307,21 @@ void main() {
         matchesGoldenFile('goldens/account_creation_code_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    group('unanswered server', () {
+      testWidgets('opens on the profile rather than the code', (tester) async {
+        // The server could not be asked, which says nothing about whether it
+        // gates registration.
+        when(() => registrationCubit.state)
+            .thenReturn(const RegistrationState(displayName: 'Ellie'));
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Enter invite code'), findsNothing);
+      });
+    });
 
     group('open registration', () {
       setUp(() {
@@ -345,10 +378,7 @@ void main() {
           when(() => registrationCubit.state).thenReturn(
             const RegistrationState(
               displayName: 'Ellie',
-              registrationInfo: RegistrationInfo(
-                challengeRequired: true,
-                acceptedChallenges: [ChallengeKind.invitationCode],
-              ),
+              registrationInfo: _codeGatedRegistration,
             ),
           );
           return const SignUpError(code: .challengeRequired);
