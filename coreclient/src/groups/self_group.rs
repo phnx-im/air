@@ -16,7 +16,6 @@ use aircommon::{
     },
 };
 use airprotos::client::{
-    app_data::GroupAppData,
     group::{EncryptedGroupTitle, GroupData},
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
@@ -24,9 +23,7 @@ use airprotos::client::{
 };
 use anyhow::{Context, bail, ensure};
 use openmls::{
-    components::vc_derivation_info::{
-        KeyPackageUpload, VC_COMPONENT_ID, process_vc_key_package_upload,
-    },
+    components::vc_derivation_info::{KeyPackageUpload, process_vc_key_package_upload},
     group::GroupId,
     prelude::{LeafNodeIndex, ProcessedMessage},
 };
@@ -37,10 +34,10 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId,
-    chats::{ChatAttributes, GroupDataExt},
+    chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::{Group, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
+    groups::{Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
         indexed_keys::StorableIndexedKey,
@@ -289,11 +286,10 @@ impl CoreUser {
         let encrypted_title =
             EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
                 .context("Failed to encrypt self-group title")?;
-        let group_data_bytes = GroupData {
+        let group_data = GroupData {
             encrypted_title: Some(encrypted_title),
             external_group_profile: None,
-        }
-        .encode()?;
+        };
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
         // id and are signed by a per-device key. The creation request itself is authenticated by
@@ -309,11 +305,6 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let client_app_data = GroupAppData {
-                    is_self_group: true,
-                    safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                    profile: None,
-                };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -321,8 +312,7 @@ impl CoreUser {
                     identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
-                    Some(group_data_bytes),
-                    client_app_data,
+                    NewGroupContext::SelfGroup(group_data),
                     // The self group is the emulation group itself, not a
                     // virtual client of one.
                     None,

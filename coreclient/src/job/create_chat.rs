@@ -11,7 +11,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::client::{
-    app_data::GroupAppData,
     group::{EncryptedGroupTitle, GroupData, GroupProfile},
     group_bootstrap::GroupBootstrapCarrier,
 };
@@ -20,9 +19,8 @@ use tracing::error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
-    chats::GroupDataExt,
     db::access::WriteConnection,
-    groups::{Group, self_group::SelfGroup},
+    groups::{Group, NewGroupContext, self_group::SelfGroup},
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
 };
@@ -142,10 +140,10 @@ impl CreateChat {
             encrypted_title: Some(encrypted_title),
             external_group_profile,
         };
-        let (group_data_bytes, profile) = if profile_component {
-            (None, Some(group_data.into_component()))
+        let context = if profile_component {
+            NewGroupContext::Component(group_data)
         } else {
-            (Some(group_data.encode()?), None)
+            NewGroupContext::Legacy(group_data)
         };
 
         let own_user_id = key_store.signing_key.credential().user_id();
@@ -159,11 +157,6 @@ impl CreateChat {
                 let self_group = SelfGroup::load(&mut *txn).await?;
                 let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
-                let group_app_data = GroupAppData {
-                    is_self_group: false,
-                    safe_aad_components: None,
-                    profile,
-                };
                 let (group, partial_params) = if is_apq {
                     Group::create_apq_group(
                         &mut *txn,
@@ -172,8 +165,7 @@ impl CreateChat {
                         identity_link_wrapper_key,
                         group_id,
                         pq_group_id.context("Missing PQ group ID")?,
-                        group_data_bytes.clone(),
-                        group_app_data,
+                        context,
                         vc_group_id,
                     )?
                 } else {
@@ -182,8 +174,7 @@ impl CreateChat {
                         &key_store.signing_key,
                         identity_link_wrapper_key,
                         group_id,
-                        group_data_bytes,
-                        Some(group_app_data),
+                        context,
                         vc_group_id,
                     )?
                 };

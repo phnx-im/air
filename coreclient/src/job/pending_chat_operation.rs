@@ -1727,7 +1727,7 @@ mod tests {
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
     use airprotos::{
-        client::app_data::{ClientAppData, GroupAppData},
+        client::app_data::ClientAppData,
         common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
     };
     use chrono::{Duration, Utc};
@@ -1735,7 +1735,7 @@ mod tests {
 
     use crate::{
         ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        groups::NewGroupContext, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1788,12 +1788,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                        profile: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1942,12 +1937,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                        profile: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1992,8 +1982,6 @@ mod tests {
     /// Builds a single-member APQ self group owned by a fresh client, with the
     /// own client info and own user profile key the self-group paths expect.
     async fn setup_self_group() -> anyhow::Result<(DbAccess, UserId, UserSigningKey, GroupId)> {
-        use openmls::components::vc_derivation_info::VC_COMPONENT_ID;
-
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -2030,12 +2018,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                        profile: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -2225,7 +2208,6 @@ mod tests {
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), user_id.domain().clone());
         let group_id = GroupId::from(qgid);
-        let group_data_bytes = GroupDataBytes::from(b"test-group-data".to_vec());
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
@@ -2234,8 +2216,7 @@ mod tests {
             &signing_key,
             identity_link_wrapper_key,
             group_id.clone(),
-            Some(group_data_bytes),
-            None,
+            NewGroupContext::Legacy(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;

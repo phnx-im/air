@@ -1748,17 +1748,15 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId},
     };
-    use airprotos::client::app_data::GroupAppData;
     use openmls::{
-        components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
-        prelude::tls_codec::Serialize as _,
+        components::vc_derivation_info::KeyPackageUpload, prelude::tls_codec::Serialize as _,
     };
     use openmls_traits::OpenMlsProvider as _;
     use uuid::Uuid;
 
     use crate::{
         db::access::DbAccess,
-        groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+        groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
         utils::persistence::open_db_in_memory,
     };
 
@@ -1804,12 +1802,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                        profile: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;

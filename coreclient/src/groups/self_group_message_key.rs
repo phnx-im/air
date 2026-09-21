@@ -513,6 +513,7 @@ mod derivation_tests {
     use airprotos::client::{
         app_data::GroupAppData,
         component::AIR_COMPONENT_ID,
+        group::GroupData,
         self_group::{
             AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
             SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
@@ -526,7 +527,7 @@ mod derivation_tests {
     use crate::{
         clients::own_client_info::OwnClientInfo,
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
-        groups::{Group, GroupDataBytes, openmls_provider::AirOpenMlsProvider},
+        groups::{Group, NewGroupContext, openmls_provider::AirOpenMlsProvider},
         utils::persistence::open_db_in_memory,
     };
 
@@ -566,6 +567,11 @@ mod derivation_tests {
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
+        let context = if is_self_group {
+            NewGroupContext::SelfGroup(GroupData::empty())
+        } else {
+            NewGroupContext::Legacy(GroupData::empty())
+        };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
             signer,
@@ -573,12 +579,7 @@ mod derivation_tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-            GroupAppData {
-                is_self_group,
-                safe_aad_components: None,
-                profile: None,
-            },
+            context,
             None,
         )?;
         Ok(group)

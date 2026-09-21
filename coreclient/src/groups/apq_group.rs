@@ -7,29 +7,27 @@ use aircommon::{
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     mls_group_config::{
-        APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
-        default_group_required_extensions, default_leaf_node_capabilities,
-        default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
+        APQ_CIPHERSUITE, MAX_PAST_EPOCHS, default_group_required_extensions,
+        default_leaf_node_capabilities, default_sender_ratchet_configuration,
+        self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
 };
-use airprotos::client::app_data::{ClientAppData, GroupAppData};
+use airprotos::client::app_data::ClientAppData;
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
     group::{
         GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, VcDerivationEpochRetentionPolicy,
     },
-    prelude::{
-        Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
-    },
+    prelude::{Credential, CredentialType, CredentialWithKey, Extension, Extensions},
 };
 use openmls_traits::OpenMlsProvider;
 
 use crate::{
     db::access::WriteConnection,
     groups::{
-        GroupDataBytes, PartialCreateGroupParams, PartialPqCreateGroupParams,
+        NewGroupContext, PartialCreateGroupParams, PartialPqCreateGroupParams,
         openmls_provider::AirOpenMlsProvider,
     },
 };
@@ -63,8 +61,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
-        group_data_bytes: Option<GroupDataBytes>,
-        group_app_data: GroupAppData,
+        context: NewGroupContext,
         vc_group_id: Option<&GroupId>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -74,27 +71,15 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        // The group profile lives only in the T group context. Profile updates are T-only
-        // commits, so the PQ leg carries neither the component nor the legacy extension.
-        let pq_group_app_data = GroupAppData {
-            profile: None,
-            ..group_app_data.clone()
-        };
         // APQ groups automatically add an app data dictionary extension (to required
         // capabilities), so we can safely add it here for all APQ groups.
-        let pq_gc_extensions = Extensions::from_vec(vec![
-            required_capabilities.clone(),
-            pq_group_app_data.to_extension()?,
-        ])?;
+        let mut pq_gc_extensions = Extensions::empty();
+        pq_gc_extensions.add(required_capabilities.clone())?;
+        context.add_to_pq_extensions(&mut pq_gc_extensions)?;
 
-        let mut t_gc_extension_vec = vec![required_capabilities, group_app_data.to_extension()?];
-        if let Some(group_data_bytes) = group_data_bytes {
-            t_gc_extension_vec.push(Extension::Unknown(
-                GROUP_DATA_EXTENSION_TYPE,
-                UnknownExtension(group_data_bytes.bytes),
-            ));
-        }
-        let t_gc_extensions = Extensions::from_vec(t_gc_extension_vec)?;
+        let mut t_gc_extensions = Extensions::empty();
+        t_gc_extensions.add(required_capabilities)?;
+        context.add_to_t_extensions(&mut t_gc_extensions)?;
 
         // The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {

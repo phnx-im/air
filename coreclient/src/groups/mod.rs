@@ -117,10 +117,10 @@ use crate::{
 };
 
 use openmls::{
-    components::vc_derivation_info::GenerationId,
+    components::vc_derivation_info::{GenerationId, VC_COMPONENT_ID},
     group::{
-        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
-        ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
+        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupContext, GroupEpoch,
+        JoinBuilder, ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
         VcDerivationEpochRetentionPolicy,
     },
     prelude::{
@@ -472,8 +472,7 @@ impl Group {
         signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
-        group_data_bytes: Option<GroupDataBytes>,
-        group_app_data: Option<GroupAppData>,
+        context: NewGroupContext,
         vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -482,17 +481,9 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let mut gc_extension_vec = vec![required_capabilities];
-        if let Some(group_data_bytes) = group_data_bytes {
-            gc_extension_vec.push(Extension::Unknown(
-                GROUP_DATA_EXTENSION_TYPE,
-                UnknownExtension(group_data_bytes.bytes),
-            ));
-        }
-        if let Some(group_app_data) = group_app_data {
-            gc_extension_vec.push(group_app_data.to_extension()?);
-        }
-        let gc_extensions = Extensions::from_vec(gc_extension_vec)?;
+        let mut gc_extensions = Extensions::empty();
+        gc_extensions.add(required_capabilities)?;
+        context.add_to_t_extensions(&mut gc_extensions)?;
 
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -2763,6 +2754,54 @@ impl Group {
     }
 }
 
+/// Group context contents of a new group
+pub(crate) enum NewGroupContext {
+    /// Profile in the legacy group data extension
+    Legacy(GroupData),
+    /// Profile in the group data component
+    Component(GroupData),
+    /// Self group: profile in the legacy extension, SafeAAD for the VC component
+    SelfGroup(GroupData),
+}
+
+impl NewGroupContext {
+    fn app_data(&self) -> GroupAppData {
+        let is_self_group = matches!(self, Self::SelfGroup(_));
+        GroupAppData {
+            is_self_group,
+            safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
+            profile: None,
+        }
+    }
+
+    fn add_to_t_extensions(self, extensions: &mut Extensions<GroupContext>) -> anyhow::Result<()> {
+        let mut app_data = self.app_data();
+        let group_data = match self {
+            NewGroupContext::Component(data) | Self::SelfGroup(data) => {
+                app_data.profile = Some(data.into_component());
+                None
+            }
+            NewGroupContext::Legacy(data) => Some(data.encode()?),
+        };
+        extensions.add(app_data.to_extension()?)?;
+        if let Some(group_data) = group_data {
+            extensions.add(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data.bytes),
+            ))?;
+        }
+        Ok(())
+    }
+
+    fn add_to_pq_extensions(
+        &self,
+        extensions: &mut Extensions<GroupContext>,
+    ) -> anyhow::Result<()> {
+        extensions.add(self.app_data().to_extension()?)?;
+        Ok(())
+    }
+}
+
 /// Verify credentials of *all* members of the group.
 ///
 /// Might do a network request to fetch AS credentials.
@@ -3196,7 +3235,6 @@ mod handle_group_not_found_tests {
         Chat, ChatStatus,
         clients::{block_contact::BlockedContact, own_client_info::OwnClientInfo},
         db::access::DbAccess,
-        groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 
@@ -3220,8 +3258,7 @@ mod handle_group_not_found_tests {
             &user_signing_key,
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
-            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-            None,
+            NewGroupContext::Legacy(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;

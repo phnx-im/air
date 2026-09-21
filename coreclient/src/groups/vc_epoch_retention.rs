@@ -205,14 +205,14 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
-    use airprotos::client::app_data::GroupAppData;
+    use airprotos::client::group::GroupData;
     use chrono::DateTime;
-    use openmls::components::vc_derivation_info::{EpochId, VC_COMPONENT_ID};
+    use openmls::components::vc_derivation_info::EpochId;
     use uuid::Uuid;
 
     use crate::{
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
-        groups::GroupDataBytes,
+        groups::NewGroupContext,
         utils::persistence::open_db_in_memory,
     };
 
@@ -236,12 +236,7 @@ mod tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            Some(GroupDataBytes::from(b"test-group-data".to_vec())),
-            GroupAppData {
-                is_self_group: true,
-                safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                profile: None,
-            },
+            NewGroupContext::SelfGroup(GroupData::empty()),
             None,
         )?;
         Ok(group)
