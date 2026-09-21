@@ -42,6 +42,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use super::group_bootstrap::PeerUserId;
+use crate::auth_service::v1::OperationType;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -205,7 +206,7 @@ pub enum SelfGroupAppMessageError {
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct TokenSeed {
     #[tag(1)]
-    pub operation_type: u32,
+    pub operation_type: OperationType,
     #[tag(2)]
     pub key_fingerprint: [u8; 32],
     #[tag(3)]
@@ -230,7 +231,7 @@ pub struct TokenSeed {
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct RedeemedTokens {
     #[tag(1)]
-    pub operation_type: u32,
+    pub operation_type: OperationType,
     #[tag(2)]
     pub key_fingerprint: [u8; 32],
     #[tag(3)]
@@ -607,7 +608,7 @@ mod test {
 
     fn sample_seed() -> TokenSeed {
         TokenSeed {
-            operation_type: 1,
+            operation_type: OperationType::AddUsername,
             key_fingerprint: [0xab; 32],
             seed: [0xcd; 32],
         }
@@ -631,20 +632,22 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
+    /// The wire shape of a [`TokenSeed`] without the checks its field types
+    /// make on decode.
+    #[derive(Debug, Clone, SerializeTaggedMap)]
+    struct LooseTokenSeed {
+        #[tag(1)]
+        operation_type: u32,
+        #[tag(2)]
+        key_fingerprint: Vec<u8>,
+        #[tag(3)]
+        seed: Vec<u8>,
+    }
+
     /// The fixed-size fields are length-checked on decode, so a seed of the
     /// wrong length is a decode error rather than a silently truncated seed.
     #[test]
     fn token_seed_rejects_wrong_length() {
-        #[derive(Debug, Clone, SerializeTaggedMap)]
-        struct LooseTokenSeed {
-            #[tag(1)]
-            operation_type: u32,
-            #[tag(2)]
-            key_fingerprint: Vec<u8>,
-            #[tag(3)]
-            seed: Vec<u8>,
-        }
-
         let loose = LooseTokenSeed {
             operation_type: 1,
             key_fingerprint: vec![0xab; 32],
@@ -652,6 +655,21 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&loose).unwrap();
         assert!(PersistenceCodec::from_slice::<TokenSeed>(&bytes).is_err());
+    }
+
+    /// A newer sibling may send an operation type this version does not know.
+    /// It decodes rather than failing the batch it travels in, and the caller
+    /// rejects `Unspecified`.
+    #[test]
+    fn token_seed_with_a_newer_operation_type_decodes_to_unspecified() {
+        let newer = LooseTokenSeed {
+            operation_type: 99,
+            key_fingerprint: vec![0xab; 32],
+            seed: vec![0xcd; 32],
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+        let decoded: TokenSeed = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.operation_type, OperationType::Unspecified);
     }
 
     #[test]
@@ -821,7 +839,7 @@ mod test {
 
     fn sample_redeemed() -> RedeemedTokens {
         RedeemedTokens {
-            operation_type: 1,
+            operation_type: OperationType::AddUsername,
             key_fingerprint: [0xab; 32],
             allowance_epoch: 679,
             token_indices: vec![0, 3, 7],

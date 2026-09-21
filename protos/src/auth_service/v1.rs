@@ -4,6 +4,7 @@
 #![expect(clippy::doc_lazy_continuation)]
 
 use chrono::{DateTime, Datelike, Days, Months, Utc};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::VariantArray;
 
 tonic::include_proto!("auth_service.v1");
@@ -48,6 +49,22 @@ impl OperationType {
         Self::VARIANTS
             .iter()
             .filter_map(|v| (*v != Self::Unspecified).then_some(*v))
+    }
+}
+
+/// The proto enum value, as carried on the tagged-CBOR client wire.
+impl Serialize for OperationType {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_i32((*self).into())
+    }
+}
+
+/// A value from a newer client decodes to `Unspecified` instead of failing
+/// the self-group batch it travels in. Callers reject `Unspecified`.
+impl<'de> Deserialize<'de> for OperationType {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = i32::deserialize(deserializer)?;
+        Ok(OperationType::try_from(value).unwrap_or(OperationType::Unspecified))
     }
 }
 
