@@ -247,7 +247,9 @@ TextSpan buildSystemMessageText(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
-    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(field0)) {
+    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
       final String deviceName => emphasizedText(
         (marks) => loc.systemMessage_deviceLinked(marks[0]),
         [EmphasizedValue(deviceName)],
@@ -255,7 +257,9 @@ TextSpan buildSystemMessageText(
       ),
       null => TextSpan(text: loc.systemMessage_deviceLinkedUnknown),
     },
-    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(field0)) {
+    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
       final String deviceName => emphasizedText(
         (marks) => loc.systemMessage_deviceUnlinked(marks[0]),
         [EmphasizedValue(deviceName)],
