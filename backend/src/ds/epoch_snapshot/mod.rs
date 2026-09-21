@@ -60,8 +60,10 @@ pub(super) struct DsEpochSnapshot {
     /// For an APQ join this is the T leg's commit.
     #[tag(6)]
     pub(super) join_commit: Option<Vec<u8>>,
-    // Tag 7 is reserved for `pq_join_commit`, the PQ leg's commit of an APQ join, which lands with
-    // the APQ join connection group RPC.
+    /// The PQ leg's commit of an APQ join, present iff [`Self::join_commit`] is
+    /// the T leg's commit of an APQ join.
+    #[tag(7)]
+    pub(super) pq_join_commit: Option<Vec<u8>>,
 }
 
 /// Binds a record to the group and epoch it was stored under
@@ -92,6 +94,7 @@ impl DsEpochSnapshot {
             pq_group_info: None,
             pq_ratchet_tree: None,
             join_commit: None,
+            pq_join_commit: None,
         }
     }
 
@@ -105,6 +108,18 @@ impl DsEpochSnapshot {
     /// Add the external commit the DS accepted at this epoch.
     pub(super) fn with_join_commit(mut self, commit: &SerializedMlsMessage) -> Self {
         self.join_commit = Some(commit.0.clone());
+        self
+    }
+
+    /// Add the two external commits of an APQ join the DS accepted at this
+    /// epoch. A sibling applies each of them to its own leg.
+    pub(super) fn with_apq_join_commits(
+        mut self,
+        t_commit: &SerializedMlsMessage,
+        pq_commit: &SerializedMlsMessage,
+    ) -> Self {
+        self.join_commit = Some(t_commit.0.clone());
+        self.pq_join_commit = Some(pq_commit.0.clone());
         self
     }
 
@@ -161,12 +176,21 @@ impl DsEpochSnapshot {
                 return None;
             }
         };
+        if self.pq_join_commit.is_some() && pq.is_none() {
+            error!("epoch snapshot record with a PQ commit but no PQ leg");
+            return None;
+        }
+        if self.join_commit.is_some() && pq.is_some() && self.pq_join_commit.is_none() {
+            error!("epoch snapshot record of an APQ join without the PQ leg's commit");
+            return None;
+        }
         Some(EpochSnapshotParts {
             group_info,
             ratchet_tree,
             room_state,
             pq,
             join_commit: self.join_commit,
+            pq_join_commit: self.pq_join_commit,
         })
     }
 }
@@ -178,6 +202,8 @@ pub(super) struct EpochSnapshotParts {
     /// Present iff the snapshot is of an APQ group.
     pub(super) pq: Option<(GroupInfo, RatchetTree)>,
     pub(super) join_commit: Option<Vec<u8>>,
+    /// Present iff `join_commit` is the T leg's commit of an APQ join.
+    pub(super) pq_join_commit: Option<Vec<u8>>,
 }
 
 impl EpochSnapshotAad {
@@ -249,6 +275,7 @@ mod test {
             pq_group_info: None,
             pq_ratchet_tree: None,
             join_commit: Some(vec![1u8, 2, 3]),
+            pq_join_commit: Some(vec![4u8, 5, 6]),
         }
     }
 

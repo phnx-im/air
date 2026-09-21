@@ -412,7 +412,8 @@ impl DsGroupState {
         let crypto = t_group_state.provider.crypto();
         let ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
-            serialized_apq_message,
+            t_serialized_message,
+            pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
 
@@ -527,7 +528,10 @@ impl DsGroupState {
         }
 
         Ok(ProcessedApqGroupOperation {
-            serialized_message: serialized_apq_message,
+            serialized_message: SerializedMlsMessage::combine_apq(
+                t_serialized_message,
+                pq_serialized_message,
+            ),
             t_add_users_state,
             pq_welcome,
             virtual_client_hint,

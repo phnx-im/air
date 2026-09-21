@@ -120,9 +120,8 @@ impl Group {
     /// commit, by applying that commit on top of the pre-commit state in
     /// `snapshot`.
     ///
-    /// APQ is out of scope for now. The DS proposal allowlist of
-    /// `join_connection_group` rejects the `AppDataUpdate` proposal an APQ
-    /// external commit carries.
+    /// APQ is out of scope for now: the DS stages a two-leg snapshot for an APQ
+    /// join, applying it lands with the APQ client side.
     pub(crate) async fn vc_join_via_sibling_external_commit(
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
