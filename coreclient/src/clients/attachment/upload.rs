@@ -53,6 +53,7 @@ use crate::{
         },
     },
     groups::Group,
+    groups::persistence::GroupRef,
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,
@@ -382,9 +383,12 @@ impl CoreUser {
         };
 
         let chat_id = message.chat_id();
-        let group = Group::load_with_chat_id_clean(self.db().read().await?, chat_id)
+        let mut connection = self.db().read().await?;
+        let group = Group::load_ref_with_chat_id(&mut connection, chat_id)
             .await?
             .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
+        group.ensure_clean(connection.as_mut())?;
+        drop(connection);
 
         let provisioned = encrypt_and_provision(
             &self.api_client()?,
@@ -427,7 +431,7 @@ impl CoreUser {
             self.user_id().clone(),
             false,
             content,
-            group.group_id(),
+            &group.group_id,
         ));
 
         self.upload_and_finalize(
@@ -849,18 +853,14 @@ pub enum ProvisionAttachmentError {
 }
 
 enum AttachmentTarget<'a> {
-    Group(&'a Group),
+    Group(&'a GroupRef),
     User(&'a UserId),
 }
 
 impl<'a> From<AttachmentTarget<'a>> for DsAttachmentTarget<'a> {
     fn from(target: AttachmentTarget<'a>) -> Self {
         match target {
-            AttachmentTarget::Group(group) => DsAttachmentTarget::Group {
-                group_state_ear_key: group.group_state_ear_key(),
-                group_id: group.group_id(),
-                sender_index: group.own_index(),
-            },
+            AttachmentTarget::Group(group) => group.attachment_target(),
             AttachmentTarget::User(user_id) => DsAttachmentTarget::User { user_id },
         }
     }
