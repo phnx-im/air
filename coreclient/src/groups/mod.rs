@@ -2736,9 +2736,9 @@ impl Group {
 pub(crate) enum NewGroupContext {
     /// Profile in the legacy group data extension
     LegacyChat(GroupData),
-    /// Profile in the group data component
+    /// Profile in the group profile component
     Chat(GroupData),
-    /// Self group: profile in the legacy extension, SafeAAD for the VC component
+    /// Self group: profile in the group component, SafeAAD for the VC component
     SelfGroup(GroupData),
 }
 
@@ -2755,11 +2755,11 @@ impl NewGroupContext {
     fn add_to_t_extensions(self, extensions: &mut Extensions<GroupContext>) -> anyhow::Result<()> {
         let mut app_data = self.app_data();
         let group_data = match self {
-            NewGroupContext::Chat(data) | Self::SelfGroup(data) => {
+            Self::Chat(data) | Self::SelfGroup(data) => {
                 app_data.profile = Some(data.into_component());
                 None
             }
-            NewGroupContext::LegacyChat(data) => Some(data.encode()?),
+            Self::LegacyChat(data) => Some(data.encode()?),
         };
         extensions.add(app_data.to_extension()?)?;
         if let Some(group_data) = group_data {
