@@ -9381,6 +9381,7 @@ const _: fn() = || {
         let _: Vec<crate::api::user::TimedTaskDebugInfo> = UserDebugInfo.timed_tasks;
         let _: u32 = UserDebugInfo.add_username_token_count;
         let _: u32 = UserDebugInfo.invitation_code_token_count;
+        let _: u32 = UserDebugInfo.connect_username_token_count;
     }
 };
 
@@ -10324,6 +10325,7 @@ impl SseDecode for crate::api::types::AddUsernameContactError {
             0 => crate::api::types::AddUsernameContactError::UsernameNotFound,
             1 => crate::api::types::AddUsernameContactError::DuplicateRequest,
             2 => crate::api::types::AddUsernameContactError::OwnUsername,
+            3 => crate::api::types::AddUsernameContactError::RateLimited,
             _ => unreachable!("Invalid variant for AddUsernameContactError: {}", inner),
         };
     }
@@ -13216,11 +13218,13 @@ impl SseDecode for crate::api::user::UserDebugInfo {
             <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_decode(deserializer);
         let mut var_addUsernameTokenCount = <u32>::sse_decode(deserializer);
         let mut var_invitationCodeTokenCount = <u32>::sse_decode(deserializer);
+        let mut var_connectUsernameTokenCount = <u32>::sse_decode(deserializer);
         return crate::api::user::UserDebugInfo {
             user_id: var_userId,
             timed_tasks: var_timedTasks,
             add_username_token_count: var_addUsernameTokenCount,
             invitation_code_token_count: var_invitationCodeTokenCount,
+            connect_username_token_count: var_connectUsernameTokenCount,
         };
     }
 }
@@ -14071,6 +14075,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddUsername
             crate::api::types::AddUsernameContactError::UsernameNotFound => 0.into_dart(),
             crate::api::types::AddUsernameContactError::DuplicateRequest => 1.into_dart(),
             crate::api::types::AddUsernameContactError::OwnUsername => 2.into_dart(),
+            crate::api::types::AddUsernameContactError::RateLimited => 3.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -16491,6 +16496,10 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user::UserDebugInf
                 .invitation_code_token_count
                 .into_into_dart()
                 .into_dart(),
+            self.0
+                .connect_username_token_count
+                .into_into_dart()
+                .into_dart(),
         ]
         .into_dart()
     }
@@ -17340,6 +17349,7 @@ impl SseEncode for crate::api::types::AddUsernameContactError {
                 crate::api::types::AddUsernameContactError::UsernameNotFound => 0,
                 crate::api::types::AddUsernameContactError::DuplicateRequest => 1,
                 crate::api::types::AddUsernameContactError::OwnUsername => 2,
+                crate::api::types::AddUsernameContactError::RateLimited => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -19693,6 +19703,7 @@ impl SseEncode for crate::api::user::UserDebugInfo {
         <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_encode(self.timed_tasks, serializer);
         <u32>::sse_encode(self.add_username_token_count, serializer);
         <u32>::sse_encode(self.invitation_code_token_count, serializer);
+        <u32>::sse_encode(self.connect_username_token_count, serializer);
     }
 }
 

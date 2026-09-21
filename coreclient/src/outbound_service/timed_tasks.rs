@@ -124,6 +124,7 @@ impl TimedTaskKind {
                 OperationType::Unspecified => Duration::MAX,
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
+                OperationType::ConnectUsername => Duration::minutes(5),
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
         }

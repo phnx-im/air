@@ -176,7 +176,7 @@ pub(crate) async fn consume_token(
                         CASE WHEN key_fingerprint IS NULL THEN id END,
                         RANDOM()
                     LIMIT 1)
-         RETURNING token, key_fingerprint, allowance_epoch, token_index",
+         RETURNING token, token_key_id, key_fingerprint, allowance_epoch, token_index",
         operation_type_value
     )
     .fetch_optional(connection.as_mut())
@@ -186,6 +186,7 @@ pub(crate) async fn consume_token(
     };
     Ok(Some(ConsumedToken {
         token: SerializedToken::new(row.token),
+        token_key_id: decode_token_key_id(row.token_key_id)?,
         position: TokenPosition::from_token_row(
             operation_type,
             row.key_fingerprint,
@@ -600,6 +601,12 @@ fn decode_fingerprint(fingerprint: Vec<u8>) -> sqlx::Result<KeyFingerprint> {
     fingerprint
         .try_into()
         .map_err(|_| sqlx::Error::Decode("key fingerprint is not 32 bytes".into()))
+}
+
+fn decode_token_key_id(token_key_id: i64) -> sqlx::Result<u8> {
+    u8::try_from(token_key_id).map_err(|_| {
+        sqlx::Error::Decode(format!("token key id {token_key_id} out of range").into())
+    })
 }
 
 fn decode_allowance_epoch(allowance_epoch: i64) -> sqlx::Result<u32> {

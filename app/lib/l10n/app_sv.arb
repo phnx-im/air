@@ -264,6 +264,7 @@
   "newConnectionDialog_error_usernameNotFound": "{username} hittades inte. Kontrollera det och försök igen.",
   "newConnectionDialog_error_duplicateRequest": "Du har redan en väntande kontaktförfrågan till det här användarnamnet.",
   "newConnectionDialog_error_ownUsername": "Du kan inte skicka en kontaktförfrågan till dig själv.",
+  "newConnectionDialog_error_rateLimited": "Du har nått dagens gräns för kontaktförfrågningar. Försök igen i morgon.",
   "composer_inputHint": "Meddelande till {chatTitle}",
   "composer_editMessage": "Redigera meddelande",
   "composer_error_sendMessage": "Kunde inte skicka meddelandet. Försök igen.",

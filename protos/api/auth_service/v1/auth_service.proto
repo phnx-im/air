@@ -384,6 +384,7 @@ enum OperationType {
   OPERATION_TYPE_UNSPECIFIED = 0;
   OPERATION_TYPE_ADD_USERNAME = 1;
   OPERATION_TYPE_GET_INVITE_CODE = 2;
+  OPERATION_TYPE_CONNECT_USERNAME = 3;
 }
 
 message BatchedTokenKey {
@@ -594,6 +595,7 @@ message FetchConnectionPackageResponse {
 message FetchSignedConnectionPackageStep {
   common.v1.ClientMetadata client_metadata = 1;
   UsernameHash hash = 2;
+  optional bytes token = 3;
 }
 
 message FetchSignedConnectionPackageResponse {
