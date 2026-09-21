@@ -228,6 +228,7 @@
   "systemMessage_deviceLinkedUnknown": "Vous avez associé un nouvel appareil à votre compte.",
   "systemMessage_deviceUnlinked": "Vous avez dissocié l'appareil {device} de votre compte.",
   "systemMessage_deviceUnlinkedUnknown": "Vous avez dissocié un appareil de votre compte.",
+  "systemMessage_devicesTapToView": "Voir vos appareils.",
   "timestamp_now": "Maintenant",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Aujourd’hui",

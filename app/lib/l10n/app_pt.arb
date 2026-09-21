@@ -228,6 +228,7 @@
   "systemMessage_deviceLinkedUnknown": "Você vinculou um novo dispositivo à sua conta.",
   "systemMessage_deviceUnlinked": "Você desvinculou o dispositivo {device} da sua conta.",
   "systemMessage_deviceUnlinkedUnknown": "Você desvinculou um dispositivo da sua conta.",
+  "systemMessage_devicesTapToView": " Toque para ver seus dispositivos.",
   "timestamp_now": "Agora",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Hoje",

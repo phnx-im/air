@@ -228,6 +228,7 @@
   "systemMessage_deviceLinkedUnknown": "Du länkade en ny enhet till ditt konto.",
   "systemMessage_deviceUnlinked": "Du avlänkade enheten {device} från ditt konto.",
   "systemMessage_deviceUnlinkedUnknown": "Du avlänkade en enhet från ditt konto.",
+  "systemMessage_devicesTapToView": " Tryck för att se dina enheter.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",
