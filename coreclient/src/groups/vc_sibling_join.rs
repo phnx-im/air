@@ -120,8 +120,8 @@ impl Group {
     /// commit, by applying that commit on top of the pre-commit state in
     /// `snapshot`.
     ///
-    /// For an APQ group the snapshot covers both legs and carries both commits,
-    /// which are applied to their own leg.
+    /// APQ is out of scope for now: the DS stages a two-leg snapshot for an APQ
+    /// join, applying it lands with the APQ client side.
     pub(crate) async fn vc_join_via_sibling_external_commit(
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,

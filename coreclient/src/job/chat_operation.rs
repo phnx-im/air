@@ -4,7 +4,6 @@
 
 use std::{borrow::Cow, collections::HashSet};
 
-use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{crypto::errors::EncryptionError, identifiers::UserId};
 use airprotos::{
     client::{
@@ -403,15 +402,18 @@ impl ChatOperation {
             (Some(GroupData::empty()), None)
         } else if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
-            let group = Group::load_with_chat_id_clean(db.read().await?, chat_id)
+            let mut connection = db.read().await?;
+            let group = Group::load_ref_with_chat_id(&mut connection, chat_id)
                 .await?
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
+            group.ensure_clean(connection.as_mut())?;
+            drop(connection);
 
             // Encrypt
             let picture = attributes.picture.as_deref().map(Cow::Borrowed);
             let group_profile = GroupProfile::new(attributes.title, None, picture);
             let (ciphertext, external) = group_profile
-                .encrypt(group.identity_link_wrapper_key())
+                .encrypt(&group.identity_link_wrapper_key)
                 .context("Failed to encrypt group profile")?;
 
             // Provision
@@ -420,11 +422,7 @@ impl ChatOperation {
             let provision_response = api_client
                 .ds_provision_attachment(
                     &key_store.signing_key,
-                    DsAttachmentTarget::Group {
-                        group_state_ear_key: group.group_state_ear_key(),
-                        group_id: group.group_id(),
-                        sender_index: group.own_index(),
-                    },
+                    group.attachment_target(),
                     content_length,
                     StorageObjectType::GroupProfile,
                 )
@@ -452,7 +450,7 @@ impl ChatOperation {
 
             let encrypted_title = EncryptedGroupTitle::encrypt(
                 &group_profile.title,
-                group.identity_link_wrapper_key(),
+                &group.identity_link_wrapper_key,
             )
             .context("Failed to encrypt group title")?;
 

@@ -36,6 +36,7 @@ use crate::{
         },
     },
     groups::Group,
+    groups::persistence::GroupRef,
     image_is_animated,
 };
 
@@ -111,7 +112,7 @@ impl CoreUser {
                 progress_tx.report(bytes_total, 0);
 
                 let chat_id = record.chat_id;
-                let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
+                let Some(group) = Group::load_ref_with_chat_id(&mut *txn, chat_id).await? else {
                     error!(?chat_id, "Group not found");
                     return Ok(None);
                 };
@@ -227,7 +228,7 @@ impl CoreUser {
             nonce,
             size,
         }: PendingAttachmentRecord,
-        group: &Group,
+        group: &GroupRef,
         progress_tx: &AttachmentProgressSender,
     ) -> Result<AttachmentBytes, AttachmentDownloadError> {
         // Check encryption parameters
@@ -262,11 +263,7 @@ impl CoreUser {
             .ds_get_attachment_url(
                 StorageObjectType::Attachment,
                 self.signing_key(),
-                DsAttachmentTarget::Group {
-                    group_state_ear_key: group.group_state_ear_key(),
-                    group_id: group.group_id(),
-                    sender_index: group.own_index(),
-                },
+                group.attachment_target(),
                 remote_attachment_id,
             )
             .await?;

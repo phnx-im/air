@@ -444,12 +444,6 @@ impl Group {
         Ok((mls_group, &mut pq.mls_group))
     }
 
-    /// Consumes this group and returns its room state. Used by callers
-    /// that no longer need the rest of the group.
-    pub(crate) fn into_room_state(self) -> VerifiedRoomState {
-        self.room_state
-    }
-
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
     /// pending commit. Used by clean loaders to refuse to hand out a
     /// `Group` whose MLS state has an in-flight commit, since further
