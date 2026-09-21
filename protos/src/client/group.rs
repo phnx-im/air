@@ -79,8 +79,8 @@ impl From<GroupProfileComponent> for GroupData {
 ///
 /// ```cddl
 /// GroupProfileComponent = {
-///   encryptedTitle: EncryptedGroupTitle .tag 1,
-///   externalGroupProfile: ExternalGroupProfile .tag 2,
+///   ? encryptedTitle: EncryptedGroupTitle .tag 1,
+///   ? externalGroupProfile: ExternalGroupProfile .tag 2,
 /// }
 /// ```
 #[derive(Debug, Clone, Eq, PartialEq, SerializeTaggedMap, DeserializeTaggedMap)]

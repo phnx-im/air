@@ -306,7 +306,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             signing_key,
             identity_link_wrapper_key,
             self.group_id.clone(),
-            NewGroupContext::Legacy(GroupData::empty()),
+            NewGroupContext::LegacyChat(GroupData::empty()),
             self_group.as_ref().map(|group| group.group_id()),
         )?;
 

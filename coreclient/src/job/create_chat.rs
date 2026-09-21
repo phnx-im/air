@@ -141,9 +141,9 @@ impl CreateChat {
             external_group_profile,
         };
         let context = if profile_component {
-            NewGroupContext::Component(group_data)
+            NewGroupContext::Chat(group_data)
         } else {
-            NewGroupContext::Legacy(group_data)
+            NewGroupContext::LegacyChat(group_data)
         };
 
         let own_user_id = key_store.signing_key.credential().user_id();

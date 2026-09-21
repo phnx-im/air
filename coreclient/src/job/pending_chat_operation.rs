@@ -2216,7 +2216,7 @@ mod tests {
             &signing_key,
             identity_link_wrapper_key,
             group_id.clone(),
-            NewGroupContext::Legacy(GroupData::empty()),
+            NewGroupContext::LegacyChat(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;

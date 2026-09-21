@@ -570,7 +570,7 @@ mod derivation_tests {
         let context = if is_self_group {
             NewGroupContext::SelfGroup(GroupData::empty())
         } else {
-            NewGroupContext::Legacy(GroupData::empty())
+            NewGroupContext::LegacyChat(GroupData::empty())
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
