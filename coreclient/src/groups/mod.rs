@@ -2738,7 +2738,7 @@ pub(crate) enum NewGroupContext {
     LegacyChat(GroupData),
     /// Profile in the group profile component
     Chat(GroupData),
-    /// Self group: profile in the group component, SafeAAD for the VC component
+    /// Self group: profile in the group profile component, SafeAAD for the VC component
     SelfGroup(GroupData),
 }
 

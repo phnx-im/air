@@ -912,7 +912,7 @@ impl CoreUser {
                 // Our own commit was echoed back before the matching
                 // `DsCommitResponse` arrived, so we merge it here and run
                 // the same side effects the response would have.
-                let (mut group_messages, group_data_bytes) = group
+                let (mut group_messages, group_data) = group
                     .merge_pending_commit(&mut *txn, None, ds_timestamp)
                     .await?;
                 let pq_updated_at = group.is_apq().then_some(ds_timestamp);
@@ -924,7 +924,7 @@ impl CoreUser {
                     &mut *txn,
                     &group,
                     &mut chat,
-                    group_data_bytes,
+                    group_data,
                     &mut group_messages,
                     key_package_batch,
                     ds_timestamp,
