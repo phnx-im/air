@@ -18,16 +18,20 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::{
-    group::GroupData,
-    group_bootstrap::{
-        ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext, TargetedInitiatorContext,
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::{
+        group::GroupData,
+        group_bootstrap::{
+            ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext,
+            TargetedInitiatorContext,
+        },
+        signed_connection_package::AnyConnectionPackage,
     },
-    signed_connection_package::AnyConnectionPackage,
 };
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     Chat, ChatId, ChatMessage, SystemMessage,
@@ -43,6 +47,7 @@ use crate::{
         self_group::SelfGroup,
     },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
+    privacy_pass::{self, TokenShortage},
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
@@ -55,6 +60,8 @@ pub enum AddUsernameContactError {
     DuplicateRequest,
     /// The given username is our own
     OwnUsername,
+    /// Today's allowance of connection requests is spent
+    RateLimited,
 }
 
 impl CoreUser {
@@ -84,20 +91,59 @@ impl CoreUser {
             return Ok(Err(AddUsernameContactError::OwnUsername));
         }
 
-        // Phase 1: Fetch a connection package from the AS
-        let (connection_package, connection_offer_responder) =
-            match client.as_connect_username(hash).await {
-                Ok(res) => res,
-                Err(error) if error.is_not_found() => {
-                    return Ok(Err(AddUsernameContactError::UsernameNotFound));
-                }
-                Err(error) => return Err(error.into()),
-            };
+        // Pay for the request with a token. It is consumed after the checks
+        // above, a request that goes nowhere costs nothing.
+        let consumed = match self
+            .consume_or_replenish_token(&client, OperationType::ConnectUsername)
+            .await?
+        {
+            Ok(consumed) => consumed,
+            Err(TokenShortage::Exhausted) => {
+                return Ok(Err(AddUsernameContactError::RateLimited));
+            }
+            Err(shortage @ TokenShortage::Replenishing) => {
+                warn!(%shortage, "no privacy pass token available for a connection request");
+                return Err(shortage.into());
+            }
+        };
 
-        // Phase 2: Verify the connection package
+        // Fetch a connection package from the AS. The AS redeems the token in
+        // the transaction that returns the package, NOT_FOUND leaves the token
+        // valid. Other errors leave the redemption unknown, so the token is
+        // given up.
+        let (connection_package, connection_offer_responder) = match client
+            .as_connect_username(hash, Some(consumed.token.clone()))
+            .await
+        {
+            Ok(res) => res,
+            Err(error) if error.is_not_found() => {
+                self.restore_unredeemed_token(OperationType::ConnectUsername, consumed)
+                    .await;
+                return Ok(Err(AddUsernameContactError::UsernameNotFound));
+            }
+            Err(error) if error.is_unknown_token_key_id() => {
+                // Not retried right away: the re-fetched batch should not
+                // be redeemed right after its issuance.
+                warn!("unknown token key ID, purging stale tokens");
+                self.purge_and_replenish_tokens(&client, OperationType::ConnectUsername)
+                    .await?;
+                bail!("token key rotated and tokens replenished, retry later");
+            }
+            Err(error) => return Err(error.into()),
+        };
+
+        // The AS redeemed the token when it returned the package.
+        if let Some(position) = consumed.position
+            && let Err(error) =
+                privacy_pass::mark_redeemed(self.db().write().await?, &position).await
+        {
+            warn!(%error, "failed to record a redeemed privacy pass token");
+        }
+
+        // Verify the connection package
         let verified_connection_package = connection_package.verify(&hash)?;
 
-        // Phase 3: Prepare the connection locally
+        // Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
@@ -112,7 +158,7 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        // Phase 4: Create the connection group locally and commit it.
+        // Create the connection group locally and commit it.
         let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
             let local_group = Box::pin(connection_package.create_local_connection_group(
                 &mut *txn,
@@ -132,7 +178,7 @@ impl CoreUser {
         }))
         .await?;
 
-        // Phase 5: Create the connection group on the DS and send off the connection offer
+        // Create the connection group on the DS and send off the connection offer
         let cleanup = local_partial_contact.cleanup();
         let result = Box::pin(local_partial_contact.create_connection_group_via_username(
             &client,

@@ -258,6 +258,7 @@
   "newConnectionDialog_error_usernameNotFound": "{username} wurde nicht gefunden. Überprüfe ihn und versuche es erneut.",
   "newConnectionDialog_error_duplicateRequest": "Du hast bereits eine ausstehende Kontaktanfrage an diesen Benutzernamen.",
   "newConnectionDialog_error_ownUsername": "Du kannst dir selbst keine Kontaktanfrage senden.",
+  "newConnectionDialog_error_rateLimited": "Du hast das Tageslimit für Kontaktanfragen erreicht. Versuche es morgen erneut.",
 
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",

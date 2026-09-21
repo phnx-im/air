@@ -75,6 +75,7 @@ pub(crate) struct TokenPosition {
 /// A token taken out of the cache to pay for a request.
 pub(crate) struct ConsumedToken {
     pub(crate) token: SerializedToken,
+    pub(crate) token_key_id: u8,
     /// `None` for tokens stored before positions were recorded.
     pub(crate) position: Option<TokenPosition>,
 }
@@ -95,6 +96,18 @@ pub(crate) enum ReplenishOutcome {
     Settled,
     /// Something still has to converge, so the caller should retry soon.
     RetrySoon,
+}
+
+/// The reason the cache is empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum TokenShortage {
+    /// The batch of the current allowance epoch was fetched and is spent.
+    #[error("the token allowance of this epoch is spent")]
+    Exhausted,
+    /// The batch is being made available. Nothing is consumed right away, so
+    /// that issuance and redemption stay apart in time.
+    #[error("tokens are being replenished")]
+    Replenishing,
 }
 
 /// Result of trying to make the current allowance epoch's batch available.
@@ -160,6 +173,32 @@ pub(crate) async fn replenish(
             ReplenishOutcome::Settled
         }
     })
+}
+
+/// Makes the batch of the current allowance epoch available after the cache ran
+/// empty, and returns the reason for the shortage.
+pub(crate) async fn replenish_empty_cache(
+    db: &DbAccess,
+    api_client: &ApiClient,
+    user_id: UserId,
+    signing_key: &UserSigningKey,
+    operation_type: OperationType,
+) -> anyhow::Result<TokenShortage> {
+    let outcome = ensure_token_batch(db, api_client, user_id, signing_key, operation_type).await?;
+    info!(?outcome, %operation_type, "replenished tokens on an empty cache");
+
+    let batch_recorded = match outcome {
+        TokenBatchOutcome::Fetched { .. } | TokenBatchOutcome::AlreadyFetched => true,
+        TokenBatchOutcome::AwaitingSeedAgreement
+        | TokenBatchOutcome::EpochRejected { .. }
+        | TokenBatchOutcome::Conflict => false,
+    };
+    // An empty recorded batch means we have reached the limit of tokens we can
+    // currently spend.
+    if batch_recorded && persistence::token_count(db.read().await?, operation_type).await? == 0 {
+        return Ok(TokenShortage::Exhausted);
+    }
+    Ok(TokenShortage::Replenishing)
 }
 
 /// Whether this device is the only one that could hold a token seed.
@@ -763,6 +802,51 @@ pub(crate) async fn consume_token(
     operation_type: OperationType,
 ) -> anyhow::Result<Option<ConsumedToken>> {
     Ok(persistence::consume_token(connection, operation_type).await?)
+}
+
+/// Puts a consumed token back after the AS answered without redeeming it. If
+/// the token was already redeemed by a sibling, it is not restored to the
+/// cache.
+pub(crate) async fn restore_token(
+    db: &DbAccess,
+    operation_type: OperationType,
+    consumed: ConsumedToken,
+) -> anyhow::Result<()> {
+    let ConsumedToken {
+        token,
+        token_key_id,
+        position,
+    } = consumed;
+    let Some(position) = position else {
+        persistence::store_token(
+            db.write().await?,
+            operation_type,
+            token_key_id,
+            token.as_bytes(),
+        )
+        .await?;
+        return Ok(());
+    };
+    db.with_write_transaction(async |txn| -> sqlx::Result<()> {
+        let redeemed = persistence::load_redeemed_indices(
+            &mut *txn,
+            position.operation_type,
+            &position.key_fingerprint,
+            position.allowance_epoch,
+        )
+        .await?;
+        if redeemed.contains(&position.token_index) {
+            info!(
+                operation_type = %position.operation_type,
+                token_index = position.token_index,
+                "not restoring a token a sibling redeemed"
+            );
+            return Ok(());
+        }
+        persistence::store_batch_token(&mut *txn, token_key_id, &position, token.as_bytes()).await
+    })
+    .await?;
+    Ok(())
 }
 
 /// Deletes a token the AS has seen and records its redemption.

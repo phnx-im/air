@@ -1276,6 +1276,10 @@
   "@newConnectionDialog_error_ownUsername": {
     "description": "Error shown when the user enters one of their own usernames."
   },
+  "newConnectionDialog_error_rateLimited": "You've reached today's limit for contact requests. Try again tomorrow.",
+  "@newConnectionDialog_error_rateLimited": {
+    "description": "Error shown in the add contact dialog when the daily allowance of contact requests is spent. The allowance resets at midnight UTC."
+  },
 
   "composer_inputHint": "Message {chatTitle}",
   "@composer_inputHint": {
