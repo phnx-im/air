@@ -12,7 +12,10 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::*;
-use crate::groups::suppress_notifications;
+use crate::{
+    clients::{attachment::MimiContentExt, own_client_info::OwnClientInfo},
+    groups::suppress_notifications,
+};
 
 const OPERATION_TYPE: OperationType = OperationType::AddUsername;
 
@@ -141,7 +144,7 @@ async fn store_three_tokens(
     Ok(tokens)
 }
 
-/// Stores the `own_client_info` row `is_alone` reads.
+/// Stores the `own_client_info` row `SelfGroup::has_linked_devices` reads.
 async fn store_own_client_info(
     db: &DbAccess,
     self_group_id: Option<GroupId>,
@@ -1261,13 +1264,13 @@ fn redeemed_tokens_survive_the_message_encoding() -> anyhow::Result<()> {
     let content = SelfGroupAppMessage::RedeemedTokens(sent.clone()).to_mimi_content()?;
 
     assert_eq!(
-        SelfGroupAppMessage::from_mimi_content(&content),
+        content.self_group_message(),
         Some(SelfGroupAppMessage::RedeemedTokens(sent))
     );
     assert!(suppress_notifications(&content));
 
     let note = MimiContent::simple_markdown_message("a note to self".to_owned(), [0; 16]);
-    assert!(SelfGroupAppMessage::from_mimi_content(&note).is_none());
+    assert!(note.self_group_message().is_none());
     assert!(!suppress_notifications(&note));
 
     Ok(())

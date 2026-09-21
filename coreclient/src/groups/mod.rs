@@ -84,7 +84,6 @@ use airprotos::client::{
     app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
     component::AIR_GROUP_PROFILE_COMPONENT_ID,
     group::GroupData,
-    self_group::SelfGroupAppMessage,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
@@ -105,6 +104,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
         api_clients::ApiClients,
+        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::OwnClientInfo,
         targeted_message::TargetedMessageContent,
@@ -3456,7 +3456,7 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
         // Status updates should never trigger notifications.
         return true;
     }
-    if SelfGroupAppMessage::from_mimi_content(content).is_some() {
+    if content.self_group_message().is_some() {
         // Bookkeeping among the user's own devices, never shown.
         return true;
     }

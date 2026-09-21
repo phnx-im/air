@@ -47,6 +47,7 @@ use crate::{
         reactions::Reaction,
     },
     clients::{
+        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
@@ -1021,14 +1022,12 @@ impl CoreUser {
         let mut content = MimiContent::deserialize(&application_message.into_bytes());
 
         // Application messages in the self group with extensions
-        if let Ok(content) = &content
-            && let Some(message) = SelfGroupAppMessage::from_mimi_content(content)
+        if group.is_self_group()
+            && sender == self.user_id()
+            && let Ok(content) = &content
+            && let Some(message) = content.self_group_message()
         {
-            if group.is_self_group() && sender == self.user_id() {
-                self.handle_self_group_app_message(txn, message).await?;
-            } else {
-                warn!("ignoring a self group application message sent elsewhere");
-            }
+            self.handle_self_group_app_message(txn, message).await?;
             return Ok(Default::default());
         }
 

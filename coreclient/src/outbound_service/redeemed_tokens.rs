@@ -12,9 +12,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
 use crate::{
-    Chat, clients::own_client_info::OwnClientInfo,
-    job::pending_chat_operation::PendingChatOperation, outbound_service::resync::Resync,
-    privacy_pass,
+    groups::self_group::SelfGroup, job::pending_chat_operation::PendingChatOperation,
+    outbound_service::resync::Resync, privacy_pass,
 };
 
 use super::{OutboundServiceContext, SendOutcome};
@@ -35,13 +34,17 @@ impl OutboundServiceContext {
             return Ok(());
         }
 
-        if privacy_pass::is_alone(&self.db).await? {
+        if !SelfGroup::has_linked_devices(self.db.read().await?).await? {
             debug!("no sibling to tell about redeemed privacy pass tokens");
             self.retire_redeemed(&redeemed).await?;
             return Ok(());
         }
 
-        let Some(chat) = self.self_chat().await? else {
+        let Some(chat) = self
+            .db
+            .with_read_transaction(async |txn| SelfGroup::load_chat(txn).await)
+            .await?
+        else {
             debug!("no self chat yet, keeping redeemed privacy pass tokens for a later run");
             return Ok(());
         };
@@ -87,18 +90,6 @@ impl OutboundServiceContext {
         self.db
             .with_write_transaction(async |txn| {
                 privacy_pass::retire_redeemed_broadcasts(txn, redeemed).await
-            })
-            .await
-    }
-
-    /// The chat of the self group, if there is one.
-    async fn self_chat(&self) -> anyhow::Result<Option<Chat>> {
-        self.db
-            .with_read_transaction(async |txn| -> anyhow::Result<_> {
-                let Some(group_id) = OwnClientInfo::load_self_group_id(&mut *txn).await? else {
-                    return Ok(None);
-                };
-                Ok(Chat::load_by_group_id(&mut *txn, &group_id).await?)
             })
             .await
     }

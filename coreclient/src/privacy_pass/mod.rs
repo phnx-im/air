@@ -38,7 +38,6 @@ use tokio::time;
 use tracing::{debug, info, warn};
 
 use crate::{
-    clients::own_client_info::OwnClientInfo,
     db::access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction},
     groups::self_group::SelfGroup,
 };
@@ -160,38 +159,6 @@ pub(crate) async fn replenish(
             ReplenishOutcome::Settled
         }
     })
-}
-
-/// Whether this device is the only one that could hold a token seed.
-///
-/// A lone device commits the seed it generates without an agreement round: it is
-/// the only seed there is, and a device linked later receives it in its
-/// provisioning package. Anything short of a counted membership answers no,
-/// which costs an agreement round and never risks two devices locking the same
-/// allowance epoch to different requests.
-pub(crate) async fn is_alone(db: &DbAccess) -> anyhow::Result<bool> {
-    let mut read = db.read().await?;
-    if OwnClientInfo::load_self_group_id(&mut read)
-        .await?
-        .is_none()
-    {
-        // No self group at all: no other device to diverge from, and no channel
-        // to agree over either.
-        return Ok(true);
-    }
-
-    let Some(self_group) = SelfGroup::load(&mut read).await? else {
-        // A self group we have not joined yet, as during linking.
-        debug!("self group not loaded, treating this device as one of several");
-        return Ok(false);
-    };
-    match self_group.client_ids() {
-        Ok(client_ids) => Ok(client_ids.len() <= 1),
-        Err(error) => {
-            warn!(%error, "cannot count linked devices, treating this device as one of several");
-            Ok(false)
-        }
-    }
 }
 
 /// A deterministically derived token request and the state to finalize its
@@ -422,7 +389,7 @@ async fn resolve_seed(
             // A proposal left over from a time when this device had a sibling.
             // Alone there is nobody left to disagree, so the proposal is the
             // seed and waiting for a commit round would only withhold tokens.
-            SeedState::Proposed if is_alone(db).await? => {
+            SeedState::Proposed if !SelfGroup::has_linked_devices(db.read().await?).await? => {
                 persistence::mark_seed_committed(
                     db.write().await?,
                     operation_type,
@@ -442,10 +409,12 @@ async fn resolve_seed(
         .try_fill_bytes(&mut candidate)
         .map_err(|error| anyhow::anyhow!("failed to generate a token seed: {error}"))?;
 
-    let state = if is_alone(db).await? {
-        SeedState::Committed
-    } else {
+    // Alone there is nobody to agree with, and a device linked later receives
+    // the seed in its provisioning package.
+    let state = if SelfGroup::has_linked_devices(db.read().await?).await? {
         SeedState::Proposed
+    } else {
+        SeedState::Committed
     };
     // Set once, so two concurrent runs converge on one seed instead of each
     // deriving from its own candidate.
