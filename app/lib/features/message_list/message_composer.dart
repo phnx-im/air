@@ -178,11 +178,11 @@ class _MessageComposerState extends State<MessageComposer>
   /// goes into the input field and the shared files run through the regular
   /// attachment upload preview, one after the other, as if picked in-app.
   void _maybeApplyPendingShare() {
-    final loc = AppLocalizations.of(context);
     final chat = _chatDetailsCubit.state.chat;
     if (chat == null || !mounted) {
       return;
     }
+    final loc = AppLocalizations.of(context);
     final navigationState = _navigationCubit.state;
     final share = navigationState.pendingShare;
     // The share is addressed by navigation, not by this widget: it belongs to

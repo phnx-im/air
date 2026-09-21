@@ -1092,7 +1092,7 @@
     "description": "System message marking where a newly linked device joined the chat."
   },
 
-  "systemMessage_deviceLinked": "{device} was linked",
+  "systemMessage_deviceLinked": "You linked a new device named {device} to your account.",
   "@systemMessage_deviceLinked": {
     "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it.",
     "placeholders": {
@@ -1102,12 +1102,12 @@
     }
   },
 
-  "systemMessage_deviceLinkedUnknown": "A new device was linked",
+  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account.",
   "@systemMessage_deviceLinkedUnknown": {
     "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced)."
   },
 
-  "systemMessage_deviceUnlinked": "{device} was unlinked",
+  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account.",
   "@systemMessage_deviceUnlinked": {
     "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it.",
     "placeholders": {
@@ -1117,9 +1117,14 @@
     }
   },
 
-  "systemMessage_deviceUnlinkedUnknown": "A device was unlinked",
+  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account.",
   "@systemMessage_deviceUnlinkedUnknown": {
     "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked)."
+  },
+
+  "systemMessage_devicesTapToView": " Tap to view your devices.",
+  "@systemMessage_devicesTapToView": {
+    "description": "Appended to the device-unlinked system message as a call to action, leading with a space so it runs on from the sentence before it. Tapping it opens the devices section of settings."
   },
 
   "timestamp_now": "Now",

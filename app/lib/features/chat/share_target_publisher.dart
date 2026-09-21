@@ -4,14 +4,10 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/l10n/app_locale_cubit.dart';
-import 'package:air/l10n/language_options.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:logging/logging.dart';
 
@@ -22,11 +18,7 @@ final _log = Logger('ShareTargetPublisher');
 /// donations), keeps them in sync with the chats and withdraws them on
 /// [dispose].
 class ShareTargetPublisher {
-  ShareTargetPublisher({
-    required this._chatsRepository,
-    required this._userSettingsCubit,
-    required this._appLocaleCubit,
-  }) {
+  ShareTargetPublisher({required this._chatsRepository, required this._loc}) {
     _changes = _chatsRepository.watchChanges().listen(_onChatsChanged);
     if (Platform.isAndroid) {
       unawaited(_enqueue('reconcile share targets', _reconcile));
@@ -34,16 +26,10 @@ class ShareTargetPublisher {
   }
 
   final ChatsRepository _chatsRepository;
-  final UserSettingsCubit _userSettingsCubit;
-  final AppLocaleCubit _appLocaleCubit;
 
-  AppLocalizations get _loc => lookupAppLocalizations(
-    resolveSupportedLocale(
-      localeFromTag(_userSettingsCubit.state.locale) ??
-          _appLocaleCubit.state ??
-          PlatformDispatcher.instance.locale,
-    ),
-  );
+  /// Localizations at session start. Only needed for the self-chat title, so
+  /// a mid-session language change is picked up on the next login.
+  final AppLocalizations _loc;
 
   // State
 

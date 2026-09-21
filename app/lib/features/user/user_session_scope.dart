@@ -13,10 +13,9 @@ import 'package:air/features/onboarding/update_required_screen.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
-import 'package:air/l10n/app_locale_cubit.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,6 +32,7 @@ class UserSessionScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return BlocBuilder<UserSessionCubit, UserSessionState>(
       builder: (context, session) {
         Widget resolved(Widget child) {
@@ -86,8 +86,7 @@ class UserSessionScope extends StatelessWidget {
                     RepositoryProvider<ShareTargetPublisher>(
                       create: (context) => ShareTargetPublisher(
                         chatsRepository: context.read<ChatsRepository>(),
-                        userSettingsCubit: context.read<UserSettingsCubit>(),
-                        appLocaleCubit: context.read<AppLocaleCubit>(),
+                        loc: loc,
                       ),
                       dispose: (publisher) => unawaited(publisher.dispose()),
                       // reconciles leftover OS shortcuts right away

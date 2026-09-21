@@ -33,9 +33,7 @@ class ChatDebugInfoRow extends StatelessWidget {
     final developerMode = context.select(
       (UserSettingsCubit cubit) => cubit.state.developerMode,
     );
-    final chat = context.select((ChatDetailsCubit cubit) => cubit.state.chat);
-
-    if (!developerMode || chat == null) {
+    if (!developerMode) {
       return const SizedBox.shrink();
     }
 
@@ -52,7 +50,7 @@ class ChatDebugInfoRow extends StatelessWidget {
             fill: SemanticPalette.of(context).fill.tertiary,
             label: 'Debug info',
             trailing: const AppIcon.chevronRight(size: developerRowIconSize),
-            onTap: () => showChatDebugInfo(context, chat),
+            onTap: () => showChatDebugInfo(context),
           ),
         ],
       ),
@@ -63,10 +61,15 @@ class ChatDebugInfoRow extends StatelessWidget {
 /// Pushes the debug view for [chat], wired to the cubits above [context].
 ///
 /// Pageless, so it stays out of the navigation state.
-void showChatDebugInfo(BuildContext context, UiChatDetails chat) {
+void showChatDebugInfo(BuildContext context) {
   final loc = AppLocalizations.of(context);
-  final chatDetailsCubit = context.read<ChatDetailsCubit>();
   final userCubit = context.read<UserCubit>();
+  final chatDetailsCubit = context.read<ChatDetailsCubit>();
+  final chat = chatDetailsCubit.state.chat;
+  if (chat == null) {
+    return;
+  }
+
   Navigator.of(context).push(
     MaterialPageRoute(
       builder: (context) => ChatDebugInfoView(

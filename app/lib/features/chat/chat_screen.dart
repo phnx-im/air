@@ -310,7 +310,9 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     final developerMode = context.select(
       (UserSettingsCubit cubit) => cubit.state.developerMode,
     );
-    final (chatId, title, onTap) = context.select((ChatDetailsCubit cubit) {
+    final (chatId, title, hasDetails) = context.select((
+      ChatDetailsCubit cubit,
+    ) {
       final chat = cubit.state.chat;
       // Currently, only confirmed chats have a chat details page.
       // The self-chat for multi-device is also excluded.
@@ -320,15 +322,15 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         _ => false,
       };
 
-      VoidCallback? onTap;
-      if (hasDetails) {
-        onTap = () => context.read<NavigationCubit>().openChatDetails();
-      } else if (chat != null && developerMode) {
-        onTap = () => showChatDebugInfo(context, chat);
-      }
-
-      return (chat?.id, chat?.title(loc), onTap);
+      return (chat?.id, chat?.title(loc), hasDetails);
     });
+
+    VoidCallback? onTap;
+    if (hasDetails) {
+      onTap = () => context.read<NavigationCubit>().openChatDetails();
+    } else if (developerMode) {
+      onTap = () => showChatDebugInfo(context);
+    }
 
     final tokens = ChatHeaderBarTokens.current;
     return SafeArea(

@@ -162,6 +162,22 @@ TextSpan buildSystemMessageText(
   EmphasizedValue user(UiUserId id) =>
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
 
+  TextSpan withTapToViewDevices(TextSpan message) => TextSpan(
+    children: [
+      message,
+      TextSpan(
+        text: loc.systemMessage_devicesTapToView,
+        style: nameStyle,
+        recognizer: TapGestureRecognizer()
+          ..onTap = () {
+            context.read<NavigationCubit>()
+              ..switchTab(HomeTab.profile)
+              ..openYouSection(YouSection.devices);
+          },
+      ),
+    ],
+  );
+
   return switch (message) {
     UiSystemMessage_Add(field0: final adder, field1: final added) =>
       adder == null
@@ -247,25 +263,25 @@ TextSpan buildSystemMessageText(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
-    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(
-      field0,
-    )) {
-      final String deviceName => emphasizedText(
-        (marks) => loc.systemMessage_deviceLinked(marks[0]),
-        [EmphasizedValue(deviceName)],
-        nameStyle,
-      ),
-      null => TextSpan(text: loc.systemMessage_deviceLinkedUnknown),
-    },
-    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(
-      field0,
-    )) {
-      final String deviceName => emphasizedText(
-        (marks) => loc.systemMessage_deviceUnlinked(marks[0]),
-        [EmphasizedValue(deviceName)],
-        nameStyle,
-      ),
-      null => TextSpan(text: loc.systemMessage_deviceUnlinkedUnknown),
-    },
+    UiSystemMessage_DeviceLinked(:final field0) => withTapToViewDevices(
+      switch (deviceNameOf(field0)) {
+        final String deviceName => emphasizedText(
+          (marks) => loc.systemMessage_deviceLinked(marks[0]),
+          [EmphasizedValue(deviceName)],
+          nameStyle,
+        ),
+        null => TextSpan(text: loc.systemMessage_deviceLinkedUnknown),
+      },
+    ),
+    UiSystemMessage_DeviceUnlinked(:final field0) => withTapToViewDevices(
+      switch (deviceNameOf(field0)) {
+        final String deviceName => emphasizedText(
+          (marks) => loc.systemMessage_deviceUnlinked(marks[0]),
+          [EmphasizedValue(deviceName)],
+          nameStyle,
+        ),
+        null => TextSpan(text: loc.systemMessage_deviceUnlinkedUnknown),
+      },
+    ),
   };
 }
