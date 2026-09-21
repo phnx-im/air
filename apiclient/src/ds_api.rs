@@ -481,8 +481,13 @@ impl ApiClient {
             (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqEpochSnapshotIn {
                 verifiable_group_info: pq_group_info.try_ref_into()?,
                 ratchet_tree_in: pq_ratchet_tree.try_ref_into()?,
+                join_commit: response
+                    .pq_join_commit
+                    .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                    .transpose()
+                    .map_err(|_| DsRequestError::UnexpectedResponse)?,
             }),
-            (None, None) => None,
+            (None, None) if response.pq_join_commit.is_none() => None,
             _ => return Err(DsRequestError::UnexpectedResponse),
         };
 

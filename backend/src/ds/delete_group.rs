@@ -72,7 +72,8 @@ impl DsGroupState {
         // mls-assist- and APQ-level validations.
         let ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
-            serialized_apq_message,
+            t_serialized_message,
+            pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .process_apq_assisted_message(
                 t_group_state.provider.crypto(),
@@ -101,7 +102,10 @@ impl DsGroupState {
         // No need to do anything else here, since the group is getting deleted
         // anyway.
 
-        Ok(serialized_apq_message)
+        Ok(SerializedMlsMessage::combine_apq(
+            t_serialized_message,
+            pq_serialized_message,
+        ))
     }
 
     /// Checks that the commit is a member commit that removes every member of

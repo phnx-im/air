@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT room_state AS \"room_state: BlobDecoded<VerifiedRoomState>\"\n            FROM \"group\" WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "room_state: BlobDecoded<VerifiedRoomState>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "room_state"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ecee50f1ca4bb76df3682c60a154423580c07e0e0f4d7abd65e97c990264c451"
+}
