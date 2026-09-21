@@ -23,7 +23,7 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    MimiContent, NestedPart,
+    MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
@@ -958,11 +958,22 @@ impl TestBackend {
             // new message.
             assert!(messages.new_messages.is_empty());
             assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             // The edited message keeps its timestamp, so it is still the last message.
             let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
+
+        // Fetch and process delivery receipts. An edit resets the delivery
+        // state, so the recipients must report on the edited version.
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+        let message = sender.message(message.id()).await.unwrap().unwrap();
+        assert_eq!(message.status(), MessageStatus::Delivered);
+
         message.id()
     }
 

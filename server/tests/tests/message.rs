@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+use aircommon::{identifiers::MimiId, messages::client_ds_out::SendMessageCollisionTag};
 use aircoreclient::{
     ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting,
     clients::{CoreUser, MarkChatAsRead},
@@ -33,6 +33,128 @@ async fn edit_message() {
         .await;
 
     setup.edit_message(chat_alice_bob, &alice, vec![&bob]).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Edit delivered while original receipt queued", skip_all)]
+async fn edit_is_delivered_when_original_receipt_is_still_queued() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user().clone();
+    let bob_user = setup.get_user(&bob).user().clone();
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user.fully_process_qs_messages(qs_messages).await;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    bob_user.fully_process_qs_messages(qs_messages).await;
+
+    // Alice sends and edits before Bob picks up either message.
+    let content = MimiContent::simple_markdown_message("hello".to_owned(), [7; 16]);
+    alice_user
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+    let original = alice_user.last_message(chat_id).await.unwrap().unwrap();
+    assert!(original.is_sent());
+    let edit = MimiContent::simple_markdown_message("edited".to_owned(), [8; 16]);
+    alice_user
+        .send_message(chat_id, edit, Some(original.clone()), MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob applies both at once, so the receipt for the original is still
+    // queued when the one for the edit is scheduled.
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let processed = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(processed.errors.is_empty());
+    bob_user.outbound_service().run_once().await;
+
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user.fully_process_qs_messages(qs_messages).await;
+    let status = alice_user
+        .message(original.id())
+        .await
+        .unwrap()
+        .unwrap()
+        .status();
+    assert_eq!(status, MessageStatus::Delivered);
+}
+
+/// Marks the chat as read until its last message and sends the read receipts
+/// this produced. Returns what was newly read.
+async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)> {
+    let last_message = user.last_message(chat_id).await.unwrap().unwrap();
+    let (_, read) = user
+        .mark_chat_as_read(chat_id, last_message.id())
+        .await
+        .unwrap();
+    let statuses = read
+        .iter()
+        .map(|(id, mimi_id)| (*id, mimi_id, MessageStatus::Read));
+    user.outbound_service()
+        .enqueue_receipts(chat_id, statuses)
+        .await
+        .unwrap();
+    user.outbound_service().run_once().await;
+    read
+}
+
+async fn fetch_and_process(user: &CoreUser) {
+    let qs_messages = user.qs_fetch_messages().await.unwrap();
+    user.fully_process_qs_messages(qs_messages).await;
+}
+
+async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageStatus {
+    user.message(message_id).await.unwrap().unwrap().status()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Stale read receipt does not apply to edit", skip_all)]
+async fn stale_read_receipt_does_not_apply_to_edited_message() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let message_id = sent.own_message_id;
+    let alice_user = setup.get_user(&alice).user().clone();
+    let bob_user = setup.get_user(&bob).user().clone();
+
+    // Alice edits before Bob reads the original.
+    let original = alice_user.message(message_id).await.unwrap().unwrap();
+    let edit = MimiContent::simple_markdown_message("edited".to_owned(), [8; 16]);
+    alice_user
+        .send_message(chat_id, edit, Some(original), MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+    assert_eq!(
+        own_message_status(&alice_user, message_id).await,
+        MessageStatus::Unread
+    );
+
+    // Bob reads the original. The receipt names the replaced version.
+    let read = read_chat(&bob_user, chat_id).await;
+    assert_eq!(read.len(), 1);
+    fetch_and_process(&alice_user).await;
+    assert_eq!(
+        own_message_status(&alice_user, message_id).await,
+        MessageStatus::Unread
+    );
+
+    // Only the receipt for the edited version counts.
+    fetch_and_process(&bob_user).await;
+    bob_user.outbound_service().run_once().await;
+    fetch_and_process(&alice_user).await;
+    assert_eq!(
+        own_message_status(&alice_user, message_id).await,
+        MessageStatus::Delivered
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
