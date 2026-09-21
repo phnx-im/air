@@ -29,10 +29,10 @@ extension UiChatDetailsExtension on UiChatDetails {
             "⏳ ${handle.plaintext}",
           UiChatType_Connection(field0: final profile) => profile.displayName,
           UiChatType_TargetedMessageConnection(field0: final profile) =>
-            "⏳${profile.displayName}",
+            "⏳ ${profile.displayName}",
           UiChatType_Group(field0: final attributes) => attributes.title,
           UiChatType_PendingConnection(field0: final profile) =>
-            "⏳${profile.displayName}",
+            "⏳ ${profile.displayName}",
         };
 
   /// Display name of the user if this is a 1:1 chat
