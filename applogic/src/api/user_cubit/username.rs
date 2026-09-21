@@ -22,7 +22,7 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
-use super::{AppState, CubitContext};
+use super::{AppState, CubitContext, Delivery};
 
 /// The context of the background task that listens to a username.
 #[derive(Debug, Clone)]
@@ -170,7 +170,9 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
                 let mut notifications = Vec::with_capacity(1);
                 user.new_connection_request_notifications(&[chat_id], &mut notifications)
                     .await;
-                self.cubit_context.show_notifications(notifications).await;
+                self.cubit_context
+                    .show_notifications(notifications, Delivery::Live)
+                    .await;
             }
             Err(error) => {
                 error!(?error, "failed to process username queue message");

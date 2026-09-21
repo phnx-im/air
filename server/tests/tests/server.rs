@@ -428,7 +428,7 @@ async fn ratchet_tolerance() {
 //                     processed.send_modify(|processed| {
 //                         *processed += result.processed();
 //                     });
-//                     if result.is_partially_processed() {
+//                     if matches!(result, QsProcessEventResult::PartiallyProcessed { .. }) {
 //                         break; // stop the stream when only partially processed
 //                     }
 //                 }
