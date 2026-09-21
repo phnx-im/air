@@ -34,7 +34,7 @@ use crate::{
     chats::GroupDataExt,
     clients::CoreUser,
     db::access::ReadConnection,
-    groups::{Group, GroupDataBytes, openmls_provider::KeyRefWrapper},
+    groups::{Group, openmls_provider::KeyRefWrapper},
     outbound_service::resync::{Resync, ResyncDebugInfo},
 };
 
@@ -151,7 +151,7 @@ impl GroupDebugInfo {
             .mls_group()
             .extensions()
             .unknown(GROUP_DATA_EXTENSION_TYPE)
-            .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
+            .and_then(|ext| GroupData::decode(&ext.0).ok())
             .map(|gd| GroupDataDebugInfo {
                 encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
                 external_group_profile: gd

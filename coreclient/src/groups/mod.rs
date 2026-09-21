@@ -231,24 +231,6 @@ pub(crate) struct PreparedInvitee {
     pub(crate) user_credential: UserCredential,
 }
 
-/// Bytes stored in the group data extension.
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct GroupDataBytes {
-    bytes: Vec<u8>,
-}
-
-impl GroupDataBytes {
-    pub(crate) fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-}
-
-impl From<Vec<u8>> for GroupDataBytes {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self { bytes }
-    }
-}
-
 #[derive(Debug)]
 struct SendMessageCollisionKey {
     // The group epoch this secret key was exported from.
@@ -2165,7 +2147,7 @@ impl Group {
                 // Otherwise, update the group context extension.
                 let bytes = group_data.encode()?;
                 let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes.bytes));
+                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes));
                 let mut extensions = self.mls_group().extensions().clone();
                 extensions.add_or_replace(group_data_extension)?;
                 (None, Some(extensions))
@@ -2601,15 +2583,13 @@ impl Group {
             return Ok(Some(group_profile.into()));
         }
         // Otherwise fall back to the group data extension.
-        let Some(group_data_bytes) = self.mls_group().extensions().iter().find_map(|e| match e {
-            Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
-                Some(GroupDataBytes::from(extension_bytes.0.clone()))
-            }
+        let Some(bytes) = self.mls_group().extensions().iter().find_map(|e| match e {
+            Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension) => Some(&extension.0),
             _ => None,
         }) else {
             return Ok(None);
         };
-        Ok(Some(GroupData::decode(&group_data_bytes)?))
+        Ok(Some(GroupData::decode(bytes)?))
     }
 
     /// Group data changed by `staged_commit` if any.
@@ -2636,9 +2616,7 @@ impl Group {
                     && let Some(extension) =
                         extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
                 {
-                    Some(GroupData::decode(&GroupDataBytes::from(
-                        extension.0.clone(),
-                    )))
+                    Some(GroupData::decode(&extension.0))
                 } else {
                     None
                 }
@@ -2787,7 +2765,7 @@ impl NewGroupContext {
         if let Some(group_data) = group_data {
             extensions.add(Extension::Unknown(
                 GROUP_DATA_EXTENSION_TYPE,
-                UnknownExtension(group_data.bytes),
+                UnknownExtension(group_data),
             ))?;
         }
         Ok(())

@@ -20,7 +20,6 @@ use uuid::Uuid;
 use crate::{
     contacts::PartialContactType,
     db::access::{WriteConnection, WriteTransaction},
-    groups::GroupDataBytes,
 };
 
 pub use draft::MessageDraft;
@@ -404,12 +403,12 @@ impl ChatAttributes {
 /// Extension trait for bridging [`GroupData`] and types in this coreclient.
 pub(crate) trait GroupDataExt {
     /// Decodes the group data from the group data extension bytes.
-    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error>
+    fn decode(bytes: &[u8]) -> Result<Self, codec::Error>
     where
         Self: Sized;
 
     /// Encodes the group data as bytes to be stored in the group data extension.
-    fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
+    fn encode(&self) -> Result<Vec<u8>, codec::Error>;
 
     /// Returns the chat title and the group data profile.
     ///
@@ -421,12 +420,12 @@ pub(crate) trait GroupDataExt {
 }
 
 impl GroupDataExt for GroupData {
-    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error> {
-        PersistenceCodec::from_slice(bytes.bytes())
+    fn decode(bytes: &[u8]) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes)
     }
 
-    fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
-        PersistenceCodec::to_vec(self).map(From::from)
+    fn encode(&self) -> Result<Vec<u8>, codec::Error> {
+        PersistenceCodec::to_vec(self)
     }
 
     fn into_parts(
