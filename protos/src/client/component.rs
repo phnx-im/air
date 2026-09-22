@@ -9,6 +9,9 @@ use mls_assist::openmls::component::ComponentId;
 /// The component id of the Air component.
 pub const AIR_COMPONENT_ID: ComponentId = 0x8000;
 
+/// The component id of the component containing the group profile.
+pub const AIR_GROUP_PROFILE_COMPONENT_ID: ComponentId = 0x8002;
+
 /// Custom component storing client-specific features and data.
 ///
 /// Stored in the app data extension of the group context, leaf node or key package.

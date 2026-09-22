@@ -31,7 +31,6 @@ use tracing::{error, info};
 
 use crate::{
     Chat, ChatId, ChatMessage, SystemMessage,
-    chats::GroupDataExt,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -39,7 +38,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+        Group, NewGroupContext, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
         self_group::SelfGroup,
     },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
@@ -299,11 +298,6 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         signing_key: &UserSigningKey,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams, Option<SelfGroup>)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let group_data_bytes = GroupData {
-            encrypted_title: None,
-            external_group_profile: None,
-        }
-        .encode()?;
 
         let self_group = SelfGroup::load(&mut *txn).await?;
 
@@ -312,7 +306,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             signing_key,
             identity_link_wrapper_key,
             self.group_id.clone(),
-            group_data_bytes,
+            NewGroupContext::LegacyChat(GroupData::empty()),
             self_group.as_ref().map(|group| group.group_id()),
         )?;
 

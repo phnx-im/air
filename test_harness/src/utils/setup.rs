@@ -165,6 +165,13 @@ enum TestKind {
     SingleBackend(String), // url of the single backend
 }
 
+enum GroupKind {
+    /// Plain or APQ group with the profile in the group data extension.
+    Apq(bool),
+    /// Plain or APQ group with the profile in the group profile component.
+    ProfileComponent(bool),
+}
+
 pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
@@ -1163,28 +1170,44 @@ impl TestBackend {
     }
 
     pub async fn create_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, true).await
+        self.create_group_inner(user_id, GroupKind::Apq(true)).await
     }
 
     /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
     pub async fn create_non_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, false).await
+        self.create_group_inner(user_id, GroupKind::Apq(false))
+            .await
     }
 
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, self.apq_groups).await
+        self.create_group_inner(user_id, GroupKind::Apq(self.apq_groups))
+            .await
     }
 
-    async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
+    /// Creates a group whose profile is stored in the group profile component.
+    pub async fn create_group_with_profile_component(
+        &mut self,
+        user_id: &UserId,
+        is_apq: bool,
+    ) -> ChatId {
+        self.create_group_inner(user_id, GroupKind::ProfileComponent(is_apq))
+            .await
+    }
+
+    async fn create_group_inner(&mut self, user_id: &UserId, kind: GroupKind) -> ChatId {
         let test_user = self.users.get_mut(user_id).unwrap();
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let chat_id = user
-            .create_chat(group_name.clone(), None, is_apq)
-            .await
-            .unwrap();
+        let chat_id = match kind {
+            GroupKind::Apq(is_apq) => user.create_chat(group_name.clone(), None, is_apq).await,
+            GroupKind::ProfileComponent(is_apq) => {
+                user.create_chat_with_profile_component(group_name.clone(), is_apq)
+                    .await
+            }
+        }
+        .unwrap();
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
