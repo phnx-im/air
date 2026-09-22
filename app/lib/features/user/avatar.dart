@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/avatar/avatar.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
-import 'package:air/util/cached_memory_image.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -51,6 +51,28 @@ class ChatAvatar extends StatelessWidget {
       return details;
     });
 
+    return ChatDetailsAvatar(chat: chat, size: size, onPressed: onPressed);
+  }
+}
+
+/// Same as [ChatAvatar], but takes the chat details directly instead of
+/// reading them from a [ChatDetailsCubit].
+class ChatDetailsAvatar extends StatelessWidget {
+  const ChatDetailsAvatar({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails? chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = this.chat;
+
     final showImage = switch (chat?.chatType) {
       UiChatType_Connection() || UiChatType_Group() => true,
       _ => false,
@@ -59,6 +81,40 @@ class ChatAvatar extends StatelessWidget {
     final displayName = chat?.title ?? chat?.displayName ?? "";
     final image = chat?.picture;
     final gradientKey = chat?.userId?.uuid ?? chat?.id.uuid;
+
+    return _Avatar(
+      displayName: displayName,
+      image: showImage ? image : null,
+      size: size,
+      onPressed: onPressed,
+      gradientKey: gradientKey,
+    );
+  }
+}
+
+/// Avatar for a chat the host already has.
+class ChatAvatarView extends StatelessWidget {
+  const ChatAvatarView({
+    super.key,
+    required this.chat,
+    this.size = 24.0,
+    this.onPressed,
+  });
+
+  final UiChatDetails chat;
+  final double size;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final showImage = switch (chat.chatType) {
+      UiChatType_Connection() || UiChatType_Group() => true,
+      _ => false,
+    };
+
+    final displayName = chat.title;
+    final image = chat.picture;
+    final gradientKey = chat.userId?.uuid ?? chat.id.uuid;
 
     return _Avatar(
       displayName: displayName,
@@ -97,7 +153,7 @@ class _Avatar extends StatelessWidget {
       displayName: displayName,
       size: size,
       image: image != null
-          ? CachedMemoryImage.fromImageData(
+          ? TaggedMemoryImage.fromImageData(
               image,
               targetWidth: targetSize,
               targetHeight: targetSize,

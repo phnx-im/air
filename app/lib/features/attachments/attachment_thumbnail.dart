@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/features/attachments/attachment_image_provider.dart';
+import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,7 +30,7 @@ class AttachmentThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metadata = attachment.imageMetadata;
+    final blurhash = attachment.imageMetadata?.blurhash;
     final pixels = (size * MediaQuery.devicePixelRatioOf(context)).round();
 
     return ClipRRect(
@@ -38,22 +38,22 @@ class AttachmentThumbnail extends StatelessWidget {
       child: SizedBox.square(
         dimension: size,
         child: Stack(
-          fit: StackFit.expand,
+          fit: .expand,
           children: [
             ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
-            if (metadata != null) BlurHash(hash: metadata.blurhash),
+            if (blurhash != null) BlurHash(hash: blurhash),
             Image(
               image: ResizeImage(
-                AttachmentImageProvider(
-                  attachment: attachment,
+                AttachmentThumbnailProvider(
+                  attachmentId: attachment.attachmentId,
                   attachmentsRepository: context.read<AttachmentsRepository>(),
                 ),
                 width: pixels,
                 height: pixels,
-                policy: ResizeImagePolicy.fit,
+                policy: .fit,
                 allowUpscaling: false,
               ),
-              fit: BoxFit.cover,
+              fit: .cover,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
           ],

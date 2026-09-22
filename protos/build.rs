@@ -96,6 +96,7 @@ const SIGNED_REQUESTS: &[(Service, &str)] = &[
     (Service::As, "StageUserProfileRequest"),
     (Service::As, "MergeUserProfileRequest"),
     (Service::As, "IssueTokensRequest"),
+    (Service::As, "IssueTokenBatchRequest"),
     (Service::As, "ReportSpamRequest"),
     (Service::As, "CreateUsernameRequest"),
     (Service::As, "DeleteUsernameRequest"),

@@ -15,7 +15,10 @@ pub struct AttachmentProgress {
 #[derive(Debug, Clone, Copy)]
 pub enum AttachmentProgressEvent {
     Init,
-    Progress { bytes_loaded: usize },
+    Progress {
+        bytes_total: usize,
+        bytes_loaded: usize,
+    },
     Completed,
     Failed,
     NotFound,
@@ -41,9 +44,12 @@ pub(crate) struct AttachmentProgressSender {
 }
 
 impl AttachmentProgressSender {
-    pub(super) fn report(&self, bytes_loaded: usize) {
+    pub(super) fn report(&self, bytes_total: usize, bytes_loaded: usize) {
         if let Some(tx) = &self.tx {
-            let _ignore_closed = tx.send(AttachmentProgressEvent::Progress { bytes_loaded });
+            let _ignore_closed = tx.send(AttachmentProgressEvent::Progress {
+                bytes_total,
+                bytes_loaded,
+            });
         }
     }
 

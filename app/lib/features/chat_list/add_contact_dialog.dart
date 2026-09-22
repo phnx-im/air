@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
@@ -10,14 +11,14 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:flutter/material.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 
 final _log = Logger("AddContactDialog");
 
@@ -30,6 +31,7 @@ class AddContactDialog extends HookWidget {
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
     final errorMessage = useState<String?>(null);
+    final preferApq = useState(false);
 
     final controller = useTextEditingController();
 
@@ -37,10 +39,14 @@ class AddContactDialog extends HookWidget {
 
     final loc = AppLocalizations.of(context);
 
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
+
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           Center(
             child: Text(
@@ -76,6 +82,7 @@ class AddContactDialog extends HookWidget {
                 errorMessage: errorMessage,
                 usernameHash: usernameHash,
                 value: value,
+                preferApq: preferApq.value,
               )._submit(context);
             },
           ),
@@ -91,6 +98,15 @@ class AddContactDialog extends HookWidget {
               username: controller.text,
             ),
           ),
+
+          if (experimentalFeatures) ...[
+            const SizedBox(height: S.s12),
+            SwitchField(
+              onChanged: (value) => preferApq.value = value,
+              value: preferApq.value,
+              label: "Post-Quantum Encryption",
+            ),
+          ],
 
           const SizedBox(height: S.s24),
 
@@ -113,6 +129,7 @@ class AddContactDialog extends HookWidget {
                     errorMessage: errorMessage,
                     usernameHash: usernameHash,
                     value: controller.text,
+                    preferApq: preferApq.value,
                   )._submit(context),
                   state: isSubmitting.value
                       ? .pending
@@ -179,12 +196,14 @@ class _SubmitHandler {
     required this.errorMessage,
     required this.usernameHash,
     required this.value,
+    required this.preferApq,
   });
 
   final ValueNotifier<bool> isSubmitting;
   final ValueNotifier<String?> errorMessage;
   final ValueNotifier<UsernameHash?> usernameHash;
   final String value;
+  final bool preferApq;
 
   void _submit(BuildContext context) {
     isSubmitting.value = true;
@@ -234,11 +253,12 @@ class _SubmitHandler {
     isSubmitting.value = true;
 
     final loc = AppLocalizations.of(context);
-    final chatListCubit = context.read<ChatListCubit>();
+    final chatsRepository = context.read<ChatsRepository>();
     try {
-      final error = await chatListCubit.createContactChat(
+      final error = await chatsRepository.createContactChat(
         username: username,
         hash: hash,
+        preferApq: preferApq,
       );
       final errorMessage = switch (error) {
         AddUsernameContactError.usernameNotFound =>

@@ -14,8 +14,10 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -82,7 +84,7 @@ class ContactDetailsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return ModalBody(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: .stretch,
         children: [
           Center(child: UserAvatar(profile: profile, size: 192)),
 
@@ -90,7 +92,7 @@ class ContactDetailsView extends StatelessWidget {
 
           Text(
             profile.displayName,
-            textAlign: TextAlign.center,
+            textAlign: .center,
             style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
@@ -124,7 +126,7 @@ class _CallToActions extends StatelessWidget {
     final tokens = ButtonCTATokens.current;
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: .center,
       children: [
         // Flexible so a long label wraps under its circle rather than pushing
         // the row past the card's width.
@@ -202,7 +204,7 @@ class _Actions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: .stretch,
       children: [
         ReportSpamButton(userId: profile.userId),
 
@@ -227,10 +229,9 @@ class _Actions extends StatelessWidget {
           ),
         ],
 
-        if (relationship case MemberRelationship(
-          :final groupChatId,
-          :final canKick,
-        ) when canKick) ...[
+        if (relationship
+            case MemberRelationship(:final groupChatId, :final canKick)
+            when canKick) ...[
           const SizedBox(height: S.s12),
           RemoveMemberButton(
             chatId: groupChatId,
@@ -264,11 +265,16 @@ class _AddContactDialog extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final inProgress = useState(false);
+    final preferApq = useState(false);
+
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
 
     return AppDialog(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: .min,
+        crossAxisAlignment: .start,
         children: [
           Center(
             child: Text(
@@ -283,6 +289,15 @@ class _AddContactDialog extends HookWidget {
             loc.addContactDialog_content(displayName, groupTitle),
             style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
+
+          if (experimentalFeatures) ...[
+            const SizedBox(height: S.s16),
+            SwitchField(
+              onChanged: (value) => preferApq.value = value,
+              value: preferApq.value,
+              label: "Post-Quantum Encryption",
+            ),
+          ],
 
           const SizedBox(height: S.s24),
 
@@ -303,6 +318,7 @@ class _AddContactDialog extends HookWidget {
                   onPressed: () => _handleSendChatRequest(
                     context,
                     (value) => inProgress.value = value,
+                    preferApq.value,
                   ),
                   label: loc.addContactDialog_confirm,
                   state: inProgress.value
@@ -320,6 +336,7 @@ class _AddContactDialog extends HookWidget {
   void _handleSendChatRequest(
     BuildContext context,
     void Function(bool) setInProgress,
+    bool preferApq,
   ) async {
     setInProgress(true);
 
@@ -330,6 +347,7 @@ class _AddContactDialog extends HookWidget {
       final chatId = await userCubit.addContactFromGroup(
         userId: userId,
         chatId: groupChatId,
+        preferApq: preferApq,
       );
       navigationCubit.openChat(chatId);
     } catch (error) {

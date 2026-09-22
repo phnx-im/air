@@ -20,7 +20,6 @@ use uuid::Uuid;
 use crate::{
     contacts::PartialContactType,
     db::access::{WriteConnection, WriteTransaction},
-    groups::GroupDataBytes,
 };
 
 pub use draft::MessageDraft;
@@ -380,13 +379,6 @@ impl ChatAttributes {
         Self { title, picture }
     }
 
-    pub(crate) fn empty() -> Self {
-        Self {
-            title: String::new(),
-            picture: None,
-        }
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.title.is_empty() && self.picture.is_none()
     }
@@ -411,12 +403,12 @@ impl ChatAttributes {
 /// Extension trait for bridging [`GroupData`] and types in this coreclient.
 pub(crate) trait GroupDataExt {
     /// Decodes the group data from the group data extension bytes.
-    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error>
+    fn decode(bytes: &[u8]) -> Result<Self, codec::Error>
     where
         Self: Sized;
 
     /// Encodes the group data as bytes to be stored in the group data extension.
-    fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
+    fn encode(&self) -> Result<Vec<u8>, codec::Error>;
 
     /// Returns the chat title and the group data profile.
     ///
@@ -424,69 +416,35 @@ pub(crate) trait GroupDataExt {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<GroupDataProfilePart>);
-
-    /// Decodes the group data and returns the contained chat title, if any.
-    ///
-    /// The group profile part is dropped. Use this for our own commits and
-    /// the self group, where the profile data is already available locally.
-    fn decode_title(
-        bytes: &GroupDataBytes,
-        identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> Result<Option<String>, codec::Error>
-    where
-        Self: Sized,
-    {
-        Ok(Self::decode(bytes)?.into_parts(identity_link_wrapper_key).0)
-    }
-}
-
-/// Part of the group data that is stored in the group data extension.
-///
-/// It is either the external group profile or the legacy picture.
-pub(crate) enum GroupDataProfilePart {
-    /// External group profile stored in the object storage
-    ExternalProfile(ExternalGroupProfile),
-    /// Legacy picture stored as a blob
-    LegacyPicture(Vec<u8>),
+    ) -> (Option<String>, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
-    fn decode(bytes: &GroupDataBytes) -> Result<Self, codec::Error> {
-        PersistenceCodec::from_slice(bytes.bytes())
+    fn decode(bytes: &[u8]) -> Result<Self, codec::Error> {
+        PersistenceCodec::from_slice(bytes)
     }
 
-    fn encode(&self) -> Result<GroupDataBytes, codec::Error> {
-        PersistenceCodec::to_vec(self).map(From::from)
+    fn encode(&self) -> Result<Vec<u8>, codec::Error> {
+        PersistenceCodec::to_vec(self)
     }
 
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<GroupDataProfilePart>) {
+    ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
-            legacy_title,
-            legacy_picture,
             encrypted_title,
             external_group_profile,
         } = self;
-
-        let title = if let Some(encrypted_title) = encrypted_title
-            && let Ok(decrypted_title) = encrypted_title
+        let title = encrypted_title.and_then(|encrypted| {
+            encrypted
                 .decrypt(identity_link_wrapper_key)
                 .inspect_err(|error| {
-                    error!(%error, "Failed to decrypt group title; fallback to plaintext");
-                }) {
-            Some(decrypted_title)
-        } else {
-            legacy_title
-        };
-
-        let profile = external_group_profile
-            .map(GroupDataProfilePart::ExternalProfile)
-            .or_else(|| legacy_picture.map(GroupDataProfilePart::LegacyPicture));
-
-        (title, profile)
+                    error!(%error, "Failed to decrypt group title");
+                })
+                .ok()
+        });
+        (title, external_group_profile)
     }
 }
 

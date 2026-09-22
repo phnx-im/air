@@ -222,7 +222,7 @@ class _TimeRevealRowState extends State<TimeRevealRow> {
         final t = reveal.progress.value;
         final (:shift, :alignment) = _geometry(reveal.width);
         return Stack(
-          clipBehavior: Clip.none,
+          clipBehavior: .none,
           children: [
             Transform.translate(offset: Offset(-t * shift, 0), child: row),
             Positioned(

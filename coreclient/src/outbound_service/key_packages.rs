@@ -102,7 +102,7 @@ impl OutboundServiceContext {
 
     async fn upload_via_self_group(&self, mut self_group: SelfGroup) -> anyhow::Result<Duration> {
         // Generate key packages
-        let Some((epoch_id, generated)) = self
+        let Some(generated) = self
             .db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // Pending chat operation guard
@@ -127,16 +127,13 @@ impl OutboundServiceContext {
                     .mls_group
                     .clear_pending_commit(provider.storage())?;
 
-                let epoch_id = self_group
-                    .group_mut()
-                    .mls_group_mut()
-                    .register_vc_emulation_epoch(provider.crypto(), provider.storage())?;
+                let emulation_group_id = self_group.group().mls_group().group_id().clone();
 
                 // TODO: Heavy CPU operation, do we have to spawn_blocking here?
                 let generated = self.key_store.generate_vc_key_package_batch(
                     &mut *txn,
                     &self.qs_client_id,
-                    epoch_id.clone(),
+                    &emulation_group_id,
                     VcKeyPackageBatchConfig {
                         key_packages: KEY_PACKAGES,
                         last_resort: true,
@@ -145,7 +142,7 @@ impl OutboundServiceContext {
                     },
                 )?;
 
-                Ok(Some((epoch_id, generated)))
+                Ok(Some(generated))
             })
             .await?
         else {
@@ -154,6 +151,7 @@ impl OutboundServiceContext {
 
         // Upload and stage key packages
         let HeterogeneousVcKeyPackageBatch {
+            epoch_id,
             generation,
             key_packages,
             apq_key_packages,

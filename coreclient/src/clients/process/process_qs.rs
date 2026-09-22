@@ -21,8 +21,8 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    group::GroupData,
-    virtual_client::{VirtualClientAction, extract_virtual_client_action},
+    group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
@@ -42,7 +42,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
-        GroupDataExt, GroupDataProfilePart, StatusRecord,
+        GroupDataExt, StatusRecord,
         messages::edit::{MessageEdit, handle_message_edit},
         reactions::Reaction,
     },
@@ -51,19 +51,22 @@ use crate::{
         own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::{update_chat_attributes, update_chat_title},
+        update_key::update_chat_title,
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupDataBytes, JoinSigners, VerifiedGroup,
+        DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
-    outbound_service::{chat_message_queue::ChatMessageQueue, resync::Resync},
+    outbound_service::{
+        chat_message_queue::ChatMessageQueue,
+        resync::{Resync, ResyncStatus},
+    },
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -81,7 +84,7 @@ pub struct QsMessageOutcome {
 }
 
 impl QsMessageOutcome {
-    fn empty() -> QsMessageOutcome {
+    pub(super) fn empty() -> QsMessageOutcome {
         Self::default()
     }
 
@@ -261,6 +264,24 @@ impl CoreUser {
                 .handle_commit_response(txn, ds_commit_response)
                 .await
                 .map(|_| QsMessageOutcome::empty()),
+            ExtractedQsQueueMessagePayload::GroupCreationEcho(echo) => {
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::CreationEcho,
+                    ds_timestamp,
+                ))
+                .await
+            }
+            ExtractedQsQueueMessagePayload::GroupJoinEcho(echo) => {
+                Box::pin(self.handle_group_bootstrap_echo(
+                    txn,
+                    echo,
+                    GroupBootstrapCarrier::JoinEcho,
+                    ds_timestamp,
+                ))
+                .await
+            }
         };
 
         debug!(elapsed = ?started.elapsed(), "Processed QS message");
@@ -298,7 +319,7 @@ impl CoreUser {
         }
 
         // If yes, merge the commit and store the updated group
-        let (mut group_messages, group_data_bytes) =
+        let (mut group_messages, group_data) =
             group.merge_pending_commit(txn, None, timestamp).await?;
         group
             .group_mut()
@@ -319,7 +340,7 @@ impl CoreUser {
             txn,
             &group,
             &mut chat,
-            group_data_bytes,
+            group_data,
             &mut group_messages,
             key_package_batch,
             timestamp,
@@ -347,15 +368,15 @@ impl CoreUser {
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         chat: &mut Chat,
-        group_data_bytes: Option<GroupDataBytes>,
+        group_data: Option<GroupData>,
         group_messages: &mut Vec<TimestampedMessage>,
         key_package_batch: Option<KeyPackageBatchId>,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
-        if let Some(group_data_bytes) = group_data_bytes
-            && let Some(title) =
-                GroupData::decode_title(&group_data_bytes, group.identity_link_wrapper_key())?
+        if let Some(group_data) = group_data
+            && let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key())
+            && let Some(title) = title
         {
             update_chat_title(
                 &mut *txn,
@@ -368,12 +389,12 @@ impl CoreUser {
             .await?;
         }
 
-        // Our settings commit was accepted: complete the pending setting
-        // changes it asserted before the operation is deleted. Only self-group
-        // commits can carry a settings update. Boxed because the loaded
-        // operation carries the full group state.
+        // Our self-group commit was accepted: complete the pending intent it
+        // asserted before the operation is deleted. Only self-group commits
+        // carry settings or token seeds. Boxed because the loaded operation
+        // carries the full group state.
         if group.is_self_group() {
-            Box::pin(PendingChatOperation::complete_settings_intent(
+            Box::pin(PendingChatOperation::complete_self_group_intent_of_group(
                 &mut *txn,
                 group.group_id(),
             ))
@@ -430,7 +451,7 @@ impl CoreUser {
             client: self.signing_key(),
             self_group: own_client_info.self_group_signing_key.as_ref(),
         };
-        let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
@@ -441,26 +462,16 @@ impl CoreUser {
 
         if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
             debug!("joined self group as a linked device");
-            let group_data_bytes = group.group_data().context("self group has no group data")?;
-            let title =
-                GroupData::decode_title(&group_data_bytes, group.identity_link_wrapper_key())?;
+            let group_data = group
+                .group_data()?
+                .context("self group has no group data")?;
+            let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key());
             let attributes = ChatAttributes {
                 title: title.context("self group has no title")?,
                 picture: None,
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
             chat.store(&mut *txn).await?;
-
-            // Register the emulation epoch at the epoch we joined into. The
-            // sibling that added us registers at the same epoch when it merges
-            // its Add commit, so both derive the same `EpochId`. Joining does
-            // not go through `Group::merge_pending_commit`, which covers every
-            // later epoch of the self group.
-            let epoch_id = group.register_vc_emulation_epoch(&mut *txn)?;
-            debug!(
-                ?epoch_id,
-                "registered self-group VC emulation epoch on join"
-            );
 
             return Ok(QsMessageOutcome::new_chat(
                 chat.id(),
@@ -502,23 +513,9 @@ impl CoreUser {
         // members if they don't exist yet and store the group and the
         // new chat.
 
-        // Set the chat attributes according to the group's
-        // group data.
-        let group_data_bytes = group.group_data().context("No group data")?;
-        let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
-        let title = title.context("No group title")?;
-        // An external group profile is not yet available; it is fetched later.
-        let picture = Self::resolve_group_profile_part(
-            txn,
-            &group_id,
-            &sender_user_id,
-            ds_timestamp,
-            group_profile_part,
-            true,
-        )
-        .await?;
-        let attributes = ChatAttributes { title, picture };
+        let attributes =
+            Self::chat_attributes_from_group_data(txn, &group, &sender_user_id, ds_timestamp)
+                .await?;
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
         let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -532,7 +529,7 @@ impl CoreUser {
         let system_message = ChatMessage::new_system_message(
             chat.id(),
             ds_timestamp,
-            SystemMessage::Add(sender_user_id.clone(), self.user_id().clone()),
+            SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone()),
         );
         system_message.store(&mut *txn).await?;
 
@@ -563,33 +560,36 @@ impl CoreUser {
         ))
     }
 
-    /// Handles the profile part of decoded group data: schedules a fetch for
-    /// an external group profile, or returns the picture for the legacy
-    /// variant.
-    pub(crate) async fn resolve_group_profile_part(
+    /// Decodes the group data extension into the attributes of the chat a
+    /// joiner creates for `group`.
+    ///
+    /// An external group profile is not yet available, so it is scheduled for
+    /// a fetch and the picture stays empty until it arrives.
+    pub(crate) async fn chat_attributes_from_group_data(
         txn: &mut WriteDbTransaction<'_>,
-        group_id: &GroupId,
+        group: &Group,
         sender_id: &UserId,
         ds_timestamp: TimeStamp,
-        group_profile_part: Option<GroupDataProfilePart>,
-        is_initial_fetch: bool,
-    ) -> sqlx::Result<Option<Vec<u8>>> {
-        match group_profile_part {
-            Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
-                Self::schedule_fetch_group_profile(
-                    &mut *txn,
-                    group_id.clone(),
-                    sender_id.clone(),
-                    ds_timestamp,
-                    external_group_profile,
-                    is_initial_fetch,
-                )
-                .await?;
-                Ok(None)
-            }
-            Some(GroupDataProfilePart::LegacyPicture(picture)) => Ok(Some(picture)),
-            None => Ok(None),
+    ) -> anyhow::Result<ChatAttributes> {
+        let group_data = group.group_data()?.context("No group data")?;
+        let (title, external_group_profile) =
+            group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
+        if let Some(external_group_profile) = external_group_profile {
+            Self::schedule_fetch_group_profile(
+                &mut *txn,
+                group.group_id().clone(),
+                sender_id.clone(),
+                ds_timestamp,
+                external_group_profile,
+                true,
+            )
+            .await?;
         }
+        Ok(ChatAttributes {
+            title,
+            picture: None,
+        })
     }
 
     /// Loads the chat and the verified group for the given group id.
@@ -619,20 +619,29 @@ impl CoreUser {
         match result {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
-            ProcessMessageResult::ResyncRequired => {
-                // TODO: Once we have a UX for resyncs, we should schedule one
-                // here and re-enable the resync test in integration.rs
-                let _resync = Resync {
-                    chat_id: Some(chat_id),
-                    group_id: group.group_id().clone(),
-                    pq_group_id: group.pq_group_id(),
-                    group_state_ear_key: group.group_state_ear_key().clone(),
-                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                    original_leaf_index: group.own_index(),
-                    shares_vc_leaf: group.own_leaf_is_virtual_client(),
-                    connection_contact: None,
-                };
-                group.group_mut().mark_commit_failed(&mut *txn).await?;
+            ProcessMessageResult::ResyncRequired(reason) => {
+                let group_id = group.group_id().clone();
+                match Resync::status(&mut *txn, &group_id).await? {
+                    None => {
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        Resync::for_group(chat_id, group.group(), reason)
+                            .enqueue(&mut *txn)
+                            .await?;
+                        group.group_mut().mark_commit_failed(&mut *txn).await?;
+                    }
+                    Some(ResyncStatus::Pending) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; resync already scheduled"
+                        );
+                    }
+                    Some(ResyncStatus::Failed) => {
+                        debug!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; earlier resync failed permanently, not scheduling"
+                        );
+                    }
+                }
                 Ok(None)
             }
         }
@@ -903,7 +912,7 @@ impl CoreUser {
                 // Our own commit was echoed back before the matching
                 // `DsCommitResponse` arrived, so we merge it here and run
                 // the same side effects the response would have.
-                let (mut group_messages, group_data_bytes) = group
+                let (mut group_messages, group_data) = group
                     .merge_pending_commit(&mut *txn, None, ds_timestamp)
                     .await?;
                 let pq_updated_at = group.is_apq().then_some(ds_timestamp);
@@ -915,7 +924,7 @@ impl CoreUser {
                     &mut *txn,
                     &group,
                     &mut chat,
-                    group_data_bytes,
+                    group_data,
                     &mut group_messages,
                     key_package_batch,
                     ds_timestamp,
@@ -1336,7 +1345,7 @@ impl CoreUser {
             .room_state_change_role(sender, sender, RoleIndex::Outsider)?;
 
         messages.push(TimestampedMessage::system_message(
-            SystemMessage::Remove(sender.clone(), removed.clone()),
+            SystemMessage::Remove(Some(sender.clone()), removed.clone()),
             ds_timestamp,
         ));
 
@@ -1398,54 +1407,37 @@ impl CoreUser {
                 OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
             }
         }
-        let (messages_from_commit, group_data_bytes) = group
+        let (messages_from_commit, group_data) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(group_data_bytes) = group_data_bytes {
-            let group_data = GroupData::decode(&group_data_bytes)?;
+        if let Some(group_data) = group_data {
             let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            let chat_picture = Self::resolve_group_profile_part(
-                txn,
-                chat.group_id(),
-                sender_user_credential.user_id(),
-                ds_timestamp,
-                group_profile_part,
-                false,
-            )
-            .await?;
+            if let Some(external_group_profile) = group_profile_part {
+                Self::schedule_fetch_group_profile(
+                    &mut *txn,
+                    chat.group_id().clone(),
+                    sender_user_credential.user_id().clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                    false,
+                )
+                .await?;
+            }
             // Update chat title according to new group data
-            match (chat_title, chat_picture) {
-                (Some(title), Some(picture)) => {
-                    update_chat_attributes(
-                        txn,
-                        &mut chat,
-                        sender_user_credential.user_id(),
-                        ChatAttributes {
-                            title,
-                            picture: Some(picture),
-                        },
-                        ds_timestamp,
-                        &mut group_messages,
-                    )
-                    .await?;
-                }
-                (Some(title), None) => {
-                    update_chat_title(
-                        txn,
-                        &mut chat,
-                        sender_user_credential.user_id(),
-                        title,
-                        ds_timestamp,
-                        &mut group_messages,
-                    )
-                    .await?;
-                }
-                (None, Some(_)) => error!("Received group data with legacy picture and no title"),
-                (None, None) => (),
+            if let Some(title) = chat_title {
+                update_chat_title(
+                    txn,
+                    &mut chat,
+                    sender_user_credential.user_id(),
+                    title,
+                    ds_timestamp,
+                    &mut group_messages,
+                )
+                .await?;
             }
         }
 
@@ -1743,11 +1735,10 @@ fn own_commit_key_package_batch(
     ) {
         return Ok(None);
     }
-    let Some(action) = extract_virtual_client_action(processed_message)? else {
+    let Some(commit_data) = extract_virtual_client_commit_data(processed_message)? else {
         return Ok(None);
     };
-    let VirtualClientAction::KeyPackageUpload(upload) = action;
-    Ok(Some(KeyPackageBatchId::from(&upload)))
+    Ok(commit_data.key_package_uploads().next().map(From::from))
 }
 
 #[cfg(test)]
@@ -1756,18 +1747,16 @@ mod tests {
         credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId},
-        mls_group_config::AppComponent,
     };
-    use airprotos::client::component::AirComponent;
     use openmls::{
-        components::vc_derivation_info::{KeyPackageUpload, VC_COMPONENT_ID},
-        prelude::tls_codec::Serialize as _,
+        components::vc_derivation_info::KeyPackageUpload, prelude::tls_codec::Serialize as _,
     };
+    use openmls_traits::OpenMlsProvider as _;
     use uuid::Uuid;
 
     use crate::{
         db::access::DbAccess,
-        groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+        groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
         utils::persistence::open_db_in_memory,
     };
 
@@ -1813,15 +1802,22 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    Some(vec![VC_COMPONENT_ID]),
-                    AirComponent::default_for_self_group(),
+                    NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
 
                 let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self-group")?;
-                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
+                // Creating the self group registers its initial derivation epoch.
+                let epoch_id = {
+                    let provider = AirOpenMlsProvider::new(txn.as_mut());
+                    self_group
+                        .group()
+                        .mls_group()
+                        .newest_vc_derivation_epoch(provider.storage())?
+                        .context("no derivation epoch in the self-group")?
+                };
                 let leaf_index = self_group.group().mls_group().own_leaf_index();
                 let upload = KeyPackageUpload {
                     epoch_id: epoch_id.clone(),

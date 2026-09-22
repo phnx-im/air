@@ -17,7 +17,6 @@ use tls_codec::{
     TlsDeserializeBytes, TlsSerialize, TlsSize,
 };
 
-pub mod assert_matches;
 pub mod codec;
 pub mod credentials;
 pub mod crypto;
@@ -27,11 +26,18 @@ pub mod messages;
 pub mod mls_group_config;
 pub mod padme;
 pub mod pow;
+pub mod registration;
 pub mod time;
 pub mod utils;
 pub mod virtual_client;
 
 pub const ACCEPTED_API_VERSIONS_HEADER: &str = "x-accepted-api-versions";
+
+/// Maximum size of an attachment in bytes.
+///
+/// The server takes this as the default for its configurable
+/// `storage.max_attachment_size` and remains the authority.
+pub const DEFAULT_MAX_ATTACHMENT_SIZE: u64 = 20 * 1024 * 1024;
 
 /// Unrecoverable error in this implementation.
 #[derive(Debug, Clone, Error, Serialize, Deserialize)]

@@ -128,8 +128,7 @@ impl OwnClientInfo {
     /// Backfill a missing client id with a freshly generated one.
     ///
     /// The migration adding the column defaults it to the nil UUID for clients that existed
-    /// before, since sqlite cannot generate valid UUIDs. Runs on every client DB open and is a
-    /// no-op once the id is set.
+    /// before, since sqlite cannot generate valid UUIDs.
     pub(crate) async fn backfill_client_id(mut write: impl WriteConnection) -> sqlx::Result<()> {
         let client_id = Uuid::new_v4();
         let nil_client_id = Uuid::nil();

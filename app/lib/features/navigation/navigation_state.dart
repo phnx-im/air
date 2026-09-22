@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'navigation_state.freezed.dart';
@@ -38,6 +39,12 @@ sealed class NavigationState with _$NavigationState {
   ChatId? get openChatId => switch (this) {
     HomeState(:final home) when home.chatOpen => home.chatId,
     IntroState() || HomeState() => null,
+  };
+
+  /// The share waiting to be staged in a composer, if any.
+  PendingShare? get pendingShare => switch (this) {
+    HomeState(:final home) => home.pendingShare,
+    IntroState() => null,
   };
 
   /// Whether account creation is on screen. A user appearing under the flow is
@@ -87,6 +94,13 @@ abstract class HomeNavigationState with _$HomeNavigationState {
     /// The chat details drill-down, bottom level first. Empty means closed.
     @Default(<ChatDetailsPage>[]) List<ChatDetailsPage> chatDetails,
     @Default(false) bool createGroupOpen,
+
+    /// Content the Android share activity handed over, waiting for the open
+    /// chat's composer to take it. Never set on iOS or desktop.
+    PendingShare? pendingShare,
+
+    /// The destination picker, shown when the share named no chat.
+    @Default(false) bool shareDestinationOpen,
   }) = _HomeNavigationState;
 }
 

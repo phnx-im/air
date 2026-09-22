@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, fs};
+use std::{assert_matches, collections::HashMap, fs};
 
 use airapiclient::as_api::AsRequestError;
-use aircommon::{assert_matches, identifiers::Username};
+use aircommon::identifiers::Username;
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile,
-    clients::{CoreUser, store::ClientRecord},
+    clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
@@ -167,7 +167,10 @@ async fn error_if_user_doesnt_exist() {
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
 
-    let res = alice_user.add_contact(username, hash).await.unwrap();
+    let res = alice_user
+        .add_contact(username, hash, setup.apq_groups)
+        .await
+        .unwrap();
 
     assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
 }
@@ -179,7 +182,7 @@ async fn delete_user() {
 
     let alice = setup.add_user().await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&alice, setup.server_url(), "DUMMY007").await {
+    match TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007")).await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -192,7 +195,7 @@ async fn delete_user() {
     setup.delete_user(&alice).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+    TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
 }
@@ -224,7 +227,9 @@ async fn blocked_contact() {
 
     // Not possible to send a message to Bob
     let msg = MimiContent::simple_markdown_message("Hello".into(), [0; 16]);
-    let res = alice_user.send_message(chat_id, msg.clone(), None).await;
+    let res = alice_user
+        .send_message(chat_id, msg.clone(), None, MarkChatAsRead::Yes)
+        .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
     assert_eq!(bob_test_user.fetch_and_process_qs_messages().await, 0);
@@ -256,7 +261,10 @@ async fn blocked_contact() {
     assert!(res.is_empty(), "message is dropped");
 
     // Messages from bob are dropped
-    bob_user.send_message(chat_id, msg, None).await.unwrap();
+    bob_user
+        .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
     bob_test_user.user.outbound_service().run_once().await;
     // We get the message but it is dropped
     let messages = alice_test_user.user.qs_fetch_messages().await.unwrap();
@@ -277,7 +285,11 @@ async fn blocked_contact() {
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(
+            alice_username.clone(),
+            alice_username_hash,
+            setup.apq_groups,
+        )
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -355,7 +367,7 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), "DUMMY007")
+    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
     // Adding a username to the new user should work, because the previous username was
@@ -375,13 +387,14 @@ async fn username_sanity_checks() {
     let bob_username = username_record.username.clone();
     let bob_username_hash = bob_username.calculate_hash().unwrap();
 
+    let apq_groups = setup.apq_groups;
     let alice = setup.get_user_mut(&alice);
     let username_record = alice.add_username().await.unwrap();
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(alice_username.clone(), alice_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -392,12 +405,12 @@ async fn username_sanity_checks() {
 
     // Try to add Bob twice
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -519,6 +532,7 @@ async fn add_contact_and_change_profile() {
         .add_contact(
             alice_username_record.username.clone(),
             alice_username_record.hash,
+            setup.apq_groups,
         )
         .await
         .expect("fatal error")
@@ -556,6 +570,7 @@ async fn add_contact_and_change_profile() {
             alice_bob_chat_id,
             MimiContent::simple_markdown_message("hello".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();

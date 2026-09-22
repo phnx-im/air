@@ -16,7 +16,7 @@ import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:air/util/cached_memory_image.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -122,7 +122,7 @@ Future<void> showQuickReactionMenu({
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: _QuickReactionMenuOverlay(
               animation: curved,
               anchorRect: anchorRect,
@@ -263,7 +263,7 @@ Future<void> showWhoReactedSheet({
         opacity: animation,
         child: Center(
           child: Material(
-            type: MaterialType.transparency,
+            type: .transparency,
             child: Container(
               width: _reactorPanelSize.width,
               height: _reactorPanelSize.height,
@@ -305,7 +305,7 @@ List<ReactionDetailEntry> _reactorEntries(
           displayName: mine ? youLabel : profile.displayName,
           emoji: reaction.emoji,
           image: picture != null
-              ? CachedMemoryImage.fromImageData(
+              ? TaggedMemoryImage.fromImageData(
                   picture,
                   targetWidth: pixels,
                   targetHeight: pixels,

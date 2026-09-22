@@ -47,6 +47,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::IssueTokenBatchRequest,
+    payload = super::v1::IssueTokenBatchPayload,
+    key_type = ClientKeyType,
+    label = "IssueTokenBatchPayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::ReportSpamRequest,
     payload = super::v1::ReportSpamPayload,
     key_type = ClientKeyType,

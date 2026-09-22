@@ -55,15 +55,15 @@ class MessageText extends StatelessWidget {
       .body
       .regular
       .style(color: SemanticPalette.of(context).text.tertiary)
-      .copyWith(fontStyle: FontStyle.italic);
+      .copyWith(fontStyle: .italic);
 
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle.merge(
       style: styleOf(context, isSelf: isSelf, jumbo: jumbo),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: .start,
+        mainAxisSize: .min,
         spacing: MessageTextTokens.blockGap,
         children: blocks,
       ),

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO registration_ip_bucket_key (key)\n        VALUES ($1)\n        ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key\n        RETURNING key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "registration_ip_bucket_key",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ca79d3770dd87d1a80eb4e82cc8f6d93bd3137cdac26624f18e50d5ed7b0e47"
+}

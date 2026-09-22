@@ -41,7 +41,7 @@ void main() {
             theme: testLightTheme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: ModalScaffold(
-              title: 'Safety Code',
+              title: 'Safety code',
               child: SafetyCodeView(profile: userProfiles[1]),
             ),
           ),
@@ -65,9 +65,8 @@ void main() {
         12345,
       ]);
 
-      when(
-        () => userCubit.safetyCodes(any()),
-      ).thenAnswer((_) => Future.value(dummy));
+      when(() => userCubit.safetyCodes(any()))
+          .thenAnswer((_) => Future.value(dummy));
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 

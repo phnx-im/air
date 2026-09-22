@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
 import 'android_status_bar.dart';
 import 'ios_status_bar.dart';
 import 'product_shot_frame.dart';
@@ -83,17 +84,17 @@ class ProductShot extends StatelessWidget {
             return Padding(
               padding: outerPadding,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: .center,
                 children: [
                   SizedBox(
                     height: headerHeight,
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: FittedBox(
-                        fit: BoxFit.scaleDown,
+                        fit: .scaleDown,
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: .start,
+                          crossAxisAlignment: .center,
                           children: [
                             SizedBox(height: headerHeight * 0.05),
                             _ShotTitle(
@@ -157,19 +158,14 @@ class _ShotTitle extends StatelessWidget {
     final fontSize = size / 16;
     final textStyle = TextStyle(
       fontSize: fontSize,
-      fontWeight: FontWeight.w800,
+      fontWeight: .w800,
       height: 1.3,
       letterSpacing: -fontSize / 128,
       color: color,
     );
     return DefaultTextStyle.merge(
       style: textStyle,
-      child: Text(
-        text,
-        maxLines: 2,
-        textAlign: TextAlign.center,
-        overflow: TextOverflow.ellipsis,
-      ),
+      child: Text(text, maxLines: 2, textAlign: .center, overflow: .ellipsis),
     );
   }
 }
@@ -191,19 +187,14 @@ class _ShotSubtitle extends StatelessWidget {
     final fontSize = size / 24;
     final textStyle = TextStyle(
       fontSize: fontSize,
-      fontWeight: FontWeight.w500,
+      fontWeight: .w500,
       height: 1.3,
       letterSpacing: -fontSize / 128,
       color: color,
     );
     return DefaultTextStyle.merge(
       style: textStyle,
-      child: Text(
-        text,
-        maxLines: 2,
-        textAlign: TextAlign.center,
-        overflow: TextOverflow.ellipsis,
-      ),
+      child: Text(text, maxLines: 2, textAlign: .center, overflow: .ellipsis),
     );
   }
 }

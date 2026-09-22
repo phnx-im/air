@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -15,32 +15,41 @@ use aircommon::{
         errors::{DecryptionError, EncryptionError},
     },
     identifiers::{QsReference, SealedClientReference},
-    messages::client_ds::WelcomeInfoParams,
-    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
+    utils::removed_client,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::extension::ApqInfo;
-use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
+use mimi_room_policy::{MimiProposal, RoleIndex, RoomState, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
-    group::Group,
+    group::{Group, RetainedWelcomeInfo},
     openmls::{
         group::GroupId,
         prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
-        treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
 };
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, PgTransaction};
 use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::error;
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
-use crate::errors::{CborMlsAssistStorage, StorageError};
+use crate::{
+    ds::{
+        WELCOME_INFO_EXPIRATION, epoch_snapshot::EpochSnapshotWriteError,
+        welcome_info::WelcomeInfoWriteError,
+    },
+    errors::{CborMlsAssistStorage, StorageError},
+};
 
-use super::{GROUP_STATE_EXPIRATION, ReservedGroupId, process::ExternalCommitInfo};
+use super::{
+    GROUP_STATE_EXPIRATION, ReservedGroupId,
+    epoch_snapshot::{DsEpochSnapshot, EpochSnapshotOutbox},
+    process::ExternalCommitInfo,
+    welcome_info::{DsWelcomeInfo, WelcomeInfoOutbox},
+};
 
 pub(super) mod persistence;
 
@@ -56,20 +65,24 @@ pub(super) struct MemberProfile {
 /// The `DsGroupState` is the per-group state that the DS persists.
 /// It is encrypted-at-rest with a roster key.
 ///
-/// TODO: Past group states are now included in mls-assist. However, we might
-/// have to store user credentials externally.
+/// TODO: We might have to store user credentials externally.
 pub(crate) struct DsGroupState {
     pub(super) room_state: VerifiedRoomState,
     pub(super) group: Group,
     pub(super) provider: MlsAssistRustCrypto<PersistenceCodec>,
     pub(super) member_profiles: BTreeMap<LeafNodeIndex, MemberProfile>,
     pub(super) proposals: Vec<Vec<u8>>,
-    /// Profile keys at each epoch a Welcome could have been issued at.
-    pub(super) past_member_profiles: BTreeMap<GroupEpoch, PastMemberProfiles>,
+
+    /// Transient container for welcome infos (produced on `Add` proposals)
+    /// that we need to persist for a later client to fetch.
+    welcome_info_outbox: WelcomeInfoOutbox,
+
+    /// Transient container for the epoch snapshot a virtual client's external
+    /// join produced, for its sibling emulator clients to fetch.
+    epoch_snapshot_outbox: EpochSnapshotOutbox,
 }
 
-/// What a joiner needs about one epoch, with the time it was taken so it can
-/// expire alongside the ratchet tree it belongs to.
+/// What a joiner needs about one epoch, as V3 stored it.
 #[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
 pub(super) struct PastMemberProfiles {
     pub(super) created_at: TimeStamp,
@@ -95,13 +108,15 @@ impl DsGroupState {
         };
 
         let client_profiles = [(LeafNodeIndex::new(0u32), creator_client_profile)].into();
+
         Self {
             provider,
             group,
             room_state,
             member_profiles: client_profiles,
             proposals: Vec::new(),
-            past_member_profiles: BTreeMap::new(),
+            welcome_info_outbox: WelcomeInfoOutbox::default(),
+            epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
         }
     }
 
@@ -165,79 +180,83 @@ impl DsGroupState {
         &self.group
     }
 
-    /// Get a mutable reference to the public group state.
-    pub(crate) fn group_mut(&mut self) -> &mut Group {
-        &mut self.group
+    /// Stage the welcome information for the epoch `retained` refers to.
+    ///
+    /// Must be called after the commit's membership changes have been applied,
+    /// so the recorded profile keys are the ones a joiner at that epoch needs.
+    pub(super) fn stage_welcome_info(&mut self, retained: Option<RetainedWelcomeInfo>) {
+        let Some(retained) = retained else { return };
+        // The function call while loading the room state skips members with a
+        // queued remove. A commit that doesn't include that proposal drops it
+        // but keeps the leaf, so add such members back before a joiner sees
+        // the room state.
+        add_missing_members_to_room_state(
+            &mut self.room_state,
+            &self.group,
+            self.provider.storage(),
+        );
+        let (epoch, info) = DsWelcomeInfo::new(
+            retained,
+            self.current_member_profiles().collect(),
+            &self.room_state,
+        );
+        self.welcome_info_outbox
+            .stage(epoch, TimeStamp::now(), info);
     }
 
-    pub(super) fn welcome_info(
+    /// Same as [`stage_welcome_info`] but
+    /// without member profile keys as an optimisation.
+    ///
+    /// The client never uses them from the PQ leg of an APQ group.
+    pub(super) fn stage_welcome_info_without_profile_keys(
         &mut self,
-        welcome_info_params: WelcomeInfoParams,
-    ) -> Option<&RatchetTree> {
-        self.group_mut().past_group_state(
-            &welcome_info_params.epoch,
-            &welcome_info_params.sender.into(),
+        retained: Option<RetainedWelcomeInfo>,
+    ) {
+        let Some(retained) = retained else { return };
+        let (epoch, info) = DsWelcomeInfo::new(retained, Vec::new(), &self.room_state);
+        self.welcome_info_outbox
+            .stage(epoch, TimeStamp::now(), info);
+    }
+
+    pub(super) async fn write_staged_welcome_infos(
+        &mut self,
+        txn: &mut PgTransaction<'_>,
+        group_id: Uuid,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(), WelcomeInfoWriteError> {
+        let outbox = std::mem::take(&mut self.welcome_info_outbox);
+        outbox.write(txn, group_id, ear_key).await
+    }
+
+    /// The state of this group as of its current epoch, as a sibling emulator
+    /// client of the acting client has to see it.
+    pub(super) fn epoch_snapshot(&self) -> DsEpochSnapshot {
+        DsEpochSnapshot::new(
+            self.group().group_info().clone(),
+            self.group().export_ratchet_tree(),
+            &self.room_state,
         )
     }
 
-    /// Records the current profile keys against `epoch`.
-    pub(super) fn snapshot_member_profiles(&mut self, epoch: GroupEpoch) {
-        let profiles = self.current_member_profiles().collect();
-        let room_state = match PersistenceCodec::to_vec(self.room_state.unverified()) {
-            Ok(bytes) => bytes.into(),
-            Err(error) => {
-                // Without the snapshot a later join falls back to current-epoch
-                // data, which is the behaviour this replaces. It must not fail
-                // the commit being applied.
-                error!(%error, "failed to snapshot room state; skipping this epoch");
-                return;
-            }
-        };
-        self.past_member_profiles.insert(
-            epoch,
-            PastMemberProfiles {
-                created_at: TimeStamp::now(),
-                profiles,
-                room_state,
-            },
-        );
+    /// Stage an epoch snapshot for the epoch it was taken at.
+    pub(super) fn stage_epoch_snapshot(&mut self, epoch: GroupEpoch, snapshot: DsEpochSnapshot) {
+        self.epoch_snapshot_outbox.stage(epoch, snapshot);
     }
 
-    /// Drops snapshots older than the retention used for past group states, so
-    /// this map cannot outgrow the trees it shadows.
-    fn prune_past_member_profiles(&mut self) {
-        self.past_member_profiles
-            .retain(|_, snapshot| !snapshot.created_at.has_expired(GROUP_STATE_EXPIRATION));
+    pub(super) async fn write_staged_epoch_snapshot(
+        &mut self,
+        txn: &mut PgTransaction<'_>,
+        group_id: Uuid,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(), EpochSnapshotWriteError> {
+        let outbox = std::mem::take(&mut self.epoch_snapshot_outbox);
+        outbox.write(txn, group_id, ear_key).await
     }
 
-    /// The room state as of `epoch`, falling back to the current one when
-    /// no snapshot was retained (a group written before this was introduced,
-    /// or an epoch whose snapshot has expired).
-    pub(super) fn room_state_at(&self, epoch: GroupEpoch) -> VerifiedRoomState {
-        self.past_member_profiles
-            .get(&epoch)
-            .and_then(|snapshot| {
-                let unverified = PersistenceCodec::from_slice(snapshot.room_state.as_slice())
-                    .inspect_err(|error| error!(%error, "failed to load snapshotted room state"))
-                    .ok()?;
-                VerifiedRoomState::verify(unverified)
-                    .inspect_err(|error| error!(%error, "failed to verify snapshotted room state"))
-                    .ok()
-            })
-            .unwrap_or_else(|| self.room_state.clone())
-    }
-
-    /// The profile keys as of `epoch`, falling back to the current ones when
-    /// no snapshot was retained (a group written before this was introduced,
-    /// or an epoch whose snapshot has expired).
-    pub(super) fn member_profiles_at(
-        &self,
-        epoch: GroupEpoch,
-    ) -> Vec<(LeafNodeIndex, EncryptedUserProfileKey)> {
-        match self.past_member_profiles.get(&epoch) {
-            Some(snapshot) => snapshot.profiles.clone(),
-            None => self.current_member_profiles().collect(),
-        }
+    /// Serve welcome information from a V3 group state, for a joiner whose
+    /// Welcome predates the move to `ds_welcome_info`.
+    pub(super) fn legacy_welcome_info(self, epoch: GroupEpoch) -> Option<DsWelcomeInfo> {
+        self.welcome_info_outbox.take(epoch)
     }
 
     pub(super) fn external_commit_info(&self) -> ExternalCommitInfo {
@@ -264,12 +283,11 @@ impl DsGroupState {
     }
 
     pub(super) fn encrypt(
-        mut self,
+        self,
         ear_key: &GroupStateEarKey,
     ) -> Result<EncryptedDsGroupState, DsGroupStateEncryptionError> {
-        self.prune_past_member_profiles();
         let encrypted =
-            EncryptableDsGroupState::from(SerializableDsGroupStateV3::from_group_state(self)?)
+            EncryptableDsGroupState::from(SerializableDsGroupStateV4::from_group_state(self)?)
                 .encrypt(ear_key)?;
         Ok(encrypted)
     }
@@ -279,7 +297,7 @@ impl DsGroupState {
         ear_key: &GroupStateEarKey,
     ) -> Result<Self, DsGroupStateDecryptionError> {
         let encryptable = EncryptableDsGroupState::decrypt(ear_key, encrypted_group_state)?;
-        let group_state = SerializableDsGroupStateV3::into_group_state(encryptable.into())?;
+        let group_state = DecodedDsGroupState::from(encryptable).into_group_state()?;
         Ok(group_state)
     }
 
@@ -310,32 +328,32 @@ impl DsGroupState {
             .map(|(_, client_profile)| client_profile.client_queue_config.clone())
     }
 
-    /// Returns `true` if the group context's [`AirComponent`] marks this group as a
+    /// Returns `true` if the group context's [`GroupAppData`] marks this group as a
     /// self-group. The flag is fixed at group creation.
     pub(crate) fn is_self_group(&self) -> bool {
-        AirComponent::is_self_group_context(self.group().group_info().group_context().extensions())
+        GroupAppData::is_self_group_context(self.group().group_info().group_context().extensions())
     }
 
-    /// If the group context's [`AirComponent`] marks this group
+    /// If the group context's [`GroupAppData`] marks this group
     /// as a virtual-client self-group, disable virtual-client broadcasting.
     pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
         !self.is_self_group()
     }
 
-    /// The self-group flag in the group context's [`AirComponent`] is fixed at
+    /// The self-group flag in the group context's [`GroupAppData`] is fixed at
     /// group creation. Returns `true` if merging `staged_commit` keeps it
     /// unchanged.
     pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
         let current_extensions = self.group().group_info().group_context().extensions();
-        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
-            == AirComponent::is_self_group_context(current_extensions)
+        GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+            == GroupAppData::is_self_group_context(current_extensions)
     }
 
     /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
     pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
         self.group()
             .leaf(leaf_index)
-            .is_some_and(leaf_node_is_virtual_client)
+            .is_some_and(ClientAppData::leaf_is_virtual_client)
     }
 
     /// The queue reference recorded for `leaf_index`, if any.
@@ -428,6 +446,10 @@ impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
     pub(super) fn has_expired(&self) -> bool {
         self.last_used.has_expired(GROUP_STATE_EXPIRATION)
     }
+
+    pub(super) fn group_uuid(&self) -> Uuid {
+        self.group_id
+    }
 }
 
 #[derive(TlsSize, TlsDeserializeBytes, TlsSerialize)]
@@ -486,7 +508,42 @@ pub(crate) struct SerializableDsGroupStateV3 {
     past_member_profiles: Vec<(GroupEpoch, PastMemberProfiles)>,
 }
 
-impl SerializableDsGroupStateV3 {
+impl From<SerializableDsGroupStateV3> for DecodedDsGroupState {
+    fn from(v3: SerializableDsGroupStateV3) -> Self {
+        Self {
+            state: SerializableDsGroupStateV4 {
+                group_id: v3.group_id,
+                serialized_provider: v3.serialized_provider,
+                room_state: v3.room_state,
+                member_profiles: v3.member_profiles,
+                proposals: v3.proposals,
+            },
+            // Kept for migration: a joiner whose Welcome
+            // predates `ds_welcome_info` is still served from these.
+            legacy_past_member_profiles: v3.past_member_profiles,
+        }
+    }
+}
+
+/// Welcome information lives in `ds_welcome_info` from V4 on.
+#[derive(TlsSize, TlsDeserializeBytes, TlsSerialize)]
+pub(crate) struct SerializableDsGroupStateV4 {
+    group_id: GroupId,
+    serialized_provider: VLBytes,
+    room_state: VLBytes,
+    member_profiles: Vec<(LeafNodeIndex, MemberProfile)>,
+    // Proposals that are valid in external commits in TLS-serialized form
+    proposals: Vec<Vec<u8>>,
+}
+
+/// A decoded group state, plus whatever legacy welcome information
+/// the blob came with.
+pub(super) struct DecodedDsGroupState {
+    state: SerializableDsGroupStateV4,
+    legacy_past_member_profiles: Vec<(GroupEpoch, PastMemberProfiles)>,
+}
+
+impl SerializableDsGroupStateV4 {
     pub(super) fn from_group_state(
         group_state: DsGroupState,
     ) -> Result<Self, aircommon::codec::Error> {
@@ -505,18 +562,21 @@ impl SerializableDsGroupStateV3 {
             member_profiles: client_profiles,
             room_state,
             proposals: group_state.proposals,
-            past_member_profiles: group_state.past_member_profiles.into_iter().collect(),
         })
     }
+}
 
+impl DecodedDsGroupState {
     pub(super) fn into_group_state(self) -> Result<DsGroupState, aircommon::codec::Error> {
-        let storage = CborMlsAssistStorage::deserialize(self.serialized_provider.as_slice())?;
+        let state = self.state;
+        let storage = CborMlsAssistStorage::deserialize(state.serialized_provider.as_slice())?;
         // We unwrap here, because the constructor ensures that `self` always stores a group
-        let group = Group::load(&storage, &self.group_id)?.unwrap();
-        let client_profiles = self.member_profiles.into_iter().collect();
+        let mut group = Group::load(&storage, &state.group_id)?.unwrap();
+        let client_profiles: BTreeMap<LeafNodeIndex, MemberProfile> =
+            state.member_profiles.into_iter().collect();
         let provider = MlsAssistRustCrypto::from(storage);
 
-        let room_state = PersistenceCodec::from_slice(self.room_state.as_slice())
+        let mut room_state = PersistenceCodec::from_slice(state.room_state.as_slice())
             .inspect_err(|error| {
                 error!(%error, "Failed to load room state. Falling back to default room state.");
             })
@@ -528,15 +588,58 @@ impl SerializableDsGroupStateV3 {
             })
             .unwrap_or_else(|| fallback_room_state(group.members()));
 
+        add_missing_members_to_room_state(&mut room_state, &group, provider.storage());
+
+        let mut legacy_past_member_profiles: BTreeMap<_, _> =
+            self.legacy_past_member_profiles.into_iter().collect();
+
+        let mut staged_welcome_info = WelcomeInfoOutbox::default();
+        for legacy in group.take_legacy_past_group_states() {
+            if TimeStamp::from(legacy.creation_time).has_expired(WELCOME_INFO_EXPIRATION) {
+                continue;
+            }
+            // Absent snapshots fall back to the current profiles and room
+            // state, which is what serving this epoch did before.
+            let (profiles, room_state) = match legacy_past_member_profiles.remove(&legacy.epoch) {
+                Some(snapshot) => (snapshot.profiles, decode_room_state(&snapshot.room_state)),
+                None => {
+                    let current_member_profiles = client_profiles
+                        .iter()
+                        .map(|(index, profile)| {
+                            (*index, profile.encrypted_user_profile_key.clone())
+                        })
+                        .collect();
+
+                    (
+                        current_member_profiles,
+                        Some(room_state.unverified().clone()),
+                    )
+                }
+            };
+
+            let (epoch, created_at, info) =
+                DsWelcomeInfo::from_legacy(legacy, profiles, room_state);
+
+            staged_welcome_info.stage(epoch, created_at, info);
+        }
+
         Ok(DsGroupState {
             provider,
             group,
             member_profiles: client_profiles,
             room_state,
-            proposals: self.proposals,
-            past_member_profiles: self.past_member_profiles.into_iter().collect(),
+            proposals: state.proposals,
+            welcome_info_outbox: staged_welcome_info,
+            epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
         })
     }
+}
+
+/// Decode a room state snapshotted by V3.
+fn decode_room_state(bytes: &VLBytes) -> Option<RoomState> {
+    PersistenceCodec::from_slice(bytes.as_slice())
+        .inspect_err(|error| error!(%error, "failed to load snapshotted room state"))
+        .ok()
 }
 
 /// Check that a leaf credential matches the group kind.
@@ -548,6 +651,118 @@ pub(super) fn leaf_credential_matches_flag(
     is_self_group: bool,
 ) -> bool {
     matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
+}
+
+/// Give the regular role to every group member the room state does not list.
+///
+/// The DS used to not record the external joiner of a connection group in its
+/// room state, so a connection group created before that fix misses its joiner.
+/// The clients have applied the changes on their own in the past, so only the
+/// DS needs this fix.
+///
+/// Leaves with a queued remove or self-remove proposal are left out. The DS
+/// applies the role change of a self-remove when the proposal arrives, so the
+/// room state legitimately drops such a member before the commit that evicts
+/// them.
+fn add_missing_members_to_room_state(
+    room_state: &mut VerifiedRoomState,
+    group: &Group,
+    storage: &CborMlsAssistStorage,
+) {
+    let mut members = Vec::new();
+    for member in group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)
+            .ok()
+            .and_then(|credential| credential.room_policy_identity().to_bytes().ok());
+        let Some(identity) = identity else {
+            debug!(
+                index = %member.index,
+                "Leaf without a room policy identity, not reconciling the room state",
+            );
+            return;
+        };
+        members.push((member.index, identity));
+    }
+
+    let queued_removes: HashSet<_> = match group.queued_proposals(storage) {
+        Ok(proposals) => proposals.iter().filter_map(removed_client).collect(),
+        Err(error) => {
+            error!(%error, "Failed to load queued proposals, not reconciling the room state");
+            return;
+        }
+    };
+
+    reconcile_room_state(room_state, members, &queued_removes);
+}
+
+/// Room-state part of [`add_missing_members_to_room_state`].
+///
+/// `members` holds the leaf index and room policy identity of every group
+/// member.
+fn reconcile_room_state(
+    room_state: &mut VerifiedRoomState,
+    members: Vec<(LeafNodeIndex, Vec<u8>)>,
+    queued_removes: &HashSet<LeafNodeIndex>,
+) {
+    let missing: Vec<_> = members
+        .into_iter()
+        .filter(|(index, identity)| {
+            !room_state.users().contains_key(identity) && !queued_removes.contains(index)
+        })
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+
+    // A room state that lists nobody cannot admit anyone. Every user it had has
+    // left while the tree kept members it never recorded, so we rebuild it from
+    // those members.
+    if room_state.users().is_empty() {
+        warn!(
+            count = missing.len(),
+            "Rebuilding a room state that lists no members"
+        );
+        let identities: Vec<_> = missing.into_iter().map(|(_, id)| id).collect();
+        let stand_in = identities[0].clone();
+        let mut rebuilt = VerifiedRoomState::fallback_room(identities);
+        if let Err(error) = rebuilt.apply_regular_proposals(
+            &stand_in,
+            &[MimiProposal::ChangeRole {
+                target: stand_in.clone(),
+                role: RoleIndex::Regular,
+            }],
+        ) {
+            error!(%error, "Failed to demote the stand-in owner");
+        }
+        *room_state = rebuilt;
+        return;
+    }
+
+    for (index, target) in missing {
+        let proposal = [MimiProposal::ChangeRole {
+            target,
+            role: RoleIndex::Regular,
+        }];
+        // Act as any member the policy lets invite. The room owner is the one
+        // that admitted every other member, but it may have left the room since.
+        let Some(sender) = room_state
+            .users()
+            .keys()
+            .find(|sender| {
+                room_state
+                    .can_apply_regular_proposals(sender, &proposal)
+                    .is_ok()
+            })
+            .cloned()
+        else {
+            error!(%index, "No member can admit the missing member, leaving the room state as is");
+            continue;
+        };
+        match room_state.apply_regular_proposals(&sender, &proposal) {
+            Ok(()) => warn!(%index, "Added a missing member to the room state"),
+            Err(error) => error!(%error, %index, "Failed to add a missing member"),
+        }
+    }
 }
 
 fn fallback_room_state(
@@ -578,23 +793,31 @@ pub(super) enum EncryptableDsGroupState {
     V1(SerializableDsGroupStateV1),
     V2(SerializableDsGroupStateV2),
     V3(SerializableDsGroupStateV3),
+    V4(SerializableDsGroupStateV4),
 }
 
-impl From<EncryptableDsGroupState> for SerializableDsGroupStateV3 {
+impl From<EncryptableDsGroupState> for DecodedDsGroupState {
     fn from(encryptable: EncryptableDsGroupState) -> Self {
         match encryptable {
             EncryptableDsGroupState::V1(serializable) => {
-                SerializableDsGroupStateV2::from(serializable).into()
+                SerializableDsGroupStateV3::from(SerializableDsGroupStateV2::from(serializable))
+                    .into()
             }
-            EncryptableDsGroupState::V2(serializable) => serializable.into(),
-            EncryptableDsGroupState::V3(serializable) => serializable,
+            EncryptableDsGroupState::V2(serializable) => {
+                SerializableDsGroupStateV3::from(serializable).into()
+            }
+            EncryptableDsGroupState::V3(serializable) => serializable.into(),
+            EncryptableDsGroupState::V4(serializable) => Self {
+                state: serializable,
+                legacy_past_member_profiles: Vec::new(),
+            },
         }
     }
 }
 
-impl From<SerializableDsGroupStateV3> for EncryptableDsGroupState {
-    fn from(serializable: SerializableDsGroupStateV3) -> Self {
-        EncryptableDsGroupState::V3(serializable)
+impl From<SerializableDsGroupStateV4> for EncryptableDsGroupState {
+    fn from(serializable: SerializableDsGroupStateV4) -> Self {
+        EncryptableDsGroupState::V4(serializable)
     }
 }
 
@@ -621,6 +844,47 @@ mod test {
     fn test_encrypted_ds_group_state_serde_json() {
         let state = EncryptedDsGroupState::dummy();
         insta::assert_json_snapshot!(state);
+    }
+
+    #[test]
+    fn v3_welcome_info_survives_decoding() {
+        let epoch = GroupEpoch::from(4);
+        let v3 = SerializableDsGroupStateV3 {
+            group_id: GroupId::from_slice(b"group"),
+            serialized_provider: vec![].into(),
+            room_state: vec![].into(),
+            member_profiles: Vec::new(),
+            proposals: Vec::new(),
+            past_member_profiles: vec![(
+                epoch,
+                PastMemberProfiles {
+                    created_at: TimeStamp::now(),
+                    profiles: vec![(LeafNodeIndex::new(0), EncryptedUserProfileKey::dummy())],
+                    room_state: vec![1u8, 2, 3].into(),
+                },
+            )],
+        };
+
+        let decoded = DecodedDsGroupState::from(EncryptableDsGroupState::V3(v3));
+
+        assert_eq!(decoded.legacy_past_member_profiles.len(), 1);
+        assert_eq!(decoded.legacy_past_member_profiles[0].0, epoch);
+    }
+
+    /// V4 writes no welcome information, so there is nothing to migrate.
+    #[test]
+    fn v4_carries_no_legacy_welcome_info() {
+        let v4 = SerializableDsGroupStateV4 {
+            group_id: GroupId::from_slice(b"group"),
+            serialized_provider: vec![].into(),
+            room_state: vec![].into(),
+            member_profiles: Vec::new(),
+            proposals: Vec::new(),
+        };
+
+        let decoded = DecodedDsGroupState::from(EncryptableDsGroupState::V4(v4));
+
+        assert!(decoded.legacy_past_member_profiles.is_empty());
     }
 
     #[test]
@@ -698,5 +962,183 @@ mod test {
         assert!(!leaf_credential_matches_flag(&user_leaf(), true));
         // A self-group credential in a regular group is rejected.
         assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
+    }
+
+    fn user_identity() -> Vec<u8> {
+        use aircommon::identifiers::UserId;
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        RoomPolicyIdentity::User(user_id).to_bytes().unwrap()
+    }
+
+    fn room_owned_by(owner: &[u8]) -> VerifiedRoomState {
+        VerifiedRoomState::new(
+            owner.to_vec(),
+            mimi_room_policy::RoomPolicy::default_trusted_private(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn reconcile_adds_missing_member_as_regular() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state.users().get(&alice), Some(&RoleIndex::Owner));
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+    }
+
+    #[test]
+    fn reconcile_leaves_complete_room_state_unchanged() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: bob.clone(),
+                    role: RoleIndex::Regular,
+                }],
+            )
+            .unwrap();
+        let before = room_state.clone();
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![(LeafNodeIndex::new(0), alice), (LeafNodeIndex::new(1), bob)],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state, before);
+    }
+
+    #[test]
+    fn reconcile_skips_member_with_queued_remove() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::from([LeafNodeIndex::new(1)]),
+        );
+
+        assert_eq!(room_state.users().len(), 1);
+        assert!(room_state.users().contains_key(&alice));
+    }
+
+    #[test]
+    fn reconcile_adds_member_when_owner_left() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let carol = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: bob.clone(),
+                    role: RoleIndex::Regular,
+                }],
+            )
+            .unwrap();
+        // The owner leaves, so only a regular member is left to admit Carol.
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(1), bob.clone()),
+                (LeafNodeIndex::new(2), carol.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+        assert_eq!(room_state.users().get(&carol), Some(&RoleIndex::Regular));
+        assert!(!room_state.users().contains_key(&alice));
+    }
+
+    #[test]
+    fn reconcile_rebuilds_empty_room_state() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let carol = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+        assert!(room_state.users().is_empty());
+
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(1), bob.clone()),
+                (LeafNodeIndex::new(2), carol.clone()),
+            ],
+            &HashSet::new(),
+        );
+
+        // Everybody is a regular member, nobody keeps the stand-in owner role.
+        assert_eq!(room_state.users().len(), 2);
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
+        assert_eq!(room_state.users().get(&carol), Some(&RoleIndex::Regular));
+    }
+
+    #[test]
+    fn reconcile_rebuilds_empty_room_state_ignoring_queued_removes() {
+        let alice = user_identity();
+        let bob = user_identity();
+        let mut room_state = room_owned_by(&alice);
+        room_state
+            .apply_regular_proposals(
+                &alice,
+                &[MimiProposal::ChangeRole {
+                    target: alice.clone(),
+                    role: RoleIndex::Outsider,
+                }],
+            )
+            .unwrap();
+
+        // Alice's leaf is still in the tree with her self-remove queued.
+        reconcile_room_state(
+            &mut room_state,
+            vec![
+                (LeafNodeIndex::new(0), alice.clone()),
+                (LeafNodeIndex::new(1), bob.clone()),
+            ],
+            &HashSet::from([LeafNodeIndex::new(0)]),
+        );
+
+        assert_eq!(room_state.users().len(), 1);
+        assert_eq!(room_state.users().get(&bob), Some(&RoleIndex::Regular));
     }
 }

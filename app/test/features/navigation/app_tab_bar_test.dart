@@ -74,7 +74,7 @@ void main() {
     });
 
     testWidgets('renders with chats tab active (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
 
       useTab(HomeTab.chats);
@@ -88,9 +88,8 @@ void main() {
 
     testWidgets('tapping the inactive tab switches to it', (tester) async {
       useTab(HomeTab.chats);
-      when(
-        () => navigationCubit.switchTab(HomeTab.profile),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.switchTab(HomeTab.profile))
+          .thenAnswer((_) async {});
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.text('You'));
@@ -102,9 +101,8 @@ void main() {
       tester,
     ) async {
       useTab(HomeTab.profile);
-      when(
-        () => navigationCubit.switchTab(HomeTab.chats),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.switchTab(HomeTab.chats))
+          .thenAnswer((_) async {});
       await tester.pumpWidget(buildSubject());
 
       await tester.tap(find.text('Chats'));

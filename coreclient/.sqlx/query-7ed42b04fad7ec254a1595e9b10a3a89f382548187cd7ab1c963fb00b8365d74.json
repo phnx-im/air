@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE privacy_pass_seed\n         SET needs_broadcast = FALSE\n         WHERE operation_type = ? AND key_fingerprint = ? AND seed = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7ed42b04fad7ec254a1595e9b10a3a89f382548187cd7ab1c963fb00b8365d74"
+}

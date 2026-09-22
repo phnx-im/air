@@ -40,6 +40,52 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let user_id = setup.add_user().await;
+    let test_user = setup.get_user(&user_id);
+    let user = &test_user.user;
+
+    user.ensure_self_group().await?;
+    assert!(
+        user.self_group_has_derivation_epoch().await?,
+        "creating the self-group registers its initial derivation epoch"
+    );
+    let self_chat_id = user.self_chat_id().await?.expect("no self chat");
+
+    user.enqueue_group_resync(self_chat_id).await?;
+    user.outbound_service().run_once().await;
+    assert!(
+        user.resync_status(self_chat_id).await?.is_none(),
+        "resync should have completed"
+    );
+
+    assert!(
+        user.self_group_has_derivation_epoch().await?,
+        "the resync must re-register the self-group's derivation epoch"
+    );
+
+    // The self-group backs virtual-client operations again: a key package
+    // upload stages against its derivation epoch and completes.
+    user.outbound_service()
+        .schedule_key_package_upload(Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+    test_user.fetch_and_process_qs_messages().await;
+    assert!(
+        user.self_group_pending_operation_info().await?.is_none(),
+        "upload cycle should have completed"
+    );
+    let (plain_refs, apq_refs) = user.live_key_package_refs().await?;
+    assert!(
+        !plain_refs.is_empty() && !apq_refs.is_empty(),
+        "the upload after the resync should have published a live batch"
+    );
+
+    Ok(())
+}
+
 /// Key packages uploaded via the self-group only go live after the `DsCommitResponse` carrying
 /// the batch id arrives through the queue.
 #[tokio::test(flavor = "multi_thread")]
@@ -419,6 +465,94 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
             .iter()
             .any(|message| message.chat_id() == chat_id),
         "the sibling should receive messages sent into the group"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
+    use aircoreclient::clients::MarkChatAsRead;
+    use mimi_content::MimiContent;
+
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    drain_queue(&device_b).await?;
+
+    // Device A publishes a fresh batch via the self-group.
+    {
+        let test_user = setup.get_user(&alice);
+        let user = &test_user.user;
+        user.outbound_service()
+            .schedule_key_package_upload(Utc::now())
+            .await?;
+        user.outbound_service().run_once().await;
+        test_user.fetch_and_process_qs_messages().await;
+        assert!(
+            user.self_group_pending_operation_info().await?.is_none(),
+            "upload cycle should have completed"
+        );
+    }
+    drain_queue(&device_b).await?;
+
+    // Bob invites Alice: device B joins from the same welcome.
+    let chat_id = setup.create_group(&bob).await;
+    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_chats
+            .iter()
+            .any(|new_chat| new_chat.chat_id == chat_id),
+        "the sibling should have joined the group from the welcome"
+    );
+
+    // Device A sends: device B must see the echo.
+    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device B should receive the message device A sent: processed={} new_messages={} errors={:?}",
+        processed.processed,
+        processed.new_messages.len(),
+        processed.errors,
+    );
+
+    // Device B sends: device A must see the echo.
+    let content = MimiContent::simple_markdown_message("from device b".to_owned(), [9u8; 16]);
+    device_b
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    device_b.outbound_service().run_once().await;
+    let processed = drain_queue(setup.get_user(&alice).user()).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device A should receive the message device B sent: processed={} new_messages={} errors={:?}",
+        processed.processed,
+        processed.new_messages.len(),
+        processed.errors,
+    );
+
+    // Bob sends: both devices see it.
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "device B should receive Bob's message"
     );
 
     Ok(())

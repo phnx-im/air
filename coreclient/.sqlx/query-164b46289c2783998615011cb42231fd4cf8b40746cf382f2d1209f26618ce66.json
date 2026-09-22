@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_derivation_epoch_log_entry\n                    WHERE group_id = ?1 AND epoch_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "164b46289c2783998615011cb42231fd4cf8b40746cf382f2d1209f26618ce66"
+}

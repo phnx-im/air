@@ -278,6 +278,39 @@ impl CoreUser {
         self_group.client_ids()
     }
 
+    /// The Privacy Pass token seeds this device has agreed on with its siblings.
+    ///
+    /// Exposed for tests: no production caller needs to observe the agreement,
+    /// which token replenishment drives on its own.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn committed_token_seeds(
+        &self,
+    ) -> anyhow::Result<Vec<airprotos::client::self_group::TokenSeed>> {
+        Ok(crate::privacy_pass::committed_seeds(self.db().read().await?).await?)
+    }
+
+    /// Discards every Privacy Pass token, seed and batch record, leaving the
+    /// state a VOPRF key rotation does.
+    ///
+    /// Exposed for tests that need the fleet to agree on a fresh seed, which is
+    /// otherwise only reachable by rotating the key on the AS.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn reset_privacy_pass_for_key_rotation(&self) -> anyhow::Result<()> {
+        crate::privacy_pass::reset_for_key_rotation(self.db()).await
+    }
+
+    /// The Privacy Pass tokens cached for `operation_type`, in consumption order.
+    ///
+    /// Exposed for tests, which assert that the devices of a user hold
+    /// byte-identical tokens.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn cached_privacy_pass_tokens(
+        &self,
+        operation_type: airprotos::auth_service::v1::OperationType,
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        Ok(crate::privacy_pass::cached_tokens(self.db().read().await?, operation_type).await?)
+    }
+
     /// The chat id of the self group ("Notes to self"), if there is one.
     pub async fn self_chat_id(&self) -> anyhow::Result<Option<ChatId>> {
         let mut read = self.db().read().await?;

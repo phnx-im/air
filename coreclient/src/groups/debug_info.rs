@@ -14,7 +14,9 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::component::{
+    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent,
+};
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;
@@ -32,7 +34,8 @@ use crate::{
     chats::GroupDataExt,
     clients::CoreUser,
     db::access::ReadConnection,
-    groups::{Group, GroupDataBytes, openmls_provider::KeyRefWrapper},
+    groups::{Group, openmls_provider::KeyRefWrapper},
+    outbound_service::resync::{Resync, ResyncDebugInfo},
 };
 
 impl CoreUser {
@@ -61,6 +64,7 @@ pub struct GroupDebugInfo {
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
     pub pq: Option<PqGroupDebugInfo>,
+    pub resync: Option<ResyncDebugInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,8 +80,6 @@ pub struct PqGroupDebugInfo {
 
 #[derive(Debug, Clone)]
 pub struct GroupDataDebugInfo {
-    pub legacy_title: Option<String>,
-    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }
@@ -149,10 +151,8 @@ impl GroupDebugInfo {
             .mls_group()
             .extensions()
             .unknown(GROUP_DATA_EXTENSION_TYPE)
-            .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
+            .and_then(|ext| GroupData::decode(&ext.0).ok())
             .map(|gd| GroupDataDebugInfo {
-                legacy_title: gd.legacy_title,
-                legacy_picture: gd.legacy_picture.is_some(),
                 encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
                 external_group_profile: gd
                     .external_group_profile
@@ -176,6 +176,8 @@ impl GroupDebugInfo {
         }
 
         let size_bytes = group_data_size_bytes(&mut connection, group.group_id()).await?;
+
+        let resync = Resync::debug_info(&mut connection, group.group_id()).await?;
 
         let pq = if let Some(pq) = group.pq.as_ref() {
             let pq_group_id = QualifiedGroupId::try_from(pq.mls_group.group_id())?.to_string();
@@ -208,6 +210,7 @@ impl GroupDebugInfo {
             group_data,
             size_bytes,
             pq,
+            resync,
         })
     }
 }
@@ -297,12 +300,10 @@ impl AppDataDebugInfo {
             .map(|list| {
                 list.component_ids
                     .iter()
-                    .map(|id| {
-                        if *id == AIR_COMPONENT_ID {
-                            format!("Air({id:#06x})")
-                        } else {
-                            format!("{id:#06x}")
-                        }
+                    .map(|id| match *id {
+                        AIR_COMPONENT_ID => format!("Air({id:#06x})"),
+                        AIR_GROUP_PROFILE_COMPONENT_ID => format!("GroupProfile({id:#06x})"),
+                        _ => format!("{id:#06x}"),
                     })
                     .collect()
             })

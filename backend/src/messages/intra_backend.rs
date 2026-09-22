@@ -11,7 +11,7 @@ use aircommon::{
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
-use airprotos::client::virtual_client::VirtualClientAction;
+use mls_assist::openmls::components::vc_derivation_info::KeyPackageUpload;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 // === DS to QS ===
@@ -79,16 +79,8 @@ pub enum QsVirtualClientHint {
     PromoteStagedKeyPackages(KeyPackageBatchId),
 }
 
-impl From<VirtualClientAction> for QsVirtualClientHint {
-    fn from(action: VirtualClientAction) -> Self {
-        match action {
-            VirtualClientAction::KeyPackageUpload(upload) => {
-                Self::PromoteStagedKeyPackages(KeyPackageBatchId {
-                    epoch_id: upload.epoch_id,
-                    leaf_index: upload.leaf_index,
-                    generation: upload.generation,
-                })
-            }
-        }
+impl From<&KeyPackageUpload> for QsVirtualClientHint {
+    fn from(upload: &KeyPackageUpload) -> Self {
+        Self::PromoteStagedKeyPackages(KeyPackageBatchId::from(upload))
     }
 }

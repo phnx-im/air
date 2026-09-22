@@ -119,11 +119,11 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
               ),
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: .min,
               children: [
                 Text(
                   widget.title,
-                  textAlign: TextAlign.center,
+                  textAlign: .center,
                   style: typeScale.header.regular.style(
                     color: palette.text.primary,
                     weight: Weight.emphasized,
@@ -132,7 +132,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                 const SizedBox(height: ContactRequestCardTokens.subtitleGap),
                 Text(
                   widget.subtitle,
-                  textAlign: TextAlign.center,
+                  textAlign: .center,
                   style: typeScale.body.regular.style(
                     color: palette.text.secondary,
                   ),
@@ -162,7 +162,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
         : null;
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: .min,
       children: [
         Avatar(
           // A covered picture takes the initial with it: the circle should hold
@@ -179,7 +179,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
           const SizedBox(height: ContactRequestCardTokens.avatarLabelGap),
           Text(
             prompt,
-            textAlign: TextAlign.center,
+            textAlign: .center,
             style: typeScale.body.xs.style(color: palette.text.tertiary),
           ),
         ],
@@ -194,17 +194,17 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
     return MouseRegion(
       cursor: prompt != null ? SystemMouseCursors.click : MouseCursor.defer,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: .opaque,
         onTap: prompt != null
             ? () => setState(() => _messageRevealed = true)
             : null,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: .min,
           children: [
             if (label != null) ...[
               Text(
                 label,
-                textAlign: TextAlign.center,
+                textAlign: .center,
                 style: typeScale.body.regular.style(
                   color: palette.text.primary,
                   weight: Weight.emphasized,
@@ -214,7 +214,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
             ],
             Text(
               prompt ?? message,
-              textAlign: TextAlign.center,
+              textAlign: .center,
               style: prompt != null
                   ? typeScale.body.xs.style(color: palette.text.tertiary)
                   : typeScale.body.regular.style(color: palette.text.secondary),

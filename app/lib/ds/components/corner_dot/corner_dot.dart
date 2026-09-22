@@ -21,7 +21,7 @@ class CornerDot extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!show) return child;
     return Stack(
-      clipBehavior: Clip.none,
+      clipBehavior: .none,
       children: [
         child,
         Positioned(
@@ -32,7 +32,7 @@ class CornerDot extends StatelessWidget {
             height: CornerDotTokens.size,
             decoration: BoxDecoration(
               color: SemanticPalette.of(context).function.neutral.toggleBlack,
-              shape: BoxShape.circle,
+              shape: .circle,
             ),
           ),
         ),

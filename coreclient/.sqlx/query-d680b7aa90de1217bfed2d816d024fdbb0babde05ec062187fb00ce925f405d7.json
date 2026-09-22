@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT operation_type, key_fingerprint, seed FROM privacy_pass_seed\n         WHERE needs_broadcast\n         ORDER BY operation_type, key_fingerprint",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_type",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "operation_type"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "seed",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "seed"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d680b7aa90de1217bfed2d816d024fdbb0babde05ec062187fb00ce925f405d7"
+}

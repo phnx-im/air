@@ -21,6 +21,7 @@ use crate::{
     key_stores::MemoryUserKeyStore,
 };
 
+pub(crate) mod add_members;
 pub(crate) mod chat_operation;
 pub(crate) mod create_chat;
 pub(crate) mod operation;

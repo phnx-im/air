@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
+import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -23,8 +25,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 
-import '../features/chat_list/chat_list_content_test.dart'
-    show createMockChatDetailsCubitFactory;
 import '../helpers.dart';
 import '../features/message_list/message_list_test.dart';
 import '../mocks.dart';
@@ -72,7 +72,6 @@ void main() {
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
     late MockNavigationCubit navigationCubit;
-    late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -80,93 +79,84 @@ void main() {
     setUp(() async {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
-      chatListCubit = MockChatListCubit();
       usersCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 10));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
-    Widget buildSubject(
-      ProductShotPlatform platform,
-    ) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final shotSize = _productShotSizeFor(platform);
-              final shot = ProductShot(
-                size: shotSize,
-                backgroundColor: backgroundColor,
-                titleColor: titleColor,
-                subtitleColor: subtitleColor,
-                title: title,
-                subtitle: subtitle,
-                frameColor: frameColor,
-                device: ProductShotDevices.forPlatform(platform),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ChatListView(
-                        scaffold: true,
-                        createChatDetailsCubit:
-                            createMockChatDetailsCubitFactory(chats),
+    Widget buildSubject(ProductShotPlatform platform) =>
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AttachmentsRepository>.value(
+              value: MockAttachmentsRepository(),
+            ),
+            RepositoryProvider<chats_repository.ChatsRepository>.value(
+              value: FakeChatsRepository(chats),
+            ),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: usersCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
+            ],
+            child: SDTFScope(
+              child: Builder(
+                builder: (context) {
+                  final shotSize = _productShotSizeFor(platform);
+                  final shot = ProductShot(
+                    size: shotSize,
+                    backgroundColor: backgroundColor,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
+                    title: title,
+                    subtitle: subtitle,
+                    frameColor: frameColor,
+                    device: ProductShotDevices.forPlatform(platform),
+                    child: const Stack(
+                      children: [
+                        Positioned.fill(child: ChatListView(scaffold: true)),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: AppTabBar(),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  return MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: testLightTheme,
+                    themeMode: .light,
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    home: Material(
+                      child: MediaQuery(
+                        data: MediaQuery.of(context)
+                            .copyWith(platformBrightness: .light),
+                        child: shot,
                       ),
                     ),
-                    const Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AppTabBar(),
-                    ),
-                  ],
-                ),
-              );
-
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testLightTheme,
-                themeMode: ThemeMode.light,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Material(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: Brightness.light),
-                    child: shot,
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
-    );
+        );
 
     testProductShot(
       "Chat List (iOS)",
@@ -236,12 +226,10 @@ void main() {
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -257,19 +245,11 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
       messageListCubit.setState(fredMessages);
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -288,6 +268,9 @@ void main() {
               BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
             ],
             child: Builder(
               builder: (context) {
@@ -314,9 +297,8 @@ void main() {
                       AppLocalizations.localizationsDelegates,
                   home: Material(
                     child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: Brightness.light),
+                      data: MediaQuery.of(context)
+                          .copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -394,9 +376,8 @@ void main() {
         NavigationState.home(home: HomeNavigationState(chatId: chat.id)),
       );
       when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: chat, members: gardeningPartyMembers),
       );
@@ -427,6 +408,9 @@ void main() {
               BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
             ],
             child: Builder(
               builder: (context) {
@@ -453,9 +437,8 @@ void main() {
                       AppLocalizations.localizationsDelegates,
                   home: Material(
                     child: MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(platformBrightness: Brightness.light),
+                      data: MediaQuery.of(context)
+                          .copyWith(platformBrightness: .light),
                       child: shot,
                     ),
                   ),
@@ -506,7 +489,6 @@ void main() {
     late MockNavigationCubit navigationCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
-    late MockChatListCubit chatListCubit;
     late MockChatDetailsCubit chatDetailsCubit;
     late MockMessageListCubit messageListCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -516,7 +498,6 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
-      chatListCubit = MockChatListCubit();
       chatDetailsCubit = MockChatDetailsCubit();
       messageListCubit = MockMessageListCubit();
       userSettingsCubit = MockUserSettingsCubit();
@@ -526,12 +507,8 @@ void main() {
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: userProfiles, defaultUserId: ownId),
       );
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: chatIds));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -545,19 +522,11 @@ void main() {
         ),
       ).thenAnswer((_) async => Future.value());
       when(
-        () => attachmentsRepository.loadImageAttachment(
+        () => attachmentsRepository.loadThumbnail(
           attachmentId: any(named: "attachmentId"),
-          retryDownloadIfFailed: false,
-          chunkEventCallback: any(named: "chunkEventCallback"),
+          retryDownloadIfFailed: any(named: "retryDownloadIfFailed"),
         ),
-      ).thenAnswer(
-        (_) => Future.value(
-          LoadedImageAttachment(
-            bytes: jupiterAttachmentImage.data,
-            isAnimated: false,
-          ),
-        ),
-      );
+      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -574,9 +543,11 @@ void main() {
       required String subtitle,
     }) => MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
         RepositoryProvider<AttachmentsRepository>.value(
           value: attachmentsRepository,
+        ),
+        RepositoryProvider<chats_repository.ChatsRepository>.value(
+          value: FakeChatsRepository(chats),
         ),
       ],
       child: MultiBlocProvider(
@@ -584,10 +555,12 @@ void main() {
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<MessageListCubit>.value(value: messageListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          RepositoryProvider<ShareTargetPublisher>.value(
+            value: MockShareTargetPublisher(),
+          ),
         ],
         child: SDTFScope(
           child: Builder(
@@ -603,13 +576,9 @@ void main() {
                 device: ProductShotDevices.forPlatform(
                   ProductShotPlatform.macos,
                 ),
-                child: HomeScreenDesktopLayout(
-                  chatList: ChatListView(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                  chat: const ChatScreenView(
+                child: const HomeScreenDesktopLayout(
+                  chatList: ChatListView(),
+                  chat: ChatScreenView(
                     createMessageCubit: createMockMessageCubit,
                   ),
                 ),
@@ -622,9 +591,8 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Material(
                   child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(platformBrightness: Brightness.light),
+                    data: MediaQuery.of(context)
+                        .copyWith(platformBrightness: .light),
                     child: shot,
                   ),
                 ),
@@ -647,9 +615,8 @@ void main() {
             home: HomeNavigationState(chatOpen: true, chatId: chat.id),
           ),
         );
-        when(
-          () => chatDetailsCubit.state,
-        ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+        when(() => chatDetailsCubit.state)
+            .thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
         messageListCubit.setState(fredMessages);
 
         // The desktop layout always shows the chat list, so this shot doubles

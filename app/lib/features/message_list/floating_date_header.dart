@@ -150,7 +150,7 @@ Widget _slideFadeTransition(
     animation: animation,
     builder: (context, _) {
       final t = animation.value;
-      final isReverse = animation.status == AnimationStatus.reverse;
+      final isReverse = animation.status == .reverse;
       final double dy;
       if (newFromBelow) {
         dy = isReverse ? -(1 - t) * distance : (1 - t) * distance;

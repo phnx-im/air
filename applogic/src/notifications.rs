@@ -214,10 +214,7 @@ impl User {
             }
         }
 
-        let chat_avatar = match chat.chat_type() {
-            ChatType::Group(attrs) => attrs.picture().map(|bytes| bytes.to_vec()),
-            _ => None,
-        };
+        let chat_avatar = chat_avatar(&self.user, &chat).await;
 
         let conversation = ConversationNotification {
             chat_title: title.clone(),
@@ -438,7 +435,8 @@ pub struct ConversationNotification {
     pub alert: bool,
     /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
     pub newest_timestamp: String,
-    /// The group picture for group chats, absent for 1:1 chats
+    /// The chat's avatar: the group picture for a group chat, the
+    /// counterpart's profile picture for a 1:1 chat
     ///
     /// Base64 on JNI JSON path
     #[serde(
@@ -483,6 +481,25 @@ pub struct ConversationMessage {
 pub struct NotificationHandle {
     pub identifier: NotificationId,
     pub chat_id: Option<ChatId>,
+}
+
+/// The chat's own avatar: the group picture for a group chat, the
+/// counterpart's profile picture for a 1:1 chat.
+async fn chat_avatar(user: &CoreUser, chat: &Chat) -> Option<Vec<u8>> {
+    match chat.chat_type() {
+        ChatType::Group(attrs) => attrs.picture().map(|bytes| bytes.to_vec()),
+        // No profile to load before the other party is known.
+        ChatType::HandleConnection(_) => None,
+        ChatType::Connection(user_id)
+        | ChatType::PendingConnection(user_id)
+        | ChatType::TargetedMessageConnection(user_id) => user
+            .user_profile(user_id)
+            .await
+            .profile_picture
+            .map(|asset| match asset {
+                Asset::Value(bytes) => bytes,
+            }),
+    }
 }
 
 async fn chat_title(user: &CoreUser, chat: &Chat) -> String {

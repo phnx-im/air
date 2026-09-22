@@ -192,7 +192,13 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .with_context(|| format!("chat not found: {chat_id}"))?;
-                Ok(ChatMessage::first_unread_message(txn, chat_id, chat.last_read.into()).await?)
+                Ok(ChatMessage::first_unread_message(
+                    txn,
+                    chat_id,
+                    chat.last_read.into(),
+                    self.user_id(),
+                )
+                .await?)
             })
             .await
     }
@@ -345,10 +351,11 @@ impl CoreUser {
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
-        if let Some(chat_id) = self.chat(chat_id).await
-            && let Some(group) = Group::load(self.db().read().await?, chat_id.group_id()).await?
+        if let Some(chat) = self.chat(chat_id).await
+            && let Some(room_state) =
+                Group::load_room_state(self.db().read().await?.as_mut(), chat.group_id()).await?
         {
-            return Ok((self.user_id().clone(), group.into_room_state()));
+            return Ok((self.user_id().clone(), room_state));
         }
         bail!("Room does not exist")
     }

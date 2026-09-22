@@ -12,13 +12,13 @@ import 'package:air/ds/patterns/nux/nux_scaffold.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -37,10 +37,7 @@ class IntroScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final showOnboarding = context.select(
-      (LoadableUserCubit cubit) => switch (cubit.state) {
-        UnloadedUser() || UnloadingUser() => true,
-        LoadingUser() || LoadedUser() => false,
-      },
+      (UserSessionCubit cubit) => cubit.state.loggedOut,
     );
 
     final loc = AppLocalizations.of(context);
@@ -48,6 +45,7 @@ class IntroScreen extends HookWidget {
     final tokens = NuxScaffoldTokens.of(context);
 
     final serverFieldVisible = useState(false);
+    final openingSignUp = useState(false);
 
     final bool experimentalFeatures = context.select(
       (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
@@ -59,6 +57,26 @@ class IntroScreen extends HookWidget {
       await requestNotificationPermission();
       if (!context.mounted) return;
       context.read<NavigationCubit>().openLinking();
+    }
+
+    openSignUp() async {
+      if (openingSignUp.value) return;
+      openingSignUp.value = true;
+      try {
+        await requestNotificationPermission();
+        if (!context.mounted) return;
+        // Asked here rather than in the flow, so the flow opens on the step the
+        // server wants and never has to drop one the user is looking at.
+        final registration = context.read<RegistrationCubit>();
+        await registration.loadRegistrationInfo();
+        await registration.acquireAdmissionSession();
+        if (!context.mounted) return;
+        context.read<NavigationCubit>().openSignUp();
+      } finally {
+        // The flag goes with the screen, so one that left the tree has nothing
+        // left to reset.
+        if (context.mounted) openingSignUp.value = false;
+      }
     }
 
     // A window gives the picker a top row inside the safe zone. A phone floats
@@ -75,21 +93,18 @@ class IntroScreen extends HookWidget {
         child: GestureDetector(
           // The mark is the only way into the developer surface before login,
           // and the glyph leaves gaps a tap would fall through.
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: onLogoTap,
           child: SvgPicture.asset(
             'assets/images/logo.svg',
-            colorFilter: ColorFilter.mode(
-              palette.text.primary,
-              BlendMode.srcIn,
-            ),
+            colorFilter: ColorFilter.mode(palette.text.primary, .srcIn),
           ),
         ),
       ),
       footer: showOnboarding
           ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: .min,
+              crossAxisAlignment: .stretch,
               children: [
                 _TermsOfUseText(loc: loc),
                 const SizedBox(height: S.s16),
@@ -114,11 +129,8 @@ class IntroScreen extends HookWidget {
                 Button(
                   type: .primary,
                   label: loc.introScreen_signUp,
-                  onPressed: () async {
-                    await requestNotificationPermission();
-                    if (!context.mounted) return;
-                    context.read<NavigationCubit>().openSignUp();
-                  },
+                  state: openingSignUp.value ? .pending : .active,
+                  onPressed: openSignUp,
                 ),
               ],
             )
@@ -156,7 +168,7 @@ class _LanguagePicker extends StatelessWidget {
           surface: NuxScaffoldTokens.surface(context),
           onTap: onTap,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: [
               Container(
                 width: 36,
@@ -164,7 +176,7 @@ class _LanguagePicker extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: palette.backgroundBase.tertiary,
-                  shape: BoxShape.circle,
+                  shape: .circle,
                 ),
                 child: AppIcon.globe(color: palette.text.secondary, size: 18),
               ),
@@ -199,7 +211,7 @@ class _TermsOfUseText extends StatelessWidget {
     final linkStart = agreement.indexOf(linkText);
 
     if (linkStart == -1) {
-      return Text(agreement, style: baseTextStyle, textAlign: TextAlign.center);
+      return Text(agreement, style: baseTextStyle, textAlign: .center);
     }
 
     final beforeLink = agreement.substring(0, linkStart);
@@ -228,7 +240,7 @@ class _TermsOfUseText extends StatelessWidget {
           TextSpan(text: afterLink),
         ],
       ),
-      textAlign: TextAlign.center,
+      textAlign: .center,
     );
   }
 }

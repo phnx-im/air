@@ -93,16 +93,13 @@ class NotificationService: UNNotificationServiceExtension {
         self.hasHandlingToken = true
         self.contentHandler = contentHandler
 
-        guard
-            let sharedContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air")
+        guard let sharedCaches = AppGroup.sharedCachesDirectory(create: false)
         else {
             rustLog(.error, "Could not find app group container")
             self.completeNotification()
             return
         }
 
-        let sharedCaches = sharedContainer.appendingPathComponent("Caches")
         let logFilePath = sharedCaches.appendingPathComponent("background.log")
             .path
         initRustLogging(logFilePath)
@@ -125,7 +122,7 @@ class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        guard let dbUrl = getDatabasesDirectoryPath() else {
+        guard let dbUrl = AppGroup.databasesDirectory(create: false) else {
             rustLog(.error, "Could not find databases directory")
             self.completeNotification()
             return
@@ -193,7 +190,7 @@ class NotificationService: UNNotificationServiceExtension {
                 CFNotificationCenterPostNotification(
                     CFNotificationCenterGetDarwinNotifyCenter(),
                     CFNotificationName(
-                        "ms.air.store-notifications-pending" as CFString),
+                        AppChannel.storeNotificationsPendingName as CFString),
                     nil, nil, true)
 
                 self.handleNotificationBatch(
@@ -387,49 +384,6 @@ class NotificationService: UNNotificationServiceExtension {
 
         finishHandlingIfNeeded(releaseHandling: releaseHandling)
         handler(outgoing)
-    }
-
-    // Allow to write to the given URL when the device is locked
-    private func applyProtection(_ url: URL) {
-        try? FileManager.default.setAttributes(
-            [
-                .protectionKey: FileProtectionType
-                    .completeUntilFirstUserAuthentication
-            ],
-            ofItemAtPath: url.path
-        )
-    }
-
-    // Get a databases directory path that is NOT backed up to iCloud
-    private func getDatabasesDirectoryPath() -> URL? {
-        // Use the App Group container so extensions can also access it
-        guard
-            let containerURL = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.ms.air"
-            )
-        else {
-            return nil
-        }
-
-        // Prefer Library/Application Support for persistent, non-user‑visible data
-        let dbsURL =
-            containerURL
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Databases", isDirectory: true)
-
-        // It is the responsibility of the app to create this directory with the
-        // necessary permissions.
-        if FileManager.default.fileExists(atPath: dbsURL.path) {
-            applyProtection(dbsURL)
-            // Note: Protection is also applied to the temp directory, because
-            // sqlite uses it to write statement journal files:
-            // <https://sqlite.org/tempfiles.html>
-            applyProtection(URL(fileURLWithPath: NSTemporaryDirectory()))
-            return dbsURL
-        } else {
-            return nil
-        }
     }
 
     // Check if protected data is available

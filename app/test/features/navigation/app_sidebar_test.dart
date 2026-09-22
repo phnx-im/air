@@ -80,9 +80,8 @@ void main() {
       tester,
     ) async {
       useTab(HomeTab.chats);
-      when(
-        () => navigationCubit.switchTab(HomeTab.profile),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.switchTab(HomeTab.profile))
+          .thenAnswer((_) async {});
 
       await tester.pumpWidget(buildSubject());
       await tester.tap(find.text('You'));
@@ -104,42 +103,36 @@ void main() {
     // Pinned to Linux rather than left on the host's platform: the rail only
     // reserves the window controls inset on macOS, so the strides below are the
     // layout of a desktop without it.
-    testWidgets(
-      'the active pill sits behind the active cell',
-      (tester) async {
-        useTab(HomeTab.profile);
-        await tester.pumpWidget(buildSubject());
+    testWidgets('the active pill sits behind the active cell', (tester) async {
+      useTab(HomeTab.profile);
+      await tester.pumpWidget(buildSubject());
 
-        final pill = findPill(tester);
+      final pill = findPill(tester);
 
-        // Second cell of two, so the pill has moved down by one stride, and the
-        // cell it marks sits inside it.
-        expect(pill, findsOneWidget);
-        expect(
-          tester.getTopLeft(pill).dy,
-          NavRailTokens.paddingTop + NavRailTokens.stride,
-        );
-        expect(
-          tester.getTopLeft(find.text('You')).dy,
-          greaterThan(tester.getTopLeft(pill).dy),
-        );
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.linux),
-    );
+      // Second cell of two, so the pill has moved down by one stride, and the
+      // cell it marks sits inside it.
+      expect(pill, findsOneWidget);
+      expect(
+        tester.getTopLeft(pill).dy,
+        NavRailTokens.paddingTop + NavRailTokens.stride,
+      );
+      expect(
+        tester.getTopLeft(find.text('You')).dy,
+        greaterThan(tester.getTopLeft(pill).dy),
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 
-    testWidgets(
-      'macOS reserves the rail top for the traffic lights',
-      (tester) async {
-        useTab(HomeTab.chats);
-        await tester.pumpWidget(buildSubject());
+    testWidgets('macOS reserves the rail top for the traffic lights', (
+      tester,
+    ) async {
+      useTab(HomeTab.chats);
+      await tester.pumpWidget(buildSubject());
 
-        expect(
-          tester.getTopLeft(findPill(tester)).dy,
-          NavRailTokens.paddingTop + NavRailTokens.windowControlsInset,
-        );
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+      expect(
+        tester.getTopLeft(findPill(tester)).dy,
+        NavRailTokens.paddingTop + NavRailTokens.windowControlsInset,
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
     testWidgets('reserving the window controls pushes the cells down', (
       tester,

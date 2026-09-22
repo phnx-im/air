@@ -21,7 +21,6 @@ on:
       - "app/pubspec.lock"
       - "Cargo.lock"
       - "rust-toolchain.toml"
-      - "scripts/build-name.sh"
       - "scripts/build-number.sh"
       - ".github/workflows/windows.yml"
       - ".github/workflows/app-pr-windows.yml"

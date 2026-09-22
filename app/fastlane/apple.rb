@@ -11,8 +11,9 @@ def apple_platform(platform)
       name: "iOS",
       beta_lane: "beta_ios",
       app_identifier: "ms.air",
-      # The notification service extension is signed alongside the app.
-      extension_identifiers: ["ms.air.nse"],
+      # The notification service and share extensions are signed alongside
+      # the app.
+      extension_identifiers: ["ms.air.nse", "ms.air.share"],
       # match defaults to the platform of the enclosing block, so iOS needs no
       # extra options.
       match_options: {},
@@ -136,10 +137,6 @@ def apple_build(platform, with_signing:, api_key:)
   flutter_options = skip_signing ? ["--debug"] + target[:flutter_debug_options] : ["--release"]
   sh "just flutter build #{target[:flutter_target]} --flavor production " \
      "--config-only #{flutter_options.join(' ')} --build-number=#{build_number}"
-
-  cocoapods(
-    podfile: "#{target[:xcode_dir]}/Podfile"
-  )
 
   xcode_options = {
     workspace: "#{target[:xcode_dir]}/Runner.xcworkspace",

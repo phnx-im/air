@@ -14,6 +14,7 @@ import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
+import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_page.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
@@ -224,10 +225,8 @@ extension on HomeNavigationState {
       // the tab's own screen at the small breakpoint, and as the two panes of
       // the desktop layout above it. Only the phone pushes a section, which
       // the two-pane layout shows beside its list instead.
-      if ((activeTab, youSection) case (
-        HomeTab.profile,
-        final section?,
-      ) when breakpoint.isSmall)
+      if ((activeTab, youSection) case (HomeTab.profile, final section?)
+          when breakpoint.isSmall)
         MaterialPage(
           key: ValueKey("you-section-screen-$section"),
           child: YouSectionScreen(section: section),
@@ -236,6 +235,11 @@ extension on HomeNavigationState {
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null)
         ..._chatDetailsPages(openChatId, fullBleed: modalsFullBleed),
+      if (shareDestinationOpen)
+        const MaterialPage(
+          key: ValueKey("share-destination-screen"),
+          child: ChatListView(scaffold: true, shareMode: true),
+        ),
     ];
   }
 

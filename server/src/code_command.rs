@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airbackend::{air_service::BackendService, auth_service::AuthService, settings::Settings};
+use airbackend::{
+    air_service::BackendService, auth_service::AuthService, settings::Settings,
+    version::VersionPolicy,
+};
 use aircommon::identifiers::Fqdn;
 use anyhow::Context;
 use tokio_util::sync::CancellationToken;
@@ -17,7 +20,7 @@ pub async fn run_code_command(
     let auth_service = AuthService::new(
         &configuration.database,
         domain,
-        configuration.application.versionreq,
+        VersionPolicy::new(configuration.application.version_expirations),
         CancellationToken::new(),
     )
     .await

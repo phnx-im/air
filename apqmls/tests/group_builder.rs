@@ -242,6 +242,7 @@ fn joiner_inherits_dictionary_via_new_from_welcome() {
         &MlsGroupJoinConfig::default(),
         welcome,
         Some(ratchet_tree),
+        |_, _| true,
     )
     .unwrap();
 

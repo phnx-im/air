@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO registration_attempt (ip_bucket, created_at)\n            VALUES ($1, now() - INTERVAL '1 minute')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "364b72a58007b76f31ceb4e94d841858eeb3bf2094ebcdab10bde7d8303010e8"
+}

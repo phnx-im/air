@@ -7,7 +7,7 @@ use std::slice;
 use aircoreclient::{
     ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
-        listen_response,
+        MarkChatAsRead, listen_response,
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
@@ -37,12 +37,12 @@ async fn create_empty_group() {
     let alice_user = &setup.get_user(&alice).user;
 
     // Inviting an empty user list should be a no-op
-    let messages = alice_user
+    let result = alice_user
         .invite_users(chat_id, &[])
         .await
-        .expect("inviting an empty user list should succeed")
         .expect("inviting an empty user list should succeed");
-    assert!(messages.is_empty());
+    assert!(result.messages.is_empty());
+    assert!(result.users_not_added.is_empty());
 
     let participants = alice_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(participants.len(), 1);
@@ -152,17 +152,54 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
-async fn delete_group() {
+#[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
+async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    let delete_group = setup.delete_group(chat_id, &alice);
-    delete_group.await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_non_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group test", skip_all)]
+async fn delete_apq_group() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete APQ group by invitee", skip_all)]
+async fn delete_apq_group_by_invitee() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup.delete_group(chat_id, &bob).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -263,7 +300,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie accepts the invitation.
@@ -278,7 +314,6 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
-        .unwrap()
         .unwrap();
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
@@ -572,7 +607,6 @@ async fn fetch_group_profile_on_invite() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
@@ -699,7 +733,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -715,7 +748,7 @@ async fn missed_commit() {
     let bob_user = &setup.get_user(&bob).user;
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
     let sequence_number = stream
-        .map_while(|message| match message.event {
+        .map_while(|message| match message.ok()?.event {
             Some(listen_response::Event::Message(queue_message)) => {
                 Some(queue_message.sequence_number)
             }
@@ -766,7 +799,6 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     let messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(messages).await;
@@ -1062,15 +1094,20 @@ async fn qs_stream_processor_partially_processes_messages() {
     let content = MimiContent::simple_markdown_message("Hello from Alice!".to_owned(), [0; 16]);
 
     alice_user
-        .send_message(connection_chat_id, content.clone(), None)
+        .send_message(
+            connection_chat_id,
+            content.clone(),
+            None,
+            MarkChatAsRead::Yes,
+        )
         .await
         .unwrap();
     alice_user
-        .send_message(group_chat_id, content.clone(), None)
+        .send_message(group_chat_id, content.clone(), None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     alice_user
-        .send_message(connection_chat_id, content, None)
+        .send_message(connection_chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     alice_user.outbound_service().run_once().await;
@@ -1080,7 +1117,7 @@ async fn qs_stream_processor_partially_processes_messages() {
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     let mut processor = QsStreamProcessor::new(Some(responder));
 
-    while let Some(message) = stream.next().await {
+    while let Some(Ok(message)) = stream.next().await {
         match processor.process_event(bob_user, message).await {
             QsProcessEventResult::Accumulated => (),
             QsProcessEventResult::Ignored => (),
@@ -1095,96 +1132,103 @@ async fn qs_stream_processor_partially_processes_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Legacy group data migration", skip_all)]
-async fn legacy_group_data_migration() {
+#[tracing::instrument(
+    name = "Update group profile in a group with profile component",
+    skip_all
+)]
+async fn update_group_profile_in_group_with_profile_component() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-
     setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
+
+    let chat_id = setup
+        .create_group_with_profile_component(&alice, setup.apq_groups)
+        .await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let title = "Test Title".to_string();
-    let picture = test_picture_bytes();
-
-    // Alice sets the group title and picture in the legacy format
     let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+    for user in [alice_user, bob_user] {
+        assert!(user.has_group_profile_component(chat_id).await.unwrap());
+        // The profile is read from the component, not from the group data extension.
+        let group_data = user.group_data(chat_id).await.unwrap().unwrap();
+        assert!(group_data.encrypted_title.is_some());
+    }
+
+    // Alice updates the title
+    let title = "Component Title".to_string();
     alice_user
-        .set_legacy_group_data(chat_id, title.clone(), Some(picture.clone()))
+        .set_chat_title(chat_id, title.clone())
         .await
         .unwrap();
+    assert_eq!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title(),
+        &title
+    );
+    assert!(
+        alice_user
+            .has_group_profile_component(chat_id)
+            .await
+            .unwrap()
+    );
 
-    // Bob fetches Alice's commit
-    let bob_user = &setup.get_user(&bob).user;
+    // Bob sees the new title
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
-        "Bob should process Alice's updates without errors: {:?}",
+        "Bob should process Alice's update without errors: {:?}",
         result.errors
     );
-
-    // Bob can decode the legacy title and inline picture immediately
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
     assert_eq!(
-        bob_chat.attributes().unwrap().picture(),
-        Some(picture.as_slice())
-    );
-    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
-    assert_eq!(group_data.legacy_title.as_ref(), Some(&title));
-    assert!(
-        group_data.external_group_profile.is_none(),
-        "Group should not have ExternalGroupProfile before migration"
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title(),
+        &title
     );
 
-    // Bob runs self-update which migrates the group data to the new format
+    // Bob updates the picture
+    let picture = test_picture_bytes();
     bob_user
-        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .set_chat_picture(chat_id, Some(picture))
         .await
         .unwrap();
-    bob_user
-        .outbound_service()
-        .schedule_self_update(DateTime::UNIX_EPOCH)
+    let expected_picture = bob_user
+        .chat(&chat_id)
         .await
-        .unwrap();
-    bob_user.outbound_service().run_once().await;
+        .unwrap()
+        .attributes()
+        .unwrap()
+        .picture()
+        .unwrap()
+        .to_owned();
 
-    // Bob migrated the group data to the new format
-    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
-    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
-    assert_eq!(
-        bob_chat.attributes().unwrap().picture(),
-        Some(picture.as_slice())
-    );
-    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
-    assert!(group_data.legacy_picture.is_none());
-    assert!(group_data.encrypted_title.is_some());
-    assert!(group_data.external_group_profile.is_some());
-
-    // Alice fetches the Bob's commit
+    // Alice fetches the new external group profile
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
-        "Alice should process Bob's commit without errors: {:?}",
+        "Alice should process Bob's update without errors: {:?}",
         result.errors
     );
     alice_user.outbound_service().run_once().await;
-
-    // Alices sees the group title and picture in new format
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
-    let group_data = alice_user.group_data(chat_id).await.unwrap().unwrap();
     assert_eq!(alice_chat.attributes().unwrap().title(), &title);
     assert_eq!(
         alice_chat.attributes().unwrap().picture(),
-        Some(picture.as_slice())
+        Some(expected_picture.as_slice())
     );
-    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
-    assert!(group_data.legacy_picture.is_none());
-    assert!(group_data.encrypted_title.is_some());
-    assert!(group_data.external_group_profile.is_some());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1507,7 +1551,6 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
         .user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
-        .unwrap()
         .unwrap();
     setup.settle(&[&alice, &charlie, &dave]).await;
 

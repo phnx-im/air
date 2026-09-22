@@ -88,9 +88,8 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: 'untilMessageId'),
@@ -268,7 +267,7 @@ void main() {
 
     Widget host(List<UiReaction> reactions) => MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: testThemeData(Brightness.light),
+      theme: testThemeData(.light),
       home: Scaffold(
         body: Align(
           alignment: Alignment.topRight,

@@ -5,12 +5,14 @@
 use std::io::{BufRead, IsTerminal, Write};
 
 use anyhow::{Context, Result, bail, ensure};
+use chrono::{Days, NaiveTime, Utc};
 use semver::Version;
 use xshell::{Shell, cmd};
 
 use crate::{
     bump_version::{self, Bump},
     util::workspace_root,
+    version_expirations,
 };
 
 #[derive(clap::Args)]
@@ -20,6 +22,9 @@ pub(crate) struct CutArgs {
     /// Next version on main after the cut (skips the prompt).
     #[arg(long, value_name = "major|minor|patch|X.Y.Z")]
     next: Option<NextVersion>,
+    /// Days until versions below the cut expire.
+    #[arg(long, value_name = "days", default_value = "20")]
+    expire_in_days: u16,
 }
 
 /// A bump kind or an explicit version.
@@ -121,6 +126,20 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     cmd!(shell, "git switch --create {merge_branch} {release_branch}").run()?;
     println!("Bumping version {current} -> {next}");
     bump_version::set_version(&next)?;
+
+    // Schedule the expiry of the cut release line before the commit below, so
+    // that the entry rides in the bump commit.
+    let older_than = Version::new(current.major, current.minor, 0);
+    let expires_on = (Utc::now() + Days::new(args.expire_in_days.into()))
+        .date_naive()
+        .and_time(NaiveTime::MIN)
+        .and_utc();
+    let effective = version_expirations::schedule_expiry(&older_than, expires_on)?;
+    println!(
+        "Versions below {older_than} expire on {}",
+        effective.format("%Y-%m-%d")
+    );
+
     // Sync the workspace members' entries in Cargo.lock
     cmd!(shell, "cargo update --workspace --offline").run()?;
     let message = format!("chore: bump version to {next}");

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT group_id\n                FROM resync_queue\n                WHERE (locked_by IS NULL OR locked_by != ?1)\n                    AND status = ?2\n                    AND (not_before IS NULL OR not_before <= ?3)\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "102186566b8772a135fc596a20da07886ed95ed84ae6c5011c0d3cb5c5ad1288"
+}

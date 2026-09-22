@@ -3,46 +3,43 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use displaydoc::Display;
 
-use crate::{
-    ChatId, ChatMessage,
-    job::{
-        JobError,
-        chat_operation::{ChatOperation, ChatOperationError},
-    },
-};
+use crate::{ChatId, ChatMessage, job::add_members::AddMembers};
 
 use super::CoreUser;
+
+/// Result of inviting users to a chat.
+#[derive(Debug)]
+pub struct InviteUsersResult {
+    /// Messages that represent the changes to the group. Note that these
+    /// messages have already been persisted.
+    pub messages: Vec<ChatMessage>,
+    /// Users that were not added because their client is not compatible
+    /// with the group.
+    pub users_not_added: Vec<UserId>,
+}
 
 impl CoreUser {
     /// Invite users to an existing chat.
     ///
+    /// Users whose key material is not compatible with the group are left
+    /// out of the invite and reported in
+    /// [`InviteUsersResult::users_not_added`].
+    ///
     /// Since this function causes the creation of an MLS commit, it can cause
-    /// more than one effect on the group. As a result this function returns a
-    /// vector of [`ChatMessage`]s that represents the changes to the
-    /// group. Note that these returned message have already been persisted.
+    /// more than one effect on the group. As a result, the returned
+    /// [`InviteUsersResult`] contains a vector of [`ChatMessage`]s that
+    /// represents the changes to the group.
     pub async fn invite_users(
         &self,
         chat_id: ChatId,
         invited_users: &[UserId],
-    ) -> anyhow::Result<Result<Vec<ChatMessage>, InviteUsersError>> {
-        let job = ChatOperation::add_members(chat_id, invited_users.to_vec());
-        match self.execute_job(job).await {
-            Ok(messages) => Ok(Ok(messages)),
-            Err(JobError::Domain(ChatOperationError::LeafNodeValidation(leaf_node_validation))) => {
-                Ok(Err(InviteUsersError::IncompatibleClient {
-                    reason: leaf_node_validation.to_string(),
-                }))
-            }
-            Err(JobError::Fatal(error)) => Err(error),
-            Err(other) => Err(other.into()),
-        }
+    ) -> anyhow::Result<InviteUsersResult> {
+        let job = AddMembers::new(chat_id, invited_users.to_vec());
+        let output = self.execute_job(job).await?;
+        Ok(InviteUsersResult {
+            messages: output.messages,
+            users_not_added: output.users_not_added,
+        })
     }
-}
-
-#[derive(Debug, Display, thiserror::Error)]
-pub enum InviteUsersError {
-    /// The client is not compatible with the group
-    IncompatibleClient { reason: String },
 }

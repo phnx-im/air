@@ -10,6 +10,8 @@ import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -66,12 +68,10 @@ void main() {
     inputController = TextEditingController();
 
     when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-    when(
-      () => usersCubit.state,
-    ).thenReturn(MockUsersState(profiles: userProfiles));
-    when(
-      () => chatDetailsCubit.state,
-    ).thenReturn(ChatDetailsState(chat: _chat, members: _members));
+    when(() => usersCubit.state)
+        .thenReturn(MockUsersState(profiles: userProfiles));
+    when(() => chatDetailsCubit.state)
+        .thenReturn(ChatDetailsState(chat: _chat, members: _members));
     when(
       () => chatDetailsCubit.markAsRead(
         untilMessageId: any(named: "untilMessageId"),
@@ -94,12 +94,18 @@ void main() {
   // test has to carry the very key `showSnackBarStandalone` reaches for.
   Widget buildSubject() => MultiBlocProvider(
     providers: [
+      RepositoryProvider<ChatsRepository>.value(
+        value: FakeChatsRepository(chats),
+      ),
       BlocProvider<NavigationCubit>.value(value: navigationCubit),
       BlocProvider<UserCubit>.value(value: userCubit),
       BlocProvider<UsersCubit>.value(value: usersCubit),
       BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
       BlocProvider<MessageListCubit>.value(value: messageListCubit),
       BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      RepositoryProvider<ShareTargetPublisher>.value(
+        value: MockShareTargetPublisher(),
+      ),
     ],
     child: Builder(
       builder: (context) => MaterialApp(
@@ -134,9 +140,8 @@ void main() {
     testWidgets('restores the text and shows an error snackbar', (
       tester,
     ) async {
-      when(
-        () => chatDetailsCubit.sendMessage(any()),
-      ).thenAnswer((_) async => throw Exception('send failed'));
+      when(() => chatDetailsCubit.sendMessage(any()))
+          .thenAnswer((_) async => throw Exception('send failed'));
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
@@ -151,9 +156,8 @@ void main() {
       tester,
     ) async {
       final sent = Completer<void>();
-      when(
-        () => chatDetailsCubit.sendMessage(any()),
-      ).thenAnswer((_) => sent.future);
+      when(() => chatDetailsCubit.sendMessage(any()))
+          .thenAnswer((_) => sent.future);
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();

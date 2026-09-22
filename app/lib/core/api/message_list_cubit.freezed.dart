@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'message_list_cubit.dart';
@@ -9,6 +9,7 @@ part of 'message_list_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -20,7 +21,7 @@ mixin _$MessageListChange {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange);
 }
 
 
@@ -29,7 +30,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MessageListChange()';
+    return 'MessageListChange()';
 }
 
 
@@ -46,7 +47,7 @@ $MessageListChangeCopyWith(MessageListChange _, $Res Function(MessageListChange)
 
 
 class MessageListChange_Reload extends MessageListChange {
-  const MessageListChange_Reload({required final  List<UiChatMessage> messages}): _messages = messages,super._();
+  const MessageListChange_Reload({required  List<UiChatMessage> messages}): _messages = messages,super._();
   
 
  final  List<UiChatMessage> _messages;
@@ -67,16 +68,18 @@ $MessageListChange_ReloadCopyWith<MessageListChange_Reload> get copyWith => _$Me
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Reload&&const DeepCollectionEquality().equals(other._messages, _messages));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Reload&&const DeepCollectionEquality().equals(other.messages, _messages));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages));
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages));
+}
 
 @override
 String toString() {
-  return 'MessageListChange.reload(messages: $messages)';
+    return 'MessageListChange.reload(messages: $messages)';
 }
 
 
@@ -118,7 +121,7 @@ as List<UiChatMessage>,
 
 
 class MessageListChange_Splice extends MessageListChange {
-  const MessageListChange_Splice({required this.index, required final  List<UiChatMessage> messages, required this.deleteCount}): _messages = messages,super._();
+  const MessageListChange_Splice({required this.index, required  List<UiChatMessage> messages, required this.deleteCount}): _messages = messages,super._();
   
 
  final  BigInt index;
@@ -141,16 +144,18 @@ $MessageListChange_SpliceCopyWith<MessageListChange_Splice> get copyWith => _$Me
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Splice&&(identical(other.index, index) || other.index == index)&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.deleteCount, deleteCount) || other.deleteCount == deleteCount));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Splice&&(identical(other.index, index) || other.index == index)&&const DeepCollectionEquality().equals(other.messages, _messages)&&(identical(other.deleteCount, deleteCount) || other.deleteCount == deleteCount));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,index,const DeepCollectionEquality().hash(_messages),deleteCount);
+int get hashCode {
+    return Object.hash(runtimeType,index,const DeepCollectionEquality().hash(_messages),deleteCount);
+}
 
 @override
 String toString() {
-  return 'MessageListChange.splice(index: $index, messages: $messages, deleteCount: $deleteCount)';
+    return 'MessageListChange.splice(index: $index, messages: $messages, deleteCount: $deleteCount)';
 }
 
 
@@ -210,16 +215,18 @@ $MessageListChange_PatchCopyWith<MessageListChange_Patch> get copyWith => _$Mess
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Patch&&(identical(other.index, index) || other.index == index)&&(identical(other.message, message) || other.message == message));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListChange_Patch&&(identical(other.index, index) || other.index == index)&&(identical(other.message, message) || other.message == message));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,index,message);
+int get hashCode {
+    return Object.hash(runtimeType,index,message);
+}
 
 @override
 String toString() {
-  return 'MessageListChange.patch(index: $index, message: $message)';
+    return 'MessageListChange.patch(index: $index, message: $message)';
 }
 
 
@@ -276,7 +283,7 @@ mixin _$MessageListCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand);
 }
 
 
@@ -285,7 +292,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MessageListCommand()';
+    return 'MessageListCommand()';
 }
 
 
@@ -317,16 +324,18 @@ $MessageListCommand_ScrollToIdCopyWith<MessageListCommand_ScrollToId> get copyWi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand_ScrollToId&&(identical(other.messageId, messageId) || other.messageId == messageId));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand_ScrollToId&&(identical(other.messageId, messageId) || other.messageId == messageId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,messageId);
+int get hashCode {
+    return Object.hash(runtimeType,messageId);
+}
 
 @override
 String toString() {
-  return 'MessageListCommand.scrollToId(messageId: $messageId)';
+    return 'MessageListCommand.scrollToId(messageId: $messageId)';
 }
 
 
@@ -378,7 +387,7 @@ class MessageListCommand_ScrollToBottom extends MessageListCommand {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand_ScrollToBottom);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListCommand_ScrollToBottom);
 }
 
 
@@ -387,7 +396,7 @@ int get hashCode => runtimeType.hashCode;
 
 @override
 String toString() {
-  return 'MessageListCommand.scrollToBottom()';
+    return 'MessageListCommand.scrollToBottom()';
 }
 
 
@@ -410,16 +419,21 @@ $MessageListStateCopyWith<MessageListState> get copyWith => _$MessageListStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+  final _this = this as MessageListState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListState&&(identical(other.isConnectionChat, _this.isConnectionChat) || other.isConnectionChat == _this.isConnectionChat)&&(identical(other.hasOlder, _this.hasOlder) || other.hasOlder == _this.hasOlder)&&(identical(other.hasNewer, _this.hasNewer) || other.hasNewer == _this.hasNewer)&&(identical(other.isAtBottom, _this.isAtBottom) || other.isAtBottom == _this.isAtBottom)&&(identical(other.firstUnreadIndex, _this.firstUnreadIndex) || other.firstUnreadIndex == _this.firstUnreadIndex)&&(identical(other.revision, _this.revision) || other.revision == _this.revision));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,revision);
+int get hashCode {
+  final _this = this as MessageListState;
+  return Object.hash(runtimeType,_this.isConnectionChat,_this.hasOlder,_this.hasNewer,_this.isAtBottom,_this.firstUnreadIndex,_this.revision);
+}
 
 @override
 String toString() {
-  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+  final _this = this as MessageListState;
+  return 'MessageListState(isConnectionChat: ${_this.isConnectionChat}, hasOlder: ${_this.hasOlder}, hasNewer: ${_this.hasNewer}, isAtBottom: ${_this.isAtBottom}, firstUnreadIndex: ${_this.firstUnreadIndex}, revision: ${_this.revision})';
 }
 
 
@@ -448,7 +462,7 @@ class _$MessageListStateCopyWithImpl<$Res>
 /// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? revision = null,}) {
-  return _then(_self.copyWith(
+  return _then(MessageListState(
 isConnectionChat: freezed == isConnectionChat ? _self.isConnectionChat : isConnectionChat // ignore: cast_nullable_to_non_nullable
 as bool?,hasOlder: null == hasOlder ? _self.hasOlder : hasOlder // ignore: cast_nullable_to_non_nullable
 as bool,hasNewer: null == hasNewer ? _self.hasNewer : hasNewer // ignore: cast_nullable_to_non_nullable
@@ -487,16 +501,18 @@ _$MessageListStateCopyWith<_MessageListState> get copyWith => __$MessageListStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,revision);
+int get hashCode {
+    return Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,revision);
+}
 
 @override
 String toString() {
-  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+    return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
 }
 
 
@@ -553,16 +569,21 @@ $MessageListTransitionCopyWith<MessageListTransition> get copyWith => _$MessageL
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListTransition&&(identical(other.revision, revision) || other.revision == revision)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other.changes, changes)&&(identical(other.command, command) || other.command == command));
+  final _this = this as MessageListTransition;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListTransition&&(identical(other.revision, _this.revision) || other.revision == _this.revision)&&(identical(other.kind, _this.kind) || other.kind == _this.kind)&&const DeepCollectionEquality().equals(other.changes, _this.changes)&&(identical(other.command, _this.command) || other.command == _this.command));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,revision,kind,const DeepCollectionEquality().hash(changes),command);
+int get hashCode {
+  final _this = this as MessageListTransition;
+  return Object.hash(runtimeType,_this.revision,_this.kind,const DeepCollectionEquality().hash(_this.changes),_this.command);
+}
 
 @override
 String toString() {
-  return 'MessageListTransition(revision: $revision, kind: $kind, changes: $changes, command: $command)';
+  final _this = this as MessageListTransition;
+  return 'MessageListTransition(revision: ${_this.revision}, kind: ${_this.kind}, changes: ${_this.changes}, command: ${_this.command})';
 }
 
 
@@ -591,7 +612,7 @@ class _$MessageListTransitionCopyWithImpl<$Res>
 /// Create a copy of MessageListTransition
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? revision = null,Object? kind = null,Object? changes = null,Object? command = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(MessageListTransition(
 revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
 as int,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as MessageListTransitionKind,changes: null == changes ? _self.changes : changes // ignore: cast_nullable_to_non_nullable
@@ -620,7 +641,7 @@ $MessageListCommandCopyWith<$Res>? get command {
 
 
 class _MessageListTransition implements MessageListTransition {
-  const _MessageListTransition({required this.revision, required this.kind, required final  List<MessageListChange> changes, this.command}): _changes = changes;
+  const _MessageListTransition({required this.revision, required this.kind, required  List<MessageListChange> changes, this.command}): _changes = changes;
   
 
 @override final  int revision;
@@ -644,16 +665,18 @@ _$MessageListTransitionCopyWith<_MessageListTransition> get copyWith => __$Messa
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListTransition&&(identical(other.revision, revision) || other.revision == revision)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other._changes, _changes)&&(identical(other.command, command) || other.command == command));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListTransition&&(identical(other.revision, revision) || other.revision == revision)&&(identical(other.kind, kind) || other.kind == kind)&&const DeepCollectionEquality().equals(other.changes, _changes)&&(identical(other.command, command) || other.command == command));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,revision,kind,const DeepCollectionEquality().hash(_changes),command);
+int get hashCode {
+    return Object.hash(runtimeType,revision,kind,const DeepCollectionEquality().hash(_changes),command);
+}
 
 @override
 String toString() {
-  return 'MessageListTransition(revision: $revision, kind: $kind, changes: $changes, command: $command)';
+    return 'MessageListTransition(revision: $revision, kind: $kind, changes: $changes, command: $command)';
 }
 
 

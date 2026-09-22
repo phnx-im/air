@@ -16,9 +16,10 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
-    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
-    MessageDraft, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    Asset, AttachmentId, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus,
+    ChatType, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat,
+    LastReaction, Message, MessageDraft, SystemMessage, TargetedMessageContact, UserProfile,
+    clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -104,6 +105,7 @@ pub struct UiChatDetails {
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
+    pub resync_failed: bool,
 }
 
 impl UiChatDetails {
@@ -175,7 +177,7 @@ impl From<MessageDraft> for UiMessageDraft {
                             mimi_content: UnresolvedMimiContent::from(
                                 in_reply_to.mimi_content.unwrap_or_default(),
                             )
-                            .resolve(&in_reply_to.attachment_ids),
+                            .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
                         },
                         None => UiInReplyToMessage::NotFound,
                     },
@@ -414,10 +416,19 @@ pub enum UiMessageStatus {
     Deleted,
 }
 
+/// Infos for attachments whose local classification the caller does not need.
+fn attachment_infos(attachment_ids: &[AttachmentId]) -> Vec<AttachmentInfo> {
+    attachment_ids
+        .iter()
+        .copied()
+        .map(AttachmentInfo::from)
+        .collect()
+}
+
 impl UiChatMessage {
     pub(crate) fn from_message(
         mut chat_message: ChatMessage,
-        local_attachment_ids: &[AttachmentId],
+        local_attachment_infos: &[AttachmentInfo],
     ) -> Self {
         // A deleted message has nothing to report but the deletion. The
         // deletion is derived from the content rather than the stored status,
@@ -441,7 +452,7 @@ impl UiChatMessage {
                 mimi_content: UnresolvedMimiContent::from(
                     in_reply_to.mimi_content.unwrap_or_default(),
                 )
-                .resolve(&in_reply_to.attachment_ids),
+                .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
             },
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
@@ -458,7 +469,7 @@ impl UiChatMessage {
             chat_id,
             id,
             timestamp,
-            message: UiMessage::from_message(message, local_attachment_ids),
+            message: UiMessage::from_message(message, local_attachment_infos),
             in_reply_to_message,
             status,
             reactions,
@@ -486,10 +497,10 @@ pub enum UiMessage {
 }
 
 impl UiMessage {
-    fn from_message(message: Message, local_attachment_ids: &[AttachmentId]) -> Self {
+    fn from_message(message: Message, local_attachment_infos: &[AttachmentInfo]) -> Self {
         match message {
             Message::Content(content_message) => UiMessage::Content(Box::new(
-                UiContentMessage::from_message(*content_message, local_attachment_ids),
+                UiContentMessage::from_message(*content_message, local_attachment_infos),
             )),
             Message::Event(display_message) => {
                 UiMessage::Display(UiEventMessage::from(display_message))
@@ -511,7 +522,7 @@ pub struct UiContentMessage {
 impl UiContentMessage {
     fn from_message(
         content_message: ContentMessage,
-        local_attachment_ids: &[AttachmentId],
+        local_attachment_infos: &[AttachmentInfo],
     ) -> Self {
         let sent = content_message.was_sent();
         let edited = content_message.edited_at().is_some();
@@ -520,7 +531,7 @@ impl UiContentMessage {
             sender: sender.into(),
             sent,
             edited,
-            content: UnresolvedMimiContent::from(content).resolve(local_attachment_ids),
+            content: UnresolvedMimiContent::from(content).resolve(local_attachment_infos),
         }
     }
 }
@@ -546,8 +557,8 @@ impl From<EventMessage> for UiEventMessage {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiSystemMessage {
-    Add(UiUserId, UiUserId),
-    Remove(UiUserId, UiUserId),
+    Add(Option<UiUserId>, UiUserId),
+    Remove(Option<UiUserId>, UiUserId),
     ChangeTitle(UiUserId, String, String),
     ChangePicture(UiUserId),
     ReceivedHandleConnectionRequest {
@@ -575,11 +586,11 @@ pub enum UiSystemMessage {
 impl From<SystemMessage> for UiSystemMessage {
     fn from(system_message: SystemMessage) -> Self {
         match system_message {
-            SystemMessage::Add(user_id, contact_id) => {
-                UiSystemMessage::Add(user_id.into(), contact_id.into())
+            SystemMessage::Add(adder, added) => {
+                UiSystemMessage::Add(adder.map(Into::into), added.into())
             }
-            SystemMessage::Remove(user_id, contact_id) => {
-                UiSystemMessage::Remove(user_id.into(), contact_id.into())
+            SystemMessage::Remove(remover, removed) => {
+                UiSystemMessage::Remove(remover.map(Into::into), removed.into())
             }
             SystemMessage::ChangeTitle {
                 user_id,
@@ -822,4 +833,5 @@ struct _AirFeatures {
     pub encrypted_group_profiles: bool,
     pub empty_connection_group_attributes: bool,
     pub pq_groups: bool,
+    pub apq_connection_groups: bool,
 }

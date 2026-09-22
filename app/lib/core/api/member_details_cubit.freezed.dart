@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'member_details_cubit.dart';
@@ -9,6 +9,7 @@ part of 'member_details_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $MemberDetailsStateCopyWith<MemberDetailsState> get copyWith => _$MemberDetailsS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MemberDetailsState&&(identical(other.roomState, roomState) || other.roomState == roomState));
+  final _this = this as MemberDetailsState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MemberDetailsState&&(identical(other.roomState, _this.roomState) || other.roomState == _this.roomState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,roomState);
+int get hashCode {
+  final _this = this as MemberDetailsState;
+  return Object.hash(runtimeType,_this.roomState);
+}
 
 @override
 String toString() {
-  return 'MemberDetailsState(roomState: $roomState)';
+  final _this = this as MemberDetailsState;
+  return 'MemberDetailsState(roomState: ${_this.roomState})';
 }
 
 
@@ -63,7 +69,7 @@ class _$MemberDetailsStateCopyWithImpl<$Res>
 /// Create a copy of MemberDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? roomState = freezed,}) {
-  return _then(_self.copyWith(
+  return _then(MemberDetailsState(
 roomState: freezed == roomState ? _self.roomState : roomState // ignore: cast_nullable_to_non_nullable
 as UiRoomState?,
   ));
@@ -92,16 +98,18 @@ _$MemberDetailsStateCopyWith<_MemberDetailsState> get copyWith => __$MemberDetai
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MemberDetailsState&&(identical(other.roomState, roomState) || other.roomState == roomState));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _MemberDetailsState&&(identical(other.roomState, roomState) || other.roomState == roomState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,roomState);
+int get hashCode {
+    return Object.hash(runtimeType,roomState);
+}
 
 @override
 String toString() {
-  return 'MemberDetailsState(roomState: $roomState)';
+    return 'MemberDetailsState(roomState: $roomState)';
 }
 
 

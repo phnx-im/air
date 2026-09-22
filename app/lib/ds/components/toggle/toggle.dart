@@ -73,7 +73,7 @@ class Toggle extends StatelessWidget {
                     height: tokens.thumbSize,
                     decoration: BoxDecoration(
                       color: palette.function.neutral.toggleWhite,
-                      shape: BoxShape.circle,
+                      shape: .circle,
                     ),
                   ),
                 ),

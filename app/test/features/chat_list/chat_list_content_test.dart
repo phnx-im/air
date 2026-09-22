@@ -4,8 +4,8 @@
 
 import 'dart:typed_data';
 
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
-import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -63,6 +63,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Connection request
   UiChatDetails(
@@ -84,8 +85,7 @@ final chats = [
           sent: true,
           edited: true,
           content: UiMimiContent(
-            plainBody:
-                'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
+            plainBody: 'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
             topicId: Uint8List(0),
             content: simpleMessage(
               'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
@@ -101,6 +101,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Group chat
   UiChatDetails(
@@ -134,6 +135,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Group chat with a draft
   UiChatDetails(
@@ -173,6 +175,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A blocked contact
   UiChatDetails(
@@ -185,6 +188,7 @@ final chats = [
     lastMessage: null,
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A muted contact, with our own reaction to the last message
   UiChatDetails(
@@ -217,6 +221,7 @@ final chats = [
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Chat where I sent a picture
   UiChatDetails(
@@ -255,6 +260,7 @@ final chats = [
       reactions: [],
     ),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Chat where someone sent a file
   UiChatDetails(
@@ -293,6 +299,7 @@ final chats = [
       reactions: [],
     ),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // A muted group, with a reaction from someone to our own message
   UiChatDetails(
@@ -327,6 +334,7 @@ final chats = [
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
 ];
 
@@ -350,28 +358,9 @@ MessageContent simpleMessage(String msg) {
   );
 }
 
-ChatDetailsCubitCreate createMockChatDetailsCubitFactory(
-  List<UiChatDetails> chats,
-) =>
-    ({
-      required UserCubit userCubit,
-      required UserSettingsCubit userSettingsCubit,
-      required ChatId chatId,
-      required ChatsRepository chatsRepository,
-      required AttachmentsRepository attachmentsRepository,
-      bool withMembers = true,
-    }) {
-      final chat = chats.firstWhere((chat) => chat.id == chatId);
-      final state = ChatDetailsState(chat: chat, members: []);
-      final cubit = MockChatDetailsCubit();
-      when(() => cubit.state).thenReturn(state);
-      return cubit;
-    };
-
 void main() {
   group('ChatListContent', () {
     late MockNavigationCubit navigationCubit;
-    late MockChatListCubit chatListCubit;
     late MockUserCubit userCubit;
     late MockUsersCubit usersCubit;
     late MockUserSettingsCubit userSettingsCubit;
@@ -380,36 +369,26 @@ void main() {
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
-      chatListCubit = MockChatListCubit();
       userSettingsCubit = MockUserSettingsCubit();
 
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => usersCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: false));
+      when(() => usersCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: false));
     });
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-      ],
+    }) => RepositoryProvider<ChatsRepository>.value(
+      value: FakeChatsRepository(chats),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
           BlocProvider<UserCubit>.value(value: userCubit),
           BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatListCubit>.value(value: chatListCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         ],
         child: SDTFScope(
@@ -419,13 +398,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: Scaffold(
-                  body: ChatListContent(
-                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                      chats,
-                    ),
-                  ),
-                ),
+                home: const Scaffold(body: ChatListContent()),
               );
             },
           ),
@@ -434,10 +407,6 @@ void main() {
     );
 
     testWidgets('renders correctly when there are no chats', (tester) async {
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(const ChatListState(chatIds: []));
-
       await tester.pumpWidget(buildSubject(chats: []));
 
       await expectLater(
@@ -457,12 +426,6 @@ void main() {
         20,
         (index) => chats[index % chats.length],
       );
-      final testChatIds = testChats.map((chat) => chat.id).toList();
-
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: testChatIds));
-
       await tester.pumpWidget(buildSubject(chats: testChats));
 
       await expectLater(
@@ -478,12 +441,8 @@ void main() {
       WidgetTester tester, {
       required HomeNavigationState home,
     }) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(NavigationState.home(home: home));
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: [draftChat.id]));
+      when(() => navigationCubit.state)
+          .thenReturn(NavigationState.home(home: home));
 
       await tester.pumpWidget(buildSubject(chats: [draftChat]));
     }
@@ -512,9 +471,6 @@ void main() {
       UiMessageDraft? draft,
     }) async {
       final chat = reactedChat(reaction: reaction, draft: draft);
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: [chat.id]));
 
       sizeView(tester, const Size(400, 120));
       await tester.pumpWidget(buildSubject(chats: [chat]));
@@ -560,9 +516,6 @@ void main() {
       UiUserId? sender,
     }) async {
       final chat = attachmentChat(attachment, sender: sender);
-      when(
-        () => chatListCubit.state,
-      ).thenReturn(ChatListState(chatIds: [chat.id]));
 
       sizeView(tester, const Size(400, 120));
       await tester.pumpWidget(buildSubject(chats: [chat]));
@@ -656,6 +609,7 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       ),
       mutedUntil: null,
       pendingCommitFailed: false,
+      resyncFailed: false,
     );
 
 /// A contact chat whose last message, "Hello Alice", carries [reaction].
@@ -695,4 +649,5 @@ UiChatDetails reactedChat({
   draft: draft,
   mutedUntil: null,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );

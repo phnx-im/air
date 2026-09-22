@@ -31,11 +31,10 @@ import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/features/message_list/unread_divider.dart';
 
-typedef MessageCubitCreate =
-    MessageCubit Function({
-      required UserCubit userCubit,
-      required MessageState initialState,
-    });
+typedef MessageCubitCreate = MessageCubit Function({
+  required UserCubit userCubit,
+  required MessageState initialState,
+});
 
 class MessageListView extends StatefulWidget {
   const MessageListView({
@@ -449,7 +448,7 @@ class _MessageListViewState extends State<MessageListView>
       // list, except when tapping interactive elements like e.g. links.
       if (DeviceType.isPhone) {
         list = GestureDetector(
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           onTap: () => FocusScope.of(context).unfocus(),
           child: list,
         );
@@ -514,7 +513,7 @@ class _MessageListViewState extends State<MessageListView>
 
     if (composerHeightListenable == null) {
       return Stack(
-        clipBehavior: Clip.none,
+        clipBehavior: .none,
         children: [buildAnchoredList(), bottomFade, headerFade, floatingHeader],
       );
     }
@@ -536,13 +535,12 @@ class _MessageListViewState extends State<MessageListView>
           trackTop: mediaPadding.top,
           trackBottom: listBottomPadding,
           child: Stack(
-            clipBehavior: Clip.none,
+            clipBehavior: .none,
             children: [
               // Disable the auto-scrollbar, we have our own above.
               ScrollConfiguration(
-                behavior: ScrollConfiguration.of(
-                  context,
-                ).copyWith(scrollbars: false),
+                behavior: ScrollConfiguration.of(context)
+                    .copyWith(scrollbars: false),
                 child: buildAnchoredList(bottomPadding: listBottomPadding),
               ),
               bottomFade,

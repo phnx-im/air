@@ -37,7 +37,7 @@ class MemberListItem extends StatelessWidget {
       title: Text(
         displayName,
         style: typeScale.body.regular.style(color: palette.text.primary),
-        overflow: TextOverflow.ellipsis,
+        overflow: .ellipsis,
       ),
       trailing: trailing,
       hoverColor: palette.backgroundBase.secondary.withValues(alpha: 0.3),

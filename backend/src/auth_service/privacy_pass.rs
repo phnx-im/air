@@ -4,7 +4,10 @@
 
 use std::collections::HashSet;
 
-use aircommon::codec::{BlobDecoded, BlobEncoded};
+use aircommon::{
+    codec::{BlobDecoded, BlobEncoded},
+    identifiers::UserId,
+};
 use airprotos::auth_service::v1::OperationType;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -191,6 +194,16 @@ const KEY_ROTATION_PERIOD_DAYS: i64 = 90;
 /// token redemption.
 const KEY_OVERLAP_DAYS: i64 = 7;
 
+/// Retention of `as_token_issuance` rows. A row only matters while its
+/// allowance epoch can still be claimed, and 40 days covers the longest epoch
+/// (one month) plus margin.
+const ISSUANCE_RETENTION_DAYS: i32 = 40;
+
+/// Class of the advisory lock that serializes key rotation. The two-int form
+/// of `pg_advisory_xact_lock` shares one namespace across the database, so the
+/// class separates rotation locks from any other advisory lock use.
+const KEY_ROTATION_LOCK_CLASS: i32 = 0x4b45_5952;
+
 /// Checks whether key rotation is needed and performs it if so.
 ///
 /// Creates a new VOPRF keypair if no key exists or if the current key is older
@@ -225,8 +238,21 @@ async fn rotate_keys_if_needed_for_operation_type(
     pool: &PgPool,
     operation_type: OperationType,
 ) -> Result<bool, RotateKeysError> {
-    // TODO: lock the row, in case multiple servers are running on the same DB
-    let needs_rotation = sqlx::query_scalar!(
+    let mut transaction = pool.begin().await?;
+
+    // Replicas share the database, so the staleness check has to be serialized
+    // against the key creation it guards: otherwise two servers both find the
+    // key stale and create one each, and every extra live key grants an extra
+    // token batch per allowance epoch.
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock($1, $2)",
+        KEY_ROTATION_LOCK_CLASS,
+        operation_type as i32,
+    )
+    .execute(&mut *transaction)
+    .await?;
+
+    let rotated = sqlx::query_scalar!(
         "SELECT NOT EXISTS(
             SELECT 1 FROM as_batched_key
             WHERE operation_type = $1 AND created_at > now() - make_interval(days => $2)
@@ -234,24 +260,21 @@ async fn rotate_keys_if_needed_for_operation_type(
         operation_type as i16,
         KEY_ROTATION_PERIOD_DAYS as i32
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *transaction)
     .await?
     .unwrap_or(true);
 
-    let rotated = if needs_rotation {
-        let mut transaction = pool.begin().await?;
-        {
-            let conn_mutex = Mutex::new(&mut *transaction);
-            let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
-            let server = Server::<Ristretto255>::new();
-            server.create_keypair(&key_store).await?;
-        }
-        transaction.commit().await?;
+    if rotated {
+        let conn_mutex = Mutex::new(&mut *transaction);
+        let key_store = AuthServiceBatchedKeyStoreProvider::new(&conn_mutex, operation_type);
+        let server = Server::<Ristretto255>::new();
+        server.create_keypair(&key_store).await?;
+    }
+    transaction.commit().await?;
+
+    if rotated {
         info!(%operation_type, "created new VOPRF keypair");
-        true
-    } else {
-        false
-    };
+    }
 
     // Remove keys past the overlap window.
     let max_age_days = (KEY_ROTATION_PERIOD_DAYS + KEY_OVERLAP_DAYS) as i32;
@@ -291,6 +314,23 @@ async fn rotate_keys_if_needed_for_operation_type(
         );
     }
 
+    // Prune issuance records whose allowance epoch has long passed.
+    let issuances_removed = sqlx::query!(
+        "DELETE FROM as_token_issuance \
+         WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+        operation_type as i16,
+        ISSUANCE_RETENTION_DAYS
+    )
+    .execute(pool)
+    .await?;
+
+    if issuances_removed.rows_affected() > 0 {
+        info!(
+            removed = issuances_removed.rows_affected(),
+            "removed expired token issuance records"
+        );
+    }
+
     Ok(rotated)
 }
 
@@ -309,9 +349,15 @@ pub(super) struct BatchedTokenKeyRecord {
     pub(super) token_key_id: u8,
     pub(super) operation_type: OperationType,
     pub(super) public_key: Vec<u8>,
+    /// Whether this is the newest key of its operation type.
+    pub(super) is_current: bool,
 }
 
 /// Loads all VOPRF public keys from the batched key store.
+///
+/// The newest key of each operation type is marked as current. Clients need
+/// that marker to build token requests with the incoming key rather than the
+/// outgoing one while both are advertised during the overlap window.
 pub(super) async fn load_batched_token_keys(
     pool: &PgPool,
 ) -> Result<Vec<BatchedTokenKeyRecord>, sqlx::Error> {
@@ -319,7 +365,8 @@ pub(super) async fn load_batched_token_keys(
         r#"SELECT
             token_key_id,
             operation_type,
-            voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>"
+            voprf_server AS "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>",
+            created_at = MAX(created_at) OVER (PARTITION BY operation_type) AS "is_current!"
         FROM as_batched_key
         ORDER BY created_at DESC"#
     )
@@ -336,6 +383,7 @@ pub(super) async fn load_batched_token_keys(
                 operation_type: OperationType::try_from(row.operation_type as i32)
                     .unwrap_or_default(),
                 public_key,
+                is_current: row.is_current,
             }
         })
         .collect())
@@ -354,14 +402,82 @@ impl TokenAllowance {
     }
 }
 
+/// Tuple that bounds idempotent issuance to one batch.
+pub(in crate::auth_service) struct TokenIssuanceKey<'a> {
+    pub(in crate::auth_service) user_id: &'a UserId,
+    pub(in crate::auth_service) operation_type: OperationType,
+    pub(in crate::auth_service) allowance_epoch: i32,
+    pub(in crate::auth_service) key_fingerprint: &'a [u8],
+}
+
 mod persistence {
     use aircommon::identifiers::UserId;
     use airprotos::auth_service::v1::OperationType;
     use chrono::{DateTime, Utc};
-    use sqlx::{PgExecutor, PgTransaction, query};
+    use sqlx::{PgConnection, PgExecutor, PgTransaction, query, query_scalar};
 
-    use super::TokenAllowance;
+    use super::{TokenAllowance, TokenIssuanceKey};
     use crate::errors::StorageError;
+
+    impl TokenIssuanceKey<'_> {
+        /// Claims the issuance row for this key, returning the request hash it
+        /// was already claimed with, if any.
+        ///
+        /// `None` means this call took the row, so the batch is issued for the
+        /// first time. The insert is the whole lock: concurrent identical
+        /// requests both evaluate and, because evaluation is deterministic,
+        /// finalize to the same tokens.
+        pub(in crate::auth_service) async fn claim(
+            &self,
+            connection: &mut PgConnection,
+            request_hash: &[u8],
+        ) -> Result<Option<Vec<u8>>, StorageError> {
+            let inserted = query!(
+                "INSERT INTO as_token_issuance (
+                    user_uuid,
+                    user_domain,
+                    operation_type,
+                    allowance_epoch,
+                    key_fingerprint,
+                    request_hash
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT DO NOTHING
+                ",
+                self.user_id.uuid(),
+                self.user_id.domain() as _,
+                self.operation_type as i16,
+                self.allowance_epoch,
+                self.key_fingerprint,
+                request_hash,
+            )
+            .execute(&mut *connection)
+            .await?;
+
+            if inserted.rows_affected() > 0 {
+                return Ok(None);
+            }
+
+            // A conflicting insert that later rolled back leaves no row. That
+            // reads as a first issuance, which is what it is.
+            query_scalar!(
+                "SELECT request_hash FROM as_token_issuance
+                WHERE user_uuid = $1
+                    AND user_domain = $2
+                    AND operation_type = $3
+                    AND allowance_epoch = $4
+                    AND key_fingerprint = $5
+                ",
+                self.user_id.uuid(),
+                self.user_id.domain() as _,
+                self.operation_type as i16,
+                self.allowance_epoch,
+                self.key_fingerprint,
+            )
+            .fetch_optional(&mut *connection)
+            .await
+            .map_err(StorageError::from)
+        }
+    }
 
     impl TokenAllowance {
         pub(in crate::auth_service) async fn ensure_exists(
@@ -475,13 +591,68 @@ mod persistence {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::LazyLock;
+    use std::{sync::LazyLock, time::Duration};
 
     use aircommon::codec::PersistenceCodec;
     use rand::{SeedableRng, rngs::StdRng};
-    use sqlx::PgPool;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use tokio::time::timeout;
 
     use super::*;
+
+    /// Rotation serializes on a per-operation-type advisory lock: while one
+    /// replica holds it, another cannot reach its staleness check, so the two
+    /// can never both decide that a key is missing.
+    #[sqlx::test]
+    async fn rotation_waits_for_the_advisory_lock(pool: PgPool) -> anyhow::Result<()> {
+        let operation_type = OperationType::AddUsername;
+        rotate_keys_if_needed(&pool).await?;
+
+        // Age the key past the rotation period so rotation has work to do.
+        sqlx::query!(
+            "UPDATE as_batched_key
+            SET created_at = now() - make_interval(days => 91)
+            WHERE operation_type = $1",
+            operation_type as i16,
+        )
+        .execute(&pool)
+        .await?;
+
+        // Its own pool, so the run holds a connection independent of ours.
+        let replica = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with((*pool.connect_options()).clone())
+            .await?;
+
+        let mut blocker = pool.begin().await?;
+        sqlx::query!(
+            "SELECT pg_advisory_xact_lock($1, $2)",
+            KEY_ROTATION_LOCK_CLASS,
+            operation_type as i32,
+        )
+        .execute(&mut *blocker)
+        .await?;
+
+        let mut rotation = Box::pin(rotate_keys_if_needed(&replica));
+        assert!(
+            timeout(Duration::from_millis(250), &mut rotation)
+                .await
+                .is_err(),
+            "rotation must block while the lock is held"
+        );
+
+        blocker.rollback().await?;
+        assert!(rotation.await?.contains(&operation_type));
+
+        let keys = load_batched_token_keys(&pool)
+            .await?
+            .into_iter()
+            .filter(|key| key.operation_type == operation_type)
+            .count();
+        assert_eq!(keys, 2, "the aged key plus exactly one new key");
+
+        Ok(())
+    }
 
     /// Insert two VOPRF keys and retrieve each by ID.
     #[sqlx::test]

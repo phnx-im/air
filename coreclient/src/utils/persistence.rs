@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs,
     future::ready,
@@ -16,16 +17,24 @@ use sqlx::{
     Connection, Database, Encode, Sqlite, SqlitePool, Type,
     encode::IsNull,
     error::BoxDynError,
-    migrate,
+    migrate::{Migrate, MigrateError},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
+use strum::VariantArray;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
     chats::messages::edit::purge_stale_deleted_messages,
-    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
-    db::{access::DbAccess, notification::DbNotificationsSender},
+    clients::{
+        attachment::persistence::move_attachment_content_to_side_table,
+        own_client_info::OwnClientInfo, store::ClientRecord,
+    },
+    db::{
+        access::{DbAccess, WriteConnection, WriteTransaction},
+        notification::DbNotificationsSender,
+    },
+    groups::vc_epoch_retention::migrate_vc_derivation_epoch_retention,
     utils::global_lock::GlobalLock,
 };
 
@@ -53,7 +62,7 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
             .await?;
     }
 
-    migrate!("migrations/air").run(&write_pool).await?;
+    sqlx::migrate!("migrations/air").run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
     let air_db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
@@ -247,30 +256,118 @@ fn client_db_name(client_record_id: Uuid) -> String {
 pub async fn open_client_db(
     client_db_path: &str,
     client_record_id: Uuid,
-) -> sqlx::Result<DbAccess> {
+) -> anyhow::Result<DbAccess> {
     let client_db_name = client_db_name(client_record_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     info!(db_url, "opening client DB");
     let opts: SqliteConnectOptions = db_url.parse()?;
 
     let write_pool = write_pool(opts.clone()).await?;
-    migrate!().run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
-
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    // The client-id migration defaults the column to the nil UUID for clients that existed
-    // before it.
-    OwnClientInfo::backfill_client_id(db.write().await?).await?;
-
-    // Deletions processed by older client versions left state behind. The
-    // purge reruns on every open, so a failure only defers it and must not
-    // block opening the DB.
-    if let Err(error) = purge_stale_deleted_messages(&db).await {
-        error!(%error, "Failed to purge stale deleted messages");
-    }
+    run_client_migrations(&db).await?;
 
     Ok(db)
+}
+
+#[derive(Debug, Clone, Copy, strum::VariantArray)]
+#[repr(i64)]
+/// To add a new migration, add your variant here with the matching
+/// sqlx migration version as value, then follow the compiler.
+enum RustMigration {
+    OwnClientIdBackfill = 20260817150000,
+    StaleDeletedMessagesPurge = 20260817150100,
+    AttachmentContentMove = 20260831123717,
+    VcDerivationEpochRetention = 20260902120000,
+}
+
+impl RustMigration {
+    fn from_version(version: i64) -> Option<Self> {
+        match version {
+            20260817150000 => Some(Self::OwnClientIdBackfill),
+            20260817150100 => Some(Self::StaleDeletedMessagesPurge),
+            20260831123717 => Some(Self::AttachmentContentMove),
+            20260902120000 => Some(Self::VcDerivationEpochRetention),
+            _ => None,
+        }
+    }
+
+    /// Applies the code migration to the database.
+    async fn apply(&self, write: impl WriteTransaction) -> anyhow::Result<()> {
+        match self {
+            RustMigration::OwnClientIdBackfill => OwnClientInfo::backfill_client_id(write).await?,
+            RustMigration::StaleDeletedMessagesPurge => purge_stale_deleted_messages(write).await?,
+            RustMigration::AttachmentContentMove => {
+                move_attachment_content_to_side_table(write).await?
+            }
+            RustMigration::VcDerivationEpochRetention => {
+                migrate_vc_derivation_epoch_retention(write).await?
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Runs the client DB's SQL migrations, interleaved with one-time code
+/// migrations that must not rerun on every open.
+///
+/// Each SQL migration can have a corresponding optional code migration. After it is applied, the
+/// code migration is applied in the *same* transaction.
+///
+/// Note: This function is implemented along the lines of `sqlx::migrate::Migrator::run`, but
+/// adjusted to sqlite.
+async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
+    let migrator = sqlx::migrate!();
+    let table = "_sqlx_migrations";
+
+    // Check that every rust migration has a matching migration file.
+    for m in RustMigration::VARIANTS {
+        anyhow::ensure!(
+            migrator.version_exists(*m as i64),
+            "no migration file for paired code migration version {m:?}",
+        );
+    }
+
+    let mut write = db.write().await?;
+    write.as_mut().ensure_migrations_table(table).await?;
+    if let Some(version) = write.as_mut().dirty_version(table).await? {
+        return Err(MigrateError::Dirty(version).into());
+    }
+    let applied = write.as_mut().list_applied_migrations(table).await?;
+    for m in &applied {
+        anyhow::ensure!(
+            migrator.version_exists(m.version),
+            "unknown applied version {}",
+            m.version,
+        );
+    }
+    let applied: HashMap<i64, _> = applied.into_iter().map(|m| (m.version, m)).collect();
+
+    for migration in migrator.iter() {
+        if migration.migration_type.is_down_migration() {
+            continue;
+        }
+        match applied.get(&migration.version) {
+            Some(applied) if migration.checksum != applied.checksum => {
+                return Err(MigrateError::VersionMismatch(migration.version).into());
+            }
+            Some(_) => {} // already applied
+            None => match RustMigration::from_version(migration.version) {
+                Some(code) => {
+                    let mut txn = write.begin().await?;
+                    txn.as_mut().apply(table, migration).await?;
+                    code.apply(&mut txn).await?;
+                    txn.commit().await?;
+                }
+                None => {
+                    write.as_mut().apply(table, migration).await?;
+                }
+            },
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {
@@ -317,13 +414,40 @@ impl From<GroupIdWrapper> for GroupId {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::UserId;
+    use aircommon::{
+        codec::PersistenceCodec,
+        identifiers::{QsClientId, QsUserId, UserId},
+    };
     use chrono::Utc;
+    #[expect(deprecated, reason = "produces records in the pre-log format")]
+    use openmls::components::vc_derivation_info::RegisteredVcDerivationEpoch;
+    use openmls::{
+        components::vc_derivation_info::{EpochId, VcEmulationBinding},
+        group::GroupEpoch,
+    };
+    use openmls_traits::storage::StorageProvider;
     use tempfile::tempdir;
     use uuid::Uuid;
 
     use super::*;
-    use crate::clients::store::{ClientRecord, ClientRecordState};
+    use serde::Serialize;
+
+    use crate::{
+        clients::store::{ClientRecord, ClientRecordState},
+        groups::openmls_provider::storage_provider::SqliteStorageProvider,
+    };
+
+    #[test]
+    fn from_version_covers_all_variants() {
+        for migration in RustMigration::VARIANTS {
+            let version = *migration as i64;
+            assert_eq!(
+                RustMigration::from_version(version).map(|migration| migration as i64),
+                Some(version),
+                "from_version disagrees with the discriminant of {migration:?}",
+            );
+        }
+    }
 
     async fn store_record(
         air_db: &DbAccess,
@@ -521,6 +645,354 @@ mod tests {
                 .await?
                 .is_none()
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn own_client_id_backfill_runs_once() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let user_id = UserId::random("localhost".parse()?);
+        let mut rng = rand::rng();
+
+        // Fully migrate a fresh DB; this consumes the marker migration since there is nothing to
+        // backfill yet.
+        let db = open_client_db(db_path, client_record_id).await?;
+        db.close().await;
+
+        // Unapply the marker and insert an `own_client_info` row the way an old,
+        // pre-backfill client would have left it on disk: with a nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("DELETE FROM _sqlx_migrations WHERE version = ?")
+            .bind(RustMigration::OwnClientIdBackfill as i64)
+            .execute(db.write().await?.as_mut())
+            .await?;
+        sqlx::query(
+            "INSERT INTO own_client_info (qs_user_id, qs_client_id, user_uuid, user_domain)
+            VALUES (?, ?, ?, ?)",
+        )
+        .bind(QsUserId::random())
+        .bind(QsClientId::random(&mut rng))
+        .bind(user_id.uuid())
+        .bind(user_id.domain().to_string())
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        // Reopening reruns the marker's code, backfilling the nil client id.
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_ne!(client_id, Uuid::nil());
+        db.close().await;
+
+        // Reset it to nil directly. The marker has re-applied, so a further open must leave it
+        // alone rather than backfilling it again.
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query("UPDATE own_client_info SET client_id = ?")
+            .bind(Uuid::nil())
+            .execute(db.write().await?.as_mut())
+            .await?;
+        db.close().await;
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        let client_id: Uuid = sqlx::query_scalar("SELECT client_id FROM own_client_info")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_eq!(client_id, Uuid::nil());
+
+        Ok(())
+    }
+
+    /// Rolls the DB back to the schema before the per-entry tables and seeds
+    /// it the way a client from before the log left it on disk.
+    async fn seed_legacy_vc_state(db: &DbAccess, epochs: &LegacyEpochs) -> anyhow::Result<()> {
+        let mut write = db.write().await?;
+        for statement in [
+            "DELETE FROM _sqlx_migrations
+             WHERE version IN (20260902120000, 20260902120100)",
+            "DROP TABLE vc_derivation_epoch_log_entry",
+            "DROP TABLE vc_derivation_epoch_legacy_hold",
+            "DROP TABLE vc_emulation_binding",
+            "CREATE TABLE vc_emulation_binding(
+                group_id BLOB NOT NULL,
+                bindings BLOB NOT NULL,
+                PRIMARY KEY (group_id)
+            )",
+            "CREATE TABLE vc_registered_emulation_epoch(
+                group_id BLOB NOT NULL,
+                registration BLOB NOT NULL,
+                PRIMARY KEY (group_id)
+            )",
+        ] {
+            sqlx::query(statement).execute(write.as_mut()).await?;
+        }
+
+        #[expect(deprecated, reason = "produces a record in the pre-log format")]
+        let registration = PersistenceCodec::to_vec(&RegisteredVcDerivationEpoch {
+            group_epoch: GroupEpoch::from(7),
+            epoch_id: epochs.registered.clone(),
+        })?;
+        sqlx::query(
+            "INSERT INTO vc_registered_emulation_epoch(group_id, registration) VALUES (?, ?)",
+        )
+        .bind(PersistenceCodec::to_vec(&emulation_group_id())?)
+        .bind(registration)
+        .execute(write.as_mut())
+        .await?;
+
+        let bindings = LegacyBindingsRecord {
+            bindings: vec![
+                (GroupEpoch::from(3), epochs.bound.clone()),
+                (bound_group_epoch(), epochs.bound.clone()),
+            ],
+        };
+        sqlx::query("INSERT INTO vc_emulation_binding(group_id, bindings) VALUES (?, ?)")
+            .bind(PersistenceCodec::to_vec(&higher_level_group_id())?)
+            .bind(PersistenceCodec::to_vec(&bindings)?)
+            .execute(write.as_mut())
+            .await?;
+
+        sqlx::query(
+            "INSERT INTO vc_retained_key_package_material(key_package_ref, epoch_id, record)
+            VALUES (?, ?, ?)",
+        )
+        .bind(b"key-package-ref".to_vec())
+        .bind(PersistenceCodec::to_vec(&epochs.retained)?)
+        .bind(b"record".to_vec())
+        .execute(write.as_mut())
+        .await?;
+
+        // Per-epoch state for all four, only some of which is still referenced.
+        for epoch in epochs.all() {
+            let epoch = PersistenceCodec::to_vec(epoch)?;
+            sqlx::query(
+                "INSERT INTO vc_emulation_group_secret(epoch_id, secret_type, vc_secret)
+                VALUES (?, 'emulation_epoch_state', ?)",
+            )
+            .bind(epoch.clone())
+            .bind(b"secret".to_vec())
+            .execute(write.as_mut())
+            .await?;
+            sqlx::query("INSERT INTO vc_operation_tree(epoch_id, operation_tree) VALUES (?, ?)")
+                .bind(epoch)
+                .bind(b"tree".to_vec())
+                .execute(write.as_mut())
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Mirrors the layout of the deprecated upstream `VcEmulationBindings`,
+    /// which has no constructor.
+    #[derive(Serialize)]
+    struct LegacyBindingsRecord {
+        bindings: Vec<(GroupEpoch, EpochId)>,
+    }
+
+    /// The derivation epochs a client from before the log has state for, by
+    /// what still references them.
+    struct LegacyEpochs {
+        registered: EpochId,
+        bound: EpochId,
+        retained: EpochId,
+        orphan: EpochId,
+    }
+
+    impl LegacyEpochs {
+        fn new() -> Self {
+            Self {
+                registered: EpochId::new(b"registered".to_vec()),
+                bound: EpochId::new(b"bound".to_vec()),
+                retained: EpochId::new(b"retained".to_vec()),
+                orphan: EpochId::new(b"orphan".to_vec()),
+            }
+        }
+
+        fn all(&self) -> [&EpochId; 4] {
+            [&self.registered, &self.bound, &self.retained, &self.orphan]
+        }
+    }
+
+    fn emulation_group_id() -> GroupId {
+        GroupId::from_slice(b"emulation-group")
+    }
+
+    fn higher_level_group_id() -> GroupId {
+        GroupId::from_slice(b"higher-level-group")
+    }
+
+    fn bound_group_epoch() -> GroupEpoch {
+        GroupEpoch::from(4)
+    }
+
+    async fn epoch_state_exists(db: &DbAccess, epoch: &EpochId) -> anyhow::Result<bool> {
+        let epoch = PersistenceCodec::to_vec(epoch)?;
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM vc_emulation_group_secret WHERE epoch_id = ?
+            )",
+        )
+        .bind(epoch)
+        .fetch_one(db.read().await?.as_mut())
+        .await?;
+        Ok(exists)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn vc_derivation_epoch_retention_migration() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+        let epochs = LegacyEpochs::new();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        seed_legacy_vc_state(&db, &epochs).await?;
+        db.close().await;
+
+        // Reopening replays the migration and its paired code migration.
+        let db = open_client_db(db_path, client_record_id).await?;
+
+        let logged: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT epoch_id FROM vc_derivation_epoch_log_entry")
+                .fetch_all(db.read().await?.as_mut())
+                .await?;
+        assert_eq!(logged, vec![PersistenceCodec::to_vec(&epochs.registered)?]);
+
+        {
+            let mut write = db.write().await?;
+            let provider = SqliteStorageProvider::new(write.as_mut());
+            let binding: Option<VcEmulationBinding> =
+                provider.vc_emulation_binding(&higher_level_group_id(), &bound_group_epoch())?;
+            let binding = binding.expect("the bound group epoch resolves to its binding");
+            assert_eq!(binding.epoch_id(), &epochs.bound);
+            let bindings: Vec<VcEmulationBinding> =
+                provider.vc_emulation_bindings(&higher_level_group_id())?;
+            assert_eq!(bindings.len(), 2);
+        }
+
+        // The migration must not purge. The epochs predate the log, so a queued
+        // sibling operation can still reference any of them. They age out
+        // through the sweep one retention window after the migration.
+        for epoch in epochs.all() {
+            assert!(
+                epoch_state_exists(&db, epoch).await?,
+                "epoch state must survive the migration"
+            );
+        }
+        // Every epoch outside the converted log is held, also the ones a
+        // binding or retained KeyPackage names today: that reference can go
+        // before the window is over.
+        let mut held: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT epoch_id FROM vc_derivation_epoch_legacy_hold")
+                .fetch_all(db.read().await?.as_mut())
+                .await?;
+        held.sort();
+        let mut expected = vec![
+            PersistenceCodec::to_vec(&epochs.bound)?,
+            PersistenceCodec::to_vec(&epochs.retained)?,
+            PersistenceCodec::to_vec(&epochs.orphan)?,
+        ];
+        expected.sort();
+        assert_eq!(held, expected);
+
+        // Dropping the binding and the retained material inside the window
+        // leaves the hold as the only reference, and the sweep respects it.
+        sqlx::query("DELETE FROM vc_retained_key_package_material")
+            .execute(db.write().await?.as_mut())
+            .await?;
+        {
+            let mut write = db.write().await?;
+            let provider = SqliteStorageProvider::new(write.as_mut());
+            provider.delete_all_vc_emulation_bindings(&higher_level_group_id())?;
+            let swept: Vec<EpochId> = provider.delete_unreferenced_vc_derivation_epoch_states()?;
+            assert!(swept.is_empty());
+        }
+        for epoch in epochs.all() {
+            assert!(
+                epoch_state_exists(&db, epoch).await?,
+                "held epoch state must survive losing its other references"
+            );
+        }
+
+        // The old tables are gone.
+        let legacy_tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master
+            WHERE name IN ('vc_registered_emulation_epoch', 'vc_emulation_binding_record')",
+        )
+        .fetch_all(db.read().await?.as_mut())
+        .await?;
+        assert!(legacy_tables.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn modified_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET checksum = x'00'
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(
+            error.downcast_ref(),
+            Some(MigrateError::VersionMismatch(_))
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dirty_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "UPDATE _sqlx_migrations SET success = 0
+            WHERE version = (SELECT MAX(version) FROM _sqlx_migrations)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(matches!(error.downcast_ref(), Some(MigrateError::Dirty(_))));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_applied_migration_is_rejected() -> anyhow::Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        sqlx::query(
+            "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time)
+            VALUES (99999999999999, 'from the future', 1, x'00', 0)",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+        db.close().await;
+
+        let error = open_client_db(db_path, client_record_id).await.unwrap_err();
+        assert!(error.to_string().contains("unknown applied version"));
 
         Ok(())
     }

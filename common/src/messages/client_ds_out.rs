@@ -9,14 +9,15 @@
 
 use std::collections::HashMap;
 
-use apqmls::commit_builder::ApqCommitMessageBundle;
+use apqmls::{commit_builder::ApqCommitMessageBundle, extension::ApqInfo};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
     openmls::{
         group::GroupEpoch,
         prelude::{
-            GroupId, LeafNodeIndex, MlsMessageOut, RatchetTreeIn, group_info::VerifiableGroupInfo,
+            GroupId, LeafNodeIndex, MlsMessageIn, MlsMessageOut, RatchetTreeIn,
+            group_info::VerifiableGroupInfo,
         },
         treesync::RatchetTree,
     },
@@ -37,7 +38,7 @@ pub struct ExternalCommitInfoIn {
     pub room_state: VerifiedRoomState,
     pub proposals: Vec<Vec<u8>>,
     pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
-    /// Present iff the request carried a `pq_qgid`, i.e. the caller is joining an APQ group.
+    /// Present for APQ groups.
     pub pq: Option<PqExternalCommitInfoIn>,
 }
 
@@ -45,6 +46,45 @@ pub struct PqExternalCommitInfoIn {
     pub group_info: VerifiableGroupInfo,
     pub ratchet_tree: RatchetTreeIn,
     pub proposals: Vec<Vec<u8>>,
+}
+
+impl ExternalCommitInfoIn {
+    /// Decide whether the group is an APQ group.
+    ///
+    /// The decision is based on the presence of the `APQInfo` component in the group context
+    /// extensions, never on the presence of the `pq` field which is sent by DS.
+    pub fn is_apq(&self) -> Result<bool, tls_codec::Error> {
+        let info =
+            ApqInfo::from_extensions(self.verifiable_group_info.group_context().extensions())?;
+        Ok(info.is_some())
+    }
+}
+
+/// The group state the DS served at a past epoch.
+///
+/// A sibling of a virtual client fetches it to join a group one of its
+/// emulator clients created or externally joined, at exactly the epoch of
+/// that operation.
+#[derive(Debug)]
+pub struct EpochSnapshotIn {
+    pub verifiable_group_info: VerifiableGroupInfo,
+    pub ratchet_tree_in: RatchetTreeIn,
+    pub room_state: VerifiedRoomState,
+    /// Present iff the snapshot is of an APQ group.
+    pub pq: Option<PqEpochSnapshotIn>,
+    /// The external commit accepted at this epoch, present iff the snapshot
+    /// was written at an external join. A sibling of the joiner applies it on
+    /// top of the snapshot state. For an APQ join this is the T leg's commit.
+    pub join_commit: Option<MlsMessageIn>,
+}
+
+#[derive(Debug)]
+pub struct PqEpochSnapshotIn {
+    pub verifiable_group_info: VerifiableGroupInfo,
+    pub ratchet_tree_in: RatchetTreeIn,
+    /// The PQ leg's commit, present iff [`EpochSnapshotIn::join_commit`] is the
+    /// T leg's commit of an APQ join.
+    pub join_commit: Option<MlsMessageIn>,
 }
 
 #[derive(Debug)]
@@ -67,6 +107,10 @@ pub struct CreateGroupParamsOut {
     /// Authenticates the creation of a self-group, whose leaves carry no user
     /// credential. Must be `None` for all other groups.
     pub creator_user_credential: Option<UserCredential>,
+    /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for the
+    /// creator's sibling clients. Set when a virtual client creates the group,
+    /// in which case the DS echoes it to the sibling queues.
+    pub group_bootstrap: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]

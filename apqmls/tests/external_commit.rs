@@ -14,18 +14,20 @@ use apqmls::{
     },
     processing::ApqProcessedMessage,
     public_group::ApqPublicGroup,
+    validation::ApqValidationError,
 };
 use openmls::{
+    component::ComponentId,
     group::{
         GroupId, MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig,
         PURE_PLAINTEXT_WIRE_FORMAT_POLICY, ProposalStore,
     },
     prelude::{
-        Capabilities, Credential, LeafNodeIndex, LeafNodeParameters, MlsMessageBodyIn,
-        MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
-        ProcessedMessageContent, ProposalType, PublicGroup, PublicMessageIn,
+        AppEphemeralProposal, Capabilities, Credential, LeafNodeIndex, LeafNodeParameters,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
+        ProcessedMessageContent, Proposal, ProposalType, PublicGroup, PublicMessageIn,
     },
-    schedule::PreSharedKeyId,
+    schedule::{ExternalPsk, PreSharedKeyId, Psk},
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use tls_codec::{Deserialize as _, Serialize as _};
@@ -55,7 +57,13 @@ fn join_config() -> MlsGroupJoinConfig {
 }
 
 fn test_capabilities() -> Capabilities {
-    Capabilities::new(None, None, None, Some(&[ProposalType::SelfRemove]), None)
+    Capabilities::new(
+        None,
+        None,
+        None,
+        Some(&[ProposalType::SelfRemove, ProposalType::AppEphemeral]),
+        None,
+    )
 }
 
 fn create_group(client: &Client<OpenMlsRustCrypto>, mode: PqtMode) -> ApqMlsGroup {
@@ -106,6 +114,7 @@ fn add_members(
                 &join_config(),
                 welcome.clone(),
                 Some(adder_group.export_ratchet_tree().into()),
+                compare_credentials,
             )
             .unwrap()
         })
@@ -160,6 +169,7 @@ fn external_join(
             &client.signer,
             client.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
     assert!(bundle.group_info.is_some());
@@ -416,10 +426,13 @@ fn missing_apq_info() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         );
     assert!(matches!(
         result,
-        Err(ApqExternalCommitBuilderError::MissingApqInfo)
+        Err(ApqExternalCommitBuilderError::Validation(
+            ApqValidationError::MissingApqInfo(_)
+        ))
     ));
 }
 
@@ -455,6 +468,52 @@ fn psk_continuity() {
         bob_group.merge_pending_commit(&bob.provider).unwrap();
         process_and_merge(&alice, &mut alice_group, bundle.commit);
         assert_groups_eq(&mut alice_group, &mut bob_group);
+    }
+}
+
+/// An extra T-leg PSK, as used for the connection-offer PSK, rides the external commit next to
+/// the combiner PSK. Both sides must know it out of band.
+#[test]
+fn external_join_with_t_psk() {
+    for mode in TEST_MODES {
+        let alice = new_client("Alice", mode);
+        let bob = new_client("Bob", mode);
+        let mut alice_group = create_group(&alice, mode);
+
+        let psk_value = b"connection offer psk".to_vec();
+        let psk_id = PreSharedKeyId::new(
+            alice_group.t_group.ciphersuite(),
+            bob.provider.rand(),
+            Psk::External(ExternalPsk::new(psk_value.clone())),
+        )
+        .unwrap();
+        psk_id.store(&alice.provider, &psk_value).unwrap();
+        psk_id.store(&bob.provider, &psk_value).unwrap();
+
+        let (group_info, ratchet_tree) = export_join_info(&alice, &alice_group);
+        let (mut bob_group, bundle) = ApqMlsGroup::external_commit_builder()
+            .with_ratchet_tree(ratchet_tree)
+            .with_config(join_config())
+            .create_group_info(true)
+            .add_t_psk_proposal(PreSharedKeyProposal::new(psk_id))
+            .build(
+                &bob.provider,
+                &bob.signer,
+                bob.credential_with_key.clone(),
+                group_info,
+                compare_credentials,
+            )
+            .unwrap();
+        process_and_merge(&alice, &mut alice_group, bundle.commit);
+        assert_groups_eq(&mut alice_group, &mut bob_group);
+
+        let message = send_t_message(&alice, &mut alice_group, b"hi bob");
+        assert_eq!(receive_t_message(&bob, &mut bob_group, message), b"hi bob");
+        let message = send_t_message(&bob, &mut bob_group, b"hi alice");
+        assert_eq!(
+            receive_t_message(&alice, &mut alice_group, message),
+            b"hi alice"
+        );
     }
 }
 
@@ -519,6 +578,7 @@ fn parked_self_remove_via_with_proposals() {
                 &bob.signer,
                 bob.credential_with_key.clone(),
                 group_info,
+                compare_credentials,
             )
             .unwrap();
 
@@ -625,6 +685,7 @@ fn no_group_info() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
     assert!(bundle.group_info.is_none());
@@ -647,6 +708,7 @@ fn aad_roundtrip() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         )
         .unwrap();
 
@@ -682,6 +744,7 @@ fn t_leg_failure_does_not_leave_orphaned_pq_group() {
             &bob.signer,
             bob.credential_with_key.clone(),
             group_info,
+            compare_credentials,
         );
     assert!(result.is_err());
 
@@ -691,4 +754,63 @@ fn t_leg_failure_does_not_leave_orphaned_pq_group() {
             .unwrap()
             .is_none()
     );
+}
+
+/// A by-value AppEphemeral proposal attached to the T external commit can be
+/// read off the wire without group state, and members find it in the staged
+/// commit.
+#[test]
+fn app_ephemeral_proposal_in_external_commit() {
+    const COMPONENT_ID: ComponentId = 7;
+    const DATA: &[u8] = b"sibling key material";
+
+    let mode = PqtMode::ConfAndAuth;
+    let alice = new_client("Alice", mode);
+    let bob = new_client("Bob", mode);
+    let mut bob_group = create_group(&bob, mode);
+
+    let (group_info, ratchet_tree) = export_join_info(&bob, &bob_group);
+
+    let leaf_node_parameters = LeafNodeParameters::builder()
+        .with_capabilities(test_capabilities())
+        .build();
+    let (_alice_group, bundle) = ApqMlsGroup::external_commit_builder()
+        .with_ratchet_tree(ratchet_tree)
+        .with_config(join_config())
+        .leaf_node_parameters(leaf_node_parameters.clone(), leaf_node_parameters)
+        .add_t_proposal(Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+            COMPONENT_ID,
+            DATA.into(),
+        ))))
+        .build(
+            &alice.provider,
+            &alice.signer,
+            alice.credential_with_key.clone(),
+            group_info,
+            compare_credentials,
+        )
+        .unwrap();
+
+    // Read the payload off the wire without any group state.
+    let (t_commit, _pq_commit) = bundle.commit.clone().split();
+    let public_message = public_message_in(t_commit);
+    let peeked = public_message.unverified_app_ephemeral_proposals(COMPONENT_ID);
+    assert_eq!(peeked.len(), 1);
+    assert_eq!(peeked[0].data(), DATA);
+
+    // Members find the proposal in the T staged commit.
+    let staged_commit = process_commit(&bob, &mut bob_group, bundle.commit)
+        .into_staged_commit()
+        .unwrap();
+    let mut proposals = staged_commit
+        .t_staged_commit
+        .staged_proposal_queue
+        .app_ephemeral_proposals_for_component_id(COMPONENT_ID);
+    let queued_proposal = proposals.next().expect("no AppEphemeral proposal");
+    assert_eq!(queued_proposal.app_ephemeral_proposal().data(), DATA);
+    assert!(proposals.next().is_none());
+    drop(proposals);
+    bob_group
+        .merge_staged_commit(&bob.provider, staged_commit)
+        .unwrap();
 }

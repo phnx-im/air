@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE invitation_code\n                    SET redeemed = TRUE\n                    WHERE code = $1 AND redeemed = FALSE\n                    RETURNING code\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "invitation_code",
+            "name": "code"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fb9b87cf6355ce44a9dbfc63acfd6cffc76338ac70af8ef090125a3ced5ecb26"
+}

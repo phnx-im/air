@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue\n                SET attempts = ?2, not_before = ?3, last_error = ?4\n                WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "782c7d7ce13e019b5796336f062cb113bcde9ac0a59c444031e60be3d10f09b9"
+}

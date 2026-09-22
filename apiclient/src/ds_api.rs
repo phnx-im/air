@@ -18,9 +18,9 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
-            ExternalCommitInfoIn, GroupOperationParamsOut, PqExternalCommitInfoIn,
-            SelfRemoveParamsOut, SendMessageCollisionTag, SendMessageParamsOut,
-            TargetedMessageParamsOut, WelcomeInfoIn,
+            EpochSnapshotIn, ExternalCommitInfoIn, GroupOperationParamsOut, PqEpochSnapshotIn,
+            PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag,
+            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -34,13 +34,14 @@ use airprotos::{
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
-        ApqGroupOperationPayload, ApqResyncPayload, ApqSelfRemovePayload,
-        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
-        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
-        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
-        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        ApqGroupOperationPayload, ApqJoinConnectionGroupRequest, ApqResyncPayload,
+        ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
+        CreateGroupPayload, DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
+        GetAttachmentUrlPayload, GroupInfo, GroupOperationPayload, GroupSessionData,
+        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, MlsMessage,
+        ProvisionAttachmentPayload, RatchetTree, RequestGroupIdRequest, ResyncPayload,
+        SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload, StorageObjectType,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -48,7 +49,10 @@ use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
-    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageOut},
+    openmls::prelude::{
+        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, MlsMessageOut,
+        tls_codec::DeserializeBytes as _,
+    },
 };
 use tonic::Code;
 use tracing::error;
@@ -186,6 +190,7 @@ impl ApiClient {
             room_state,
             pq,
             creator_user_credential,
+            group_bootstrap,
         } = params;
 
         let qgid: QualifiedGroupId = group_id.try_into()?;
@@ -218,6 +223,7 @@ impl ApiClient {
                 t_group_data: Some(t_group_data),
                 pq_group_data: Some(pq_group_data),
                 creator_user_credential,
+                group_bootstrap,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_apq_group(request).await?;
@@ -232,6 +238,7 @@ impl ApiClient {
                 group_info: Some(group_info.try_ref_into()?),
                 room_state: Some(room_state.unverified().try_ref_into()?),
                 creator_user_credential,
+                group_bootstrap,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_group(request).await?;
@@ -415,15 +422,11 @@ impl ApiClient {
                 response.indexed_encrypted_user_profile_keys,
             )?;
 
-        let pq = match (response.pq_group_info, response.pq_ratchet_tree) {
-            (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqExternalCommitInfoIn {
-                group_info: pq_group_info.try_ref_into()?,
-                ratchet_tree: pq_ratchet_tree.try_ref_into()?,
-                proposals: response.pq_proposals.into_iter().map(|m| m.tls).collect(),
-            }),
-            (None, None) => None,
-            _ => return Err(DsRequestError::UnexpectedResponse),
-        };
+        let pq = parse_pq_external_commit_info(
+            response.pq_group_info,
+            response.pq_ratchet_tree,
+            response.pq_proposals,
+        )?;
 
         Ok(ExternalCommitInfoIn {
             verifiable_group_info: response
@@ -445,6 +448,68 @@ impl ApiClient {
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
             indexed_encrypted_user_profile_keys,
             pq,
+        })
+    }
+
+    /// Get the group state the DS served at `epoch`.
+    ///
+    /// `group_id` is the T leg's group id, also for APQ groups: the snapshot of
+    /// an APQ group covers both legs.
+    pub async fn ds_epoch_snapshot(
+        &self,
+        group_id: GroupId,
+        epoch: GroupEpoch,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<EpochSnapshotIn, DsRequestError> {
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        let request = EpochSnapshotRequest {
+            client_metadata: Some(self.metadata().clone()),
+            qgid: Some(qgid.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            epoch: epoch.as_u64(),
+        };
+        let response = self
+            .ds_grpc_client()
+            .epoch_snapshot(request)
+            .await?
+            .into_inner();
+
+        let pq = match (response.pq_group_info, response.pq_ratchet_tree) {
+            (Some(pq_group_info), Some(pq_ratchet_tree)) => Some(PqEpochSnapshotIn {
+                verifiable_group_info: pq_group_info.try_ref_into()?,
+                ratchet_tree_in: pq_ratchet_tree.try_ref_into()?,
+                join_commit: response
+                    .pq_join_commit
+                    .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                    .transpose()
+                    .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            }),
+            (None, None) if response.pq_join_commit.is_none() => None,
+            _ => return Err(DsRequestError::UnexpectedResponse),
+        };
+
+        Ok(EpochSnapshotIn {
+            verifiable_group_info: response
+                .group_info
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            ratchet_tree_in: response
+                .ratchet_tree
+                .ok_or(DsRequestError::UnexpectedResponse)?
+                .try_ref_into()?,
+            room_state: VerifiedRoomState::verify(
+                response
+                    .room_state
+                    .ok_or(DsRequestError::UnexpectedResponse)?
+                    .try_ref_into()?,
+            )
+            .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            pq,
+            join_commit: response
+                .join_commit
+                .map(|bytes| MlsMessageIn::tls_deserialize_exact_bytes(&bytes))
+                .transpose()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?,
         })
     }
 
@@ -470,6 +535,11 @@ impl ApiClient {
                 response.encrypted_user_profile_keys,
                 response.indexed_encrypted_user_profile_keys,
             )?;
+        let pq = parse_pq_external_commit_info(
+            response.pq_group_info,
+            response.pq_ratchet_tree,
+            response.pq_proposals,
+        )?;
         Ok(ExternalCommitInfoIn {
             verifiable_group_info: response
                 .group_info
@@ -489,8 +559,7 @@ impl ApiClient {
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
             indexed_encrypted_user_profile_keys,
-            // Connection groups have no PQ leg.
-            pq: None,
+            pq,
         })
     }
 
@@ -501,6 +570,9 @@ impl ApiClient {
         group_info: MlsMessageOut,
         qs_client_reference: QsReference,
         group_state_ear_key: &GroupStateEarKey,
+        // A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for
+        // the joiner's sibling clients.
+        group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
         let external_commit = AssistedMessageOut::new(commit, Some(group_info));
         let request = JoinConnectionGroupRequest {
@@ -508,10 +580,40 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             external_commit: Some(external_commit.try_ref_into()?),
             qs_client_reference: Some(qs_client_reference.into()),
+            group_bootstrap,
         };
         let response = self
             .ds_grpc_client()
             .join_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Join an APQ connection group with a new client.
+    pub async fn ds_apq_join_connection_group(
+        &self,
+        external_commit_bundle: ApqCommitMessageBundle,
+        qs_client_reference: QsReference,
+        group_state_ear_key: &GroupStateEarKey,
+        // A `GroupBootstrapBlob` (CBOR, defined in `airprotos`) encrypted for
+        // the joiner's sibling clients.
+        group_bootstrap: Option<Vec<u8>>,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let external_commit = apq_external_commit_message(external_commit_bundle)?;
+        let request = ApqJoinConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit),
+            qs_client_reference: Some(qs_client_reference.into()),
+            group_bootstrap,
+        };
+        let response = self
+            .ds_grpc_client()
+            .apq_join_connection_group(request)
             .await?
             .into_inner();
         Ok(response
@@ -552,24 +654,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
-        let ApqCommitMessageBundle {
-            commit,
-            welcome,
-            group_info,
-        } = external_commit_bundle;
-        if welcome.is_some() {
-            error!("Unexpected welcome message in APQ resync request");
-            return Err(DsRequestError::LibraryError);
-        }
-        let (t_commit, pq_commit) = commit.split();
-        let (t_group_info, pq_group_info) = group_info
-            .map(apqmls::messages::ApqMlsMessageOut::from)
-            .map(|msg| msg.split())
-            .unzip();
-        let external_commit = ApqAssistedMlsMessage {
-            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
-            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
-        };
+        let external_commit = apq_external_commit_message(external_commit_bundle)?;
         let payload = ApqResyncPayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
@@ -973,6 +1058,46 @@ impl ApiClient {
             .await?
             .into_inner();
         Ok(response.download_url)
+    }
+}
+
+fn apq_external_commit_message(
+    external_commit_bundle: ApqCommitMessageBundle,
+) -> Result<ApqAssistedMlsMessage, DsRequestError> {
+    let ApqCommitMessageBundle {
+        commit,
+        welcome,
+        group_info,
+    } = external_commit_bundle;
+    if welcome.is_some() {
+        error!("Unexpected welcome message");
+        return Err(DsRequestError::LibraryError);
+    }
+    let (t_commit, pq_commit) = commit.split();
+    let (t_group_info, pq_group_info) = group_info
+        .map(apqmls::messages::ApqMlsMessageOut::from)
+        .map(|msg| msg.split())
+        .unzip();
+    let external_commit = ApqAssistedMlsMessage {
+        t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
+        pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
+    };
+    Ok(external_commit)
+}
+
+fn parse_pq_external_commit_info(
+    pq_group_info: Option<GroupInfo>,
+    pq_ratchet_tree: Option<RatchetTree>,
+    pq_proposals: Vec<MlsMessage>,
+) -> Result<Option<PqExternalCommitInfoIn>, DsRequestError> {
+    match (pq_group_info, pq_ratchet_tree) {
+        (Some(pq_group_info), Some(pq_ratchet_tree)) => Ok(Some(PqExternalCommitInfoIn {
+            group_info: pq_group_info.try_ref_into()?,
+            ratchet_tree: pq_ratchet_tree.try_ref_into()?,
+            proposals: pq_proposals.into_iter().map(|m| m.tls).collect(),
+        })),
+        (None, None) => Ok(None),
+        _ => Err(DsRequestError::UnexpectedResponse),
     }
 }
 

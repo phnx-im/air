@@ -144,7 +144,7 @@ class _EmailForm extends HookWidget {
 
           // Include logs checkbox
           GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            behavior: .opaque,
             onTap: isUploadingLogs.value ? null : onToggleLogs,
             child: SizedBox(
               // The box paints at 20px, so the row carries the tap target.
@@ -256,8 +256,8 @@ class _SubjectField extends StatelessWidget {
     final value = selected;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: .stretch,
+      mainAxisSize: .min,
       children: [
         Padding(
           padding: AppTextInputTokens.labelPadding,
@@ -268,7 +268,7 @@ class _SubjectField extends StatelessWidget {
         ),
         const SizedBox(height: AppTextInputTokens.labelGap),
         GestureDetector(
-          behavior: HitTestBehavior.opaque,
+          behavior: .opaque,
           onTap: () => _open(context),
           child: Container(
             padding: AppTextInputTokens.current.fieldPadding,
@@ -287,7 +287,7 @@ class _SubjectField extends StatelessWidget {
                   child: Text(
                     value ?? loc.contactUsScreen_subject_empty,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    overflow: .ellipsis,
                     style: typeScale.body.regular
                         .style(
                           color: value == null

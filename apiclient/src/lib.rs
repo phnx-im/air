@@ -8,14 +8,20 @@ use std::{sync::Arc, time::Duration};
 
 use aircommon::identifiers::Fqdn;
 use airprotos::{
-    auth_service::v1::auth_service_client::AuthServiceClient, common::v1::ClientMetadata,
+    auth_service::v1::auth_service_client::AuthServiceClient,
+    common::v1::{ClientMetadata, Version},
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
     relay_service::v1::relay_service_client::RelayServiceClient,
 };
 use thiserror::Error;
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Uri};
-use tracing::info;
+use tokio::time::timeout;
+use tokio_stream::{Stream, StreamExt};
+use tonic::{
+    Status,
+    transport::{Channel, ClientTlsConfig, Endpoint, Uri},
+};
+use tracing::{info, warn};
 use url::{Host, Url};
 
 pub mod as_api;
@@ -23,6 +29,32 @@ pub mod ds_api;
 mod metadata;
 pub mod qs_api;
 pub mod rs_api;
+
+/// Waits for the server to close the response stream after the request stream was half-closed.
+///
+/// The server closes the response stream with OK only after it has processed all requests sent
+/// before the half-close. A non-OK status or a timeout means that the last requests may not have
+/// been processed.
+pub(crate) async fn await_close_confirmation<T>(
+    stream: &mut (impl Stream<Item = Result<T, Status>> + Unpin),
+) {
+    const CLOSE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
+    let drain = async {
+        while let Some(item) = stream.next().await {
+            match item {
+                // Late response => ignored, the server owes us nothing here
+                Ok(_) => continue,
+                Err(error) => {
+                    warn!(%error, "listen stream did not close with OK");
+                    break;
+                }
+            }
+        }
+    };
+    if timeout(CLOSE_CONFIRMATION_TIMEOUT, drain).await.is_err() {
+        warn!("timeout waiting for listen stream to close");
+    }
+}
 
 /// The port used for localhost connections.
 ///
@@ -117,7 +149,13 @@ impl ApiClient {
         self.inner.rs_grpc_client.clone()
     }
 
-    pub(crate) fn metadata(&self) -> &ClientMetadata {
-        &metadata::METADATA
+    pub fn version() -> &'static Version {
+        &metadata::VERSION
+    }
+
+    pub(crate) fn metadata(&self) -> ClientMetadata {
+        ClientMetadata {
+            version: Some(Self::version().clone()),
+        }
     }
 }

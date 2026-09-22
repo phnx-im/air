@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/platform/method_channel.dart' as platform_utils;
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,11 @@ class AttachmentUploadView extends HookWidget {
       [file],
     );
     final isImage = useFuture(isImageFut);
+    final keepAliveImage = useMemoized(
+      () => KeepAliveImage(FileImage(loadedFile)),
+      [loadedFile],
+    );
+    useEffect(() => keepAliveImage.dispose, [keepAliveImage]);
 
     final palette = darkSemanticPalette;
 
@@ -51,16 +58,16 @@ class AttachmentUploadView extends HookWidget {
           return KeyEventResult.ignored;
         },
         child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
+          behavior: .translucent,
           child: Stack(
-            fit: StackFit.expand,
+            fit: .expand,
             children: [
               if (isImage.data == true)
-                PhotoView(imageProvider: FileImage(loadedFile))
+                PhotoView(imageProvider: keepAliveImage)
               else if (isImage.data == false)
                 Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize: .min,
                     children: [
                       const AppIcon.paperclip(size: 64, color: Colors.white),
                       const SizedBox(height: S.s12),
@@ -102,7 +109,7 @@ class AttachmentUploadView extends HookWidget {
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
-                    clipBehavior: Clip.none,
+                    clipBehavior: .none,
                     title: Text(
                       title,
                       style: TextStyle(color: palette.text.primary),

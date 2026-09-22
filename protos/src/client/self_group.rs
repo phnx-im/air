@@ -5,7 +5,8 @@
 //! Wire format for data synchronized across a user's own clients through the
 //! self-group.
 //!
-//! Settings updates travel as `AppEphemeral` proposals with component id
+//! Settings updates, Privacy Pass token seeds and blocked-contact updates
+//! travel as `AppEphemeral` proposals with component id
 //! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
 //! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
 //! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Every enum in
@@ -21,6 +22,8 @@ use airmacros::{
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
+
+use super::group_bootstrap::PeerUserId;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -70,15 +73,52 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 /// ```cddl
 /// SelfGroupMessage = {
 ///   1: SettingsUpdate                ; tagged union; unknown tags are skipped
+///   2: TokenSeed
+///   3: BlockedContactsUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum SelfGroupMessage {
     #[tag(1)]
     SettingsUpdate(SettingsUpdate),
+    #[tag(2)]
+    TokenSeed(TokenSeed),
+    #[tag(3)]
+    BlockedContactsUpdate(BlockedContactsUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
+}
+
+/// The Privacy Pass token seed of one (operation type, VOPRF key).
+///
+/// All of a user's devices derive their token requests from the same seed, which
+/// is what lets the AS answer a repeat of a request for free and gives every
+/// device the same tokens. The seed is set-once per key: the AS locks an
+/// allowance epoch to the first request hash it sees, so a device deriving from
+/// another seed gets a conflict instead of tokens.
+///
+/// Not a [`SettingsUpdate`] field. Settings are user-editable values with
+/// last-writer-wins semantics, and any settings snapshot would cover an
+/// in-flight seed proposal. A seed is set-once with first-writer-wins.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// TokenSeed = {
+///   1: uint,           ; operation_type, the proto enum value
+///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
+///   3: bstr .size 32,  ; seed
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct TokenSeed {
+    #[tag(1)]
+    pub operation_type: u32,
+    #[tag(2)]
+    pub key_fingerprint: [u8; 32],
+    #[tag(3)]
+    pub seed: [u8; 32],
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -186,6 +226,94 @@ pub struct SettingsUpdate {
     /// Sorted by `client_id` so the encoding is canonical.
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
+}
+
+/// The contacts whose blocked state the sender just changed. This is a diff and
+/// not a snapshot.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// BlockedContactsUpdate = {
+///   ? contacts: [* BlockedContactEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct BlockedContactsUpdate {
+    #[tag(1)]
+    pub contacts: Vec<BlockedContactEntry>,
+}
+
+/// The new blocked state of one contact.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// BlockedContactEntry = {
+///   1: ContactBlocked //
+///   2: ContactUnblocked
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum BlockedContactEntry {
+    #[tag(1)]
+    Blocked(ContactBlocked),
+    #[tag(2)]
+    Unblocked(ContactUnblocked),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+impl BlockedContactEntry {
+    pub fn user_id(&self) -> Option<&PeerUserId> {
+        match self {
+            BlockedContactEntry::Blocked(ContactBlocked { user_id, .. }) => Some(user_id),
+            BlockedContactEntry::Unblocked(ContactUnblocked { user_id }) => Some(user_id),
+            BlockedContactEntry::Unknown => None,
+        }
+    }
+}
+
+/// The contact is blocked.
+///
+/// `blocked_at` comes from the blocking device's own clock. A receiver stores it
+/// as-is, so the block shows the same time on every device.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactBlocked = {
+///   user_id: PeerUserId .tag 1,
+///   blocked_at: uint .tag 2,      ; unix epoch seconds (UTC)
+///   last_display_name: tstr .tag 3,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactBlocked {
+    #[tag(1)]
+    pub user_id: PeerUserId,
+    #[tag(2)]
+    pub blocked_at: u64,
+    /// The display name the blocking device last saw. Labels the contact in the
+    /// blocked list without keeping the rest of its profile.
+    #[tag(3)]
+    pub last_display_name: String,
+}
+
+/// The contact is not blocked.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactUnblocked = {
+///   user_id: PeerUserId .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactUnblocked {
+    #[tag(1)]
+    pub user_id: PeerUserId,
 }
 
 #[cfg(test)]
@@ -357,15 +485,232 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
+    // 1b. `TokenSeed` encode/decode and wire shape.
+
+    fn sample_seed() -> TokenSeed {
+        TokenSeed {
+            operation_type: 1,
+            key_fingerprint: [0xab; 32],
+            seed: [0xcd; 32],
+        }
+    }
+
+    #[test]
+    fn token_seed_roundtrip_and_wire_shape() {
+        let seed = sample_seed();
+        let bytes = PersistenceCodec::to_vec(&seed).unwrap();
+        let decoded: TokenSeed = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(seed, decoded);
+
+        // The first byte is the persistence codec version, then a 3-entry map.
+        assert_eq!(bytes[1], 0xA3);
+    }
+
+    #[test]
+    fn token_seed_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_seed()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// The fixed-size fields are length-checked on decode, so a seed of the
+    /// wrong length is a decode error rather than a silently truncated seed.
+    #[test]
+    fn token_seed_rejects_wrong_length() {
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct LooseTokenSeed {
+            #[tag(1)]
+            operation_type: u32,
+            #[tag(2)]
+            key_fingerprint: Vec<u8>,
+            #[tag(3)]
+            seed: Vec<u8>,
+        }
+
+        let loose = LooseTokenSeed {
+            operation_type: 1,
+            key_fingerprint: vec![0xab; 32],
+            seed: vec![0xcd; 31],
+        };
+        let bytes = PersistenceCodec::to_vec(&loose).unwrap();
+        assert!(PersistenceCodec::from_slice::<TokenSeed>(&bytes).is_err());
+    }
+
+    #[test]
+    fn token_seed_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::TokenSeed(sample_seed())]);
+        let key = message_key_from([5u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// An old client that predates tag 2 skips a seed message instead of
+    /// failing, and still reads the settings update next to it.
+    #[test]
+    fn token_seed_is_skipped_by_a_settings_only_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageV1 {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: None,
+        };
+        let newer = vec![
+            SelfGroupMessage::TokenSeed(sample_seed()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageV1> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageV1::Unknown,
+                SelfGroupMessageV1::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    // 1c. `BlockedContactsUpdate` encode/decode and forward compatibility.
+
+    fn sample_peer_user_id(n: u128) -> PeerUserId {
+        PeerUserId {
+            uuid: Some(Uuid::from_u128(n)),
+            domain: Some("example.com".to_owned()),
+        }
+    }
+
+    fn sample_blocked_contacts_update() -> BlockedContactsUpdate {
+        BlockedContactsUpdate {
+            contacts: vec![
+                BlockedContactEntry::Blocked(ContactBlocked {
+                    user_id: sample_peer_user_id(1),
+                    blocked_at: 1_767_225_600,
+                    last_display_name: "Alice".to_owned(),
+                }),
+                BlockedContactEntry::Unblocked(ContactUnblocked {
+                    user_id: sample_peer_user_id(2),
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn blocked_contacts_update_roundtrip() {
+        let update = sample_blocked_contacts_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: BlockedContactsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn blocked_contacts_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_blocked_contacts_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn blocked_contacts_update_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::BlockedContactsUpdate(
+            sample_blocked_contacts_update(),
+        )]);
+        let key = message_key_from([11u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    #[test]
+    fn blocked_contacts_update_is_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageNoBlocking {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(2)]
+            TokenSeed(TokenSeed),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: None,
+        };
+        let newer = vec![
+            SelfGroupMessage::BlockedContactsUpdate(sample_blocked_contacts_update()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageNoBlocking> =
+            PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageNoBlocking::Unknown,
+                SelfGroupMessageNoBlocking::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    /// An entry state added after this client shipped decodes to `Unknown`, so
+    /// the receiver drops the one entry instead of the whole update.
+    #[test]
+    fn blocked_contact_entry_with_unknown_state_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum BlockedContactEntryV2 {
+            #[tag(2)]
+            Unblocked(ContactUnblocked),
+            #[tag(99)]
+            Muted(u64),
+        }
+
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct BlockedContactsUpdateV2 {
+            #[tag(1)]
+            contacts: Vec<BlockedContactEntryV2>,
+        }
+
+        let unblocked = ContactUnblocked {
+            user_id: sample_peer_user_id(1),
+        };
+        let newer = BlockedContactsUpdateV2 {
+            contacts: vec![
+                BlockedContactEntryV2::Muted(7),
+                BlockedContactEntryV2::Unblocked(unblocked.clone()),
+            ],
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: BlockedContactsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded.contacts,
+            vec![
+                BlockedContactEntry::Unknown,
+                BlockedContactEntry::Unblocked(unblocked),
+            ]
+        );
+    }
+
     // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
     //    `Unknown`.
 
     /// A "newer" message enum with a variant unknown to [`SelfGroupMessage`].
+    ///
+    /// The tag is far out of range so that a later message kind does not claim
+    /// it and turn this into a known variant.
     #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
     enum SelfGroupMessageV2 {
         #[tag(1)]
         SettingsUpdate(SettingsUpdate),
-        #[tag(2)]
+        #[tag(99)]
         Something(u64),
         #[unknown]
         Unknown,

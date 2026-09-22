@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT seed, state FROM privacy_pass_seed\n         WHERE operation_type = ? AND key_fingerprint = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "seed",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "seed"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "state"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2486e5f8c5961f9296c7368103b23e0b00e928c0cc957bd8d983ec4b0eca7a81"
+}

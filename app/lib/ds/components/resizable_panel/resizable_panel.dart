@@ -90,7 +90,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
                   onEnter: (_) => setState(() => _hovered = true),
                   onExit: (_) => setState(() => _hovered = false),
                   child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                    behavior: .opaque,
                     onHorizontalDragStart: (details) {
                       _dragStartX = details.globalPosition.dx;
                       _dragStartWidth = _panelWidth;
@@ -115,9 +115,9 @@ class _ResizablePanelState extends State<ResizablePanel> {
                           width: StrokeWidth.px1,
                           height: _handleLength,
                           child: ColoredBox(
-                            color: SemanticPalette.of(
-                              context,
-                            ).separator.primary,
+                            color: SemanticPalette.of(context)
+                                .separator
+                                .primary,
                           ),
                         ),
                       ),

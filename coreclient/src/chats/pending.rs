@@ -3,18 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
+    credentials::keys::LeafSigningKey,
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, Username},
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
-        connection_package::{ConnectionPackage, ConnectionPackageHash},
+        connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
 };
+use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
 use anyhow::{Context, bail, ensure};
-use mimi_room_policy::RoleIndex;
-use openmls::treesync::errors::LeafNodeValidationError;
+use apqmls::commit_builder::ApqCommitMessageBundle;
+use openmls::{prelude::MlsMessageOut, treesync::errors::LeafNodeValidationError};
 use tls_codec::DeserializeBytes;
 use tracing::{instrument, warn};
 
@@ -27,9 +29,9 @@ use crate::{
     },
     contacts::UsernameContact,
     db::access::WriteConnection,
-    groups::Group,
+    groups::{ConnectionGroupJoin, Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
-    usernames::connection_packages::StorableConnectionPackage,
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 pub(crate) struct PendingConnectionInfo {
@@ -112,6 +114,7 @@ impl CoreUser {
                 &connection_info.connection_group_ear_key,
             )
             .await?;
+        let is_apq = eci.is_apq()?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
         let result = Box::pin(self.db().with_write_transaction(
@@ -127,26 +130,58 @@ impl CoreUser {
                     }
                 }
 
-                // Join group
-                let res = Group::join_group_externally(
-                    txn,
-                    self.api_clients(),
-                    eci,
-                    self.signing_key(),
-                    connection_info.connection_group_ear_key.clone(),
-                    connection_info
-                        .connection_group_identity_link_wrapper_key
-                        .clone(),
-                    aad,
+                let self_group = SelfGroup::load(&mut *txn).await?;
+                let vc_group_id = self_group.as_ref().map(|group| group.group_id().clone());
+
+                let connection_group = Some(ConnectionGroupJoin {
+                    inviter: &sender_user_id,
                     connection_offer_hash,
-                    // TODO(gabriel): joining a connection group is currently never a virtual-client
-                    // onboarding: we are not a member of the group yet.
-                    None,
-                )
-                .await?;
-                let (mut group, commit, group_info, mut member_profile_info) = match res {
-                    Ok(value) => value,
-                    Err(error) => return Ok(Err(error)),
+                });
+                // Join group: APQ or T decided by apq info in the member-signed group info.
+                let (mut group, commit, mut member_profile_info) = if is_apq {
+                    let res = Box::pin(Group::join_apq_group_externally(
+                        txn,
+                        self.api_clients(),
+                        eci,
+                        &LeafSigningKey::User(self.signing_key().clone()),
+                        self.user_id(),
+                        connection_info.connection_group_ear_key.clone(),
+                        connection_info
+                            .connection_group_identity_link_wrapper_key
+                            .clone(),
+                        aad,
+                        vc_group_id,
+                        connection_group,
+                    ))
+                    .await?;
+                    match res {
+                        Ok((group, bundle, infos)) => {
+                            (group, ConnectionJoinCommit::Apq(Box::new(bundle)), infos)
+                        }
+                        Err(error) => return Ok(Err(error)),
+                    }
+                } else {
+                    let res = Group::join_group_externally(
+                        txn,
+                        self.api_clients(),
+                        eci,
+                        self.signing_key(),
+                        connection_info.connection_group_ear_key.clone(),
+                        connection_info
+                            .connection_group_identity_link_wrapper_key
+                            .clone(),
+                        aad,
+                        connection_group,
+                        vc_group_id,
+                    )
+                    .await?;
+                    match res {
+                        Ok((group, commit, group_info, infos)) => {
+                            let bundle = TConnectionJoinCommit { commit, group_info };
+                            (group, ConnectionJoinCommit::T(Box::new(bundle)), infos)
+                        }
+                        Err(error) => return Ok(Err(error)),
+                    }
                 };
 
                 // Verify that the group has only one other member and that it's
@@ -179,52 +214,81 @@ impl CoreUser {
                 // Fetch and store user profile
                 Self::schedule_fetch_user_profile(&mut *txn, contact_profile_info).await?;
 
-                group.room_state_change_role(
-                    &sender_user_id,
-                    self.user_id(),
-                    RoleIndex::Regular,
-                )?;
-
                 let now = TimeStamp::now();
                 group.store_update(&mut *txn, Some(now), Some(now)).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
                     let is_last_resort =
-                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            &mut *txn, &hash,
-                        )
-                        .await?
-                        .unwrap_or(false);
+                        ConnectionPackageRecord::load_is_last_resort(&mut *txn, &hash)
+                            .await?
+                            .unwrap_or(false);
                     if !is_last_resort {
-                        ConnectionPackage::delete(&mut *txn, &hash)
+                        ConnectionPackageRecord::delete(&mut *txn, &hash)
                             .await
                             .context("Failed to delete connection package")?;
                     }
                 }
 
-                Ok(Ok((commit, group_info)))
+                let group_bootstrap = match &self_group {
+                    Some(self_group) => {
+                        let friendship_package = &connection_info.friendship_package;
+                        let connection = ConnectionContext::Accept(AcceptContext {
+                            user_id: Some(sender_user_id.clone().into()),
+                            friendship_token: Some(friendship_package.friendship_token.clone()),
+                            wai_ear_key: Some(friendship_package.wai_ear_key.clone()),
+                            user_profile_base_secret: Some(
+                                friendship_package.user_profile_base_secret.clone(),
+                            ),
+                            connection_offer_hash,
+                        });
+                        Some(self_group.seal_group_bootstrap_param(
+                            txn,
+                            &group,
+                            GroupBootstrapCarrier::JoinEcho,
+                            Some(connection),
+                        )?)
+                    }
+                    None => None,
+                };
+
+                Ok(Ok((commit, group_bootstrap)))
             },
         ))
         .await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
-        let (commit, group_info) = match result {
+        let (commit, group_bootstrap) = match result {
             Ok(value) => value,
             Err(error) => return Ok(Err(error.into())),
         };
 
         // Send confirmation to DS
         let qs_client_reference = self.create_own_client_reference();
-        self.api_clients()
-            .get(qgid.owning_domain())?
-            .ds_join_connection_group(
-                commit,
-                group_info,
-                qs_client_reference,
-                &connection_info.connection_group_ear_key,
-            )
-            .await?;
+        let api_client = self.api_clients().get(qgid.owning_domain())?;
+        match commit {
+            ConnectionJoinCommit::T(bundle) => {
+                api_client
+                    .ds_join_connection_group(
+                        bundle.commit,
+                        bundle.group_info,
+                        qs_client_reference,
+                        &connection_info.connection_group_ear_key,
+                        group_bootstrap,
+                    )
+                    .await?;
+            }
+            ConnectionJoinCommit::Apq(bundle) => {
+                api_client
+                    .ds_apq_join_connection_group(
+                        *bundle,
+                        qs_client_reference,
+                        &connection_info.connection_group_ear_key,
+                        group_bootstrap,
+                    )
+                    .await?;
+            }
+        }
 
         // Mark the chat as an accepted connection and mark partial contact as complete, also
         // remove the pending connection info.
@@ -347,7 +411,7 @@ mod persistence {
             Ok(())
         }
 
-        pub(super) async fn delete(
+        pub(crate) async fn delete(
             mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
@@ -375,4 +439,15 @@ impl From<LeafNodeValidationError> for AcceptContactRequestError {
             reason: error.to_string(),
         }
     }
+}
+
+/// The external commit to hand to the DS, per group kind.
+enum ConnectionJoinCommit {
+    T(Box<TConnectionJoinCommit>),
+    Apq(Box<ApqCommitMessageBundle>),
+}
+
+struct TConnectionJoinCommit {
+    commit: MlsMessageOut,
+    group_info: MlsMessageOut,
 }

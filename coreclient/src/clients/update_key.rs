@@ -8,7 +8,7 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatType, SystemMessage,
     chats::messages::TimestampedMessage,
     db::access::{WriteConnection, WriteDbTransaction},
-    job::chat_operation::ChatOperation,
+    job::chat_operation::{ChatOperation, DerivationEpoch},
 };
 
 use super::CoreUser;
@@ -27,7 +27,7 @@ impl CoreUser {
 
     /// Same as [`Self::update_key`], but also updates the PQ key material.
     pub async fn update_apq_key(&self, chat_id: ChatId) -> anyhow::Result<Vec<ChatMessage>> {
-        let job = ChatOperation::apq_update(chat_id);
+        let job = ChatOperation::apq_update(chat_id, DerivationEpoch::Keep);
         Ok(self.execute_job(job).await?)
     }
 
@@ -36,7 +36,7 @@ impl CoreUser {
         chat_id: ChatId,
         new_chat_attributes: Option<ChatAttributes>,
     ) -> anyhow::Result<Vec<ChatMessage>> {
-        let job = ChatOperation::update(chat_id, new_chat_attributes);
+        let job = ChatOperation::update(chat_id, new_chat_attributes, DerivationEpoch::Keep);
         Ok(self.execute_job(job).await?)
     }
 }

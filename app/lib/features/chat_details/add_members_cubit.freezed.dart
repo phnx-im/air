@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // coverage:ignore-file
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'add_members_cubit.dart';
@@ -9,6 +9,7 @@ part of 'add_members_cubit.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
@@ -25,16 +26,21 @@ $AddMembersStateCopyWith<AddMembersState> get copyWith => _$AddMembersStateCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddMembersState&&const DeepCollectionEquality().equals(other.contacts, contacts)&&const DeepCollectionEquality().equals(other.selectedContacts, selectedContacts)&&(identical(other.isApq, isApq) || other.isApq == isApq));
+  final _this = this as AddMembersState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddMembersState&&const DeepCollectionEquality().equals(other.contacts, _this.contacts)&&const DeepCollectionEquality().equals(other.selectedContacts, _this.selectedContacts)&&(identical(other.isApq, _this.isApq) || other.isApq == _this.isApq));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(contacts),const DeepCollectionEquality().hash(selectedContacts),isApq);
+int get hashCode {
+  final _this = this as AddMembersState;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.contacts),const DeepCollectionEquality().hash(_this.selectedContacts),_this.isApq);
+}
 
 @override
 String toString() {
-  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts, isApq: $isApq)';
+  final _this = this as AddMembersState;
+  return 'AddMembersState(contacts: ${_this.contacts}, selectedContacts: ${_this.selectedContacts}, isApq: ${_this.isApq})';
 }
 
 
@@ -63,7 +69,7 @@ class _$AddMembersStateCopyWithImpl<$Res>
 /// Create a copy of AddMembersState
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') @override $Res call({Object? contacts = null,Object? selectedContacts = null,Object? isApq = null,}) {
-  return _then(_self.copyWith(
+  return _then(AddMembersState(
 contacts: null == contacts ? _self.contacts : contacts // ignore: cast_nullable_to_non_nullable
 as List<UiContact>,selectedContacts: null == selectedContacts ? _self.selectedContacts : selectedContacts // ignore: cast_nullable_to_non_nullable
 as Set<UiUserId>,isApq: null == isApq ? _self.isApq : isApq // ignore: cast_nullable_to_non_nullable
@@ -79,7 +85,7 @@ as bool,
 
 
 class _AddMembersState implements AddMembersState {
-  const _AddMembersState({required final  List<UiContact> contacts, required final  Set<UiUserId> selectedContacts, required this.isApq}): _contacts = contacts,_selectedContacts = selectedContacts;
+  const _AddMembersState({required  List<UiContact> contacts, required  Set<UiUserId> selectedContacts, required this.isApq}): _contacts = contacts,_selectedContacts = selectedContacts;
   
 
  final  List<UiContact> _contacts;
@@ -108,16 +114,18 @@ _$AddMembersStateCopyWith<_AddMembersState> get copyWith => __$AddMembersStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AddMembersState&&const DeepCollectionEquality().equals(other._contacts, _contacts)&&const DeepCollectionEquality().equals(other._selectedContacts, _selectedContacts)&&(identical(other.isApq, isApq) || other.isApq == isApq));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _AddMembersState&&const DeepCollectionEquality().equals(other.contacts, _contacts)&&const DeepCollectionEquality().equals(other.selectedContacts, _selectedContacts)&&(identical(other.isApq, isApq) || other.isApq == isApq));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_selectedContacts),isApq);
+int get hashCode {
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_selectedContacts),isApq);
+}
 
 @override
 String toString() {
-  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts, isApq: $isApq)';
+    return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts, isApq: $isApq)';
 }
 
 

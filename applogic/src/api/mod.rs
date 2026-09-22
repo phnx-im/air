@@ -18,8 +18,7 @@
 
 pub mod attachments_repository;
 pub mod chat_details_cubit;
-pub mod chat_list_cubit;
-pub mod chats_repository;
+pub mod chats_data_source;
 pub mod invitation_code;
 pub mod invitation_codes_cubit;
 pub mod linked_devices_cubit;
@@ -32,6 +31,8 @@ pub mod message_list_cubit;
 pub mod multi_device;
 pub mod notification_context;
 pub mod notifications;
+pub mod registration;
+pub mod share_cubit;
 pub mod types;
 pub mod user;
 pub mod user_cubit;

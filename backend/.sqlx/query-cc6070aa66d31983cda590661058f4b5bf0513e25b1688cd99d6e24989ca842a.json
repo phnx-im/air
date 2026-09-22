@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT token_key_id FROM as_batched_key WHERE operation_type = $1 ORDER BY created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_key_id",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "as_batched_key",
+            "name": "token_key_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cc6070aa66d31983cda590661058f4b5bf0513e25b1688cd99d6e24989ca842a"
+}

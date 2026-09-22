@@ -59,11 +59,13 @@ class UserCubit implements StateStreamableSource<UiUser> {
         profilePicture: profilePicture,
       );
 
+  /// Adds the given users to the chat.
+  ///
+  /// Users whose client is not compatible with the group are left out and
+  /// returned.
   @useResult
-  Future<InviteUsersError?> addUserToChat(
-    ChatId chatId,
-    List<UiUserId> userIds,
-  ) => _impl.addUsersToChat(chatId, userIds);
+  Future<List<UiUserId>> addUserToChat(ChatId chatId, List<UiUserId> userIds) =>
+      _impl.addUsersToChat(chatId, userIds);
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
       _impl.removeUserFromChat(chatId, userId);
@@ -106,7 +108,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
-  }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
+    required bool preferApq,
+  }) => _impl.addContactFromGroup(
+    chatId: chatId,
+    userId: userId,
+    preferApq: preferApq,
+  );
 
   Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>
       _impl.checkUsernameExists(username: username);

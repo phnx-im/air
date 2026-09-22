@@ -70,7 +70,6 @@ use client_id_decryption_key::StorableClientIdDecryptionKey;
 
 use displaydoc::Display;
 use metrics::describe_gauge;
-use semver::VersionReq;
 use sqlx::PgPool;
 use tokio_util::sync::CancellationToken;
 
@@ -79,6 +78,7 @@ use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutMessage,
     qs::{queue::Queues, user_record::UserRecord},
+    version::VersionPolicy,
 };
 
 mod auth;
@@ -100,7 +100,7 @@ pub struct Qs {
     domain: Fqdn,
     db_pool: PgPool,
     queues: Queues,
-    client_version_req: Option<VersionReq>,
+    version_policy: VersionPolicy,
     stop: CancellationToken,
 }
 
@@ -114,7 +114,7 @@ impl BackendService for Qs {
     async fn initialize(
         db_pool: PgPool,
         domain: Fqdn,
-        client_version_req: Option<VersionReq>,
+        version_policy: VersionPolicy,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         // Check if the requisite key material exists and if it doesn't, generate it.
@@ -134,7 +134,7 @@ impl BackendService for Qs {
             domain,
             db_pool,
             queues,
-            client_version_req,
+            version_policy,
             stop,
         })
     }

@@ -36,8 +36,10 @@ typedef LinkSession = ({
 });
 
 /// Starts a linking session for [sessionId]. Injectable for tests.
-typedef LinkSessionStarter =
-    LinkSession Function(BuildContext context, String sessionId);
+typedef LinkSessionStarter = LinkSession Function(
+  BuildContext context,
+  String sessionId,
+);
 
 LinkSession _startLinkSession(BuildContext context, String sessionId) {
   final confirmation = MultiDeviceLinkConfirmation();
@@ -149,8 +151,8 @@ class _LinkChooserPage extends StatelessWidget {
     final labelStyle = typeScale.body.s.style(color: palette.text.secondary);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(
           title: loc.linkedDevicesScreen_linkDevice,
@@ -229,8 +231,8 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(
           title: loc.linkedDevicesScreen_linkDialog_scanQrCode,
@@ -323,9 +325,9 @@ class _CornerBracketsPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.stroke
+      ..style = .stroke
       ..strokeWidth = _strokeWidth
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = .round;
 
     const double left = _strokeWidth / 2;
     const double top = _strokeWidth / 2;
@@ -421,8 +423,8 @@ class _NumericCodePage extends HookWidget {
     }
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(
           title: loc.linkedDevicesScreen_linkDialog_enterNumericCode,
@@ -442,7 +444,7 @@ class _NumericCodePage extends HookWidget {
           inputFormatters: [_GroupedDigitsFormatter(groupSize: 4)],
           hintText: "0000 0000",
           style: codeStyle,
-          textAlign: TextAlign.center,
+          textAlign: .center,
           fieldPadding: const EdgeInsets.symmetric(
             vertical: S.s24,
             horizontal: S.s8,
@@ -554,14 +556,14 @@ class _LinkStatusView extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(title: title),
         const SizedBox(height: S.s24),
         Text(
           message,
-          textAlign: TextAlign.center,
+          textAlign: .center,
           style: typeScale.body.s.style(color: palette.text.secondary),
         ),
         const SizedBox(height: S.s24),
@@ -589,14 +591,14 @@ class _LinkErrorView extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(title: title, onBack: onBack),
         const SizedBox(height: S.s24),
         Text(
           message,
-          textAlign: TextAlign.center,
+          textAlign: .center,
           style: typeScale.body.xs.style(color: palette.text.primary),
         ),
         const SizedBox(height: S.s24),
@@ -647,8 +649,8 @@ class _LinkConfirmView extends HookWidget {
     final deviceName = useTextEditingController();
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: .min,
+      crossAxisAlignment: .stretch,
       children: [
         _LinkModalHeader(
           title: loc.linkingDeviceScreen_linking_confirm_title,

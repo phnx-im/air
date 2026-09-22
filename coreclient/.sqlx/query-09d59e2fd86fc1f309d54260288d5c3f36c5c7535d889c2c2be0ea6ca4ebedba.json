@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO privacy_pass_batch (\n            operation_type, key_fingerprint, allowance_epoch, fetched_at\n        )\n        VALUES (?, ?, ?, ?)\n        ON CONFLICT (operation_type, key_fingerprint, allowance_epoch)\n        DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "09d59e2fd86fc1f309d54260288d5c3f36c5c7535d889c2c2be0ea6ca4ebedba"
+}

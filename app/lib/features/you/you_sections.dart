@@ -8,8 +8,8 @@ import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/developer_unlock.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/add_username_dialog.dart';
@@ -18,9 +18,11 @@ import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
+import 'package:air/features/you/licenses_screen.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -30,7 +32,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 final _log = Logger('YouSections');
 
@@ -72,7 +73,7 @@ class ProfileSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         _UserAvatar(),
         SizedBox(height: S.s12),
@@ -135,7 +136,7 @@ class _DisplayName extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         FieldLabel(loc.userSettingsScreen_displayNameLabel),
 
@@ -177,7 +178,7 @@ class _UsernamesSection extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         SectionHeader(text: loc.userSettingsScreen_usernamesSection),
 
@@ -242,7 +243,7 @@ class AccountSection extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         const _InviteCodes(),
 
@@ -340,9 +341,6 @@ class PreferencesSection extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final readReceiptsSetting = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
@@ -362,7 +360,7 @@ class PreferencesSection extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       spacing: S.s12,
       children: [
         const _LanguageSettings(),
@@ -388,6 +386,8 @@ class PreferencesSection extends HookWidget {
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
+
+        const _LimitAnimatedImagesLoopsSetting(),
       ],
     );
   }
@@ -404,11 +404,11 @@ class _LanguageSettings extends StatelessWidget {
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
         // Before login there is no user to persist the locale to.
-        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
+        if (context.read<UserSessionCubit>().state.activeUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
-          value: locale.languageCode,
+          value: localeToTag(locale),
         );
       },
       childBuilder: (context, option, onTap) {
@@ -432,9 +432,6 @@ class _SendOnEnterSetting extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Captured here rather than read inside the submit callback: a debounced
-    // submit can fire while the widget is being disposed, when context
-    // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
     final sendOnEnter = useState(
       useMemoized(() => settingsCubit.state.sendOnEnter),
@@ -443,7 +440,7 @@ class _SendOnEnterSetting extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         SwitchField(
           label: loc.userSettingsScreen_sendWithEnter,
@@ -461,25 +458,50 @@ class _SendOnEnterSetting extends HookWidget {
   }
 }
 
+class _LimitAnimatedImagesLoopsSetting extends HookWidget {
+  const _LimitAnimatedImagesLoopsSetting();
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final limitAnimatedImagesLoops = useState(
+      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    );
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: .start,
+      children: [
+        SwitchField(
+          label: loc.userSettingsScreen_limitAnimatedImagesLoops,
+          value: limitAnimatedImagesLoops,
+          onSubmit: (value) {
+            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          },
+        ),
+
+        const SizedBox(height: S.s12),
+
+        FieldLabel(loc.userSettingsScreen_limitAnimatedImagesLoopsDescription),
+      ],
+    );
+  }
+}
+
 /// Help: reaching us, and telling us which build you are on.
 class HelpSection extends HookWidget {
   const HelpSection({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final packageInfoFut = useMemoized(() => PackageInfo.fromPlatform());
-    final packageInfo = useFuture(packageInfoFut);
-
-    final version = switch (packageInfo.data) {
-      final info? => "${info.version}-${info.buildNumber}",
-      null => "",
-    };
+    final version = appVersion();
 
     final loc = AppLocalizations.of(context);
     final onVersionTap = useDeveloperUnlock();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: .start,
       children: [
         FieldContainer(
           onTap: () => showContactUs(context),
@@ -521,7 +543,9 @@ class HelpSection extends HookWidget {
         FieldContainer(
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const LicensePage()),
+              MaterialPageRoute(
+                builder: (context) => const LicensesScreenView(),
+              ),
             );
           },
           child: Row(

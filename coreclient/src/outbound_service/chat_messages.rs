@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::anyhow;
+use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -15,7 +16,7 @@ use uuid::Uuid;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::{Group, handle_group_not_found_on_ds};
 use crate::job::JobError;
-use crate::job::chat_operation::ChatOperation;
+use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
@@ -57,10 +58,17 @@ enum CommitOutcome {
 
 impl OutboundService {
     /// Enqueue a chat message to be sent by the outbound service.
+    ///
+    /// A message that is already gone is skipped: an attachment message can be
+    /// deleted while its upload runs.
     pub async fn enqueue_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| {
+                if ChatMessage::load(&mut *txn, message_id).await?.is_none() {
+                    warn!(%message_id, "Message is gone, not enqueuing it");
+                    return Ok(());
+                }
                 self.enqueue_chat_message_in_transaction(txn, message_id)
                     .await
             })
@@ -91,14 +99,15 @@ impl OutboundService {
         Ok(())
     }
 
+    /// Marks a message as failed, leaving a message that is already gone.
     pub async fn fail_enqueued_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                // Load message to make sure it exists and get chat id
-                let message = ChatMessage::load(&mut *txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
+                    warn!(%message_id, "Message is gone, not marking it as failed");
+                    return Ok(());
+                };
                 let chat_id = message.chat_id();
 
                 // Load chat to check status
@@ -259,9 +268,9 @@ impl OutboundServiceContext {
                     return Ok(None);
                 }
 
-                // Don't send messages for chats with pending resync
-                if Resync::is_pending_for_chat(&mut *txn, &chat_id).await? {
-                    debug!(?chat_id, "Skipping sending message due to pending resync");
+                // Don't send messages for chats with pending or failed resync
+                if let Some(status) = Resync::status_for_chat(&mut *txn, &chat_id).await? {
+                    debug!(?chat_id, ?status, "Skipping sending message due to resync");
                     return Ok(None);
                 }
 
@@ -348,6 +357,7 @@ impl OutboundServiceContext {
             .ok();
 
         // post-processing:
+        let enqueued_at: DateTime<Utc> = message.timestamp();
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // A message that replaced an earlier one keeps that one's place
@@ -367,8 +377,17 @@ impl OutboundServiceContext {
                 }
                 message.update(&mut *txn).await?;
 
-                // Mark message as read, but only if it's not a deletion.
-                if message.status() != MessageStatus::Deleted {
+                // Advance the last-read marker to the DS timestamp, but only
+                // if the message was already marked as read when it was
+                // enqueued. A send that left the marker untouched (e.g. from
+                // the iOS share extension) must not move it here either.
+                // Deletions never move it.
+                let last_read = Chat::load_watermark(&mut *txn, message.chat_id())
+                    .await?
+                    .map(|(last_read, _)| last_read);
+                if message.status() != MessageStatus::Deleted
+                    && last_read.is_some_and(|last_read| last_read >= enqueued_at)
+                {
                     Chat::mark_as_read_until_message_id(
                         txn,
                         message.chat_id(),
@@ -394,7 +413,10 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
     ) -> Result<CommitOutcome, OutboundServiceError> {
-        match self.execute_job(ChatOperation::update(chat_id, None)).await {
+        match self
+            .execute_job(ChatOperation::update(chat_id, None, DerivationEpoch::Keep))
+            .await
+        {
             Ok(_) => Ok(CommitOutcome::Committed),
             Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
             Err(JobError::NetworkError) => Err(OutboundServiceError::recoverable(anyhow!(

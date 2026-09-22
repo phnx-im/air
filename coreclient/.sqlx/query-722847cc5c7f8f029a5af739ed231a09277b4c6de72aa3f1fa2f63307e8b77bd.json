@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO privacy_pass_seed (\n            operation_type, key_fingerprint, seed, state, needs_broadcast, created_at\n        )\n        VALUES (?, ?, ?, ?, ?, ?)\n        ON CONFLICT (operation_type, key_fingerprint)\n        -- Keeping the stored seed and returning it makes the whole set-once\n        -- decision one statement, so no writer can interleave with it.\n        DO UPDATE SET seed = privacy_pass_seed.seed\n        RETURNING seed, state",
+  "describe": {
+    "columns": [
+      {
+        "name": "seed",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "seed"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_seed",
+            "name": "state"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "722847cc5c7f8f029a5af739ed231a09277b4c6de72aa3f1fa2f63307e8b77bd"
+}

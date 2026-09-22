@@ -8,7 +8,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/util/cached_memory_image.dart';
+import 'package:air/util/image_providers.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -101,7 +101,7 @@ class ContactRequestDialog extends HookWidget {
     // Decode straight to the circle's pixel size: profile pictures arrive far
     // larger than any avatar renders them.
     final targetSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
-    return CachedMemoryImage.fromImageData(
+    return TaggedMemoryImage.fromImageData(
       picture,
       targetWidth: targetSize,
       targetHeight: targetSize,
@@ -113,22 +113,17 @@ class ContactRequestDialog extends HookWidget {
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     try {
-      switch (await chatDetailsCubit.acceptContactRequest()) {
-        case null:
-          break; // No error
-        case AcceptContactRequestError_IncompatibleClient(:final reason):
-          Logger.detached("ContactRequestDialog").severe(
-            "Failed to accept contact request due to incompatible client: $reason",
-          );
-          showErrorBannerStandalone(
-            (loc) => loc.contactRequestDialog_error_incompatibleClient,
-          );
-          break;
+      final error = await chatDetailsCubit.acceptContactRequest();
+      if (error != null) {
+        Logger.detached("ContactRequestDialog")
+            .severe("Failed to request resync: $error");
+        showErrorBannerStandalone(
+          (loc) => loc.contactRequestDialog_error_incompatibleClient,
+        );
       }
     } catch (e, stackTrace) {
-      Logger.detached(
-        "ContactRequestDialog",
-      ).severe("Failed to accept contact request: $e", e, stackTrace);
+      Logger.detached("ContactRequestDialog")
+          .severe("Failed to accept contact request: $e", e, stackTrace);
       showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
     } finally {
       isAccepting.value = false;

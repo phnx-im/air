@@ -49,7 +49,7 @@ Widget _host({required int rows, bool scrollable = true}) => Builder(
 /// platform whose page transition hands the route loose constraints.
 Widget _routedHost(TargetPlatform platform) => MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: testThemeData(Brightness.light).copyWith(platform: platform),
+  theme: testThemeData(.light).copyWith(platform: platform),
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   home: Navigator(
     pages: const [
@@ -62,6 +62,24 @@ Widget _routedHost(TargetPlatform platform) => MaterialApp(
       ),
     ],
     onDidRemovePage: (_) {},
+  ),
+);
+
+/// A page whose dismiss picks its own glyph, as a host the platform already
+/// presents as a sheet does.
+Widget _sheetHost({required AppIconType dismissIcon}) => Builder(
+  builder: (context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    home: ModalSurface(
+      child: ModalPane(
+        title: 'Share',
+        onDismiss: () {},
+        dismissIcon: dismissIcon,
+        child: const SizedBox(height: 100),
+      ),
+    ),
   ),
 );
 
@@ -109,7 +127,7 @@ Widget _footerHost({required int rows}) => Builder(
 /// card presentation rather than the page.
 Widget _cardRouteHost({bool dismissible = true}) => MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: testThemeData(Brightness.light),
+  theme: testThemeData(.light),
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
@@ -131,7 +149,7 @@ Widget _cardRouteHost({bool dismissible = true}) => MaterialApp(
 /// A modal holding input its user has not sent, so every way out has to ask.
 Widget _guardedModalHost({bool hasUnsavedInput = true}) => MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: testThemeData(Brightness.light),
+  theme: testThemeData(.light),
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
@@ -159,7 +177,7 @@ Widget _pagedCardRouteHost({
   bool canDismiss = true,
 }) => MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: testThemeData(Brightness.light),
+  theme: testThemeData(.light),
   localizationsDelegates: AppLocalizations.localizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
@@ -408,6 +426,17 @@ void main() {
 
       await tester.tap(find.byType(ButtonIcon));
       expect(back, 1);
+    });
+
+    testWidgets('takes the dismiss glyph a full-screen page asks for', (
+      tester,
+    ) async {
+      sizeView(tester, phoneViewSize);
+
+      await tester.pumpWidget(_sheetHost(dismissIcon: AppIconType.x));
+      await tester.pumpAndSettle();
+
+      expect(_headerGlyphs(tester), [AppIconType.x]);
     });
   });
 

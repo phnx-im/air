@@ -1,5 +1,6 @@
 ---
 source: coreclient/src/clients/persistence.rs
+assertion_line: 458
 expression: "&*USER_CREATION_STATE_BASIC"
 ---
 {
@@ -15,7 +16,6 @@ expression: "&*USER_CREATION_STATE_BASIC"
     "push_token": {
       "operator": "Google",
       "token": "token"
-    },
-    "invitation_code": "DUMMY007"
+    }
   }
 }

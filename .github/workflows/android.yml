@@ -14,6 +14,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 5
   CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
   RUSTFLAGS: "-D warnings"
@@ -24,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Fetch all commit metadata (client build metadata is derived from git history)
           fetch-depth: 0
@@ -37,7 +38,6 @@ jobs:
           fastlane: true
           jdk: true
           sccache: true
-          cargo-binstall-tools: cargo-ndk
 
       - name: Build Android app
         env:

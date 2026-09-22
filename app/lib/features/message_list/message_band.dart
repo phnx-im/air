@@ -99,7 +99,7 @@ class _MessageBandState extends State<MessageBand>
 
   void _onStatusChanged(AnimationStatus status) {
     // Drop the stale chips once the exit animation settled.
-    if (status == AnimationStatus.dismissed && widget.reactions.isEmpty) {
+    if (status == .dismissed && widget.reactions.isEmpty) {
       setState(() => _reactions = const []);
     }
   }

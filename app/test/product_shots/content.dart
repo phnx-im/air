@@ -129,6 +129,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Jessica
   UiChatDetails(
@@ -145,6 +146,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Science club
   UiChatDetails(
@@ -166,6 +168,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Dave
   UiChatDetails(
@@ -182,6 +185,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Gardening club
   UiChatDetails(
@@ -203,6 +207,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Frank
   UiChatDetails(
@@ -219,6 +224,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Alex
   UiChatDetails(
@@ -231,6 +237,7 @@ final chats = [
     lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Irene
   UiChatDetails(
@@ -247,6 +254,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
   // Dinner party
   UiChatDetails(
@@ -269,6 +277,7 @@ final chats = [
     mutedUntil: null,
     // make sure nothing shows up for now (experimental feature)
     pendingCommitFailed: true,
+    resyncFailed: false,
   ),
   // Kamal
   UiChatDetails(
@@ -285,6 +294,7 @@ final chats = [
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
+    resyncFailed: false,
   ),
 ];
 
@@ -397,6 +407,7 @@ final fredMessages = [
                 blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
                 width: 1080,
                 height: 1080,
+                isAnimated: false,
               ),
             ),
           ],

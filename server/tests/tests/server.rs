@@ -2,20 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, slice, time::Duration};
+use std::{assert_matches, collections::HashSet, slice, time::Duration};
 
 use airapiclient::{ApiClient, as_api::AsRequestError, qs_api::QsRequestError};
-use airbackend::settings::RateLimitsSettings;
+use airbackend::{
+    settings::{
+        AdmissionSettings, RateLimitsSettings, RegistrationPolicy, RegistrationSettings,
+        RegistrationThreshold, VersionExpiration,
+    },
+    version::VersionPolicy,
+};
 use aircommon::{
-    assert_matches,
     credentials::keys::UsernameSigningKey,
     crypto::signatures::keys::QsClientSigningKey,
     identifiers::{QsClientId, UserId, Username},
+    messages::push_token::{PushToken, PushTokenOperator},
     mls_group_config::MAX_PAST_EPOCHS,
+    registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
-    ChatId, DisplayName, UserProfile,
-    clients::{ListenResponse, listen_response, process::process_qs::ProcessedQsMessages},
+    ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
+    clients::{
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        process::process_qs::ProcessedQsMessages, registration::RegistrationError,
+    },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
 
@@ -23,19 +33,20 @@ use airprotos::{
     auth_service::v1::auth_service_server,
     common::v1::{StatusDetails, StatusDetailsCode},
     delivery_service::v1::delivery_service_server,
-    queue_service::v1::queue_service_server,
+    queue_service::v1::{VersionStatus, queue_service_server},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
-use semver::VersionReq;
+use semver::Version;
 use tokio::time::{sleep, timeout};
-use tokio_stream::StreamExt;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
 use tracing::{info, warn};
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
@@ -71,6 +82,7 @@ async fn rate_limit() {
                 chat_id,
                 MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
                 None,
+                MarkChatAsRead::Yes,
             )
             .await
             .unwrap();
@@ -101,6 +113,7 @@ async fn rate_limit() {
             chat_id,
             MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -293,7 +306,7 @@ async fn update_and_send_message(
     let bob_user = &setup.get_user(bob).user;
     let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
     bob_user
-        .send_message(contact_chat_id, msg, None)
+        .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
@@ -321,7 +334,7 @@ async fn ratchet_tolerance() {
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
         alice_user
-            .send_message(contact_chat_id, msg, None)
+            .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
@@ -427,9 +440,7 @@ async fn ratchet_tolerance() {
 //     assert_eq!(*processed.borrow(), NUM_SENDERS * NUM_MESSAGES);
 // }
 
-// TODO: Re-enable once we have implemented a resync UX.
-//#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[allow(dead_code)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;
@@ -454,7 +465,6 @@ async fn resync() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
-        .unwrap()
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
@@ -486,6 +496,27 @@ async fn resync() {
         "Bob should process Alice's update and message without errors"
     );
 
+    // The resync diff should surface Charlie's addition without an actor.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_charlie_adds = messages
+        .iter()
+        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
+        .count();
+    assert_eq!(
+        actorless_charlie_adds, 1,
+        "Bob should store exactly one actor-less add of Charlie"
+    );
+    let charlie_adds_with_actor = messages
+        .iter()
+        .filter(
+            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == &charlie),
+        )
+        .count();
+    assert_eq!(
+        charlie_adds_with_actor, 0,
+        "Bob never processed the invite commit, so no add with an actor"
+    );
+
     let alice_user = &setup.get_user(&alice).user;
 
     // Alice processes Bob's rejoin
@@ -510,6 +541,7 @@ async fn resync() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -567,6 +599,45 @@ async fn resync() {
         "Bob should process Alice's update without errors"
     );
 
+    // The resync committed Alice's SelfRemove, which Bob cannot attribute.
+    let messages = system_messages(bob_user, chat_id).await;
+    let actorless_alice_removes = messages
+        .iter()
+        .filter(
+            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == &alice),
+        )
+        .count();
+    assert_eq!(
+        actorless_alice_removes, 1,
+        "Bob should store exactly one actor-less removal of Alice"
+    );
+    let alice_removes_with_actor = messages
+        .iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == &alice)
+        })
+        .count();
+    assert_eq!(
+        alice_removes_with_actor, 0,
+        "Bob never processed the leave commit, so no removal with an actor"
+    );
+
+    // No spurious membership notices for Bob or Charlie.
+    let actorless: Vec<_> = messages
+        .iter()
+        .filter(|message| {
+            matches!(
+                message,
+                SystemMessage::Add(None, _) | SystemMessage::Remove(None, _)
+            )
+        })
+        .collect();
+    assert_eq!(
+        actorless.len(),
+        2,
+        "resync should only emit the Charlie add and the Alice remove, got {actorless:?}"
+    );
+
     // Alice not in the group anymore.
     let participants = bob_user.group_members(chat_id).await.unwrap();
     assert_eq!(
@@ -587,6 +658,99 @@ async fn resync() {
         participants,
         [bob.clone(), charlie.clone()].into_iter().collect()
     );
+}
+
+/// A wrong-epoch answer to our own commit parks it and nothing more. Only a message from an epoch
+/// ahead of ours schedules the resync.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Wrong epoch on own commit", skip_all)]
+async fn wrong_epoch_on_own_commit_does_not_resync() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user.update_key(chat_id).await.unwrap();
+
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
+    sleep(Duration::from_secs(1)).await;
+    drop(stream);
+
+    let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
+
+    // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("commit at a stale epoch must be rejected");
+    let pending = bob_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("rejected commit should be parked");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // An outbound run changes nothing either.
+    bob_user.outbound_service().run_once().await;
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
+    // schedules the resync.
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
+            None,
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap();
+    // Sending only queues the message, the outbound service delivers it.
+    alice_user.outbound_service().run_once().await;
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "a message from a future epoch must schedule a resync, not fail"
+    );
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_some());
+    assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
+
+    // The resync replaces the group state, which also drops the parked commit.
+    bob_user.outbound_service().run_once().await;
+    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(
+        bob_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Alice processes Bob's rejoin and Bob can send again.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
+
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
 /// When the DS returns "group not found" for a resync, the client must stop
@@ -617,7 +781,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
         .await
         .unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -626,7 +790,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have been removed after group not found"
     );
 }
@@ -649,7 +813,7 @@ async fn resync_valid_group_succeeds() {
     let bob_user = &setup.get_user(&bob).user;
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -657,7 +821,7 @@ async fn resync_valid_group_succeeds() {
     bob_user.outbound_service().run_once().await;
 
     assert!(
-        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -756,7 +920,7 @@ async fn resync_with_blank_leaf_succeeds() {
     let alice_user = &setup.get_user(&alice).user;
     alice_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
@@ -764,7 +928,7 @@ async fn resync_with_blank_leaf_succeeds() {
     alice_user.outbound_service().run_once().await;
 
     assert!(
-        !alice_user.is_resync_pending(chat_id).await.unwrap(),
+        alice_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -798,14 +962,14 @@ async fn resync_with_blank_leaf_succeeds() {
     // Now Dave resyncs as well.
     dave_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     dave_user.outbound_service().run_once().await;
 
     assert!(
-        !dave_user.is_resync_pending(chat_id).await.unwrap(),
+        dave_user.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
@@ -848,6 +1012,7 @@ async fn resync_with_blank_leaf_succeeds() {
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
             None,
+            MarkChatAsRead::Yes,
         )
         .await
         .unwrap();
@@ -892,7 +1057,6 @@ async fn key_package_upload() {
         alice_user
             .invite_users(chat_id, slice::from_ref(&bob))
             .await
-            .unwrap()
             .unwrap();
         let bob_user = &setup.get_user(&bob).user;
         let messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -953,7 +1117,10 @@ async fn key_package_upload() {
 async fn invitation_code() {
     const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
-        invitation_only: true,
+        registration: RegistrationSettings {
+            policy: RegistrationPolicy::Required,
+            ..Default::default()
+        },
         unredeemable_code: Some(UNREDEEMABLE_CODE.to_owned()),
         ..Default::default()
     })
@@ -963,7 +1130,7 @@ async fn invitation_code() {
     let user_id = UserId::random(setup.domain().clone());
     let code = setup.invitation_codes().first().unwrap();
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), code)
+        TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
             .await
             .is_ok()
     );
@@ -971,40 +1138,296 @@ async fn invitation_code() {
     // code used twice
     let user_id = UserId::random(setup.domain().clone());
     let code = setup.invitation_codes().first().unwrap();
-    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
         .await
         .unwrap_err();
-    let error = error.downcast::<AsRequestError>().unwrap();
-    assert_matches!(error, AsRequestError::Tonic(status)
-        if status.code() == tonic::Code::InvalidArgument
-    );
+    let error = error.downcast::<RegistrationError>().unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
 
     // not working code
     let user_id = UserId::random(setup.domain().clone());
     let code = "DUMMY007";
-    let error = TestUser::try_new(&user_id, setup.server_url().clone(), code)
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(code))
         .await
         .unwrap_err();
-    let error = error.downcast::<AsRequestError>().unwrap();
-    assert_matches!(error, AsRequestError::Tonic(status)
-        if status.code() == tonic::Code::InvalidArgument
-    );
+    let error = error.downcast::<RegistrationError>().unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
 
     // unredeemable code (first use)
     let user_id = UserId::random(setup.domain().clone());
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
-            .await
-            .is_ok()
+        TestUser::try_new(
+            &user_id,
+            setup.server_url().clone(),
+            Some(UNREDEEMABLE_CODE)
+        )
+        .await
+        .is_ok()
     );
 
     // unredeemable code (second use)
     let user_id = UserId::random(setup.domain().clone());
     assert!(
-        TestUser::try_new(&user_id, setup.server_url().clone(), UNREDEEMABLE_CODE)
-            .await
-            .is_ok()
+        TestUser::try_new(
+            &user_id,
+            setup.server_url().clone(),
+            Some(UNREDEEMABLE_CODE)
+        )
+        .await
+        .is_ok()
     );
+}
+
+/// An adaptive deployment: bare registration until a threshold is reached, then
+/// a challenge, and a challenge-verified registration that leaves the counters
+/// where they were.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adaptive registration gate", skip_all)]
+async fn adaptive_registration_gate() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(2, 100),
+        ..Default::default()
+    })
+    .await;
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+
+    // Nothing has registered, so nothing is asked for.
+    let info = client.as_get_registration_info().await.unwrap();
+    assert!(!info.challenge_required);
+    assert_eq!(info.accepted_challenges, [ChallengeKind::InvitationCode]);
+
+    for _ in 0..2 {
+        let user_id = UserId::random(setup.domain().clone());
+        TestUser::try_new(&user_id, setup.server_url().clone(), None)
+            .await
+            .unwrap();
+    }
+
+    // Every test client shares one address bucket, so the per-address threshold
+    // is spent and the gate has closed.
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+
+    let user_id = UserId::random(setup.domain().clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(
+        error,
+        RegistrationError::ChallengeRequired(kinds) if kinds == [ChallengeKind::InvitationCode]
+    );
+
+    // A code gets in.
+    let code = setup.invitation_codes().first().unwrap().clone();
+    let user_id = UserId::random(setup.domain().clone());
+    TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+        .await
+        .unwrap();
+
+    // The gated registration was vouched for, so it did not count against the
+    // next one either.
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+
+    // A code the server has already spent does not get in twice.
+    let user_id = UserId::random(setup.domain().clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+}
+
+/// The total threshold closes the gate for an address that has registered
+/// nothing itself.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Adaptive registration total threshold", skip_all)]
+async fn adaptive_registration_total_threshold() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(100, 1),
+        ..Default::default()
+    })
+    .await;
+
+    let user_id = UserId::random(setup.domain().clone());
+    TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap();
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    assert!(
+        client
+            .as_get_registration_info()
+            .await
+            .unwrap()
+            .challenge_required
+    );
+}
+
+/// An open gate leaves a code the request carried anyway unspent, so a gate
+/// that opens between discovery and registration does not burn it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "An open gate ignores a code", skip_all)]
+async fn an_open_gate_ignores_a_code() {
+    // Room to spare on both thresholds, so the gate is open while codes exist.
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: adaptive_registration(100, 100),
+        ..Default::default()
+    })
+    .await;
+
+    let code = setup.invitation_codes().first().unwrap().clone();
+
+    // Two registrations on one code only work while the code goes unspent.
+    for _ in 0..2 {
+        let user_id = UserId::random(setup.domain().clone());
+        TestUser::try_new(&user_id, setup.server_url().clone(), Some(&code))
+            .await
+            .unwrap();
+    }
+}
+
+/// The push-admission challenge end to end, from opening a session to finding
+/// the endpoint's quota spent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Push admission registration", skip_all)]
+async fn push_admission_registration() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        registration: RegistrationSettings {
+            policy: RegistrationPolicy::Required,
+            challenges: vec![ChallengeKind::AdmissionSession],
+            // One account per endpoint, so the last step finds the quota spent.
+            admission: AdmissionSettings {
+                quotas: vec![RegistrationThreshold {
+                    limit: 1,
+                    window: chrono::Duration::days(1),
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let domain = setup.domain().clone();
+
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let info = client.as_get_registration_info().await.unwrap();
+    assert!(info.challenge_required);
+    assert_eq!(info.accepted_challenges, [ChallengeKind::AdmissionSession]);
+
+    // A bare registration is told what would answer for it.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new(&user_id, setup.server_url().clone(), None)
+        .await
+        .unwrap_err()
+        .downcast::<RegistrationError>()
+        .unwrap();
+    assert_matches!(
+        error,
+        RegistrationError::ChallengeRequired(kinds) if kinds == [ChallengeKind::AdmissionSession]
+    );
+
+    let endpoint = PushToken::new(PushTokenOperator::Google, "fcm-endpoint".to_owned());
+    let session = client.as_create_admission_session(&endpoint).await.unwrap();
+    let challenge = setup
+        .last_sent_challenge()
+        .expect("no challenge reached the endpoint");
+    let answered = AdmissionSession {
+        session_id: session.session_id,
+        challenge: challenge.clone(),
+    };
+
+    // The session id alone admits nothing, and the challenge is the half a
+    // plain HTTP caller does not have.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: session.session_id,
+            challenge: "not the challenge".to_owned(),
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The challenge alone admits nothing either, which keeps the push service
+    // from redeeming what it carried.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(AdmissionSession {
+            session_id: Uuid::new_v4(),
+            challenge,
+        })),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    let user_id = UserId::random(domain.clone());
+    TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered.clone())),
+    )
+    .await
+    .unwrap();
+
+    // The session is spent, so it does not admit a second account.
+    let user_id = UserId::random(domain.clone());
+    let error = TestUser::try_new_with_challenge(
+        &user_id,
+        setup.server_url().clone(),
+        Some(RegistrationChallenge::AdmissionSession(answered)),
+    )
+    .await
+    .unwrap_err()
+    .downcast::<RegistrationError>()
+    .unwrap();
+    assert_matches!(error, RegistrationError::ChallengeRejected);
+
+    // The endpoint has had the account its quota allows, so the client gets a
+    // session no challenge arrives for, which is what a lost push looks like.
+    let sent = setup.sent_challenge_count();
+    client.as_create_admission_session(&endpoint).await.unwrap();
+    assert_eq!(setup.sent_challenge_count(), sent);
+}
+
+fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {
+    RegistrationSettings {
+        policy: RegistrationPolicy::Adaptive,
+        perip: vec![RegistrationThreshold {
+            limit: per_ip,
+            window: chrono::Duration::days(1),
+        }],
+        total: vec![RegistrationThreshold {
+            limit: total,
+            window: chrono::Duration::days(1),
+        }],
+        ..Default::default()
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1014,7 +1437,10 @@ async fn invitation_code() {
 )]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
-        client_version_req: Some(VersionReq::parse("^0.1.0").unwrap()),
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on: DateTime::UNIX_EPOCH,
+        }]),
         ..Default::default()
     })
     .await;
@@ -1049,6 +1475,76 @@ async fn unsupported_client_version() {
 
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
+}
+
+/// Consumes the version status the server sends first on every listen stream.
+async fn skip_version_status(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) {
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(_)),
+        }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Version status on listen queue", skip_all)]
+async fn listen_queue_version_status() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the version status, then the queue-empty sentinel follows.
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(VersionStatus {
+                expires_at: None,
+            })),
+        }))
+    );
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Expiring version status on listen queue", skip_all)]
+async fn listen_queue_version_status_expiring() {
+    let expires_on = Utc::now() + chrono::Duration::days(10);
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        version_policy: VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(999, 0, 0),
+            expires_on,
+        }]),
+        ..Default::default()
+    })
+    .await;
+
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+
+    // The first event reports the upcoming expiry, then the queue-empty sentinel follows.
+    let response = stream.next().await.unwrap().unwrap();
+    let Some(listen_response::Event::VersionStatus(status)) = response.event else {
+        panic!("expected version status, got {response:?}");
+    };
+    assert_eq!(status.expires_at.unwrap().seconds, expires_on.timestamp());
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1093,32 +1589,119 @@ async fn listen_stream_eviction() {
 
     // QS events stream is evicted when another stream is opened
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_a).await;
     assert_matches!(
         stream_a.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_b).await;
     assert_matches!(
         stream_b.next().await,
-        Some(ListenResponse {
+        Some(Ok(ListenResponse {
             event: Some(listen_response::Event::Empty(_)),
-        })
+        }))
     );
 
+    let status = timeout(Duration::from_millis(100), stream_a.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(
+        status.code(),
+        tonic::Code::Aborted,
+        "first stream is evicted"
+    );
     assert!(
         timeout(Duration::from_millis(100), stream_a.next())
             .await
             .unwrap()
             .is_none(),
-        "first stream is not closed"
+        "first stream is closed"
     );
     assert!(
         timeout(Duration::from_millis(100), stream_b.next())
             .await
             .is_err(),
-        "second stream is closed"
+        "second stream is still open"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Listen stream durable acks", skip_all)]
+async fn listen_stream_durable_acks() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("hello bob".to_owned(), [0; 16]),
+            None,
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    // Bob receives the message on the listen stream and acks it.
+    let bob_user = &setup.get_user(&bob).user;
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
+    let sequence_number = match stream.next().await {
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Message(message)),
+        })) => message.sequence_number,
+        event => panic!("expected a queue message, got {event:?}"),
+    };
+    responder.ack(sequence_number + 1).await;
+
+    // Half-close the request stream. The server handles all requests sent
+    // before, then closes the response stream with OK. Observing OK confirms
+    // that the ack is durable.
+    drop(responder);
+    let terminal = timeout(Duration::from_secs(5), async {
+        loop {
+            match stream.next().await {
+                Some(Ok(_)) => continue,
+                Some(Err(status)) => break Some(status),
+                None => break None,
+            }
+        }
+    })
+    .await
+    .expect("stream closes after half-close");
+    assert_matches!(terminal, None, "stream closes with OK");
+
+    // On reconnect, the acked message is not redelivered.
+    let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream).await;
+    assert_matches!(
+        stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        })),
+        "acked message is not redelivered"
+    );
+}
+
+/// All system messages the user stores for the chat.
+async fn system_messages(user: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(system_message)) => Some(system_message.clone()),
+            _ => None,
+        })
+        .collect()
 }

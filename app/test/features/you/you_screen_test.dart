@@ -78,16 +78,14 @@ void main() {
     });
 
     testWidgets('tapping a section opens it', (tester) async {
-      when(
-        () => navigationCubit.openYouSection(YouSection.preferences),
-      ).thenAnswer((_) async {});
+      when(() => navigationCubit.openYouSection(YouSection.preferences))
+          .thenAnswer((_) async {});
 
       await pumpSubject(tester);
       await tester.tap(find.text('Preferences'));
 
-      verify(
-        () => navigationCubit.openYouSection(YouSection.preferences),
-      ).called(1);
+      verify(() => navigationCubit.openYouSection(YouSection.preferences))
+          .called(1);
     });
 
     testWidgets('the sections behind the developer flags stay hidden', (
@@ -103,12 +101,10 @@ void main() {
     testWidgets('developer mode reveals the developer settings', (
       tester,
     ) async {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(developerMode: true));
-      when(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).thenAnswer((_) async {});
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(developerMode: true));
+      when(() => navigationCubit.openYouSection(YouSection.developer))
+          .thenAnswer((_) async {});
 
       await pumpSubject(tester);
 
@@ -117,15 +113,13 @@ void main() {
 
       await tester.tap(find.text('Developer'));
 
-      verify(
-        () => navigationCubit.openYouSection(YouSection.developer),
-      ).called(1);
+      verify(() => navigationCubit.openYouSection(YouSection.developer))
+          .called(1);
     });
 
     testWidgets('the experiments switch alone reveals nothing', (tester) async {
-      when(
-        () => userSettingsCubit.state,
-      ).thenReturn(const UserSettings(experimentalFeatures: true));
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(experimentalFeatures: true));
 
       await pumpSubject(tester);
 

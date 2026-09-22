@@ -119,19 +119,23 @@ mod persistence {
             .await
         }
 
-        pub(crate) async fn save(&self, executor: impl PgExecutor<'_>) -> sqlx::Result<()> {
-            query!(
+        /// Marks a code redeemed, reporting whether it was still unredeemed.
+        ///
+        /// One statement, so of two registrations racing on the same code
+        /// exactly one is admitted.
+        pub(crate) async fn redeem(txn: &mut PgTransaction<'_>, code: &str) -> sqlx::Result<bool> {
+            let redeemed = query_scalar!(
                 "
-                    INSERT INTO invitation_code (code, redeemed)
-                    VALUES ($1, $2)
-                    ON CONFLICT (code) DO UPDATE SET redeemed = $2
+                    UPDATE invitation_code
+                    SET redeemed = TRUE
+                    WHERE code = $1 AND redeemed = FALSE
+                    RETURNING code
                 ",
-                self.code,
-                self.redeemed
+                code
             )
-            .execute(executor)
+            .fetch_optional(txn.as_mut())
             .await?;
-            Ok(())
+            Ok(redeemed.is_some())
         }
 
         pub(crate) async fn generate(connection: &mut PgConnection) -> sqlx::Result<String> {
@@ -229,23 +233,50 @@ mod persistence {
         }
 
         #[sqlx::test]
-        async fn save_updates_existing_record(pool: PgPool) -> anyhow::Result<()> {
-            InvitationCodeRecord::insert(&pool, "UPDATE_ME", false).await?;
+        async fn redeem_marks_the_code(pool: PgPool) -> anyhow::Result<()> {
+            InvitationCodeRecord::insert(&pool, "REDEEM_ME", false).await?;
 
-            let updated_record = InvitationCodeRecord {
-                code: "UPDATE_ME".to_string(),
-                redeemed: true, // Changing the state,
-            };
+            let mut txn = pool.begin().await?;
+            assert!(InvitationCodeRecord::redeem(&mut txn, "REDEEM_ME").await?);
+            txn.commit().await?;
 
-            updated_record.save(&pool).await?;
+            let loaded = InvitationCodeRecord::load(&pool, "REDEEM_ME").await?;
+            assert!(loaded.is_some_and(|record| record.redeemed));
 
-            let loaded = InvitationCodeRecord::load(&pool, "UPDATE_ME").await?;
-            assert!(loaded.is_some());
-            assert!(loaded.unwrap().redeemed); // Should be updated
+            Ok(())
+        }
 
-            // Check that no duplicate was created
-            let all = InvitationCodeRecord::load_all(&pool, true, 10).await?;
-            assert_eq!(all.len(), 1);
+        #[sqlx::test]
+        async fn redeem_refuses_a_spent_code(pool: PgPool) -> anyhow::Result<()> {
+            InvitationCodeRecord::insert(&pool, "SPENT", true).await?;
+
+            let mut txn = pool.begin().await?;
+            assert!(!InvitationCodeRecord::redeem(&mut txn, "SPENT").await?);
+            txn.commit().await?;
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn redeem_refuses_an_unknown_code(pool: PgPool) -> anyhow::Result<()> {
+            let mut txn = pool.begin().await?;
+            assert!(!InvitationCodeRecord::redeem(&mut txn, "MISSING").await?);
+            txn.commit().await?;
+
+            Ok(())
+        }
+
+        /// A rolled back registration leaves the code spendable.
+        #[sqlx::test]
+        async fn redeem_follows_the_transaction(pool: PgPool) -> anyhow::Result<()> {
+            InvitationCodeRecord::insert(&pool, "ROLLBACK", false).await?;
+
+            let mut txn = pool.begin().await?;
+            assert!(InvitationCodeRecord::redeem(&mut txn, "ROLLBACK").await?);
+            txn.rollback().await?;
+
+            let loaded = InvitationCodeRecord::load(&pool, "ROLLBACK").await?;
+            assert!(loaded.is_some_and(|record| !record.redeemed));
 
             Ok(())
         }

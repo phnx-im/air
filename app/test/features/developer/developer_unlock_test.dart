@@ -30,9 +30,8 @@ void main() {
       continuedRun = [];
 
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
-      when(
-        () => userSettingsCubit.setDeveloperMode(value: any(named: 'value')),
-      ).thenAnswer((_) async {});
+      when(() => userSettingsCubit.setDeveloperMode(value: any(named: 'value')))
+          .thenAnswer((_) async {});
       when(() => navigationCubit.openDeveloperSettings()).thenAnswer((_) {});
     });
 
@@ -101,7 +100,7 @@ class _UnlockHost extends HookWidget {
     final unlock = useDeveloperUnlock();
 
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+      behavior: .opaque,
       onTap: () => onTapped(unlock()),
       child: const SizedBox(width: 100, height: 100),
     );

@@ -16,6 +16,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -42,9 +43,8 @@ final _navState = NavigationState.home(
 UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
   id: id.messageId(),
   chatId: _chat.id,
-  timestamp: DateTime.parse(
-    '2023-01-01T00:00:00.000Z',
-  ).add(Duration(minutes: id * 6)),
+  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z')
+      .add(Duration(minutes: id * 6)),
   message: UiMessage_Content(
     UiContentMessage(
       sender: sender ?? 2.userId(),
@@ -73,6 +73,7 @@ UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
@@ -86,6 +87,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   isApq: _chat.isApq,
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
+  resyncFailed: false,
 );
 
 void main() {
@@ -111,12 +113,10 @@ void main() {
       userSettingsCubit = MockUserSettingsCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
-      when(
-        () => contactsCubit.state,
-      ).thenReturn(MockUsersState(profiles: userProfiles));
-      when(
-        () => chatDetailsCubit.state,
-      ).thenReturn(ChatDetailsState(chat: _chat, members: members));
+      when(() => contactsCubit.state)
+          .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: _chat, members: members));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: "untilMessageId"),
@@ -141,6 +141,9 @@ void main() {
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
         BlocProvider<MessageListCubit>.value(value: messageListCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        RepositoryProvider<ShareTargetPublisher>.value(
+          value: MockShareTargetPublisher(),
+        ),
       ],
       child: Builder(
         builder: (context) {
@@ -160,9 +163,8 @@ void main() {
     );
 
     testWidgets('renders correctly when empty', (tester) async {
-      when(
-        () => navigationCubit.state,
-      ).thenReturn(const NavigationState.home());
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
       messageListCubit.setState(const []);
 
       await tester.pumpWidget(buildSubject());
@@ -365,6 +367,27 @@ void main() {
           matchesGoldenFile('goldens/composer_quote.png'),
         );
       });
+
+      // State 7: Emoji autocomplete -- the suggestion overlay sits above the
+      // caret, anchored inside the viewport.
+      testWidgets('emoji autocomplete', (tester) async {
+        messageListCubit.setState([
+          _msg(1, 'The user typed a colon shortcode.'),
+          _msg(2, 'Emoji suggestions open above the composer.'),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), ':smi');
+        // Flush the draft debounce, then let the overlay animate in.
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/composer_emoji_autocomplete.png'),
+        );
+      });
     });
 
     group('scroll-back button', () {
@@ -376,7 +399,7 @@ void main() {
         if (w is! Container) return false;
         final decoration = w.decoration;
         return decoration is BoxDecoration &&
-            decoration.shape == BoxShape.circle &&
+            decoration.shape == .circle &&
             decoration.color ==
                 lightSemanticPalette.function.neutral.toggleBlack;
       });
@@ -477,7 +500,7 @@ void main() {
     });
 
     testWidgets('renders correctly (dark mode)', (tester) async {
-      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
       addTearDown(() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });

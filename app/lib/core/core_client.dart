@@ -78,13 +78,11 @@ class CoreClient {
 
   // used in app initialization
   Future<void> loadDefaultUser() async {
-    user = await User.loadDefault(path: await dbPath()).onError((
-      error,
-      stackTrace,
-    ) {
-      _log.severe("Error loading default user $error");
-      return null;
-    });
+    user = await User.loadDefault(path: await dbPath())
+        .onError((error, stackTrace) {
+          _log.severe("Error loading default user $error");
+          return null;
+        });
   }
 
   // used in registration cubit
@@ -92,7 +90,7 @@ class CoreClient {
     String domain,
     String displayName,
     Uint8List? profilePicture,
-    String invitationCode,
+    RegistrationChallenge? challenge,
   ) async {
     final pushToken = await getPushToken();
 
@@ -102,7 +100,7 @@ class CoreClient {
       pushToken: pushToken,
       displayName: displayName,
       profilePicture: profilePicture,
-      invitationCode: invitationCode,
+      challenge: challenge,
     );
 
     _log.info("User registered: ${user.userId}");

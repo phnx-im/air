@@ -10,11 +10,11 @@ use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
-    RequiredDebugCapabilities,
+    RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
-    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
+    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -37,7 +37,6 @@ use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
         attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
-        chats_repository::ChatsRepository,
         types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
@@ -87,14 +86,14 @@ impl ChatDetailsCubitBase {
         user_cubit: &UserCubitBase,
         user_settings_cubit: &UserSettingsCubitBase,
         chat_id: ChatId,
-        chats_repository: &ChatsRepository,
+        chat: Option<UiChatDetails>,
         attachments_repository: &AttachmentsRepository,
         with_members: bool,
     ) -> Self {
         let store = user_cubit.core_user().clone();
 
         let initial_state = ChatDetailsState {
-            chat: chats_repository.get(chat_id),
+            chat,
             members: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
@@ -103,7 +102,6 @@ impl ChatDetailsCubitBase {
 
         let context = ChatDetailsContext::new(
             store.clone(),
-            chats_repository.clone(),
             user_cubit.notification_service().clone(),
             core.state_tx().clone(),
             chat_id,
@@ -279,11 +277,12 @@ impl ChatDetailsCubitBase {
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
         content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
-        Box::pin(
-            self.context
-                .core_user
-                .send_message(self.context.chat_id, content, replaces),
-        )
+        Box::pin(self.context.core_user.send_message(
+            self.context.chat_id,
+            content,
+            replaces,
+            MarkChatAsRead::Yes,
+        ))
         .await
         .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
@@ -355,37 +354,49 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match Box::pin(
-            self.context
-                .core_user
-                .upload_chat_attachment(self.context.chat_id, &path),
-        )
-        .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
-        };
+        let (attachment_id, progress, upload_task) =
+            match Box::pin(self.context.core_user.upload_chat_attachment(
+                self.context.chat_id,
+                &path,
+                MarkChatAsRead::Yes,
+            ))
+            .await?
+            {
+                Ok(result) => result,
+                Err(error) => return error.into_ui_result(),
+            };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await?;
-        Ok(None)
+            .await
     }
 
     pub async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let (progress, upload_task) = match self
+        // The attachment may have uploaded successfully and only be
+        // displayed as failed (e.g. shared from the iOS share extension).
+        // There is nothing to upload again; the outbound service's recovery
+        // pass hands the message over for sending.
+        if let Some(AttachmentStatus::Ready) = self
+            .context
+            .core_user
+            .attachment_status(attachment_id)
+            .await?
+        {
+            return Ok(None);
+        }
+        let Some((progress, upload_task)) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
             .await?
-        {
-            Ok(result) => result,
-            Err(error) => return error.into_ui_result(),
+        else {
+            // Nothing to retry from. The message is gone, which is what the
+            // user sees.
+            return Ok(None);
         };
         self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await?;
-        Ok(None)
+            .await
     }
 
     async fn upload_attachment_impl(
@@ -393,7 +404,7 @@ impl ChatDetailsCubitBase {
         attachment_id: AttachmentId,
         progress: AttachmentProgress,
         upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
         self.attachment_in_progress.insert(attachment_id, handle);
@@ -405,7 +416,9 @@ impl ChatDetailsCubitBase {
                     .enqueue_chat_message(message.id())
                     .await?;
             }
-            Some(Err(UploadTaskError { message_id, error })) => {
+            // The message is already gone, only the reason is left to report.
+            Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
+            Some(Err(UploadTaskError::Failed { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
                 self.context
                     .core_user
@@ -415,9 +428,15 @@ impl ChatDetailsCubitBase {
             }
             None => {
                 info!(?attachment_id, "Upload was cancelled");
+                // The task was dropped before it could record an outcome, so
+                // the attachment would otherwise be stuck uploading.
+                self.context
+                    .core_user
+                    .fail_interrupted_attachment_upload(attachment_id)
+                    .await?;
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Marks the chat as read until the given message id (including).
@@ -530,7 +549,7 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        // Get plain body if any; if none, this message is not editable.
+        // Get the plain body. A message without one is not editable.
         let Some(body) = message
             .message()
             .mimi_content()
@@ -594,10 +613,10 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        let attachment_ids = self
+        let attachment_infos = self
             .context
             .core_user
-            .attachment_ids_for_message(message_id)
+            .attachment_infos_for_message(message_id)
             .await;
 
         // Update draft in state
@@ -626,7 +645,7 @@ impl ChatDetailsCubitBase {
                     message_id,
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
-                        .resolve(&attachment_ids),
+                        .resolve(&attachment_infos),
                 },
             ));
             draft.is_committed = false;
@@ -655,14 +674,15 @@ impl ChatDetailsCubitBase {
 
     pub async fn accept_contact_request(
         &self,
-    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
+    ) -> anyhow::Result<Option<UiAcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
         Ok(self
             .context
             .core_user
             .accept_contact_request(chat_id)
             .await?
-            .err())
+            .err()
+            .map(From::from))
     }
 
     /// Mute notifications for this chat until the given datetime.
@@ -703,7 +723,6 @@ impl ChatDetailsCubitBase {
 #[derive(Clone)]
 struct ChatDetailsContext {
     core_user: CoreUser,
-    chats_repository: ChatsRepository,
     notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
     chat_id: ChatId,
@@ -714,7 +733,6 @@ struct ChatDetailsContext {
 impl ChatDetailsContext {
     fn new(
         store: CoreUser,
-        chats_repository: ChatsRepository,
         notification_service: NotificationService,
         state_tx: watch::Sender<ChatDetailsState>,
         chat_id: ChatId,
@@ -723,7 +741,6 @@ impl ChatDetailsContext {
         let (mark_as_read_tx, _) = watch::channel(Default::default());
         Self {
             core_user: store,
-            chats_repository,
             notification_service,
             state_tx,
             chat_id,
@@ -734,7 +751,7 @@ impl ChatDetailsContext {
 
     async fn load_and_emit_state(&self) {
         let (chat, last_read) = self.load_chat_details().await.unzip();
-        let is_modified = self.state_tx.send_if_modified(|state| {
+        self.state_tx.send_if_modified(|state| {
             if state.chat != chat {
                 state.chat = chat.clone();
                 true
@@ -742,10 +759,6 @@ impl ChatDetailsContext {
                 false
             }
         });
-
-        if is_modified && let Some(chat) = chat {
-            self.chats_repository.put(chat);
-        }
 
         if let Some(last_read) = last_read {
             // truncate nanoseconds because they are not supported by Dart's DateTime
@@ -861,6 +874,10 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
     let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
 
     let pending_commit_failed = core_user.chat_is_pending(&group_id).await.unwrap_or(false);
+    let resync_failed = core_user
+        .chat_resync_failed(&group_id)
+        .await
+        .unwrap_or(false);
 
     UiChatDetails {
         id: chat.id,
@@ -876,6 +893,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         is_apq,
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
+        resync_failed,
     }
 }
 
@@ -898,16 +916,40 @@ impl IntoUiResult for ProvisionAttachmentError {
                     actual_size_bytes: detail.actual_size_bytes,
                 }))
             }
+            ProvisionAttachmentError::DecodingError => {
+                Ok(Some(UploadAttachmentError::DecodingError))
+            }
         }
     }
 }
 
 /// Error which can occur when uploading an attachment
 pub enum UploadAttachmentError {
+    /// The image could not be decoded, so it can never be sent.
+    DecodingError,
     TooLarge {
         max_size_bytes: u64,
         actual_size_bytes: u64,
     },
+}
+
+/// Accepting a contact request failed.
+// Mirror of [`AcceptContactRequestError`] due to a freezed 4.0 regression [freezed-1371].
+//
+// When mirroring the enum directly, the generated code in Dart does not compile. See the above
+// issue. For now, we mirror this enum manually as a struct.
+//
+// [freezed-1371]: https://github.com/rrousselGit/freezed/issues/1371
+pub struct UiAcceptContactRequestError {
+    pub reason: String,
+}
+
+impl From<AcceptContactRequestError> for UiAcceptContactRequestError {
+    fn from(error: AcceptContactRequestError) -> Self {
+        match error {
+            AcceptContactRequestError::IncompatibleClient { reason } => Self { reason },
+        }
+    }
 }
 
 #[frb(mirror(AcceptContactRequestError))]
@@ -930,6 +972,16 @@ pub struct _GroupDebugInfo {
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
     pub pq: Option<PqGroupDebugInfo>,
+    pub resync: Option<ResyncDebugInfo>,
+}
+
+#[frb(mirror(ResyncDebugInfo))]
+pub struct _ResyncDebugInfo {
+    pub status: String,
+    pub reason: String,
+    pub attempts: u32,
+    pub not_before: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[frb(mirror(PqGroupDebugInfo))]
@@ -945,8 +997,6 @@ pub struct _PqGroupDebugInfo {
 
 #[frb(mirror(GroupDataDebugInfo))]
 pub struct _GroupDataDebugInfo {
-    pub legacy_title: Option<String>,
-    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }

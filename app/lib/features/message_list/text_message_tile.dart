@@ -348,7 +348,8 @@ class _MessageView extends HookWidget {
         .values[skinToneIndex.clamp(0, EmojiSkinVariation.values.length - 1)];
 
     final isDeleted = contentMessage.content.isDeleted;
-    final isReplyable = !isDeleted && status != UiMessageStatus.error;
+    final isSent = status != .error && status != .sending;
+    final isReplyable = !isDeleted && isSent;
     final isHidden = status == UiMessageStatus.hidden && !isRevealed.value;
 
     return _MessageShell(
@@ -369,6 +370,7 @@ class _MessageView extends HookWidget {
       isDeleted: isDeleted,
       isHidden: isHidden,
       isReplyable: isReplyable,
+      isSent: isSent,
       isMobilePlatform: isMobilePlatform,
       isDesktopPlatform: isDesktopPlatform,
       isRevealed: isRevealed,
@@ -395,6 +397,7 @@ class _MessageShell extends StatelessWidget {
     required this.isDeleted,
     required this.isHidden,
     required this.isReplyable,
+    required this.isSent,
     required this.isMobilePlatform,
     required this.isDesktopPlatform,
     required this.isRevealed,
@@ -415,6 +418,7 @@ class _MessageShell extends StatelessWidget {
   final bool isDeleted;
   final bool isHidden;
   final bool isReplyable;
+  final bool isSent;
   final bool isMobilePlatform;
   final bool isDesktopPlatform;
   final ValueNotifier<bool> isRevealed;
@@ -432,10 +436,10 @@ class _MessageShell extends StatelessWidget {
 
   bool get _withHoverActions => !isMobilePlatform && isReplyable;
 
-  /// Width the hover buttons take beside the bubble: two of them, the gap
-  /// between them, and the gap to the bubble.
+  /// Always reserve the space for hover buttons on non-mobile platforms
+  /// independently of the status of the message.
   double get _hoverSlot =>
-      _withHoverActions ? 2 * (_hoverTokens.size + _hoverTokens.gap) : 0.0;
+      isMobilePlatform ? 0.0 : 2 * (_hoverTokens.size + _hoverTokens.gap);
 
   @override
   Widget build(BuildContext context) {
@@ -446,6 +450,7 @@ class _MessageShell extends StatelessWidget {
       isSender: isSender,
       isDeleted: isDeleted,
       isReplyable: isReplyable,
+      isSent: isSent,
     );
 
     return LayoutBuilder(
@@ -573,6 +578,17 @@ class _MessageShell extends StatelessWidget {
         enableSelection: enableSelection,
       ),
     );
+    // Mobile: double-tap a message to react. Only wrap the bubble (not the
+    // reaction chips), otherwise it will delay other taps.
+    if (isMobilePlatform && isReplyable) {
+      bubble = GestureDetector(
+        onDoubleTap: () {
+          AppHaptics.confirm();
+          commands.openReactionMenu();
+        },
+        child: bubble,
+      );
+    }
     if (!enableSelection && isReplyable) {
       bubble = SwipeToReplyBubble(
         icon: AppIcon.cornerLeft(
@@ -616,17 +632,8 @@ class _MessageShell extends StatelessWidget {
                   },
             // Tap and long-press: handled via the gesture arena as usual.
             child: GestureDetector(
-              behavior: HitTestBehavior.deferToChild,
+              behavior: .deferToChild,
               onTap: isHidden ? () => isRevealed.value = true : null,
-              // Mobile: double-tap a message to react. On desktop, the
-              // recognizer must not be registered at all, otherwise it wins the
-              // gesture arena and blocks double-click text selection.
-              onDoubleTap: isMobilePlatform && isReplyable
-                  ? () {
-                      AppHaptics.confirm();
-                      commands.openReactionMenu();
-                    }
-                  : null,
               onLongPress: onLongPress,
               child: band,
             ),
@@ -653,9 +660,7 @@ class _MessageShell extends StatelessWidget {
   /// reachable on a desktop.
   Widget _hoverAffordance(BuildContext context) {
     const tokens = _hoverTokens;
-    final surface = isSender
-        ? HoverActionSurface.self
-        : HoverActionSurface.other;
+    final bubbleFill = MessageBubble.fillOf(context, isSelf: isSender);
     final withButtons = _withHoverActions;
 
     return Padding(
@@ -682,24 +687,24 @@ class _MessageShell extends StatelessWidget {
             key: reactButtonKey,
             tokens: tokens,
             icon: AppIconType.smilePlus,
-            surface: surface,
+            fill: bubbleFill,
             revealed: hovered,
             onPressed: () => commands.openReactionMenu(anchor: reactButtonKey),
           );
           final reply = HoverAction(
             tokens: tokens,
             icon: AppIconType.cornerLeft,
-            surface: surface,
+            fill: bubbleFill,
             revealed: hovered,
             onPressed: commands.reply,
           );
           final buttons = Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             spacing: tokens.gap,
             children: isSender ? [reply, react] : [react, reply],
           );
           return Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
             children: isSender ? [time, buttons] : [buttons, time],
           );
         },
@@ -855,6 +860,7 @@ List<MessageAction> _messageActions(
   required bool isSender,
   required bool isDeleted,
   required bool isReplyable,
+  required bool isSent,
 }) {
   final loc = AppLocalizations.of(context);
   final palette = SemanticPalette.of(context);
@@ -881,30 +887,18 @@ List<MessageAction> _messageActions(
         leading: const AppIcon.pencil(size: _menuIconSize),
         onSelected: commands.edit,
       ),
-    if (!isDeleted)
-      MessageAction(
-        label: loc.messageContextMenu_delete,
-        leading: AppIcon.trash(
-          size: _menuIconSize,
-          color: palette.function.danger,
-        ),
-        isDestructive: true,
-        insertSeparatorBefore: true,
-        onSelected: () => isSender
-            ? _showDeleteMessageDialog(context: context, messageId: messageId)
-            : _showDeleteForMeDialog(context: context, messageId: messageId),
+    MessageAction(
+      label: loc.messageContextMenu_delete,
+      leading: AppIcon.trash(
+        size: _menuIconSize,
+        color: palette.function.danger,
       ),
-    if (isDeleted)
-      MessageAction(
-        label: loc.messageContextMenu_delete,
-        leading: AppIcon.trash(
-          size: _menuIconSize,
-          color: palette.function.danger,
-        ),
-        isDestructive: true,
-        onSelected: () =>
-            _showDeleteForMeDialog(context: context, messageId: messageId),
-      ),
+      isDestructive: true,
+      insertSeparatorBefore: !isDeleted,
+      onSelected: () => (isSender && isSent && !isDeleted)
+          ? _showDeleteMessageDialog(context: context, messageId: messageId)
+          : _showDeleteForMeDialog(context: context, messageId: messageId),
+    ),
     if (attachments.isNotEmpty && !Platform.isIOS)
       MessageAction(
         label: loc.messageContextMenu_save,
@@ -1048,10 +1042,8 @@ class _MessageContent extends StatelessWidget {
         child: _capped(
           padding,
           Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: stretched
-                ? CrossAxisAlignment.stretch
-                : CrossAxisAlignment.start,
+            mainAxisSize: .min,
+            crossAxisAlignment: stretched ? .stretch : .start,
             spacing: hasMedia ? S.s0 : S.s8,
             children: [
               if (inReplyTo != null) inset(_reply(context, inReplyTo)),
@@ -1083,17 +1075,12 @@ class _MessageContent extends StatelessWidget {
     child: child,
   );
 
-  Widget _highlighted(BuildContext context, Widget bubble) {
-    final palette = SemanticPalette.of(context);
-    return JumpHighlight(
-      id: messageId,
-      borderRadius: BorderRadius.circular(MessageBubbleTokens.radius),
-      baseColor: isSender
-          ? palette.message.selfBackground
-          : palette.message.otherBackground,
-      child: bubble,
-    );
-  }
+  Widget _highlighted(BuildContext context, Widget bubble) => JumpHighlight(
+    id: messageId,
+    borderRadius: BorderRadius.circular(MessageBubbleTokens.radius),
+    baseColor: MessageBubble.fillOf(context, isSelf: isSender),
+    child: bubble,
+  );
 
   Widget _text(List<Widget> blocks, {required bool jumbo}) =>
       MessageText(isSelf: isSender, blocks: blocks, jumbo: jumbo);
