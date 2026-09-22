@@ -3,11 +3,17 @@ import FlutterMacOS
 import UserNotifications
 
 class MainFlutterWindow: NSWindow {
+  private static let frameName = "MainWindow"
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    // Setting the autosave name in code only saves the frame, so we restore it
+    // explicitly.
+    _ = self.setFrameUsingName(Self.frameName)
+    _ = self.setFrameAutosaveName(Self.frameName)
 
     // Wider corner radius and unified toolbar style.
     let toolbar = NSToolbar(identifier: "main")
