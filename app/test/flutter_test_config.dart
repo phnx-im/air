@@ -29,7 +29,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     _checkTimeZoneIsUtc();
     _mockSystemDateTimeFormatChannel(binding);
     _mockMobileScannerChannels(binding);
-    await _loadFonts();
+    await loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
     _setPhysicalScreenSize(binding, pixel8ScreenSize, pixel8DevicePixelRatio);
   });
@@ -49,15 +49,35 @@ const _typographyFamilies = <String>[
   'CupertinoSystemDisplay', // iOS
 ];
 
-Future<void> _loadFonts() async {
+Future<void> loadFonts({bool withColorEmojis = false}) async {
   final monospaceFamily = getSystemMonospaceFontFamily();
   // Load MaterialIcons from the Flutter SDK via rootBundle
   final iconBytes = rootBundle.load("fonts/MaterialIcons-Regular.otf");
   final iconLoader = FontLoader("MaterialIcons")..addFont(iconBytes);
   await iconLoader.load();
 
-  // Load test-only fonts from disk (not registered in pubspec.yaml)
-  await _loadFont("NotoEmoji", _readFont("test/fonts/NotoEmoji.ttf"));
+  // Load Apple Emoji on macOS hosts only
+  if (withColorEmojis) {
+    if (Platform.isMacOS) {
+      final appleColorEmoji = _readSystemFont([
+        '/System/Library/Fonts/Apple Color Emoji.ttc',
+      ]);
+
+      if (appleColorEmoji != null) {
+        await _loadFont("Apple Color Emoji", appleColorEmoji);
+      } else {
+        fail("failed to load Apple Color Emoji on macOS");
+      }
+    } else {
+      // Use Noto Color Emoji anywhere else
+      await _loadFont(
+        "NotoColorEmoji",
+        _readFont("test/fonts/NotoColorEmoji-Regular.ttf"),
+      );
+    }
+  } else {
+    await _loadFont("NotoEmoji", _readFont("test/fonts/NotoEmoji.ttf"));
+  }
 
   final monospace =
       _readSystemFont(_systemMonospacePaths) ??
