@@ -1,9 +1,33 @@
 #include "flutter_window.h"
 
+#include <flutter_windows.h>
+
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "window_placement.h"
+
+namespace {
+
+// Minimum size of the Flutter view in logical pixels.
+constexpr int kMinContentWidth = 768;
+constexpr int kMinContentHeight = 512;
+
+// Windows expects the minimum size in physical pixels and including the
+// window frame, so we scale it for the current monitor and add the frame.
+void SetMinTrackSize(HWND window, MINMAXINFO* info) {
+  UINT dpi = FlutterDesktopGetDpiForMonitor(
+      MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
+  RECT frame = {0, 0, MulDiv(kMinContentWidth, dpi, 96),
+                MulDiv(kMinContentHeight, dpi, 96)};
+  AdjustWindowRectExForDpi(
+      &frame, static_cast<DWORD>(GetWindowLongPtr(window, GWL_STYLE)), FALSE,
+      static_cast<DWORD>(GetWindowLongPtr(window, GWL_EXSTYLE)), dpi);
+  info->ptMinTrackSize.x = frame.right - frame.left;
+  info->ptMinTrackSize.y = frame.bottom - frame.top;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -71,6 +95,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_GETMINMAXINFO:
+      SetMinTrackSize(hwnd, reinterpret_cast<MINMAXINFO*>(lparam));
+      return 0;
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);

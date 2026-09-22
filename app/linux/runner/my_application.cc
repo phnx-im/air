@@ -26,6 +26,10 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 static const char kWindowStateGroup[] = "Window";
 
+// Minimum size of the Flutter view in logical pixels.
+static const gint kMinContentWidth = 768;
+static const gint kMinContentHeight = 512;
+
 static gchar *window_state_path()
 {
   return g_build_filename(g_get_user_state_dir(), APPLICATION_ID,
@@ -181,6 +185,10 @@ static void my_application_activate(GApplication *application)
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 
   FlView *view = fl_view_new(project);
+  // A size request on the view excludes the header bar, unlike geometry hints
+  // on the window.
+  gtk_widget_set_size_request(GTK_WIDGET(view), kMinContentWidth,
+                              kMinContentHeight);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
 

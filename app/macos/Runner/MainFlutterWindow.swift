@@ -4,12 +4,14 @@ import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private static let frameName = "MainWindow"
+  private static let minContentSize = NSSize(width: 768, height: 512)
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    self.contentMinSize = Self.minContentSize
     // Setting the autosave name in code only saves the frame, so we restore it
     // explicitly.
     _ = self.setFrameUsingName(Self.frameName)
