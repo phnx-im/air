@@ -25,7 +25,7 @@ use mimi_room_policy::VerifiedRoomState;
 use openmls::{
     components::vc_derivation_info::EpochId,
     group::MlsGroup,
-    prelude::{MlsMessageBodyIn, group_info::VerifiableGroupInfo},
+    prelude::{MlsMessageBodyIn, MlsMessageIn, PublicMessageIn, group_info::VerifiableGroupInfo},
 };
 
 use crate::{
@@ -62,7 +62,7 @@ impl Group {
             join_commit,
         } = snapshot;
         ensure!(
-            join_commit.is_none(),
+            join_commit.is_none() && pq.as_ref().is_none_or(|pq| pq.join_commit.is_none()),
             "creation snapshot carries an external commit"
         );
         ensure_snapshot_group_ids(
@@ -138,43 +138,69 @@ impl Group {
             pq,
             join_commit,
         } = snapshot;
-        ensure!(
-            pq.is_none() && contents.pq_group_id.is_none(),
-            "APQ group in a sibling external commit join"
-        );
-        ensure_snapshot_group_ids(&verifiable_group_info, None, contents)?;
+        ensure_snapshot_group_ids(
+            &verifiable_group_info,
+            pq.as_ref().map(|pq| &pq.verifiable_group_info),
+            contents,
+        )?;
 
-        let join_commit = join_commit.context("join snapshot without the accepted commit")?;
-        let MlsMessageBodyIn::PublicMessage(join_commit) = join_commit.extract() else {
-            bail!("the accepted external commit is not a public message");
-        };
+        let join_commit =
+            extract_join_commit(join_commit, "join snapshot without the accepted commit")?;
 
-        let mls_group = {
+        let join_config = default_mls_group_join_config();
+        let (mls_group, pq_group) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Only the accepting sibling received the connection offer, so the
-            // PSK its commit references has to be installed from the blob.
+            // PSK its commit references has to be installed from the blob. The
+            // combiner PSK of an APQ join is derived from the joined PQ leg.
             if let Some(hash) = connection_offer_hash {
                 store_connection_offer_psk(&provider, verifiable_group_info.ciphersuite(), hash)?;
             }
 
-            let mut staged = MlsGroup::vc_external_commit_join_builder()
-                .with_config(default_mls_group_join_config())
-                .skip_lifetime_validation()
-                .with_ratchet_tree(ratchet_tree_in)
-                .process_commit(&provider, verifiable_group_info, join_commit, epoch_id)?;
-            ensure!(
-                staged.app_data_update_proposals().next().is_none(),
-                "unexpected AppDataUpdate proposal in a connection group external commit"
-            );
-            staged.with_app_data_dictionary_updates(None);
-            staged.into_group(&provider)?
+            match pq {
+                Some(pq) => {
+                    let pq_join_commit = extract_join_commit(
+                        pq.join_commit,
+                        "APQ join snapshot without the PQ leg's commit",
+                    )?;
+                    let group_info = VerifiableApqGroupInfo::new(
+                        verifiable_group_info,
+                        pq.verifiable_group_info,
+                    );
+                    let ratchet_tree = ApqRatchetTreeIn::new(ratchet_tree_in, pq.ratchet_tree_in);
+                    let (t_group, pq_group) = ApqMlsGroup::vc_join_via_sibling_external_commit(
+                        &provider,
+                        &join_config,
+                        group_info,
+                        Some(ratchet_tree),
+                        join_commit,
+                        pq_join_commit,
+                        epoch_id,
+                    )?
+                    .into_groups();
+                    (t_group, Some(pq_group))
+                }
+                None => {
+                    let mut staged = MlsGroup::vc_external_commit_join_builder()
+                        .with_config(join_config)
+                        .skip_lifetime_validation()
+                        .with_ratchet_tree(ratchet_tree_in)
+                        .process_commit(&provider, verifiable_group_info, join_commit, epoch_id)?;
+                    ensure!(
+                        staged.app_data_update_proposals().next().is_none(),
+                        "unexpected AppDataUpdate proposal in a connection group external commit"
+                    );
+                    staged.with_app_data_dictionary_updates(None);
+                    (staged.into_group(&provider)?, None)
+                }
+            }
         };
 
         Self::finish_sibling_join(
             txn,
             api_clients,
             mls_group,
-            None,
+            pq_group,
             room_state,
             contents,
             own_user_id,
@@ -243,6 +269,17 @@ impl Group {
 
         Ok(group)
     }
+}
+
+/// The public message carrying an external commit the DS accepted.
+fn extract_join_commit(
+    commit: Option<MlsMessageIn>,
+    missing: &'static str,
+) -> Result<PublicMessageIn> {
+    let MlsMessageBodyIn::PublicMessage(commit) = commit.context(missing)?.extract() else {
+        bail!("an accepted external commit is not a public message");
+    };
+    Ok(commit)
 }
 
 /// Binds the blob's group ids to the group infos the DS served.

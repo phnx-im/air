@@ -11,7 +11,9 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:flutter/material.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -29,12 +31,17 @@ class AddContactDialog extends HookWidget {
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
     final errorMessage = useState<String?>(null);
+    final preferApq = useState(false);
 
     final controller = useTextEditingController();
 
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
+
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
 
     return AppDialog(
       child: Column(
@@ -75,6 +82,7 @@ class AddContactDialog extends HookWidget {
                 errorMessage: errorMessage,
                 usernameHash: usernameHash,
                 value: value,
+                preferApq: preferApq.value,
               )._submit(context);
             },
           ),
@@ -90,6 +98,15 @@ class AddContactDialog extends HookWidget {
               username: controller.text,
             ),
           ),
+
+          if (experimentalFeatures) ...[
+            const SizedBox(height: S.s12),
+            SwitchField(
+              onChanged: (value) => preferApq.value = value,
+              value: preferApq.value,
+              label: "Post-Quantum Encryption",
+            ),
+          ],
 
           const SizedBox(height: S.s24),
 
@@ -112,6 +129,7 @@ class AddContactDialog extends HookWidget {
                     errorMessage: errorMessage,
                     usernameHash: usernameHash,
                     value: controller.text,
+                    preferApq: preferApq.value,
                   )._submit(context),
                   state: isSubmitting.value
                       ? .pending
@@ -178,12 +196,14 @@ class _SubmitHandler {
     required this.errorMessage,
     required this.usernameHash,
     required this.value,
+    required this.preferApq,
   });
 
   final ValueNotifier<bool> isSubmitting;
   final ValueNotifier<String?> errorMessage;
   final ValueNotifier<UsernameHash?> usernameHash;
   final String value;
+  final bool preferApq;
 
   void _submit(BuildContext context) {
     isSubmitting.value = true;
@@ -238,6 +258,7 @@ class _SubmitHandler {
       final error = await chatsRepository.createContactChat(
         username: username,
         hash: hash,
+        preferApq: preferApq,
       );
       final errorMessage = switch (error) {
         AddUsernameContactError.usernameNotFound =>

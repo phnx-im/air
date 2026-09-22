@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
-    credentials::keys::UserSigningKey,
+    credentials::keys::{LeafSigningKey, UserSigningKey},
     crypto::{
         aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
@@ -67,6 +67,7 @@ impl CoreUser {
         &self,
         username: Username,
         hash: UsernameHash,
+        prefer_apq: bool,
     ) -> anyhow::Result<Result<ChatId, AddUsernameContactError>> {
         let client = self.api_client()?;
 
@@ -95,18 +96,22 @@ impl CoreUser {
 
         // Phase 2: Verify the connection package
         let verified_connection_package = connection_package.verify(&hash)?;
+        let is_apq = prefer_apq
+            && verified_connection_package
+                .air_features()
+                .is_some_and(|features| features.apq_connection_groups);
 
         // Phase 3: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let request_pq_group_id = false;
-        let (group_id, _, _) = client
-            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+        let (group_id, pq_group_id, _) = client
+            .ds_request_group_id(provision_group_profile, is_apq)
             .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
+            pq_group_id,
         };
 
         let client_reference = self.create_own_client_reference();
@@ -153,6 +158,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
         user_id: UserId,
+        prefer_apq: bool,
     ) -> anyhow::Result<ChatId> {
         let client = self.api_client()?;
 
@@ -170,17 +176,30 @@ impl CoreUser {
             bail!("Connection request is already pending");
         }
 
+        // Check if the member of the group supports APQ connection groups (in case one should be
+        // created)
+        let is_apq = if prefer_apq {
+            let origin_group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+                .await?
+                .context("Can't find group to send targeted message in")?;
+            origin_group
+                .member_app_data(&user_id)
+                .is_some_and(|data| data.features.apq_connection_groups)
+        } else {
+            false
+        };
+
         // Phase 1: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let request_pq_group_id = false;
-        let (group_id, _, _) = client
-            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+        let (group_id, pq_group_id, _) = client
+            .ds_request_group_id(provision_group_profile, is_apq)
             .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
+            pq_group_id,
         };
 
         let client_reference = self.create_own_client_reference();
@@ -188,9 +207,11 @@ impl CoreUser {
         // Phase 4: Create the connection group and the targeted message
         // locally.
         let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
-            let local_group = connection_package
-                .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
-                .await?;
+            let local_group = Box::pin(
+                connection_package
+                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key),
+            )
+            .await?;
 
             Box::pin(local_group.create_targeted_message_contact(
                 txn,
@@ -289,6 +310,7 @@ enum ConnectionGroupError {
 struct VerifiedConnectionPackagesWithGroupId<Payload = AnyConnectionPackage> {
     payload: Payload,
     group_id: GroupId,
+    pq_group_id: Option<GroupId>,
 }
 
 impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
@@ -300,15 +322,29 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
         let self_group = SelfGroup::load(&mut *txn).await?;
+        let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
-        let (group, partial_params) = Group::create_group(
-            &mut *txn,
-            signing_key,
-            identity_link_wrapper_key,
-            self.group_id.clone(),
-            NewGroupContext::LegacyChat(GroupData::empty()),
-            self_group.as_ref().map(|group| group.group_id()),
-        )?;
+        let (group, partial_params) = if let Some(pq_group_id) = &self.pq_group_id {
+            Group::create_apq_group(
+                &mut *txn,
+                &LeafSigningKey::User(signing_key.clone()),
+                signing_key.credential().user_id().clone(),
+                identity_link_wrapper_key,
+                self.group_id.clone(),
+                pq_group_id.clone(),
+                NewGroupContext::LegacyChat(GroupData::empty()),
+                vc_group_id,
+            )?
+        } else {
+            Group::create_group(
+                &mut *txn,
+                signing_key,
+                identity_link_wrapper_key,
+                self.group_id.clone(),
+                NewGroupContext::LegacyChat(GroupData::empty()),
+                vc_group_id,
+            )?
+        };
 
         group.store(txn).await?;
 
@@ -332,6 +368,7 @@ impl VerifiedConnectionPackagesWithGroupId<AnyConnectionPackage> {
         let Self {
             payload: method_payload,
             group_id,
+            pq_group_id: _,
         } = self;
 
         // Create the connection chat
@@ -368,6 +405,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         let Self {
             payload: user_id,
             group_id,
+            pq_group_id: _,
         } = self;
 
         // Create the connection chat

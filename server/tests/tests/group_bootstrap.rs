@@ -92,6 +92,11 @@ async fn assert_same_epoch_and_leaf(
         a,
         "{context}: the sibling is not on the acting device's epoch and leaf"
     );
+    assert_eq!(
+        device_b.chat_is_apq(chat_id).await,
+        device_a.chat_is_apq(chat_id).await,
+        "{context}: the sibling did not install the same legs"
+    );
 }
 
 /// A sibling installs a group chat its sibling created and can use it.
@@ -264,7 +269,7 @@ async fn sibling_follows_an_accepted_connection() {
     setup
         .get_user(&bob)
         .user()
-        .add_contact(record.username.clone(), hash)
+        .add_contact(record.username.clone(), hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();
@@ -317,6 +322,13 @@ async fn sibling_follows_an_accepted_connection() {
         "the sibling should record the acceptance, got {messages:?}"
     );
 
+    // Under the APQ profile this is an APQ connection group, so the echo carries
+    // both legs.
+    assert_eq!(
+        device_a.chat_is_apq(chat_id).await,
+        Some(setup.apq_groups),
+        "the connection group should follow the test profile"
+    );
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the join echo").await;
 
     let bob_user = setup.get_user(&bob).user().clone();
@@ -349,7 +361,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
     let record = add_username(&mut setup, &bob).await;
     let hash = record.username.calculate_hash().unwrap();
     let chat_id = device_a
-        .add_contact(record.username.clone(), hash)
+        .add_contact(record.username.clone(), hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();
@@ -443,7 +455,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
     let chat_id = device_a
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .unwrap();
 
@@ -592,7 +604,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
     setup
         .get_user(&bob)
         .user()
-        .add_contact(record.username.clone(), hash)
+        .add_contact(record.username.clone(), hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();
@@ -716,6 +728,7 @@ async fn a_rejected_creation_produces_no_echo() {
         .add_contact(
             record.username.clone(),
             record.username.calculate_hash().unwrap(),
+            setup.apq_groups,
         )
         .await
         .expect_err("the DS rejection should surface as an error");
@@ -753,6 +766,7 @@ async fn a_rejected_creation_produces_no_echo() {
         .add_contact(
             record.username.clone(),
             record.username.calculate_hash().unwrap(),
+            setup.apq_groups,
         )
         .await
         .unwrap()
@@ -782,7 +796,7 @@ async fn a_rejected_join_produces_no_echo() {
     setup
         .get_user(&bob)
         .user()
-        .add_contact(record.username.clone(), hash)
+        .add_contact(record.username.clone(), hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();
@@ -846,7 +860,7 @@ async fn a_failed_offer_send_keeps_the_created_group() {
     // carrying the connection offer does not.
     setup.listener_control_handle().set_reject_request_after(2);
     let error = device_a
-        .add_contact_from_group(group_chat_id, charlie.clone())
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
         .expect_err("the rejected targeted message should surface as an error");
     tracing::info!(%error, "the connection offer could not be sent");
