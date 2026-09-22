@@ -270,14 +270,14 @@ mod tests {
         messages::FriendshipToken,
     };
     use airprotos::client::{
-        app_data::GroupAppData,
+        group::GroupData,
         group_bootstrap::{AcceptContext, HandleInitiatorContext, PeerUserId},
     };
     use uuid::Uuid;
 
     use crate::{
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
-        groups::GroupDataBytes,
+        groups::NewGroupContext,
         utils::persistence::open_db_in_memory,
     };
 
@@ -312,9 +312,10 @@ mod tests {
             let (_as_key, client_signer) = create_test_credentials(user_id.clone());
             LeafSigningKey::User(client_signer)
         };
-        let app_data = GroupAppData {
-            is_self_group,
-            safe_aad_components: None,
+        let context = if is_self_group {
+            NewGroupContext::SelfGroup(GroupData::empty())
+        } else {
+            NewGroupContext::LegacyChat(GroupData::empty())
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
@@ -323,8 +324,7 @@ mod tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
-            app_data,
+            context,
             vc_group_id,
         )?;
         Ok(group)

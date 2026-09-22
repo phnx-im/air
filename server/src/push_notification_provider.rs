@@ -31,6 +31,12 @@ const DEFAULT_APNS_ENDPOINT: &str = "https://api.push.apple.com";
 
 const DEFAULT_APNS_TOPIC: &str = "ms.air";
 
+/// How long APNs and FCM keep a push for a device that is offline.
+///
+/// By default, FCM undelivered notifications are kept 4 weeks, but
+/// APNS defaults to 0, so we make it explicit.
+const PUSH_TTL: Duration = Duration::weeks(4);
+
 #[derive(Debug, Serialize)]
 struct FcmClaims<'a> {
     iss: &'a str,
@@ -356,7 +362,12 @@ impl ProductionPushNotificationProvider {
         };
 
         let (status, response) = self
-            .post_fcm(fcm_state, push_token.token(), json!({ "data": "" }), None)
+            .post_fcm(
+                fcm_state,
+                push_token.token(),
+                json!({ "data": "" }),
+                Some(PUSH_TTL),
+            )
             .await
             .map_err(|error| match error {
                 FcmPostError::MissingProjectId => PushNotificationError::InvalidConfiguration(
@@ -396,8 +407,19 @@ impl ProductionPushNotificationProvider {
             "data": "data"
         });
 
+        // apns-expiration is a UNIX epoch expressed in seconds (UTC).
+        // see https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns
+        let expiration = (Utc::now() + PUSH_TTL).timestamp().max(0).unsigned_abs();
+
         let (status, response) = self
-            .post_apns(apns_state, push_token.token(), "alert", "10", 0, body)
+            .post_apns(
+                apns_state,
+                push_token.token(),
+                "alert",
+                "10",
+                expiration,
+                body,
+            )
             .await
             .map_err(|error| match error {
                 ApnsPostError::Jwt(error) => PushNotificationError::JwtCreationError(error),

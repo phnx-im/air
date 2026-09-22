@@ -46,9 +46,8 @@ use crate::{
     contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
-        client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
+        handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -578,14 +577,15 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data_bytes) = self
+                    let (mut group_messages, group_data) = self
                         .group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(bytes) = group_data_bytes
-                        && let Some(chat_title) =
-                            GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
+                    if let Some(group_data) = group_data
+                        && let (chat_title, _profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key())
+                        && let Some(chat_title) = chat_title
                     {
                         let attributes = ChatAttributes::new(chat_title, new_chat_picture);
                         update_chat_attributes(
@@ -769,12 +769,11 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
-        Self::create_update_with_raw_group_data(
+        Self::create_update_with_group_data(
             txn,
             signer,
             chat_id,
-            group_data_bytes,
+            new_group_data,
             new_chat_picture,
             derivation_epoch,
         )
@@ -985,11 +984,11 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    pub(crate) async fn create_update_with_raw_group_data(
+    pub(crate) async fn create_update_with_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        group_data_bytes: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
@@ -1000,7 +999,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
+            .update(&mut *txn, &signer, new_group_data, derivation_epoch)
             .await?;
 
         let job = Self::new(
@@ -1728,7 +1727,7 @@ mod tests {
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
     use airprotos::{
-        client::app_data::{ClientAppData, GroupAppData},
+        client::app_data::ClientAppData,
         common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
     };
     use chrono::{Duration, Utc};
@@ -1736,7 +1735,7 @@ mod tests {
 
     use crate::{
         ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        groups::NewGroupContext, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1789,11 +1788,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1942,11 +1937,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1991,8 +1982,6 @@ mod tests {
     /// Builds a single-member APQ self group owned by a fresh client, with the
     /// own client info and own user profile key the self-group paths expect.
     async fn setup_self_group() -> anyhow::Result<(DbAccess, UserId, UserSigningKey, GroupId)> {
-        use openmls::components::vc_derivation_info::VC_COMPONENT_ID;
-
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -2029,11 +2018,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -2223,7 +2208,6 @@ mod tests {
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), user_id.domain().clone());
         let group_id = GroupId::from(qgid);
-        let group_data_bytes = GroupDataBytes::from(b"test-group-data".to_vec());
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
@@ -2232,7 +2216,7 @@ mod tests {
             &signing_key,
             identity_link_wrapper_key,
             group_id.clone(),
-            group_data_bytes,
+            NewGroupContext::LegacyChat(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;
