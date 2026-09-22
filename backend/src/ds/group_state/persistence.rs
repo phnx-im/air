@@ -167,30 +167,6 @@ mod test {
     }
 
     #[sqlx::test]
-    async fn reserve_group_id(pool: PgPool) {
-        let ds = Ds::new_from_pool(
-            pool,
-            "example.com".parse().unwrap(),
-            Default::default(),
-            CancellationToken::new(),
-        )
-        .await
-        .expect("Error creating ephemeral Ds instance.");
-
-        // Sample a random group id and reserve it
-        let group_uuid = Uuid::new_v4();
-
-        let was_reserved = ds.reserve_group_id(group_uuid).await;
-        assert!(was_reserved);
-
-        // Try to reserve the same group id again
-        let was_reserved_again = ds.reserve_group_id(group_uuid).await;
-
-        // This should return false
-        assert!(!was_reserved_again);
-    }
-
-    #[sqlx::test]
     async fn group_state_lifecycle(pool: PgPool) {
         let ds = Ds::new_from_pool(
             pool,
@@ -204,12 +180,7 @@ mod test {
         let test_state = Ciphertext::dummy();
 
         // Create/store a dummy group state
-        let group_uuid = Uuid::new_v4();
-        let was_reserved = ds.reserve_group_id(group_uuid).await;
-        assert!(was_reserved);
-
-        // Load the reserved group id
-        let qgid = QualifiedGroupId::new(group_uuid, ds.own_domain.clone());
+        let (qgid, _) = ds.request_group_ids(false).await.unwrap();
         let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
 
         // Create and store a new group state
@@ -257,11 +228,7 @@ mod test {
         pool: &PgPool,
         ds: &Ds,
     ) -> anyhow::Result<(QualifiedGroupId, StorableDsGroupData<false>)> {
-        let group_uuid = Uuid::new_v4();
-        let was_reserved = ds.reserve_group_id(group_uuid).await;
-        assert!(was_reserved);
-
-        let qgid = QualifiedGroupId::new(group_uuid, ds.own_domain.clone());
+        let (qgid, _) = ds.request_group_ids(false).await?;
         let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
 
         let group = random_group(reserved_group_id.0);

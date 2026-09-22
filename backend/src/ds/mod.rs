@@ -2,17 +2,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
-use aircommon::{identifiers::Fqdn, time::Duration};
+use aircommon::{
+    identifiers::{Fqdn, QualifiedGroupId},
+    time::Duration,
+};
 use sqlx::PgPool;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
-    ds::storage::Storage,
+    ds::{
+        group_id_reservations::{
+            GroupIdReservations, GroupIdReservationsFull, sweep_expired_group_id_reservations,
+        },
+        storage::Storage,
+    },
     version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
@@ -23,6 +31,7 @@ mod collision_tags;
 mod create_group;
 mod delete_group;
 mod epoch_snapshot;
+mod group_id_reservations;
 mod group_operation;
 pub mod group_state;
 pub mod grpc;
@@ -48,7 +57,7 @@ pub const EPOCH_SNAPSHOT_EXPIRATION: Duration = Duration::days(90);
 #[derive(Debug, Clone)]
 pub struct Ds {
     own_domain: Fqdn,
-    reserved_group_ids: Arc<Mutex<HashSet<Uuid>>>,
+    group_id_reservations: Arc<Mutex<GroupIdReservations>>,
     db_pool: PgPool,
     storage: Option<Storage>,
     version_policy: VersionPolicy,
@@ -62,17 +71,28 @@ impl BackendService for Ds {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
-        _stop: CancellationToken,
+        stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
+        let group_id_reservations = Arc::new(Mutex::new(GroupIdReservations::default()));
+        tokio::spawn(
+            stop.run_until_cancelled_owned(sweep_expired_group_id_reservations(
+                group_id_reservations.clone(),
+            )),
+        );
+
         let ds = Self {
             own_domain: domain,
-            reserved_group_ids: Default::default(),
+            group_id_reservations,
             db_pool,
             storage: None,
             version_policy,
         };
 
         Ok(ds)
+    }
+
+    fn describe_metrics() {
+        GroupIdReservations::describe_metrics();
     }
 }
 
@@ -81,18 +101,31 @@ impl Ds {
         self.storage = Some(storage);
     }
 
-    async fn reserve_group_id(&self, group_id: Uuid) -> bool {
-        let mut reserved_group_ids = self.reserved_group_ids.lock().await;
-        reserved_group_ids.insert(group_id)
+    /// Reserves a fresh group id, and a second one for the PQ leg of an APQ
+    /// group when requested. Either every requested id is reserved or none.
+    /// Reservations are released again unless group creation claims them
+    /// within the TTL.
+    pub(crate) async fn request_group_ids(
+        &self,
+        with_pq_group_id: bool,
+    ) -> Result<(QualifiedGroupId, Option<QualifiedGroupId>), GroupIdReservationsFull> {
+        let mut reservations = self.group_id_reservations.lock().await;
+        let now = Instant::now();
+        let qualify = |group_uuid| QualifiedGroupId::new(group_uuid, self.own_domain.clone());
+        if with_pq_group_id {
+            let [group_uuid, pq_group_uuid] = reservations.reserve_fresh::<2>(now)?;
+            Ok((qualify(group_uuid), Some(qualify(pq_group_uuid))))
+        } else {
+            let [group_uuid] = reservations.reserve_fresh::<1>(now)?;
+            Ok((qualify(group_uuid), None))
+        }
     }
 
     async fn claim_reserved_group_id(&self, group_id: Uuid) -> Option<ReservedGroupId> {
-        let mut reserved_group_ids = self.reserved_group_ids.lock().await;
-        if reserved_group_ids.remove(&group_id) {
-            Some(ReservedGroupId(group_id))
-        } else {
-            None
-        }
+        self.group_id_reservations
+            .lock()
+            .await
+            .claim(group_id, Instant::now())
     }
 
     fn own_domain(&self) -> &Fqdn {

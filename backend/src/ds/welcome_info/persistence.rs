@@ -107,12 +107,10 @@ mod test {
 
     /// The rows reference `encrypted_group`, so a group has to exist first.
     async fn store_group(pool: &PgPool, ds: &Ds) -> anyhow::Result<Uuid> {
-        let group_uuid = Uuid::new_v4();
-        assert!(ds.reserve_group_id(group_uuid).await);
-        let qgid = QualifiedGroupId::new(group_uuid, ds.own_domain.clone());
+        let (qgid, _) = ds.request_group_ids(false).await?;
         let reserved = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
         StorableDsGroupData::new_and_store(pool, reserved, Ciphertext::random()).await?;
-        Ok(group_uuid)
+        Ok(qgid.group_uuid())
     }
 
     async fn new_ds(pool: PgPool) -> anyhow::Result<Ds> {

@@ -863,13 +863,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<RequestGroupIdResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let qgid = self.ds.request_group_id().await;
-
-        let pq_qgid = if request.request_pq_group_id {
-            Some(self.ds.request_group_id().await)
-        } else {
-            None
-        };
+        let (qgid, pq_qgid) = self
+            .ds
+            .request_group_ids(request.request_pq_group_id)
+            .await?;
 
         let group_profile_provisioning =
             if let Some(group_profile_size) = request.group_profile_size {
