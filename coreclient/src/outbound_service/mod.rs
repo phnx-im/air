@@ -39,7 +39,7 @@ mod profile;
 mod push_tokens;
 mod reaction_queue;
 mod reactions;
-mod receipt_queue;
+pub(crate) mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
