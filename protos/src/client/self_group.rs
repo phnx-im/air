@@ -18,24 +18,15 @@
 //! so a client can adopt new tags before all of a user's devices understand
 //! them.
 
-use std::collections::BTreeMap;
-
-use aircommon::{
-    codec::{self, PersistenceCodec},
-    crypto::{
-        aead::{
-            Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
-        },
-        errors::RandomnessError,
-        secrets::Secret,
-    },
+use aircommon::crypto::{
+    aead::{Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey},
+    errors::RandomnessError,
+    secrets::Secret,
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
-use mimi_content::{
-    Disposition, MimiContent, NestedPart, cbor::Value, content_container::ExtensionName,
-};
+use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::warn;
@@ -116,8 +107,11 @@ pub const SELF_GROUP_APP_MESSAGE_EXTENSION: i64 = -1;
 
 /// A message carried as a plain MLS application message in the self group.
 ///
-/// Sent as a body-less [`MimiContent`], encoded with `PersistenceCodec` under
-/// the [`SELF_GROUP_APP_MESSAGE_EXTENSION`] extension.
+/// Sent as a body-less [`MimiContent`] with the message as the value of the
+/// [`SELF_GROUP_APP_MESSAGE_EXTENSION`] extension. draft-ietf-mimi-content
+/// section 6.3 gives an extension value three nested levels. The union map
+/// and the payload map take two, so a payload field is a scalar, a byte
+/// string, or a flat array or map of scalars.
 ///
 /// ## CDDL Definition
 ///
@@ -138,19 +132,19 @@ pub enum SelfGroupAppMessage {
 impl SelfGroupAppMessage {
     /// Wraps the message into the MIMI content that carries it.
     pub fn to_mimi_content(&self) -> Result<MimiContent, SelfGroupAppMessageError> {
-        Ok(MimiContent {
+        let content = MimiContent {
             salt: Secret::<16>::random()?.secret().to_vec(),
-            extensions: BTreeMap::from([(
-                ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
-                Value::Bytes(PersistenceCodec::to_vec(self)?),
-            )]),
             // Explicit, since older siblings render a body-less message as nothing.
             nested_part: NestedPart::NullPart {
                 disposition: Disposition::Unspecified,
                 language: Default::default(),
             },
             ..Default::default()
-        })
+        };
+        Ok(content.with_extension(
+            ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
+            self,
+        )?)
     }
 
     /// Extracts the message from a [`MimiContent`], or `None` if the content
@@ -159,27 +153,22 @@ impl SelfGroupAppMessage {
         if !matches!(content.nested_part, NestedPart::NullPart { .. }) {
             return None;
         }
-        let value = content
-            .extensions
-            .get(&ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION))?;
-        let Value::Bytes(body) = value else {
-            warn!("self group application message with an unexpected extension value");
-            return Some(Self::Unknown);
-        };
-        Some(PersistenceCodec::from_slice(body).unwrap_or_else(|error| {
-            warn!(%error, "undecodable self group application message");
-            Self::Unknown
-        }))
+        content
+            .extension(&ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION))
+            .unwrap_or_else(|error| {
+                warn!(%error, "undecodable self group application message");
+                Some(Self::Unknown)
+            })
     }
 }
 
-/// Error wrapping a [`SelfGroupAppMessage`] into its MIMI content.
+/// Error converting a [`SelfGroupAppMessage`] to or from its MIMI content.
 #[derive(Debug, thiserror::Error)]
 pub enum SelfGroupAppMessageError {
     #[error(transparent)]
-    Codec(#[from] codec::Error),
-    #[error(transparent)]
     Salt(#[from] RandomnessError),
+    #[error(transparent)]
+    Extension(#[from] mimi_content::Error),
 }
 
 /// The Privacy Pass token seed of one (operation type, VOPRF key).
@@ -439,11 +428,14 @@ pub struct ContactUnblocked {
 mod test {
     use std::collections::BTreeMap;
 
-    use aircommon::crypto::{
-        aead::{AeadCiphertext, keys::SelfGroupMessageKey},
-        kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+    use aircommon::{
+        codec::PersistenceCodec,
+        crypto::{
+            aead::{AeadCiphertext, keys::SelfGroupMessageKey},
+            kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+        },
     };
-    use mimi_content::Disposition;
+    use mimi_content::{Disposition, cbor::Value};
 
     use super::*;
 
@@ -922,9 +914,21 @@ mod test {
         }
     }
 
-    /// An encoded [`SelfGroupAppMessageV2`] variant this version does not know.
+    /// A [`SelfGroupAppMessageV2`] variant this version does not know.
     fn a_newer_kind() -> Value {
-        Value::Bytes(PersistenceCodec::to_vec(&SelfGroupAppMessageV2::Something(42)).unwrap())
+        Value::from_serde(SelfGroupAppMessageV2::Something(42)).unwrap()
+    }
+
+    #[test]
+    fn self_group_app_message_stability() {
+        let mut content = SelfGroupAppMessage::RedeemedTokens(sample_redeemed())
+            .to_mimi_content()
+            .unwrap();
+        content.salt = vec![0; 16];
+        let diag = cbor_diag::parse_bytes(content.serialize().unwrap())
+            .unwrap()
+            .to_hex();
+        insta::assert_snapshot!(diag);
     }
 
     #[test]
@@ -978,27 +982,39 @@ mod test {
         );
     }
 
+    /// A known tag with a payload of the wrong shape.
     #[test]
-    fn an_undecodable_body_is_unknown() {
-        let content = content_with_extension(Value::Bytes(b"garbage".to_vec()));
+    fn an_undecodable_payload_is_unknown() {
+        let value = Value::Map(BTreeMap::from([(
+            Value::Int(1),
+            Value::Text("garbage".into()),
+        )]));
         assert_eq!(
-            SelfGroupAppMessage::from_mimi_content(&content),
+            SelfGroupAppMessage::from_mimi_content(&content_with_extension(value)),
             Some(SelfGroupAppMessage::Unknown)
         );
     }
 
     #[test]
-    fn an_unexpected_extension_value_is_unknown() {
-        assert_eq!(
-            SelfGroupAppMessage::from_mimi_content(&content_with_extension(Value::Int(7))),
-            Some(SelfGroupAppMessage::Unknown)
-        );
+    fn a_value_that_is_not_a_map_is_unknown() {
+        for value in [
+            Value::Int(7),
+            Value::Bytes(b"garbage".to_vec()),
+            Value::Null,
+        ] {
+            assert_eq!(
+                SelfGroupAppMessage::from_mimi_content(&content_with_extension(value)),
+                Some(SelfGroupAppMessage::Unknown)
+            );
+        }
     }
 
     /// A body makes it a chat message, whatever its extensions.
     #[test]
     fn a_message_with_a_body_is_not_ours() {
-        let mut content = content_with_extension(Value::Bytes(Vec::new()));
+        let mut content = SelfGroupAppMessage::RedeemedTokens(sample_redeemed())
+            .to_mimi_content()
+            .unwrap();
         content.nested_part = NestedPart::SinglePart {
             disposition: Disposition::Render,
             language: Default::default(),

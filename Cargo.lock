@@ -4569,15 +4569,12 @@ dependencies = [
 [[package]]
 name = "mimi_content"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/mimi-content?rev=adf5152fb1899e8ce6103f1e2c1d7e835b85c353#adf5152fb1899e8ce6103f1e2c1d7e835b85c353"
+source = "git+https://github.com/phnx-im/mimi-content?rev=1444aa24aa0ccab5d2079624d001fd2aa7ad8ce4#1444aa24aa0ccab5d2079624d001fd2aa7ad8ce4"
 dependencies = [
  "minicbor",
- "minicbor-derive",
- "num_enum",
  "serde",
  "serde_bytes",
- "sha2 0.10.9",
- "thiserror 2.0.20",
+ "sha2 0.11.0",
 ]
 
 [[package]]
