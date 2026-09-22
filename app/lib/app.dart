@@ -10,6 +10,7 @@ import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/navigation/navigation_restoration.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_session_scope.dart';
@@ -181,6 +182,7 @@ class _AppState extends State<App> {
                 final locale = localeFromTag(userLocaleCode) ?? appLocale;
 
                 return MaterialApp.router(
+                  restorationScopeId: 'root',
                   scrollBehavior: const AppScrollBehavior(),
                   scaffoldMessengerKey: scaffoldMessengerKey,
                   onGenerateTitle: (context) =>
@@ -196,25 +198,29 @@ class _AppState extends State<App> {
                   theme: lightTheme,
                   darkTheme: darkTheme,
                   routerConfig: _appRouter,
-                  builder: (context, router) => UserSessionScope(
-                    appStateStream: _lifecycleHandler.appStateStream,
-                    child: BlocListener<NavigationCubit, NavigationState>(
-                      // Drop the keyboard focus whenever we navigate, e.g. leaving
-                      // a chat's message composer to open the contact/chat
-                      // details. Otherwise the composer's FocusNode keeps focus
-                      // while sitting under the pushed screens, and on iOS the
-                      // keyboard reappears when a pageless route on top (like the
-                      // safety code screen) is popped, because Flutter restores
-                      // focus to it.
-                      //
-                      // Only touch devices have a software keyboard, and on
-                      // desktop we want the composer to keep its focus, so this
-                      // is scoped to non-desktop. The listener already only fires
-                      // when the navigation state actually changes.
-                      listenWhen: (previous, current) => !DeviceType.isDesktop,
-                      listener: (context, state) =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
-                      child: router!,
+                  builder: (context, router) => NavigationRestorationScope(
+                    navigationCubit: _navigationCubit,
+                    child: UserSessionScope(
+                      appStateStream: _lifecycleHandler.appStateStream,
+                      child: BlocListener<NavigationCubit, NavigationState>(
+                        // Drop the keyboard focus whenever we navigate, e.g. leaving
+                        // a chat's message composer to open the contact/chat
+                        // details. Otherwise the composer's FocusNode keeps focus
+                        // while sitting under the pushed screens, and on iOS the
+                        // keyboard reappears when a pageless route on top (like the
+                        // safety code screen) is popped, because Flutter restores
+                        // focus to it.
+                        //
+                        // Only touch devices have a software keyboard, and on
+                        // desktop we want the composer to keep its focus, so this
+                        // is scoped to non-desktop. The listener already only fires
+                        // when the navigation state actually changes.
+                        listenWhen: (previous, current) =>
+                            !DeviceType.isDesktop,
+                        listener: (context, state) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                        child: router!,
+                      ),
                     ),
                   ),
                 );
