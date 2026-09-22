@@ -247,5 +247,33 @@ void main() {
         matchesGoldenFile('goldens/home_screen_desktop_you.png'),
       );
     }, variant: desktopPlatform);
+
+    testWidgets('narrow window keeps the chat wide enough to lay out', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(768, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      when(() => userSettingsCubit.state)
+          .thenReturn(const UserSettings(sidebarWidth: 600));
+      when(() => navigationCubit.state).thenReturn(
+        NavigationState.home(
+          home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
+        ),
+      );
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject(chats: chats));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(find.byType(ChatScreenView)).width,
+        greaterThanOrEqualTo(400),
+      );
+    }, variant: desktopPlatform);
   });
 }
