@@ -26,19 +26,8 @@ AppIconType _iconFor(LinkedDevicePlatform platform) => switch (platform) {
 
 /// The devices section: this device, the ones linked to it, and the way to add
 /// another. Sized and scrolled by its host.
-class LinkedDevicesContent extends StatelessWidget {
-  const LinkedDevicesContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // The cubit is provided once, app-wide, in UserSessionScope (so that
-    // system messages elsewhere can resolve device names).
-    return const LinkedDevicesView();
-  }
-}
-
-class LinkedDevicesView extends StatelessWidget {
-  const LinkedDevicesView({super.key});
+class LinkedDevicesSection extends StatelessWidget {
+  const LinkedDevicesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
