@@ -150,6 +150,7 @@ class UiChatDetails {
   final UiLastReaction? lastReaction;
   final UiMessageDraft? draft;
   final bool isApq;
+  final bool isSelfChat;
   final UiChatMuted? mutedUntil;
   final bool pendingCommitFailed;
   final bool resyncFailed;
@@ -164,6 +165,7 @@ class UiChatDetails {
     this.lastReaction,
     this.draft,
     required this.isApq,
+    required this.isSelfChat,
     this.mutedUntil,
     required this.pendingCommitFailed,
     required this.resyncFailed,
@@ -180,6 +182,7 @@ class UiChatDetails {
       lastReaction.hashCode ^
       draft.hashCode ^
       isApq.hashCode ^
+      isSelfChat.hashCode ^
       mutedUntil.hashCode ^
       pendingCommitFailed.hashCode ^
       resyncFailed.hashCode;
@@ -198,6 +201,7 @@ class UiChatDetails {
           lastReaction == other.lastReaction &&
           draft == other.draft &&
           isApq == other.isApq &&
+          isSelfChat == other.isSelfChat &&
           mutedUntil == other.mutedUntil &&
           pendingCommitFailed == other.pendingCommitFailed &&
           resyncFailed == other.resyncFailed;
@@ -484,6 +488,10 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
   const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
+  const factory UiSystemMessage.deviceLinked(UuidValue field0) =
+      UiSystemMessage_DeviceLinked;
+  const factory UiSystemMessage.deviceUnlinked(UuidValue field0) =
+      UiSystemMessage_DeviceUnlinked;
 }
 
 /// UI representation of an [`UserId`]

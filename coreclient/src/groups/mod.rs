@@ -3324,6 +3324,7 @@ impl TimestampedMessage {
     ) -> Result<Vec<Self>> {
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
+        let mut devices_unlinked_set = HashSet::new();
         let remove_proposals = staged_commit.queued_proposals().filter(|&p| {
             matches!(
                 p.proposal().proposal_type(),
@@ -3352,16 +3353,23 @@ impl TimestampedMessage {
                 continue;
             };
 
-            let removed = group
-                .user_id_at(removed_index, verified)?
-                .context("Could not find user credential of removed")?;
+            let removed_credential = group
+                .unverified_credential_at(removed_index)?
+                .context("Could not find credential of removed")?;
 
-            if remover == removed {
-                // A system message for this proposal was already made when it was proposed
-                continue;
+            match &removed_credential {
+                LeafCredential::SelfGroup(self_group_credential) => {
+                    devices_unlinked_set.insert(self_group_credential.client_id());
+                }
+                LeafCredential::User(_) => {
+                    let removed = removed_credential.user_id(group.own_user_id()).clone();
+                    if remover == removed {
+                        // A system message for this proposal was already made when it was proposed
+                        continue;
+                    }
+                    removed_set.insert((remover, removed));
+                }
             }
-
-            removed_set.insert((remover, removed));
         }
         let remove_messages = removed_set.into_iter().map(|(remover, removed)| {
             TimestampedMessage::system_message(
@@ -3369,9 +3377,16 @@ impl TimestampedMessage {
                 ds_timestamp,
             )
         });
+        let device_unlinked_messages = devices_unlinked_set.into_iter().map(|client_id| {
+            TimestampedMessage::system_message(
+                SystemMessage::DeviceUnlinked(client_id),
+                ds_timestamp,
+            )
+        });
 
         // Collect adder and addee names and filter out duplicates
         let mut adds_set = HashSet::new();
+        let mut devices_linked_set = HashSet::new();
         for staged_add_proposal in staged_commit.add_proposals() {
             let Sender::Member(sender_index) = staged_add_proposal.sender() else {
                 // We don't support non-member adds.
@@ -3382,22 +3397,36 @@ impl TimestampedMessage {
                 .user_id_at(*sender_index, verified)?
                 .context("Could not find user credential of sender")?;
 
-            // Get the user id of the added member from the proposal key package
+            // Get the credential of the added member from the proposal key package
             let credential = staged_add_proposal
                 .add_proposal()
                 .key_package()
                 .leaf_node()
                 .credential();
             let credential = LeafCredential::from_credential(credential)?;
-            let addee_id = credential.user_id(group.own_user_id()).clone();
 
-            adds_set.insert((sender_id, addee_id));
+            match &credential {
+                LeafCredential::SelfGroup(self_group_credential) => {
+                    devices_linked_set.insert(self_group_credential.client_id());
+                }
+                LeafCredential::User(_) => {
+                    let addee_id = credential.user_id(group.own_user_id()).clone();
+                    adds_set.insert((sender_id, addee_id));
+                }
+            }
         }
         let add_messages = adds_set.into_iter().map(|(adder, added)| {
             TimestampedMessage::system_message(SystemMessage::Add(Some(adder), added), ds_timestamp)
         });
+        let device_linked_messages = devices_linked_set.into_iter().map(|client_id| {
+            TimestampedMessage::system_message(SystemMessage::DeviceLinked(client_id), ds_timestamp)
+        });
 
-        let event_messages = remove_messages.chain(add_messages).collect();
+        let event_messages = remove_messages
+            .chain(device_unlinked_messages)
+            .chain(add_messages)
+            .chain(device_linked_messages)
+            .collect();
 
         // Emit log messages for updates.
         for staged_update_proposal in staged_commit.update_proposals() {

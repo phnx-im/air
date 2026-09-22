@@ -12556,6 +12556,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             <Option<crate::api::types::UiLastReaction>>::sse_decode(deserializer);
         let mut var_draft = <Option<crate::api::types::UiMessageDraft>>::sse_decode(deserializer);
         let mut var_isApq = <bool>::sse_decode(deserializer);
+        let mut var_isSelfChat = <bool>::sse_decode(deserializer);
         let mut var_mutedUntil = <Option<crate::api::types::UiChatMuted>>::sse_decode(deserializer);
         let mut var_pendingCommitFailed = <bool>::sse_decode(deserializer);
         let mut var_resyncFailed = <bool>::sse_decode(deserializer);
@@ -12569,6 +12570,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             last_reaction: var_lastReaction,
             draft: var_draft,
             is_apq: var_isApq,
+            is_self_chat: var_isSelfChat,
             muted_until: var_mutedUntil,
             pending_commit_failed: var_pendingCommitFailed,
             resync_failed: var_resyncFailed,
@@ -13125,6 +13127,14 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             11 => {
                 return crate::api::types::UiSystemMessage::Onboarded;
+            }
+            12 => {
+                let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::DeviceLinked(var_field0);
+            }
+            13 => {
+                let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::DeviceUnlinked(var_field0);
             }
             _ => {
                 unimplemented!("");
@@ -15676,6 +15686,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.last_reaction.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
             self.is_apq.into_into_dart().into_dart(),
+            self.is_self_chat.into_into_dart().into_dart(),
             self.muted_until.into_into_dart().into_dart(),
             self.pending_commit_failed.into_into_dart().into_dart(),
             self.resync_failed.into_into_dart().into_dart(),
@@ -16359,6 +16370,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 [10.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::UiSystemMessage::Onboarded => [11.into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::DeviceLinked(field0) => {
+                [12.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
+                [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -19140,6 +19157,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
         <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
         <bool>::sse_encode(self.is_apq, serializer);
+        <bool>::sse_encode(self.is_self_chat, serializer);
         <Option<crate::api::types::UiChatMuted>>::sse_encode(self.muted_until, serializer);
         <bool>::sse_encode(self.pending_commit_failed, serializer);
         <bool>::sse_encode(self.resync_failed, serializer);
@@ -19601,6 +19619,14 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::Onboarded => {
                 <i32>::sse_encode(11, serializer);
+            }
+            crate::api::types::UiSystemMessage::DeviceLinked(field0) => {
+                <i32>::sse_encode(12, serializer);
+                <uuid::Uuid>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
+                <i32>::sse_encode(13, serializer);
+                <uuid::Uuid>::sse_encode(field0, serializer);
             }
             _ => {
                 unimplemented!("");

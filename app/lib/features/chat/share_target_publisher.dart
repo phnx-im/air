@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:logging/logging.dart';
 
@@ -17,7 +18,7 @@ final _log = Logger('ShareTargetPublisher');
 /// donations), keeps them in sync with the chats and withdraws them on
 /// [dispose].
 class ShareTargetPublisher {
-  ShareTargetPublisher({required this._chatsRepository}) {
+  ShareTargetPublisher({required this._chatsRepository, required this._loc}) {
     _changes = _chatsRepository.watchChanges().listen(_onChatsChanged);
     if (Platform.isAndroid) {
       unawaited(_enqueue('reconcile share targets', _reconcile));
@@ -25,6 +26,10 @@ class ShareTargetPublisher {
   }
 
   final ChatsRepository _chatsRepository;
+
+  /// Localizations at session start. Only needed for the self-chat title, so
+  /// a mid-session language change is picked up on the next login.
+  final AppLocalizations _loc;
 
   // State
 
@@ -166,16 +171,16 @@ class ShareTargetPublisher {
       _encodeTarget(chatId, _shareTarget(chat)),
     );
   }
+
+  _ShareTarget _shareTarget(UiChatDetails chat) => (
+    title: chat.title(_loc),
+    isGroup: chat.chatType is UiChatType_Group,
+    picture: chat.picture,
+  );
 }
 
 /// What the OS shows for a chat as a share target.
 typedef _ShareTarget = ({String title, bool isGroup, ImageData? picture});
-
-_ShareTarget _shareTarget(UiChatDetails chat) => (
-  title: chat.title,
-  isGroup: chat.chatType is UiChatType_Group,
-  picture: chat.picture,
-);
 
 Map<String, dynamic> _encodeTarget(ChatId chatId, _ShareTarget target) => {
   'chatId': chatId.uuid.toString(),

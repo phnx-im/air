@@ -182,6 +182,7 @@ class _MessageComposerState extends State<MessageComposer>
     if (chat == null || !mounted) {
       return;
     }
+    final loc = AppLocalizations.of(context);
     final navigationState = _navigationCubit.state;
     final share = navigationState.pendingShare;
     // The share is addressed by navigation, not by this widget: it belongs to
@@ -214,7 +215,7 @@ class _MessageComposerState extends State<MessageComposer>
     }
     if (share.attachments.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_stageSharedAttachments(share.attachments, chat.title));
+        unawaited(_stageSharedAttachments(share.attachments, chat.title(loc)));
       });
     }
   }
@@ -268,6 +269,8 @@ class _MessageComposerState extends State<MessageComposer>
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     // The dot on the scroll-back button tracks the chat's live unread count.
     // Mark-as-read runs up to the newest visible message, so whatever is still
     // unread sits below the fold.
@@ -280,7 +283,7 @@ class _MessageComposerState extends State<MessageComposer>
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       return (
-        chat?.title,
+        chat?.title(loc),
         chat?.draft?.editingId,
         chat?.draft?.inReplyTo?.$1,
         chat?.isConfirmed ?? false,
@@ -561,7 +564,8 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   void _handleFilePaste(String filePath) {
-    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    final loc = AppLocalizations.of(context);
+    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
     if (chatTitle == null) return;
 
     final file = XFile(filePath);
@@ -569,7 +573,8 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   void _handleImagePaste(ClipboardImage image) async {
-    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    final loc = AppLocalizations.of(context);
+    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
     if (chatTitle == null) return;
 
     final ext = image.mimeType.split('/').last;
@@ -591,7 +596,8 @@ class _MessageComposerState extends State<MessageComposer>
     final data = content.data;
     if (data == null || data.isEmpty) return;
 
-    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    final loc = AppLocalizations.of(context);
+    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
     if (chatTitle == null) return;
 
     final ext = content.mimeType.split('/').last;

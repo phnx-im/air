@@ -336,6 +336,17 @@ async fn multi_device_linking_session() {
         );
     }
 
+    // Linking the new device is recorded in the self group, not in each
+    // pre-existing chat: the old device's commit adding the new device's
+    // self-group leaf must produce a DeviceLinked system message identifying
+    // it, not a generic Add (which would render as e.g. "Alice added Alice").
+    let self_group_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
+    assert_eq!(
+        device_linked_client_ids(old_device, self_group_chat_id).await,
+        vec![new_device.own_client_id().await.unwrap()],
+        "linking the new device should record a DeviceLinked system message in the self group"
+    );
+
     // Messages sent into the self group are seen by the other device.
     let self_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
     send_and_receive(
@@ -2305,6 +2316,22 @@ async fn drain_queue_ok(user: &CoreUser, what: &str) {
         "{what}: {:?}",
         processed.errors
     );
+}
+
+/// The client ids of every "device was linked" system message the device
+/// stores for the chat.
+async fn device_linked_client_ids(user: &CoreUser, chat_id: ChatId) -> Vec<Uuid> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(SystemMessage::DeviceLinked(client_id))) => {
+                Some(*client_id)
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// How many "`user_id` left" system messages the device stores for the chat.

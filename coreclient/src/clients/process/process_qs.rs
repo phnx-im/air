@@ -532,6 +532,7 @@ impl CoreUser {
             SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone()),
         );
         system_message.store(&mut *txn).await?;
+        let messages = vec![system_message];
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
@@ -556,7 +557,7 @@ impl CoreUser {
         Ok(QsMessageOutcome::new_chat(
             chat.id(),
             sender_user_id,
-            vec![system_message],
+            messages,
         ))
     }
 

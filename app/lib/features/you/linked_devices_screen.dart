@@ -9,7 +9,6 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
@@ -27,21 +26,8 @@ AppIconType _iconFor(LinkedDevicePlatform platform) => switch (platform) {
 
 /// The devices section: this device, the ones linked to it, and the way to add
 /// another. Sized and scrolled by its host.
-class LinkedDevicesContent extends StatelessWidget {
-  const LinkedDevicesContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) =>
-          LinkedDevicesCubit(userCubit: context.read<UserCubit>()),
-      child: const LinkedDevicesView(),
-    );
-  }
-}
-
-class LinkedDevicesView extends StatelessWidget {
-  const LinkedDevicesView({super.key});
+class LinkedDevicesSection extends StatelessWidget {
+  const LinkedDevicesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
