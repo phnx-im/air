@@ -129,12 +129,6 @@ bool _isDesktopPlatform(TargetPlatform platform) => switch (platform) {
   _ => false,
 };
 
-/// Desktop shots render the interface at this scale, for legibility.
-const _desktopInterfaceScale = 1.5;
-
-double? _interfaceScaleFor(TargetPlatform platform) =>
-    _isDesktopPlatform(platform) ? _desktopInterfaceScale : null;
-
 /// On desktop the real app always shows the chat list beside the open chat,
 /// so the shot needs the split layout instead of just the chat on its own.
 Widget _chatShot(TargetPlatform platform, Widget chat) =>
@@ -359,7 +353,7 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
     when(() => userSettingsCubit.state).thenReturn(
       UserSettings(
         experimentalFeatures: false,
-        interfaceScale: _interfaceScaleFor(platform),
+        interfaceScale: _marketingDeviceFor(platform).interfaceScale,
       ),
     );
 
@@ -472,8 +466,11 @@ _ProductShotSpec _chatSpec({
     when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
     when(() => contactsCubit.state)
         .thenReturn(MockUsersState(profiles: userProfiles));
-    when(() => userSettingsCubit.state)
-        .thenReturn(UserSettings(interfaceScale: _interfaceScaleFor(platform)));
+    when(() => userSettingsCubit.state).thenReturn(
+      UserSettings(
+        interfaceScale: _marketingDeviceFor(platform).interfaceScale,
+      ),
+    );
 
     return [
       RepositoryProvider<AttachmentsRepository>.value(
