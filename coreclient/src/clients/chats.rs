@@ -16,8 +16,7 @@ use tracing::error;
 use crate::{
     ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, PendingConnectionInfo, messages::ChatMessage,
-        notification_rebuild::ChatNotificationRebuildSet,
+        Chat, deleted, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet,
     },
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
@@ -71,7 +70,8 @@ impl CoreUser {
         Ok(Chat::load_ordered_ids(self.db().read().await?).await?)
     }
 
-    /// Erases the chat data with the given [`ChatId`].
+    /// Erases the chat data with the given [`ChatId`] and parks the deletion
+    /// for the user's other devices.
     ///
     /// Must not be called before the chat is deleted.
     pub async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
@@ -80,22 +80,14 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
-                if let ChatType::PendingConnection(_) = chat.chat_type()
-                    && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat_id).await?
-                    && let Some(hash) = info.connection_offer_hash
-                {
-                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
-                }
-                Group::delete_from_db(txn, chat.group_id())
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "failed to delete group; skipping");
-                    })
-                    .ok();
-                Chat::delete(&mut *txn, chat.id()).await?;
-                Ok(())
+                deleted::erase(txn, &chat).await?;
+                deleted::store_outgoing(txn, chat.group_id()).await
             })
-            .await
+            .await?;
+
+        self.outbound_service().notify_pending_chat_operations();
+
+        Ok(())
     }
 
     pub async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {
