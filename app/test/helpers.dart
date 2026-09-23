@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';
 
-ThemeData testThemeData(Brightness brightness, {withColorEmojis = false}) {
+ThemeData testThemeData(Brightness brightness, {bool withColorEmojis = false}) {
   final theme = themeData(brightness);
   return theme.copyWith(
     textTheme: theme.textTheme.apply(
