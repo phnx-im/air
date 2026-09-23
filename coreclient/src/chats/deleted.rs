@@ -25,15 +25,15 @@ pub(crate) async fn erase(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyh
     if let ChatType::PendingConnection(_) = chat.chat_type()
         && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat.id()).await?
         && let Some(hash) = info.connection_offer_hash
+        && let Err(error) = Group::delete_connection_offer_psk(&mut *txn, hash)
     {
-        Group::delete_connection_offer_psk(&mut *txn, hash)?;
+        error!(%error, "failed to delete connection offer PSK, proceeding with chat deletion.");
     }
-    Group::delete_from_db(txn, chat.group_id())
-        .await
-        .inspect_err(|error| {
-            error!(%error, "failed to delete group; skipping");
-        })
-        .ok();
+
+    if let Err(error) = Group::delete_from_db(txn, chat.group_id()).await {
+        error!(%error, "failed to delete OpenMLS group; skipping");
+    }
+
     Chat::delete(&mut *txn, chat.id()).await?;
     Ok(())
 }
@@ -58,11 +58,13 @@ pub(crate) async fn store_outgoing(
 }
 
 pub(crate) async fn staged(connection: impl ReadConnection) -> anyhow::Result<Vec<DeletedChat>> {
-    self_group_outbox::load_kind(connection, OutboxKind::DeletedChat)
-        .await?
-        .iter()
-        .map(|entry| Ok(PersistenceCodec::from_slice(&entry.payload)?))
-        .collect()
+    Ok(
+        self_group_outbox::load_kind(connection, OutboxKind::DeletedChat)
+            .await?
+            .iter()
+            .filter_map(|entry| PersistenceCodec::from_slice(&entry.payload).ok())
+            .collect(),
+    )
 }
 
 /// Drops the parked deletions.
