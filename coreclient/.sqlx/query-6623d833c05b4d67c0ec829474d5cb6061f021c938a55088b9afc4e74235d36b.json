@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO self_group_outbox (kind, key, payload, previous)\n        VALUES (?1, ?2, ?3, ?4)\n        ON CONFLICT (kind, key) DO UPDATE SET payload = excluded.payload",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6623d833c05b4d67c0ec829474d5cb6061f021c938a55088b9afc4e74235d36b"
+}
