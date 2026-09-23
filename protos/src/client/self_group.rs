@@ -187,7 +187,7 @@ pub enum SelfGroupAppMessageError {
 ///
 /// ```cddl
 /// TokenSeed = {
-///   1: uint,           ; operation_type, the proto enum value
+///   1: int,            ; operation_type, the proto enum value
 ///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
 ///   3: bstr .size 32,  ; seed
 /// }
@@ -211,7 +211,7 @@ pub struct TokenSeed {
 ///
 /// ```cddl
 /// RedeemedTokens = {
-///   1: uint,           ; operation_type, the proto enum value
+///   1: int,            ; operation_type, the proto enum value
 ///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
 ///   3: uint,           ; allowance_epoch
 ///   4: [* uint],       ; token_indices, ascending, no duplicates
