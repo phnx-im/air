@@ -19,7 +19,7 @@ use aircommon::{
 };
 use airprotos::client::{
     group::GroupData,
-    self_group::{BlockedContactEntry, LinkedDevice, SettingsUpdate, TokenSeed},
+    self_group::{LinkedDevice, SelfGroupMessage, SettingsUpdate, TokenSeed},
 };
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::{commit_builder::ApqCommitMessageBundle, messages::ApqKeyPackage};
@@ -93,12 +93,13 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
-    SettingsUpdate {
+    SelfGroupMessages {
         params: Box<ApqGroupOperationParamsOut>,
-        /// The snapshot this commit carries. When the commit is accepted, the
-        /// pending [`SettingChanges`] are completed against it: only fields
-        /// sent with the still-intended value are done.
-        update: SettingsUpdate,
+        /// The drained outbox this commit carries. When the commit is accepted,
+        /// each message completes the parked changes it asserts: only those
+        /// still holding the sent value are done, so a change re-parked while
+        /// the commit was in flight is re-issued rather than lost.
+        messages: Vec<SelfGroupMessage>,
     },
     TokenSeeds {
         params: Box<ApqGroupOperationParamsOut>,
@@ -106,10 +107,6 @@ pub(super) enum OperationType {
         /// become the agreed seeds of their keys, because the DS ordering that
         /// accepted the commit is what decides the first writer.
         seeds: Vec<TokenSeed>,
-    },
-    BlockedContactsUpdate {
-        params: Box<ApqGroupOperationParamsOut>,
-        contacts: Vec<BlockedContactEntry>,
     },
     SelfGroupKeyPackageUpload {
         params: Box<ApqGroupOperationParamsOut>,
@@ -133,9 +130,8 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqDelete { .. } => "apq_delete",
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
-            OperationType::SettingsUpdate { .. } => "settings_update",
+            OperationType::SelfGroupMessages { .. } => "self_group_messages",
             OperationType::TokenSeeds { .. } => "token_seeds",
-            OperationType::BlockedContactsUpdate { .. } => "blocked_contacts_update",
             OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
             OperationType::SelfGroupRemove { .. } => "self_group_remove",
             OperationType::SelfGroupAdd { .. } => "self_group_add",
@@ -194,9 +190,8 @@ impl OperationType {
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
-            | OperationType::SettingsUpdate { .. }
+            | OperationType::SelfGroupMessages { .. }
             | OperationType::TokenSeeds { .. }
-            | OperationType::BlockedContactsUpdate { .. }
             | OperationType::SelfGroupKeyPackageUpload { .. }
             | OperationType::SelfGroupRemove { .. }
             | OperationType::SelfGroupAdd { .. } => true,
@@ -209,6 +204,48 @@ impl OperationType {
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
     }
+}
+
+/// Completes the parked changes each sent message asserts.
+///
+/// A change re-parked with a different value while the commit was in flight
+/// stays parked and is re-issued by the outbound service.
+async fn complete_sent_messages(
+    txn: &mut WriteDbTransaction<'_>,
+    messages: &[SelfGroupMessage],
+) -> anyhow::Result<()> {
+    for message in messages {
+        match message {
+            SelfGroupMessage::SettingsUpdate(update) => {
+                SettingChanges::complete_sent(txn, update).await?
+            }
+            SelfGroupMessage::BlockedContactsUpdate(update) => {
+                pending::complete_sent_entries(txn, &update.contacts).await?
+            }
+            // Seeds stage their own commit, so they never travel in a drained
+            // outbox.
+            SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
+        }
+    }
+    Ok(())
+}
+
+/// Gives up the parked changes a terminally failed commit carried.
+///
+/// Settings return to the values stored before they were touched, because the
+/// local write was optimistic. A block stays applied and parked: it is not an
+/// optimistic edit to undo, and it reaches the siblings on a later commit.
+async fn roll_back_sent_messages(
+    txn: &mut WriteDbTransaction<'_>,
+    messages: &[SelfGroupMessage],
+) -> anyhow::Result<()> {
+    if messages
+        .iter()
+        .any(|message| matches!(message, SelfGroupMessage::SettingsUpdate(_)))
+    {
+        SettingChanges::roll_back_and_clear(txn).await?;
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -319,16 +356,11 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
         match &self.operation {
-            // Fields the user re-toggled while the commit was in flight stay
-            // pending and are re-issued by the outbound service.
-            OperationType::SettingsUpdate { update, .. } => {
-                SettingChanges::complete_sent(txn, update).await
+            OperationType::SelfGroupMessages { messages, .. } => {
+                complete_sent_messages(txn, messages).await
             }
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
-            }
-            OperationType::BlockedContactsUpdate { contacts, .. } => {
-                Ok(pending::complete_sent_entries(txn, contacts).await?)
             }
             _ => Ok(()),
         }
@@ -353,7 +385,9 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
         match &self.operation {
-            OperationType::SettingsUpdate { .. } => SettingChanges::roll_back_and_clear(txn).await,
+            OperationType::SelfGroupMessages { messages, .. } => {
+                roll_back_sent_messages(txn, messages).await
+            }
             // The seeds were never agreed, so dropping the proposals lets a
             // later replenishment run propose again.
             OperationType::TokenSeeds { seeds, .. } => {
@@ -494,9 +528,8 @@ impl PendingChatOperation {
                     )
                     .await
             }
-            OperationType::SettingsUpdate { params, .. }
+            OperationType::SelfGroupMessages { params, .. }
             | OperationType::TokenSeeds { params, .. }
-            | OperationType::BlockedContactsUpdate { params, .. }
             | OperationType::SelfGroupRemove { params }
             | OperationType::SelfGroupAdd { params }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
@@ -799,27 +832,27 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    /// Stages a self-group commit carrying the settings update and stores it as
+    /// Stages a self-group commit carrying the drained outbox and stores it as
     /// a pending chat operation.
     ///
     /// Takes the loaded self-group, because the caller has to check it for a
     /// pending commit itself to tell a transient one apart from a failure.
-    pub(crate) async fn create_settings_update(
+    pub(crate) async fn create_self_group_messages(
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
         mut group: VerifiedGroup,
-        update: SettingsUpdate,
+        messages: Vec<SelfGroupMessage>,
     ) -> anyhow::Result<Self> {
         let params = group
             .group_mut()
-            .stage_settings_update(txn, signer, &update)
+            .stage_self_group_messages(txn, signer, messages.clone())
             .await?;
 
         let job = Self::new(
             group,
-            OperationType::SettingsUpdate {
+            OperationType::SelfGroupMessages {
                 params: Box::new(params),
-                update,
+                messages,
             },
         );
         job.store(txn).await?;
@@ -847,28 +880,6 @@ impl PendingChatOperation {
             OperationType::TokenSeeds {
                 params: Box::new(params),
                 seeds,
-            },
-        );
-        job.store(txn).await?;
-        Ok(job)
-    }
-
-    pub(crate) async fn create_blocked_contacts_update(
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &SelfGroupSigningKey,
-        mut group: VerifiedGroup,
-        contacts: Vec<BlockedContactEntry>,
-    ) -> anyhow::Result<Self> {
-        let params = group
-            .group_mut()
-            .stage_blocked_contacts_update(txn, signer, &contacts)
-            .await?;
-
-        let job = Self::new(
-            group,
-            OperationType::BlockedContactsUpdate {
-                params: Box::new(params),
-                contacts,
             },
         );
         job.store(txn).await?;
@@ -1798,16 +1809,17 @@ mod tests {
                     send_read_receipts: Some(true),
                     linked_devices: None,
                 };
+                let messages = vec![SelfGroupMessage::SettingsUpdate(update)];
                 let params = group
                     .group_mut()
-                    .stage_settings_update(txn, &signing_key, &update)
+                    .stage_self_group_messages(txn, &signing_key, messages.clone())
                     .await?;
 
                 let job = PendingChatOperation::new(
                     group,
-                    OperationType::SettingsUpdate {
+                    OperationType::SelfGroupMessages {
                         params: Box::new(params),
-                        update,
+                        messages,
                     },
                 );
                 job.store(txn).await?;
