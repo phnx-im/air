@@ -7,10 +7,7 @@
 //! Blocking is device-local state that is mirrored to the user's other devices
 //! through the self-group.
 use aircommon::{codec::PersistenceCodec, identifiers::UserId};
-use airprotos::client::{
-    group_bootstrap::PeerUserId,
-    self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked},
-};
+use airprotos::client::self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked};
 use chrono::DateTime;
 use tracing::{debug, warn};
 
