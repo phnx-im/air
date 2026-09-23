@@ -74,7 +74,10 @@ impl Username {
     }
 
     pub fn calculate_hash(&self) -> Result<UsernameHash, UsernameHashError> {
-        let argon2 = Argon2::default();
+        self.calculate_hash_with(&username_argon2())
+    }
+
+    fn calculate_hash_with(&self, argon2: &Argon2) -> Result<UsernameHash, UsernameHashError> {
         let const_salt = b"user handle salt"; // TODO(security): this is not what we want
         let mut hash = [0u8; 32];
         argon2.hash_password_into(self.plaintext.0.as_bytes(), const_salt, &mut hash)?;
@@ -138,6 +141,26 @@ pub enum UsernameValidationError {
     ConsecutiveDashes,
     /// Leading characters are not allowed to be digits
     LeadingDigit,
+}
+
+#[cfg(not(feature = "test_utils"))]
+fn username_argon2() -> Argon2<'static> {
+    Argon2::default()
+}
+
+/// The cheapest parameters the algorithm allows. The default ones dominate the runtime of the
+/// integration tests.
+#[cfg(feature = "test_utils")]
+fn username_argon2() -> Argon2<'static> {
+    use argon2::{Algorithm, Params, Version};
+    let params = Params::new(
+        Params::MIN_M_COST,
+        Params::MIN_T_COST,
+        Params::MIN_P_COST,
+        None,
+    )
+    .expect("valid argon2 parameters");
+    Argon2::new(Algorithm::default(), Version::default(), params)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -313,7 +336,9 @@ mod tests {
     #[test]
     fn test_username_hash_produces_hash() {
         let username = Username::new(valid_username_string()).unwrap();
-        let username_hash = username.calculate_hash().unwrap();
+        // The vector is over the production parameters, which `test_utils` replaces with cheaper
+        // ones.
+        let username_hash = username.calculate_hash_with(&Argon2::default()).unwrap();
         assert_eq!(
             hex::encode(username_hash.hash),
             "c637090294208e446deb561ee0020e9e9f75f269da55cada75da5e2b973cd90e"
