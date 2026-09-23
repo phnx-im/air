@@ -89,7 +89,7 @@ async fn commit_seed(
 /// The wire form of a seed, as a sibling would publish it.
 fn wire_seed(fingerprint: &KeyFingerprint, seed: [u8; SEED_LEN]) -> TokenSeed {
     TokenSeed {
-        operation_type: operation_type_value(OPERATION_TYPE),
+        operation_type: OPERATION_TYPE,
         key_fingerprint: *fingerprint,
         seed,
     }
@@ -654,12 +654,7 @@ async fn a_malformed_incoming_seed_is_ignored(pool: SqlitePool) -> anyhow::Resul
         wire_seed(&fingerprint, [0u8; SEED_LEN]),
         wire_seed(&[0u8; 32], [0x42; SEED_LEN]),
         TokenSeed {
-            operation_type: 0,
-            key_fingerprint: fingerprint,
-            seed: [0x42; SEED_LEN],
-        },
-        TokenSeed {
-            operation_type: 99,
+            operation_type: OperationType::Unspecified,
             key_fingerprint: fingerprint,
             seed: [0x42; SEED_LEN],
         },
