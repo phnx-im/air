@@ -267,6 +267,8 @@ class _SubmitHandler {
           loc.newConnectionDialog_error_duplicateRequest,
         AddUsernameContactError.ownUsername =>
           loc.newConnectionDialog_error_ownUsername,
+        AddUsernameContactError.rateLimited =>
+          loc.newConnectionDialog_error_rateLimited,
         null => null,
       };
       if (errorMessage != null) {

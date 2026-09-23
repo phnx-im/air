@@ -788,6 +788,75 @@ async fn metered_tokens_are_consumed_first(pool: SqlitePool) -> anyhow::Result<(
     Ok(())
 }
 
+/// A token the AS did not redeem goes back at the position it was taken from.
+#[sqlx::test]
+async fn restored_token_keeps_its_position(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    persistence::store_batch_token(db.write().await?, 3, &position(&fingerprint, 5), b"tagged")
+        .await?;
+
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+    assert_eq!(
+        persistence::token_count(db.read().await?, OPERATION_TYPE).await?,
+        0
+    );
+
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+
+    let restored = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("the token was not restored");
+    assert_eq!(restored.token.as_bytes(), b"tagged");
+    assert_eq!(restored.token_key_id, 3);
+    assert_eq!(restored.position, Some(position(&fingerprint, 5)));
+    Ok(())
+}
+
+/// A position a sibling redeemed while the request was out is not restored.
+#[sqlx::test]
+async fn restore_skips_a_position_a_sibling_redeemed(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    persistence::store_batch_token(db.write().await?, 3, &position(&fingerprint, 5), b"tagged")
+        .await?;
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+
+    // The broadcast finds no row to delete and records the position anyway.
+    apply_redeemed(&db, &wire_redeemed(&fingerprint, vec![5])).await?;
+
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+    assert_eq!(
+        persistence::token_count(db.read().await?, OPERATION_TYPE).await?,
+        0
+    );
+    Ok(())
+}
+
+/// A token stored before positions were recorded is restored without one.
+#[sqlx::test]
+async fn restored_metered_token_stays_unpositioned(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    persistence::store_token(db.write().await?, OPERATION_TYPE, 2, b"metered").await?;
+
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+
+    let restored = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("the token was not restored");
+    assert_eq!(restored.token.as_bytes(), b"metered");
+    assert_eq!(restored.token_key_id, 2);
+    assert_eq!(restored.position, None);
+    Ok(())
+}
+
 /// Positioned tokens are not spent in a fixed order. Every device holds the
 /// same batch, and a fixed order has two devices spend the same token whenever
 /// both redeem before the broadcast of the first arrives.

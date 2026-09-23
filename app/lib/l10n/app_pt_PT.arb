@@ -264,6 +264,7 @@
   "newConnectionDialog_error_usernameNotFound": "{username} não foi encontrado. Verifica e tenta de novo.",
   "newConnectionDialog_error_duplicateRequest": "Já tens um pedido de contacto pendente para este nome de utilizador.",
   "newConnectionDialog_error_ownUsername": "Não podes enviar um pedido de contacto a ti próprio.",
+  "newConnectionDialog_error_rateLimited": "Atingiste o limite diário de pedidos de contacto. Tenta de novo amanhã.",
   "composer_inputHint": "Mensagem para {chatTitle}",
   "composer_editMessage": "Editar mensagem",
   "composer_error_sendMessage": "Não foi possível enviar a mensagem. Tenta de novo.",
