@@ -12,7 +12,8 @@ use std::{
 
 use displaydoc::Display;
 use metrics::{counter, describe_counter, describe_gauge, gauge};
-use tokio::{sync::Mutex, time::Instant};
+use parking_lot::Mutex;
+use tokio::time::Instant;
 use tonic::Status;
 use uuid::Uuid;
 
@@ -76,7 +77,7 @@ impl GroupIdReservations {
         );
         describe_counter!(
             METRIC_AIR_DS_GROUP_ID_RESERVATIONS_REJECTED,
-            "Total number of group id requests rejected at the reservation cap"
+            "Total number of group id reservations rejected at the cap"
         );
     }
 
@@ -95,7 +96,7 @@ impl GroupIdReservations {
         // that filled the set keeps rejecting requests until the next sweep.
         self.expire(now);
         if self.len() + N > MAX_GROUP_ID_RESERVATIONS {
-            counter!(METRIC_AIR_DS_GROUP_ID_RESERVATIONS_REJECTED).increment(1);
+            counter!(METRIC_AIR_DS_GROUP_ID_RESERVATIONS_REJECTED).increment(N as u64);
             return Err(GroupIdReservationsFull);
         }
         let expires_at = now + GROUP_ID_RESERVATION_TTL;
@@ -158,7 +159,7 @@ pub(super) async fn sweep_expired_group_id_reservations(
     let mut interval = tokio::time::interval(GROUP_ID_RESERVATION_SWEEP_INTERVAL);
     loop {
         interval.tick().await;
-        reservations.lock().await.expire(Instant::now());
+        reservations.lock().expire(Instant::now());
     }
 }
 
@@ -307,11 +308,11 @@ mod tests {
         let reservations = Arc::new(Mutex::new(GroupIdReservations::default()));
         let sweep = tokio::spawn(sweep_expired_group_id_reservations(reservations.clone()));
 
-        reserve_one(&mut *reservations.lock().await, Instant::now());
-        assert_eq!(reservations.lock().await.len(), 1);
+        reserve_one(&mut reservations.lock(), Instant::now());
+        assert_eq!(reservations.lock().len(), 1);
 
         tokio::time::sleep(GROUP_ID_RESERVATION_TTL + GROUP_ID_RESERVATION_SWEEP_INTERVAL).await;
-        assert_eq!(reservations.lock().await.len(), 0);
+        assert_eq!(reservations.lock().len(), 0);
 
         sweep.abort();
     }
@@ -326,26 +327,20 @@ mod tests {
         )
         .await?;
         fill(
-            &mut *ds.group_id_reservations.lock().await,
+            &mut ds.group_id_reservations.lock(),
             MAX_GROUP_ID_RESERVATIONS - 1,
             Instant::now(),
         );
 
+        assert_eq!(ds.request_group_ids(true), Err(GroupIdReservationsFull));
         assert_eq!(
-            ds.request_group_ids(true).await,
-            Err(GroupIdReservationsFull)
-        );
-        assert_eq!(
-            ds.group_id_reservations.lock().await.len(),
+            ds.group_id_reservations.lock().len(),
             MAX_GROUP_ID_RESERVATIONS - 1
         );
 
-        let (_, pq_qgid) = ds.request_group_ids(false).await?;
+        let (_, pq_qgid) = ds.request_group_ids(false)?;
         assert!(pq_qgid.is_none());
-        assert_eq!(
-            ds.request_group_ids(false).await,
-            Err(GroupIdReservationsFull)
-        );
+        assert_eq!(ds.request_group_ids(false), Err(GroupIdReservationsFull));
         Ok(())
     }
 }

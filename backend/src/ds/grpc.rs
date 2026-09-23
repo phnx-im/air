@@ -863,10 +863,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<RequestGroupIdResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let (qgid, pq_qgid) = self
-            .ds
-            .request_group_ids(request.request_pq_group_id)
-            .await?;
+        let (qgid, pq_qgid) = self.ds.request_group_ids(request.request_pq_group_id)?;
 
         let group_profile_provisioning =
             if let Some(group_profile_size) = request.group_profile_size {
@@ -969,7 +966,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let reserved_group_id = self
             .ds
             .claim_reserved_group_id(qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // encrypt and store group state
@@ -1155,12 +1151,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let t_reserved_group_id = self
             .ds
             .claim_reserved_group_id(t_qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
         let pq_reserved_group_id = self
             .ds
             .claim_reserved_group_id(pq_qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
         let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
         let encrypted_pq_group_state = pq_group_state.encrypt(&ear_key)?;

@@ -177,6 +177,7 @@ dependencies = [
  "mimi-room-policy",
  "mls-assist",
  "mockall",
+ "parking_lot",
  "privacypass",
  "prost",
  "rand 0.10.2",

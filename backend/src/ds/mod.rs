@@ -8,8 +8,9 @@ use aircommon::{
     identifiers::{Fqdn, QualifiedGroupId},
     time::Duration,
 };
+use parking_lot::Mutex;
 use sqlx::PgPool;
-use tokio::{sync::Mutex, time::Instant};
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -105,26 +106,25 @@ impl Ds {
     /// group when requested. Either every requested id is reserved or none.
     /// Reservations are released again unless group creation claims them
     /// within the TTL.
-    pub(crate) async fn request_group_ids(
+    pub(crate) fn request_group_ids(
         &self,
         with_pq_group_id: bool,
     ) -> Result<(QualifiedGroupId, Option<QualifiedGroupId>), GroupIdReservationsFull> {
-        let mut reservations = self.group_id_reservations.lock().await;
         let now = Instant::now();
         let qualify = |group_uuid| QualifiedGroupId::new(group_uuid, self.own_domain.clone());
         if with_pq_group_id {
-            let [group_uuid, pq_group_uuid] = reservations.reserve_fresh::<2>(now)?;
+            let [group_uuid, pq_group_uuid] =
+                self.group_id_reservations.lock().reserve_fresh::<2>(now)?;
             Ok((qualify(group_uuid), Some(qualify(pq_group_uuid))))
         } else {
-            let [group_uuid] = reservations.reserve_fresh::<1>(now)?;
+            let [group_uuid] = self.group_id_reservations.lock().reserve_fresh::<1>(now)?;
             Ok((qualify(group_uuid), None))
         }
     }
 
-    async fn claim_reserved_group_id(&self, group_id: Uuid) -> Option<ReservedGroupId> {
+    fn claim_reserved_group_id(&self, group_id: Uuid) -> Option<ReservedGroupId> {
         self.group_id_reservations
             .lock()
-            .await
             .claim(group_id, Instant::now())
     }
 

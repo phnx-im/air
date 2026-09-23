@@ -180,8 +180,8 @@ mod test {
         let test_state = Ciphertext::dummy();
 
         // Create/store a dummy group state
-        let (qgid, _) = ds.request_group_ids(false).await.unwrap();
-        let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
+        let (qgid, _) = ds.request_group_ids(false).unwrap();
+        let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).unwrap();
 
         // Create and store a new group state
         let storable_group_data =
@@ -228,8 +228,8 @@ mod test {
         pool: &PgPool,
         ds: &Ds,
     ) -> anyhow::Result<(QualifiedGroupId, StorableDsGroupData<false>)> {
-        let (qgid, _) = ds.request_group_ids(false).await?;
-        let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
+        let (qgid, _) = ds.request_group_ids(false)?;
+        let reserved_group_id = ds.claim_reserved_group_id(qgid.group_uuid()).unwrap();
 
         let group = random_group(reserved_group_id.0);
         group.store(pool).await?;
