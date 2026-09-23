@@ -12,6 +12,7 @@ import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
+import 'package:air/l10n/intl_locale.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -139,7 +140,7 @@ class _SingleDevice extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
+    final locale = intlLocaleName(Localizations.localeOf(context));
     final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
     final name = device.name.isEmpty
         ? loc.linkedDevicesScreen_unknownDevice

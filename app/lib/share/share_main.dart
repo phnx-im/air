@@ -85,6 +85,7 @@ class _ShareAppState extends State<ShareApp> {
         AppLocalizations.supportedLocales,
         const Locale('en', 'US'),
       ),
+      localeListResolutionCallback: resolveLocaleList,
       theme: lightTheme,
       darkTheme: darkTheme,
       debugShowCheckedModeBanner: false,

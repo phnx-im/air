@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/l10n/intl_locale.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
@@ -29,7 +30,7 @@ class TimeFormats {
   /// equally where there is no scope at all -- a widget test pumping a subtree
   /// of its own.
   factory TimeFormats.of(BuildContext context) {
-    final locale = Localizations.localeOf(context).toString();
+    final locale = intlLocaleName(Localizations.localeOf(context));
     // Asked for by widget: the scope's own accessor throws where it is absent,
     // rather than reporting it, and the widget is the only public way to look.
     final patterns = context.findAncestorWidgetOfExactType<SDTFScope>() != null

@@ -23,6 +23,8 @@
 		<string>pt</string>
 		<string>pt-PT</string>
 		<string>sv</string>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>air</string>
