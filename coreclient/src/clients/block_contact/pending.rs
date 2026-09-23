@@ -146,19 +146,15 @@ pub(crate) async fn blocked_contacts_snapshot(
         .collect())
 }
 
-fn outbox_key(user_id: &PeerUserId) -> Option<Vec<u8>> {
-    let (uuid, domain) = (user_id.uuid?, user_id.domain.as_deref()?);
-    let mut key = uuid.as_bytes().to_vec();
-    key.extend_from_slice(domain.as_bytes());
-    Some(key)
-}
-
 /// Parks a locally applied change for the next self-group commit.
 pub(crate) async fn store_outgoing_entry(
     connection: impl WriteConnection,
     entry: &BlockedContactEntry,
 ) -> anyhow::Result<()> {
-    let Some(key) = entry.user_id().and_then(outbox_key) else {
+    let Some(key) = entry
+        .user_id()
+        .and_then(|id| PersistenceCodec::to_vec(id).ok())
+    else {
         return Ok(());
     };
     self_group_outbox::stage(
@@ -187,7 +183,10 @@ pub(crate) async fn complete_sent_entries(
     sent: &[BlockedContactEntry],
 ) -> anyhow::Result<()> {
     for entry in sent {
-        let Some(key) = entry.user_id().and_then(outbox_key) else {
+        let Some(key) = entry
+            .user_id()
+            .and_then(|id| PersistenceCodec::to_vec(id).ok())
+        else {
             continue;
         };
         self_group_outbox::complete_sent(

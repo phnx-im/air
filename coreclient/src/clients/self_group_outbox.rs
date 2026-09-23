@@ -66,9 +66,9 @@ pub(crate) async fn load(
     let kind = kind.as_str();
     let row = query!(
         r#"SELECT
-            key AS "key!: Vec<u8>",
-            payload AS "payload!: Vec<u8>",
-            previous AS "previous: Vec<u8>"
+            key,
+            payload,
+            previous
         FROM self_group_outbox
         WHERE kind = ?1 AND key = ?2"#,
         kind,
@@ -91,9 +91,9 @@ pub(crate) async fn load_kind(
     let kind = kind.as_str();
     let rows = query!(
         r#"SELECT
-            key AS "key!: Vec<u8>",
-            payload AS "payload!: Vec<u8>",
-            previous AS "previous: Vec<u8>"
+            key,
+            payload,
+            previous
         FROM self_group_outbox
         WHERE kind = ?1
         ORDER BY key"#,

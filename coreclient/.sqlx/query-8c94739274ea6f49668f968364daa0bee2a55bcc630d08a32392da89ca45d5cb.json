@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n            key AS \"key!: Vec<u8>\",\n            payload AS \"payload!: Vec<u8>\",\n            previous AS \"previous: Vec<u8>\"\n        FROM self_group_outbox\n        WHERE kind = ?1 AND key = ?2",
+  "query": "SELECT\n            key,\n            payload,\n            previous\n        FROM self_group_outbox\n        WHERE kind = ?1 AND key = ?2",
   "describe": {
     "columns": [
       {
-        "name": "key!: Vec<u8>",
+        "name": "key",
         "ordinal": 0,
         "type_info": "Blob",
         "origin": {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "payload!: Vec<u8>",
+        "name": "payload",
         "ordinal": 1,
         "type_info": "Blob",
         "origin": {
@@ -26,7 +26,7 @@
         }
       },
       {
-        "name": "previous: Vec<u8>",
+        "name": "previous",
         "ordinal": 2,
         "type_info": "Blob",
         "origin": {
@@ -46,5 +46,5 @@
       true
     ]
   },
-  "hash": "43737849ecf7ffabb7ddca71e23a3ca8e8e6c7ddf8102db9c63751bab67a228a"
+  "hash": "8c94739274ea6f49668f968364daa0bee2a55bcc630d08a32392da89ca45d5cb"
 }
