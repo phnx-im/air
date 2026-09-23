@@ -117,6 +117,7 @@ void main() {
     Future<void> pumpView(
       WidgetTester tester, {
       LinkedDevicesState? state,
+      Locale locale = const Locale('en', 'US'),
     }) async {
       when(() => cubit.state).thenReturn(state ?? _singleDevice());
       tester.view.physicalSize = _testSize;
@@ -133,6 +134,8 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: [locale],
+              locale: locale,
               home: Builder(
                 builder: (context) => AppScaffold(
                   title: AppLocalizations.of(context)
@@ -214,6 +217,26 @@ void main() {
       );
 
       await expectGolden(tester, 'linked_devices_screen');
+    });
+
+    testWidgets('writes the linking date and time in the app locale', (
+      tester,
+    ) async {
+      await pumpView(tester);
+      // CLDR puts a narrow no-break space before the day period.
+      expect(
+        find.text('Linked on January 15, 2026 at 2:45\u202fAM'),
+        findsOneWidget,
+      );
+
+      await pumpView(
+        tester,
+        locale: const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hant',
+        ),
+      );
+      expect(find.text('連結於 2026年1月15日 上午2:45'), findsOneWidget);
     });
 
     testWidgets('renders link modal chooser page', (tester) async {

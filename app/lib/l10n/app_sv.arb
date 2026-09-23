@@ -159,7 +159,7 @@
 
   "linkedDevicesScreen_thisDevice": "Den här enheten",
   "linkedDevicesScreen_linkedDevices": "Länkade enheter",
-  "linkedDevicesScreen_linkedOn": "Länkad den {date}",
+  "linkedDevicesScreen_linkedOn": "Länkad den {date} kl. {time}",
   "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
   "linkedDevicesScreen_linkDevice": "Länka en enhet",
   "linkedDevicesScreen_unknownDevice": "Okänd enhet",

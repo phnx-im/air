@@ -141,11 +141,10 @@ class _SingleDevice extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final locale = intlLocaleName(Localizations.localeOf(context));
-    final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
     final name = device.name.isEmpty
         ? loc.linkedDevicesScreen_unknownDevice
         : device.name;
-    final linkedAt = device.linkedAt;
+    final linkedAt = device.linkedAt?.toLocal();
 
     return Container(
       decoration: BoxDecoration(
@@ -181,7 +180,8 @@ class _SingleDevice extends StatelessWidget {
                     if (linkedAt != null)
                       Text(
                         loc.linkedDevicesScreen_linkedOn(
-                          dateFormat.format(linkedAt.toLocal()),
+                          DateFormat.yMMMMd(locale).format(linkedAt),
+                          DateFormat.jm(locale).format(linkedAt),
                         ),
                         style: typeScale.body.xs.style(
                           color: palette.text.tertiary,
