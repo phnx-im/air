@@ -19,6 +19,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -176,7 +177,13 @@ Widget _buildProductShotSubject({
           child: MediaQuery(
             data: MediaQuery.of(context)
                 .copyWith(platformBrightness: brightness),
-            child: frameless ? Center(child: shot) : shot,
+            // Pinned to content.dart's contentNow, so live time labels don't
+            // drift from the fabricated message/chat timestamps as real time
+            // passes.
+            child: AppClock.fixed(
+              contentNow,
+              child: frameless ? Center(child: shot) : shot,
+            ),
           ),
         ),
       ),

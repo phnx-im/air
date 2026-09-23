@@ -17,6 +17,13 @@ import '../helpers.dart';
 const ownIdx = 1;
 final ownId = ownIdx.userId();
 
+/// Reference time every message/chat timestamp in the fabricated content is
+/// computed relative to. Fixed rather than [DateTime.now] so labels like
+/// "Yesterday" or "5m" render the same on every run instead of drifting with
+/// the wall clock -- install `AppClock.fixed(contentNow, ...)` wherever this
+/// content is pumped, so live labels agree with it.
+final contentNow = DateTime(2026, 9, 16, 15, 0);
+
 /// Override with `--dart-define=CONTENT_YAML_PATH=path/to/other.yaml`. May be
 /// absolute (e.g. for a content set that lives outside this repo checkout).
 const _contentYamlPath = String.fromEnvironment(
@@ -145,7 +152,7 @@ class _Content {
   );
 
   List<UiChatDetails> _loadChats() {
-    final now = DateTime.now();
+    final now = contentNow;
     final result = <UiChatDetails>[];
     for (final entry in _yaml['chats'] as YamlList) {
       final map = entry as YamlMap;
@@ -201,7 +208,6 @@ class _Content {
   }
 
   Map<String, List<UiChatMessage>> _loadTranscripts() {
-    final now = DateTime.now();
     final transcripts = _yaml['transcripts'] as YamlMap;
     final result = <String, List<UiChatMessage>>{};
     for (final rawKey in transcripts.keys) {
@@ -211,7 +217,7 @@ class _Content {
       final attachmentImages = <AttachmentId, ImageData>{};
       for (final rawEntry in transcripts[chatKey] as YamlList) {
         final entry = rawEntry as YamlMap;
-        messages.add(_message(chatId, entry, now));
+        messages.add(_message(chatId, entry, contentNow));
         final filename = entry['image'] as String?;
         if (filename != null) {
           attachmentImages[attachmentId(filename)] = image(filename).imageData;
