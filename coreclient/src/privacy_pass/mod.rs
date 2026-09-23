@@ -981,7 +981,7 @@ impl SeedRecord {
     /// The form the seed takes on a self-group commit.
     fn to_wire(self) -> TokenSeed {
         TokenSeed {
-            operation_type: operation_type_value(self.operation_type),
+            operation_type: self.operation_type,
             key_fingerprint: self.key_fingerprint,
             seed: self.seed,
         }
@@ -992,19 +992,17 @@ impl SeedRecord {
     /// A tag the sender left out decodes to zero bytes, which is also what a
     /// sibling running a newer derivation version would leave us with. Rejecting
     /// zeros covers both: a generated seed and a real fingerprint are zero with
-    /// negligible probability.
+    /// negligible probability. An operation type this version does not know
+    /// decodes to `Unspecified` and is rejected the same way.
     fn from_wire(wire: &TokenSeed) -> Option<Self> {
-        let operation_type = i32::try_from(wire.operation_type)
-            .ok()
-            .and_then(|value| OperationType::try_from(value).ok())?;
-        if operation_type == OperationType::Unspecified
+        if wire.operation_type == OperationType::Unspecified
             || wire.key_fingerprint == [0u8; 32]
             || wire.seed == [0u8; SEED_LEN]
         {
             return None;
         }
         Some(Self {
-            operation_type,
+            operation_type: wire.operation_type,
             key_fingerprint: wire.key_fingerprint,
             seed: wire.seed,
         })

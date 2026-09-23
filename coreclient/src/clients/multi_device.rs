@@ -912,6 +912,7 @@ mod tests {
     use aircommon::credentials::test_utils::create_test_credentials;
     use aircommon::crypto::hpke::ClientIdDecryptionKey;
     use aircommon::identifiers::QualifiedGroupId;
+    use airprotos::auth_service::v1::OperationType;
     use airprotos::client::self_group::ContactBlocked;
     use uuid::Uuid;
 
@@ -961,7 +962,7 @@ mod tests {
     #[test]
     fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         let seeds = vec![TokenSeed {
-            operation_type: 1,
+            operation_type: OperationType::AddUsername,
             key_fingerprint: [0x11; 32],
             seed: [0x22; 32],
         }];
