@@ -28,11 +28,12 @@ use airmacros::{
 };
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use openmls::group::GroupId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::warn;
 use uuid::Uuid;
 
-use super::group_bootstrap::PeerUserId;
+use super::group_bootstrap::{PeerUserId, group_id_as_bytes};
 use crate::auth_service::v1::OperationType;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
@@ -85,6 +86,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   1: SettingsUpdate                ; tagged union; unknown tags are skipped
 ///   2: TokenSeed
 ///   3: BlockedContactsUpdate
+///   4: DeletedChat
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -95,6 +97,8 @@ pub enum SelfGroupMessage {
     TokenSeed(TokenSeed),
     #[tag(3)]
     BlockedContactsUpdate(BlockedContactsUpdate),
+    #[tag(4)]
+    DeletedChat(DeletedChat),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
@@ -422,6 +426,22 @@ pub struct ContactBlocked {
 pub struct ContactUnblocked {
     #[tag(1)]
     pub user_id: PeerUserId,
+}
+
+/// A chat the sender deleted locally. Receivers erase their copy of it.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// DeletedChat = {
+///   group_id: bstr .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct DeletedChat {
+    /// Group id of the chat's group, the T leg for APQ groups.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
 }
 
 #[cfg(test)]

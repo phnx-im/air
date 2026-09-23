@@ -5,7 +5,7 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates and Privacy Pass token seeds) under a symmetric key that is scoped to
+//! updates, Privacy Pass token seeds, blocked contacts and deleted chats) under a symmetric key that is scoped to
 //! a single self-group epoch. The key is derived from the MLS safe exporter of
 //! the T group for
 //! [`AIR_COMPONENT_ID`] and then run through one further KDF step.
@@ -39,7 +39,7 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, SelfGroupMessage, SelfGroupMessages,
+        AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage, SelfGroupMessages,
         SettingsUpdate, TokenSeed,
     },
 };
@@ -329,6 +329,7 @@ impl Group {
                     SelfGroupMessage::BlockedContactsUpdate(update) => {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
+                    SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -348,11 +349,16 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) token_seeds: Vec<TokenSeed>,
     /// Blocked-contact changes.
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
+    /// Chats the sender deleted.
+    pub(crate) deleted_chats: Vec<DeletedChat>,
 }
 
 impl SelfGroupPayload {
     pub(crate) fn is_empty(&self) -> bool {
-        self.updates.is_empty() && self.token_seeds.is_empty() && self.blocked_contacts.is_empty()
+        self.updates.is_empty()
+            && self.token_seeds.is_empty()
+            && self.blocked_contacts.is_empty()
+            && self.deleted_chats.is_empty()
     }
 }
 

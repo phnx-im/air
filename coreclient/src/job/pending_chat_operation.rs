@@ -33,7 +33,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{GroupDataExt, messages::TimestampedMessage},
+    chats::{GroupDataExt, deleted, messages::TimestampedMessage},
     clients::{
         CoreUser,
         api_clients::ApiClients,
@@ -222,6 +222,9 @@ async fn complete_sent_messages(
             SelfGroupMessage::BlockedContactsUpdate(update) => {
                 pending::complete_sent_entries(txn, &update.contacts).await?
             }
+            SelfGroupMessage::DeletedChat(chat) => {
+                deleted::remove_staged(txn, std::slice::from_ref(chat)).await?
+            }
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.
             SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
@@ -234,7 +237,8 @@ async fn complete_sent_messages(
 ///
 /// Settings return to the values stored before they were touched, because the
 /// local write was optimistic. A block stays applied and parked: it is not an
-/// optimistic edit to undo, and it reaches the siblings on a later commit.
+/// optimistic edit to undo, and it reaches the siblings on a later commit. The
+/// same holds for a deleted chat.
 async fn roll_back_sent_messages(
     txn: &mut WriteDbTransaction<'_>,
     messages: &[SelfGroupMessage],

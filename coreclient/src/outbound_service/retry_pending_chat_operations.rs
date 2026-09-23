@@ -11,6 +11,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
+    chats::deleted,
     clients::{
         block_contact::pending,
         own_client_info::OwnClientInfo,
@@ -165,6 +166,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
             BlockedContactsUpdate { contacts },
         ));
     }
+
+    messages.extend(
+        deleted::staged(&mut *txn)
+            .await?
+            .into_iter()
+            .map(SelfGroupMessage::DeletedChat),
+    );
 
     Ok(messages)
 }

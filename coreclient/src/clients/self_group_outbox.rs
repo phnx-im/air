@@ -13,6 +13,7 @@ use crate::db::access::{ReadConnection, WriteConnection};
 pub(crate) enum OutboxKind {
     Settings,
     BlockedContact,
+    DeletedChat,
 }
 
 impl OutboxKind {
@@ -20,6 +21,7 @@ impl OutboxKind {
         match self {
             OutboxKind::Settings => "settings",
             OutboxKind::BlockedContact => "blocked_contact",
+            OutboxKind::DeletedChat => "deleted_chat",
         }
     }
 }
