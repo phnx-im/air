@@ -141,15 +141,21 @@ class LocalFileComparatorWithThreshold extends LocalFileComparator {
 
   String _platformSuffix() {
     if (!platformSuffix) return '';
+    final os = Platform.operatingSystem.toLowerCase();
     switch (debugDefaultTargetPlatformOverride) {
       // when not overridden, the target platform is the current one.
       case null:
-        final os = Platform.operatingSystem.toLowerCase();
         return ".$os";
+      // android and iOS have no desktop host of their own, so whatever host
+      // renders them still picks the font, same as the null case above. Fold
+      // that into the name too, or the golden collides across hosts.
       case TargetPlatform.android:
-        return '.android';
+        return '.android.$os';
       case TargetPlatform.iOS:
-        return '.ios';
+        return '.ios.$os';
+      // these are only ever set to match the host running the test (see
+      // `desktopPlatform`), so the target platform alone already identifies
+      // the host that recorded it.
       case TargetPlatform.linux:
         return '.linux';
       case TargetPlatform.macOS:
