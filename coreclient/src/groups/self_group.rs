@@ -16,7 +16,7 @@ use aircommon::{
     },
 };
 use airprotos::client::{
-    group::{EncryptedGroupTitle, GroupData},
+    group::GroupData,
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
     },
@@ -313,13 +313,8 @@ impl CoreUser {
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let encrypted_title =
-            EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
-                .context("Failed to encrypt self-group title")?;
-        let group_data = GroupData {
-            encrypted_title: Some(encrypted_title),
-            external_group_profile: None,
-        };
+        // The self chat's title is the local constant, so the group carries no profile.
+        let group_data = GroupData::empty();
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
         // id and are signed by a per-device key. The creation request itself is authenticated by

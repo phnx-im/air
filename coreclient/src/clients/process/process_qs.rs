@@ -61,6 +61,7 @@ use crate::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
+        self_group::SELF_CHAT_TITLE,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
@@ -464,12 +465,16 @@ impl CoreUser {
 
         if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
             debug!("joined self group as a linked device");
-            let group_data = group
+            let title = group
                 .group_data()?
-                .context("self group has no group data")?;
-            let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key());
+                .and_then(|group_data| {
+                    let (title, _profile) =
+                        group_data.into_parts(group.identity_link_wrapper_key());
+                    title
+                })
+                .unwrap_or_else(|| SELF_CHAT_TITLE.to_owned());
             let attributes = ChatAttributes {
-                title: title.context("self group has no title")?,
+                title,
                 picture: None,
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
