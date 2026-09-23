@@ -19,12 +19,13 @@ void main() {
       reportedWidth = null;
     });
 
-    Widget buildSubject() => MaterialApp(
+    Widget buildSubject({double maxWidth = 600}) => MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: testLightTheme,
       home: Scaffold(
         body: ResizablePanel(
           initialWidth: initialWidth,
+          maxWidth: maxWidth,
           onResizeEnd: (width) => reportedWidth = width,
           panelBuilder: (context, width) => SizedBox(
             width: width,
@@ -37,11 +38,14 @@ void main() {
     );
 
     /// Pumps on a viewport wide enough to hold the panel at its maximum width.
-    Future<void> pumpSubject(WidgetTester tester) async {
+    Future<void> pumpSubject(
+      WidgetTester tester, {
+      double maxWidth = 600,
+    }) async {
       tester.view.physicalSize = const Size(1600, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(maxWidth: maxWidth));
     }
 
     double handleOpacity(WidgetTester tester) =>
@@ -56,6 +60,31 @@ void main() {
       await pumpSubject(tester);
 
       expect(tester.getSize(find.byKey(childKey)).width, initialWidth);
+    });
+
+    testWidgets('gives way to a lowered bound and grows back', (tester) async {
+      await pumpSubject(tester, maxWidth: 250);
+
+      expect(tester.getSize(find.byKey(childKey)).width, 250);
+
+      await tester.pumpWidget(buildSubject());
+
+      expect(tester.getSize(find.byKey(childKey)).width, initialWidth);
+    });
+
+    testWidgets('drags from the width a lowered bound shows', (tester) async {
+      await pumpSubject(tester, maxWidth: 250);
+
+      final drag = await tester.startGesture(handleCenter(tester));
+      await drag.moveBy(const Offset(-20, 0));
+      await tester.pump();
+
+      expect(tester.getSize(find.byKey(childKey)).width, 230);
+
+      await drag.up();
+      await tester.pumpAndSettle();
+
+      expect(reportedWidth, 230);
     });
 
     testWidgets('sits the handle in the gutter beside the panel', (

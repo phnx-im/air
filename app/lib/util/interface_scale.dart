@@ -36,25 +36,29 @@ class InterfaceScale extends StatelessWidget {
     );
 
     final systemScale = systemInterfaceScale(context);
+    final uiScale = systemScale * userScale;
+    if (systemScale == 1.0 && uiScale == 1.0) return child;
 
     // Where the system text scale drives the interface scale, text must not
-    // scale a second time.
-    final scaledChild = systemScale == 1.0
-        ? child
-        : MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.noScaling),
-            child: child,
-          );
+    // scale a second time. The breakpoint reads the size from the media
+    // query, so the size has to agree with the constraints the child lays out
+    // in.
+    final mediaQuery = MediaQuery.of(context);
+    final scaledChild = MediaQuery(
+      data: mediaQuery.copyWith(
+        size: mediaQuery.size / uiScale,
+        textScaler: systemScale == 1.0
+            ? mediaQuery.textScaler
+            : TextScaler.noScaling,
+      ),
+      child: child,
+    );
+    if (uiScale == 1.0) return scaledChild;
 
-    final uiScale = systemScale * userScale;
-
-    return uiScale == 1.0
-        ? scaledChild
-        : FractionallySizedBox(
-            widthFactor: 1 / uiScale,
-            heightFactor: 1 / uiScale,
-            child: Transform.scale(scale: uiScale, child: scaledChild),
-          );
+    return FractionallySizedBox(
+      widthFactor: 1 / uiScale,
+      heightFactor: 1 / uiScale,
+      child: Transform.scale(scale: uiScale, child: scaledChild),
+    );
   }
 }

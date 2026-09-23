@@ -28,6 +28,9 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // How to show the window once Flutter has rendered its first frame.
+  int show_command_ = SW_SHOWNORMAL;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
