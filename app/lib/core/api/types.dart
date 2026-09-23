@@ -20,7 +20,12 @@ part 'types.freezed.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
 /// Mirror of the [`AddUsernameContactError`] type
-enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
+enum AddUsernameContactError {
+  usernameNotFound,
+  duplicateRequest,
+  ownUsername,
+  rateLimited,
+}
 
 @freezed
 sealed class AirComponent with _$AirComponent {
@@ -36,6 +41,7 @@ sealed class AirFeatures with _$AirFeatures {
     required bool encryptedGroupProfiles,
     required bool emptyConnectionGroupAttributes,
     required bool pqGroups,
+    required bool apqConnectionGroups,
   }) = _AirFeatures;
 }
 
@@ -149,6 +155,7 @@ class UiChatDetails {
   final UiLastReaction? lastReaction;
   final UiMessageDraft? draft;
   final bool isApq;
+  final bool isSelfChat;
   final UiChatMuted? mutedUntil;
   final bool pendingCommitFailed;
   final bool resyncFailed;
@@ -163,6 +170,7 @@ class UiChatDetails {
     this.lastReaction,
     this.draft,
     required this.isApq,
+    required this.isSelfChat,
     this.mutedUntil,
     required this.pendingCommitFailed,
     required this.resyncFailed,
@@ -179,6 +187,7 @@ class UiChatDetails {
       lastReaction.hashCode ^
       draft.hashCode ^
       isApq.hashCode ^
+      isSelfChat.hashCode ^
       mutedUntil.hashCode ^
       pendingCommitFailed.hashCode ^
       resyncFailed.hashCode;
@@ -197,6 +206,7 @@ class UiChatDetails {
           lastReaction == other.lastReaction &&
           draft == other.draft &&
           isApq == other.isApq &&
+          isSelfChat == other.isSelfChat &&
           mutedUntil == other.mutedUntil &&
           pendingCommitFailed == other.pendingCommitFailed &&
           resyncFailed == other.resyncFailed;
@@ -483,6 +493,10 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
   const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
+  const factory UiSystemMessage.deviceLinked(UuidValue field0) =
+      UiSystemMessage_DeviceLinked;
+  const factory UiSystemMessage.deviceUnlinked(UuidValue field0) =
+      UiSystemMessage_DeviceUnlinked;
 }
 
 /// UI representation of an [`UserId`]

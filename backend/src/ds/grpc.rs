@@ -13,8 +13,8 @@ use aircommon::{
     },
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
-        self, GroupBootstrapEcho, GroupOperationParams, JoinConnectionGroupParams,
-        QsQueueMessagePayload, UserProfileKeyUpdateParams,
+        self, GroupBootstrapEcho, GroupOperationParams, QsQueueMessagePayload,
+        UserProfileKeyUpdateParams,
     },
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
@@ -184,13 +184,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
-    /// Loads the T group state and, if `pq_qgid` is given, also the PQ group state, both from
-    /// the same DB transaction (with the shared `ear_key`) so that external-commit callers see
-    /// a consistent snapshot across both legs of an APQ group.
+    /// Loads the T group state and optional PQ group state.
+    ///
+    /// The `pq_qgid` function is called with the T group state to resolve the optional PQ group id.
+    ///
+    /// Both states are loaded within the same DB transaction (with the shared `ear_key`) so that
+    /// external-commit callers see a consistent snapshot across both legs of an APQ group.
     async fn load_group_state_immutable_pair(
         &self,
         qgid: &QualifiedGroupId,
-        pq_qgid: Option<&QualifiedGroupId>,
+        pq_qgid: impl FnOnce(&DsGroupState) -> Result<Option<QualifiedGroupId>, Status>,
         ear_key: &GroupStateEarKey,
     ) -> Result<(DsGroupState, Option<DsGroupState>), LoadGroupStateError> {
         let mut txn = self
@@ -205,10 +208,10 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (_, group_state) = self
             .load_group_state::<false>(&mut txn, qgid, ear_key)
             .await?;
-        let pq_group_state = match pq_qgid {
+        let pq_group_state = match pq_qgid(&group_state)? {
             Some(pq_qgid) => {
                 let (_, pq_group_state) = self
-                    .load_group_state::<false>(&mut txn, pq_qgid, ear_key)
+                    .load_group_state::<false>(&mut txn, &pq_qgid, ear_key)
                     .await?;
                 Some(pq_group_state)
             }
@@ -489,34 +492,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (txn, mut t_group_state, t_group_data) = self
             .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
             .await?;
-        let t_apq_info = t_group_state
-            .apq_info()
-            .ok_or_else(|| Status::failed_precondition("Missing APQ info on T group"))?;
-        let (payload, t_sender_index) =
-            resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
-
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
-        let pq_apq_info = pq_group_state
-            .apq_info()
-            .ok_or_else(|| Status::failed_precondition("Missing APQ info on PQ group"))?;
+        check_apq_info(&t_group_state, &pq_group_state, &t_message, &pq_message)?;
 
-        if t_apq_info.group_id() != pq_apq_info.group_id() {
-            return Err(Status::failed_precondition(
-                "T and PQ group IDs do not match",
-            ));
-        }
-        if t_message.group_id() != &t_apq_info.t_session_group_id {
-            return Err(Status::failed_precondition(
-                "T message group ID does not match T APQ group ID",
-            ));
-        }
-        if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
-            return Err(Status::failed_precondition(
-                "PQ message group ID does not match PQ APQ group ID",
-            ));
-        }
+        let (payload, t_sender_index) =
+            resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
@@ -602,6 +584,63 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok(value)
     }
 
+    /// The same as `update_apq_group_state`, but does not perform any verification of the request
+    /// beyond the `ApqInfo` consistency of the two legs and the messages.
+    ///
+    /// Both qualified group ids are taken from the messages, which are then handed to `f` together
+    /// with the loaded group states.
+    async fn update_apq_group_state_without_verification<T: Send>(
+        &self,
+        ear_key: &GroupStateEarKey,
+        t_message: AssistedMessageIn,
+        pq_message: AssistedMessageIn,
+        f: impl AsyncFnOnce(
+            &mut DsGroupState,
+            &mut DsGroupState,
+            AssistedMessageIn,
+            AssistedMessageIn,
+        ) -> Result<T, Status>,
+    ) -> Result<T, Status> {
+        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+        let (txn, mut t_group_state, t_group_data) = self
+            .load_for_update_or_not_found(txn, &t_qgid, ear_key)
+            .await?;
+        let (mut txn, mut pq_group_state, pq_group_data) = self
+            .load_for_update_or_not_found(txn, &pq_qgid, ear_key)
+            .await?;
+        check_apq_info(&t_group_state, &pq_group_state, &t_message, &pq_message)?;
+
+        let value = f(
+            &mut t_group_state,
+            &mut pq_group_state,
+            t_message,
+            pq_message,
+        )
+        .await?;
+
+        let t_new_epoch = t_group_state.group().epoch().as_u64();
+        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, ear_key)
+            .await?;
+        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, ear_key)
+            .await?;
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        self.cleanup_after_commit(t_qgid.group_uuid(), t_new_epoch)
+            .await;
+        self.sweep_welcome_info(pq_qgid.group_uuid()).await;
+
+        Ok(value)
+    }
+
     fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
@@ -612,6 +651,52 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .verify_client_version(client_metadata, Utc::now())?;
         Ok(verified.version)
     }
+}
+
+/// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
+fn apq_pq_qgid(group_state: &DsGroupState) -> Result<Option<QualifiedGroupId>, Status> {
+    group_state
+        .apq_info()
+        .map(|apq_info| {
+            QualifiedGroupId::try_from(&apq_info.pq_session_group_id).map_err(|error| {
+                error!(%error, "Invalid PQ group id in ApqInfo");
+                Status::internal("Invalid PQ group id in ApqInfo")
+            })
+        })
+        .transpose()
+}
+
+/// Checks that both legs carry the same `ApqInfo` and that each message addresses its leg's session
+/// group.
+fn check_apq_info(
+    t_group_state: &DsGroupState,
+    pq_group_state: &DsGroupState,
+    t_message: &AssistedMessageIn,
+    pq_message: &AssistedMessageIn,
+) -> Result<(), Status> {
+    let t_apq_info = t_group_state
+        .apq_info()
+        .ok_or_else(|| Status::failed_precondition("Missing APQ info on T group"))?;
+    let pq_apq_info = pq_group_state
+        .apq_info()
+        .ok_or_else(|| Status::failed_precondition("Missing APQ info on PQ group"))?;
+
+    if t_apq_info.group_id() != pq_apq_info.group_id() {
+        return Err(Status::failed_precondition(
+            "T and PQ group IDs do not match",
+        ));
+    }
+    if t_message.group_id() != &t_apq_info.t_session_group_id {
+        return Err(Status::failed_precondition(
+            "T message group ID does not match T APQ group ID",
+        ));
+    }
+    if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
+        return Err(Status::failed_precondition(
+            "PQ message group ID does not match PQ APQ group ID",
+        ));
+    }
+    Ok(())
 }
 
 fn verify_message<R, P, const TAG: u32>(
@@ -1231,7 +1316,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .transpose()?;
 
         let (group_state, pq_group_state) = self
-            .load_group_state_immutable_pair(&qgid, pq_qgid.as_ref(), &ear_key)
+            .load_group_state_immutable_pair(&qgid, |_| Ok(pq_qgid), &ear_key)
             .await
             .map_err(to_status)?;
 
@@ -1329,6 +1414,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             room_state,
             pq,
             join_commit,
+            pq_join_commit,
         } = snapshot.into_parts().ok_or(NoEpochSnapshotFound)?;
 
         let (pq_group_info, pq_ratchet_tree) = match pq {
@@ -1350,6 +1436,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             pq_group_info,
             pq_ratchet_tree,
             join_commit,
+            pq_join_commit,
         }))
     }
 
@@ -1369,11 +1456,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
-        let (_, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
+        let (group_state, pq_group_state) = self
+            .load_group_state_immutable_pair(&qgid, apq_pq_qgid, &ear_key)
             .await
             .map_err(to_status)?;
         let commit_info = group_state.external_commit_info();
+        let pq_commit_info = pq_group_state
+            .as_ref()
+            .map(DsGroupState::external_commit_info);
 
         let group_info = commit_info
             .group_info
@@ -1407,6 +1497,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
                 })
                 .collect(),
+            pq_group_info: pq_commit_info
+                .as_ref()
+                .map(|info| info.group_info.clone().try_into())
+                .transpose()
+                .invalid_tls("pq_group_info")?,
+            pq_ratchet_tree: pq_commit_info
+                .as_ref()
+                .map(|info| info.ratchet_tree.try_ref_into())
+                .transpose()
+                .invalid_tls("pq_ratchet_tree")?,
+            pq_proposals: pq_commit_info
+                .map(|info| info.proposals.into_iter().map(From::from).collect())
+                .unwrap_or_default(),
         }))
     }
 
@@ -1444,16 +1547,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         ));
                     }
 
-                    let params = JoinConnectionGroupParams {
-                        external_commit,
-                        qs_client_reference: qs_client_reference.clone(),
-                    };
-
                     // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
 
-                    let outcome =
-                        group_state.join_connection_group(params, group_bootstrap.is_some())?;
+                    let outcome = group_state.join_connection_group(
+                        external_commit,
+                        qs_client_reference.clone(),
+                        group_bootstrap.is_some(),
+                    )?;
 
                     group_state.proposals.clear();
 
@@ -1463,8 +1564,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .map(|(group_bootstrap, epoch)| {
                             QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
                                 group_id: qgid.clone().into(),
-                                // Set once the APQ join connection group RPC carries a group
-                                // bootstrap.
                                 pq_group_id: None,
                                 epoch,
                                 timestamp: TimeStamp::now(),
@@ -1492,6 +1591,81 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }
 
         Ok(Response::new(JoinConnectionGroupResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
+    async fn apq_join_connection_group(
+        &self,
+        request: Request<ApqJoinConnectionGroupRequest>,
+    ) -> Result<Response<ApqJoinConnectionGroupResponse>, Status> {
+        let request = request.into_inner();
+
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let (t_message, pq_message) = request.apq_message()?;
+        let ear_key: GroupStateEarKey = request
+            .group_state_ear_key
+            .ok_or_missing_field("group_state_ear_key")?
+            .try_ref_into()?;
+        let qs_client_reference: identifiers::QsReference = request
+            .qs_client_reference
+            .ok_or_missing_field("qs_client_reference")?
+            .try_into()?;
+        let group_bootstrap = request.group_bootstrap;
+        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+
+        let (timestamp, echo) = self
+            .update_apq_group_state_without_verification(
+                &ear_key,
+                t_message,
+                pq_message,
+                async |t_group_state, pq_group_state, t_message, pq_message| {
+                    let destination_clients: Vec<_> = t_group_state.destination_clients().collect();
+                    let outcome = DsGroupState::apq_join_connection_group(
+                        t_group_state,
+                        pq_group_state,
+                        t_message,
+                        pq_message,
+                        qs_client_reference.clone(),
+                        group_bootstrap.is_some(),
+                    )?;
+
+                    t_group_state.proposals.clear();
+                    pq_group_state.proposals.clear();
+
+                    // Dispatched by the caller once the snapshot the echo points at is committed.
+                    let echo = group_bootstrap
+                        .zip(outcome.snapshot_epoch)
+                        .map(|(group_bootstrap, epoch)| {
+                            QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
+                                group_id: t_qgid.into(),
+                                pq_group_id: Some(pq_qgid.into()),
+                                epoch,
+                                timestamp: TimeStamp::now(),
+                                group_bootstrap,
+                            })
+                            .tls_failed("group join echo")
+                        })
+                        .transpose()?;
+
+                    let timestamp = TimeStamp::now();
+                    let payload =
+                        QsQueueMessagePayload::apq_mls_message(timestamp, outcome.message);
+                    self.fan_out_message_without_notifications(payload, destination_clients, true)
+                        .await;
+                    Ok((timestamp, echo))
+                },
+            )
+            .await?;
+
+        if let Some(echo) = echo {
+            self.dispatch_group_bootstrap_echo(echo, qs_client_reference)
+                .await;
+        }
+
+        Ok(Response::new(ApqJoinConnectionGroupResponse {
             fanout_timestamp: Some(timestamp.into()),
         }))
     }
@@ -2850,6 +3024,27 @@ impl WithApqMessage for ApqResyncRequest {
     fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
         let external_commit = payload
+            .external_commit
+            .as_ref()
+            .ok_or_missing_field("external_commit")?;
+        let t_message = external_commit
+            .t_message
+            .as_ref()
+            .ok_or_missing_field("t_message")?;
+        let pq_message = external_commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqJoinConnectionGroupRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let external_commit = self
             .external_commit
             .as_ref()
             .ok_or_missing_field("external_commit")?;

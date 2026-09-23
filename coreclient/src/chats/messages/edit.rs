@@ -15,6 +15,7 @@ use crate::{
     chats::{StatusRecord, reactions::Reaction},
     clients::attachment::AttachmentRecord,
     db::access::{WriteConnection, WriteDbTransaction},
+    outbound_service::receipt_queue::ReceiptQueue,
 };
 
 pub(crate) struct MessageEdit<'a> {
@@ -181,6 +182,9 @@ pub(crate) async fn handle_message_edit(
         content,
         group_id,
     ));
+    if let Some(current_mimi_id) = message.message().mimi_id() {
+        ReceiptQueue::remove_superseded(&mut *txn, message.id(), current_mimi_id).await?;
+    }
     if is_delete {
         message.set_status(MessageStatus::Deleted);
         purge_deleted_message(
@@ -269,6 +273,7 @@ mod tests {
     use aircommon::identifiers::MimiId;
     use mimi_content::MimiContent;
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
     use crate::{
         MessageId,
@@ -588,6 +593,60 @@ mod tests {
         assert_eq!(alice_message.in_reply_to(), None);
         assert!(alice_message.reactions().is_empty());
 
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn test_handle_message_edit_drops_superseded_receipts(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let group_id = chat.group_id();
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        let bob_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                bob.clone(),
+                true,
+                MimiContent::simple_markdown_message("Hello from Bob!".to_string(), [1; 16]),
+                group_id,
+            ),
+        );
+        bob_message.store(pool.write().await?).await?;
+        let original_mimi_id = *bob_message.message().mimi_id().unwrap();
+
+        // Receipts for the original are queued but not sent yet
+        for status in [MessageStatus::Delivered, MessageStatus::Read] {
+            ReceiptQueue::new(bob_message.id(), status)
+                .enqueue(pool.write().await?, chat.id(), &original_mimi_id)
+                .await?;
+        }
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let edited = handle_message_edit(
+            &mut txn,
+            group_id,
+            TimeStamp::now(),
+            &bob,
+            original_mimi_id,
+            MimiContent::simple_markdown_message("Edited by Bob".to_string(), [2; 16]),
+        )
+        .await?;
+        edited.update(&mut txn).await?;
+        txn.commit().await?;
+
+        let queued = ReceiptQueue::dequeue(pool.write().await?, Uuid::new_v4()).await?;
+        assert!(
+            queued.is_none(),
+            "receipts for the replaced version were kept"
+        );
         Ok(())
     }
 

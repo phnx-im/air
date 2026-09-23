@@ -4,7 +4,10 @@
 
 use std::collections::HashSet;
 
-use aircommon::{credentials::LeafCredential, identifiers::UserId};
+use aircommon::{
+    credentials::LeafCredential,
+    identifiers::{UserId, Username},
+};
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     UserProfile,
@@ -335,6 +338,17 @@ async fn multi_device_linking_session() {
             "linked device should see the same members as the old device in group {label}"
         );
     }
+
+    // Linking the new device is recorded in the self group, not in each
+    // pre-existing chat: the old device's commit adding the new device's
+    // self-group leaf must produce a DeviceLinked system message identifying
+    // it, not a generic Add (which would render as e.g. "Alice added Alice").
+    let self_group_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
+    assert_eq!(
+        device_linked_client_ids(old_device, self_group_chat_id).await,
+        vec![new_device.own_client_id().await.unwrap()],
+        "linking the new device should record a DeviceLinked system message in the self group"
+    );
 
     // Messages sent into the self group are seen by the other device.
     let self_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
@@ -1012,6 +1026,136 @@ async fn multi_device_token_seed_agreement() {
             .await
             .unwrap(),
         "both devices must hold byte-identical tokens"
+    );
+}
+
+/// The device's cached AddUsername tokens, in consumption order.
+async fn cached_tokens(user: &CoreUser) -> Vec<Vec<u8>> {
+    user.cached_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap()
+}
+
+/// A username no other test can have taken.
+fn fresh_username() -> Username {
+    Username::new(format!("alice-{}", Uuid::new_v4().simple())).unwrap()
+}
+
+// Redemption is local to the spending device. Without a broadcast a sibling
+// keeps holding a token the AS has already seen and loses one of its own
+// requests to it. The spending device therefore publishes the position it
+// spent, which names the same token on every device.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a redeemed token is dropped by the sibling", skip_all)]
+async fn multi_device_redeemed_token_is_removed_from_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    first_device.outbound_service().run_once().await;
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+    // Catch up on the echo of our own add commit and on the new device's own
+    // self-group commits, so the broadcast below is built at the DS epoch.
+    drain_queue(first_device).await;
+
+    let full_batch = cached_tokens(first_device).await;
+    assert!(!full_batch.is_empty(), "the first device must hold tokens");
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        full_batch,
+        "both devices must start from the same batch"
+    );
+
+    assert!(
+        first_device
+            .add_username(fresh_username())
+            .await
+            .unwrap()
+            .is_some(),
+        "the username must be created"
+    );
+
+    let remaining = cached_tokens(first_device).await;
+    assert_eq!(
+        remaining.len(),
+        full_batch.len() - 1,
+        "creating the username spent one token"
+    );
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        full_batch,
+        "the sibling still holds the spent token"
+    );
+
+    // The broadcast is held back to keep it apart from the redemption. The
+    // test skips that wait.
+    first_device
+        .expedite_redeemed_token_broadcast()
+        .await
+        .unwrap();
+    let epochs_before = first_device.self_group_epochs().await.unwrap();
+    first_device.outbound_service().run_once().await;
+
+    assert!(
+        first_device
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty(),
+        "the DS accepting the message retires the broadcast"
+    );
+    assert_eq!(
+        first_device.self_group_epochs().await.unwrap(),
+        epochs_before,
+        "the broadcast is an application message, not a commit"
+    );
+
+    drain_queue(&second_device).await;
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        remaining,
+        "the sibling must drop the redeemed token"
+    );
+}
+
+// A device that joins via Welcome cannot read the messages that carried past
+// redemptions, and its first batch fetch is answered from the request its
+// sibling registered. The provisioning package therefore carries the redeemed
+// positions, pending or not.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a new device skips redeemed tokens", skip_all)]
+async fn multi_device_new_device_skips_redeemed_tokens() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    first_device.outbound_service().run_once().await;
+    assert!(
+        first_device
+            .add_username(fresh_username())
+            .await
+            .unwrap()
+            .is_some(),
+        "the username must be created"
+    );
+    let remaining = cached_tokens(first_device).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        remaining,
+        "the new device must never hold the redeemed token"
+    );
+    assert!(
+        second_device
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty(),
+        "the new device has nothing of its own to tell"
     );
 }
 
@@ -1870,7 +2014,7 @@ async fn multi_device_skips_unconfirmed_connection_chats() {
     let pending_chat_id = setup
         .get_user(&alice)
         .user()
-        .add_contact(bob_username, username_hash)
+        .add_contact(bob_username, username_hash, setup.apq_groups)
         .await
         .unwrap()
         .unwrap();
@@ -2305,6 +2449,22 @@ async fn drain_queue_ok(user: &CoreUser, what: &str) {
         "{what}: {:?}",
         processed.errors
     );
+}
+
+/// The client ids of every "device was linked" system message the device
+/// stores for the chat.
+async fn device_linked_client_ids(user: &CoreUser, chat_id: ChatId) -> Vec<Uuid> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(SystemMessage::DeviceLinked(client_id))) => {
+                Some(*client_id)
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// How many "`user_id` left" system messages the device stores for the chat.

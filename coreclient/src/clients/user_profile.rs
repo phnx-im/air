@@ -72,10 +72,6 @@ impl CoreUser {
         chat_ids.sort_unstable();
 
         for group_id in groups_ids {
-            let group = Group::load(&mut connection, &group_id)
-                .await?
-                .context("Failed to load group")?;
-
             let chat_id = ChatId::try_from(&group_id).context("invalid group id")?;
 
             if chat_ids.binary_search(&chat_id).is_err() {
@@ -87,9 +83,13 @@ impl CoreUser {
                 continue; // Skip blocked chats
             }
 
-            let own_index = group.own_index();
+            let group = Group::load_ref(&mut connection, &group_id)
+                .await?
+                .context("Failed to load group")?;
+
+            let own_index = group.own_index;
             let user_profile_key =
-                user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
+                user_profile_key.encrypt(&group.identity_link_wrapper_key, own_user_id)?;
             let signer =
                 OwnClientInfo::signer_for_group(&mut connection, &group_id, self.signing_key())
                     .await?;
@@ -100,7 +100,7 @@ impl CoreUser {
             };
 
             api_client
-                .ds_user_profile_key_update(params, &signer, group.group_state_ear_key())
+                .ds_user_profile_key_update(params, &signer, &group.group_state_ear_key)
                 .await?;
         }
 

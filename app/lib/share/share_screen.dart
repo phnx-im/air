@@ -282,7 +282,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
   String? _recipients(AppLocalizations loc, List<UiChatDetails> chats) {
     final names = [
       for (final chatId in _selectedChatIds)
-        chats.where((chat) => chat.id == chatId).firstOrNull?.title,
+        chats.where((chat) => chat.id == chatId).firstOrNull?.title(loc),
     ].nonNulls.toList();
     if (names.isEmpty) {
       return null;
@@ -543,7 +543,8 @@ class _ChatPickerList extends StatelessWidget {
         ? chats
         : chats
               .where(
-                (chat) => chat.title.toLowerCase().contains(normalizedQuery),
+                (chat) =>
+                    chat.title(loc).toLowerCase().contains(normalizedQuery),
               )
               .toList();
 
@@ -619,10 +620,11 @@ class _ChatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
     return ListRow(
       tokens: ListRowTokens.current,
-      label: chat.title,
+      label: chat.title(loc),
       leading: ChatDetailsAvatar(chat: chat, size: S.s40),
       trailing: selected
           ? AppIcon.check(size: S.s20, color: palette.accentBrand.primary)

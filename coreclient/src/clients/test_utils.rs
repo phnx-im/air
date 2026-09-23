@@ -4,23 +4,23 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
-#[cfg(any(test, feature = "test_utils"))]
-use airprotos::client::component::AirFeatures;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{
-    codec::PersistenceCodec, credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId,
-};
+use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::GroupData;
+use airprotos::client::{
+    app_data::GroupAppDataExt,
+    group::{EncryptedGroupTitle, GroupData},
+};
 
 use crate::{
-    chats::GroupDataExt,
-    groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+    ChatAttributes,
+    groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
+        create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
@@ -292,9 +292,7 @@ impl CoreUser {
     /// Whether any setting changes are still waiting to be synchronized.
     pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
         use crate::clients::user_settings::SettingChanges;
-        Ok(SettingChanges::load(self.db().read().await?)
-            .await?
-            .is_some())
+        Ok(SettingChanges::has_pending(self.db().read().await?).await?)
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the
@@ -308,43 +306,6 @@ impl CoreUser {
             .await
     }
 
-    /// Set the group title and picture of the given chat in the legacy format.
-    ///
-    /// Useful for testing migrations of the group data format.
-    pub async fn set_legacy_group_data(
-        &self,
-        chat_id: ChatId,
-        title: String,
-        picture: Option<Vec<u8>>,
-    ) -> anyhow::Result<()> {
-        #[derive(serde::Serialize)]
-        struct LegacyGroupData {
-            title: String,
-            picture: Option<Vec<u8>>,
-        }
-
-        let legacy_group_data: GroupDataBytes =
-            PersistenceCodec::to_vec(&LegacyGroupData { title, picture })?.into();
-
-        let op = self
-            .db()
-            .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_raw_group_data(
-                    txn,
-                    self.signing_key(),
-                    chat_id,
-                    Some(legacy_group_data),
-                    None,
-                    DerivationEpoch::Keep,
-                )
-                .await
-            })
-            .await?;
-        self.execute_job(op).await?;
-
-        Ok(())
-    }
-
     /// Stages a group-title-change commit and stores the pending chat operation
     /// WITHOUT merging it, reproducing the window before the inline merge / DS
     /// commit response. Returns the serialized commit the DS would echo back to
@@ -355,21 +316,23 @@ impl CoreUser {
         chat_id: ChatId,
         title: String,
     ) -> anyhow::Result<Vec<u8>> {
-        let group_data = GroupData {
-            encrypted_title: None,
-            external_group_profile: None,
-            legacy_title: Some(title),
-            legacy_picture: None,
-        };
-        let group_data_bytes = group_data.encode()?;
         let job = self
             .db()
             .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_raw_group_data(
+                let group = Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .context("No group")?;
+                let encrypted_title =
+                    EncryptedGroupTitle::encrypt(&title, group.identity_link_wrapper_key())?;
+                let group_data = GroupData {
+                    encrypted_title: Some(encrypted_title),
+                    external_group_profile: None,
+                };
+                PendingChatOperation::create_update_with_group_data(
                     txn,
                     self.signing_key(),
                     chat_id,
-                    Some(group_data_bytes),
+                    Some(group_data),
                     None,
                     DerivationEpoch::Keep,
                 )
@@ -377,6 +340,31 @@ impl CoreUser {
             })
             .await?;
         job.staged_commit_message_bytes()
+    }
+
+    /// Creates a group whose group profile is stored in the group profile component.
+    pub async fn create_chat_with_profile_component(
+        &self,
+        title: String,
+        is_apq: bool,
+    ) -> anyhow::Result<ChatId> {
+        let chat_attributes = ChatAttributes::new(title, None);
+        let client_reference = self.create_own_client_reference();
+        let job =
+            CreateChat::new(chat_attributes, client_reference, is_apq).with_profile_component();
+        Ok(self.execute_job(job).await?)
+    }
+
+    /// Whether the group context of the chat carries the group profile component.
+    pub async fn has_group_profile_component(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(false);
+        };
+        Ok(group.mls_group().extensions().has_group_profile_component())
     }
 
     pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
@@ -387,36 +375,7 @@ impl CoreUser {
         else {
             return Ok(None);
         };
-        let Some(bytes) = group.group_data() else {
-            return Ok(None);
-        };
-        Ok(Some(GroupData::decode(&bytes)?))
-    }
-
-    /// Sends a self-update commit that forces the given [`AirFeatures`] into the own leaf node.
-    ///
-    /// Use this in tests to simulate an old client that advertises a different set of feature
-    /// flags.
-    #[cfg(any(test, feature = "test_utils"))]
-    pub async fn set_group_features(
-        &self,
-        chat_id: ChatId,
-        features: AirFeatures,
-    ) -> anyhow::Result<()> {
-        let op = self
-            .db()
-            .with_write_transaction(async |txn| {
-                PendingChatOperation::create_update_with_features(
-                    txn,
-                    self.signing_key(),
-                    chat_id,
-                    features,
-                )
-                .await
-            })
-            .await?;
-        self.execute_job(op).await?;
-        Ok(())
+        group.group_data()
     }
 
     /// Send a message to the DS using the given collision tags instead of

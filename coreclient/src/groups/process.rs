@@ -20,7 +20,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
     messages::ApqProtocolMessage,
-    processing::{ApqProcessMessageError, ApqProcessedMessage},
+    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_app_data_commit},
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -37,6 +37,7 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
+    chats::deleted::{self, apply_deleted_chats},
     clients::{
         api_clients::ApiClients,
         block_contact::pending::{apply_blocked_contacts_update, complete_sent_entries},
@@ -98,6 +99,12 @@ async fn apply_self_group_payload(
         apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
     }
 
+    if own_echo {
+        deleted::remove_staged(txn, &payload.deleted_chats).await?;
+    } else {
+        apply_deleted_chats(txn, &payload.deleted_chats).await?;
+    }
+
     Ok(())
 }
 
@@ -146,7 +153,10 @@ impl Group {
             let message = message.into();
             let message_epoch = message.epoch();
             match self.mls_group.process_message(&provider, message) {
-                Ok(pm) => pm,
+                Ok(processed_message) => {
+                    // Processes app data updates in the message, if any.
+                    resolve_app_data_commit(&self.mls_group, &provider, processed_message)?
+                }
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
                 )) => {
@@ -1096,7 +1106,7 @@ mod tests {
     use crate::{
         clients::block_contact::{
             BlockedContact,
-            pending::{BlockedState, entries_to_broadcast, store_outgoing_entry},
+            pending::{BlockedState, staged_entries, store_outgoing_entry},
         },
         db::access::DbAccess,
     };
@@ -1267,7 +1277,7 @@ mod tests {
 
             assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
             assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
+                staged_entries(&mut *txn).await?,
                 vec![
                     blocked_entry(&contested, 10, "Alice"),
                     blocked_entry(&untouched, 20, "Bob")

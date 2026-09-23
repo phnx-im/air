@@ -1753,6 +1753,7 @@ fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl
             >>::sse_decode(&mut deserializer);
             let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
             let api_hash = <UsernameHash>::sse_decode(&mut deserializer);
+            let api_prefer_apq = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1779,6 +1780,7 @@ fn wire__crate__api__chats_data_source__ChatsDataSource_create_contact_chat_impl
                                 &*api_that_guard,
                                 api_username,
                                 api_hash,
+                                api_prefer_apq,
                             )
                             .await?;
                         std::result::Result::Ok(output_ok)
@@ -4890,6 +4892,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(
             >>::sse_decode(&mut deserializer);
             let api_chat_id = <crate::api::types::ChatId>::sse_decode(&mut deserializer);
             let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            let api_prefer_apq = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -4916,6 +4919,7 @@ fn wire__crate__api__user_cubit__UserCubitBase_add_contact_from_group_impl(
                                 &*api_that_guard,
                                 api_chat_id,
                                 api_user_id,
+                                api_prefer_apq,
                             )
                             .await?;
                         std::result::Result::Ok(output_ok)
@@ -9235,6 +9239,7 @@ const _: fn() = || {
         let _: bool = AirFeatures.encrypted_group_profiles;
         let _: bool = AirFeatures.empty_connection_group_attributes;
         let _: bool = AirFeatures.pq_groups;
+        let _: bool = AirFeatures.apq_connection_groups;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -9281,8 +9286,6 @@ const _: fn() = || {
     {
         let GroupDataDebugInfo =
             None::<crate::api::chat_details_cubit::GroupDataDebugInfo>.unwrap();
-        let _: Option<String> = GroupDataDebugInfo.legacy_title;
-        let _: bool = GroupDataDebugInfo.legacy_picture;
         let _: Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> =
             GroupDataDebugInfo.encrypted_title;
         let _: Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> =
@@ -9378,6 +9381,7 @@ const _: fn() = || {
         let _: Vec<crate::api::user::TimedTaskDebugInfo> = UserDebugInfo.timed_tasks;
         let _: u32 = UserDebugInfo.add_username_token_count;
         let _: u32 = UserDebugInfo.invitation_code_token_count;
+        let _: u32 = UserDebugInfo.connect_username_token_count;
     }
 };
 
@@ -10321,6 +10325,7 @@ impl SseDecode for crate::api::types::AddUsernameContactError {
             0 => crate::api::types::AddUsernameContactError::UsernameNotFound,
             1 => crate::api::types::AddUsernameContactError::DuplicateRequest,
             2 => crate::api::types::AddUsernameContactError::OwnUsername,
+            3 => crate::api::types::AddUsernameContactError::RateLimited,
             _ => unreachable!("Invalid variant for AddUsernameContactError: {}", inner),
         };
     }
@@ -10356,10 +10361,12 @@ impl SseDecode for crate::api::types::AirFeatures {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
         let mut var_emptyConnectionGroupAttributes = <bool>::sse_decode(deserializer);
         let mut var_pqGroups = <bool>::sse_decode(deserializer);
+        let mut var_apqConnectionGroups = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
             empty_connection_group_attributes: var_emptyConnectionGroupAttributes,
             pq_groups: var_pqGroups,
+            apq_connection_groups: var_apqConnectionGroups,
         };
     }
 }
@@ -10715,8 +10722,6 @@ impl SseDecode for f64 {
 impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_legacyTitle = <Option<String>>::sse_decode(deserializer);
-        let mut var_legacyPicture = <bool>::sse_decode(deserializer);
         let mut var_encryptedTitle = <Option<
             crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo,
         >>::sse_decode(deserializer);
@@ -10724,8 +10729,6 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
             crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo,
         >>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDataDebugInfo {
-            legacy_title: var_legacyTitle,
-            legacy_picture: var_legacyPicture,
             encrypted_title: var_encryptedTitle,
             external_group_profile: var_externalGroupProfile,
         };
@@ -12555,6 +12558,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             <Option<crate::api::types::UiLastReaction>>::sse_decode(deserializer);
         let mut var_draft = <Option<crate::api::types::UiMessageDraft>>::sse_decode(deserializer);
         let mut var_isApq = <bool>::sse_decode(deserializer);
+        let mut var_isSelfChat = <bool>::sse_decode(deserializer);
         let mut var_mutedUntil = <Option<crate::api::types::UiChatMuted>>::sse_decode(deserializer);
         let mut var_pendingCommitFailed = <bool>::sse_decode(deserializer);
         let mut var_resyncFailed = <bool>::sse_decode(deserializer);
@@ -12568,6 +12572,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             last_reaction: var_lastReaction,
             draft: var_draft,
             is_apq: var_isApq,
+            is_self_chat: var_isSelfChat,
             muted_until: var_mutedUntil,
             pending_commit_failed: var_pendingCommitFailed,
             resync_failed: var_resyncFailed,
@@ -13125,6 +13130,14 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             11 => {
                 return crate::api::types::UiSystemMessage::Onboarded;
             }
+            12 => {
+                let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::DeviceLinked(var_field0);
+            }
+            13 => {
+                let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::DeviceUnlinked(var_field0);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -13205,11 +13218,13 @@ impl SseDecode for crate::api::user::UserDebugInfo {
             <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_decode(deserializer);
         let mut var_addUsernameTokenCount = <u32>::sse_decode(deserializer);
         let mut var_invitationCodeTokenCount = <u32>::sse_decode(deserializer);
+        let mut var_connectUsernameTokenCount = <u32>::sse_decode(deserializer);
         return crate::api::user::UserDebugInfo {
             user_id: var_userId,
             timed_tasks: var_timedTasks,
             add_username_token_count: var_addUsernameTokenCount,
             invitation_code_token_count: var_invitationCodeTokenCount,
+            connect_username_token_count: var_connectUsernameTokenCount,
         };
     }
 }
@@ -14060,6 +14075,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AddUsername
             crate::api::types::AddUsernameContactError::UsernameNotFound => 0.into_dart(),
             crate::api::types::AddUsernameContactError::DuplicateRequest => 1.into_dart(),
             crate::api::types::AddUsernameContactError::OwnUsername => 2.into_dart(),
+            crate::api::types::AddUsernameContactError::RateLimited => 3.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -14127,6 +14143,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures
                 .into_into_dart()
                 .into_dart(),
             self.0.pq_groups.into_into_dart().into_dart(),
+            self.0.apq_connection_groups.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14581,8 +14598,6 @@ impl flutter_rust_bridge::IntoDart
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.legacy_title.into_into_dart().into_dart(),
-            self.0.legacy_picture.into_into_dart().into_dart(),
             self.0.encrypted_title.into_into_dart().into_dart(),
             self.0.external_group_profile.into_into_dart().into_dart(),
         ]
@@ -15676,6 +15691,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.last_reaction.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
             self.is_apq.into_into_dart().into_dart(),
+            self.is_self_chat.into_into_dart().into_dart(),
             self.muted_until.into_into_dart().into_dart(),
             self.pending_commit_failed.into_into_dart().into_dart(),
             self.resync_failed.into_into_dart().into_dart(),
@@ -16359,6 +16375,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 [10.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::types::UiSystemMessage::Onboarded => [11.into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::DeviceLinked(field0) => {
+                [12.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
+                [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16472,6 +16494,10 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user::UserDebugInf
             self.0.add_username_token_count.into_into_dart().into_dart(),
             self.0
                 .invitation_code_token_count
+                .into_into_dart()
+                .into_dart(),
+            self.0
+                .connect_username_token_count
                 .into_into_dart()
                 .into_dart(),
         ]
@@ -17323,6 +17349,7 @@ impl SseEncode for crate::api::types::AddUsernameContactError {
                 crate::api::types::AddUsernameContactError::UsernameNotFound => 0,
                 crate::api::types::AddUsernameContactError::DuplicateRequest => 1,
                 crate::api::types::AddUsernameContactError::OwnUsername => 2,
+                crate::api::types::AddUsernameContactError::RateLimited => 3,
                 _ => {
                     unimplemented!("");
                 }
@@ -17354,6 +17381,7 @@ impl SseEncode for crate::api::types::AirFeatures {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
         <bool>::sse_encode(self.empty_connection_group_attributes, serializer);
         <bool>::sse_encode(self.pq_groups, serializer);
+        <bool>::sse_encode(self.apq_connection_groups, serializer);
     }
 }
 
@@ -17649,8 +17677,6 @@ impl SseEncode for f64 {
 impl SseEncode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Option<String>>::sse_encode(self.legacy_title, serializer);
-        <bool>::sse_encode(self.legacy_picture, serializer);
         <Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>>::sse_encode(
             self.encrypted_title,
             serializer,
@@ -19141,6 +19167,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
         <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
         <bool>::sse_encode(self.is_apq, serializer);
+        <bool>::sse_encode(self.is_self_chat, serializer);
         <Option<crate::api::types::UiChatMuted>>::sse_encode(self.muted_until, serializer);
         <bool>::sse_encode(self.pending_commit_failed, serializer);
         <bool>::sse_encode(self.resync_failed, serializer);
@@ -19603,6 +19630,14 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::Onboarded => {
                 <i32>::sse_encode(11, serializer);
             }
+            crate::api::types::UiSystemMessage::DeviceLinked(field0) => {
+                <i32>::sse_encode(12, serializer);
+                <uuid::Uuid>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
+                <i32>::sse_encode(13, serializer);
+                <uuid::Uuid>::sse_encode(field0, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -19668,6 +19703,7 @@ impl SseEncode for crate::api::user::UserDebugInfo {
         <Vec<crate::api::user::TimedTaskDebugInfo>>::sse_encode(self.timed_tasks, serializer);
         <u32>::sse_encode(self.add_username_token_count, serializer);
         <u32>::sse_encode(self.invitation_code_token_count, serializer);
+        <u32>::sse_encode(self.connect_username_token_count, serializer);
     }
 }
 

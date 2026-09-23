@@ -16,31 +16,28 @@ use aircommon::{
     },
 };
 use airprotos::client::{
-    app_data::GroupAppData,
-    group::{EncryptedGroupTitle, GroupData},
+    group::GroupData,
     virtual_client::{
         VirtualClientAction, VirtualClientCommitData, extract_virtual_client_commit_data,
     },
 };
 use anyhow::{Context, bail, ensure};
 use openmls::{
-    components::vc_derivation_info::{
-        KeyPackageUpload, VC_COMPONENT_ID, process_vc_key_package_upload,
-    },
+    components::vc_derivation_info::{KeyPackageUpload, process_vc_key_package_upload},
     group::GroupId,
     prelude::{LeafNodeIndex, ProcessedMessage},
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatId,
-    chats::{ChatAttributes, GroupDataExt},
+    chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::{Group, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
+    db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
+    groups::{Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
         indexed_keys::StorableIndexedKey,
@@ -88,6 +85,36 @@ impl SelfGroup {
         }
     }
 
+    pub(crate) async fn has_linked_devices(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<bool> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
+            return Ok(false);
+        };
+        let Some(group) = Group::load(connection, &group_id).await? else {
+            debug!("self group not joined yet, assuming linked devices");
+            return Ok(true);
+        };
+        let self_group = Self { group };
+        match self_group.client_ids() {
+            Ok(client_ids) => Ok(client_ids.len() > 1),
+            Err(error) => {
+                // Since there is a self group, there is a channel to other
+                // devices, so assume there are some.
+                warn!(%error, "cannot count linked devices, assuming there are some");
+                Ok(true)
+            }
+        }
+    }
+
+    /// The chat of the self group, if there is one.
+    pub(crate) async fn load_chat(mut txn: impl ReadTransaction) -> sqlx::Result<Option<Chat>> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut txn).await? else {
+            return Ok(None);
+        };
+        Chat::load_by_group_id(txn, &group_id).await
+    }
+
     pub fn group_id(&self) -> &GroupId {
         self.group.group_id()
     }
@@ -116,10 +143,6 @@ impl SelfGroup {
             .members()
             .map(|member| LeafCredential::from_credential(&member.credential))
             .collect()
-    }
-
-    pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
-        self.group.identity_link_wrapper_key()
     }
 
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
@@ -286,16 +309,8 @@ impl CoreUser {
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let encrypted_title =
-            EncryptedGroupTitle::encrypt(SELF_CHAT_TITLE, &identity_link_wrapper_key)
-                .context("Failed to encrypt self-group title")?;
-        let group_data_bytes = GroupData {
-            legacy_title: None,
-            legacy_picture: None,
-            encrypted_title: Some(encrypted_title),
-            external_group_profile: None,
-        }
-        .encode()?;
+        // The self chat's title is the local constant, so the group carries no profile.
+        let group_data = GroupData::empty();
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
         // id and are signed by a per-device key. The creation request itself is authenticated by
@@ -311,10 +326,6 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let client_app_data = GroupAppData {
-                    is_self_group: true,
-                    safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                };
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -322,8 +333,7 @@ impl CoreUser {
                     identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
-                    group_data_bytes,
-                    client_app_data,
+                    NewGroupContext::SelfGroup(group_data),
                     // The self group is the emulation group itself, not a
                     // virtual client of one.
                     None,

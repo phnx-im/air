@@ -23,7 +23,7 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    MimiContent, NestedPart,
+    MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
@@ -163,6 +163,13 @@ fn parse_apq_groups_env_var() -> anyhow::Result<bool> {
 
 enum TestKind {
     SingleBackend(String), // url of the single backend
+}
+
+enum GroupKind {
+    /// Plain or APQ group with the profile in the group data extension.
+    Apq(bool),
+    /// Plain or APQ group with the profile in the group profile component.
+    ProfileComponent(bool),
 }
 
 pub struct TestBackend {
@@ -494,7 +501,28 @@ impl TestBackend {
         }
     }
 
+    /// Connects two users through an APQ connection group, regardless of [`Self::apq_groups`].
+    pub async fn connect_users_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, true).await
+    }
+
+    /// Connects two users through a plain (non-APQ) connection group, regardless of
+    /// [`Self::apq_groups`].
+    pub async fn connect_users_non_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, false).await
+    }
+
     pub async fn connect_users(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, self.apq_groups)
+            .await
+    }
+
+    async fn connect_users_inner(
+        &mut self,
+        user1_id: &UserId,
+        user2_id: &UserId,
+        prefer_apq: bool,
+    ) -> ChatId {
         info!("Connecting users {user1_id:?} and {user2_id:?}");
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
@@ -512,7 +540,7 @@ impl TestBackend {
         .await
         .unwrap();
         let chat_id = user1
-            .add_contact(user2_username.clone(), username_hash)
+            .add_contact(user2_username.clone(), username_hash, prefer_apq)
             .await
             .expect("fatal error")
             .expect("non-fatal error");
@@ -702,6 +730,17 @@ impl TestBackend {
             .unread_messages_count(user1_chat_id)
             .await;
         assert_eq!(user1_unread_messages, 0);
+
+        // Both users run the current client, so the connection group is APQ iff requested, and
+        // both sides agree on it.
+        for user_id in [user1_id, &user2_id] {
+            let is_apq = self.users[user_id].user.chat_is_apq(user1_chat_id).await;
+            assert_eq!(
+                is_apq,
+                Some(prefer_apq),
+                "unexpected connection group kind for {user_id:?}"
+            );
+        }
 
         // Send messages both ways to ensure it works.
         self.send_message(user1_chat_id, user1_id, vec![&user2_id], None)
@@ -951,11 +990,22 @@ impl TestBackend {
             // new message.
             assert!(messages.new_messages.is_empty());
             assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             // The edited message keeps its timestamp, so it is still the last message.
             let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
+
+        // Fetch and process delivery receipts. An edit resets the delivery
+        // state, so the recipients must report on the edited version.
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+        let message = sender.message(message.id()).await.unwrap().unwrap();
+        assert_eq!(message.status(), MessageStatus::Delivered);
+
         message.id()
     }
 
@@ -1163,28 +1213,44 @@ impl TestBackend {
     }
 
     pub async fn create_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, true).await
+        self.create_group_inner(user_id, GroupKind::Apq(true)).await
     }
 
     /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
     pub async fn create_non_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, false).await
+        self.create_group_inner(user_id, GroupKind::Apq(false))
+            .await
     }
 
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, self.apq_groups).await
+        self.create_group_inner(user_id, GroupKind::Apq(self.apq_groups))
+            .await
     }
 
-    async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
+    /// Creates a group whose profile is stored in the group profile component.
+    pub async fn create_group_with_profile_component(
+        &mut self,
+        user_id: &UserId,
+        is_apq: bool,
+    ) -> ChatId {
+        self.create_group_inner(user_id, GroupKind::ProfileComponent(is_apq))
+            .await
+    }
+
+    async fn create_group_inner(&mut self, user_id: &UserId, kind: GroupKind) -> ChatId {
         let test_user = self.users.get_mut(user_id).unwrap();
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let chat_id = user
-            .create_chat(group_name.clone(), None, is_apq)
-            .await
-            .unwrap();
+        let chat_id = match kind {
+            GroupKind::Apq(is_apq) => user.create_chat(group_name.clone(), None, is_apq).await,
+            GroupKind::ProfileComponent(is_apq) => {
+                user.create_chat_with_profile_component(group_name.clone(), is_apq)
+                    .await
+            }
+        }
+        .unwrap();
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
@@ -1973,6 +2039,12 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::Onboarded => Some(
                         "This client has been onboarded into the group after linking".to_owned(),
                     ),
+                    SystemMessage::DeviceLinked(uuid) => {
+                        Some(format!("You linked a new device with UUID {uuid}"))
+                    }
+                    SystemMessage::DeviceUnlinked(uuid) => {
+                        Some(format!("You unlinked a device with UUID {uuid}"))
+                    }
                 }
             } else {
                 None

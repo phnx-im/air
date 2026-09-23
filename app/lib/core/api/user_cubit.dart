@@ -52,6 +52,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
+    required bool preferApq,
   });
 
   Future<bool> addUsername({required UiUsername username});

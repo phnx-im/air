@@ -6,7 +6,6 @@
 
 use std::convert::Infallible;
 
-use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::UserCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
@@ -255,7 +254,7 @@ impl Job for FetchGroupProfileOperation {
                 if let ChatStatus::Blocked = chat.status() {
                     return Ok(None);
                 }
-                let group = Group::load_verified(txn, &group_id)
+                let group = Group::load_ref(txn, &group_id)
                     .await?
                     .context("Missing group")?;
                 Ok(Some((chat, group)))
@@ -272,11 +271,7 @@ impl Job for FetchGroupProfileOperation {
             .ds_get_attachment_url(
                 StorageObjectType::GroupProfile,
                 &context.key_store.signing_key,
-                DsAttachmentTarget::Group {
-                    group_state_ear_key: group.group_state_ear_key(),
-                    group_id: group.group_id(),
-                    sender_index: group.own_index(),
-                },
+                group.attachment_target(),
                 remote_attachment_id,
             )
             .await?;
@@ -291,7 +286,7 @@ impl Job for FetchGroupProfileOperation {
 
         // Decrypt and validate group profile
         let group_profile = GroupProfile::decrypt(
-            group.identity_link_wrapper_key(),
+            &group.identity_link_wrapper_key,
             &external_group_profile,
             bytes.into(),
         )

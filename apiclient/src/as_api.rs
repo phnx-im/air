@@ -399,9 +399,15 @@ impl ApiClient {
         Ok(())
     }
 
+    /// Runs the connect username protocol.
+    ///
+    /// `token` pays for the run and is redeemed with the fetch step. The server
+    /// does not require one yet, so a caller without a token still gets a
+    /// package during the rollout.
     pub async fn as_connect_username(
         &self,
         hash: UsernameHash,
+        token: Option<SerializedToken>,
     ) -> Result<(AnyConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
         let fetch_request = ConnectUsernameRequest {
@@ -411,6 +417,7 @@ impl ApiClient {
                 FetchSignedConnectionPackageStep {
                     client_metadata: Some(self.metadata().clone()),
                     hash: Some(hash.into()),
+                    token: token.map(SerializedToken::into_bytes),
                 },
             )),
         };

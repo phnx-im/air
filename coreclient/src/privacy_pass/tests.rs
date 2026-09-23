@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::{QsClientId, QsUserId};
+use airprotos::client::self_group::SelfGroupAppMessage;
+use mimi_content::MimiContent;
 use openmls::group::GroupId;
 use privacypass::private_tokens::VoprfServer;
 use rand::{SeedableRng, rngs::StdRng};
@@ -10,6 +12,10 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::*;
+use crate::{
+    clients::{attachment::MimiContentExt, own_client_info::OwnClientInfo},
+    groups::suppress_notifications,
+};
 
 const OPERATION_TYPE: OperationType = OperationType::AddUsername;
 
@@ -89,13 +95,56 @@ async fn commit_seed(
 /// The wire form of a seed, as a sibling would publish it.
 fn wire_seed(fingerprint: &KeyFingerprint, seed: [u8; SEED_LEN]) -> TokenSeed {
     TokenSeed {
-        operation_type: operation_type_value(OPERATION_TYPE),
+        operation_type: OPERATION_TYPE,
         key_fingerprint: *fingerprint,
         seed,
     }
 }
 
-/// Stores the `own_client_info` row `is_alone` reads.
+/// A position in the batch of the frozen epoch.
+fn position(fingerprint: &KeyFingerprint, token_index: u16) -> TokenPosition {
+    TokenPosition {
+        operation_type: OPERATION_TYPE,
+        key_fingerprint: *fingerprint,
+        allowance_epoch: KAT_EPOCH,
+        token_index,
+    }
+}
+
+/// The wire form of redeemed positions, as a sibling would publish them.
+fn wire_redeemed(fingerprint: &KeyFingerprint, token_indices: Vec<u16>) -> RedeemedTokens {
+    RedeemedTokens {
+        operation_type: OPERATION_TYPE,
+        key_fingerprint: *fingerprint,
+        allowance_epoch: KAT_EPOCH,
+        token_indices,
+    }
+}
+
+/// Applies redeemed positions a sibling published.
+async fn apply_redeemed(db: &DbAccess, incoming: &RedeemedTokens) -> anyhow::Result<()> {
+    db.with_write_transaction(async |txn| {
+        apply_redeemed_tokens(txn, std::slice::from_ref(incoming)).await
+    })
+    .await
+}
+
+/// Stores a three-token batch of the frozen epoch under `fingerprint`, and
+/// returns the tokens in consumption order.
+async fn store_three_tokens(
+    db: &DbAccess,
+    fingerprint: &KeyFingerprint,
+) -> anyhow::Result<Vec<Vec<u8>>> {
+    let tokens = vec![
+        b"token_0".to_vec(),
+        b"token_1".to_vec(),
+        b"token_2".to_vec(),
+    ];
+    store_batch_tokens(db, OPERATION_TYPE, 3, fingerprint, KAT_EPOCH, &tokens).await?;
+    Ok(tokens)
+}
+
+/// Stores the `own_client_info` row `SelfGroup::has_linked_devices` reads.
 async fn store_own_client_info(
     db: &DbAccess,
     self_group_id: Option<GroupId>,
@@ -654,12 +703,7 @@ async fn a_malformed_incoming_seed_is_ignored(pool: SqlitePool) -> anyhow::Resul
         wire_seed(&fingerprint, [0u8; SEED_LEN]),
         wire_seed(&[0u8; 32], [0x42; SEED_LEN]),
         TokenSeed {
-            operation_type: 0,
-            key_fingerprint: fingerprint,
-            seed: [0x42; SEED_LEN],
-        },
-        TokenSeed {
-            operation_type: 99,
+            operation_type: OperationType::Unspecified,
             key_fingerprint: fingerprint,
             seed: [0x42; SEED_LEN],
         },
@@ -718,31 +762,128 @@ async fn provisioned_seeds_are_agreed_immediately(pool: SqlitePool) -> anyhow::R
     Ok(())
 }
 
-/// Tokens stored before batch tagging existed are spent first.
+/// Tokens stored before batch tagging existed are spent first, and only a
+/// batch token comes back with the position its siblings know it by.
 #[sqlx::test]
 async fn metered_tokens_are_consumed_first(pool: SqlitePool) -> anyhow::Result<()> {
     let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
 
     persistence::store_token(db.write().await?, OPERATION_TYPE, 1, b"metered").await?;
-    persistence::store_batch_token(
-        db.write().await?,
-        OPERATION_TYPE,
-        1,
-        KAT_EPOCH,
-        0,
-        b"tagged",
-    )
-    .await?;
+    persistence::store_batch_token(db.write().await?, 1, &position(&fingerprint, 0), b"tagged")
+        .await?;
 
     let first = consume_token(db.write().await?, OPERATION_TYPE)
         .await?
         .expect("no token stored");
-    assert_eq!(first.as_bytes(), b"metered");
+    assert_eq!(first.token.as_bytes(), b"metered");
+    assert_eq!(first.position, None);
+
     let second = consume_token(db.write().await?, OPERATION_TYPE)
         .await?
         .expect("no token stored");
-    assert_eq!(second.as_bytes(), b"tagged");
+    assert_eq!(second.token.as_bytes(), b"tagged");
+    assert_eq!(second.position, Some(position(&fingerprint, 0)));
 
+    Ok(())
+}
+
+/// A token the AS did not redeem goes back at the position it was taken from.
+#[sqlx::test]
+async fn restored_token_keeps_its_position(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    persistence::store_batch_token(db.write().await?, 3, &position(&fingerprint, 5), b"tagged")
+        .await?;
+
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+    assert_eq!(
+        persistence::token_count(db.read().await?, OPERATION_TYPE).await?,
+        0
+    );
+
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+
+    let restored = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("the token was not restored");
+    assert_eq!(restored.token.as_bytes(), b"tagged");
+    assert_eq!(restored.token_key_id, 3);
+    assert_eq!(restored.position, Some(position(&fingerprint, 5)));
+    Ok(())
+}
+
+/// A position a sibling redeemed while the request was out is not restored.
+#[sqlx::test]
+async fn restore_skips_a_position_a_sibling_redeemed(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    persistence::store_batch_token(db.write().await?, 3, &position(&fingerprint, 5), b"tagged")
+        .await?;
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+
+    // The broadcast finds no row to delete and records the position anyway.
+    apply_redeemed(&db, &wire_redeemed(&fingerprint, vec![5])).await?;
+
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+    assert_eq!(
+        persistence::token_count(db.read().await?, OPERATION_TYPE).await?,
+        0
+    );
+    Ok(())
+}
+
+/// A token stored before positions were recorded is restored without one.
+#[sqlx::test]
+async fn restored_metered_token_stays_unpositioned(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    persistence::store_token(db.write().await?, OPERATION_TYPE, 2, b"metered").await?;
+
+    let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("no token stored");
+    restore_token(&db, OPERATION_TYPE, consumed).await?;
+
+    let restored = consume_token(db.write().await?, OPERATION_TYPE)
+        .await?
+        .expect("the token was not restored");
+    assert_eq!(restored.token.as_bytes(), b"metered");
+    assert_eq!(restored.token_key_id, 2);
+    assert_eq!(restored.position, None);
+    Ok(())
+}
+
+/// Positioned tokens are not spent in a fixed order. Every device holds the
+/// same batch, and a fixed order has two devices spend the same token whenever
+/// both redeem before the broadcast of the first arrives.
+#[sqlx::test]
+async fn positioned_tokens_are_picked_at_random(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    let batch: Vec<Vec<u8>> = (0..16u16)
+        .map(|token_index| format!("token_{token_index}").into_bytes())
+        .collect();
+
+    let mut picked = BTreeSet::new();
+    for _ in 0..24 {
+        // A fresh copy of the batch, so the rows are in index order for
+        // every draw.
+        persistence::delete_all_tokens(db.write().await?, OPERATION_TYPE).await?;
+        store_batch_tokens(&db, OPERATION_TYPE, 3, &fingerprint, KAT_EPOCH, &batch).await?;
+
+        let consumed = consume_token(db.write().await?, OPERATION_TYPE)
+            .await?
+            .expect("no token stored");
+        let position = consumed.position.expect("a batch token has a position");
+        picked.insert(position.token_index);
+    }
+
+    // 24 draws from 16 tokens all land on one index with probability 16^-23.
+    assert!(picked.len() > 1, "picks must not follow a fixed order");
     Ok(())
 }
 
@@ -868,6 +1009,338 @@ async fn removed_key_discards_its_seed_and_batches(pool: SqlitePool) -> anyhow::
         persistence::batch_was_fetched(db.read().await?, OPERATION_TYPE, &surviving, KAT_EPOCH)
             .await?
     );
+
+    Ok(())
+}
+
+/// A redemption is held back for the broadcast delay, then goes out grouped
+/// per batch with ascending indices.
+#[sqlx::test]
+async fn a_redemption_is_broadcast_after_the_delay(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+
+    let now = Utc::now();
+    // Recorded out of order, to pin the ascending order of the message.
+    for token_index in [3, 1] {
+        mark_redeemed(db.write().await?, &position(&fingerprint, token_index)).await?;
+    }
+
+    assert!(
+        redeemed_tokens_to_broadcast(db.read().await?, now)
+            .await?
+            .is_empty(),
+        "a fresh redemption must not go out right away"
+    );
+
+    let due = now + REDEEMED_BROADCAST_MIN_DELAY + REDEEMED_BROADCAST_JITTER;
+    assert_eq!(
+        redeemed_tokens_to_broadcast(db.read().await?, due).await?,
+        vec![wire_redeemed(&fingerprint, vec![1, 3])]
+    );
+
+    Ok(())
+}
+
+/// An accepted message retires the broadcast it carried but keeps the record.
+/// A later redemption goes out on its own.
+#[sqlx::test]
+async fn completing_a_broadcast_retires_it(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    mark_redeemed(db.write().await?, &position(&fingerprint, 1)).await?;
+
+    let sent = pending_redeemed_broadcasts(db.read().await?).await?;
+    assert_eq!(sent, vec![wire_redeemed(&fingerprint, vec![1])]);
+    db.with_write_transaction(async |txn| retire_redeemed_broadcasts(txn, &sent).await)
+        .await?;
+
+    assert!(
+        pending_redeemed_broadcasts(db.read().await?)
+            .await?
+            .is_empty()
+    );
+    assert_eq!(
+        redeemed_tokens_snapshot(db.read().await?).await?,
+        vec![wire_redeemed(&fingerprint, vec![1])],
+        "the record must survive, so a re-fetched batch still skips the token"
+    );
+
+    mark_redeemed(db.write().await?, &position(&fingerprint, 2)).await?;
+    assert_eq!(
+        pending_redeemed_broadcasts(db.read().await?).await?,
+        vec![wire_redeemed(&fingerprint, vec![2])],
+        "only the new redemption has to go out"
+    );
+
+    Ok(())
+}
+
+/// A sibling's message deletes the tokens it names and records them. Applying
+/// it twice changes nothing, and nothing goes back out.
+#[sqlx::test]
+async fn an_incoming_message_deletes_the_tokens(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    store_three_tokens(&db, &fingerprint).await?;
+
+    let incoming = wire_redeemed(&fingerprint, vec![0, 2]);
+    for _ in 0..2 {
+        apply_redeemed(&db, &incoming).await?;
+
+        assert_eq!(
+            cached_tokens(db.read().await?, OPERATION_TYPE).await?,
+            vec![b"token_1".to_vec()]
+        );
+        assert_eq!(
+            redeemed_tokens_snapshot(db.read().await?).await?,
+            vec![incoming.clone()]
+        );
+        assert!(
+            pending_redeemed_broadcasts(db.read().await?)
+                .await?
+                .is_empty(),
+            "the sender knows already"
+        );
+    }
+
+    Ok(())
+}
+
+/// A sibling that publishes a position we still had to broadcast has told
+/// everyone already, so our own broadcast of it is retired.
+#[sqlx::test]
+async fn an_incoming_message_retires_our_pending_broadcast(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    for token_index in [1, 2] {
+        mark_redeemed(db.write().await?, &position(&fingerprint, token_index)).await?;
+    }
+
+    apply_redeemed(&db, &wire_redeemed(&fingerprint, vec![1])).await?;
+
+    assert_eq!(
+        pending_redeemed_broadcasts(db.read().await?).await?,
+        vec![wire_redeemed(&fingerprint, vec![2])]
+    );
+    assert_eq!(
+        redeemed_tokens_snapshot(db.read().await?).await?,
+        vec![wire_redeemed(&fingerprint, vec![1, 2])]
+    );
+
+    Ok(())
+}
+
+/// A batch fetched after a sibling spent from it leaves the spent positions
+/// out, rather than caching tokens the AS rejects.
+#[sqlx::test]
+async fn a_batch_skips_the_redeemed_indices(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    apply_redeemed(&db, &wire_redeemed(&fingerprint, vec![1])).await?;
+
+    store_three_tokens(&db, &fingerprint).await?;
+
+    assert_eq!(
+        cached_tokens(db.read().await?, OPERATION_TYPE).await?,
+        vec![b"token_0".to_vec(), b"token_2".to_vec()]
+    );
+
+    Ok(())
+}
+
+/// A malformed message is ignored. An absent tag decodes to zero bytes or an
+/// empty list, which is also what a newer sender's format would leave behind.
+#[sqlx::test]
+async fn a_malformed_incoming_message_is_ignored(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    let tokens = store_three_tokens(&db, &fingerprint).await?;
+
+    let malformed = [
+        wire_redeemed(&fingerprint, Vec::new()),
+        wire_redeemed(&[0u8; 32], vec![0]),
+        RedeemedTokens {
+            operation_type: OperationType::Unspecified,
+            ..wire_redeemed(&fingerprint, vec![0])
+        },
+    ];
+    for incoming in &malformed {
+        apply_redeemed(&db, incoming).await?;
+    }
+
+    assert_eq!(
+        cached_tokens(db.read().await?, OPERATION_TYPE).await?,
+        tokens
+    );
+    assert!(redeemed_tokens_snapshot(db.read().await?).await?.is_empty());
+
+    Ok(())
+}
+
+/// The provisioning snapshot carries every recorded redemption, pending or
+/// not. The joining device never caches those tokens and has nothing of its
+/// own to broadcast.
+#[sqlx::test]
+async fn provisioned_redeemed_tokens_are_adopted(pool: SqlitePool) -> anyhow::Result<()> {
+    let provisioner = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    for token_index in [0, 2] {
+        mark_redeemed(
+            provisioner.write().await?,
+            &position(&fingerprint, token_index),
+        )
+        .await?;
+    }
+
+    let snapshot = redeemed_tokens_snapshot(provisioner.read().await?).await?;
+    assert_eq!(snapshot, vec![wire_redeemed(&fingerprint, vec![0, 2])]);
+
+    let joiner = migrated_db().await?;
+    joiner
+        .with_write_transaction(async |txn| apply_redeemed_tokens(txn, &snapshot).await)
+        .await?;
+    assert_eq!(
+        redeemed_tokens_snapshot(joiner.read().await?).await?,
+        snapshot
+    );
+    assert!(
+        pending_redeemed_broadcasts(joiner.read().await?)
+            .await?
+            .is_empty(),
+        "the provisioner tells the siblings"
+    );
+
+    store_three_tokens(&joiner, &fingerprint).await?;
+    assert_eq!(
+        cached_tokens(joiner.read().await?, OPERATION_TYPE).await?,
+        vec![b"token_1".to_vec()],
+        "the first fetch must leave the spent positions out"
+    );
+
+    Ok(())
+}
+
+/// A key that disappears from the advertised set loses its redeemed records,
+/// while the surviving key keeps its own.
+#[sqlx::test]
+async fn removed_key_discards_its_redeemed_records(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+
+    let removed_key = voprf_public_key(1);
+    let surviving_key = voprf_public_key(2);
+    let removed = fingerprint_of(&removed_key);
+    let surviving = fingerprint_of(&surviving_key);
+
+    store_keys(
+        &db,
+        &[
+            advertised_key(&removed_key, false),
+            advertised_key(&surviving_key, true),
+        ],
+    )
+    .await?;
+    for fingerprint in [&removed, &surviving] {
+        mark_redeemed(db.write().await?, &position(fingerprint, 0)).await?;
+    }
+
+    store_keys(&db, &[advertised_key(&surviving_key, true)]).await?;
+
+    assert_eq!(
+        redeemed_tokens_snapshot(db.read().await?).await?,
+        vec![wire_redeemed(&surviving, vec![0])]
+    );
+
+    Ok(())
+}
+
+/// Burning a token by id records its position, unless it has none.
+#[sqlx::test]
+async fn burning_a_token_records_its_position(pool: SqlitePool) -> anyhow::Result<()> {
+    let db = DbAccess::for_tests(pool);
+    let fingerprint = fingerprint_of(&voprf_public_key(7));
+    persistence::store_token(db.write().await?, OPERATION_TYPE, 1, b"metered").await?;
+    store_three_tokens(&db, &fingerprint).await?;
+
+    let mut ids = persistence::load_token_ids(db.read().await?, OPERATION_TYPE).await?;
+    ids.sort_by_key(|id| id.id);
+    let metered = &ids[0];
+    let tagged = &ids[2];
+
+    db.with_write_transaction(async |txn| burn_token(txn, metered).await)
+        .await?;
+    assert!(
+        pending_redeemed_broadcasts(db.read().await?)
+            .await?
+            .is_empty(),
+        "a metered token has no position to tell"
+    );
+
+    db.with_write_transaction(async |txn| burn_token(txn, tagged).await)
+        .await?;
+    assert_eq!(
+        pending_redeemed_broadcasts(db.read().await?).await?,
+        vec![wire_redeemed(&fingerprint, vec![1])]
+    );
+    assert_eq!(
+        cached_tokens(db.read().await?, OPERATION_TYPE).await?,
+        vec![b"token_0".to_vec(), b"token_2".to_vec()]
+    );
+
+    Ok(())
+}
+
+/// Positions are grouped per batch, ordered, and freed of duplicates.
+#[test]
+fn group_positions_groups_per_batch() {
+    let first = [0x11; 32];
+    let second = [0x22; 32];
+    let invites = TokenPosition {
+        operation_type: OperationType::GetInviteCode,
+        key_fingerprint: first,
+        allowance_epoch: KAT_EPOCH,
+        token_index: 0,
+    };
+
+    let grouped = group_positions(vec![
+        position(&second, 4),
+        invites,
+        position(&first, 3),
+        position(&first, 1),
+        position(&first, 3),
+    ]);
+
+    assert_eq!(
+        grouped,
+        vec![
+            wire_redeemed(&first, vec![1, 3]),
+            wire_redeemed(&second, vec![4]),
+            RedeemedTokens {
+                operation_type: OperationType::GetInviteCode,
+                key_fingerprint: first,
+                allowance_epoch: KAT_EPOCH,
+                token_indices: vec![0],
+            },
+        ]
+    );
+}
+
+/// Redeemed positions survive the trip through the self-group message that
+/// carries them, and that message is never shown or notified.
+#[test]
+fn redeemed_tokens_survive_the_message_encoding() -> anyhow::Result<()> {
+    let sent = wire_redeemed(&[0x11; 32], vec![1, 3]);
+    let content = SelfGroupAppMessage::RedeemedTokens(sent.clone()).to_mimi_content()?;
+
+    assert_eq!(
+        content.self_group_message(),
+        Some(SelfGroupAppMessage::RedeemedTokens(sent))
+    );
+    assert!(suppress_notifications(&content));
+
+    let note = MimiContent::simple_markdown_message("a note to self".to_owned(), [0; 16]);
+    assert!(note.self_group_message().is_none());
+    assert!(!suppress_notifications(&note));
 
     Ok(())
 }

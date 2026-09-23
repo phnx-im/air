@@ -7,10 +7,7 @@ use aircommon::{
     messages::connection_package::ConnectionPackageHash,
     mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
 };
-use airprotos::{
-    auth_service::v1::OperationType,
-    client::{app_data::GroupAppData, group::GroupData},
-};
+use airprotos::{auth_service::v1::OperationType, client::app_data::GroupAppData};
 use anyhow::bail;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -19,8 +16,7 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatAttributes, ChatId,
-    chats::{GroupDataExt, GroupDataProfilePart},
+    Chat, ChatId,
     db::access::WriteConnection,
     groups::{Group, vc_epoch_retention::sweep_vc_derivation_epochs},
     job::{
@@ -128,6 +124,7 @@ impl TimedTaskKind {
                 OperationType::Unspecified => Duration::MAX,
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
+                OperationType::ConnectUsername => Duration::minutes(5),
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
         }
@@ -376,13 +373,13 @@ impl OutboundServiceContext {
         if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for username_record in usernames {
-                let token = match privacy_pass::consume_token(
+                let consumed = match privacy_pass::consume_token(
                     self.db.write().await?,
                     OperationType::AddUsername,
                 )
                 .await
                 {
-                    Ok(Some(t)) => t,
+                    Ok(Some(consumed)) => consumed,
                     Ok(None) => {
                         info!("skipping username refresh: no tokens available");
                         break;
@@ -394,7 +391,11 @@ impl OutboundServiceContext {
                 };
                 info!("refreshing username");
                 let result = api_client
-                    .as_refresh_username(username_record.hash, &username_record.signing_key, token)
+                    .as_refresh_username(
+                        username_record.hash,
+                        &username_record.signing_key,
+                        consumed.token,
+                    )
                     .await;
 
                 if let Err(e) = &result {
@@ -417,12 +418,17 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UsernameRecord::update_refreshed_at(
-                    self.db.write().await?,
-                    &username_record.hash,
-                    now,
-                )
-                .await?;
+                // The redemption and the refresh should be atomic
+                self.db
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        if let Some(position) = &consumed.position {
+                            privacy_pass::mark_redeemed(&mut *txn, position).await?;
+                        }
+                        UsernameRecord::update_refreshed_at(&mut *txn, &username_record.hash, now)
+                            .await?;
+                        Ok(())
+                    })
+                    .await?;
             }
         }
 
@@ -534,7 +540,7 @@ impl OutboundServiceContext {
     ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
-        let (mut group, is_connection, erase_attributes, pq_due) = {
+        let (mut group, pq_due) = {
             let mut read = self
                 .db
                 .read()
@@ -607,33 +613,8 @@ impl OutboundServiceContext {
                 Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 
-            let chat = match Chat::load(&mut read_txn, &chat_id).await {
-                Ok(Some(chat)) => chat,
-                Ok(None) => {
-                    debug!(
-                        ?chat_id,
-                        "Skipping self-update in chat because chat is not found"
-                    );
-                    return Ok(SelfUpdateOutcome::Skipped);
-                }
-                Err(error) => return Err(OutboundServiceError::fatal(error)),
-            };
-
-            // For connection chats, that support empty connection group titles, we can erase the data.
-            let is_connection = chat.is_connection();
-            let erase_attributes = if is_connection {
-                group.members_app_data().all(|app_data| {
-                    app_data
-                        .is_some_and(|app_data| app_data.features.empty_connection_group_attributes)
-                })
-            } else {
-                false
-            };
-
-            (group, is_connection, erase_attributes, pq_due)
+            (group, pq_due)
         };
-
-        let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
 
         // The periodic self-update of the emulation group, i.e. the self group,
         // doubles as the rotation of its derivation epoch. openmls rejects the
@@ -663,12 +644,7 @@ impl OutboundServiceContext {
             DerivationEpoch::Keep
         };
 
-        let job = if migration_attrs.is_some() {
-            // Migration takes precedence over PQ self-update (PQ interval is long, so this is
-            // fine).
-            info!(%chat_id, "Migrating legacy group data");
-            ChatOperation::update(chat_id, migration_attrs, derivation_epoch)
-        } else if pq_due {
+        let job = if pq_due {
             // Both T and PQ are due and no migration is needed, so the joint APQ update covers
             // both.
             info!(%chat_id, "Performing joint APQ self-update");
@@ -810,44 +786,6 @@ enum SelfUpdateOutcome {
     Updated,
     /// The update does not apply to this chat right now.
     Skipped,
-}
-
-/// Migrates the group data from the legacy format to the new format.
-///
-/// The legacy format is the format where title and picture were stored in the group data verbatim.
-///
-/// If this is a connection chat and it supports empty connection group titles, the data is erased.
-fn legacy_group_data_migration(
-    group: &Group,
-    is_connection: bool,
-    erase_attributes: bool,
-) -> Option<ChatAttributes> {
-    if is_connection && !erase_attributes {
-        // No migration is done for connection chats that don't need to erase data.
-        return None;
-    }
-
-    let group_data_bytes = group.group_data()?;
-    let group_data = GroupData::decode(&group_data_bytes).ok()?;
-
-    if erase_attributes {
-        // Erase the group data if it is not empty
-        return (!group_data.is_empty()).then(ChatAttributes::empty);
-    }
-
-    let has_encrypted_title = group_data.encrypted_title.is_some();
-    let (title, profile) = group_data.into_parts(group.identity_link_wrapper_key());
-
-    let Some(title) = title else {
-        return None; // Ignore groups without title
-    };
-
-    let legacy_picture = match profile {
-        Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
-        _ if has_encrypted_title => return None, // Already migrated
-        _ => None,
-    };
-    Some(ChatAttributes::new(title, legacy_picture))
 }
 
 #[cfg(test)]

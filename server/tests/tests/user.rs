@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{assert_matches, collections::HashMap, fs};
+use std::{
+    assert_matches,
+    collections::{BTreeSet, HashMap},
+    fs,
+};
 
 use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Username;
@@ -11,6 +15,7 @@ use aircoreclient::{
     SystemMessage, UserProfile,
     clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
+use airprotos::auth_service::v1::OperationType;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
 use rand::RngExt;
@@ -166,10 +171,35 @@ async fn error_if_user_doesnt_exist() {
 
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
+    let tokens_before: BTreeSet<_> = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap()
+        .into_iter()
+        .collect();
 
-    let res = alice_user.add_contact(username, hash).await.unwrap();
+    let res = alice_user
+        .add_contact(username, hash, setup.apq_groups)
+        .await
+        .unwrap();
 
     assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
+
+    // The AS did not redeem the token, so the request costs nothing.
+    let tokens_after: BTreeSet<_> = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap()
+        .into_iter()
+        .collect();
+    assert_eq!(tokens_after, tokens_before);
+    assert!(
+        alice_user
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -282,7 +312,11 @@ async fn blocked_contact() {
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     bob_test_user
         .user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(
+            alice_username.clone(),
+            alice_username_hash,
+            setup.apq_groups,
+        )
         .await
         .expect("fatal error")
         .expect("non-fatal error");
@@ -380,13 +414,14 @@ async fn username_sanity_checks() {
     let bob_username = username_record.username.clone();
     let bob_username_hash = bob_username.calculate_hash().unwrap();
 
+    let apq_groups = setup.apq_groups;
     let alice = setup.get_user_mut(&alice);
     let username_record = alice.add_username().await.unwrap();
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     let alice_user = &alice.user;
     let res = alice_user
-        .add_contact(alice_username.clone(), alice_username_hash)
+        .add_contact(alice_username.clone(), alice_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -397,12 +432,12 @@ async fn username_sanity_checks() {
 
     // Try to add Bob twice
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
     let res = alice_user
-        .add_contact(bob_username.clone(), bob_username_hash)
+        .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(
@@ -524,6 +559,7 @@ async fn add_contact_and_change_profile() {
         .add_contact(
             alice_username_record.username.clone(),
             alice_username_record.hash,
+            setup.apq_groups,
         )
         .await
         .expect("fatal error")

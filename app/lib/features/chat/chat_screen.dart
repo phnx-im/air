@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_composer.dart';
@@ -305,17 +306,31 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final developerMode = context.select(
+      (UserSettingsCubit cubit) => cubit.state.developerMode,
+    );
     final (chatId, title, hasDetails) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
       // Currently, only confirmed chats have a chat details page.
+      // The self-chat for multi-device is also excluded.
       final hasDetails = switch (chat?.chatType) {
-        UiChatType_Group() || UiChatType_Connection() => true,
+        UiChatType_Group() ||
+        UiChatType_Connection() => !(chat?.isSelfChat ?? false),
         _ => false,
       };
-      return (chat?.id, chat?.title, hasDetails);
+
+      return (chat?.id, chat?.title(loc), hasDetails);
     });
+
+    VoidCallback? onTap;
+    if (hasDetails) {
+      onTap = () => context.read<NavigationCubit>().openChatDetails();
+    } else if (developerMode) {
+      onTap = () => showChatDebugInfo(context);
+    }
 
     final tokens = ChatHeaderBarTokens.current;
     return SafeArea(
@@ -324,9 +339,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         tokens: tokens,
         name: title ?? "",
         avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
-        onTap: hasDetails
-            ? () => context.read<NavigationCubit>().openChatDetails()
-            : null,
+        onTap: onTap,
         onBack: context.breakpoint.isSmall ? () => _back(context) : null,
       ),
     );

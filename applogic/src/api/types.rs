@@ -103,6 +103,7 @@ pub struct UiChatDetails {
     pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
+    pub is_self_chat: bool,
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
     pub resync_failed: bool,
@@ -581,6 +582,8 @@ pub enum UiSystemMessage {
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
     Onboarded,
+    DeviceLinked(Uuid),
+    DeviceUnlinked(Uuid),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -633,6 +636,8 @@ impl From<SystemMessage> for UiSystemMessage {
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
+            SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
+            SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
         }
     }
 }
@@ -687,6 +692,7 @@ pub enum _AddUsernameContactError {
     UsernameNotFound,
     DuplicateRequest,
     OwnUsername,
+    RateLimited,
 }
 
 /// Profile of a user
@@ -833,4 +839,5 @@ struct _AirFeatures {
     pub encrypted_group_profiles: bool,
     pub empty_connection_group_attributes: bool,
     pub pq_groups: bool,
+    pub apq_connection_groups: bool,
 }

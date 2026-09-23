@@ -574,7 +574,6 @@ impl Resync {
 
         let chat = Chat::new_pending_group_chat(group.group_id().clone(), attributes);
         chat.store(&mut *txn).await?;
-
         Ok(chat.id())
     }
 
@@ -656,7 +655,7 @@ impl Resync {
         let aad = AadPayload::Resync.into();
         let (group, commit, member_profile_infos) = if self.pq_group_id.is_some() {
             // APQ group
-            let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
+            let (group, bundle, member_profile_infos) = Box::pin(Group::join_apq_group_externally(
                 txn,
                 api_clients,
                 external_commit_info,
@@ -666,7 +665,8 @@ impl Resync {
                 self.identity_link_wrapper_key,
                 aad,
                 vc_group_id,
-            )
+                None,
+            ))
             .await??;
             (
                 group,
@@ -687,8 +687,7 @@ impl Resync {
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
-                None, // This is not in response to a connection offer.
-                None, // A resync joins a group we are already a member of.
+                None,
                 vc_group_id,
             )
             .await??;

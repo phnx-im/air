@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::credentials::keys::SelfGroupSigningKey;
-use airprotos::client::self_group::SettingsUpdate;
+use airprotos::client::self_group::{BlockedContactsUpdate, SelfGroupMessage, SettingsUpdate};
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
@@ -11,6 +11,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
+    chats::deleted,
     clients::{
         block_contact::pending,
         own_client_info::OwnClientInfo,
@@ -37,17 +38,13 @@ impl OutboundServiceContext {
 
             // Turn pending self-group state into a commit when the self-group
             // is free. Runs every iteration: when an operation completes with
-            // work left pending (the user re-toggled a setting while the commit
-            // was in flight, or only one of the two kinds got a turn), the next
-            // iteration issues a fresh commit.
-            if let Err(error) = self.ensure_settings_operation().await {
-                error!(%error, "Failed to stage pending setting changes");
+            // work left parked (the user re-toggled a setting while the commit
+            // was in flight), the next iteration issues a fresh commit.
+            if let Err(error) = self.ensure_self_group_messages_operation().await {
+                error!(%error, "Failed to stage the parked self-group messages");
             }
             if let Err(error) = self.ensure_token_seed_operation().await {
                 error!(%error, "Failed to stage pending token seeds");
-            }
-            if let Err(error) = self.ensure_blocked_contacts_operation().await {
-                error!(%error, "Failed to stage parked blocked-contact changes");
             }
 
             let now = chrono::Utc::now();
@@ -85,26 +82,28 @@ impl OutboundServiceContext {
         }
     }
 
-    /// Stages a self-group commit for the pending [`SettingChanges`], if any.
+    /// Stages one self-group commit for everything parked in the outbox.
     ///
-    /// The commit carries the full current settings state and is stored as a
-    /// [`PendingChatOperation`], the send attempt behind the pending changes.
-    async fn ensure_settings_operation(&self) -> anyhow::Result<()> {
+    /// All kinds travel in the same commit, so a setting change and a block
+    /// parked together reach the siblings in one round trip instead of taking
+    /// turns at the self-group's single operation slot.
+    async fn ensure_self_group_messages_operation(&self) -> anyhow::Result<()> {
         let Some((self_group_id, signer)) = self.self_group_signer().await? else {
             return Ok(());
         };
 
         self.db
             .with_write_transaction(async |txn| {
-                if SettingChanges::load(&mut *txn).await?.is_none() {
+                let messages = drain_outbox(txn).await?;
+                if messages.is_empty() {
                     return Ok(());
                 }
                 let Some(group) = free_self_group(txn, &self_group_id).await? else {
                     return Ok(());
                 };
 
-                let update = SettingsUpdate::collect(&mut *txn).await?;
-                PendingChatOperation::create_settings_update(txn, &signer, group, update).await?;
+                PendingChatOperation::create_self_group_messages(txn, &signer, group, messages)
+                    .await?;
                 Ok(())
             })
             .await
@@ -138,29 +137,6 @@ impl OutboundServiceContext {
             .await
     }
 
-    /// Stages a self-group commit for the pending blocked-contact changes.
-    async fn ensure_blocked_contacts_operation(&self) -> anyhow::Result<()> {
-        let Some((self_group_id, signer)) = self.self_group_signer().await? else {
-            return Ok(());
-        };
-
-        self.db
-            .with_write_transaction(async |txn| {
-                let contacts = pending::entries_to_broadcast(&mut *txn).await?;
-                if contacts.is_empty() {
-                    return Ok(());
-                }
-                let Some(group) = free_self_group(txn, &self_group_id).await? else {
-                    return Ok(());
-                };
-
-                PendingChatOperation::create_blocked_contacts_update(txn, &signer, group, contacts)
-                    .await?;
-                Ok(())
-            })
-            .await
-    }
-
     /// The self group and the per-device key its commits are signed with.
     async fn self_group_signer(&self) -> anyhow::Result<Option<(GroupId, SelfGroupSigningKey)>> {
         let info = OwnClientInfo::load(self.db.read().await?).await?;
@@ -172,6 +148,33 @@ impl OutboundServiceContext {
         };
         Ok(Some((self_group_id, signer)))
     }
+}
+
+/// The parked changes, as the messages one commit carries.
+async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<SelfGroupMessage>> {
+    let mut messages = Vec::new();
+
+    if SettingChanges::has_pending(&mut *txn).await? {
+        messages.push(SelfGroupMessage::SettingsUpdate(
+            SettingsUpdate::collect(&mut *txn).await?,
+        ));
+    }
+
+    let contacts = pending::staged_entries(&mut *txn).await?;
+    if !contacts.is_empty() {
+        messages.push(SelfGroupMessage::BlockedContactsUpdate(
+            BlockedContactsUpdate { contacts },
+        ));
+    }
+
+    messages.extend(
+        deleted::staged(&mut *txn)
+            .await?
+            .into_iter()
+            .map(SelfGroupMessage::DeletedChat),
+    );
+
+    Ok(messages)
 }
 
 /// The self group, if a commit can be staged on it right now.

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO privacy_pass_redeemed (\n            operation_type, key_fingerprint, allowance_epoch, token_index, broadcast_after\n        )\n        VALUES (?, ?, ?, ?, NULL)\n        ON CONFLICT (operation_type, key_fingerprint, allowance_epoch, token_index)\n        DO UPDATE SET broadcast_after = NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "c1ebce1285d4cee54a0e314095068a20091a29ee8fb0723cc90d95af4681954e"
+}

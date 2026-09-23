@@ -142,7 +142,7 @@ void main() {
                       .primary,
                   child: BlocProvider<LinkedDevicesCubit>.value(
                     value: cubit,
-                    child: const LinkedDevicesView(),
+                    child: const LinkedDevicesSection(),
                   ),
                 ),
               ),
