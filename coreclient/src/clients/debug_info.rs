@@ -26,6 +26,7 @@ pub struct UserDebugInfo {
     pub timed_tasks: Vec<TimedTaskDebugInfo>,
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
+    pub connect_username_token_count: u32,
 }
 
 impl CoreUser {
@@ -62,12 +63,18 @@ impl CoreUser {
         let invitation_code_token_count =
             privacy_pass::persistence::token_count(db.read().await?, OperationType::GetInviteCode)
                 .await? as u32;
+        let connect_username_token_count = privacy_pass::persistence::token_count(
+            db.read().await?,
+            OperationType::ConnectUsername,
+        )
+        .await? as u32;
 
         Ok(UserDebugInfo {
             user_id,
             timed_tasks,
             add_username_token_count,
             invitation_code_token_count,
+            connect_username_token_count,
         })
     }
 
@@ -97,6 +104,7 @@ impl TimedTaskKind {
                 OperationType::Unspecified => "Unknown",
                 OperationType::AddUsername => "Token Replenishment (Add Username)",
                 OperationType::GetInviteCode => "Token Replenishment (Invite Code)",
+                OperationType::ConnectUsername => "Token Replenishment (Connect Username)",
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => {
                 "Signed Connection Package Upload"

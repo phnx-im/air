@@ -4,13 +4,17 @@
 
 use std::time::Duration;
 
-use airapiclient::ApiClient;
+use airapiclient::{ApiClient, as_api::AsRequestError};
 use aircommon::{
     identifiers::{UserId, UsernameHash},
+    messages::client_as::SerializedToken,
     time::TimeStamp,
 };
 use aircoreclient::{ChatId, EventMessage, Message, SystemMessage};
-use airprotos::client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn};
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
+};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{TimeZone, Utc};
 use tokio::task::spawn_blocking;
@@ -26,6 +30,58 @@ async fn connect_users_via_user_handle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "A connection request spends a token", skip_all)]
+async fn connection_request_spends_a_token() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+
+    let alice_user = setup.get_user(&alice).user().clone();
+    let before = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap();
+    assert_eq!(
+        before.len(),
+        usize::from(OperationType::ConnectUsername.max_tokens_allowance()),
+        "registration fetches the full batch"
+    );
+
+    setup.connect_users(&alice, &bob).await;
+
+    let after = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap();
+    assert_eq!(after.len(), before.len() - 1, "the request spent one token");
+    let spent = before
+        .iter()
+        .find(|token| !after.contains(token))
+        .cloned()
+        .unwrap();
+
+    // The redemption is recorded for the siblings.
+    let pending = alice_user
+        .pending_redeemed_token_broadcasts()
+        .await
+        .unwrap();
+    assert_eq!(pending.len(), 1, "one batch has a redemption to broadcast");
+    assert_eq!(pending[0].operation_type, OperationType::ConnectUsername);
+    assert_eq!(pending[0].token_indices.len(), 1);
+
+    // The AS does not take the same token twice.
+    let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
+    let result = client
+        .as_connect_username(record.hash, Some(SerializedToken::new(spent)))
+        .await;
+    let Err(AsRequestError::Tonic(status)) = result else {
+        panic!("a spent token must be rejected with a status");
+    };
+    assert_eq!(status.code(), tonic::Code::Unauthenticated);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users via signed connection package", skip_all)]
 async fn connect_users_via_user_handle_uses_signed_package() {
     let mut setup = TestBackend::single().await;
@@ -37,7 +93,7 @@ async fn connect_users_via_user_handle_uses_signed_package() {
     // A new client asks for a signed package and gets one, carrying the
     // owner's features.
     let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
-    let (package, _responder) = client.as_connect_username(record.hash).await.unwrap();
+    let (package, _responder) = client.as_connect_username(record.hash, None).await.unwrap();
     assert!(matches!(package, AnyConnectionPackageIn::Signed(_)));
     let package = package.verify(&record.hash).unwrap();
     let AnyConnectionPackage::Signed(package) = package else {
@@ -54,7 +110,7 @@ async fn fetch_connection_package(
     client: &ApiClient,
     hash: UsernameHash,
 ) -> anyhow::Result<AnyConnectionPackage> {
-    let (package, _responder) = client.as_connect_username(hash).await?;
+    let (package, _responder) = client.as_connect_username(hash, None).await?;
     Ok(package.verify(&hash)?)
 }
 

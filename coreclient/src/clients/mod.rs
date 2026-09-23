@@ -106,6 +106,7 @@ mod reactions;
 pub mod registration;
 mod remove_users;
 pub(crate) mod safety_code;
+pub(crate) mod self_group_outbox;
 pub mod store;
 pub mod targeted_message;
 #[cfg(any(feature = "test_utils", test))]

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_redeemed\n         WHERE operation_type = ? AND key_fingerprint = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e12888f0c2ba39dd1989ed853597949aa642973c5d647657d04c17e2becb35a5"
+}

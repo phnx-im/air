@@ -692,6 +692,7 @@ pub enum _AddUsernameContactError {
     UsernameNotFound,
     DuplicateRequest,
     OwnUsername,
+    RateLimited,
 }
 
 /// Profile of a user

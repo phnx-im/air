@@ -32,7 +32,7 @@ use crate::{
     },
 };
 
-use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};
+use super::{OutboundService, OutboundServiceContext, SendOutcome, receipt_queue::ReceiptQueue};
 
 impl OutboundService {
     pub async fn enqueue_receipts<'a>(
@@ -304,6 +304,46 @@ impl OutboundServiceContext {
                 Ok(())
             })
             .await
+    }
+
+    /// Sends an application message to the chat's group and confirms it once
+    /// the DS accepted it.
+    pub(super) async fn send_application_message(
+        &self,
+        chat: &Chat,
+        content: MimiContent,
+    ) -> anyhow::Result<SendOutcome> {
+        let (group_state_ear_key, params, signer) =
+            self.new_mls_message(chat, content, None).await?;
+        let epoch = params.epoch;
+        let sent_tags = params.collision_tags.clone();
+        let generation = params.generation;
+
+        if let Err(ds_error) = self
+            .api_clients
+            .get(&chat.owner_domain())?
+            .ds_send_message(params, &signer, &group_state_ear_key)
+            .await
+        {
+            if ds_error.is_not_found() {
+                self.db
+                    .with_write_transaction(async |txn| {
+                        handle_group_not_found_on_ds(txn, chat.group_id()).await
+                    })
+                    .await?;
+                return Err(ds_error.into());
+            }
+            if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
+                return Ok(SendOutcome::Collided);
+            }
+            return Err(ds_error.into());
+        }
+
+        self.confirm_mls_message(chat, epoch, generation)
+            .await
+            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
+            .ok();
+        Ok(SendOutcome::Sent)
     }
 }
 

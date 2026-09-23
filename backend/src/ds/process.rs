@@ -152,27 +152,10 @@ use mls_assist::{
     MlsAssistRustCrypto,
     openmls::{prelude::group_info::GroupInfo, treesync::RatchetTree},
 };
-use uuid::Uuid;
 
-use aircommon::{
-    codec::PersistenceCodec, crypto::aead::keys::EncryptedUserProfileKey,
-    identifiers::QualifiedGroupId,
-};
-
-use super::Ds;
+use aircommon::{codec::PersistenceCodec, crypto::aead::keys::EncryptedUserProfileKey};
 
 pub(super) type Provider = MlsAssistRustCrypto<PersistenceCodec>;
-
-impl Ds {
-    pub(crate) async fn request_group_id(&self) -> QualifiedGroupId {
-        // Generate UUIDs until we find one that is not yet reserved.
-        let mut group_uuid = Uuid::new_v4();
-        while !self.reserve_group_id(group_uuid).await {
-            group_uuid = Uuid::new_v4();
-        }
-        QualifiedGroupId::new(group_uuid, self.own_domain.clone())
-    }
-}
 
 #[derive(Debug)]
 pub struct ExternalCommitInfo {
