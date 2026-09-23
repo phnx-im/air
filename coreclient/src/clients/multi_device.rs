@@ -40,10 +40,10 @@ use openmls::{
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
-use tls_codec::{Deserialize, DeserializeBytes, Serialize as _};
+use tls_codec::{Deserialize as _, DeserializeBytes, Serialize as _};
 use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
@@ -80,42 +80,42 @@ const EXPORTER_LABEL: &str = "multi-device-linking";
 /// Everything the old (existing) device hands to the new device over the
 /// secure linking channel so the new device can bootstrap a working
 /// [`CoreUser`] and join the user's self group.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct ProvisioningPackage {
-    // Identity + AS user credential (shared across devices for the MVP).
-    pub(crate) user_id: UserId,
+    /// Identity + AS user credential (shared across devices for the MVP).
+    ///
+    /// Contains the user id.
     pub(crate) user_signing_key: UserSigningKey,
-    // User-level QS key material (shared by all of the user's devices).
+    /// User-level QS key material (shared by all of the user's devices).
     pub(crate) qs_user_id: QsUserId,
     pub(crate) qs_user_signing_key: QsUserSigningKey,
     pub(crate) friendship_token: FriendshipToken,
     pub(crate) push_token_ear_key: PushTokenEarKey,
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
     pub(crate) qs_client_id_encryption_key: ClientIdEncryptionKey,
-    // Freshly created queue for the new device (created by the old device).
+    /// Freshly created queue for the new device (created by the old device).
     pub(crate) qs_client_id: QsClientId,
     pub(crate) qs_client_signing_key: QsClientSigningKey,
     pub(crate) qs_queue_decryption_key: RatchetDecryptionKey,
     pub(crate) qs_initial_ratchet_secret: RatchetSecret,
-    // User profile.
+    /// User profile
     pub(crate) user_profile_key: UserProfileKey,
-    // Self-group metadata not carried by the Welcome.
+    /// Self-group metadata not carried by the Welcome.
     pub(crate) self_group_id: GroupId,
-    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
-    // Synced user settings snapshot so the new device starts with the
-    // provisioner's values.
+    /// Synced user settings snapshot so the new device starts with the
+    /// provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
-    // The agreed Privacy Pass token seeds, so the new device derives the same
-    // token requests as its sibling instead of running an agreement round for a
-    // key whose allowance epoch the sibling has already locked.
+    /// The agreed Privacy Pass token seeds, so the new device derives the same
+    /// token requests as its sibling instead of running an agreement round for a
+    /// key whose allowance epoch the sibling has already locked.
     pub(crate) token_seeds: Vec<TokenSeed>,
-    // Contacts blocked so far.
+    /// Contacts blocked so far.
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
-    // The name the confirming user gave this device. Empty means "no choice
-    // made", and the new device falls back to its own platform label.
+    /// The name the confirming user gave this device. Empty means "no choice
+    /// made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
-    // The higher-level groups the virtual client is already a member of, which
-    // the new emulator client onboards itself into.
+    /// The higher-level groups the virtual client is already a member of, which
+    /// the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
 }
 
@@ -126,13 +126,13 @@ pub(crate) struct ProvisioningPackage {
 /// settings commit of its own would advance the self-group epoch behind the back
 /// of the device performing the add, breaking the next link with a wrong-epoch
 /// rejection.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct SelfGroupJoinRequest {
     pub(crate) key_package: ApqKeyPackage,
     pub(crate) device: LinkedDevice,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct HigherLevelGroup {
     pub(crate) group_id: GroupId,
     pub(crate) pq_group_id: Option<GroupId>,
@@ -143,7 +143,7 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) connection: Option<ConnectionContact>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ConnectionContact {
     pub(crate) user_id: UserId,
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
@@ -477,7 +477,6 @@ impl CoreUser {
 
         let self_group = Box::pin(self.ensure_self_group()).await?;
         let self_group_id = self_group.group_id().clone();
-        let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
 
         // Generate a fresh queue for the new device and register it under our
         // virtual client (QsUserId) at the QS.
@@ -512,7 +511,6 @@ impl CoreUser {
         let blocked_contacts = blocked_contacts_snapshot(self.db().read().await?).await?;
 
         Ok(ProvisioningPackage {
-            user_id: self.user_id().clone(),
             user_signing_key: key_store.signing_key.clone(),
             qs_user_id,
             qs_user_signing_key: key_store.qs_user_signing_key.clone(),
@@ -526,7 +524,6 @@ impl CoreUser {
             qs_initial_ratchet_secret,
             user_profile_key,
             self_group_id,
-            identity_link_wrapper_key,
             synced_settings,
             token_seeds,
             blocked_contacts,
@@ -797,7 +794,6 @@ impl CoreUser {
         let global_lock = open_lock_file(db_path)?;
 
         let ProvisioningPackage {
-            user_id,
             user_signing_key,
             qs_user_id,
             qs_user_signing_key,
@@ -811,7 +807,6 @@ impl CoreUser {
             qs_initial_ratchet_secret,
             user_profile_key,
             self_group_id,
-            identity_link_wrapper_key: _,
             synced_settings,
             token_seeds,
             blocked_contacts,
@@ -832,6 +827,7 @@ impl CoreUser {
         };
 
         // Each linked device mints its own client id and a per-device self-group signing key.
+        let user_id = key_store.signing_key.credential().user_id().clone();
         let client_id = Uuid::new_v4();
         let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
 
@@ -947,13 +943,11 @@ mod tests {
             qs_initial_ratchet_secret: RatchetSecret::random()?,
             user_profile_key: UserProfileKey::random(&user_id)?,
             self_group_id,
-            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
             token_seeds,
             blocked_contacts,
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
-            user_id,
         })
     }
 
@@ -979,7 +973,7 @@ mod tests {
             seeds.clone(),
             blocked_contacts.clone(),
         )?;
-        let user_id = package.user_id.clone();
+        let user_id = package.user_signing_key.credential().user_id().clone();
 
         let key = MultiDeviceLinkingKey::random()?;
         let frame = LinkingMessage::seal(package, &key)?;
@@ -994,7 +988,7 @@ mod tests {
         );
         assert_eq!(decoded.token_seeds, seeds);
         assert_eq!(decoded.blocked_contacts, blocked_contacts);
-        assert_eq!(decoded.user_id, user_id);
+        assert_eq!(decoded.user_signing_key.credential().user_id(), &user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");
 

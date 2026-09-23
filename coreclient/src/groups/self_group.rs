@@ -115,10 +115,6 @@ impl SelfGroup {
             .collect()
     }
 
-    pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
-        self.group.identity_link_wrapper_key()
-    }
-
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
     /// SafeAAD.
     ///
