@@ -9,7 +9,9 @@
 
 namespace {
 
-// Minimum size of the Flutter view in logical pixels.
+// Minimum size of the Flutter view in logical pixels. The width stays above
+// Breakpoint.smallMaxWidth in Dart, so the smallest window still gets the
+// two-pane layout at an interface scale of 1.
 constexpr int kMinContentWidth = 768;
 constexpr int kMinContentHeight = 512;
 

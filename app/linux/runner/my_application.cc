@@ -20,13 +20,22 @@ struct _MyApplication
   // Last size of the window while it was neither maximized nor fullscreen.
   gint window_width;
   gint window_height;
+  gboolean window_maximized;
+  // Pending save of the window state, 0 when there is none.
+  guint save_source_id;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 static const char kWindowStateGroup[] = "Window";
 
-// Minimum size of the Flutter view in logical pixels.
+// Resizing reports a new size on every frame, so we write the state once the
+// window has settled.
+static const guint kSaveDelayMs = 500;
+
+// Minimum size of the Flutter view in logical pixels. The width stays above
+// Breakpoint.smallMaxWidth in Dart, so the smallest window still gets the
+// two-pane layout at an interface scale of 1.
 static const gint kMinContentWidth = 768;
 static const gint kMinContentHeight = 512;
 
@@ -68,6 +77,7 @@ static void restore_window_state(MyApplication *self, GtkWindow *window)
 
   self->window_width = width;
   self->window_height = height;
+  self->window_maximized = maximized;
   gtk_window_set_default_size(window, width, height);
   if (maximized)
   {
@@ -84,7 +94,7 @@ static gboolean is_maximized_or_fullscreen(GtkWindow *window)
   return fullscreen || gtk_window_is_maximized(window);
 }
 
-static void save_window_state(MyApplication *self, GtkWindow *window)
+static void save_window_state(MyApplication *self)
 {
   g_autoptr(GKeyFile) key_file = g_key_file_new();
   g_key_file_set_integer(key_file, kWindowStateGroup, "width",
@@ -92,7 +102,7 @@ static void save_window_state(MyApplication *self, GtkWindow *window)
   g_key_file_set_integer(key_file, kWindowStateGroup, "height",
                          self->window_height);
   g_key_file_set_boolean(key_file, kWindowStateGroup, "maximized",
-                         gtk_window_is_maximized(window));
+                         self->window_maximized);
 
   g_autofree gchar *path = window_state_path();
   g_autofree gchar *dir = g_path_get_dirname(path);
@@ -108,6 +118,22 @@ static void save_window_state(MyApplication *self, GtkWindow *window)
   }
 }
 
+static gboolean on_save_timeout(gpointer user_data)
+{
+  MyApplication *self = MY_APPLICATION(user_data);
+  self->save_source_id = 0;
+  save_window_state(self);
+  return G_SOURCE_REMOVE;
+}
+
+// We save on every change rather than on close because not every way of
+// quitting closes the window first, and a killed process never gets to save.
+static void schedule_save(MyApplication *self)
+{
+  g_clear_handle_id(&self->save_source_id, g_source_remove);
+  self->save_source_id = g_timeout_add(kSaveDelayMs, on_save_timeout, self);
+}
+
 // We track the size on every resize because a window closed while maximized
 // no longer reports the size it had before.
 static void on_window_size_allocate(GtkWidget *widget, GdkRectangle *,
@@ -115,16 +141,32 @@ static void on_window_size_allocate(GtkWidget *widget, GdkRectangle *,
 {
   MyApplication *self = MY_APPLICATION(user_data);
   GtkWindow *window = GTK_WINDOW(widget);
-  if (!is_maximized_or_fullscreen(window))
+  if (is_maximized_or_fullscreen(window))
   {
-    gtk_window_get_size(window, &self->window_width, &self->window_height);
+    return;
+  }
+  gint width = 0;
+  gint height = 0;
+  gtk_window_get_size(window, &width, &height);
+  if (width != self->window_width || height != self->window_height)
+  {
+    self->window_width = width;
+    self->window_height = height;
+    schedule_save(self);
   }
 }
 
-static gboolean on_window_delete(GtkWidget *widget, GdkEvent *,
-                                 gpointer user_data)
+static gboolean on_window_state_event(GtkWidget *, GdkEventWindowState *event,
+                                      gpointer user_data)
 {
-  save_window_state(MY_APPLICATION(user_data), GTK_WINDOW(widget));
+  MyApplication *self = MY_APPLICATION(user_data);
+  gboolean maximized =
+      (event->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) != 0;
+  if (maximized != self->window_maximized)
+  {
+    self->window_maximized = maximized;
+    schedule_save(self);
+  }
   return FALSE;
 }
 
@@ -178,7 +220,8 @@ static void my_application_activate(GApplication *application)
   restore_window_state(self, window);
   g_signal_connect(window, "size-allocate",
                    G_CALLBACK(on_window_size_allocate), self);
-  g_signal_connect(window, "delete-event", G_CALLBACK(on_window_delete), self);
+  g_signal_connect(window, "window-state-event",
+                   G_CALLBACK(on_window_state_event), self);
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
@@ -220,9 +263,12 @@ static void my_application_startup(GApplication *application)
 // Implements GApplication::shutdown.
 static void my_application_shutdown(GApplication *application)
 {
-  // MyApplication* self = MY_APPLICATION(object);
-
-  // Perform any actions required at application shutdown.
+  MyApplication *self = MY_APPLICATION(application);
+  if (self->save_source_id != 0)
+  {
+    g_clear_handle_id(&self->save_source_id, g_source_remove);
+    save_window_state(self);
+  }
 
   G_APPLICATION_CLASS(my_application_parent_class)->shutdown(application);
 }

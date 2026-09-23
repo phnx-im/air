@@ -4,6 +4,8 @@ import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private static let frameName = "MainWindow"
+  // The width stays above Breakpoint.smallMaxWidth in Dart, so the smallest
+  // window still gets the two-pane layout at an interface scale of 1.
   private static let minContentSize = NSSize(width: 768, height: 512)
 
   override func awakeFromNib() {
