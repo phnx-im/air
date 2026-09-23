@@ -79,20 +79,6 @@ class _HomeScreenMobileLayout extends StatelessWidget {
   }
 }
 
-/// Inset between the window edge and the panel group.
-const _windowInset = S.s8;
-
-/// Corner radius of the panel group holding the rail and the list.
-const _groupRadius = CornerRadius.px20;
-
-/// Width the content pane keeps when the window narrows. The list panel gives
-/// way first, down to its own minimum.
-const _minContentWidth = Measure.m400;
-
-/// Width the panel group adds around the list: the rail and the hairline
-/// beside it.
-const _groupChromeWidth = NavRailTokens.width + StrokeWidth.px1;
-
 /// Two-pane layout: the navigation rail and the list panel form a rounded group
 /// floating on the window, and the content pane runs full-bleed beside it.
 ///
@@ -129,70 +115,92 @@ class HomeScreenDesktopLayout extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: palette.backgroundBase.quinary,
-      // Left inset only. The vertical inset belongs to the group below: put it
-      // here and it also pushes the content pane down, which runs to the
-      // window's top and bottom edge.
-      body: Padding(
-        padding: const EdgeInsets.only(left: _windowInset),
-        child: LayoutBuilder(
-          builder: (context, constraints) => _panels(
-            context,
-            maxListWidth:
-                constraints.maxWidth - _groupChromeWidth - _minContentWidth,
-            panelSurface: panelSurface,
-            onChats: onChats,
-          ),
-        ),
+      body: _Panels(
+        list: onChats ? chatList : const YouMenuPane(),
+        content: onChats ? chat : const YouDetailPane(),
+        panelSurface: panelSurface,
+        background: palette.backgroundBase.quinary,
       ),
     );
   }
+}
 
-  Widget _panels(
-    BuildContext context, {
-    required double maxListWidth,
-    required Color panelSurface,
-    required bool onChats,
-  }) {
-    final palette = SemanticPalette.of(context);
-    return ResizablePanel(
-      initialWidth: context.read<UserSettingsCubit>().state.sidebarWidth,
-      maxWidth: maxListWidth.clamp(Measure.m200, Measure.m600),
-      onResizeEnd: (width) => onResizeEnd(context, width),
-      panelBuilder: (context, width) => Container(
-        margin: const EdgeInsets.symmetric(vertical: _windowInset),
-        clipBehavior: .antiAlias,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(_groupRadius),
-        ),
-        // Stretched so a pane that shrink-wraps its content (a short menu,
-        // say) still paints its surface over the whole group height.
-        child: Row(
-          crossAxisAlignment: .stretch,
-          children: [
-            const AppSidebar(),
-            // A hairline of window color separates the rail from the
-            // list without drawing a divider.
-            const SizedBox(width: StrokeWidth.px1),
-            PanelSurface(
-              color: panelSurface,
-              child: SizedBox(
-                width: width,
-                child: onChats ? chatList : const YouMenuPane(),
+class _Panels extends StatelessWidget {
+  const _Panels({
+    required this.list,
+    required this.content,
+    required this.panelSurface,
+    required this.background,
+  });
+
+  final Widget list;
+  final Widget content;
+
+  /// Fill of the list panel.
+  final Color panelSurface;
+
+  /// Color of the window the panels sit on.
+  final Color background;
+
+  /// Inset between the window edge and the panel group.
+  static const _windowInset = S.s8;
+
+  /// Corner radius of the panel group holding the rail and the list.
+  static const _groupRadius = CornerRadius.px20;
+
+  /// Width the content pane keeps when the window narrows. The list panel
+  /// gives way first, down to its own minimum.
+  static const _minContentWidth = Measure.m400;
+
+  /// Width the panel group adds around the list: the rail and the hairline
+  /// beside it.
+  static const _groupChromeWidth = NavRailTokens.width + StrokeWidth.px1;
+
+  @override
+  Widget build(BuildContext context) {
+    // Left inset only. The vertical inset belongs to the group below: put it
+    // here and it also pushes the content pane down, which runs to the
+    // window's top and bottom edge.
+    return Padding(
+      padding: const EdgeInsets.only(left: _windowInset),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxListWidth =
+              constraints.maxWidth - _groupChromeWidth - _minContentWidth;
+          return ResizablePanel(
+            initialWidth: context.read<UserSettingsCubit>().state.sidebarWidth,
+            maxWidth: maxListWidth.clamp(Measure.m200, Measure.m600),
+            onResizeEnd: (width) =>
+                context.read<UserSettingsCubit>().setSidebarWidth(value: width),
+            panelBuilder: (context, width) => Container(
+              margin: const EdgeInsets.symmetric(vertical: _windowInset),
+              clipBehavior: .antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_groupRadius),
+              ),
+              // Stretched so a pane that shrink-wraps its content (a short
+              // menu, say) still paints its surface over the whole group
+              // height.
+              child: Row(
+                crossAxisAlignment: .stretch,
+                children: [
+                  const AppSidebar(),
+                  // A hairline of window color separates the rail from the
+                  // list without drawing a divider.
+                  const SizedBox(width: StrokeWidth.px1),
+                  PanelSurface(
+                    color: panelSurface,
+                    child: SizedBox(width: width, child: list),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-      // The content pane has no fill of its own: it runs full-bleed on the
-      // window, so what it paints on is the window color.
-      content: PanelSurface(
-        color: palette.backgroundBase.quinary,
-        child: onChats ? chat : const YouDetailPane(),
+            // The content pane has no fill of its own: it runs full-bleed on
+            // the window, so what it paints on is the background.
+            content: PanelSurface(color: background, child: content),
+          );
+        },
       ),
     );
-  }
-
-  void onResizeEnd(BuildContext context, double panelWidth) {
-    context.read<UserSettingsCubit>().setSidebarWidth(value: panelWidth);
   }
 }
