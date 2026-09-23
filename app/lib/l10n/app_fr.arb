@@ -159,7 +159,7 @@
 
   "linkedDevicesScreen_thisDevice": "Cet appareil",
   "linkedDevicesScreen_linkedDevices": "Appareils associés",
-  "linkedDevicesScreen_linkedOn": "Associé le {date}",
+  "linkedDevicesScreen_linkedOn": "Associé le {date} à {time}",
   "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
   "linkedDevicesScreen_linkDevice": "Associer un appareil",
   "linkedDevicesScreen_unknownDevice": "Appareil inconnu",

@@ -708,11 +708,14 @@
   "@linkedDevicesScreen_linkedDevices": {
     "description": "Section header above the user's other linked devices."
   },
-  "linkedDevicesScreen_linkedOn": "Linked on {date}",
+  "linkedDevicesScreen_linkedOn": "Linked on {date} at {time}",
   "@linkedDevicesScreen_linkedOn": {
-    "description": "Subtitle of a device entry giving the date it was linked. The placeholder is an already formatted date.",
+    "description": "Subtitle of a device entry giving the date and time it was linked. Both placeholders are already formatted, the date with the month spelled out and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
     "placeholders": {
       "date": {
+        "type": "String"
+      },
+      "time": {
         "type": "String"
       }
     }

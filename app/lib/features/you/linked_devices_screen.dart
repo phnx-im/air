@@ -12,6 +12,7 @@ import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
+import 'package:air/l10n/intl_locale.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -139,12 +140,11 @@ class _SingleDevice extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
+    final locale = intlLocaleName(Localizations.localeOf(context));
     final name = device.name.isEmpty
         ? loc.linkedDevicesScreen_unknownDevice
         : device.name;
-    final linkedAt = device.linkedAt;
+    final linkedAt = device.linkedAt?.toLocal();
 
     return Container(
       decoration: BoxDecoration(
@@ -180,7 +180,8 @@ class _SingleDevice extends StatelessWidget {
                     if (linkedAt != null)
                       Text(
                         loc.linkedDevicesScreen_linkedOn(
-                          dateFormat.format(linkedAt.toLocal()),
+                          DateFormat.yMMMMd(locale).format(linkedAt),
+                          DateFormat.jm(locale).format(linkedAt),
                         ),
                         style: typeScale.body.xs.style(
                           color: palette.text.tertiary,

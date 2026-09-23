@@ -159,7 +159,7 @@
 
   "linkedDevicesScreen_thisDevice": "Este dispositivo",
   "linkedDevicesScreen_linkedDevices": "Dispositivos vinculados",
-  "linkedDevicesScreen_linkedOn": "Vinculado el {date}",
+  "linkedDevicesScreen_linkedOn": "Vinculado el {date}, {time}",
   "linkedDevicesScreen_editNameHint": "Toca un dispositivo para editar su nombre.",
   "linkedDevicesScreen_linkDevice": "Vincular un dispositivo",
   "linkedDevicesScreen_unknownDevice": "Dispositivo desconocido",
