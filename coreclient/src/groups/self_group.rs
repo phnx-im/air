@@ -29,14 +29,14 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatId,
     chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
     groups::{Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
@@ -83,6 +83,36 @@ impl SelfGroup {
         } else {
             Ok(None)
         }
+    }
+
+    pub(crate) async fn has_linked_devices(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<bool> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
+            return Ok(false);
+        };
+        let Some(group) = Group::load(connection, &group_id).await? else {
+            debug!("self group not joined yet, assuming linked devices");
+            return Ok(true);
+        };
+        let self_group = Self { group };
+        match self_group.client_ids() {
+            Ok(client_ids) => Ok(client_ids.len() > 1),
+            Err(error) => {
+                // Since there is a self group, there is a channel to other
+                // devices, so assume there are some.
+                warn!(%error, "cannot count linked devices, assuming there are some");
+                Ok(true)
+            }
+        }
+    }
+
+    /// The chat of the self group, if there is one.
+    pub(crate) async fn load_chat(mut txn: impl ReadTransaction) -> sqlx::Result<Option<Chat>> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut txn).await? else {
+            return Ok(None);
+        };
+        Chat::load_by_group_id(txn, &group_id).await
     }
 
     pub fn group_id(&self) -> &GroupId {

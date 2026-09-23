@@ -294,6 +294,10 @@ class _DiagnosticsCard extends StatelessWidget {
             label: 'Invite-code tokens',
             value: info.invitationCodeTokenCount.toString(),
           ),
+          DeveloperInfoRow(
+            label: 'Connection-request tokens',
+            value: info.connectUsernameTokenCount.toString(),
+          ),
         ],
         if (error != null)
           DeveloperInfoRow(label: 'Debug info error', value: error.toString()),

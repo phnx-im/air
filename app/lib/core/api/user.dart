@@ -131,12 +131,14 @@ class UserDebugInfo {
   final List<TimedTaskDebugInfo> timedTasks;
   final int addUsernameTokenCount;
   final int invitationCodeTokenCount;
+  final int connectUsernameTokenCount;
 
   const UserDebugInfo({
     required this.userId,
     required this.timedTasks,
     required this.addUsernameTokenCount,
     required this.invitationCodeTokenCount,
+    required this.connectUsernameTokenCount,
   });
 
   @override
@@ -144,7 +146,8 @@ class UserDebugInfo {
       userId.hashCode ^
       timedTasks.hashCode ^
       addUsernameTokenCount.hashCode ^
-      invitationCodeTokenCount.hashCode;
+      invitationCodeTokenCount.hashCode ^
+      connectUsernameTokenCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -154,5 +157,6 @@ class UserDebugInfo {
           userId == other.userId &&
           timedTasks == other.timedTasks &&
           addUsernameTokenCount == other.addUsernameTokenCount &&
-          invitationCodeTokenCount == other.invitationCodeTokenCount;
+          invitationCodeTokenCount == other.invitationCodeTokenCount &&
+          connectUsernameTokenCount == other.connectUsernameTokenCount;
 }

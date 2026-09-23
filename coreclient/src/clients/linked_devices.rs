@@ -311,6 +311,23 @@ impl CoreUser {
         Ok(crate::privacy_pass::cached_tokens(self.db().read().await?, operation_type).await?)
     }
 
+    /// For testing purposes only.
+    /// Pulls every pending redeemed-token broadcast forward, so the next
+    /// outbound run carries it.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn expedite_redeemed_token_broadcast(&self) -> anyhow::Result<()> {
+        crate::privacy_pass::expedite_redeemed_broadcast(self.db()).await
+    }
+
+    /// For testing purposes only.
+    /// The redeemed tokens this device still has to tell its siblings about.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn pending_redeemed_token_broadcasts(
+        &self,
+    ) -> anyhow::Result<Vec<airprotos::client::self_group::RedeemedTokens>> {
+        Ok(crate::privacy_pass::pending_redeemed_broadcasts(self.db().read().await?).await?)
+    }
+
     /// The chat id of the self group ("Notes to self"), if there is one.
     pub async fn self_chat_id(&self) -> anyhow::Result<Option<ChatId>> {
         let mut read = self.db().read().await?;

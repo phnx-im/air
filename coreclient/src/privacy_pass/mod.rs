@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     time::Duration,
 };
 
@@ -15,9 +15,12 @@ use aircommon::{
         BatchedTokenKeyResponse, SerializedToken, SerializedTokenRequest, SerializedTokenResponse,
     },
 };
-use airprotos::{auth_service::v1::OperationType, client::self_group::TokenSeed};
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::self_group::{RedeemedTokens, TokenSeed},
+};
 use anyhow::Context;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use privacypass::{
     TokenType,
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse},
@@ -28,14 +31,13 @@ use privacypass::{
     },
     private_tokens::Ristretto255,
 };
-use rand::TryRng;
+use rand::{RngExt, TryRng};
 use sha2::{Digest, Sha256};
 use tls_codec::{Deserialize, Serialize};
 use tokio::time;
 use tracing::{debug, info, warn};
 
 use crate::{
-    clients::own_client_info::OwnClientInfo,
     db::access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction},
     groups::self_group::SelfGroup,
 };
@@ -57,6 +59,34 @@ pub(crate) mod persistence;
 /// recurs across key generations.
 type KeyFingerprint = [u8; 32];
 
+/// The position of a token in its derived batch.
+///
+/// Every device of the user derives the same batch, so the position of tokens
+/// are deterministic within the batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct TokenPosition {
+    pub(crate) operation_type: OperationType,
+    pub(crate) key_fingerprint: KeyFingerprint,
+    pub(crate) allowance_epoch: u32,
+    pub(crate) token_index: u16,
+}
+
+/// A token taken out of the cache to pay for a request.
+pub(crate) struct ConsumedToken {
+    pub(crate) token: SerializedToken,
+    pub(crate) token_key_id: u8,
+    /// `None` for tokens stored before positions were recorded.
+    pub(crate) position: Option<TokenPosition>,
+}
+
+/// Delay before a redeemed token is broadcast to the siblings. This is done to
+/// introduce some decorrelation between network requests.
+const REDEEMED_BROADCAST_MIN_DELAY: TimeDelta = TimeDelta::minutes(5);
+
+/// Random extra delay on top of [`REDEEMED_BROADCAST_MIN_DELAY`]. A fixed
+/// delay would put every broadcast at a known offset from its redemption.
+const REDEEMED_BROADCAST_JITTER: TimeDelta = TimeDelta::minutes(10);
+
 /// Result of a replenishment run, reduced to what the caller has to decide:
 /// whether to come back soon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +95,18 @@ pub(crate) enum ReplenishOutcome {
     Settled,
     /// Something still has to converge, so the caller should retry soon.
     RetrySoon,
+}
+
+/// The reason the cache is empty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub(crate) enum TokenShortage {
+    /// The batch of the current allowance epoch was fetched and is spent.
+    #[error("the token allowance of this epoch is spent")]
+    Exhausted,
+    /// The batch is being made available. Nothing is consumed right away, so
+    /// that issuance and redemption stay apart in time.
+    #[error("tokens are being replenished")]
+    Replenishing,
 }
 
 /// Result of trying to make the current allowance epoch's batch available.
@@ -132,36 +174,30 @@ pub(crate) async fn replenish(
     })
 }
 
-/// Whether this device is the only one that could hold a token seed.
-///
-/// A lone device commits the seed it generates without an agreement round: it is
-/// the only seed there is, and a device linked later receives it in its
-/// provisioning package. Anything short of a counted membership answers no,
-/// which costs an agreement round and never risks two devices locking the same
-/// allowance epoch to different requests.
-async fn is_alone(db: &DbAccess) -> anyhow::Result<bool> {
-    let mut read = db.read().await?;
-    if OwnClientInfo::load_self_group_id(&mut read)
-        .await?
-        .is_none()
-    {
-        // No self group at all: no other device to diverge from, and no channel
-        // to agree over either.
-        return Ok(true);
-    }
+/// Makes the batch of the current allowance epoch available after the cache ran
+/// empty, and returns the reason for the shortage.
+pub(crate) async fn replenish_empty_cache(
+    db: &DbAccess,
+    api_client: &ApiClient,
+    user_id: UserId,
+    signing_key: &UserSigningKey,
+    operation_type: OperationType,
+) -> anyhow::Result<TokenShortage> {
+    let outcome = ensure_token_batch(db, api_client, user_id, signing_key, operation_type).await?;
+    info!(?outcome, %operation_type, "replenished tokens on an empty cache");
 
-    let Some(self_group) = SelfGroup::load(&mut read).await? else {
-        // A self group we have not joined yet, as during linking.
-        debug!("self group not loaded, proposing the token seed rather than committing it");
-        return Ok(false);
+    let batch_recorded = match outcome {
+        TokenBatchOutcome::Fetched { .. } | TokenBatchOutcome::AlreadyFetched => true,
+        TokenBatchOutcome::AwaitingSeedAgreement
+        | TokenBatchOutcome::EpochRejected { .. }
+        | TokenBatchOutcome::Conflict => false,
     };
-    match self_group.client_ids() {
-        Ok(client_ids) => Ok(client_ids.len() <= 1),
-        Err(error) => {
-            warn!(%error, "cannot count linked devices, proposing the token seed");
-            Ok(false)
-        }
+    // An empty recorded batch means we have reached the limit of tokens we can
+    // currently spend.
+    if batch_recorded && persistence::token_count(db.read().await?, operation_type).await? == 0 {
+        return Ok(TokenShortage::Exhausted);
     }
+    Ok(TokenShortage::Replenishing)
 }
 
 /// A deterministically derived token request and the state to finalize its
@@ -392,7 +428,7 @@ async fn resolve_seed(
             // A proposal left over from a time when this device had a sibling.
             // Alone there is nobody left to disagree, so the proposal is the
             // seed and waiting for a commit round would only withhold tokens.
-            SeedState::Proposed if is_alone(db).await? => {
+            SeedState::Proposed if !SelfGroup::has_linked_devices(db.read().await?).await? => {
                 persistence::mark_seed_committed(
                     db.write().await?,
                     operation_type,
@@ -412,10 +448,12 @@ async fn resolve_seed(
         .try_fill_bytes(&mut candidate)
         .map_err(|error| anyhow::anyhow!("failed to generate a token seed: {error}"))?;
 
-    let state = if is_alone(db).await? {
-        SeedState::Committed
-    } else {
+    // Alone there is nobody to agree with, and a device linked later receives
+    // the seed in its provisioning package.
+    let state = if SelfGroup::has_linked_devices(db.read().await?).await? {
         SeedState::Proposed
+    } else {
+        SeedState::Committed
     };
     // Set once, so two concurrent runs converge on one seed instead of each
     // deriving from its own candidate.
@@ -599,16 +637,26 @@ async fn store_batch_tokens(
     loop {
         let res = db
             .with_write_transaction(async |txn| -> sqlx::Result<()> {
-                for (index, token) in (0u16..).zip(tokens) {
-                    persistence::store_batch_token(
-                        &mut *txn,
+                // Filter out redeemed tokens
+                let redeemed = persistence::load_redeemed_indices(
+                    &mut *txn,
+                    operation_type,
+                    fingerprint,
+                    allowance_epoch,
+                )
+                .await?;
+                for (token_index, token) in (0u16..).zip(tokens) {
+                    if redeemed.contains(&token_index) {
+                        continue;
+                    }
+                    let position = TokenPosition {
                         operation_type,
-                        token_key_id,
+                        key_fingerprint: *fingerprint,
                         allowance_epoch,
-                        index,
-                        token,
-                    )
-                    .await?;
+                        token_index,
+                    };
+                    persistence::store_batch_token(&mut *txn, token_key_id, &position, token)
+                        .await?;
                 }
                 persistence::store_batch(&mut *txn, operation_type, fingerprint, allowance_epoch)
                     .await
@@ -672,20 +720,40 @@ pub(crate) async fn reset_for_key_rotation(db: &DbAccess) -> anyhow::Result<()> 
             persistence::delete_all_tokens(&mut *txn, operation_type).await?;
             persistence::delete_all_batches(&mut *txn, operation_type).await?;
         }
+        persistence::delete_all_redeemed(&mut *txn).await?;
         Ok(())
     })
     .await?;
     Ok(())
 }
 
-/// The cached tokens of an operation type, in consumption order.
+/// Skips the broadcast delay and marks every redeemed token as broadcasted. For
+/// testing purposes only.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn expedite_redeemed_broadcast(db: &DbAccess) -> anyhow::Result<()> {
+    persistence::expedite_redeemed_broadcast(db.write().await?, Utc::now()).await?;
+    Ok(())
+}
+
+/// The redemptions this device still has to broadcast, due or not.
+#[cfg(any(test, feature = "test_utils"))]
+pub(crate) async fn pending_redeemed_broadcasts(
+    connection: impl ReadConnection,
+) -> sqlx::Result<Vec<RedeemedTokens>> {
+    // No pending broadcast has a later deadline than one recorded right now.
+    let latest = Utc::now() + REDEEMED_BROADCAST_MIN_DELAY + REDEEMED_BROADCAST_JITTER;
+    redeemed_tokens_to_broadcast(connection, latest).await
+}
+
+/// The cached tokens of an operation type, ordered by position.
 #[cfg(any(test, feature = "test_utils"))]
 pub(crate) async fn cached_tokens(
     mut connection: impl ReadConnection,
     operation_type: OperationType,
 ) -> sqlx::Result<Vec<Vec<u8>>> {
     let mut ids = persistence::load_token_ids(&mut connection, operation_type).await?;
-    // Consumption is FIFO by row id, which the id order reproduces.
+    // A batch is stored in index order, so the row id order is the position
+    // order.
     ids.sort_by_key(|id| id.id);
 
     let mut tokens = Vec::with_capacity(ids.len());
@@ -701,10 +769,200 @@ pub(crate) async fn cached_tokens(
 pub(crate) async fn consume_token(
     connection: impl WriteConnection,
     operation_type: OperationType,
-) -> anyhow::Result<Option<SerializedToken>> {
-    Ok(persistence::consume_token(connection, operation_type)
-        .await?
-        .map(SerializedToken::new))
+) -> anyhow::Result<Option<ConsumedToken>> {
+    Ok(persistence::consume_token(connection, operation_type).await?)
+}
+
+/// Puts a consumed token back after the AS answered without redeeming it. If
+/// the token was already redeemed by a sibling, it is not restored to the
+/// cache.
+pub(crate) async fn restore_token(
+    db: &DbAccess,
+    operation_type: OperationType,
+    consumed: ConsumedToken,
+) -> anyhow::Result<()> {
+    let ConsumedToken {
+        token,
+        token_key_id,
+        position,
+    } = consumed;
+    let Some(position) = position else {
+        persistence::store_token(
+            db.write().await?,
+            operation_type,
+            token_key_id,
+            token.as_bytes(),
+        )
+        .await?;
+        return Ok(());
+    };
+    db.with_write_transaction(async |txn| -> sqlx::Result<()> {
+        let redeemed = persistence::load_redeemed_indices(
+            &mut *txn,
+            position.operation_type,
+            &position.key_fingerprint,
+            position.allowance_epoch,
+        )
+        .await?;
+        if redeemed.contains(&position.token_index) {
+            info!(
+                operation_type = %position.operation_type,
+                token_index = position.token_index,
+                "not restoring a token a sibling redeemed"
+            );
+            return Ok(());
+        }
+        persistence::store_batch_token(&mut *txn, token_key_id, &position, token.as_bytes()).await
+    })
+    .await?;
+    Ok(())
+}
+
+/// Deletes a token the AS has seen and records its redemption.
+pub(crate) async fn burn_token(
+    txn: &mut WriteDbTransaction<'_>,
+    token_id: &TokenId,
+) -> anyhow::Result<()> {
+    if let Some(position) = TokenId::delete(&mut *txn, token_id).await? {
+        mark_redeemed(&mut *txn, &position).await?;
+    }
+    Ok(())
+}
+
+/// Records that the token at `position` was redeemed at the AS.
+pub(crate) async fn mark_redeemed(
+    connection: impl WriteConnection,
+    position: &TokenPosition,
+) -> anyhow::Result<()> {
+    let broadcast_after = broadcast_deadline(Utc::now());
+    persistence::mark_redeemed(connection, position, broadcast_after).await?;
+    debug!(
+        operation_type = %position.operation_type,
+        token_index = position.token_index,
+        %broadcast_after,
+        "recorded a redeemed privacy pass token"
+    );
+    Ok(())
+}
+
+/// When a redemption recorded at `now` may go out to the siblings.
+fn broadcast_deadline(now: DateTime<Utc>) -> DateTime<Utc> {
+    let jitter = rand::rng().random_range(0..REDEEMED_BROADCAST_JITTER.num_seconds());
+    now + REDEEMED_BROADCAST_MIN_DELAY + TimeDelta::seconds(jitter)
+}
+
+/// The redemptions whose broadcast is due at `now`, one message per batch.
+pub(crate) async fn redeemed_tokens_to_broadcast(
+    connection: impl ReadConnection,
+    now: DateTime<Utc>,
+) -> sqlx::Result<Vec<RedeemedTokens>> {
+    let positions = persistence::load_redeemed_due(connection, now).await?;
+    Ok(group_positions(positions))
+}
+
+/// Retires the pending broadcasts of the positions `redeemed` names, once a
+/// message of ours carried them or there is no sibling to tell.
+pub(crate) async fn retire_redeemed_broadcasts(
+    txn: &mut WriteDbTransaction<'_>,
+    redeemed: &[RedeemedTokens],
+) -> anyhow::Result<()> {
+    for positions in redeemed.iter().filter_map(positions_from_wire) {
+        for position in &positions {
+            persistence::settle_redeemed(&mut *txn, position).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Applies the redemptions a sibling sent through the self group or the
+/// provisioning package. The sender has told the other siblings, so nothing
+/// goes back out.
+pub(crate) async fn apply_redeemed_tokens(
+    txn: &mut WriteDbTransaction<'_>,
+    redeemed: &[RedeemedTokens],
+) -> anyhow::Result<()> {
+    for message in redeemed {
+        let Some(positions) = positions_from_wire(message) else {
+            warn!("skipping a malformed redeemed token list");
+            continue;
+        };
+        let deleted = adopt_positions(txn, &positions).await?;
+        info!(
+            operation_type = %message.operation_type,
+            deleted, "adopted a sibling's redeemed tokens"
+        );
+    }
+    Ok(())
+}
+
+/// Every recorded redemption, for the snapshot a newly linked device receives.
+pub(crate) async fn redeemed_tokens_snapshot(
+    connection: impl ReadConnection,
+) -> sqlx::Result<Vec<RedeemedTokens>> {
+    let positions = persistence::load_all_redeemed(connection).await?;
+    Ok(group_positions(positions))
+}
+
+/// Deletes the tokens at `positions` and records their redemption without a
+/// broadcast of our own. Returns how many tokens were deleted.
+async fn adopt_positions(
+    txn: &mut WriteDbTransaction<'_>,
+    positions: &[TokenPosition],
+) -> sqlx::Result<u64> {
+    let mut deleted = 0;
+    for position in positions {
+        deleted += persistence::delete_token_at(&mut *txn, position).await?;
+        persistence::settle_redeemed(&mut *txn, position).await?;
+    }
+    Ok(deleted)
+}
+
+/// Groups positions into one message per batch, with ascending, duplicate-free
+/// indices.
+fn group_positions(positions: Vec<TokenPosition>) -> Vec<RedeemedTokens> {
+    let mut batches: BTreeMap<(OperationType, KeyFingerprint, u32), BTreeSet<u16>> =
+        BTreeMap::new();
+    for position in positions {
+        batches
+            .entry((
+                position.operation_type,
+                position.key_fingerprint,
+                position.allowance_epoch,
+            ))
+            .or_default()
+            .insert(position.token_index);
+    }
+
+    let mut messages = Vec::with_capacity(batches.len());
+    for ((operation_type, key_fingerprint, allowance_epoch), indices) in batches {
+        messages.push(RedeemedTokens {
+            operation_type,
+            key_fingerprint,
+            allowance_epoch,
+            token_indices: indices.into_iter().collect(),
+        });
+    }
+    messages
+}
+
+/// The positions a wire message names, or `None` if it is not usable.
+fn positions_from_wire(wire: &RedeemedTokens) -> Option<Vec<TokenPosition>> {
+    if wire.operation_type == OperationType::Unspecified
+        || wire.key_fingerprint == [0u8; 32]
+        || wire.token_indices.is_empty()
+    {
+        return None;
+    }
+    let mut positions = Vec::with_capacity(wire.token_indices.len());
+    for token_index in &wire.token_indices {
+        positions.push(TokenPosition {
+            operation_type: wire.operation_type,
+            key_fingerprint: wire.key_fingerprint,
+            allowance_epoch: wire.allowance_epoch,
+            token_index: *token_index,
+        });
+    }
+    Some(positions)
 }
 
 /// Stores batched token keys received from the AS credentials response.
@@ -741,7 +999,7 @@ pub(crate) async fn store_batched_token_keys(
             );
         }
 
-        discard_seeds_of_removed_keys(txn, operation_type, &existing, &keys).await?;
+        discard_records_of_removed_keys(txn, operation_type, &existing, &keys).await?;
 
         // Re-store unconditionally: an unchanged key ID set can still come with
         // a different current key.
@@ -798,12 +1056,14 @@ async fn discard_tokens_of_removed_keys(
     Ok(discarded)
 }
 
-/// Deletes the token seed and the batch records of every key that is no longer
-/// advertised.
+/// Deletes the token seed, the batch records and the redeemed records of every
+/// key that is no longer advertised.
 ///
 /// Keys are matched by fingerprint, so a key whose public key changed under an
-/// unchanged truncated ID also loses its seed.
-async fn discard_seeds_of_removed_keys(
+/// unchanged truncated ID also loses its records. Redeemed records can name a
+/// key a sibling fetched under before this device stored it, so they are swept
+/// by their own fingerprints.
+async fn discard_records_of_removed_keys(
     txn: &mut WriteDbTransaction<'_>,
     operation_type: OperationType,
     existing: &[(u8, Vec<u8>)],
@@ -824,6 +1084,14 @@ async fn discard_seeds_of_removed_keys(
         info!(%operation_type, "discarding seed and batch records of a removed VOPRF key");
         persistence::delete_seed(&mut *txn, operation_type, &fingerprint).await?;
         persistence::delete_batches_for_key(&mut *txn, operation_type, &fingerprint).await?;
+    }
+
+    for fingerprint in persistence::load_redeemed_fingerprints(&mut *txn, operation_type).await? {
+        if advertised.contains(&fingerprint) {
+            continue;
+        }
+        info!(%operation_type, "discarding redeemed token records of a removed VOPRF key");
+        persistence::delete_redeemed_for_key(&mut *txn, operation_type, &fingerprint).await?;
     }
     Ok(())
 }
@@ -918,7 +1186,9 @@ pub(crate) async fn purge_and_replenish(
     // suspect even when the advertised key set turns out to be unchanged.
     // The batch records have to go with the tokens, or the next run would
     // consider the purged batch fetched and never ask for it again, so both
-    // deletes share a transaction and a crash cannot land in between.
+    // deletes share a transaction and a crash cannot land in between. The
+    // redeemed records stay, so the re-fetch leaves out the positions this
+    // device or a sibling has already spent.
     db.with_write_transaction(async |txn| -> sqlx::Result<()> {
         persistence::delete_all_tokens(&mut *txn, operation_type).await?;
         persistence::delete_all_batches(&mut *txn, operation_type).await

@@ -19,6 +19,7 @@ impl OperationType {
             OperationType::Unspecified => 0,
             OperationType::AddUsername => 10,
             OperationType::GetInviteCode => 1,
+            OperationType::ConnectUsername => 30,
         }
     }
 
@@ -26,21 +27,23 @@ impl OperationType {
         match self {
             OperationType::Unspecified => at,
             OperationType::AddUsername => at + Months::new(1),
-            OperationType::GetInviteCode => at + Days::new(1),
+            OperationType::GetInviteCode | OperationType::ConnectUsername => at + Days::new(1),
         }
     }
 
     /// Calendar bucket a token batch requested at `at` belongs to.
     ///
     /// Months since 1970-01 for `AddUsername`, days since 1970-01-01 for
-    /// `GetInviteCode`, both derived from UTC. Server and client compute this
-    /// independently, which is why it lives here rather than in either of
-    /// them.
+    /// `GetInviteCode` and `ConnectUsername`, all derived from UTC. Server and
+    /// client compute this independently, which is why it lives here rather
+    /// than in either of them.
     pub fn allowance_epoch_at(&self, at: DateTime<Utc>) -> u32 {
         let bucket = match self {
             OperationType::Unspecified => 0,
             OperationType::AddUsername => i64::from(at.year() - 1970) * 12 + i64::from(at.month0()),
-            OperationType::GetInviteCode => at.timestamp().div_euclid(SECONDS_PER_DAY),
+            OperationType::GetInviteCode | OperationType::ConnectUsername => {
+                at.timestamp().div_euclid(SECONDS_PER_DAY)
+            }
         };
         u32::try_from(bucket).unwrap_or(0)
     }
@@ -81,11 +84,16 @@ mod tests {
         let start = at("1970-01-15T23:59:59Z");
         assert_eq!(OperationType::AddUsername.allowance_epoch_at(start), 0);
         assert_eq!(OperationType::GetInviteCode.allowance_epoch_at(start), 14);
+        assert_eq!(OperationType::ConnectUsername.allowance_epoch_at(start), 14);
 
         let later = at("2026-08-04T12:00:00Z");
         assert_eq!(OperationType::AddUsername.allowance_epoch_at(later), 679);
         assert_eq!(
             OperationType::GetInviteCode.allowance_epoch_at(later),
+            20_669
+        );
+        assert_eq!(
+            OperationType::ConnectUsername.allowance_epoch_at(later),
             20_669
         );
 

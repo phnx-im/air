@@ -104,6 +104,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
         api_clients::ApiClients,
+        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::OwnClientInfo,
         targeted_message::TargetedMessageContent,
@@ -3453,6 +3454,10 @@ impl TimestampedMessage {
 pub fn suppress_notifications(content: &MimiContent) -> bool {
     if content.is_status_update() {
         // Status updates should never trigger notifications.
+        return true;
+    }
+    if content.self_group_message().is_some() {
+        // Bookkeeping among the user's own devices, never shown.
         return true;
     }
     if content.replaces.is_some() {
