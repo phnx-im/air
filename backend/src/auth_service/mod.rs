@@ -133,6 +133,7 @@ impl BackendService for AuthService {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        _max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;

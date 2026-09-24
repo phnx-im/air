@@ -2159,7 +2159,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
-                    group_state.group_operation(params, ear_key).await?;
+                    group_state
+                        .group_operation(params, ear_key, self.ds.max_devices.get())
+                        .await?;
 
                 group_state.proposals.clear();
 
@@ -2287,6 +2289,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         pq_message,
                         t_add_users_info,
                         pq_add_users_info,
+                        self.ds.max_devices.get(),
                     )?;
 
                     // Fan out the commit message to the destination clients

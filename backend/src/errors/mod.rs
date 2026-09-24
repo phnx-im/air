@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::common::v1::{
-    StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
+    DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, WrongEpochDetail,
+    status_details::{self, Detail},
 };
 use apqmls::processing::ApqProcessPublicMessageError;
 use displaydoc::Display;
@@ -131,6 +132,8 @@ pub(crate) enum GroupOperationError {
     IncompleteWelcome,
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
+    #[error("Max devices exceeded")]
+    MaxDevicesExceeded { max_devices: u32 },
 }
 
 impl From<ProcessAssistedMessageError> for GroupOperationError {
@@ -193,6 +196,19 @@ impl From<GroupOperationError> for Status {
                 Status::internal(msg)
             }
             GroupOperationError::WrongEpoch => wrong_epoch_status(msg),
+            GroupOperationError::MaxDevicesExceeded { max_devices } => {
+                let details = StatusDetails {
+                    code: StatusDetailsCode::DeviceLimitReached.into(),
+                    detail: Some(status_details::Detail::DeviceLimitReached(
+                        DeviceLimitReachedDetail { max_devices },
+                    )),
+                };
+                Status::with_details(
+                    Code::ResourceExhausted,
+                    "max devices exceeded",
+                    details.encode_to_vec().into(),
+                )
+            }
         }
     }
 }

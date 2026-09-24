@@ -78,6 +78,11 @@ sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
       MultiDeviceLinkEvent_Failed;
   const factory MultiDeviceLinkEvent.sessionNotFound() =
       MultiDeviceLinkEvent_SessionNotFound;
+
+  /// Device limit reached
+  const factory MultiDeviceLinkEvent.deviceLimitReached({
+    required int maxDevices,
+  }) = MultiDeviceLinkEvent_DeviceLimitReached;
 }
 
 @freezed
@@ -102,4 +107,9 @@ sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
   /// The session ended without linking.
   const factory MultiDeviceProvisionEvent.failed(String field0) =
       MultiDeviceProvisionEvent_Failed;
+
+  /// The device limit was reached.
+  const factory MultiDeviceProvisionEvent.deviceLimitReached({
+    required int maxDevices,
+  }) = MultiDeviceProvisionEvent_DeviceLimitReached;
 }

@@ -208,6 +208,74 @@ String toString() {
 
 
 /// @nodoc
+
+
+class MultiDeviceLinkEvent_DeviceLimitReached extends MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent_DeviceLimitReached({required this.maxDevices}): super._();
+  
+
+ final  int maxDevices;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MultiDeviceLinkEvent_DeviceLimitReachedCopyWith<MultiDeviceLinkEvent_DeviceLimitReached> get copyWith => _$MultiDeviceLinkEvent_DeviceLimitReachedCopyWithImpl<MultiDeviceLinkEvent_DeviceLimitReached>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_DeviceLimitReached&&(identical(other.maxDevices, maxDevices) || other.maxDevices == maxDevices));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,maxDevices);
+}
+
+@override
+String toString() {
+    return 'MultiDeviceLinkEvent.deviceLimitReached(maxDevices: $maxDevices)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MultiDeviceLinkEvent_DeviceLimitReachedCopyWith<$Res> implements $MultiDeviceLinkEventCopyWith<$Res> {
+  factory $MultiDeviceLinkEvent_DeviceLimitReachedCopyWith(MultiDeviceLinkEvent_DeviceLimitReached value, $Res Function(MultiDeviceLinkEvent_DeviceLimitReached) _then) = _$MultiDeviceLinkEvent_DeviceLimitReachedCopyWithImpl;
+@useResult
+$Res call({
+ int maxDevices
+});
+
+
+
+
+}
+/// @nodoc
+class _$MultiDeviceLinkEvent_DeviceLimitReachedCopyWithImpl<$Res>
+    implements $MultiDeviceLinkEvent_DeviceLimitReachedCopyWith<$Res> {
+  _$MultiDeviceLinkEvent_DeviceLimitReachedCopyWithImpl(this._self, this._then);
+
+  final MultiDeviceLinkEvent_DeviceLimitReached _self;
+  final $Res Function(MultiDeviceLinkEvent_DeviceLimitReached) _then;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? maxDevices = null,}) {
+  return _then(MultiDeviceLinkEvent_DeviceLimitReached(
+maxDevices: null == maxDevices ? _self.maxDevices : maxDevices // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$MultiDeviceProvisionEvent {
 
 
@@ -434,6 +502,74 @@ class _$MultiDeviceProvisionEvent_FailedCopyWithImpl<$Res>
   return _then(MultiDeviceProvisionEvent_Failed(
 null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
 as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MultiDeviceProvisionEvent_DeviceLimitReached extends MultiDeviceProvisionEvent {
+  const MultiDeviceProvisionEvent_DeviceLimitReached({required this.maxDevices}): super._();
+  
+
+ final  int maxDevices;
+
+/// Create a copy of MultiDeviceProvisionEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MultiDeviceProvisionEvent_DeviceLimitReachedCopyWith<MultiDeviceProvisionEvent_DeviceLimitReached> get copyWith => _$MultiDeviceProvisionEvent_DeviceLimitReachedCopyWithImpl<MultiDeviceProvisionEvent_DeviceLimitReached>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_DeviceLimitReached&&(identical(other.maxDevices, maxDevices) || other.maxDevices == maxDevices));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,maxDevices);
+}
+
+@override
+String toString() {
+    return 'MultiDeviceProvisionEvent.deviceLimitReached(maxDevices: $maxDevices)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MultiDeviceProvisionEvent_DeviceLimitReachedCopyWith<$Res> implements $MultiDeviceProvisionEventCopyWith<$Res> {
+  factory $MultiDeviceProvisionEvent_DeviceLimitReachedCopyWith(MultiDeviceProvisionEvent_DeviceLimitReached value, $Res Function(MultiDeviceProvisionEvent_DeviceLimitReached) _then) = _$MultiDeviceProvisionEvent_DeviceLimitReachedCopyWithImpl;
+@useResult
+$Res call({
+ int maxDevices
+});
+
+
+
+
+}
+/// @nodoc
+class _$MultiDeviceProvisionEvent_DeviceLimitReachedCopyWithImpl<$Res>
+    implements $MultiDeviceProvisionEvent_DeviceLimitReachedCopyWith<$Res> {
+  _$MultiDeviceProvisionEvent_DeviceLimitReachedCopyWithImpl(this._self, this._then);
+
+  final MultiDeviceProvisionEvent_DeviceLimitReached _self;
+  final $Res Function(MultiDeviceProvisionEvent_DeviceLimitReached) _then;
+
+/// Create a copy of MultiDeviceProvisionEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? maxDevices = null,}) {
+  return _then(MultiDeviceProvisionEvent_DeviceLimitReached(
+maxDevices: null == maxDevices ? _self.maxDevices : maxDevices // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

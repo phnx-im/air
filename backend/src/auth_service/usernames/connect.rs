@@ -950,6 +950,7 @@ mod tests {
             pool.clone(),
             "example.com".parse()?,
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?)
