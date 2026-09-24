@@ -70,7 +70,7 @@ impl CoreUser {
                     .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
                 deleted::erase(txn, &message).await?;
-                if let Some(mimi_id) = deleted::mimi_id_to_sync(&message) {
+                if let Some(mimi_id) = message.message().mimi_id() {
                     self.outbound_service()
                         .enqueue_deleted_message_in_transaction(txn, mimi_id)
                         .await?;

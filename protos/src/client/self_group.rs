@@ -126,7 +126,7 @@ pub const SELF_GROUP_APP_MESSAGE_EXTENSION: i64 = -1;
 ///
 /// ```cddl
 /// SelfGroupAppMessage = {
-///   1: RedeemedTokens    ; tagged union, exactly one entry
+///   1: RedeemedTokens
 ///   2: DeletedMessages
 /// }
 /// ```

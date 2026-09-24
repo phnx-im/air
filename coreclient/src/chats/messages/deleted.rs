@@ -42,15 +42,6 @@ pub(crate) async fn erase(
     Ok(message.chat_id())
 }
 
-/// The Mimi ID under which the siblings know the message, if they know it.
-pub(crate) fn mimi_id_to_sync(message: &ChatMessage) -> Option<&MimiId> {
-    // The siblings never saw a message we did not send yet.
-    if !message.is_sent() {
-        return None;
-    }
-    message.message().mimi_id()
-}
-
 /// Parks a local deletion for the siblings.
 pub(crate) async fn store_outgoing(
     connection: impl WriteConnection,
@@ -135,8 +126,7 @@ mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, ErrorMessage, EventMessage, Message, MessageId,
-        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
         db::access::DbAccess,
     };
 
@@ -166,30 +156,6 @@ mod tests {
             TimeStamp::now(),
             Message::Content(Box::new(message)),
         )
-    }
-
-    #[test]
-    fn only_messages_the_siblings_know_are_synced() {
-        let chat_id = test_chat().id();
-
-        let received = received_message(chat_id);
-        assert_eq!(
-            mimi_id_to_sync(&received),
-            received.message().mimi_id(),
-            "a received message is synced"
-        );
-        assert!(received.message().mimi_id().is_some());
-
-        let unsent = test_chat_message(chat_id);
-        assert_eq!(mimi_id_to_sync(&unsent), None);
-
-        let event = ChatMessage::new_for_test(
-            chat_id,
-            MessageId::random(),
-            TimeStamp::now(),
-            Message::Event(EventMessage::Error(ErrorMessage::new("error".into()))),
-        );
-        assert_eq!(mimi_id_to_sync(&event), None);
     }
 
     #[sqlx::test]
