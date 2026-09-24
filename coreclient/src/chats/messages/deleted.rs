@@ -27,7 +27,8 @@ pub(crate) async fn erase(
 ) -> anyhow::Result<ChatId> {
     if let Some(mimi_id) = message.message().mimi_id() {
         // Replies render the message they quote, so they need a refresh.
-        for reply_id in ChatMessage::load_message_ids_in_reply_to_mimi_id(&mut *txn, mimi_id).await?
+        for reply_id in
+            ChatMessage::load_message_ids_in_reply_to_mimi_id(&mut *txn, mimi_id).await?
         {
             txn.notifier().add(reply_id);
         }
@@ -81,8 +82,12 @@ pub(crate) async fn remove_staged(
     mimi_ids: &[MimiId],
 ) -> sqlx::Result<()> {
     for mimi_id in mimi_ids {
-        self_group_outbox::remove(&mut connection, OutboxKind::DeletedMessage, mimi_id.as_slice())
-            .await?;
+        self_group_outbox::remove(
+            &mut connection,
+            OutboxKind::DeletedMessage,
+            mimi_id.as_slice(),
+        )
+        .await?;
     }
     Ok(())
 }
@@ -228,7 +233,11 @@ mod tests {
 
             assert_eq!(changed, vec![chat.id()]);
             assert!(ChatMessage::load(&mut *txn, message.id()).await?.is_none());
-            assert!(Reaction::load_by_target(&mut *txn, &current).await?.is_empty());
+            assert!(
+                Reaction::load_by_target(&mut *txn, &current)
+                    .await?
+                    .is_empty()
+            );
             Ok(())
         })
         .await

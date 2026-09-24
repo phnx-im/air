@@ -66,7 +66,10 @@ impl OutboundServiceContext {
             .to_mimi_content()?;
             match self.send_application_message(&chat, content).await? {
                 SendOutcome::Sent => {
-                    info!(count = batch.len(), "told the siblings about deleted messages");
+                    info!(
+                        count = batch.len(),
+                        "told the siblings about deleted messages"
+                    );
                     self.remove_staged_deletions(batch).await?;
                 }
                 SendOutcome::Collided => {
@@ -80,9 +83,7 @@ impl OutboundServiceContext {
 
     async fn remove_staged_deletions(&self, mimi_ids: &[MimiId]) -> anyhow::Result<()> {
         self.db
-            .with_write_transaction(async |txn| {
-                Ok(deleted::remove_staged(txn, mimi_ids).await?)
-            })
+            .with_write_transaction(async |txn| Ok(deleted::remove_staged(txn, mimi_ids).await?))
             .await
     }
 }

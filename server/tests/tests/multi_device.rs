@@ -1120,6 +1120,58 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a chat deletion reaches the sibling", skip_all)]
+async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert!(second_device.chat(&chat_id).await.is_some());
+
+    first_device.delete_chat(chat_id).await?;
+    drain_queue(&second_device).await;
+    assert!(
+        second_device.chat(&chat_id).await.is_some(),
+        "deleting the group leaves the chat in place until it is erased"
+    );
+
+    let self_chat_id = self_chat_id(first_device).await;
+    let epochs_before = first_device.self_group_epochs().await?;
+    first_device.erase_chat(chat_id).await?;
+    assert!(first_device.chat(&chat_id).await.is_none());
+    first_device.outbound_service().run_once().await;
+    assert_ne!(
+        first_device.self_group_epochs().await?,
+        epochs_before,
+        "the deletion travels in a self-group commit"
+    );
+    assert!(
+        first_device
+            .pending_chat_operation_info(self_chat_id)
+            .await?
+            .is_none(),
+        "the commit should be gone after a successful send"
+    );
+
+    drain_queue(&second_device).await;
+    assert!(
+        second_device.chat(&chat_id).await.is_none(),
+        "the sibling must erase the chat"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test a local deletion reaches the sibling", skip_all)]
 async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
