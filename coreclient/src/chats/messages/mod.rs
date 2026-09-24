@@ -17,6 +17,7 @@ use crate::{
 
 use super::*;
 
+pub(crate) mod deleted;
 pub(crate) mod edit;
 pub(crate) mod persistence;
 

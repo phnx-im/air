@@ -43,7 +43,10 @@ use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
         GroupDataExt, StatusRecord,
-        messages::edit::{MessageEdit, handle_message_edit},
+        messages::{
+            deleted,
+            edit::{MessageEdit, handle_message_edit},
+        },
         reactions::Reaction,
     },
     clients::{
@@ -1032,8 +1035,11 @@ impl CoreUser {
             && let Ok(content) = &content
             && let Some(message) = content.self_group_message()
         {
-            self.handle_self_group_app_message(txn, message).await?;
-            return Ok(Default::default());
+            let changed_chats = self.handle_self_group_app_message(txn, message).await?;
+            return Ok(HandledMessages {
+                changed_chats,
+                ..Default::default()
+            });
         }
 
         // Delivery receipt
@@ -1170,18 +1176,23 @@ impl CoreUser {
     }
 
     /// Applies a message another device of ours sent through the self group.
+    /// Returns the chats whose messages changed.
     async fn handle_self_group_app_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         message: SelfGroupAppMessage,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<ChatId>> {
         match message {
             SelfGroupAppMessage::RedeemedTokens(redeemed) => {
-                privacy_pass::apply_redeemed_tokens(txn, &[redeemed]).await
+                privacy_pass::apply_redeemed_tokens(txn, &[redeemed]).await?;
+                Ok(Vec::new())
+            }
+            SelfGroupAppMessage::DeletedMessages(deleted) => {
+                deleted::apply_deleted_messages(txn, &deleted).await
             }
             SelfGroupAppMessage::Unknown => {
                 debug!("skipping a self group application message of an unknown kind");
-                Ok(())
+                Ok(Vec::new())
             }
         }
     }

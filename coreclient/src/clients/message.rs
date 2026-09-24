@@ -10,10 +10,13 @@ use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     chats::{
         StatusRecord,
-        messages::edit::{MessageEdit, purge_deleted_message},
+        messages::{
+            deleted,
+            edit::{MessageEdit, purge_deleted_message},
+        },
     },
     clients::block_contact::BlockedContactError,
-    db::access::{WriteConnection, WriteDbTransaction},
+    db::access::WriteDbTransaction,
 };
 
 use super::CoreUser;
@@ -53,10 +56,12 @@ impl CoreUser {
         Box::pin(self.send_message(chat_id, null_content, Some(message), MarkChatAsRead::Yes)).await
     }
 
-    /// Delete a message locally without sending a network message.
+    /// Delete a message on this device and the user's other devices, without
+    /// telling the other group members.
     ///
-    /// This completely removes the message from the database, including edit history
-    /// and status records. The message will no longer appear in the chat.
+    /// This completely removes the message from the database, including edit
+    /// history and status records. The message will no longer appear in the
+    /// chat.
     pub async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
@@ -64,22 +69,12 @@ impl CoreUser {
                     .await?
                     .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-                // Find the IDs of all messages that are replies to the message we're deleting
-                // and mark them as updated, to notify the UI.
-                if let Some(replaces_mimi_id) = message.message().mimi_id() {
-                    let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
-                        &mut *txn,
-                        replaces_mimi_id,
-                    )
-                    .await?;
-
-                    for message_id in message_ids_replied_to {
-                        txn.notifier().add(message_id);
-                    }
+                deleted::erase(txn, &message).await?;
+                if let Some(mimi_id) = deleted::mimi_id_to_sync(&message) {
+                    self.outbound_service()
+                        .enqueue_deleted_message_in_transaction(txn, mimi_id)
+                        .await?;
                 }
-
-                // Delete the message (edit history and status records are cascade-deleted)
-                ChatMessage::delete(txn, message_id).await?;
 
                 Ok(())
             })
