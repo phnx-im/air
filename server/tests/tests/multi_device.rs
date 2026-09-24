@@ -1119,6 +1119,79 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a local deletion reaches the sibling", skip_all)]
+async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(bob_device).await;
+    let text = "delete me on every device";
+    let content = MimiContent::simple_markdown_message(text.to_owned(), [3; 16]);
+    bob_device
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    bob_device.outbound_service().run_once().await;
+
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, text).await,
+        1
+    );
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, text).await,
+        1
+    );
+
+    let message_id = first_device
+        .messages(chat_id, 100)
+        .await?
+        .iter()
+        .find(|message| {
+            message
+                .message()
+                .mimi_content()
+                .is_some_and(|content| content.string_rendering().is_ok_and(|s| s.contains(text)))
+        })
+        .map(|message| message.id())
+        .expect("the first device holds the message");
+
+    let epochs_before = first_device.self_group_epochs().await?;
+    first_device.delete_message_locally(message_id).await?;
+    first_device.outbound_service().run_once().await;
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, text).await,
+        0
+    );
+    assert_eq!(
+        first_device.self_group_epochs().await?,
+        epochs_before,
+        "the deletion is an application message, not a commit"
+    );
+
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, text).await,
+        0,
+        "the sibling must delete the message"
+    );
+
+    Ok(())
+}
+
 // A device that joins via Welcome cannot read the messages that carried past
 // redemptions, and its first batch fetch is answered from the request its
 // sibling registered. The provisioning package therefore carries the redeemed
