@@ -48,6 +48,7 @@ impl User {
                     }
                     Some(listen_response::Event::Payload(_))
                     | Some(listen_response::Event::VersionStatus(_))
+                    | Some(listen_response::Event::SiblingFocusedChat(_))
                     | None => {}
                 },
                 // Terminal status => stream is over, acks cannot be confirmed

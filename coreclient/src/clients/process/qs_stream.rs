@@ -113,7 +113,8 @@ impl QsStreamProcessor {
 
                 result
             }
-            Some(listen_response::Event::VersionStatus(_)) => QsProcessEventResult::Ignored,
+            Some(listen_response::Event::VersionStatus(_))
+            | Some(listen_response::Event::SiblingFocusedChat(_)) => QsProcessEventResult::Ignored,
         }
     }
 }

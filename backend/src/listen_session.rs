@@ -19,6 +19,11 @@ pub(crate) trait ListenRequestHandler<Req>: Send + 'static {
     /// Returning an error ends the session. The error is sent to the client as the terminal status
     /// of the response stream.
     fn handle(&mut self, request: Req) -> impl Future<Output = Result<(), Status>> + Send;
+
+    /// Called once when the session ends, for whatever reason.
+    fn finish(&mut self) -> impl Future<Output = ()> + Send {
+        async {}
+    }
 }
 
 enum Event<Req, Resp> {
@@ -65,66 +70,73 @@ where
         let mut responses = pin!(responses);
 
         // Process incoming requests and responses to deliver sequentially
-        loop {
-            let event = tokio::select! {
-                biased;
-                req = requests.next() => {
-                    match req {
-                        // The client sent a request
-                        Some(Ok(req)) => Event::Incoming(req),
-                        // The transport failed or the client reset the stream. Ending abruptly,
-                        // in-flight acks are lost and the corresponding messages will be
-                        // redelivered.
-                        Some(Err(status)) => {
-                            if !status.is_client_disconnect() {
-                                error!(%status, %name, "listen request stream failed");
+        async {
+            loop {
+                let event = tokio::select! {
+                    biased;
+                    req = requests.next() => {
+                        match req {
+                            // The client sent a request
+                            Some(Ok(req)) => Event::Incoming(req),
+                            // The transport failed or the client reset the stream. Ending abruptly,
+                            // in-flight acks are lost and the corresponding messages will be
+                            // redelivered.
+                            Some(Err(status)) => {
+                                if !status.is_client_disconnect() {
+                                    error!(%status, %name, "listen request stream failed");
+                                }
+                                let _ = out_tx.send(Err(status)).await;
+                                return;
                             }
-                            let _ = out_tx.send(Err(status)).await;
+                            // The client half-closed the request stream. All requests sent before are
+                            // processed at this point. Returning drops out_tx which closes the response
+                            // with OK trailers. This is the client's confirmation that its requests are
+                            // durable.
+                            None => return,
+                        }
+                    }
+                    // The server is shutting down
+                    _ = stop.cancelled() => Event::Aborted,
+                    resp = responses.next() => match resp {
+                        // A response to deliver to the client
+                        Some(resp) => Event::Deliver(resp),
+                        // The stream ended (e.g. evicted by a newer listener).
+                        None => Event::Evicted,
+                    },
+                };
+
+                match event {
+                    Event::Incoming(request) => {
+                        if let Err(error) = handler.handle(request).await {
+                            // We report the error to the client and stop.
+                            error!(%error, %name, "error processing listen request");
+                            let _ = out_tx.send(Err(error)).await;
                             return;
                         }
-                        // The client half-closed the request stream. All requests sent before are
-                        // processed at this point. Returning drops out_tx which closes the response
-                        // with OK trailers. This is the client's confirmation that its requests are
-                        // durable.
-                        None => return,
                     }
-                }
-                // The server is shutting down
-                _ = stop.cancelled() => Event::Aborted,
-                resp = responses.next() => match resp {
-                    // A response to deliver to the client
-                    Some(resp) => Event::Deliver(resp),
-                    // The stream ended (e.g. evicted by a newer listener).
-                    None => Event::Evicted,
-                },
-            };
-
-            match event {
-                Event::Incoming(request) => {
-                    if let Err(error) = handler.handle(request).await {
-                        // We report the error to the client and stop.
-                        error!(%error, %name, "error processing listen request");
-                        let _ = out_tx.send(Err(error)).await;
+                    Event::Deliver(response) => {
+                        if out_tx.send(Ok(response)).await.is_err() {
+                            return;
+                        }
+                    }
+                    Event::Evicted => {
+                        let _ = out_tx.send(Err(Status::aborted("evicted"))).await;
                         return;
                     }
-                }
-                Event::Deliver(response) => {
-                    if out_tx.send(Ok(response)).await.is_err() {
+                    Event::Aborted => {
+                        let _ = out_tx
+                            .send(Err(Status::unavailable("server stopped")))
+                            .await;
                         return;
                     }
-                }
-                Event::Evicted => {
-                    let _ = out_tx.send(Err(Status::aborted("evicted"))).await;
-                    return;
-                }
-                Event::Aborted => {
-                    let _ = out_tx
-                        .send(Err(Status::unavailable("server stopped")))
-                        .await;
-                    return;
                 }
             }
         }
+        .await;
+
+        // Close the response before running cleanup, to send OK
+        drop(out_tx);
+        handler.finish().await;
     });
 
     Box::pin(ReceiverStream::new(out_rx))
