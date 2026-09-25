@@ -17,9 +17,17 @@ const _tick = Duration(seconds: 5);
 /// Install it once above the app. A label with no clock above it reads the wall
 /// clock as it mounts and then holds still, which is what a widget test wants.
 class AppClock extends StatefulWidget {
-  const AppClock({super.key, required this.child});
+  const AppClock({super.key, required this.child}) : fixedNow = null;
+
+  /// A clock that holds at [fixedNow] and never ticks, so every live label
+  /// under it renders the same way on every run. For golden/screenshot tests
+  /// pinning fabricated content to a fixed reference time.
+  const AppClock.fixed(this.fixedNow, {super.key, required this.child});
 
   final Widget child;
+
+  /// The time this clock holds at, or null for the real, ticking clock.
+  final DateTime? fixedNow;
 
   /// The ticking clock, or null where none is installed.
   static ValueListenable<DateTime>? maybeOf(BuildContext context) =>
@@ -30,18 +38,21 @@ class AppClock extends StatefulWidget {
 }
 
 class _AppClockState extends State<AppClock> {
-  final ValueNotifier<DateTime> _now = ValueNotifier(DateTime.now());
-  late final Timer _timer;
+  late final ValueNotifier<DateTime> _now;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(_tick, (_) => _now.value = DateTime.now());
+    _now = ValueNotifier(widget.fixedNow ?? DateTime.now());
+    if (widget.fixedNow == null) {
+      _timer = Timer.periodic(_tick, (_) => _now.value = DateTime.now());
+    }
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel();
     _now.dispose();
     super.dispose();
   }
