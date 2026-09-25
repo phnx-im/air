@@ -142,8 +142,4 @@ impl QsProcessEventResult {
             Self::PartiallyProcessed { processed, .. } => processed.processed,
         }
     }
-
-    pub fn is_partially_processed(&self) -> bool {
-        matches!(self, Self::PartiallyProcessed { .. })
-    }
 }
