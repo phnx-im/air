@@ -181,7 +181,7 @@ impl ChatDetailsCubitBase {
                 Box::pin(
                     self.context
                         .core_user
-                        .delete_message(self.context.chat_id, message_id),
+                        .delete_message_for_everyone(self.context.chat_id, message_id),
                 )
                 .await
                 .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
@@ -190,7 +190,7 @@ impl ChatDetailsCubitBase {
                 // Delete locally - completely remove the message from the database
                 self.context
                     .core_user
-                    .delete_message_locally(message_id)
+                    .delete_message(message_id)
                     .await
                     .inspect_err(|error| error!(%error, "Failed to delete message locally"))?;
             }

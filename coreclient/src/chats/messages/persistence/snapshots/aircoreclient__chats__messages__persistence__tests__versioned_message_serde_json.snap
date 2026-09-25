@@ -1,5 +1,5 @@
 ---
-source: coreclient/src/chats/messages/persistence.rs
+source: coreclient/src/chats/messages/persistence/mod.rs
 expression: "&*VERSIONED_MESSAGE"
 ---
 {

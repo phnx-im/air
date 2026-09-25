@@ -18,10 +18,15 @@
 //! so a client can adopt new tags before all of a user's devices understand
 //! them.
 
-use aircommon::crypto::{
-    aead::{Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey},
-    errors::RandomnessError,
-    secrets::Secret,
+use aircommon::{
+    crypto::{
+        aead::{
+            Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+        },
+        errors::RandomnessError,
+        secrets::Secret,
+    },
+    identifiers::MimiId,
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
@@ -121,13 +126,16 @@ pub const SELF_GROUP_APP_MESSAGE_EXTENSION: i64 = -1;
 ///
 /// ```cddl
 /// SelfGroupAppMessage = {
-///   1: RedeemedTokens    ; tagged union, exactly one entry
+///   1: RedeemedTokens
+///   2: DeletedMessages
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum SelfGroupAppMessage {
     #[tag(1)]
     RedeemedTokens(RedeemedTokens),
+    #[tag(2)]
+    DeletedMessages(DeletedMessages),
     /// A message kind this client does not understand, skipped on receive.
     #[unknown]
     Unknown,
@@ -231,6 +239,27 @@ pub struct RedeemedTokens {
     pub allowance_epoch: u32,
     #[tag(4)]
     pub token_indices: Vec<u16>,
+}
+
+/// Upper bound of Mimi IDs in one [`DeletedMessages`].
+pub const MAX_DELETED_MESSAGES_PER_MESSAGE: usize = 64;
+
+/// The messages the sender deleted locally, so that siblings delete them too.
+///
+/// A Mimi ID names one version of a message. The receiver also resolves the
+/// IDs of versions an edit replaced.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// DeletedMessages = {
+///   1: [* bstr .size 32],  ; mimi_ids, at most 64
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct DeletedMessages {
+    #[tag(1)]
+    pub mimi_ids: Vec<MimiId>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -874,6 +903,41 @@ mod test {
         let bytes = PersistenceCodec::to_vec(&sample_redeemed()).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
+    }
+
+    fn sample_deleted(count: usize) -> DeletedMessages {
+        DeletedMessages {
+            mimi_ids: (0..count).map(|i| MimiId::from([i as u8; 32])).collect(),
+        }
+    }
+
+    #[test]
+    fn deleted_messages_roundtrip() {
+        let deleted = sample_deleted(3);
+        let bytes = PersistenceCodec::to_vec(&deleted).unwrap();
+        let decoded: DeletedMessages = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(deleted, decoded);
+    }
+
+    #[test]
+    fn deleted_messages_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_deleted(2)).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// The Mimi IDs are byte strings, so a full batch stays within the
+    /// extension depth limit.
+    #[test]
+    fn a_full_batch_of_deleted_messages_survives_the_mimi_encoding() {
+        let message =
+            SelfGroupAppMessage::DeletedMessages(sample_deleted(MAX_DELETED_MESSAGES_PER_MESSAGE));
+        let bytes = message.to_mimi_content().unwrap().serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(message)
+        );
     }
 
     // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to

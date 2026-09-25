@@ -11,12 +11,9 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-use crate::{
-    groups::self_group::SelfGroup, job::pending_chat_operation::PendingChatOperation,
-    outbound_service::resync::Resync, privacy_pass,
-};
+use crate::privacy_pass;
 
-use super::{OutboundServiceContext, SendOutcome};
+use super::{OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
 impl OutboundServiceContext {
     /// Sends every redemption whose broadcast delay has passed to the siblings,
@@ -34,32 +31,18 @@ impl OutboundServiceContext {
             return Ok(());
         }
 
-        if !SelfGroup::has_linked_devices(self.db.read().await?).await? {
-            debug!("no sibling to tell about redeemed privacy pass tokens");
-            self.retire_redeemed(&redeemed).await?;
-            return Ok(());
-        }
-
-        let Some(chat) = self
-            .db
-            .with_read_transaction(async |txn| SelfGroup::load_chat(txn).await)
-            .await?
-        else {
-            debug!("no self chat yet, keeping redeemed privacy pass tokens for a later run");
-            return Ok(());
+        let chat = match self.self_chat_for_app_message().await? {
+            SelfChatReadiness::NoSiblings => {
+                debug!("no sibling to tell about redeemed privacy pass tokens");
+                self.retire_redeemed(&redeemed).await?;
+                return Ok(());
+            }
+            SelfChatReadiness::NotReady => {
+                debug!("keeping redeemed privacy pass tokens for a later run");
+                return Ok(());
+            }
+            SelfChatReadiness::Ready(chat) => chat,
         };
-
-        if let Some(status) = Resync::status_for_chat(self.db.read().await?, &chat.id()).await? {
-            debug!(
-                ?status,
-                "self group is resyncing, keeping redeemed privacy pass tokens for a later run"
-            );
-            return Ok(());
-        }
-        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat.id()).await? {
-            debug!("self group is busy, keeping redeemed privacy pass tokens for a later run");
-            return Ok(());
-        }
 
         for message in &redeemed {
             if run_token.is_cancelled() {
