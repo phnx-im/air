@@ -93,7 +93,7 @@ impl Qs {
             // When broadcasting, fan out to all of the user's emulator clients.
             // Otherwise, deliver only to the requested clients.
             let client_ids = if message.broadcast_to_all_client_queues.into() {
-                QsClientRecord::load_client_ids(&self.db_pool, &client_config.client_id)
+                QsClientRecord::load_user_client_ids(&self.db_pool, &client_config.client_id)
                     .await
                     .map_err(|_| QsEnqueueError::StorageError)?
                     .ok_or(EnqueueError::ClientNotFound)?

@@ -28,10 +28,15 @@ use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{
     listen_session::{ListenRequestHandler, spawn_listen_session},
-    qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
+    qs::{
+        client_record::QsClientRecord,
+        queue::{Queues, focused_chat::MAX_ENCRYPTED_FOCUSED_CHAT_SIZE},
+        user_record::UserRecord,
+    },
     version::VerifiedClientVersion,
 };
 
@@ -75,13 +80,16 @@ enum ProcessListenQueueRequestError {
     UnexpectedInitRequest,
     /// Received empty request
     EmptyRequest,
+    /// Encrypted focused chat is too large
+    FocusedChatTooLarge,
 }
 
 impl From<ProcessListenQueueRequestError> for Status {
     fn from(error: ProcessListenQueueRequestError) -> Self {
         match error {
             ProcessListenQueueRequestError::UnexpectedInitRequest
-            | ProcessListenQueueRequestError::EmptyRequest => {
+            | ProcessListenQueueRequestError::EmptyRequest
+            | ProcessListenQueueRequestError::FocusedChatTooLarge => {
                 Status::invalid_argument(error.to_string())
             }
         }
@@ -304,7 +312,8 @@ impl QueueService for GrpcQs {
         let params = DeleteClientRecordParams {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
         };
-        self.qs.qs_delete_client_record(params).await?;
+        self.qs.qs_delete_client_record(&params).await?;
+        self.qs.queues.clear_client_focused_chat(params.sender);
         Ok(Response::new(DeleteClientResponse {}))
     }
 
@@ -499,11 +508,13 @@ impl QueueService for GrpcQs {
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        let session_id = Uuid::new_v4();
 
         let queue_messages = self
             .qs
             .queues
             .listen(
+                session_id,
                 client_id,
                 verified_client_version.version,
                 sequence_number_start,
@@ -515,7 +526,11 @@ impl QueueService for GrpcQs {
                 event: Some(listen_response::Event::Empty(QueueEmpty {})),
             },
         });
-        let events = tokio_stream::once(version_status).chain(events);
+        // Always sent first, so that the client knows focused chats.
+        let sibling_focused_chats = self.qs.queues.sibling_focused_chats(client_id);
+        let events = tokio_stream::once(version_status)
+            .chain(tokio_stream::iter(sibling_focused_chats))
+            .chain(events);
 
         self.update_client_activity_and_report_metrics(client_id)
             .await
@@ -527,6 +542,7 @@ impl QueueService for GrpcQs {
         let handler = QueueSessionHandler {
             queues: self.qs.queues.clone(),
             client_id,
+            session_id,
         };
         let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
         Ok(Response::new(responses))
@@ -536,6 +552,7 @@ impl QueueService for GrpcQs {
 struct QueueSessionHandler {
     queues: Queues,
     client_id: identifiers::QsClientId,
+    session_id: Uuid,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
@@ -551,6 +568,18 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
                 self.queues.trigger_fetch(self.client_id).await?;
             }
+            Some(listen_request::Request::FocusedChat(ReportFocusedChatListenRequest {
+                encrypted_focused_chat,
+            })) => {
+                if encrypted_focused_chat.len() > MAX_ENCRYPTED_FOCUSED_CHAT_SIZE {
+                    return Err(ProcessListenQueueRequestError::FocusedChatTooLarge.into());
+                }
+                self.queues.update_focused_chat(
+                    self.client_id,
+                    self.session_id,
+                    encrypted_focused_chat,
+                );
+            }
             Some(listen_request::Request::Init(_)) => {
                 return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());
             }
@@ -559,6 +588,11 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             }
         }
         Ok(())
+    }
+
+    async fn finish(&mut self) {
+        self.queues
+            .clear_session_focused_chat(self.client_id, self.session_id);
     }
 }
 

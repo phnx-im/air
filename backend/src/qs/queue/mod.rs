@@ -2,11 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) mod focused_chat;
+
 use std::{borrow::Cow, collections::VecDeque, sync::Arc};
 
-use aircommon::identifiers::QsClientId;
+use aircommon::{identifiers::QsClientId, time::TimeStamp};
 use airprotos::queue_service::v1::{
-    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
+    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, SiblingFocusedChatState,
+    listen_response,
 };
 use dashmap::DashMap;
 use futures_util::{Stream, stream};
@@ -22,7 +25,7 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
-    qs::METRIC_AIR_ACTIVE_USERS,
+    qs::{METRIC_AIR_ACTIVE_USERS, client_record::QsClientRecord},
 };
 
 /// Maximum number of messages to fetch at once.
@@ -41,14 +44,21 @@ pub(crate) struct Queues {
 #[derive(Debug)]
 struct ListenerContext {
     cancel: CancellationToken,
-    payload_tx: mpsc::Sender<QueueEventPayload>,
+    payload_tx: mpsc::Sender<ListenResponse>,
+    session_id: Uuid,
+    /// Last focused chat reported by the client in this session
+    focused_chat: Option<SiblingFocusedChatState>,
+    /// Other clients of the same user
+    siblings: Vec<QsClientId>,
 }
 
 impl ListenerContext {
     fn new(
+        session_id: Uuid,
         cancel: CancellationToken,
         client_version: Option<&Version>,
-        payload_tx: mpsc::Sender<QueueEventPayload>,
+        payload_tx: mpsc::Sender<ListenResponse>,
+        siblings: Vec<QsClientId>,
     ) -> Self {
         let client_version_label = client_version_label(client_version);
         gauge!(
@@ -56,7 +66,13 @@ impl ListenerContext {
             "client_version" => client_version_label,
         )
         .increment(1);
-        Self { cancel, payload_tx }
+        Self {
+            cancel,
+            payload_tx,
+            session_id,
+            focused_chat: None,
+            siblings,
+        }
     }
 }
 
@@ -78,14 +94,25 @@ impl Queues {
 
     pub(crate) async fn listen(
         &self,
+        session_id: Uuid,
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
     ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
+        let siblings = QsClientRecord::load_user_sibling_client_ids(&self.pool, &client_id).await?;
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let cancel = self.track_listener(client_id, client_version.as_ref(), payload_tx);
+        let (cancel, gone_at) = self.track_listener(
+            session_id,
+            client_id,
+            client_version.as_ref(),
+            payload_tx,
+            siblings.clone(),
+        );
+        if let Some(gone_at) = gone_at {
+            self.report_focused_chat_gone(client_id, &siblings, gone_at);
+        }
         let context = QueueStreamContext {
             pool: self.pool.clone(),
             notifications,
@@ -106,12 +133,7 @@ impl Queues {
             }),
         });
 
-        let payload_stream =
-            tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(|payload| {
-                Some(ListenResponse {
-                    event: Some(listen_response::Event::Payload(payload)),
-                })
-            });
+        let payload_stream = tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(Some);
 
         let event_stream = stream::select(message_stream, payload_stream);
 
@@ -167,16 +189,41 @@ impl Queues {
         else {
             return Ok(false);
         };
-        tx.send(payload).await?;
+        tx.send(ListenResponse {
+            event: Some(listen_response::Event::Payload(payload)),
+        })
+        .await?;
         Ok(true)
     }
 
-    fn track_listener(
+    /// Sends `response` to the listener of `client_id` without waiting.
+    ///
+    /// Returns `false` if there is no listener or its channel is full.
+    pub(super) fn try_send_response(
         &self,
         client_id: QsClientId,
+        response: ListenResponse,
+    ) -> bool {
+        self.listeners
+            .get(&client_id)
+            .is_some_and(|context| context.payload_tx.try_send(response).is_ok())
+    }
+
+    /// Registers the listener of `client_id`, replacing a previous one.
+    ///
+    /// Also adds `client_id` to the siblings of the listening `siblings`, which
+    /// might have loaded theirs before `client_id` existed.
+    ///
+    /// Returns the time of the change if the replaced listener had a focused
+    /// chat.
+    fn track_listener(
+        &self,
+        session_id: Uuid,
+        client_id: QsClientId,
         client_version: Option<&Version>,
-        payload_tx: mpsc::Sender<QueueEventPayload>,
-    ) -> CancellationToken {
+        payload_tx: mpsc::Sender<ListenResponse>,
+        siblings: Vec<QsClientId>,
+    ) -> (CancellationToken, Option<TimeStamp>) {
         // Clean up cancelled listeners
         self.listeners.retain(|id, context| {
             if context.cancel.is_cancelled() {
@@ -187,15 +234,35 @@ impl Queues {
             }
         });
 
+        for sibling_id in &siblings {
+            if let Some(mut context) = self.listeners.get_mut(sibling_id)
+                && !context.siblings.contains(&client_id)
+            {
+                context.siblings.push(client_id);
+            }
+        }
+
         let cancel = CancellationToken::new();
-        let context = ListenerContext::new(cancel.clone(), client_version, payload_tx);
+        let context = ListenerContext::new(
+            session_id,
+            cancel.clone(),
+            client_version,
+            payload_tx,
+            siblings,
+        );
+        let mut gone_at = None;
         if let Some(prev_listener) = self.listeners.insert(client_id, context) {
             prev_listener.cancel.cancel();
+            if prev_listener.focused_chat.is_some() {
+                // After the insert, so that it is ordered after the last
+                // update of the replaced session
+                gone_at = Some(TimeStamp::now());
+            }
         } else {
             self.pg_listener_task_handle.listen(client_id);
         }
 
-        cancel
+        (cancel, gone_at)
     }
 }
 

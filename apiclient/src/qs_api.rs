@@ -31,8 +31,8 @@ use airprotos::{
     queue_service::v1::{
         AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
         DeleteUserPayload, FetchListenRequest, InitListenPayload, ListenResponse,
-        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, StageKeyPackagesPayload,
-        UpdateClientPayload, UpdateUserPayload, listen_request,
+        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, ReportFocusedChatListenRequest,
+        StageKeyPackagesPayload, UpdateClientPayload, UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
@@ -458,6 +458,20 @@ impl QsListenResponder {
             .tx
             .send(ListenRequest {
                 request: Some(listen_request::Request::Fetch(FetchListenRequest {})),
+            })
+            .await;
+    }
+
+    /// Replaces the focused chat that the QS relays to sibling clients.
+    pub async fn report_focused_chat(&self, encrypted_focused_chat: Vec<u8>) {
+        let _ignore_closed_tx = self
+            .tx
+            .send(ListenRequest {
+                request: Some(listen_request::Request::FocusedChat(
+                    ReportFocusedChatListenRequest {
+                        encrypted_focused_chat,
+                    },
+                )),
             })
             .await;
     }

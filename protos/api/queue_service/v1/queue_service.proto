@@ -303,6 +303,7 @@ message ListenRequest {
     InitListenRequest init = 1;
     AckListenRequest ack = 2;
     FetchListenRequest fetch = 3;
+    ReportFocusedChatListenRequest focused_chat = 4;
   }
 }
 
@@ -334,13 +335,41 @@ message AckListenRequest {
 
 message FetchListenRequest {}
 
+message ReportFocusedChatListenRequest {
+  bytes encrypted_focused_chat = 1;
+}
+
 message ListenResponse {
   oneof event {
     QueueEmpty empty = 1;
     QueueMessage message = 2;
     QueueEventPayload payload = 3;
     VersionStatus version_status = 4;
+    SiblingFocusedChat sibling_focused_chat = 5;
   }
+}
+
+// Changes are ordered by `updated_at`: a change older than the last seen one
+// of the same sibling is outdated and must be dropped.
+message SiblingFocusedChat {
+  oneof change {
+    SiblingFocusedChatState update = 1;
+    SiblingFocusedChatGone gone = 2;
+  }
+}
+
+message SiblingFocusedChatState {
+  QsClientId client_id = 1;
+  // Time the sibling last updated its state
+  common.v1.Timestamp updated_at = 2;
+  bytes encrypted_focused_chat = 3;
+}
+
+// The sibling stopped listening or was deleted
+message SiblingFocusedChatGone {
+  QsClientId client_id = 1;
+  // Time the sibling's state was cleared
+  common.v1.Timestamp updated_at = 2;
 }
 
 // Event notifying recipients that the queue is empty

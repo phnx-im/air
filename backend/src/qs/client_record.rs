@@ -291,9 +291,28 @@ pub(crate) mod persistence {
         ///
         /// The client ids are ordered ascending. Callers lock the client records in that order
         /// (see `load_for_update`), which keeps the lock order consistent and avoids deadlocks.
-        pub(in crate::qs) async fn load_client_ids(
+        pub(in crate::qs) async fn load_user_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
+        ) -> Result<Option<Vec<QsClientId>>, StorageError> {
+            Self::load_client_ids(connection, client_id, false).await
+        }
+
+        /// Returns the active sibling client ids (all but self) for the user owning the
+        /// given id.
+        pub(in crate::qs) async fn load_user_sibling_client_ids(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> Result<Vec<QsClientId>, StorageError> {
+            Ok(Self::load_client_ids(connection, client_id, true)
+                .await?
+                .unwrap_or_default())
+        }
+
+        async fn load_client_ids(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+            filter_self: bool,
         ) -> Result<Option<Vec<QsClientId>>, StorageError> {
             let rows: Vec<Option<QsClientId>> = sqlx::query_scalar!(
                 r#"SELECT other.client_id AS "client_id?: QsClientId"
@@ -312,7 +331,12 @@ pub(crate) mod persistence {
                 Ok(None)
             } else {
                 // anchor exists
-                Ok(Some(rows.into_iter().flatten().collect()))
+                Ok(Some(
+                    rows.into_iter()
+                        .flatten()
+                        .filter(|id| !filter_self || id != client_id)
+                        .collect(),
+                ))
             }
         }
 
@@ -487,7 +511,8 @@ pub(crate) mod persistence {
                 QsClientRecord::load_verifying_key(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, None);
 
-            let loaded = QsClientRecord::load_client_ids(&pool, &client_record.client_id).await?;
+            let loaded =
+                QsClientRecord::load_user_client_ids(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, Some(vec![]));
 
             let tombstone_user_id: QsUserId = sqlx::query_scalar(
@@ -766,7 +791,7 @@ mod tests {
         // Case 1: unknown anchor => Ok(None)
         let unknown = QsClientId::random(&mut rand::rng());
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &unknown).await?,
+            QsClientRecord::load_user_client_ids(&pool, &unknown).await?,
             None
         );
 
@@ -776,7 +801,7 @@ mod tests {
         let _other = store_random_client_record(&pool, other_user.user_id).await?;
 
         // Case 3a: active anchor => all active client ids of the same user, including itself
-        let result = QsClientRecord::load_client_ids(&pool, &a.client_id).await?;
+        let result = QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?;
         let got: HashSet<_> = result.expect("anchor missing").into_iter().collect();
         let want: HashSet<_> = [a.client_id, b.client_id].into_iter().collect();
         assert_eq!(got, want);
@@ -784,14 +809,14 @@ mod tests {
         // Case 3b: tombstone the queried client; anchor still resolves, returns only the live sibling
         QsClientRecord::soft_delete(&pool, &a.client_id).await?;
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?,
             Some(vec![b.client_id]),
         );
 
         // Case 2: tombstone the remaining sibling → anchor present, zero actives
         QsClientRecord::soft_delete(&pool, &b.client_id).await?;
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?,
             Some(vec![]),
         );
 
