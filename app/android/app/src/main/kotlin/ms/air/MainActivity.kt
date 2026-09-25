@@ -31,6 +31,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import androidx.core.net.toUri
 import java.io.File
 import java.io.IOException
@@ -356,6 +357,11 @@ class MainActivity : FlutterFragmentActivity() {
                     handleNotificationPermissionRequest(result)
                 }
 
+                "openNotificationSettings" -> {
+                    openNotificationSettings()
+                    result.success(null)
+                }
+
                 "dismissSplashScreen" -> {
                     keepSplashScreenOn = false
                     result.success(null)
@@ -415,6 +421,17 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun openNotificationSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", packageName, null))
+        }
+        startActivity(intent)
     }
 
     private fun handleNotificationPermissionRequest(result: MethodChannel.Result) {

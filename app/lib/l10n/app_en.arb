@@ -426,9 +426,22 @@
   "@invitationCodeScreen_header": {
     "description": "Header of the step asking for an invite code during sign up."
   },
-  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
+  "invitationCodeScreen_subheader": "To keep Air running smoothly, we limit how many accounts can be created within a short timespan. Wait until later today and try again to sign up without an invite code.",
   "@invitationCodeScreen_subheader": {
-    "description": "Explains that Air is invitation-only and where to get a code."
+    "description": "Explains that sign up is rate limited, so an invite code is required for now, and that trying again later works without one."
+  },
+  "invitationCodeScreen_notificationsHint": "If you didn't allow push notifications for Air, that could also be why you're seeing this screen. To allow push notifications, {settingsLink}.",
+  "@invitationCodeScreen_notificationsHint": {
+    "description": "Second paragraph under the invite code explanation, shown on mobile only. Suggests that missing push notification permission can also lead to this screen. The placeholder is replaced by the link text that opens the notification settings and must appear verbatim.",
+    "placeholders": {
+      "settingsLink": {
+        "type": "String"
+      }
+    }
+  },
+  "invitationCodeScreen_notificationsLinkText": "tap here",
+  "@invitationCodeScreen_notificationsLinkText": {
+    "description": "Link text inside the push notifications sentence on the invite code step. Opens the system notification settings for Air. Must match the wording used inside that sentence so the link can be located in the rendered string."
   },
   "invitationCodeScreen_inputLabel": "Invite code (required)",
   "@invitationCodeScreen_inputLabel": {
