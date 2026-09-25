@@ -39,6 +39,8 @@ class intArray12 extends NonGrowableListView<int> {
 abstract class UiUser implements RustOpaqueInterface {
   bool get accountUnlinked;
 
+  int get maxDevices;
+
   UiUserId get userId;
 
   List<UiUsername> get usernames;

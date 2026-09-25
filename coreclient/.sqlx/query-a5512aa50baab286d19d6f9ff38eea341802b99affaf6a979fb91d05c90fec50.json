@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max_devices AS \"max_devices: _\"\n            FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_devices: _",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "max_devices"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a5512aa50baab286d19d6f9ff38eea341802b99affaf6a979fb91d05c90fec50"
+}

@@ -49,6 +49,13 @@ class _Failed extends _LinkingPhase {
   final String message;
 }
 
+/// The existing device could not link us because the account reached its
+/// device limit.
+class _DeviceLimit extends _LinkingPhase {
+  const _DeviceLimit({required this.maxDevices});
+  final int maxDevices;
+}
+
 /// Source of provisioning events for [MultiDeviceProvisionScreen].
 /// Defaults to the real Rust-bridge [multiDeviceProvisionClient] but made
 /// injectable so tests can drive the screen through each phase.
@@ -107,7 +114,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
     // view behind it so the dimmed barrier shows real content instead of an
     // empty (blacked-out) screen.
     final lastVisiblePhase = useRef<_LinkingPhase>(const _Connecting());
-    if (phase.value is! _Failed) {
+    if (phase.value is! _Failed && phase.value is! _DeviceLimit) {
       lastVisiblePhase.value = phase.value;
     }
 
@@ -142,6 +149,10 @@ class MultiDeviceProvisionScreen extends HookWidget {
                   phase.value = const _Linked();
                 case MultiDeviceProvisionEvent_Failed(:final field0):
                   phase.value = _Failed(message: field0);
+                case MultiDeviceProvisionEvent_DeviceLimitReached(
+                  :final maxDevices,
+                ):
+                  phase.value = _DeviceLimit(maxDevices: maxDevices);
               }
             },
             onError: (Object error) {
@@ -151,7 +162,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
             },
             onDone: () {
               // the stream has been closed from the Rust side (i.e. timeout)
-              if (phase.value is! _Linked) {
+              if (phase.value is! _Linked && phase.value is! _DeviceLimit) {
                 phase.value = _Failed(
                   message: loc.linkingDeviceScreen_error_codesExpired_message,
                 );
@@ -183,6 +194,19 @@ class MultiDeviceProvisionScreen extends HookWidget {
       return null;
     }, [failureMessage]);
 
+    // Reloading cannot help at the device limit, so this modal only leaves the
+    // linking flow.
+    final deviceLimit = failure is _DeviceLimit ? failure.maxDevices : null;
+    useEffect(() {
+      if (deviceLimit == null) {
+        return null;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showDeviceLimitDialog(context, maxDevices: deviceLimit);
+      });
+      return null;
+    }, [deviceLimit]);
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
@@ -211,7 +235,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
                 _Linked() => const SizedBox.shrink(),
                 // The failure itself is shown as a modal, we want to
                 // keep the last visible view painted behind it.
-                _Failed() => switch (lastVisiblePhase.value) {
+                _Failed() || _DeviceLimit() => switch (lastVisiblePhase.value) {
                   _AwaitingLink(:final code, :final qrcodeSvg) =>
                     _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
                   _Linking() => const _LinkingView(),
@@ -543,4 +567,29 @@ Future<void> _showLinkingFailedDialog(
   } else {
     context.read<NavigationCubit>().pop();
   }
+}
+
+/// Shows the device limit modal over the screen and leaves the linking flow
+/// once it is dismissed.
+Future<void> _showDeviceLimitDialog(
+  BuildContext context, {
+  required int maxDevices,
+}) async {
+  if (!context.mounted) {
+    return;
+  }
+  final loc = AppLocalizations.of(context);
+  await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => ConfirmDialog(
+      title: loc.linkingDeviceScreen_error_deviceLimit_title,
+      message: loc.linkingDeviceScreen_error_deviceLimit_message(maxDevices),
+      confirm: loc.linkingDeviceScreen_error_deviceLimit_back,
+    ),
+  );
+  if (!context.mounted) {
+    return;
+  }
+  context.read<NavigationCubit>().pop();
 }

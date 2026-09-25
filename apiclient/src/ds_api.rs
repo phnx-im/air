@@ -28,7 +28,7 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode,
+        AttachmentTooLargeDetail, DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode,
         status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
@@ -158,6 +158,18 @@ impl DsRequestError {
             matches!(status.code(), Code::NotFound)
         } else {
             false
+        }
+    }
+
+    pub fn device_limit_reached(&self) -> Option<DeviceLimitReachedDetail> {
+        if let Self::Tonic(status) = self
+            && status.code() == Code::ResourceExhausted
+            && let details = StatusDetails::from_status(status)?
+            && let Detail::DeviceLimitReached(detail) = details.detail?
+        {
+            Some(detail)
+        } else {
+            None
         }
     }
 }

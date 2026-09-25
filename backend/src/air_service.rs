@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, Ordering},
+};
+
 use aircommon::identifiers::Fqdn;
 use sqlx::{AssertSqlSafe, Connection, Executor, PgConnection, PgPool};
 use thiserror::Error;
@@ -30,12 +35,32 @@ impl<T: Into<sqlx::Error>> From<T> for ServiceCreationError {
     }
 }
 
+/// Maximum number of devices per user, shared by the services. 0 means no limit.
+#[derive(Debug, Clone)]
+pub struct MaxDevices(Arc<AtomicU32>);
+
+impl MaxDevices {
+    pub(crate) fn new(max_devices: u32) -> Self {
+        Self(Arc::new(AtomicU32::new(max_devices)))
+    }
+
+    pub(crate) fn get(&self) -> u32 {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub fn set(&self, max_devices: u32) {
+        self.0.store(max_devices, Ordering::Relaxed);
+    }
+}
+
 #[expect(async_fn_in_trait)]
 pub trait BackendService: Sized {
     async fn new(
         database_settings: &DatabaseSettings,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let mut connection =
@@ -61,13 +86,14 @@ pub trait BackendService: Sized {
 
         let db_pool = PgPool::connect(&database_settings.connection_string()).await?;
 
-        Self::new_from_pool(db_pool, domain, version_policy, stop).await
+        Self::new_from_pool(db_pool, domain, version_policy, max_devices, stop).await
     }
 
     async fn new_from_pool(
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         info!("Running database migration");
@@ -75,7 +101,7 @@ pub trait BackendService: Sized {
         info!("Database migration successful");
 
         Self::describe_metrics();
-        Self::initialize(db_pool, domain, version_policy, stop).await
+        Self::initialize(db_pool, domain, version_policy, max_devices, stop).await
     }
 
     fn describe_metrics() {}
@@ -84,6 +110,7 @@ pub trait BackendService: Sized {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError>;
 }

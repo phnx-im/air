@@ -278,6 +278,14 @@ impl CoreUser {
         self_group.client_ids()
     }
 
+    /// Returns the maximum number of devices that can be linked to this client.
+    ///
+    /// The number is communicated by the server at connection establishment.
+    pub async fn max_devices(&self) -> anyhow::Result<u32> {
+        let mut read = self.db().read().await?;
+        Ok(OwnClientInfo::load_max_devices(&mut read).await?)
+    }
+
     /// The Privacy Pass token seeds this device has agreed on with its siblings.
     ///
     /// Exposed for tests: no production caller needs to observe the agreement,

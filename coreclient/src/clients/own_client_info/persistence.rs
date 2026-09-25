@@ -158,6 +158,25 @@ impl OwnClientInfo {
         Ok(())
     }
 
+    pub(crate) async fn load_max_devices(mut read: impl ReadConnection) -> sqlx::Result<u32> {
+        query_scalar!(
+            r#"SELECT max_devices AS "max_devices: _"
+            FROM own_client_info"#
+        )
+        .fetch_one(read.as_mut())
+        .await
+    }
+
+    pub(crate) async fn set_max_devices(
+        mut write: impl WriteConnection,
+        max_devices: u32,
+    ) -> sqlx::Result<()> {
+        query!("UPDATE own_client_info SET max_devices = ?", max_devices)
+            .execute(write.as_mut())
+            .await?;
+        Ok(())
+    }
+
     /// Records that a sibling device removed this device from the self group.
     pub(crate) async fn mark_account_unlinked(
         mut write: impl WriteConnection,

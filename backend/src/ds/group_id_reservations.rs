@@ -323,6 +323,7 @@ mod tests {
             pool,
             "example.com".parse()?,
             VersionPolicy::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;

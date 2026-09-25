@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE own_client_info SET max_devices = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d1d0d58fa01863d4bea8a5d55d8a7c29e0182437d5578c97539f90ba9864f33c"
+}

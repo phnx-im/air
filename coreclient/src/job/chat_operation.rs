@@ -70,6 +70,8 @@ pub(crate) enum ChatOperationError {
     LeafNodeValidation(#[from] LeafNodeValidationError),
     #[error("failed to encrypt user profile key")]
     UserProfileKeyEncryptionError(EncryptionError),
+    #[error("device limit reached: max = {max_devices}")]
+    DeviceLimitReached { max_devices: u32 },
 }
 
 /// Executes any pending operation for the chat, so that a job starts from a

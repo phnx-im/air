@@ -309,8 +309,9 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
-            fatal_error @ Err(JobError::Fatal(_)) => {
-                // Clean up job after fatal error
+            error @ (Err(JobError::Fatal(_))
+            | Err(JobError::Domain(ChatOperationError::DeviceLimitReached { .. }))) => {
+                // Clean up job after an error which is not recoverable
                 context
                     .db
                     .write()
@@ -327,7 +328,7 @@ impl Job for PendingChatOperation {
                         error!(%error, "Failed to delete pending chat operation");
                     })
                     .ok();
-                fatal_error
+                error
             }
             res => res,
         }
@@ -706,7 +707,11 @@ impl PendingChatOperation {
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
-        if error.is_not_found() {
+        if let Some(detail) = error.device_limit_reached() {
+            Ok(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                max_devices: detail.max_devices,
+            }))
+        } else if error.is_not_found() {
             // The group no longer exists on the DS. There is no point
             // in retrying, the group needs to be torn down instead.
             Ok(JobError::NotFound)
@@ -1743,7 +1748,10 @@ mod tests {
     };
     use airprotos::{
         client::app_data::ClientAppData,
-        common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
+        common::v1::{
+            DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, WrongEpochDetail,
+            status_details::Detail,
+        },
     };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
@@ -2358,6 +2366,31 @@ mod tests {
         let result = pending.handle_error(pool.write().await?, error).await;
 
         assert_matches!(result, Ok(JobError::NotFound));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn device_limit_ds_error_is_a_domain_error() -> anyhow::Result<()> {
+        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
+
+        let details = StatusDetails {
+            code: StatusDetailsCode::DeviceLimitReached.into(),
+            detail: Some(Detail::DeviceLimitReached(DeviceLimitReachedDetail {
+                max_devices: 2,
+            })),
+        };
+        let error = DsRequestError::Tonic(
+            details.to_status(tonic::Code::ResourceExhausted, "max devices exceeded"),
+        );
+        let result = pending.handle_error(pool.write().await?, error).await;
+
+        assert_matches!(
+            result,
+            Ok(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                max_devices: 2
+            }))
+        );
 
         Ok(())
     }

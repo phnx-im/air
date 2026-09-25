@@ -274,6 +274,7 @@ mod tests {
             pool.clone(),
             domain.clone(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;

@@ -91,6 +91,7 @@ message StatusDetails {
     WrongEpochDetail wrong_epoch = 4;
     TokenQuotaExceededDetail token_quota_exceeded = 5;
     GenerationCollisionDetail generation_collision = 6;
+    DeviceLimitReachedDetail device_limit_reached = 7;
   }
 }
 
@@ -106,6 +107,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_TOKEN_QUOTA_EXCEEDED = 5;
   // Another previous message was already sent in this generation
   STATUS_DETAILS_CODE_GENERATION_COLLISION = 6;
+  // The device limit for this user has been reached
+  STATUS_DETAILS_CODE_DEVICE_LIMIT_REACHED = 7;
 }
 
 message VersionUnsupportedDetail {
@@ -127,6 +130,10 @@ message WrongEpochDetail {}
 
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;
+}
+
+message DeviceLimitReachedDetail {
+  uint32 max_devices = 1;
 }
 
 message AirFeatures {
