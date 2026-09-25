@@ -11,9 +11,9 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    chats::deleted,
+    chats,
     clients::{
-        block_contact::pending,
+        block_contact,
         own_client_info::OwnClientInfo,
         user_settings::{SettingChanges, SettingsUpdateExt},
     },
@@ -160,7 +160,7 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
         ));
     }
 
-    let contacts = pending::staged_entries(&mut *txn).await?;
+    let contacts = block_contact::persistence::staged_entries(&mut *txn).await?;
     if !contacts.is_empty() {
         messages.push(SelfGroupMessage::BlockedContactsUpdate(
             BlockedContactsUpdate { contacts },
@@ -168,7 +168,7 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
     }
 
     messages.extend(
-        deleted::staged(&mut *txn)
+        chats::persistence::staged_deletions(&mut *txn)
             .await?
             .into_iter()
             .map(SelfGroupMessage::DeletedChat),

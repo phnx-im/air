@@ -1222,7 +1222,7 @@ async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Resul
         .expect("the first device holds the message");
 
     let epochs_before = first_device.self_group_epochs().await?;
-    first_device.delete_message_locally(message_id).await?;
+    first_device.delete_message(message_id).await?;
     first_device.outbound_service().run_once().await;
     assert_eq!(
         count_messages_with_text(first_device, chat_id, text).await,

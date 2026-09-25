@@ -358,7 +358,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
 
     // ...bob also deletes his original message locally
     bob_user
-        .delete_message_locally(bob_says_hi_to_alice.own_message_id)
+        .delete_message(bob_says_hi_to_alice.own_message_id)
         .await?;
 
     // [1] check that the message that Alice deleted for everyone
@@ -816,7 +816,7 @@ async fn delete_message_preserves_other_messages() {
     let alice_test_user = setup.get_user(&alice);
     alice_test_user.fetch_and_process_qs_messages().await;
     alice_user
-        .delete_message(chat_id, message_to_delete_id)
+        .delete_message_for_everyone(chat_id, message_to_delete_id)
         .await
         .unwrap();
     alice_user.outbound_service().run_once().await;
@@ -1347,7 +1347,7 @@ async fn delete_message_with_attachment() {
 
         // Delete the specific message by ID
         alice_user
-            .delete_message(chat_id, message_id)
+            .delete_message_for_everyone(chat_id, message_id)
             .await
             .unwrap();
         alice_user.outbound_service().run_once().await;

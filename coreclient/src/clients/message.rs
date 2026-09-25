@@ -11,8 +11,8 @@ use crate::{
     chats::{
         StatusRecord,
         messages::{
-            deleted,
             edit::{MessageEdit, purge_deleted_message},
+            persistence,
         },
     },
     clients::block_contact::BlockedContactError,
@@ -38,7 +38,7 @@ impl CoreUser {
     /// This sends a NullPart message that replaces the original message,
     /// notifying all group members that the message has been deleted.
     /// The message remains visible as a "deleted" placeholder.
-    pub async fn delete_message(
+    pub async fn delete_message_for_everyone(
         &self,
         chat_id: ChatId,
         message_id: MessageId,
@@ -62,14 +62,14 @@ impl CoreUser {
     /// This completely removes the message from the database, including edit
     /// history and status records. The message will no longer appear in the
     /// chat.
-    pub async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
+    pub async fn delete_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
                 let message = ChatMessage::load(&mut *txn, message_id)
                     .await?
                     .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-                deleted::erase(txn, &message).await?;
+                persistence::erase(txn, &message).await?;
                 if let Some(mimi_id) = message.message().mimi_id() {
                     self.outbound_service()
                         .enqueue_deleted_message_in_transaction(txn, mimi_id)

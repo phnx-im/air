@@ -33,11 +33,11 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{GroupDataExt, deleted, messages::TimestampedMessage},
+    chats::{self, GroupDataExt, messages::TimestampedMessage},
     clients::{
         CoreUser,
         api_clients::ApiClients,
-        block_contact::pending,
+        block_contact,
         linked_devices::merge_device_entry_locally,
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
@@ -220,10 +220,10 @@ async fn complete_sent_messages(
                 SettingChanges::complete_sent(txn, update).await?
             }
             SelfGroupMessage::BlockedContactsUpdate(update) => {
-                pending::complete_sent_entries(txn, &update.contacts).await?
+                block_contact::persistence::complete_sent_entries(txn, &update.contacts).await?
             }
             SelfGroupMessage::DeletedChat(chat) => {
-                deleted::remove_staged(txn, std::slice::from_ref(chat)).await?
+                chats::persistence::remove_staged_deletion(txn, std::slice::from_ref(chat)).await?
             }
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.

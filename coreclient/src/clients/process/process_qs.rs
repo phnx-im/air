@@ -44,8 +44,8 @@ use crate::{
     chats::{
         GroupDataExt, StatusRecord,
         messages::{
-            deleted,
             edit::{MessageEdit, handle_message_edit},
+            persistence::apply_deleted_messages,
         },
         reactions::Reaction,
     },
@@ -1188,7 +1188,7 @@ impl CoreUser {
                 Ok(Vec::new())
             }
             SelfGroupAppMessage::DeletedMessages(deleted) => {
-                deleted::apply_deleted_messages(txn, &deleted).await
+                apply_deleted_messages(txn, &deleted).await
             }
             SelfGroupAppMessage::Unknown => {
                 debug!("skipping a self group application message of an unknown kind");

@@ -12,7 +12,7 @@ use airprotos::client::self_group::{
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-use crate::{chats::messages::deleted, db::access::WriteDbTransaction};
+use crate::{chats::messages::persistence, db::access::WriteDbTransaction};
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -23,7 +23,7 @@ impl OutboundService {
         txn: &mut WriteDbTransaction<'_>,
         mimi_id: &MimiId,
     ) -> anyhow::Result<()> {
-        deleted::store_outgoing(txn, mimi_id).await?;
+        persistence::store_outgoing_deletion(txn, mimi_id).await?;
         self.notify_work();
         Ok(())
     }
@@ -38,7 +38,7 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
     ) -> anyhow::Result<()> {
-        let staged = deleted::staged(self.db.read().await?).await?;
+        let staged = persistence::staged_deletions(self.db.read().await?).await?;
         if staged.is_empty() {
             return Ok(());
         }
@@ -83,7 +83,9 @@ impl OutboundServiceContext {
 
     async fn remove_staged_deletions(&self, mimi_ids: &[MimiId]) -> anyhow::Result<()> {
         self.db
-            .with_write_transaction(async |txn| Ok(deleted::remove_staged(txn, mimi_ids).await?))
+            .with_write_transaction(async |txn| {
+                Ok(persistence::remove_staged_deletion(txn, mimi_ids).await?)
+            })
             .await
     }
 }
