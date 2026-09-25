@@ -106,7 +106,7 @@ class IntroScreen extends HookWidget {
               mainAxisSize: .min,
               crossAxisAlignment: .stretch,
               children: [
-                _TermsOfUseText(loc: loc),
+                const _TermsOfUseText(),
                 const SizedBox(height: S.s16),
                 if (serverFieldVisible.value) ...[
                   Text(
@@ -195,13 +195,13 @@ class _LanguagePicker extends StatelessWidget {
   }
 }
 
-class _TermsOfUseText extends StatelessWidget {
-  const _TermsOfUseText({required this.loc});
-
-  final AppLocalizations loc;
+class _TermsOfUseText extends HookWidget {
+  const _TermsOfUseText();
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     final baseTextStyle = typeScale.body.xs.style(
       color: SemanticPalette.of(context).text.tertiary,
     );
@@ -209,6 +209,17 @@ class _TermsOfUseText extends StatelessWidget {
     final linkText = loc.introScreen_termsLinkText;
     final agreement = loc.introScreen_termsText(linkText);
     final linkStart = agreement.indexOf(linkText);
+
+    final recognizer = useMemoized(
+      () => TapGestureRecognizer()
+        ..onTap = () {
+          launchUrl(
+            IntroScreen._termsOfUseUri,
+            mode: LaunchMode.externalApplication,
+          );
+        },
+    );
+    useEffect(() => recognizer.dispose, [recognizer]);
 
     if (linkStart == -1) {
       return Text(agreement, style: baseTextStyle, textAlign: .center);
@@ -226,17 +237,7 @@ class _TermsOfUseText extends StatelessWidget {
         style: baseTextStyle,
         children: [
           TextSpan(text: beforeLink),
-          TextSpan(
-            text: linkText,
-            style: linkStyle,
-            recognizer: TapGestureRecognizer()
-              ..onTap = () {
-                launchUrl(
-                  IntroScreen._termsOfUseUri,
-                  mode: LaunchMode.externalApplication,
-                );
-              },
-          ),
+          TextSpan(text: linkText, style: linkStyle, recognizer: recognizer),
           TextSpan(text: afterLink),
         ],
       ),
