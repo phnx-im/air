@@ -293,7 +293,13 @@ impl CoreUser {
             return Ok((chat_id, Vec::new()));
         }
 
-        let chat = Chat::new_group_chat(group_id.clone(), ChatAttributes::default());
+        let chat = Chat::new_group_chat(
+            group_id.clone(),
+            ChatAttributes {
+                title: "Notes to self".to_owned(),
+                picture: None,
+            },
+        );
         chat.store(&mut *txn).await?;
         let system_message = ChatMessage::new_system_message(
             chat.id(),
