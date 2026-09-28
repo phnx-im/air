@@ -9487,7 +9487,6 @@ const _: fn() = || {
         let _: u32 = UserDebugInfo.add_username_token_count;
         let _: u32 = UserDebugInfo.invitation_code_token_count;
         let _: u32 = UserDebugInfo.connect_username_token_count;
-        let _: bool = UserDebugInfo.has_linked_devices;
     }
 };
 
@@ -13340,14 +13339,12 @@ impl SseDecode for crate::api::user::UserDebugInfo {
         let mut var_addUsernameTokenCount = <u32>::sse_decode(deserializer);
         let mut var_invitationCodeTokenCount = <u32>::sse_decode(deserializer);
         let mut var_connectUsernameTokenCount = <u32>::sse_decode(deserializer);
-        let mut var_hasLinkedDevices = <bool>::sse_decode(deserializer);
         return crate::api::user::UserDebugInfo {
             user_id: var_userId,
             timed_tasks: var_timedTasks,
             add_username_token_count: var_addUsernameTokenCount,
             invitation_code_token_count: var_invitationCodeTokenCount,
             connect_username_token_count: var_connectUsernameTokenCount,
-            has_linked_devices: var_hasLinkedDevices,
         };
     }
 }
@@ -16632,7 +16629,6 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::user::UserDebugInf
                 .connect_username_token_count
                 .into_into_dart()
                 .into_dart(),
-            self.0.has_linked_devices.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19850,7 +19846,6 @@ impl SseEncode for crate::api::user::UserDebugInfo {
         <u32>::sse_encode(self.add_username_token_count, serializer);
         <u32>::sse_encode(self.invitation_code_token_count, serializer);
         <u32>::sse_encode(self.connect_username_token_count, serializer);
-        <bool>::sse_encode(self.has_linked_devices, serializer);
     }
 }
 

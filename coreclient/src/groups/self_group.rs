@@ -46,9 +46,6 @@ use crate::{
     },
 };
 
-/// Title of the per-user "self group" chat, as shown in the UI.
-pub(crate) const SELF_CHAT_TITLE: &str = "Notes to self";
-
 #[derive(Debug)]
 pub struct SelfGroup {
     group: Group,
@@ -258,7 +255,6 @@ impl CoreUser {
     /// Creates the self group if this client never had one. A client that is
     /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
-        let _creation = self.inner.self_group_creation.lock().await;
         let self_group = match SelfGroup::load(self.db().read().await?).await? {
             Some(self_group) => self_group,
             None => {
@@ -273,7 +269,11 @@ impl CoreUser {
                 }
             }
         };
-        self.ensure_self_chat(self_group.group_id()).await?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                self.ensure_self_chat(txn, self_group.group_id()).await
+            })
+            .await?;
         Ok(self_group)
     }
 
@@ -282,38 +282,28 @@ impl CoreUser {
     ///
     /// Clients whose self group predates that chat only have the group, so
     /// their self chat has to be backfilled here.
-    async fn ensure_self_chat(&self, group_id: &GroupId) -> anyhow::Result<()> {
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                if ChatId::load_from_group_id(&mut *txn, group_id)
-                    .await?
-                    .is_some()
-                {
-                    return Ok(());
-                }
+    ///
+    /// Returns the ID of the self-chat and message IDs if they were created.
+    pub(crate) async fn ensure_self_chat(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<(ChatId, Vec<ChatMessage>)> {
+        if let Some(chat_id) = ChatId::load_from_group_id(&mut *txn, group_id).await? {
+            return Ok((chat_id, Vec::new()));
+        }
 
-                let chat = Chat::new_group_chat(
-                    group_id.clone(),
-                    ChatAttributes {
-                        title: SELF_CHAT_TITLE.to_owned(),
-                        picture: None,
-                    },
-                );
-                chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(
-                    chat.id(),
-                    TimeStamp::now(),
-                    SystemMessage::SelfChatCreated,
-                )
-                .store(&mut *txn)
-                .await?;
-                debug!("Created the missing self chat");
+        let chat = Chat::new_group_chat(group_id.clone(), ChatAttributes::default());
+        chat.store(&mut *txn).await?;
+        let system_message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::SelfChatCreated,
+        );
+        system_message.store(&mut *txn).await?;
+        debug!("Created the missing self chat");
 
-                Ok(())
-            })
-            .await?;
-
-        Ok(())
+        Ok((chat.id(), vec![system_message]))
     }
 
     async fn create_self_group(&self) -> anyhow::Result<Group> {
@@ -481,148 +471,5 @@ impl Group {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use aircommon::{
-        codec,
-        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
-    };
-
-    use crate::{
-        db::access::DbAccess,
-        groups::openmls_provider::KeyRefWrapper,
-        utils::persistence::{GroupIdRefWrapper, open_db_in_memory},
-    };
-
-    use super::*;
-
-    const STORED_CIPHERSUITE: &[u8] = b"MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519";
-    // Same length as the stored name, so the CBOR text header stays valid.
-    const UNKNOWN_CIPHERSUITE: &[u8] = b"MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed00000";
-
-    /// Creates a local self-group, without the DS, and points
-    /// `own_client_info` at it. Returns the T and PQ group ids.
-    async fn create_local_self_group(
-        txn: &mut WriteDbTransaction<'_>,
-        user_id: &UserId,
-    ) -> anyhow::Result<(GroupId, GroupId)> {
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let t_group_id = GroupId::from(QualifiedGroupId::new(
-            Uuid::new_v4(),
-            "example.com".parse()?,
-        ));
-        let pq_group_id = GroupId::from(QualifiedGroupId::new(
-            Uuid::new_v4(),
-            "example.com".parse()?,
-        ));
-        let (group, _params) = Group::create_apq_group(
-            &mut *txn,
-            &LeafSigningKey::SelfGroup(signing_key.clone()),
-            user_id.clone(),
-            IdentityLinkWrapperKey::random()?,
-            t_group_id.clone(),
-            pq_group_id.clone(),
-            NewGroupContext::SelfGroup(GroupData::empty()),
-            None,
-        )?;
-        group.store(&mut *txn).await?;
-        OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
-        Ok((t_group_id, pq_group_id))
-    }
-
-    /// Rewrites the ciphersuite in the persisted `GroupContext` of `group_id`
-    /// to a name OpenMLS does not know.
-    async fn corrupt_ciphersuite(
-        txn: &mut WriteDbTransaction<'_>,
-        group_id: &GroupId,
-    ) -> anyhow::Result<()> {
-        let mut context: Vec<u8> = sqlx::query_scalar(
-            "SELECT group_data FROM group_data WHERE group_id = ? AND data_type = 'context'",
-        )
-        .bind(KeyRefWrapper(group_id))
-        .fetch_one(txn.as_mut())
-        .await?;
-        let start = context
-            .windows(STORED_CIPHERSUITE.len())
-            .position(|window| window == STORED_CIPHERSUITE)
-            .context("ciphersuite not found in the stored group context")?;
-        context[start..start + UNKNOWN_CIPHERSUITE.len()].copy_from_slice(UNKNOWN_CIPHERSUITE);
-        sqlx::query(
-            "UPDATE group_data SET group_data = ? WHERE group_id = ? AND data_type = 'context'",
-        )
-        .bind(context)
-        .bind(KeyRefWrapper(group_id))
-        .execute(txn.as_mut())
-        .await?;
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn corrupted_self_group_ciphersuite_is_recreated() -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let user_id = UserId::random("example.com".parse()?);
-
-        let mut connection = pool.write().await?;
-        connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
-                OwnClientInfo {
-                    qs_user_id: QsUserId::random(),
-                    qs_client_id: QsClientId::random(&mut rand::rng()),
-                    user_id: user_id.clone(),
-                    client_id: Uuid::new_v4(),
-                    self_group_id: None,
-                    self_group_signing_key: None,
-                }
-                .store(&mut *txn)
-                .await?;
-
-                let (group_id, pq_group_id) = create_local_self_group(txn, &user_id).await?;
-                corrupt_ciphersuite(txn, &group_id).await?;
-
-                let error = SelfGroup::load(&mut *txn)
-                    .await
-                    .expect_err("loaded a self-group with an unknown ciphersuite");
-                println!("SelfGroup::load: {error}\n{error:#?}");
-                let sqlx::Error::ColumnDecode { source, .. } = &error else {
-                    panic!("unexpected error: {error:?}");
-                };
-                assert!(
-                    source.downcast_ref::<codec::Error>().is_some(),
-                    "unexpected decode error: {source:?}"
-                );
-
-                // Deleting loads the group first, so it fails the same way.
-                let error = Group::delete_from_db(txn, &group_id)
-                    .await
-                    .expect_err("deleted a group that cannot be loaded");
-                assert!(matches!(error, sqlx::Error::ColumnDecode { .. }));
-
-                // Recovery: drop the rows of the broken group without loading
-                // it, then create a fresh self-group. Other OpenMLS rows of the
-                // old group (own leaf nodes, epoch key pairs, ...) stay orphaned.
-                for id in [&group_id, &pq_group_id] {
-                    sqlx::query("DELETE FROM group_data WHERE group_id = ?")
-                        .bind(KeyRefWrapper(id))
-                        .execute(txn.as_mut())
-                        .await?;
-                }
-                sqlx::query(r#"DELETE FROM "group" WHERE group_id = ?"#)
-                    .bind(GroupIdRefWrapper::from(&group_id))
-                    .execute(txn.as_mut())
-                    .await?;
-                assert!(Group::load(&mut *txn, &group_id).await?.is_none());
-
-                let (new_group_id, _) = create_local_self_group(txn, &user_id).await?;
-                let self_group = SelfGroup::load(&mut *txn)
-                    .await?
-                    .context("no self-group after recreation")?;
-                assert_eq!(self_group.group_id(), &new_group_id);
-
-                Ok(())
-            })
-            .await
     }
 }

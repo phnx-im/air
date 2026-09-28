@@ -227,7 +227,6 @@ pub struct _UserDebugInfo {
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
     pub connect_username_token_count: u32,
-    pub has_linked_devices: bool,
 }
 
 #[frb(mirror(TimedTaskDebugInfo))]

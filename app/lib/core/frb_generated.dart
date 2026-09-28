@@ -11786,15 +11786,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UserDebugInfo dco_decode_user_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return UserDebugInfo(
       userId: dco_decode_String(arr[0]),
       timedTasks: dco_decode_list_timed_task_debug_info(arr[1]),
       addUsernameTokenCount: dco_decode_u_32(arr[2]),
       invitationCodeTokenCount: dco_decode_u_32(arr[3]),
       connectUsernameTokenCount: dco_decode_u_32(arr[4]),
-      hasLinkedDevices: dco_decode_bool(arr[5]),
     );
   }
 
@@ -15946,14 +15945,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_addUsernameTokenCount = sse_decode_u_32(deserializer);
     var var_invitationCodeTokenCount = sse_decode_u_32(deserializer);
     var var_connectUsernameTokenCount = sse_decode_u_32(deserializer);
-    var var_hasLinkedDevices = sse_decode_bool(deserializer);
     return UserDebugInfo(
       userId: var_userId,
       timedTasks: var_timedTasks,
       addUsernameTokenCount: var_addUsernameTokenCount,
       invitationCodeTokenCount: var_invitationCodeTokenCount,
       connectUsernameTokenCount: var_connectUsernameTokenCount,
-      hasLinkedDevices: var_hasLinkedDevices,
     );
   }
 
@@ -20157,7 +20154,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.addUsernameTokenCount, serializer);
     sse_encode_u_32(self.invitationCodeTokenCount, serializer);
     sse_encode_u_32(self.connectUsernameTokenCount, serializer);
-    sse_encode_bool(self.hasLinkedDevices, serializer);
   }
 
   @protected

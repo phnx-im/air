@@ -39,7 +39,7 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
@@ -144,9 +144,6 @@ pub(crate) struct CoreUserInner {
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
     event_loop_cancel: DropGuard,
-    /// Held while checking for and creating the self group, so concurrent
-    /// callers don't each create one.
-    pub(crate) self_group_creation: Mutex<()>,
 }
 
 impl CoreUserInner {

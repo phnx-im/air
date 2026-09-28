@@ -64,7 +64,6 @@ use crate::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
-        self_group::SELF_CHAT_TITLE,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
@@ -468,31 +467,12 @@ impl CoreUser {
 
         if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
             debug!("joined self group as a linked device");
-            let title = group
-                .group_data()?
-                .and_then(|group_data| {
-                    let (title, _profile) =
-                        group_data.into_parts(group.identity_link_wrapper_key());
-                    title
-                })
-                .unwrap_or_else(|| SELF_CHAT_TITLE.to_owned());
-            let attributes = ChatAttributes {
-                title,
-                picture: None,
-            };
-            let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
-            chat.store(&mut *txn).await?;
-            let system_message = ChatMessage::new_system_message(
-                chat.id(),
-                ds_timestamp,
-                SystemMessage::SelfChatCreated,
-            );
-            system_message.store(&mut *txn).await?;
-
+            let (self_chat_id, self_chat_messages) =
+                self.ensure_self_chat(txn, group.group_id()).await?;
             return Ok(QsMessageOutcome::new_chat(
-                chat.id(),
+                self_chat_id,
                 sender_user_id,
-                vec![system_message],
+                self_chat_messages,
             ));
         }
 
