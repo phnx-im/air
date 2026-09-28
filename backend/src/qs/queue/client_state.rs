@@ -10,7 +10,6 @@
 
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -22,34 +21,21 @@ use airprotos::queue_service::v1::{
 use tokio::sync::mpsc;
 use tracing::debug;
 
-use crate::qs::queue::{ClientSession, Queues, UserClients};
+use crate::qs::queue::{ClientEntry, ClientSession, Queues, UserClients};
 
 pub(crate) const MAX_ENCRYPTED_CLIENT_STATE_SIZE: usize = 256;
 
-/// Source of the epochs of client state changes
+/// Advances the last `epoch` of a client and returns it.
 ///
 /// Epochs are microseconds since the Unix epoch, raised to be strictly
-/// increasing. So they keep increasing when the user's clients are dropped
-/// and across restarts, as long as the clock does not go back.
-#[derive(Debug, Default)]
-pub(super) struct Epochs {
-    last: AtomicU64,
-}
-
-impl Epochs {
-    fn next(&self) -> u64 {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |since| since.as_micros().try_into().unwrap_or(u64::MAX));
-        let mut epoch = 0;
-        let _ = self
-            .last
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |last| {
-                epoch = now.max(last + 1);
-                Some(epoch)
-            });
-        epoch
-    }
+/// increasing. So they keep increasing when the client entry is recreated and
+/// across restarts, as long as the clock does not go back.
+fn next_epoch(epoch: &mut u64) -> u64 {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_micros().try_into().unwrap_or(u64::MAX));
+    *epoch = now.max(*epoch + 1);
+    *epoch
 }
 
 /// State reported by a client in its current listen session
@@ -79,7 +65,7 @@ impl ClientState {
 pub(crate) struct ClientSessionGuard {
     queues: Queues,
     client_id: QsClientId,
-    session_id: u64,
+    pub(super) session_id: u64,
 }
 
 impl ClientSessionGuard {
@@ -99,26 +85,23 @@ impl Drop for ClientSessionGuard {
 }
 
 impl Queues {
-    /// Starts the listen session `session_id` of `client_id`, replacing its
-    /// previous one.
+    /// Starts a listen session of `client_id`, replacing its previous one.
     pub(super) fn start_client_session(
         &self,
         user_clients: &UserClients,
         client_id: QsClientId,
-        session_id: u64,
         payload_tx: mpsc::Sender<ListenResponse>,
     ) -> ClientSessionGuard {
-        let mut sessions = user_clients.lock();
-        let replaced = sessions.insert(
-            client_id,
-            ClientSession {
-                session_id,
-                payload_tx,
-                state: None,
-            },
-        );
+        let mut clients = user_clients.lock();
+        let entry = clients.entry(client_id).or_default();
+        let session_id = next_epoch(&mut entry.epoch);
+        let replaced = entry.session.replace(ClientSession {
+            session_id,
+            payload_tx,
+            state: None,
+        });
         if replaced.is_some_and(|session| session.state.is_some()) {
-            fan_out_removed(&sessions, client_id, self.epochs.next());
+            fan_out_removed(&clients, client_id, session_id);
         }
         ClientSessionGuard {
             queues: self.clone(),
@@ -133,8 +116,12 @@ impl Queues {
         let Some(user_clients) = self.listening_user_clients(client_id) else {
             return;
         };
-        let mut sessions = user_clients.lock();
-        let Some(session) = sessions.get_mut(&client_id) else {
+        let mut clients = user_clients.lock();
+        let Some(ClientEntry {
+            epoch,
+            session: Some(session),
+        }) = clients.get_mut(&client_id)
+        else {
             return;
         };
         // important: only update the state of the same session
@@ -143,7 +130,7 @@ impl Queues {
         }
 
         let state = ClientState {
-            epoch: self.epochs.next(),
+            epoch: next_epoch(epoch),
             received_at: Instant::now(),
             encrypted_blob,
         };
@@ -151,7 +138,7 @@ impl Queues {
         session.state = Some(state);
 
         fan_out(
-            &sessions,
+            &clients,
             client_id,
             sibling_client_state::Change::Updated(updated),
         );
@@ -163,19 +150,26 @@ impl Queues {
         let Some(user_clients) = self.listening_user_clients(client_id) else {
             return;
         };
-        let mut sessions = user_clients.lock();
-        if sessions
-            .get(&client_id)
+        let mut clients = user_clients.lock();
+        let Some(entry) = clients.get_mut(&client_id) else {
+            return;
+        };
+        if entry
+            .session
+            .as_ref()
             .is_none_or(|session| session.session_id != session_id)
         {
             return;
         }
-        if sessions
-            .remove(&client_id)
+        // The entry stays to keep the epoch of the client.
+        if entry
+            .session
+            .take()
             .and_then(|session| session.state)
             .is_some()
         {
-            fan_out_removed(&sessions, client_id, self.epochs.next());
+            let epoch = next_epoch(&mut entry.epoch);
+            fan_out_removed(&clients, client_id, epoch);
         }
     }
 
@@ -186,13 +180,17 @@ impl Queues {
         let Some(user_clients) = self.listening_user_clients(client_id) else {
             return;
         };
-        let mut sessions = user_clients.lock();
-        if sessions
-            .remove(&client_id)
+        let mut clients = user_clients.lock();
+        let Some(mut entry) = clients.remove(&client_id) else {
+            return;
+        };
+        if entry
+            .session
+            .take()
             .and_then(|session| session.state)
             .is_some()
         {
-            fan_out_removed(&sessions, client_id, self.epochs.next());
+            fan_out_removed(&clients, client_id, next_epoch(&mut entry.epoch));
         }
     }
 
@@ -201,28 +199,24 @@ impl Queues {
         let Some(user_clients) = self.listening_user_clients(client_id) else {
             return Vec::new();
         };
-        let sessions = user_clients.lock();
-        sessions
+        let clients = user_clients.lock();
+        clients
             .iter()
             .filter(|(id, _)| **id != client_id)
-            .filter_map(|(id, session)| Some(session.state.as_ref()?.updated(*id)))
+            .filter_map(|(id, entry)| Some(entry.session.as_ref()?.state.as_ref()?.updated(*id)))
             .map(|updated| client_state_response(sibling_client_state::Change::Updated(updated)))
             .collect()
     }
 }
 
 /// Tells the listening siblings of `client_id` that its state is gone.
-fn fan_out_removed(
-    sessions: &HashMap<QsClientId, ClientSession>,
-    client_id: QsClientId,
-    epoch: u64,
-) {
+fn fan_out_removed(clients: &HashMap<QsClientId, ClientEntry>, client_id: QsClientId, epoch: u64) {
     let removed = SiblingClientStateRemoved {
         client_id: Some(client_id.into()),
         epoch,
     };
     fan_out(
-        sessions,
+        clients,
         client_id,
         sibling_client_state::Change::Removed(removed),
     );
@@ -230,15 +224,18 @@ fn fan_out_removed(
 
 /// Sends `change` of `client_id` to its listening siblings without waiting.
 fn fan_out(
-    sessions: &HashMap<QsClientId, ClientSession>,
+    clients: &HashMap<QsClientId, ClientEntry>,
     client_id: QsClientId,
     change: sibling_client_state::Change,
 ) {
     let response = client_state_response(change);
-    for (&sibling_id, session) in sessions {
+    for (&sibling_id, entry) in clients {
         if sibling_id == client_id {
             continue;
         }
+        let Some(session) = &entry.session else {
+            continue;
+        };
         if session.payload_tx.try_send(response.clone()).is_err() {
             debug!(?sibling_id, "client state not relayed to sibling");
         }

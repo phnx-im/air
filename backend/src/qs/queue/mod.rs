@@ -7,10 +7,7 @@ pub(crate) mod client_state;
 use std::{
     borrow::Cow,
     collections::{HashMap, VecDeque},
-    sync::{
-        Arc, Mutex, MutexGuard, PoisonError, Weak,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
 };
 
 use aircommon::identifiers::{QsClientId, QsUserId};
@@ -29,7 +26,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 pub(crate) use self::client_state::ClientSessionGuard;
-use self::client_state::{ClientState, Epochs};
+use self::client_state::ClientState;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
@@ -46,10 +43,6 @@ pub(crate) struct Queues {
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
     /// Client states per user, owned by the listeners
     user_clients: Arc<UserClientsMap>,
-    /// Counter for the ids of listen sessions
-    last_session_id: Arc<AtomicU64>,
-    /// Epochs of client state changes
-    epochs: Arc<Epochs>,
 }
 
 /// Context for a queue listener
@@ -100,13 +93,13 @@ type UserClientsMap = DashMap<QsUserId, Weak<UserClients>>;
 struct UserClients {
     user_id: QsUserId,
     registry: Arc<UserClientsMap>,
-    /// Current listen session per client
-    sessions: Mutex<HashMap<QsClientId, ClientSession>>,
+    /// Epoch and current listen session per client
+    clients: Mutex<HashMap<QsClientId, ClientEntry>>,
 }
 
 impl UserClients {
-    fn lock(&self) -> MutexGuard<'_, HashMap<QsClientId, ClientSession>> {
-        self.sessions.lock().unwrap_or_else(PoisonError::into_inner)
+    fn lock(&self) -> MutexGuard<'_, HashMap<QsClientId, ClientEntry>> {
+        self.clients.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -119,8 +112,16 @@ impl Drop for UserClients {
     }
 }
 
+#[derive(Debug, Default)]
+struct ClientEntry {
+    /// Last epoch of the client, kept across its listen sessions
+    epoch: u64,
+    session: Option<ClientSession>,
+}
+
 #[derive(Debug)]
 struct ClientSession {
+    /// Epoch at which the session started
     session_id: u64,
     /// Clone of the `ListenerContext` sender for fan-out
     payload_tx: mpsc::Sender<ListenResponse>,
@@ -136,8 +137,6 @@ impl Queues {
             listeners: Default::default(),
             pg_listener_task_handle,
             user_clients: Default::default(),
-            last_session_id: Default::default(),
-            epochs: Default::default(),
         })
     }
 
@@ -255,21 +254,20 @@ impl Queues {
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
     ) -> (ClientSessionGuard, CancellationToken) {
-        let session_id = self.last_session_id.fetch_add(1, Ordering::Relaxed) + 1;
         let user_clients = self.user_clients_of(user_id);
         let cancel = CancellationToken::new();
-        let context = ListenerContext::new(
-            session_id,
-            cancel.clone(),
-            client_version,
-            payload_tx.clone(),
-            user_clients.clone(),
-        );
 
         // Holding the entry keeps the session in line with the listener when
         // the same client listens concurrently.
         let entry = self.listeners.entry(client_id);
-        let session = self.start_client_session(&user_clients, client_id, session_id, payload_tx);
+        let session = self.start_client_session(&user_clients, client_id, payload_tx.clone());
+        let context = ListenerContext::new(
+            session.session_id,
+            cancel.clone(),
+            client_version,
+            payload_tx,
+            user_clients,
+        );
         match entry {
             Entry::Occupied(mut entry) => {
                 entry.insert(context).cancel.cancel();
@@ -304,7 +302,7 @@ impl Queues {
             let user_clients = Arc::new(UserClients {
                 user_id,
                 registry: self.user_clients.clone(),
-                sessions: Default::default(),
+                clients: Default::default(),
             });
             *entry = Arc::downgrade(&user_clients);
             user_clients
