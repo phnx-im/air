@@ -21,7 +21,7 @@ use aircoreclient::{
 };
 use airprotos::{
     auth_service::v1::OperationType,
-    queue_service::v1::{SiblingFocusedChat, sibling_focused_chat},
+    queue_service::v1::{SiblingClientState, sibling_client_state},
     relay_service::v1::LinkingSessionId,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
@@ -3087,17 +3087,17 @@ async fn multi_device_both_devices_leave_before_the_commit() {
     );
 }
 
-/// Returns the next sibling focused chat change, skipping other events.
-async fn next_sibling_focused_chat(
+/// Returns the next sibling client state change, skipping other events.
+async fn next_sibling_client_state(
     stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
-) -> sibling_focused_chat::Change {
+) -> sibling_client_state::Change {
     loop {
         let response = tokio::time::timeout(Duration::from_secs(5), stream.next())
             .await
-            .expect("timeout waiting for sibling focused chat")
+            .expect("timeout waiting for sibling client state")
             .expect("stream ended")
             .expect("stream failed");
-        if let Some(listen_response::Event::SiblingFocusedChat(SiblingFocusedChat {
+        if let Some(listen_response::Event::SiblingClientState(SiblingClientState {
             change: Some(change),
         })) = response.event
         {
@@ -3107,7 +3107,7 @@ async fn next_sibling_focused_chat(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_sibling_focused_chat() {
+async fn multi_device_sibling_client_state() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
@@ -3116,14 +3116,14 @@ async fn multi_device_sibling_focused_chat() {
     let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();
     let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
 
-    old_responder.report_focused_chat(b"focused".to_vec()).await;
-    let sibling_focused_chat::Change::Update(state) =
-        next_sibling_focused_chat(&mut new_stream).await
+    old_responder.report_client_state(b"state".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
     else {
-        panic!("expected a state");
+        panic!("expected updated");
     };
-    assert_eq!(state.encrypted_focused_chat, b"focused");
-    let old_client_id = state.client_id.unwrap();
+    assert_eq!(updated.blob.as_ref().unwrap().encrypted_blob, b"state");
+    let old_client_id = updated.client_id.unwrap();
 
     // A new session gets the current state right after the version status.
     let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
@@ -3136,23 +3136,27 @@ async fn multi_device_sibling_focused_chat() {
     assert_matches!(
         new_stream.next().await,
         Some(Ok(ListenResponse {
-            event: Some(listen_response::Event::SiblingFocusedChat(SiblingFocusedChat {
-                change: Some(sibling_focused_chat::Change::Update(snapshot)),
+            event: Some(listen_response::Event::SiblingClientState(SiblingClientState {
+                change: Some(sibling_client_state::Change::Updated(snapshot)),
             })),
-        })) if snapshot == state
+        })) if snapshot.client_id == updated.client_id
+            && snapshot.epoch == updated.epoch
+            && snapshot.blob == updated.blob
     );
 
     // Ending the session clears the state.
     old_responder.close(&mut old_stream).await;
-    let sibling_focused_chat::Change::Gone(gone) = next_sibling_focused_chat(&mut new_stream).await
+    let sibling_client_state::Change::Removed(removed) =
+        next_sibling_client_state(&mut new_stream).await
     else {
-        panic!("expected gone");
+        panic!("expected removed");
     };
-    assert_eq!(gone.client_id, Some(old_client_id));
+    assert_eq!(removed.client_id, Some(old_client_id));
+    assert!(removed.epoch > updated.epoch);
 
     // Oversized states end the session.
     let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();
-    old_responder.report_focused_chat(vec![0; 1024]).await;
+    old_responder.report_client_state(vec![0; 1024]).await;
     let status = loop {
         match old_stream
             .next()

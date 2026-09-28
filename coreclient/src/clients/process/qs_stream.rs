@@ -122,7 +122,7 @@ impl QsStreamProcessor {
                     .ok();
                 QsProcessEventResult::Ignored
             }
-            Some(listen_response::Event::SiblingFocusedChat(_)) => QsProcessEventResult::Ignored,
+            Some(listen_response::Event::SiblingClientState(_)) => QsProcessEventResult::Ignored,
         }
     }
 }

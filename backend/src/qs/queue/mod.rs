@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-pub(crate) mod focused_chat;
+pub(crate) mod client_state;
 
 use std::{borrow::Cow, collections::VecDeque, sync::Arc};
 
-use aircommon::{identifiers::QsClientId, time::TimeStamp};
+use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
-    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, SiblingFocusedChatState,
-    listen_response,
+    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
 };
 use dashmap::DashMap;
 use futures_util::{Stream, stream};
@@ -22,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
 
+use self::client_state::ClientState;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
@@ -46,8 +46,11 @@ struct ListenerContext {
     cancel: CancellationToken,
     payload_tx: mpsc::Sender<ListenResponse>,
     session_id: Uuid,
-    /// Last focused chat reported by the client in this session
-    focused_chat: Option<SiblingFocusedChatState>,
+    /// Last state reported by the client in this session
+    client_state: Option<ClientState>,
+    /// Epoch of the last client state change, carried over from the replaced
+    /// listener
+    client_state_epoch: u64,
     /// Other clients of the same user
     siblings: Vec<QsClientId>,
 }
@@ -70,7 +73,8 @@ impl ListenerContext {
             cancel,
             payload_tx,
             session_id,
-            focused_chat: None,
+            client_state: None,
+            client_state_epoch: 0,
             siblings,
         }
     }
@@ -103,15 +107,15 @@ impl Queues {
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let (cancel, gone_at) = self.track_listener(
+        let (cancel, removed_epoch) = self.track_listener(
             session_id,
             client_id,
             client_version.as_ref(),
             payload_tx,
             siblings.clone(),
         );
-        if let Some(gone_at) = gone_at {
-            self.report_focused_chat_gone(client_id, &siblings, gone_at);
+        if let Some(epoch) = removed_epoch {
+            self.report_client_state_removed(client_id, &siblings, epoch);
         }
         let context = QueueStreamContext {
             pool: self.pool.clone(),
@@ -214,8 +218,8 @@ impl Queues {
     /// Also adds `client_id` to the siblings of the listening `siblings`, which
     /// might have loaded theirs before `client_id` existed.
     ///
-    /// Returns the time of the change if the replaced listener had a focused
-    /// chat.
+    /// Returns the epoch of the change if the replaced listener had a client
+    /// state.
     fn track_listener(
         &self,
         session_id: Uuid,
@@ -223,10 +227,11 @@ impl Queues {
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
         siblings: Vec<QsClientId>,
-    ) -> (CancellationToken, Option<TimeStamp>) {
-        // Clean up cancelled listeners
+    ) -> (CancellationToken, Option<u64>) {
+        // Clean up cancelled listeners, except for the one of `client_id` which
+        // is replaced below, keeping its epoch.
         self.listeners.retain(|id, context| {
-            if context.cancel.is_cancelled() {
+            if context.cancel.is_cancelled() && *id != client_id {
                 self.pg_listener_task_handle.unlisten(*id);
                 false
             } else {
@@ -250,19 +255,25 @@ impl Queues {
             payload_tx,
             siblings,
         );
-        let mut gone_at = None;
+        let mut removed_epoch = None;
         if let Some(prev_listener) = self.listeners.insert(client_id, context) {
             prev_listener.cancel.cancel();
-            if prev_listener.focused_chat.is_some() {
-                // After the insert, so that it is ordered after the last
-                // update of the replaced session
-                gone_at = Some(TimeStamp::now());
+            // After the insert, so that the replaced session cannot change its
+            // state anymore.
+            let mut epoch = prev_listener.client_state_epoch;
+            if prev_listener.client_state.is_some() {
+                epoch += 1;
+                removed_epoch = Some(epoch);
+            }
+            // The new session only reports once the listen stream is returned.
+            if let Some(mut context) = self.listeners.get_mut(&client_id) {
+                context.client_state_epoch = epoch;
             }
         } else {
             self.pg_listener_task_handle.listen(client_id);
         }
 
-        (cancel, gone_at)
+        (cancel, removed_epoch)
     }
 }
 

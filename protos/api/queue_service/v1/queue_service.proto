@@ -303,7 +303,7 @@ message ListenRequest {
     InitListenRequest init = 1;
     AckListenRequest ack = 2;
     FetchListenRequest fetch = 3;
-    ReportFocusedChatListenRequest focused_chat = 4;
+    ReportClientStateListenRequest client_state = 4;
   }
 }
 
@@ -335,8 +335,8 @@ message AckListenRequest {
 
 message FetchListenRequest {}
 
-message ReportFocusedChatListenRequest {
-  bytes encrypted_focused_chat = 1;
+message ReportClientStateListenRequest {
+  bytes encrypted_blob = 1;
 }
 
 message ListenResponse {
@@ -345,31 +345,38 @@ message ListenResponse {
     QueueMessage message = 2;
     QueueEventPayload payload = 3;
     VersionStatus version_status = 4;
-    SiblingFocusedChat sibling_focused_chat = 5;
+    SiblingClientState sibling_client_state = 5;
   }
 }
 
-// Changes are ordered by `updated_at`: a change older than the last seen one
-// of the same sibling is outdated and must be dropped.
-message SiblingFocusedChat {
+message SiblingClientState {
   oneof change {
-    SiblingFocusedChatState update = 1;
-    SiblingFocusedChatGone gone = 2;
+    SiblingClientStateUpdated updated = 1;
+    SiblingClientStateRemoved removed = 2;
   }
 }
 
-message SiblingFocusedChatState {
+// The sibling updated its state
+message SiblingClientStateUpdated {
   QsClientId client_id = 1;
-  // Time the sibling last updated its state
-  common.v1.Timestamp updated_at = 2;
-  bytes encrypted_focused_chat = 3;
+  // Server-assigned counter, increasing per client id.
+  uint64 epoch = 2;
+  // Time since the server received this blob, at the moment of sending.
+  uint32 age_ms = 3;
+  SiblingClientStateEncryptedBlob blob = 4;
 }
 
 // The sibling stopped listening or was deleted
-message SiblingFocusedChatGone {
+message SiblingClientStateRemoved {
   QsClientId client_id = 1;
-  // Time the sibling's state was cleared
-  common.v1.Timestamp updated_at = 2;
+  // Server-assigned counter, increasing per client id.
+  uint64 epoch = 2;
+  // Time since the server received this blob, at the moment of sending.
+  common.v1.Timestamp updated_at = 3;
+}
+
+message SiblingClientStateEncryptedBlob {
+  bytes encrypted_blob = 1;
 }
 
 // Event notifying recipients that the queue is empty

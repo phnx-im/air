@@ -577,7 +577,7 @@ impl CoreUser {
                 }
                 Some(listen_response::Event::Payload(_))
                 | Some(listen_response::Event::VersionStatus(_))
-                | Some(listen_response::Event::SiblingFocusedChat(_))
+                | Some(listen_response::Event::SiblingClientState(_))
                 | None => {}
             }
         }
