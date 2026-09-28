@@ -36,6 +36,10 @@ pub(crate) struct Queues {
     pool: PgPool,
     listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
+    /// Epoch of the last client state change per client
+    ///
+    /// Kept apart from the listeners, since it outlives them.
+    client_state_epochs: Arc<DashMap<QsClientId, u64>>,
 }
 
 /// Context for a queue listener
@@ -48,9 +52,6 @@ struct ListenerContext {
     session_id: Uuid,
     /// Last state reported by the client in this session
     client_state: Option<ClientState>,
-    /// Epoch of the last client state change, carried over from the replaced
-    /// listener
-    client_state_epoch: u64,
     /// Other clients of the same user
     siblings: Vec<QsClientId>,
 }
@@ -74,7 +75,6 @@ impl ListenerContext {
             payload_tx,
             session_id,
             client_state: None,
-            client_state_epoch: 0,
             siblings,
         }
     }
@@ -93,6 +93,7 @@ impl Queues {
             pool,
             listeners: Default::default(),
             pg_listener_task_handle,
+            client_state_epochs: Default::default(),
         })
     }
 
@@ -107,14 +108,15 @@ impl Queues {
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let (cancel, removed_epoch) = self.track_listener(
+        let (cancel, replaced_client_state) = self.track_listener(
             session_id,
             client_id,
             client_version.as_ref(),
             payload_tx,
             siblings.clone(),
         );
-        if let Some(epoch) = removed_epoch {
+        if replaced_client_state {
+            let epoch = self.next_client_state_epoch(client_id);
             self.report_client_state_removed(client_id, &siblings, epoch);
         }
         let context = QueueStreamContext {
@@ -218,8 +220,7 @@ impl Queues {
     /// Also adds `client_id` to the siblings of the listening `siblings`, which
     /// might have loaded theirs before `client_id` existed.
     ///
-    /// Returns the epoch of the change if the replaced listener had a client
-    /// state.
+    /// Returns whether the replaced listener had a client state.
     fn track_listener(
         &self,
         session_id: Uuid,
@@ -227,11 +228,10 @@ impl Queues {
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
         siblings: Vec<QsClientId>,
-    ) -> (CancellationToken, Option<u64>) {
-        // Clean up cancelled listeners, except for the one of `client_id` which
-        // is replaced below, keeping its epoch.
+    ) -> (CancellationToken, bool) {
+        // Clean up cancelled listeners
         self.listeners.retain(|id, context| {
-            if context.cancel.is_cancelled() && *id != client_id {
+            if context.cancel.is_cancelled() {
                 self.pg_listener_task_handle.unlisten(*id);
                 false
             } else {
@@ -255,25 +255,15 @@ impl Queues {
             payload_tx,
             siblings,
         );
-        let mut removed_epoch = None;
+        let mut replaced_client_state = false;
         if let Some(prev_listener) = self.listeners.insert(client_id, context) {
             prev_listener.cancel.cancel();
-            // After the insert, so that the replaced session cannot change its
-            // state anymore.
-            let mut epoch = prev_listener.client_state_epoch;
-            if prev_listener.client_state.is_some() {
-                epoch += 1;
-                removed_epoch = Some(epoch);
-            }
-            // The new session only reports once the listen stream is returned.
-            if let Some(mut context) = self.listeners.get_mut(&client_id) {
-                context.client_state_epoch = epoch;
-            }
+            replaced_client_state = prev_listener.client_state.is_some();
         } else {
             self.pg_listener_task_handle.listen(client_id);
         }
 
-        (cancel, removed_epoch)
+        (cancel, replaced_client_state)
     }
 }
 

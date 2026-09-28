@@ -18,7 +18,7 @@ use airprotos::queue_service::v1::{
 use tracing::debug;
 use uuid::Uuid;
 
-use crate::qs::queue::{ListenerContext, Queues};
+use crate::qs::queue::Queues;
 
 pub(crate) const MAX_ENCRYPTED_CLIENT_STATE_SIZE: usize = 256;
 
@@ -44,15 +44,18 @@ impl ClientState {
     }
 }
 
-impl ListenerContext {
-    /// Returns the epoch of the next client state change, starting at 1.
-    fn next_client_state_epoch(&mut self) -> u64 {
-        self.client_state_epoch += 1;
-        self.client_state_epoch
-    }
-}
-
 impl Queues {
+    /// Returns the epoch of the next state change of `client_id`, starting at
+    /// 1.
+    ///
+    /// Callers holding a listener entry must lock it before the epoch entry,
+    /// like everywhere else.
+    pub(super) fn next_client_state_epoch(&self, client_id: QsClientId) -> u64 {
+        let mut epoch = self.client_state_epochs.entry(client_id).or_default();
+        *epoch += 1;
+        *epoch
+    }
+
     /// Stores the state of `client_id` if `session_id` is its current listen
     /// session, and relays it to the listening siblings.
     pub(crate) fn update_client_state(
@@ -71,7 +74,7 @@ impl Queues {
         };
 
         let state = ClientState {
-            epoch: context.next_client_state_epoch(),
+            epoch: self.next_client_state_epoch(client_id),
             received_at: Instant::now(),
             encrypted_blob,
         };
@@ -116,7 +119,10 @@ impl Queues {
             return None;
         }
         context.client_state.take()?;
-        Some((context.siblings.clone(), context.next_client_state_epoch()))
+        Some((
+            context.siblings.clone(),
+            self.next_client_state_epoch(client_id),
+        ))
     }
 
     /// Clears the state of `client_id` reported in `session_id` and fans out
@@ -129,10 +135,13 @@ impl Queues {
 
     /// Clears the state of `client_id` reported in any session and fans out
     /// the change to its siblings.
+    ///
+    /// Used when the client is deleted, so its epoch is dropped as well.
     pub(crate) fn clear_client_state(&self, client_id: QsClientId) {
         if let Some((siblings, epoch)) = self.take_client_state(client_id, None) {
             self.report_client_state_removed(client_id, &siblings, epoch);
         }
+        self.client_state_epochs.remove(&client_id);
     }
 
     /// Returns the states of the listening siblings of `client_id`.
@@ -335,6 +344,35 @@ mod tests {
         // Epochs are per client.
         queues.update_client_state(b.client_id, b_session, b"state".to_vec());
         assert_eq!(updated_of(next_client_state(&mut a_stream).await).epoch, 1);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn epochs_survive_ended_listeners(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        let a = store_random_client_record(&pool, user.user_id).await?;
+        let b = store_random_client_record(&pool, user.user_id).await?;
+
+        let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
+        let mut b_stream = pin!(queues.listen(Uuid::new_v4(), b.client_id, None, 0).await?);
+
+        let a_session = Uuid::new_v4();
+        let a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
+        queues.update_client_state(a.client_id, a_session, b"state".to_vec());
+        assert_eq!(updated_of(next_client_state(&mut b_stream).await).epoch, 1);
+        queues.clear_session_client_state(a.client_id, a_session);
+        assert_eq!(removed_of(next_client_state(&mut b_stream).await).epoch, 2);
+
+        // The ended listener of a is swept when c starts listening.
+        drop(a_stream);
+        let c = store_random_client_record(&pool, user.user_id).await?;
+        let _c_stream = queues.listen(Uuid::new_v4(), c.client_id, None, 0).await?;
+
+        let a_session = Uuid::new_v4();
+        let _a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
+        queues.update_client_state(a.client_id, a_session, b"state".to_vec());
+        assert_eq!(updated_of(next_client_state(&mut b_stream).await).epoch, 3);
 
         Ok(())
     }
