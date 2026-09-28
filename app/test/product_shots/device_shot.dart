@@ -19,6 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'status_bar.dart';
+
 /// Override with `--dart-define=DEVICE_SPECS_DIR=path/to/dir`. May be absolute
 /// (e.g. for the artwork that lives outside this repo checkout).
 const _deviceSpecsDir = String.fromEnvironment('DEVICE_SPECS_DIR');
@@ -165,8 +167,9 @@ class _FixedSimulation implements ValueListenable<DeviceSimulation?> {
 /// Resolved presets, keyed by slot and brightness.
 final _presets = <String, DevicePreset>{};
 
-/// [base] deep-patched with `<slot>.yaml` from [_deviceSpecsDir], and then
-/// for a dark theme shot with that spec's own `dark:` section.
+/// [base] with a full battery, deep-patched with `<slot>.yaml` from
+/// [_deviceSpecsDir], and then for a dark theme shot with that spec's own
+/// `dark:` section.
 DevicePreset _resolvePreset(
   String slot,
   DevicePreset base,
@@ -176,6 +179,12 @@ DevicePreset _resolvePreset(
   final isDark = brightness == Brightness.dark;
   return _presets.putIfAbsent('$slot${isDark ? '.dark' : ''}', () {
     var json = base.toJson();
+    final statusBar = fullBatteryStatusBar(base);
+    if (statusBar != null) {
+      json = _deepPatch(json, {
+        'systemUi': {'statusBar': statusBar.toJson()},
+      });
+    }
     final spec = _loadSpec(slot);
     if (spec != null) {
       json = _deepPatch(json, spec);
@@ -197,7 +206,7 @@ Map<String, Object?>? _loadSpec(String slot) {
   final file = File(p.join(_deviceSpecsDir, '$slot.yaml'));
   if (!file.existsSync()) return null;
 
-  final spec = _plain(loadYaml(file.readAsStringSync()));
+  final spec = _plain(loadYaml(file.readAsStringSync()), _deviceSpecsDir);
   if (spec is! Map<String, Object?>) {
     throw FormatException('${file.path}: expected a YAML mapping');
   }
@@ -222,11 +231,15 @@ Map<String, Object?> _deepPatch(
 }
 
 /// Rebuilds a `loadYaml` tree out of plain maps and lists, which is what
-/// [DevicePreset.fromJson] expects.
-Object? _plain(Object? node) => switch (node) {
+/// [DevicePreset.fromJson] expects. A `.svg` file name is replaced by that
+/// file's contents, resolved against [dir].
+Object? _plain(Object? node, String dir) => switch (node) {
   final Map<Object?, Object?> map => <String, Object?>{
-    for (final entry in map.entries) '${entry.key}': _plain(entry.value),
+    for (final entry in map.entries) '${entry.key}': _plain(entry.value, dir),
   },
-  final Iterable<Object?> list => list.map(_plain).toList(),
+  final Iterable<Object?> list => [for (final e in list) _plain(e, dir)],
+  final String name when name.endsWith('.svg') => File(
+    p.join(dir, name),
+  ).readAsStringSync(),
   _ => node,
 };

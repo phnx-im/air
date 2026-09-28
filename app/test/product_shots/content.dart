@@ -73,7 +73,7 @@ class _Content {
   _Content._(this._yaml);
 
   factory _Content.load() {
-    final text = _getProjectFile(_contentYamlPath).readAsStringSync();
+    final text = getProjectFile(_contentYamlPath).readAsStringSync();
     final content = _Content._(loadYaml(text) as YamlMap);
     // Order matters: chats and transcripts reference user profiles by key.
     content.userProfiles = content._loadUserProfiles();
@@ -390,7 +390,7 @@ MessageContent _simpleMessage(String msg) {
 }
 
 ImageDataWithSize _loadImage(String path) {
-  final bytes = _getProjectFile(path).readAsBytesSync();
+  final bytes = getProjectFile(path).readAsBytesSync();
   final hash = sha256.convert(bytes).toString();
   final (width: width, height: height) = _jpegDimensions(bytes);
 
@@ -428,7 +428,7 @@ ImageDataWithSize _loadImage(String path) {
   throw const FormatException('No SOF marker found');
 }
 
-File _getProjectFile(String path) {
+File getProjectFile(String path) {
   if (p.isAbsolute(path)) return File(path);
   var dir = Directory.current;
   while (!dir.listSync().any(

@@ -37,8 +37,8 @@ abstract final class ProductShotDevices {
     name: 'Pixel 9 Pro',
     screenSize: Size(412.0, 915.0),
     pixelRatio: 3.8,
-    safeArea: EdgeInsets.only(top: 28.0),
-    statusBarHeight: 36.0,
+    safeArea: EdgeInsets.only(top: 54.0),
+    statusBarHeight: 54.0,
   );
 
   static const ProductShotDevice iosPhone = ProductShotDevice(

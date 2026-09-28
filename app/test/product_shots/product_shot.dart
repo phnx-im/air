@@ -5,12 +5,12 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:device_preview/presets.dart';
 import 'package:flutter/material.dart';
 
-import 'android_status_bar.dart';
-import 'ios_status_bar.dart';
 import 'product_shot_frame.dart';
 import 'product_shot_device.dart';
+import 'status_bar.dart';
 
 class ProductShot extends StatelessWidget {
   const ProductShot({
@@ -47,7 +47,7 @@ class ProductShot extends StatelessWidget {
     final dev = device ?? ProductShotDevices.forPlatform(platform);
     final frameStyle = _frameStyleFor(dev.platform, frameColor);
     final statusBarHeight = _statusBarHeightFor(dev);
-    final statusBar = _statusBarFor(dev.platform, statusBarHeight, brightness);
+    final statusBar = _statusBarFor(dev.platform, brightness);
     final resolvedSafeArea = EdgeInsets.only(
       left: dev.safeArea.left,
       top: math.max(dev.safeArea.top, statusBarHeight),
@@ -266,28 +266,20 @@ double _statusBarHeightFor(ProductShotDevice device) {
   }
 }
 
-Widget _statusBarFor(
-  ProductShotPlatform platform,
-  double statusBarHeight,
-  Brightness brightness,
-) {
-  final isLightMode = brightness == Brightness.light;
-  switch (platform) {
-    case ProductShotPlatform.android:
-      return AndroidStatusBar(
-        height: statusBarHeight,
-        isLightMode: isLightMode,
-      );
-    case ProductShotPlatform.ios:
-      return IosStatusBar(
-        height: statusBarHeight,
-        color: isLightMode ? Colors.black : Colors.white,
-      );
-    case ProductShotPlatform.macos:
-    case ProductShotPlatform.windows:
-    case ProductShotPlatform.linux:
-      return const SizedBox.shrink();
-  }
+Widget _statusBarFor(ProductShotPlatform platform, Brightness brightness) {
+  final preset = switch (platform) {
+    ProductShotPlatform.android => DevicePresets.pixel9,
+    ProductShotPlatform.ios => DevicePresets.iPhone17,
+    ProductShotPlatform.macos ||
+    ProductShotPlatform.windows ||
+    ProductShotPlatform.linux => null,
+  };
+  final bar = preset == null ? null : fullBatteryStatusBar(preset);
+  if (bar == null) return const SizedBox.shrink();
+  return StatusBarArtwork(
+    bar: bar,
+    color: brightness == Brightness.light ? Colors.black : Colors.white,
+  );
 }
 
 class _FrameStyle {
