@@ -57,7 +57,7 @@ use crate::{
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
-        block_contact::pending::{apply_blocked_contacts_update, blocked_contacts_snapshot},
+        block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
         listen_response,
         own_client_info::OwnClientInfo,

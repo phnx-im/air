@@ -14,6 +14,7 @@ pub(crate) enum OutboxKind {
     Settings,
     BlockedContact,
     DeletedChat,
+    DeletedMessage,
 }
 
 impl OutboxKind {
@@ -22,6 +23,7 @@ impl OutboxKind {
             OutboxKind::Settings => "settings",
             OutboxKind::BlockedContact => "blocked_contact",
             OutboxKind::DeletedChat => "deleted_chat",
+            OutboxKind::DeletedMessage => "deleted_message",
         }
     }
 }

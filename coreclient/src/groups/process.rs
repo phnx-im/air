@@ -37,10 +37,10 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    chats::deleted::{self, apply_deleted_chats},
+    chats,
     clients::{
         api_clients::ApiClients,
-        block_contact::pending::{apply_blocked_contacts_update, complete_sent_entries},
+        block_contact,
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -94,15 +94,16 @@ async fn apply_self_group_payload(
     }
 
     if own_echo {
-        complete_sent_entries(txn, &payload.blocked_contacts).await?;
+        block_contact::persistence::complete_sent_entries(txn, &payload.blocked_contacts).await?;
     } else {
-        apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
+        block_contact::persistence::apply_blocked_contacts_update(txn, &payload.blocked_contacts)
+            .await?;
     }
 
     if own_echo {
-        deleted::remove_staged(txn, &payload.deleted_chats).await?;
+        chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
     } else {
-        apply_deleted_chats(txn, &payload.deleted_chats).await?;
+        chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats).await?;
     }
 
     Ok(())
@@ -1106,7 +1107,8 @@ mod tests {
     use crate::{
         clients::block_contact::{
             BlockedContact,
-            pending::{BlockedState, staged_entries, store_outgoing_entry},
+            pending::BlockedState,
+            persistence::{staged_entries, store_outgoing_entry},
         },
         db::access::DbAccess,
     };
