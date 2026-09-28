@@ -1030,7 +1030,7 @@ impl TestBackend {
 
         test_sender
             .user
-            .delete_message(chat_id, message_id)
+            .delete_message_for_everyone(chat_id, message_id)
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;

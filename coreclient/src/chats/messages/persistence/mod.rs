@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod delete;
+
 use std::fmt;
 
 use aircommon::{
@@ -27,6 +29,8 @@ use crate::{
 };
 
 use super::{ErrorMessage, EventMessage};
+
+pub(crate) use delete::*;
 
 const UNKNOWN_MESSAGE_VERSION: u16 = 0;
 const CURRENT_MESSAGE_VERSION: u16 = 1;
