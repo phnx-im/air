@@ -24,6 +24,9 @@ abstract class User implements RustOpaqueInterface {
   /// Random UUID naming this client's DB file and identifying its client record.
   UuidValue get clientRecordId;
 
+  /// Erase the self group and its chat from the local database.
+  Future<void> dangerEraseSelfGroup();
+
   /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount;
 
@@ -132,6 +135,7 @@ class UserDebugInfo {
   final int addUsernameTokenCount;
   final int invitationCodeTokenCount;
   final int connectUsernameTokenCount;
+  final bool hasLinkedDevices;
 
   const UserDebugInfo({
     required this.userId,
@@ -139,6 +143,7 @@ class UserDebugInfo {
     required this.addUsernameTokenCount,
     required this.invitationCodeTokenCount,
     required this.connectUsernameTokenCount,
+    required this.hasLinkedDevices,
   });
 
   @override
@@ -147,7 +152,8 @@ class UserDebugInfo {
       timedTasks.hashCode ^
       addUsernameTokenCount.hashCode ^
       invitationCodeTokenCount.hashCode ^
-      connectUsernameTokenCount.hashCode;
+      connectUsernameTokenCount.hashCode ^
+      hasLinkedDevices.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -158,5 +164,6 @@ class UserDebugInfo {
           timedTasks == other.timedTasks &&
           addUsernameTokenCount == other.addUsernameTokenCount &&
           invitationCodeTokenCount == other.invitationCodeTokenCount &&
-          connectUsernameTokenCount == other.connectUsernameTokenCount;
+          connectUsernameTokenCount == other.connectUsernameTokenCount &&
+          hasLinkedDevices == other.hasLinkedDevices;
 }

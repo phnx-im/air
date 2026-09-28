@@ -450,6 +450,7 @@ impl PersistedUserState {
             outbound_service,
             event_loop_sender,
             event_loop_cancel: event_loop_cancel.drop_guard(),
+            self_group_creation: Default::default(),
         });
 
         event_loop.spawn(Arc::downgrade(&inner));

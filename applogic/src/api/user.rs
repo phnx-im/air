@@ -213,6 +213,11 @@ impl User {
         self.user.trigger_timed_task(id).await?;
         Ok(())
     }
+
+    /// Erase the self group and its chat from the local database.
+    pub async fn danger_erase_self_group(&self) -> Result<()> {
+        self.user.danger_reset_self_group().await
+    }
 }
 
 #[frb(mirror(UserDebugInfo))]
@@ -222,6 +227,7 @@ pub struct _UserDebugInfo {
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
     pub connect_username_token_count: u32,
+    pub has_linked_devices: bool,
 }
 
 #[frb(mirror(TimedTaskDebugInfo))]

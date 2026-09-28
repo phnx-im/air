@@ -19,7 +19,8 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/method_channel.dart';
-import 'package:flutter/material.dart' show Slider;
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:flutter/material.dart' show SnackBar, Slider;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -129,7 +130,11 @@ class DeveloperSettingsView extends HookWidget {
             tasks: info.timedTasks,
             onTriggered: debugInfo.refresh,
           ),
-        _DangerZoneCard(user: user),
+        _DangerZoneCard(
+          user: user,
+          hasLinkedDevices: info?.hasLinkedDevices,
+          onSelfGroupErased: debugInfo.refresh,
+        ),
       ],
     );
   }
@@ -341,9 +346,18 @@ class _SessionCard extends StatelessWidget {
 
 /// What cannot be undone.
 class _DangerZoneCard extends StatelessWidget {
-  const _DangerZoneCard({required this.user});
+  const _DangerZoneCard({
+    required this.user,
+    required this.hasLinkedDevices,
+    required this.onSelfGroupErased,
+  });
 
   final User? user;
+
+  /// Null until the debug info loads.
+  final bool? hasLinkedDevices;
+
+  final VoidCallback onSelfGroupErased;
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +371,14 @@ class _DangerZoneCard extends StatelessWidget {
     return DeveloperCard(
       caption: 'Danger zone',
       children: [
+        if (user != null && hasLinkedDevices == false)
+          DeveloperDangerRow(
+            label: 'Reset self-group',
+            icon: AppIconType.trash,
+            confirmMessage: 'Are you sure you want to reset the self-group?',
+            confirmLabel: 'Reset',
+            onConfirm: () => _eraseSelfGroup(user),
+          ),
         if (user != null)
           DeveloperDangerRow(
             label: 'Erase this database',
@@ -378,6 +400,26 @@ class _DangerZoneCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _eraseSelfGroup(User user) async {
+    try {
+      await user.dangerEraseSelfGroup();
+      showSnackBarStandalone(
+        (loc) => const SnackBar(
+          content: Text('Reset self-group'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Failed to reset self-group: $error'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    onSelfGroupErased();
   }
 }
 

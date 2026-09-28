@@ -10,7 +10,7 @@ use anyhow::Context;
 use openmls::group::GroupId;
 use uuid::Uuid;
 
-use crate::db::access::ReadConnection;
+use crate::db::access::{ReadConnection, WriteConnection};
 
 mod persistence;
 
@@ -47,5 +47,19 @@ impl OwnClientInfo {
         } else {
             Ok(LeafSigningKey::User(user_signer.clone()))
         }
+    }
+
+    /// Un-assigns the self-group this client had.
+    pub(crate) async fn remove_self_group(
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            "UPDATE own_client_info
+                    SET self_group_id = NULL, 
+                        self_group_signing_key = NULL",
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
     }
 }

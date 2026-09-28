@@ -9,6 +9,7 @@ use sqlx::Row;
 
 use crate::{
     clients::CoreUser,
+    groups::self_group::SelfGroup,
     outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
     privacy_pass,
 };
@@ -27,6 +28,7 @@ pub struct UserDebugInfo {
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
     pub connect_username_token_count: u32,
+    pub has_linked_devices: bool,
 }
 
 impl CoreUser {
@@ -68,6 +70,7 @@ impl CoreUser {
             OperationType::ConnectUsername,
         )
         .await? as u32;
+        let has_linked_devices = SelfGroup::has_linked_devices(db.read().await?).await?;
 
         Ok(UserDebugInfo {
             user_id,
@@ -75,6 +78,7 @@ impl CoreUser {
             add_username_token_count,
             invitation_code_token_count,
             connect_username_token_count,
+            has_linked_devices,
         })
     }
 
