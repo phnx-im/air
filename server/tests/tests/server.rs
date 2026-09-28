@@ -1504,6 +1504,7 @@ async fn listen_queue_version_status() {
         Some(Ok(ListenResponse {
             event: Some(listen_response::Event::VersionStatus(VersionStatus {
                 expires_at: None,
+                max_devices: 10,
             })),
         }))
     );

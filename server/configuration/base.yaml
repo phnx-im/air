@@ -5,6 +5,7 @@
 application:
   listen: 127.0.0.1:8080
   domain: ""
+  max_devices: 10
 database:
   host: "127.0.0.1"
   port: 5432

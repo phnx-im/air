@@ -172,6 +172,7 @@ mod test {
             pool,
             "example.com".parse().unwrap(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await
@@ -252,6 +253,7 @@ mod test {
             pool.clone(),
             "example.com".parse().unwrap(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;
@@ -270,6 +272,7 @@ mod test {
             pool.clone(),
             "example.com".parse().unwrap(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;
@@ -297,6 +300,7 @@ mod test {
             pool.clone(),
             "example.com".parse().unwrap(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;

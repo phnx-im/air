@@ -40,6 +40,7 @@ class MockUiUser implements UiUser {
     this.accountUnlinked = false,
     this.usernames = const [],
     this.versionStatus = const VersionStatus.supported(),
+    this.maxDevices = 0,
   }) : _userId = id.userId();
 
   final UiUserId _userId;
@@ -61,6 +62,9 @@ class MockUiUser implements UiUser {
 
   @override
   final bool accountUnlinked;
+
+  @override
+  final int maxDevices;
 }
 
 class MockUsersState implements UsersState {

@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
-    air_service::{BackendService, ServiceCreationError},
+    air_service::{BackendService, MaxDevices, ServiceCreationError},
     ds::{
         group_id_reservations::{
             GroupIdReservations, GroupIdReservationsFull, sweep_expired_group_id_reservations,
@@ -62,6 +62,7 @@ pub struct Ds {
     db_pool: PgPool,
     storage: Option<Storage>,
     version_policy: VersionPolicy,
+    max_devices: MaxDevices,
 }
 
 #[derive(Debug)]
@@ -72,6 +73,7 @@ impl BackendService for Ds {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let group_id_reservations = Arc::new(Mutex::new(GroupIdReservations::default()));
@@ -87,6 +89,7 @@ impl BackendService for Ds {
             db_pool,
             storage: None,
             version_policy,
+            max_devices: MaxDevices::new(max_devices),
         };
 
         Ok(ds)
@@ -98,6 +101,11 @@ impl BackendService for Ds {
 }
 
 impl Ds {
+    #[cfg(feature = "test_utils")]
+    pub fn max_devices_handle(&self) -> MaxDevices {
+        self.max_devices.clone()
+    }
+
     pub fn set_storage(&mut self, storage: Storage) {
         self.storage = Some(storage);
     }

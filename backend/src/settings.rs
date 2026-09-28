@@ -61,6 +61,11 @@ pub struct ApplicationSettings {
     ///
     /// This code can be used to register as many users as desired. Useful for testing.
     pub unredeemablecode: Option<String>,
+    /// Maximum number of devices that can be linked to this user.
+    ///
+    /// 0 means no limit.
+    #[serde(default = "default_max_devices")]
+    pub max_devices: u32,
 }
 
 /// A version expiration entry
@@ -81,6 +86,10 @@ fn default_listen() -> SocketAddr {
 
 fn default_listen_metrics() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9090)
+}
+
+fn default_max_devices() -> u32 {
+    10
 }
 
 /// Configuration for the database.

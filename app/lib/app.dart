@@ -116,6 +116,7 @@ class _AppState extends State<App> {
     _backgroundService.stop();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
+    _navigationCubit.close();
     super.dispose();
   }
 

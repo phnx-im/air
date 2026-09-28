@@ -9,7 +9,9 @@ use std::sync::Mutex;
 use aircommon::identifiers::Fqdn;
 use aircoreclient::clients::{
     CoreUser,
-    multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
+    multi_device::{
+        MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
+    },
 };
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, Result};
@@ -78,6 +80,8 @@ pub enum MultiDeviceProvisionEvent {
     Linked,
     /// The session ended without linking.
     Failed(String),
+    /// The device limit was reached.
+    DeviceLimitReached { max_devices: u32 },
 }
 
 /// Enables Dart to claim the bootstrapped user once linking succeeds.
@@ -147,19 +151,23 @@ pub async fn multi_device_provision_client(
     };
 
     let linking_session = async {
-        match CoreUser::multi_device_provision_client(&db_path, domain, None, session_tx).await {
-            Ok(core_user) => {
-                *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
-                if let Err(error) = sink.add(MultiDeviceProvisionEvent::Linked) {
-                    error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
+        let event =
+            match CoreUser::multi_device_provision_client(&db_path, domain, None, session_tx).await
+            {
+                Ok(Ok(core_user)) => {
+                    *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
+                    MultiDeviceProvisionEvent::Linked
                 }
-            }
-            Err(error) => {
-                error!(%error, "multi-device provisioning failed");
-                if let Err(error) = sink.add(MultiDeviceProvisionEvent::Failed(error.to_string())) {
-                    error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
+                Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices })) => {
+                    MultiDeviceProvisionEvent::DeviceLimitReached { max_devices }
                 }
-            }
+                Err(error) => {
+                    error!(%error, "multi-device provisioning failed");
+                    MultiDeviceProvisionEvent::Failed(error.to_string())
+                }
+            };
+        if let Err(error) = sink.add(event) {
+            error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
         }
     };
 
@@ -213,6 +221,10 @@ pub enum MultiDeviceLinkEvent {
     /// Linking failed (e.g. the connection dropped or the session expired).
     Failed(String),
     SessionNotFound,
+    /// Device limit reached
+    DeviceLimitReached {
+        max_devices: u32,
+    },
 }
 
 /// Drives the acceptor (existing-device) side of multi-device linking.
@@ -247,6 +259,9 @@ pub async fn multi_device_link_client(
             Ok(Ok(())) => MultiDeviceLinkEvent::Linked,
             Ok(Err(MultiDeviceLinkClientError::SessionNotFound)) => {
                 MultiDeviceLinkEvent::SessionNotFound
+            }
+            Ok(Err(MultiDeviceLinkClientError::DeviceLimitReached { max_devices })) => {
+                MultiDeviceLinkEvent::DeviceLimitReached { max_devices }
             }
             Err(error) => {
                 error!(%error, "multi-device linking failed");

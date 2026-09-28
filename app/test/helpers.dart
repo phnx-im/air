@@ -14,10 +14,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';
 
-ThemeData testThemeData(Brightness brightness) {
+ThemeData testThemeData(Brightness brightness, {bool withColorEmojis = false}) {
   final theme = themeData(brightness);
   return theme.copyWith(
-    textTheme: theme.textTheme.apply(fontFamilyFallback: const ['NotoEmoji']),
+    textTheme: theme.textTheme.apply(
+      fontFamilyFallback: withColorEmojis
+          ? (Platform.isMacOS ? ['Apple Color Emoji'] : ['NotoColorEmoji'])
+          : ['NotoEmoji'],
+    ),
   );
 }
 
@@ -25,6 +29,9 @@ ThemeData testThemeData(Brightness brightness) {
 /// typescale and the appbar height from the target platform, which a test can
 /// pin after this library is first loaded.
 ThemeData get testLightTheme => testThemeData(.light);
+
+/// See [testLightTheme] for why this is a getter rather than a `final`.
+ThemeData get testDarkTheme => testThemeData(.dark);
 
 /// Maps the host OS to the matching desktop [TargetPlatform] so widget goldens
 /// render the same desktop code path the app ships on that OS, keeping the
@@ -121,17 +128,43 @@ UuidValue _intToUuidValue(int value) {
 }
 
 class LocalFileComparatorWithThreshold extends LocalFileComparator {
-  LocalFileComparatorWithThreshold(super.testFile, this.threshold);
+  LocalFileComparatorWithThreshold(
+    super.testFile,
+    this.threshold, {
+    this.platformSuffix = true,
+  });
 
   final double threshold;
 
+  /// Whether the depicted platform is appended to the golden's name.
+  final bool platformSuffix;
+
   String _platformSuffix() {
-    if (Platform.isMacOS) return '.macos';
-    if (Platform.isWindows) return '.windows';
-    if (Platform.isLinux) return '.linux';
-    if (Platform.isAndroid) return '.android';
-    if (Platform.isIOS) return '.ios';
-    return '';
+    if (!platformSuffix) return '';
+    final os = Platform.operatingSystem.toLowerCase();
+    switch (debugDefaultTargetPlatformOverride) {
+      // when not overridden, the target platform is the current one.
+      case null:
+        return ".$os";
+      // android and iOS have no desktop host of their own, so whatever host
+      // renders them still picks the font, same as the null case above. Fold
+      // that into the name too, or the golden collides across hosts.
+      case TargetPlatform.android:
+        return '.android.$os';
+      case TargetPlatform.iOS:
+        return '.ios.$os';
+      // these are only ever set to match the host running the test (see
+      // `desktopPlatform`), so the target platform alone already identifies
+      // the host that recorded it.
+      case TargetPlatform.linux:
+        return '.linux';
+      case TargetPlatform.macOS:
+        return '.macos';
+      case TargetPlatform.windows:
+        return '.windows';
+      default:
+        return '';
+    }
   }
 
   @override

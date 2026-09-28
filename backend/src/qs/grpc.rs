@@ -488,6 +488,7 @@ impl QueueService for GrpcQs {
                 expires_at: verified_client_version
                     .expires_at
                     .map(|ts| TimeStamp::from(ts).into()),
+                max_devices: self.qs.max_devices.get(),
             })),
         };
 

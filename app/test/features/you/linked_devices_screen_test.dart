@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
@@ -19,6 +20,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../helpers.dart';
+import '../../mocks.dart';
 
 class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
     implements LinkedDevicesCubit {}
@@ -105,6 +107,7 @@ LinkedDevicesState _withSibling() => LinkedDevicesState(
 void main() {
   group('LinkedDevicesView', () {
     late MockLinkedDevicesCubit cubit;
+    late MockUserCubit userCubit;
 
     setUpAll(() {
       registerFallbackValue(0.clientRecordId());
@@ -112,14 +115,18 @@ void main() {
 
     setUp(() {
       cubit = MockLinkedDevicesCubit();
+      userCubit = MockUserCubit();
     });
 
     Future<void> pumpView(
       WidgetTester tester, {
       LinkedDevicesState? state,
+      int maxDevices = 0,
       Locale locale = const Locale('en', 'US'),
     }) async {
       when(() => cubit.state).thenReturn(state ?? _singleDevice());
+      when(() => userCubit.state)
+          .thenReturn(MockUiUser(id: 1, maxDevices: maxDevices));
       tester.view.physicalSize = _testSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -143,8 +150,11 @@ void main() {
                   backgroundColor: SemanticPalette.of(context)
                       .backgroundBase
                       .primary,
-                  child: BlocProvider<LinkedDevicesCubit>.value(
-                    value: cubit,
+                  child: MultiBlocProvider(
+                    providers: [
+                      BlocProvider<UserCubit>.value(value: userCubit),
+                      BlocProvider<LinkedDevicesCubit>.value(value: cubit),
+                    ],
                     child: const LinkedDevicesSection(),
                   ),
                 ),
@@ -217,6 +227,29 @@ void main() {
       );
 
       await expectGolden(tester, 'linked_devices_screen');
+    });
+
+    testWidgets('shows the device count against the limit', (tester) async {
+      await pumpView(tester, state: _mockDevices(), maxDevices: 10);
+
+      expect(find.text('4 of 10 devices linked.'), findsOneWidget);
+      expect(find.text('Link a device'), findsOneWidget);
+    });
+
+    testWidgets('replaces the link button at the device limit', (tester) async {
+      await pumpView(tester, state: _mockDevices(), maxDevices: 4);
+
+      expect(find.text('4 of 4 devices linked.'), findsOneWidget);
+      expect(find.text('Link a device'), findsNothing);
+      expect(
+        find.text(
+          'You’ve reached the limit of 4 linked devices. '
+          'Unlink a device if you want to link a new one.',
+        ),
+        findsOneWidget,
+      );
+
+      await expectGolden(tester, 'linked_devices_screen_limit_reached');
     });
 
     testWidgets('writes the linking date and time in the app locale', (
