@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
+mod deleted_messages;
 mod error;
 mod key_packages;
 mod profile;
@@ -44,6 +45,7 @@ mod receipts;
 mod redeemed_tokens;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
+mod self_chat;
 pub(crate) mod timed_tasks;
 
 /// Cadence at which a started outbound service wakes itself to run scheduled work.
@@ -341,6 +343,9 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_redeemed_tokens(&run_token).await {
             error!(%error, "Failed to send redeemed privacy pass tokens");
+        }
+        if let Err(error) = self.send_deleted_messages(&run_token).await {
+            error!(%error, "Failed to send deleted messages");
         }
         if let Err(error) =
             attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await

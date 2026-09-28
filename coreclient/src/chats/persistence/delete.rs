@@ -39,7 +39,7 @@ pub(crate) async fn erase(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyh
 }
 
 /// Parks a local deletion for the next self-group commit.
-pub(crate) async fn store_outgoing(
+pub(crate) async fn store_outgoing_deletion(
     connection: impl WriteConnection,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
@@ -57,7 +57,9 @@ pub(crate) async fn store_outgoing(
     Ok(())
 }
 
-pub(crate) async fn staged(connection: impl ReadConnection) -> anyhow::Result<Vec<DeletedChat>> {
+pub(crate) async fn staged_deletions(
+    connection: impl ReadConnection,
+) -> anyhow::Result<Vec<DeletedChat>> {
     Ok(
         self_group_outbox::load_kind(connection, OutboxKind::DeletedChat)
             .await?
@@ -68,7 +70,7 @@ pub(crate) async fn staged(connection: impl ReadConnection) -> anyhow::Result<Ve
 }
 
 /// Drops the parked deletions.
-pub(crate) async fn remove_staged(
+pub(crate) async fn remove_staged_deletion(
     txn: &mut WriteDbTransaction<'_>,
     deleted: &[DeletedChat],
 ) -> sqlx::Result<()> {
@@ -95,7 +97,7 @@ pub(crate) async fn apply_deleted_chats(
             erase(txn, &chat).await?;
         }
     }
-    remove_staged(txn, deleted).await?;
+    remove_staged_deletion(txn, deleted).await?;
     Ok(())
 }
 
@@ -122,11 +124,14 @@ mod tests {
         let pool = DbAccess::for_tests(pool);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing(&mut *txn, &group_id(2)).await?;
-            store_outgoing(&mut *txn, &group_id(1)).await?;
-            store_outgoing(&mut *txn, &group_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(1)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(2)).await?;
 
-            assert_eq!(staged(&mut *txn).await?, vec![deleted(1), deleted(2)]);
+            assert_eq!(
+                staged_deletions(&mut *txn).await?,
+                vec![deleted(1), deleted(2)]
+            );
             Ok(())
         })
         .await
@@ -137,12 +142,12 @@ mod tests {
         let pool = DbAccess::for_tests(pool);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing(&mut *txn, &group_id(1)).await?;
-            store_outgoing(&mut *txn, &group_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(1)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(2)).await?;
 
-            remove_staged(txn, &[deleted(1), DeletedChat::default()]).await?;
+            remove_staged_deletion(txn, &[deleted(1), DeletedChat::default()]).await?;
 
-            assert_eq!(staged(&mut *txn).await?, vec![deleted(2)]);
+            assert_eq!(staged_deletions(&mut *txn).await?, vec![deleted(2)]);
             Ok(())
         })
         .await
@@ -155,12 +160,12 @@ mod tests {
         let pool = DbAccess::for_tests(pool);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing(&mut *txn, &group_id(1)).await?;
-            store_outgoing(&mut *txn, &group_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(1)).await?;
+            store_outgoing_deletion(&mut *txn, &group_id(2)).await?;
 
             apply_deleted_chats(txn, &[deleted(1), DeletedChat::default()]).await?;
 
-            assert_eq!(staged(&mut *txn).await?, vec![deleted(2)]);
+            assert_eq!(staged_deletions(&mut *txn).await?, vec![deleted(2)]);
             Ok(())
         })
         .await

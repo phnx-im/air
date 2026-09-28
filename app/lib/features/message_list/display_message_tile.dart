@@ -56,12 +56,14 @@ class _SystemMessageContent extends StatefulWidget {
 class _SystemMessageContentState extends State<_SystemMessageContent> {
   /// One recognizer per person
   final Map<UiUserId, TapGestureRecognizer> _profileTaps = {};
+  TapGestureRecognizer? _devicesTap;
 
   @override
   void dispose() {
     for (final recognizer in _profileTaps.values) {
       recognizer.dispose();
     }
+    _devicesTap?.dispose();
     super.dispose();
   }
 
@@ -72,6 +74,14 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           ..onTap = () =>
               context.read<NavigationCubit>().openMemberDetails(userId),
   );
+
+  TapGestureRecognizer _devicesTapRecognizer() =>
+      _devicesTap ??= TapGestureRecognizer()
+        ..onTap = () {
+          context.read<NavigationCubit>()
+            ..switchTab(HomeTab.profile)
+            ..openYouSection(YouSection.devices);
+        };
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +122,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           context,
           widget.message,
           recognizerFor: profileTap,
+          devicesTap: _devicesTapRecognizer,
         ),
         timestamp: Timestamp(widget.timestamp),
       ),
@@ -136,13 +147,15 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 /// The spans carry no base style: [SystemMessage] applies it to whatever it is
 /// handed, so only the emphasized runs need one of their own.
 ///
-/// [recognizerFor] makes the people the sentence names tappable. A caller that
-/// leaves it out, such as the chat list reading the sentence back as plain
-/// text, gets the same words with nothing attached.
+/// [recognizerFor] makes the people the sentence names tappable, and
+/// [devicesTap] the link to the device list. A caller that leaves them out,
+/// such as the chat list reading the sentence back as plain text, gets the
+/// same words with nothing attached.
 TextSpan buildSystemMessageText(
   BuildContext context,
   UiSystemMessage message, {
   GestureRecognizer? Function(UiUserId userId)? recognizerFor,
+  GestureRecognizer Function()? devicesTap,
 }) {
   final loc = AppLocalizations.of(context);
   final nameStyle = SystemMessage.emphasisOf(
@@ -164,12 +177,7 @@ TextSpan buildSystemMessageText(
 
   EmphasizedValue tapToViewDevices() => EmphasizedValue(
     loc.systemMessage_devicesTapToView,
-    recognizer: TapGestureRecognizer()
-      ..onTap = () {
-        context.read<NavigationCubit>()
-          ..switchTab(HomeTab.profile)
-          ..openYouSection(YouSection.devices);
-      },
+    recognizer: devicesTap?.call(),
   );
 
   return switch (message) {

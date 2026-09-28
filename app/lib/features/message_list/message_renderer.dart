@@ -20,6 +20,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/attachments/attachment_thumbnail.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Who a quoted message is from and the line of it a reply shows.
@@ -85,12 +86,14 @@ Widget buildBlockElement(
   bool isSender,
 ) {
   return switch (block) {
-    BlockElement_Paragraph(:final field0) => _paragraph(
-      context,
+    BlockElement_Paragraph(:final field0) => _InlineText.paragraph(
       field0,
       isSender,
     ),
-    BlockElement_Heading(:final field0) => _heading(context, field0, isSender),
+    BlockElement_Heading(:final field0) => _InlineText.heading(
+      field0,
+      isSender,
+    ),
     BlockElement_Quote(:final field0) => _quote(context, field0, isSender),
     BlockElement_UnorderedList(:final field0) => _list(
       context,
@@ -115,36 +118,6 @@ Widget buildBlockElement(
     BlockElement_Error(:final field0) => _errorBlock(context, field0),
   };
 }
-
-Widget _paragraph(
-  BuildContext context,
-  List<RangedInlineElement> inlines,
-  bool isSender,
-) => Text.rich(
-  TextSpan(
-    children: inlines
-        .map((child) => buildInlineElement(context, child, isSender))
-        .toList(),
-    // Size only. The colour is the one the body already carries, which is what
-    // lets a quote re-tint the paragraphs nested inside it.
-    style: isJumboEmoji(inlines) ? typeScale.emoji.jumbo.style() : null,
-  ),
-  softWrap: true,
-  textWidthBasis: .longestLine,
-);
-
-Widget _heading(
-  BuildContext context,
-  List<RangedInlineElement> inlines,
-  bool isSender,
-) => Text.rich(
-  TextSpan(
-    children: inlines
-        .map((child) => buildInlineElement(context, child, isSender))
-        .toList(),
-    style: typeScale.body.m.style(weight: Weight.emphasized),
-  ),
-);
 
 /// A quoted passage: a rule down the leading edge and the quoted blocks beside
 /// it, in the quieter ink a quote is set in. Nests, so a quote inside a quote
@@ -523,128 +496,172 @@ class _CheckPainter extends CustomPainter {
       old.color != color || old.strokeWidth != strokeWidth;
 }
 
-InlineSpan buildInlineElement(
-  BuildContext context,
-  RangedInlineElement inline,
-  bool isSender, {
-  Uri? destUrl,
-}) {
-  final palette = SemanticPalette.of(context);
-  return switch (inline.element) {
-    InlineElement_Text(:final field0) => TextSpan(
-      text: field0,
-      recognizer: destUrl != null
-          ? openLinkRecognizer(context, destUrl, field0)
-          : null,
-      mouseCursor: destUrl != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.text,
-    ),
-    InlineElement_Code(:final field0) => TextSpan(
-      text: field0,
-      style: typeScale.body.s.style().withSystemMonospace(),
-    ),
-    InlineElement_Link(:final destUrl, :final children) => TextSpan(
-      children: children
-          .map(
-            (child) => buildInlineElement(
-              context,
-              child,
-              isSender,
-              destUrl: _parseLinkDest(destUrl),
-            ),
-          )
-          .toList(),
+class _InlineSpanBuilder {
+  _InlineSpanBuilder({
+    required this.palette,
+    required this.isSender,
+    required this.onLinkTap,
+  });
+
+  final SemanticPalette palette;
+  final bool isSender;
+  final void Function(Uri uri, String? text) onLinkTap;
+  final recognizers = <GestureRecognizer>[];
+
+  InlineSpan build(RangedInlineElement inline, {Uri? destUrl}) {
+    return switch (inline.element) {
+      InlineElement_Text(:final field0) => TextSpan(
+        text: field0,
+        recognizer: destUrl != null ? _linkTap(destUrl, field0) : null,
+        mouseCursor: destUrl != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.text,
+      ),
+      InlineElement_Code(:final field0) => TextSpan(
+        text: field0,
+        style: typeScale.body.s.style().withSystemMonospace(),
+        recognizer: destUrl != null ? _linkTap(destUrl, field0) : null,
+        mouseCursor: destUrl != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.text,
+      ),
+      InlineElement_Link(destUrl: final dest, :final children) => _link(
+        dest,
+        children,
+      ),
+      InlineElement_Bold(:final field0) => TextSpan(
+        children: field0
+            .map((child) => build(child, destUrl: destUrl))
+            .toList(),
+        style: const TextStyle(fontWeight: .bold),
+      ),
+      InlineElement_Italic(:final field0) => TextSpan(
+        children: field0
+            .map((child) => build(child, destUrl: destUrl))
+            .toList(),
+        style: const TextStyle(fontStyle: .italic),
+      ),
+      InlineElement_Strikethrough(:final field0) => TextSpan(
+        children: field0
+            .map((child) => build(child, destUrl: destUrl))
+            .toList(),
+        style: const TextStyle(decoration: TextDecoration.lineThrough),
+      ),
+      InlineElement_Spoiler(:final field0) => TextSpan(
+        children: field0
+            .map((child) => build(child, destUrl: destUrl))
+            .toList(),
+        style: TextStyle(
+          decoration: TextDecoration.combine([
+            TextDecoration.overline,
+            TextDecoration.lineThrough,
+            TextDecoration.underline,
+          ]),
+        ),
+      ),
+      InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
+      // A task marker the parser did not put at the head of a list item, where
+      // it would have been lifted into the marker column instead.
+      InlineElement_TaskListMarker(:final field0) => WidgetSpan(
+        alignment: .middle,
+        child: Padding(
+          padding: const EdgeInsets.only(
+            right: MessageTextTokens.listMarkerGap,
+          ),
+          child: _Checkbox(
+            checked: field0,
+            isSender: isSender,
+            line: MessageTextTokens.checkboxSize,
+          ),
+        ),
+      ),
+    };
+  }
+
+  TextSpan _link(String dest, List<RangedInlineElement> children) {
+    final uri = _parseLinkDest(dest);
+    return TextSpan(
+      children: children.map((child) => build(child, destUrl: uri)).toList(),
       style: TextStyle(
         color: palette.function.link,
         decorationColor: palette.function.link,
         decoration: TextDecoration.underline,
       ),
-    ),
-    InlineElement_Bold(:final field0) => TextSpan(
-      children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
-          .toList(),
-      style: const TextStyle(fontWeight: .bold),
-      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
-      mouseCursor: destUrl != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.text,
-    ),
-    InlineElement_Italic(:final field0) => TextSpan(
-      children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
-          .toList(),
-      style: const TextStyle(fontStyle: .italic),
-      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
-      mouseCursor: destUrl != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.text,
-    ),
-    InlineElement_Strikethrough(:final field0) => TextSpan(
-      children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
-          .toList(),
-      style: const TextStyle(decoration: TextDecoration.lineThrough),
-      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
-      mouseCursor: destUrl != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.text,
-    ),
-    InlineElement_Spoiler(:final field0) => TextSpan(
-      children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
-          .toList(),
-      style: TextStyle(
-        decoration: TextDecoration.combine([
-          TextDecoration.overline,
-          TextDecoration.lineThrough,
-          TextDecoration.underline,
-        ]),
-      ),
-    ),
-    InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
-    // A task marker the parser did not put at the head of a list item, where
-    // it would have been lifted into the marker column instead.
-    InlineElement_TaskListMarker(:final field0) => WidgetSpan(
-      alignment: .middle,
-      child: Padding(
-        padding: const EdgeInsets.only(right: MessageTextTokens.listMarkerGap),
-        child: _Checkbox(
-          checked: field0,
-          isSender: isSender,
-          line: MessageTextTokens.checkboxSize,
-        ),
-      ),
-    ),
-  };
+    );
+  }
+
+  TapGestureRecognizer _linkTap(Uri uri, [String? text]) {
+    final r = TapGestureRecognizer()..onTap = () => onLinkTap(uri, text);
+    recognizers.add(r);
+    return r;
+  }
+
+  Uri? _parseLinkDest(String dest) {
+    final uri = Uri.tryParse(dest);
+    if (uri == null) return null;
+    if (uri.hasScheme) return uri;
+    // If the link doesn't have a scheme, try parsing it as https.
+    return Uri.tryParse('https://$dest');
+  }
 }
 
-Uri? _parseLinkDest(String dest) {
-  final uri = Uri.tryParse(dest);
-  if (uri == null) return null;
-  if (uri.hasScheme) return uri;
-  // If the link doesn't have a scheme, try parsing it as https.
-  return Uri.tryParse('https://$dest');
-}
+class _InlineText extends HookWidget {
+  _InlineText.paragraph(this.inlines, this.isSender)
+    // Size only. The colour is the one the body already carries, which is
+    // what lets a quote re-tint the paragraphs nested inside it.
+    : style = isJumboEmoji(inlines) ? typeScale.emoji.jumbo.style() : null,
+      textWidthBasis = .longestLine;
 
-TapGestureRecognizer openLinkRecognizer(
-  BuildContext context,
-  Uri uri, [
-  String? text,
-]) => TapGestureRecognizer()
-  ..onTap = () async {
+  _InlineText.heading(this.inlines, this.isSender)
+    : style = typeScale.body.m.style(weight: Weight.emphasized),
+      textWidthBasis = .parent;
+
+  final List<RangedInlineElement> inlines;
+  final bool isSender;
+  final TextStyle? style;
+  final TextWidthBasis textWidthBasis;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    final (span, recognizers) = useMemoized(() {
+      final builder = _InlineSpanBuilder(
+        palette: palette,
+        isSender: isSender,
+        onLinkTap: (uri, text) => _openLink(context, uri, text),
+      );
+      final span = TextSpan(
+        children: inlines.map(builder.build).toList(),
+        style: style,
+      );
+      return (span, builder.recognizers);
+    }, [isSender, palette, style, ...inlines]);
+
+    useEffect(
+      () => () {
+        for (final recognizer in recognizers) {
+          recognizer.dispose();
+        }
+      },
+      [recognizers],
+    );
+
+    return Text.rich(span, textWidthBasis: textWidthBasis);
+  }
+
+  Future<void> _openLink(BuildContext context, Uri uri, [String? text]) async {
     if (text == null || text != uri.toString()) {
       final shouldOpen = await _showLinkConfirmationDialog(context, uri);
       if (!shouldOpen) {
         return;
       }
     }
-
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-  };
+  }
+}
 
 Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
   final result = await showDialog<bool>(

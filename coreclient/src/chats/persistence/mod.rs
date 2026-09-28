@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod delete;
+
 use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
@@ -21,6 +23,8 @@ use crate::{
 };
 
 use super::InactiveChat;
+
+pub(crate) use delete::*;
 
 /// The `chat.status` column.
 ///
