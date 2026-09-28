@@ -11,6 +11,7 @@ use std::{
 };
 
 use airbackend::{
+    air_service::MaxDevices,
     settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
@@ -183,6 +184,8 @@ pub struct TestBackend {
     temp_dir: TempDir,
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
+    /// Present only if we spawned a local server.
+    max_devices: Option<[MaxDevices; 2]>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -203,6 +206,8 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
+    /// Overrides the configured device limit.
+    pub max_devices: Option<u32>,
 }
 
 impl TestBackendParams {
@@ -228,6 +233,7 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
+            max_devices: None,
         }
     }
 }
@@ -267,6 +273,7 @@ impl TestBackend {
             listener_control_handle,
             invitation_codes,
             sent_challenges,
+            max_devices,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -279,6 +286,7 @@ impl TestBackend {
                 Vec::new(),
                 SentChallenges::default(),
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -288,6 +296,7 @@ impl TestBackend {
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
+            let max_devices = app.max_devices.clone();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -296,6 +305,7 @@ impl TestBackend {
                 Some(control_handle),
                 codes,
                 sent_challenges,
+                Some(max_devices),
                 Some(cleanup),
             )
         };
@@ -316,11 +326,23 @@ impl TestBackend {
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
+            max_devices,
             invitation_codes,
             sent_challenges,
             apq_groups,
             _guard: Some(_guard),
             _cleanup,
+        }
+    }
+
+    /// Changes the device limit of the spawned server at runtime.
+    pub fn set_max_devices(&self, max_devices: u32) {
+        let handles = self
+            .max_devices
+            .as_ref()
+            .expect("device limit can only be changed on a spawned server");
+        for handle in handles {
+            handle.set(max_devices);
         }
     }
 

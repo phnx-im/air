@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::messages::QueueMessage;
-use airprotos::queue_service::v1::{ListenResponse, listen_response};
+use airprotos::queue_service::v1::{ListenResponse, VersionStatus, listen_response};
 use tracing::{debug, error, warn};
 
-use crate::clients::QsListenResponder;
+use crate::clients::{QsListenResponder, own_client_info::OwnClientInfo};
 
 use super::{CoreUser, process_qs::ProcessedQsMessages};
 
@@ -113,9 +113,22 @@ impl QsStreamProcessor {
 
                 result
             }
-            Some(listen_response::Event::VersionStatus(_)) => QsProcessEventResult::Ignored,
+            Some(listen_response::Event::VersionStatus(VersionStatus { max_devices, .. })) => {
+                write_max_devices(core_user, max_devices)
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to write max_devices");
+                    })
+                    .ok();
+                QsProcessEventResult::Ignored
+            }
         }
     }
+}
+
+async fn write_max_devices(core_user: &CoreUser, max_devices: u32) -> sqlx::Result<()> {
+    let write = core_user.db().write().await?;
+    OwnClientInfo::set_max_devices(write, max_devices).await
 }
 
 #[derive(Debug)]

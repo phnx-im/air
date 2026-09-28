@@ -135,5 +135,35 @@ void main() {
         matchesGoldenFile('goldens/multi_device_provision_failed.png'),
       );
     });
+
+    testWidgets('device limit shows its own modal and leaves the flow', (
+      tester,
+    ) async {
+      when(() => navigationCubit.pop()).thenReturn(true);
+      final controller = setUpView(tester);
+
+      await tester.pumpWidget(buildSubject(controller.stream));
+      await tester.pump();
+      controller.add(
+        const MultiDeviceProvisionEvent.deviceLimitReached(maxDevices: 5),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Device limit reached'), findsOneWidget);
+      expect(find.text('Codes expired'), findsNothing);
+      expect(find.text('Reload'), findsNothing);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/multi_device_provision_device_limit.png'),
+      );
+
+      await tester.tap(find.text('Okay'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      verify(() => navigationCubit.pop()).called(1);
+    });
   });
 }

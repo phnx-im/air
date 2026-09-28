@@ -364,4 +364,6 @@ message QueueEventPayload {
 message VersionStatus {
   // Not set if the version is supported and does not expire.
   common.v1.Timestamp expires_at = 1;
+  // Maximum number of devices that can be linked to this user. 0 means no limit.
+  uint32 max_devices = 2;
 }

@@ -14,7 +14,7 @@ pub mod controlled_listener;
 pub mod setup;
 
 use airbackend::{
-    air_service::BackendService,
+    air_service::{BackendService, MaxDevices},
     auth_service::{
         AuthService,
         admission::{ChallengeSendError, ChallengeSender},
@@ -97,6 +97,7 @@ pub struct SpawnedApp {
     pub control_handle: ControlHandle,
     pub codes: Vec<String>,
     pub sent_challenges: SentChallenges,
+    pub max_devices: [MaxDevices; 2],
     db_settings: DatabaseSettings,
     db_names: DbNames,
     stop: CancellationToken,
@@ -176,6 +177,7 @@ pub(crate) async fn spawn_app(
         registration,
         unredeemable_code,
         max_attachment_size,
+        max_devices,
     } = params;
 
     // Load configuration
@@ -223,6 +225,7 @@ pub(crate) async fn spawn_app(
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        max_devices.unwrap_or(configuration.application.max_devices),
         stop.clone(),
     )
     .await
@@ -242,6 +245,7 @@ pub(crate) async fn spawn_app(
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        max_devices.unwrap_or(configuration.application.max_devices),
         stop.clone(),
     )
     .await
@@ -279,10 +283,13 @@ pub(crate) async fn spawn_app(
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        max_devices.unwrap_or(configuration.application.max_devices),
         stop.clone(),
     )
     .await
     .expect("Failed to connect to database.");
+
+    let max_devices = [ds.max_devices_handle(), qs.max_devices_handle()];
 
     let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
 
@@ -323,6 +330,7 @@ pub(crate) async fn spawn_app(
         control_handle,
         codes,
         sent_challenges,
+        max_devices,
         db_settings: configuration.database,
         db_names,
         stop,

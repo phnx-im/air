@@ -14,6 +14,7 @@ use mls_assist::{
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
+        messages::proposals::Proposal,
         prelude::{
             Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessage,
             ProcessedMessageContent, Sender,
@@ -98,6 +99,7 @@ impl DsGroupState {
         add_users_info: Option<AddUsersInfo>,
         pq_group_state: Option<&DsGroupState>,
         pq_staged_commit: Option<&StagedCommit>,
+        max_devices: u32,
     ) -> Result<TCommitValidation, GroupOperationError> {
         // Validate that the AAD includes enough encrypted credential chains
         let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())
@@ -173,6 +175,25 @@ impl DsGroupState {
                 return Err(GroupOperationError::InvalidMessage);
             }
         };
+
+        // Enforce max_devices on self-group growth. Commits that don't grow the group stay allowed,
+        // even if they are over the limit.
+        if self.is_self_group() && max_devices > 0 {
+            let current = self.group().members().count();
+            let joined = staged_commit.add_proposals().count()
+                + usize::from(matches!(sender_index, SenderIndex::External(_)));
+            let left = staged_commit
+                .queued_proposals()
+                .filter(|p| matches!(p.proposal(), Proposal::Remove(_) | Proposal::SelfRemove))
+                .count();
+            if joined > left {
+                let members_after = current + joined - left;
+                let max = usize::try_from(max_devices).unwrap_or(usize::MAX);
+                if members_after > max {
+                    return Err(GroupOperationError::MaxDevicesExceeded { max_devices });
+                }
+            }
+        }
 
         let sender = self
             .leaf_credential(sender_index.leaf_index())
@@ -332,6 +353,7 @@ impl DsGroupState {
     pub(super) async fn process_group_operation(
         &mut self,
         params: GroupOperationParams,
+        max_devices: u32,
     ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
@@ -355,7 +377,13 @@ impl DsGroupState {
             added_users_state,
             external_sender_information,
             removed_clients,
-        } = self.validate_t_commit(processed_message, params.add_users_info_option, None, None)?;
+        } = self.validate_t_commit(
+            processed_message,
+            params.add_users_info_option,
+            None,
+            None,
+            max_devices,
+        )?;
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -408,6 +436,7 @@ impl DsGroupState {
         pq_message: AssistedMessageIn,
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
+        max_devices: u32,
     ) -> Result<ProcessedApqGroupOperation, GroupOperationError> {
         let crypto = t_group_state.provider.crypto();
         let ApqProcessedAssistedMessagePlus {
@@ -478,6 +507,7 @@ impl DsGroupState {
             t_add_users_info,
             Some(pq_group_state),
             Some(pq_staged_commit),
+            max_devices,
         )?;
 
         // Extract the virtual client hint if present
@@ -542,6 +572,7 @@ impl DsGroupState {
         &mut self,
         params: GroupOperationParams,
         group_state_ear_key: &GroupStateEarKey,
+        max_devices: u32,
     ) -> Result<
         (
             SerializedMlsMessage,
@@ -554,7 +585,7 @@ impl DsGroupState {
             serialized_message,
             added_users_state,
             virtual_client_hint,
-        } = self.process_group_operation(params).await?;
+        } = self.process_group_operation(params, max_devices).await?;
 
         let fan_out_messages = added_users_state
             .map(

@@ -118,6 +118,7 @@ mod test {
             pool,
             "example.com".parse().unwrap(),
             VersionPolicy::default(),
+            0,
             CancellationToken::new(),
         )
         .await?)

@@ -123,6 +123,7 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             event:
                 Some(listen_response::Event::VersionStatus(queue_service::v1::VersionStatus {
                     expires_at,
+                    max_devices,
                 })),
         } = &event
         {
@@ -139,6 +140,7 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                     Some(_) => VersionStatus::Unsupported,
                     None => VersionStatus::Supported,
                 };
+                inner.max_devices = *max_devices;
             });
         }
 

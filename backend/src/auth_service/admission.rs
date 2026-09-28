@@ -546,6 +546,7 @@ mod test {
             pool.clone(),
             "example.com".parse().expect("the test domain is a domain"),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await
