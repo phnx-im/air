@@ -584,6 +584,7 @@ pub enum UiSystemMessage {
     Onboarded,
     DeviceLinked(Uuid),
     DeviceUnlinked(Uuid),
+    SelfChatCreated,
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -638,6 +639,7 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
             SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
             SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
+            SystemMessage::SelfChatCreated => UiSystemMessage::SelfChatCreated,
         }
     }
 }

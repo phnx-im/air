@@ -96,7 +96,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 204035708;
+  int get rustContentHash => 1154126477;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -766,7 +766,7 @@ abstract class RustLibApi extends BaseApi {
 
   UuidValue crateApiUserUserClientRecordId({required User that});
 
-  Future<void> crateApiUserUserDangerEraseSelfGroup({required User that});
+  Future<void> crateApiUserUserDangerResetSelfGroup({required User that});
 
   Future<int> crateApiUserUserGlobalUnreadMessagesCount({required User that});
 
@@ -6412,7 +6412,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiUserUserDangerEraseSelfGroup({required User that}) {
+  Future<void> crateApiUserUserDangerResetSelfGroup({required User that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -6432,16 +6432,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiUserUserDangerEraseSelfGroupConstMeta,
+        constMeta: kCrateApiUserUserDangerResetSelfGroupConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiUserUserDangerEraseSelfGroupConstMeta =>
+  TaskConstMeta get kCrateApiUserUserDangerResetSelfGroupConstMeta =>
       const TaskConstMeta(
-        debugName: "User_danger_erase_self_group",
+        debugName: "User_danger_reset_self_group",
         argNames: ["that"],
       );
 
@@ -11719,6 +11719,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_DeviceLinked(dco_decode_Uuid(raw[1]));
       case 13:
         return UiSystemMessage_DeviceUnlinked(dco_decode_Uuid(raw[1]));
+      case 14:
+        return UiSystemMessage_SelfChatCreated();
       default:
         throw Exception("unreachable");
     }
@@ -15872,6 +15874,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 13:
         var var_field0 = sse_decode_Uuid(deserializer);
         return UiSystemMessage_DeviceUnlinked(var_field0);
+      case 14:
+        return UiSystemMessage_SelfChatCreated();
       default:
         throw UnimplementedError('');
     }
@@ -20089,6 +20093,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_DeviceUnlinked(field0: final field0):
         sse_encode_i_32(13, serializer);
         sse_encode_Uuid(field0, serializer);
+      case UiSystemMessage_SelfChatCreated():
+        sse_encode_i_32(14, serializer);
     }
   }
 
@@ -21298,8 +21304,8 @@ class UserImpl extends RustOpaque implements User {
       RustLib.instance.api.crateApiUserUserClientRecordId(that: this);
 
   /// Erase the self group and its chat from the local database.
-  Future<void> dangerEraseSelfGroup() =>
-      RustLib.instance.api.crateApiUserUserDangerEraseSelfGroup(that: this);
+  Future<void> dangerResetSelfGroup() =>
+      RustLib.instance.api.crateApiUserUserDangerResetSelfGroup(that: this);
 
   /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount => RustLib.instance.api

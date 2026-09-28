@@ -215,7 +215,7 @@ impl User {
     }
 
     /// Erase the self group and its chat from the local database.
-    pub async fn danger_erase_self_group(&self) -> Result<()> {
+    pub async fn danger_reset_self_group(&self) -> Result<()> {
         self.user.danger_reset_self_group().await
     }
 }

@@ -497,6 +497,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_DeviceLinked;
   const factory UiSystemMessage.deviceUnlinked(UuidValue field0) =
       UiSystemMessage_DeviceUnlinked;
+  const factory UiSystemMessage.selfChatCreated() =
+      UiSystemMessage_SelfChatCreated;
 }
 
 /// UI representation of an [`UserId`]

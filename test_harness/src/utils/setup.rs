@@ -2067,6 +2067,7 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::DeviceUnlinked(uuid) => {
                         Some(format!("You unlinked a device with UUID {uuid}"))
                     }
+                    SystemMessage::SelfChatCreated => Some("The self-chat was created".to_owned()),
                 }
             } else {
                 None

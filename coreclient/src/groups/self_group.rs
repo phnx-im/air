@@ -14,6 +14,7 @@ use aircommon::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
+    time::TimeStamp,
 };
 use airprotos::client::{
     group::GroupData,
@@ -33,7 +34,7 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
@@ -254,34 +255,26 @@ impl SelfGroup {
 }
 
 impl CoreUser {
+    /// Creates the self group if this client never had one. A client that is
+    /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
         let _creation = self.inner.self_group_creation.lock().await;
         let self_group = match SelfGroup::load(self.db().read().await?).await? {
             Some(self_group) => self_group,
-            None => SelfGroup {
-                group: self.create_self_group().await?,
-            },
+            None => {
+                ensure!(
+                    OwnClientInfo::load_self_group_id(self.db().read().await?)
+                        .await?
+                        .is_none(),
+                    "self group not joined yet"
+                );
+                SelfGroup {
+                    group: self.create_self_group().await?,
+                }
+            }
         };
         self.ensure_self_chat(self_group.group_id()).await?;
         Ok(self_group)
-    }
-
-    /// Creates the self group if this client never had one. A client that is
-    /// still joining one (linked, Welcome not processed yet) is left alone.
-    pub(crate) async fn ensure_self_group_exists(&self) {
-        let result = async {
-            if OwnClientInfo::load_self_group_id(self.db().read().await?)
-                .await?
-                .is_none()
-            {
-                Box::pin(self.ensure_self_group()).await?;
-            }
-            anyhow::Ok(())
-        }
-        .await;
-        if let Err(error) = result {
-            warn!(%error, "failed to create the self group, retrying on next start");
-        }
     }
 
     /// Creates the "Notes to self" chat of the self group if it is missing, so
@@ -291,7 +284,7 @@ impl CoreUser {
     /// their self chat has to be backfilled here.
     async fn ensure_self_chat(&self, group_id: &GroupId) -> anyhow::Result<()> {
         self.db()
-            .with_write_transaction(async |txn| -> sqlx::Result<()> {
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 if ChatId::load_from_group_id(&mut *txn, group_id)
                     .await?
                     .is_some()
@@ -307,6 +300,13 @@ impl CoreUser {
                     },
                 );
                 chat.store(&mut *txn).await?;
+                ChatMessage::new_system_message(
+                    chat.id(),
+                    TimeStamp::now(),
+                    SystemMessage::SelfChatCreated,
+                )
+                .store(&mut *txn)
+                .await?;
                 debug!("Created the missing self chat");
 
                 Ok(())
@@ -415,7 +415,7 @@ impl CoreUser {
                     Chat::delete(&mut *txn, chat_id).await?;
                 }
                 Group::delete_from_db(&mut *txn, &group_id).await?;
-                OwnClientInfo::remove_self_group(txn).await?;
+                OwnClientInfo::clear_self_group(txn).await?;
                 Ok(())
             })
             .await?;

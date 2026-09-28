@@ -237,6 +237,7 @@
   "systemMessage_deviceUnlinked": "Desassociaste o dispositivo {device} da tua conta. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Desassociaste um dispositivo da tua conta. {tapToView}",
   "systemMessage_devicesTapToView": "Toca para veres os teus dispositivos.",
+  "systemMessage_selfChatCreated": "Usa este chat como o teu bloco de notas pessoal. As mensagens são sincronizadas em todos os dispositivos associados à tua conta.",
   "timestamp_now": "Agora",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Hoje",

@@ -252,7 +252,9 @@ impl CoreUser {
         let self_user =
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
         self_user.publish_own_device_entry(Utc::now()).await;
-        self_user.ensure_self_group_exists().await;
+        if let Err(error) = self_user.ensure_self_group().await {
+            error!(%error, "failed to create self-group, retrying on next account load.");
+        }
 
         Ok(self_user)
     }
@@ -311,7 +313,11 @@ impl CoreUser {
         // Not awaited, so an offline start doesn't wait for the DS.
         tokio::spawn({
             let self_user = self_user.clone();
-            async move { self_user.ensure_self_group_exists().await }
+            async move {
+                if let Err(error) = self_user.ensure_self_group().await {
+                    error!(%error, "failed to create self-group, retrying on next account load.");
+                }
+            }
         });
 
         Ok(self_user)

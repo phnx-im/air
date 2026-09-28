@@ -482,11 +482,17 @@ impl CoreUser {
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
             chat.store(&mut *txn).await?;
+            let system_message = ChatMessage::new_system_message(
+                chat.id(),
+                ds_timestamp,
+                SystemMessage::SelfChatCreated,
+            );
+            system_message.store(&mut *txn).await?;
 
             return Ok(QsMessageOutcome::new_chat(
                 chat.id(),
                 sender_user_id,
-                vec![],
+                vec![system_message],
             ));
         }
 

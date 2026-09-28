@@ -630,6 +630,8 @@ pub enum SystemMessage {
     DeviceLinked(Uuid),
     /// A device, identified by its client id, was unlinked.
     DeviceUnlinked(Uuid),
+    /// When the self-chat is created for the first time.
+    SelfChatCreated,
 }
 
 impl EventMessage {
@@ -658,7 +660,8 @@ impl SystemMessage {
             | SystemMessage::NewDirectConnectionChat(_)
             | SystemMessage::Onboarded
             | SystemMessage::DeviceLinked(_)
-            | SystemMessage::DeviceUnlinked(_) => None,
+            | SystemMessage::DeviceUnlinked(_)
+            | SystemMessage::SelfChatCreated => None,
         }
     }
 
@@ -761,6 +764,9 @@ impl SystemMessage {
                     None => "A device was unlinked".into(),
                 }
             }
+            SystemMessage::SelfChatCreated => "Use this chat as your personal notepad. Messages \
+                are synced across all of your account's linked devices."
+                .into(),
         }
     }
 }

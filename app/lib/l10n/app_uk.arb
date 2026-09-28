@@ -226,6 +226,7 @@
   "systemMessage_deviceUnlinked": "Ви відв’язали від свого облікового запису пристрій {device}. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Ви відв’язали від свого облікового запису пристрій. {tapToView}",
   "systemMessage_devicesTapToView": "Натисніть, щоб переглянути свої пристрої.",
+  "systemMessage_selfChatCreated": "Використовуйте цей чат як особистий блокнот. Повідомлення синхронізуються на всіх пристроях, прив’язаних до вашого облікового запису.",
   "timestamp_now": "Зараз",
   "timestamp_minutesAgo": "{count} хв",
   "date_today": "Сьогодні",

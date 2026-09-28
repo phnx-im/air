@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 204035708;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1154126477;
 
 // Section: executor
 
@@ -7048,7 +7048,7 @@ fn wire__crate__api__user__User_client_record_id_impl(
         },
     )
 }
-fn wire__crate__api__user__User_danger_erase_self_group_impl(
+fn wire__crate__api__user__User_danger_reset_self_group_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7056,7 +7056,7 @@ fn wire__crate__api__user__User_danger_erase_self_group_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "User_danger_erase_self_group",
+            debug_name: "User_danger_reset_self_group",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -7095,7 +7095,7 @@ fn wire__crate__api__user__User_danger_erase_self_group_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            crate::api::user::User::danger_erase_self_group(&*api_that_guard)
+                            crate::api::user::User::danger_reset_self_group(&*api_that_guard)
                                 .await?;
                         std::result::Result::Ok(output_ok)
                     })()
@@ -13256,6 +13256,9 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::DeviceUnlinked(var_field0);
             }
+            14 => {
+                return crate::api::types::UiSystemMessage::SelfChatCreated;
+            }
             _ => {
                 unimplemented!("");
             }
@@ -13524,7 +13527,7 @@ fn pde_ffi_dispatcher_primary_impl(
 135 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
 136 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
 138 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__user__User_danger_erase_self_group_impl(port, ptr, rust_vec_len, data_len),
+140 => wire__crate__api__user__User_danger_reset_self_group_impl(port, ptr, rust_vec_len, data_len),
 141 => wire__crate__api__user__User_global_unread_messages_count_impl(port, ptr, rust_vec_len, data_len),
 142 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
 143 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
@@ -16509,6 +16512,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::SelfChatCreated => [14.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19776,6 +19780,9 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 <i32>::sse_encode(13, serializer);
                 <uuid::Uuid>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::SelfChatCreated => {
+                <i32>::sse_encode(14, serializer);
             }
             _ => {
                 unimplemented!("");

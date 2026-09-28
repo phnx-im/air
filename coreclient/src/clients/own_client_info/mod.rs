@@ -50,9 +50,7 @@ impl OwnClientInfo {
     }
 
     /// Un-assigns the self-group this client had.
-    pub(crate) async fn remove_self_group(
-        mut connection: impl WriteConnection,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn clear_self_group(mut connection: impl WriteConnection) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE own_client_info
                     SET self_group_id = NULL, 

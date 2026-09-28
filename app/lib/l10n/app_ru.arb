@@ -226,6 +226,7 @@
   "systemMessage_deviceUnlinked": "Вы отвязали от своего аккаунта устройство {device}. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Вы отвязали от своего аккаунта устройство. {tapToView}",
   "systemMessage_devicesTapToView": "Нажмите, чтобы посмотреть свои устройства.",
+  "systemMessage_selfChatCreated": "Используйте этот чат как личный блокнот. Сообщения синхронизируются на всех устройствах, привязанных к вашему аккаунту.",
   "timestamp_now": "Сейчас",
   "timestamp_minutesAgo": "{count} мин",
   "date_today": "Сегодня",
