@@ -289,10 +289,18 @@ impl<'a> CommitBuilder<'a> {
             self.group.pq_group.ciphersuite(),
         );
         if let Some(params) = &mut self.values.t_leaf_node_parameters {
-            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+            *params = ensure_leaf_node_parameters(
+                params,
+                self.group.t_group.own_leaf_node(),
+                apq_ciphersuite,
+            )?;
         }
         if let Some(params) = &mut self.values.pq_leaf_node_parameters {
-            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+            *params = ensure_leaf_node_parameters(
+                params,
+                self.group.pq_group.own_leaf_node(),
+                apq_ciphersuite,
+            )?;
         }
 
         let mut apq_info = self
