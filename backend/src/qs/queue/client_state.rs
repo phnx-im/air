@@ -4,21 +4,21 @@
 
 //! States of listening clients, relayed to their sibling clients.
 //!
-//! The state is an opaque blob kept next to the client's listener. It lives
-//! until the listen session that reported it ends or is replaced as well as
-//! when the client's queue is deleted.
+//! The state is an opaque blob kept in the client's listen session. It lives
+//! until the session that reported it ends or is replaced as well as when the
+//! client is deleted.
 
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 
 use aircommon::{identifiers::QsClientId, time::TimeStamp};
 use airprotos::queue_service::v1::{
     ListenResponse, SiblingClientState, SiblingClientStateEncryptedBlob, SiblingClientStateRemoved,
     SiblingClientStateUpdated, listen_response, sibling_client_state,
 };
+use tokio::sync::mpsc;
 use tracing::debug;
-use uuid::Uuid;
 
-use crate::qs::queue::Queues;
+use crate::qs::queue::{ClientEntry, ClientSession, Queues, UserClients};
 
 pub(crate) const MAX_ENCRYPTED_CLIENT_STATE_SIZE: usize = 256;
 
@@ -44,131 +44,159 @@ impl ClientState {
     }
 }
 
-impl Queues {
-    /// Returns the epoch of the next state change of `client_id`, starting at
-    /// 1.
+impl UserClients {
+    /// Starts a listen session of `client_id`, replacing its previous one.
     ///
-    /// Callers holding a listener entry must lock it before the epoch entry,
-    /// like everywhere else.
-    pub(super) fn next_client_state_epoch(&self, client_id: QsClientId) -> u64 {
-        let mut epoch = self.client_state_epochs.entry(client_id).or_default();
-        *epoch += 1;
-        *epoch
+    /// Returns the id of the new session.
+    pub(super) fn start_session(
+        &self,
+        client_id: QsClientId,
+        payload_tx: mpsc::Sender<ListenResponse>,
+    ) -> u64 {
+        let mut clients = self.lock();
+        let entry = clients.entry(client_id).or_default();
+        entry.last_session_id += 1;
+        let session_id = entry.last_session_id;
+        let replaced = entry.session.replace(ClientSession {
+            session_id,
+            payload_tx,
+            state: None,
+        });
+        if replaced.is_some_and(|session| session.state.is_some()) {
+            let epoch = entry.next_epoch();
+            fan_out_removed(&clients, client_id, epoch);
+        }
+        session_id
     }
+}
 
+impl Queues {
     /// Stores the state of `client_id` if `session_id` is its current listen
     /// session, and relays it to the listening siblings.
     pub(crate) fn update_client_state(
         &self,
         client_id: QsClientId,
-        session_id: Uuid,
+        session_id: u64,
         encrypted_blob: Vec<u8>,
     ) {
-        let Some(mut context) = self
-            .listeners
-            .get_mut(&client_id)
-            // important: only get the context for the same session
-            .filter(|context| context.session_id == session_id)
+        let Some(user_clients) = self.listening_user_clients(client_id) else {
+            return;
+        };
+        let mut clients = user_clients.lock();
+        let Some(ClientEntry {
+            epoch,
+            session: Some(session),
+            ..
+        }) = clients.get_mut(&client_id)
         else {
             return;
         };
+        // important: only update the state of the same session
+        if session.session_id != session_id {
+            return;
+        }
 
+        *epoch += 1;
         let state = ClientState {
-            epoch: self.next_client_state_epoch(client_id),
+            epoch: *epoch,
             received_at: Instant::now(),
             encrypted_blob,
         };
         let updated = state.updated(client_id);
-        context.client_state = Some(state);
-        // Release the entry before fanning out, since a sibling can be in the
-        // same shard of the map.
-        let siblings = context.siblings.clone();
-        drop(context);
+        session.state = Some(state);
 
-        self.fan_out_client_state(&siblings, sibling_client_state::Change::Updated(updated));
+        fan_out(
+            &clients,
+            client_id,
+            sibling_client_state::Change::Updated(updated),
+        );
     }
 
-    /// Tells the siblings that the state of `client_id` is gone and should be
-    /// discarded.
-    pub(super) fn report_client_state_removed(
-        &self,
-        client_id: QsClientId,
-        siblings: &[QsClientId],
-        epoch: u64,
-    ) {
-        let removed = SiblingClientStateRemoved {
-            client_id: Some(client_id.into()),
-            epoch,
-            updated_at: Some(TimeStamp::now().into()),
+    /// Ends the listen session `session_id` of `client_id`, if it is the
+    /// current one, and tells the siblings that its state is gone.
+    pub(crate) fn end_client_session(&self, client_id: QsClientId, session_id: u64) {
+        let Some(user_clients) = self.listening_user_clients(client_id) else {
+            return;
         };
-        self.fan_out_client_state(siblings, sibling_client_state::Change::Removed(removed));
-    }
-
-    /// Clears the state of `client_id` if `session_id` is its current listen
-    /// session, or regardless of the session if `None`.
-    ///
-    /// Returns the siblings of `client_id` and the epoch of the change, if
-    /// there was a state.
-    fn take_client_state(
-        &self,
-        client_id: QsClientId,
-        session_id: Option<Uuid>,
-    ) -> Option<(Vec<QsClientId>, u64)> {
-        let mut context = self.listeners.get_mut(&client_id)?;
-        if session_id.is_some_and(|session_id| session_id != context.session_id) {
-            return None;
+        let mut clients = user_clients.lock();
+        let Some(entry) = clients.get_mut(&client_id) else {
+            return;
+        };
+        if entry
+            .session
+            .as_ref()
+            .is_none_or(|session| session.session_id != session_id)
+        {
+            return;
         }
-        context.client_state.take()?;
-        Some((
-            context.siblings.clone(),
-            self.next_client_state_epoch(client_id),
-        ))
-    }
-
-    /// Clears the state of `client_id` reported in `session_id` and fans out
-    /// the change to its siblings.
-    pub(crate) fn clear_session_client_state(&self, client_id: QsClientId, session_id: Uuid) {
-        if let Some((siblings, epoch)) = self.take_client_state(client_id, Some(session_id)) {
-            self.report_client_state_removed(client_id, &siblings, epoch);
+        if entry.session.take().and_then(|session| session.state).is_some() {
+            let epoch = entry.next_epoch();
+            fan_out_removed(&clients, client_id, epoch);
         }
     }
 
-    /// Clears the state of `client_id` reported in any session and fans out
-    /// the change to its siblings.
+    /// Forgets `client_id` and tells the siblings that its state is gone.
     ///
-    /// Used when the client is deleted, so its epoch is dropped as well.
+    /// Used when the client is deleted. If it is not listening, its epoch is
+    /// kept until no client of the user listens anymore.
     pub(crate) fn clear_client_state(&self, client_id: QsClientId) {
-        if let Some((siblings, epoch)) = self.take_client_state(client_id, None) {
-            self.report_client_state_removed(client_id, &siblings, epoch);
+        let Some(user_clients) = self.listening_user_clients(client_id) else {
+            return;
+        };
+        let mut clients = user_clients.lock();
+        let Some(entry) = clients.remove(&client_id) else {
+            return;
+        };
+        if entry.session.and_then(|session| session.state).is_some() {
+            fan_out_removed(&clients, client_id, entry.epoch + 1);
         }
-        self.client_state_epochs.remove(&client_id);
     }
 
     /// Returns the states of the listening siblings of `client_id`.
     pub(crate) fn sibling_client_states(&self, client_id: QsClientId) -> Vec<ListenResponse> {
-        // TODO(gabriel): maybe a better data-structure would help us avoid doing that?
-        let siblings = self
-            .listeners
-            .get(&client_id)
-            .map(|context| context.siblings.clone())
-            .unwrap_or_default();
-
-        siblings
-            .into_iter()
-            .filter_map(|id| {
-                let context = self.listeners.get(&id)?;
-                Some(context.client_state.as_ref()?.updated(id))
-            })
+        let Some(user_clients) = self.listening_user_clients(client_id) else {
+            return Vec::new();
+        };
+        let clients = user_clients.lock();
+        clients
+            .iter()
+            .filter(|(id, _)| **id != client_id)
+            .filter_map(|(id, entry)| Some(entry.session.as_ref()?.state.as_ref()?.updated(*id)))
             .map(|updated| client_state_response(sibling_client_state::Change::Updated(updated)))
             .collect()
     }
+}
 
-    fn fan_out_client_state(&self, siblings: &[QsClientId], change: sibling_client_state::Change) {
-        let response = client_state_response(change);
-        for &sibling_id in siblings {
-            if !self.try_send_response(sibling_id, response.clone()) {
-                debug!(?sibling_id, "client state not relayed to sibling");
-            }
+/// Tells the listening siblings of `client_id` that its state is gone.
+fn fan_out_removed(clients: &HashMap<QsClientId, ClientEntry>, client_id: QsClientId, epoch: u64) {
+    let removed = SiblingClientStateRemoved {
+        client_id: Some(client_id.into()),
+        epoch,
+        updated_at: Some(TimeStamp::now().into()),
+    };
+    fan_out(
+        clients,
+        client_id,
+        sibling_client_state::Change::Removed(removed),
+    );
+}
+
+/// Sends `change` of `client_id` to its listening siblings without waiting.
+fn fan_out(
+    clients: &HashMap<QsClientId, ClientEntry>,
+    client_id: QsClientId,
+    change: sibling_client_state::Change,
+) {
+    let response = client_state_response(change);
+    for (&sibling_id, entry) in clients {
+        if sibling_id == client_id {
+            continue;
+        }
+        let Some(session) = &entry.session else {
+            continue;
+        };
+        if session.payload_tx.try_send(response.clone()).is_err() {
+            debug!(?sibling_id, "client state not relayed to sibling");
         }
     }
 }
@@ -182,6 +210,7 @@ fn client_state_response(change: sibling_client_state::Change) -> ListenResponse
         )),
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -263,14 +292,12 @@ mod tests {
         let other = store_random_client_record(&pool, other_user.user_id).await?;
 
         let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
-        let a_session = Uuid::new_v4();
-        let mut a_stream = pin!(queues.listen(a_session, a.client_id, None, 0).await?);
-        let mut b_stream = pin!(queues.listen(Uuid::new_v4(), b.client_id, None, 0).await?);
-        let mut other_stream = pin!(
-            queues
-                .listen(Uuid::new_v4(), other.client_id, None, 0)
-                .await?
-        );
+        let (a_session, a_stream) = queues.listen(a.client_id, None, 0).await?;
+        let mut a_stream = pin!(a_stream);
+        let (_, b_stream) = queues.listen(b.client_id, None, 0).await?;
+        let mut b_stream = pin!(b_stream);
+        let (_, other_stream) = queues.listen(other.client_id, None, 0).await?;
+        let mut other_stream = pin!(other_stream);
 
         queues.update_client_state(a.client_id, a_session, b"state".to_vec());
         let updated = updated_of(next_client_state(&mut b_stream).await);
@@ -297,12 +324,12 @@ mod tests {
         assert!(queues.sibling_client_states(a.client_id).is_empty());
 
         // Another session neither reports nor clears.
-        let stale_session = Uuid::new_v4();
+        let stale_session = a_session + 1;
         queues.update_client_state(a.client_id, stale_session, b"stale".to_vec());
-        queues.clear_session_client_state(a.client_id, stale_session);
+        queues.end_client_session(a.client_id, stale_session);
         assert_no_client_state(&mut b_stream).await;
 
-        queues.clear_session_client_state(a.client_id, a_session);
+        queues.end_client_session(a.client_id, a_session);
         let removed = removed_of(next_client_state(&mut b_stream).await);
         assert_eq!(client_id_of(removed.client_id), a.client_id);
         assert!(removed.epoch > updated.epoch);
@@ -318,23 +345,23 @@ mod tests {
         let b = store_random_client_record(&pool, user.user_id).await?;
 
         let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
-        let a_session = Uuid::new_v4();
-        let _a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
-        let b_session = Uuid::new_v4();
-        let mut b_stream = pin!(queues.listen(b_session, b.client_id, None, 0).await?);
+        let (a_session, _a_stream) = queues.listen(a.client_id, None, 0).await?;
+        let (b_session, b_stream) = queues.listen(b.client_id, None, 0).await?;
+        let mut b_stream = pin!(b_stream);
 
         queues.update_client_state(a.client_id, a_session, b"state".to_vec());
         let updated = updated_of(next_client_state(&mut b_stream).await);
         assert_eq!(updated.epoch, 1);
 
-        let new_a_session = Uuid::new_v4();
-        let mut a_stream = pin!(queues.listen(new_a_session, a.client_id, None, 0).await?);
+        let (new_a_session, a_stream) = queues.listen(a.client_id, None, 0).await?;
+        let mut a_stream = pin!(a_stream);
+        assert_ne!(new_a_session, a_session);
         let removed = removed_of(next_client_state(&mut b_stream).await);
         assert_eq!(client_id_of(removed.client_id), a.client_id);
         assert_eq!(removed.epoch, 2);
 
         // The evicted session ending afterwards does not repeat it.
-        queues.clear_session_client_state(a.client_id, a_session);
+        queues.end_client_session(a.client_id, a_session);
         assert_no_client_state(&mut b_stream).await;
 
         // The new session continues the epochs of the replaced one.
@@ -355,22 +382,21 @@ mod tests {
         let b = store_random_client_record(&pool, user.user_id).await?;
 
         let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
-        let mut b_stream = pin!(queues.listen(Uuid::new_v4(), b.client_id, None, 0).await?);
+        let (_, b_stream) = queues.listen(b.client_id, None, 0).await?;
+        let mut b_stream = pin!(b_stream);
 
-        let a_session = Uuid::new_v4();
-        let a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
+        let (a_session, a_stream) = queues.listen(a.client_id, None, 0).await?;
         queues.update_client_state(a.client_id, a_session, b"state".to_vec());
         assert_eq!(updated_of(next_client_state(&mut b_stream).await).epoch, 1);
-        queues.clear_session_client_state(a.client_id, a_session);
+        queues.end_client_session(a.client_id, a_session);
         assert_eq!(removed_of(next_client_state(&mut b_stream).await).epoch, 2);
 
         // The ended listener of a is swept when c starts listening.
         drop(a_stream);
         let c = store_random_client_record(&pool, user.user_id).await?;
-        let _c_stream = queues.listen(Uuid::new_v4(), c.client_id, None, 0).await?;
+        let _c_stream = queues.listen(c.client_id, None, 0).await?;
 
-        let a_session = Uuid::new_v4();
-        let _a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
+        let (a_session, _a_stream) = queues.listen(a.client_id, None, 0).await?;
         queues.update_client_state(a.client_id, a_session, b"state".to_vec());
         assert_eq!(updated_of(next_client_state(&mut b_stream).await).epoch, 3);
 
@@ -383,11 +409,11 @@ mod tests {
         let a = store_random_client_record(&pool, user.user_id).await?;
 
         let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
-        let a_session = Uuid::new_v4();
-        let _a_stream = queues.listen(a_session, a.client_id, None, 0).await?;
+        let (a_session, _a_stream) = queues.listen(a.client_id, None, 0).await?;
 
         let b = store_random_client_record(&pool, user.user_id).await?;
-        let mut b_stream = pin!(queues.listen(Uuid::new_v4(), b.client_id, None, 0).await?);
+        let (_, b_stream) = queues.listen(b.client_id, None, 0).await?;
+        let mut b_stream = pin!(b_stream);
 
         queues.update_client_state(a.client_id, a_session, b"state".to_vec());
         let updated = updated_of(next_client_state(&mut b_stream).await);

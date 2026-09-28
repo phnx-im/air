@@ -298,17 +298,6 @@ pub(crate) mod persistence {
             Self::load_client_ids(connection, client_id, false).await
         }
 
-        /// Returns the active sibling client ids (all but self) for the user owning the
-        /// given id.
-        pub(in crate::qs) async fn load_user_sibling_client_ids(
-            connection: impl PgExecutor<'_>,
-            client_id: &QsClientId,
-        ) -> Result<Vec<QsClientId>, StorageError> {
-            Ok(Self::load_client_ids(connection, client_id, true)
-                .await?
-                .unwrap_or_default())
-        }
-
         async fn load_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,

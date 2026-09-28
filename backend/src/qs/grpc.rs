@@ -28,7 +28,6 @@ use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::error;
-use uuid::Uuid;
 
 use crate::{
     listen_session::{ListenRequestHandler, spawn_listen_session},
@@ -509,13 +508,10 @@ impl QueueService for GrpcQs {
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-        let session_id = Uuid::new_v4();
-
-        let queue_messages = self
+        let (session_id, queue_messages) = self
             .qs
             .queues
             .listen(
-                session_id,
                 client_id,
                 verified_client_version.version,
                 sequence_number_start,
@@ -553,7 +549,7 @@ impl QueueService for GrpcQs {
 struct QueueSessionHandler {
     queues: Queues,
     client_id: identifiers::QsClientId,
-    session_id: Uuid,
+    session_id: u64,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
@@ -590,7 +586,7 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
 
     async fn finish(&mut self) {
         self.queues
-            .clear_session_client_state(self.client_id, self.session_id);
+            .end_client_session(self.client_id, self.session_id);
     }
 }
 

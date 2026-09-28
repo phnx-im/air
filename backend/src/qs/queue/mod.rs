@@ -4,13 +4,17 @@
 
 pub(crate) mod client_state;
 
-use std::{borrow::Cow, collections::VecDeque, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
+};
 
-use aircommon::identifiers::QsClientId;
+use aircommon::identifiers::{QsClientId, QsUserId};
 use airprotos::queue_service::v1::{
     ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
 };
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use futures_util::{Stream, stream};
 use metrics::gauge;
 use semver::Version;
@@ -36,10 +40,8 @@ pub(crate) struct Queues {
     pool: PgPool,
     listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
-    /// Epoch of the last client state change per client
-    ///
-    /// Kept apart from the listeners, since it outlives them.
-    client_state_epochs: Arc<DashMap<QsClientId, u64>>,
+    /// Client states per user, owned by the listeners
+    user_clients: Arc<DashMap<QsUserId, Weak<UserClients>>>,
 }
 
 /// Context for a queue listener
@@ -49,20 +51,16 @@ pub(crate) struct Queues {
 struct ListenerContext {
     cancel: CancellationToken,
     payload_tx: mpsc::Sender<ListenResponse>,
-    session_id: Uuid,
-    /// Last state reported by the client in this session
-    client_state: Option<ClientState>,
-    /// Other clients of the same user
-    siblings: Vec<QsClientId>,
+    /// Clients of the same user, kept alive while one of them listens
+    user_clients: Arc<UserClients>,
 }
 
 impl ListenerContext {
     fn new(
-        session_id: Uuid,
         cancel: CancellationToken,
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
-        siblings: Vec<QsClientId>,
+        user_clients: Arc<UserClients>,
     ) -> Self {
         let client_version_label = client_version_label(client_version);
         gauge!(
@@ -73,9 +71,7 @@ impl ListenerContext {
         Self {
             cancel,
             payload_tx,
-            session_id,
-            client_state: None,
-            siblings,
+            user_clients,
         }
     }
 }
@@ -86,6 +82,47 @@ impl Drop for ListenerContext {
     }
 }
 
+#[derive(Debug, Default)]
+struct UserClients {
+    /// Last client state change per client
+    ///
+    /// Kept apart from the listeners, since it outlives them.
+    clients: Mutex<HashMap<QsClientId, ClientEntry>>,
+}
+
+impl UserClients {
+    fn lock(&self) -> MutexGuard<'_, HashMap<QsClientId, ClientEntry>> {
+        self.clients.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+#[derive(Debug, Default)]
+struct ClientEntry {
+    /// Epoch of the last state change, kept across sessions (listeners)
+    epoch: u64,
+    /// Counter for the ids of the client's sessions
+    last_session_id: u64,
+    /// Current listen session, if any
+    session: Option<ClientSession>,
+}
+
+impl ClientEntry {
+    /// Returns the epoch of the next state change, starting at 1.
+    fn next_epoch(&mut self) -> u64 {
+        self.epoch += 1;
+        self.epoch
+    }
+}
+
+#[derive(Debug)]
+struct ClientSession {
+    session_id: u64,
+    /// Clone of the `ListenerContext` sender for fan-out
+    payload_tx: mpsc::Sender<ListenResponse>,
+    /// Last state reported in this session
+    state: Option<ClientState>,
+}
+
 impl Queues {
     pub(crate) async fn new(pool: PgPool, stop: CancellationToken) -> sqlx::Result<Self> {
         let pg_listener_task_handle = spawn_pg_listener_task(pool.clone(), stop).await?;
@@ -93,32 +130,27 @@ impl Queues {
             pool,
             listeners: Default::default(),
             pg_listener_task_handle,
-            client_state_epochs: Default::default(),
+            user_clients: Default::default(),
         })
     }
 
+    /// Starts a listen session of `client_id`, replacing a previous one.
+    ///
+    /// Returns the id of the session and its events.
     pub(crate) async fn listen(
         &self,
-        session_id: Uuid,
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
-    ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
-        let siblings = QsClientRecord::load_user_sibling_client_ids(&self.pool, &client_id).await?;
+    ) -> Result<(u64, impl Stream<Item = Option<ListenResponse>> + use<>), QueueError> {
+        let user_id = QsClientRecord::load_user_id(&self.pool, &client_id)
+            .await?
+            .ok_or(QueueError::ClientNotFound)?;
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let (cancel, replaced_client_state) = self.track_listener(
-            session_id,
-            client_id,
-            client_version.as_ref(),
-            payload_tx,
-            siblings.clone(),
-        );
-        if replaced_client_state {
-            let epoch = self.next_client_state_epoch(client_id);
-            self.report_client_state_removed(client_id, &siblings, epoch);
-        }
+        let (session_id, cancel) =
+            self.track_listener(user_id, client_id, client_version.as_ref(), payload_tx);
         let context = QueueStreamContext {
             pool: self.pool.clone(),
             notifications,
@@ -143,7 +175,7 @@ impl Queues {
 
         let event_stream = stream::select(message_stream, payload_stream);
 
-        Ok(event_stream)
+        Ok((session_id, event_stream))
     }
 
     pub(crate) async fn enqueue(
@@ -202,34 +234,18 @@ impl Queues {
         Ok(true)
     }
 
-    /// Sends `response` to the listener of `client_id` without waiting.
-    ///
-    /// Returns `false` if there is no listener or its channel is full.
-    pub(super) fn try_send_response(
-        &self,
-        client_id: QsClientId,
-        response: ListenResponse,
-    ) -> bool {
-        self.listeners
-            .get(&client_id)
-            .is_some_and(|context| context.payload_tx.try_send(response).is_ok())
-    }
-
     /// Registers the listener of `client_id`, replacing a previous one.
     ///
-    /// Also adds `client_id` to the siblings of the listening `siblings`, which
-    /// might have loaded theirs before `client_id` existed.
-    ///
-    /// Returns whether the replaced listener had a client state.
+    /// Returns the id of the new session and the cancellation token of the
+    /// listener.
     fn track_listener(
         &self,
-        session_id: Uuid,
+        user_id: QsUserId,
         client_id: QsClientId,
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
-        siblings: Vec<QsClientId>,
-    ) -> (CancellationToken, bool) {
-        // Clean up cancelled listeners
+    ) -> (u64, CancellationToken) {
+        // Clean up cancelled listeners, and then the clients they kept alive
         self.listeners.retain(|id, context| {
             if context.cancel.is_cancelled() {
                 self.pg_listener_task_handle.unlisten(*id);
@@ -238,32 +254,53 @@ impl Queues {
                 true
             }
         });
+        self.user_clients
+            .retain(|_, user_clients| user_clients.strong_count() > 0);
 
-        for sibling_id in &siblings {
-            if let Some(mut context) = self.listeners.get_mut(sibling_id)
-                && !context.siblings.contains(&client_id)
-            {
-                context.siblings.push(client_id);
-            }
-        }
-
+        let user_clients = self.user_clients_of(user_id);
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(
-            session_id,
             cancel.clone(),
             client_version,
-            payload_tx,
-            siblings,
+            payload_tx.clone(),
+            user_clients.clone(),
         );
-        let mut replaced_client_state = false;
-        if let Some(prev_listener) = self.listeners.insert(client_id, context) {
-            prev_listener.cancel.cancel();
-            replaced_client_state = prev_listener.client_state.is_some();
-        } else {
+
+        // Holding the entry keeps the session in line with the listener when
+        // the same client listens concurrently.
+        let entry = self.listeners.entry(client_id);
+        let session_id = user_clients.start_session(client_id, payload_tx);
+        let is_new = match entry {
+            Entry::Occupied(mut entry) => {
+                entry.insert(context).cancel.cancel();
+                false
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(context);
+                true
+            }
+        };
+        if is_new {
             self.pg_listener_task_handle.listen(client_id);
         }
 
-        (cancel, replaced_client_state)
+        (session_id, cancel)
+    }
+
+    /// Returns the clients of `user_id`, creating them if no listener holds
+    /// them.
+    fn user_clients_of(&self, user_id: QsUserId) -> Arc<UserClients> {
+        let mut entry = self.user_clients.entry(user_id).or_default();
+        entry.upgrade().unwrap_or_else(|| {
+            let user_clients = Arc::default();
+            *entry = Arc::downgrade(&user_clients);
+            user_clients
+        })
+    }
+
+    /// Returns the clients of the user of `client_id`, if it is listening.
+    fn listening_user_clients(&self, client_id: QsClientId) -> Option<Arc<UserClients>> {
+        Some(self.listeners.get(&client_id)?.user_clients.clone())
     }
 }
 
