@@ -130,7 +130,7 @@ class DeveloperSettingsView extends HookWidget {
             tasks: info.timedTasks,
             onTriggered: debugInfo.refresh,
           ),
-        _DangerZoneCard(user: user, onSelfGroupErased: debugInfo.refresh),
+        _DangerZoneCard(user: user),
       ],
     );
   }
@@ -342,11 +342,9 @@ class _SessionCard extends StatelessWidget {
 
 /// What cannot be undone.
 class _DangerZoneCard extends StatelessWidget {
-  const _DangerZoneCard({required this.user, required this.onSelfGroupErased});
+  const _DangerZoneCard({required this.user});
 
   final User? user;
-
-  final VoidCallback onSelfGroupErased;
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +364,7 @@ class _DangerZoneCard extends StatelessWidget {
             icon: AppIconType.trash,
             confirmMessage: 'Are you sure you want to reset the self-group?',
             confirmLabel: 'Reset',
-            onConfirm: () => _eraseSelfGroup(user),
+            onConfirm: () => _resetSelfGroup(user),
           ),
         if (user != null)
           DeveloperDangerRow(
@@ -391,7 +389,7 @@ class _DangerZoneCard extends StatelessWidget {
     );
   }
 
-  Future<void> _eraseSelfGroup(User user) async {
+  Future<void> _resetSelfGroup(User user) async {
     try {
       await user.dangerResetSelfGroup();
       showSnackBarStandalone(
@@ -408,7 +406,6 @@ class _DangerZoneCard extends StatelessWidget {
         ),
       );
     }
-    onSelfGroupErased();
   }
 }
 

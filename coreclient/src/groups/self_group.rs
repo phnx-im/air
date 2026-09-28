@@ -38,13 +38,21 @@ use crate::{
     chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
-    groups::{Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
+    groups::{
+        Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider,
+        self_group_message_key,
+    },
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
 };
+
+/// This linked client has not processed the Welcome to its self group yet.
+#[derive(Debug, thiserror::Error)]
+#[error("self group not joined yet")]
+pub(crate) struct SelfGroupNotJoined;
 
 #[derive(Debug)]
 pub struct SelfGroup {
@@ -255,15 +263,16 @@ impl CoreUser {
     /// Creates the self group if this client never had one. A client that is
     /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
+        let _guard = self.inner.self_group_creation.lock().await;
         let self_group = match SelfGroup::load(self.db().read().await?).await? {
             Some(self_group) => self_group,
             None => {
-                ensure!(
-                    OwnClientInfo::load_self_group_id(self.db().read().await?)
-                        .await?
-                        .is_none(),
-                    "self group not joined yet"
-                );
+                if OwnClientInfo::load_self_group_id(self.db().read().await?)
+                    .await?
+                    .is_some()
+                {
+                    return Err(SelfGroupNotJoined.into());
+                }
                 SelfGroup {
                     group: self.create_self_group().await?,
                 }
@@ -283,7 +292,7 @@ impl CoreUser {
     /// Clients whose self group predates that chat only have the group, so
     /// their self chat has to be backfilled here.
     ///
-    /// Returns the ID of the self-chat and message IDs if they were created.
+    /// Returns the ID of the self-chat and system messages if they were created.
     pub(crate) async fn ensure_self_chat(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -411,12 +420,15 @@ impl CoreUser {
                     Chat::delete(&mut *txn, chat_id).await?;
                 }
                 Group::delete_from_db(&mut *txn, &group_id).await?;
+                self_group_message_key::persistence::delete(&mut *txn, &group_id).await?;
                 OwnClientInfo::clear_self_group(txn).await?;
                 Ok(())
             })
             .await?;
 
-        Box::pin(self.ensure_self_group()).await?;
+        Box::pin(self.ensure_self_group())
+            .await
+            .context("self group erased, but recreating it failed")?;
         Ok(())
     }
 }
