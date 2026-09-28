@@ -3154,18 +3154,14 @@ async fn multi_device_sibling_client_state() {
     assert_eq!(removed.client_id, Some(old_client_id));
     assert!(removed.epoch > updated.epoch);
 
-    // Oversized states end the session.
-    let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();
+    // Oversized states are ignored, the session goes on.
+    let (_old_stream, old_responder) = old_device.listen_queue().await.unwrap();
     old_responder.report_client_state(vec![0; 1024]).await;
-    let status = loop {
-        match old_stream
-            .next()
-            .await
-            .expect("stream ended without status")
-        {
-            Ok(_) => continue,
-            Err(status) => break status,
-        }
+    old_responder.report_client_state(b"after".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected updated");
     };
-    assert_eq!(status.code(), tonic::Code::InvalidArgument);
+    assert_eq!(updated.blob.unwrap().encrypted_blob, b"after");
 }

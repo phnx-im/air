@@ -205,14 +205,15 @@ pub(crate) mod persistence {
             .await
         }
 
-        pub(in crate::qs) async fn load_verifying_key(
+        pub(in crate::qs) async fn load_verifying_key_and_user_id(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
-        ) -> Result<Option<QsClientVerifyingKey>, StorageError> {
+        ) -> Result<Option<(QsClientVerifyingKey, QsUserId)>, StorageError> {
             let client_id = client_id.as_uuid();
-            sqlx::query_scalar!(
+            sqlx::query!(
                 r#"SELECT
-                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>"
+                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>",
+                    user_id as "user_id: QsUserId"
                 FROM
                     qs_client_record
                 WHERE
@@ -222,7 +223,7 @@ pub(crate) mod persistence {
             )
             .fetch_optional(connection)
             .await
-            .map(|key| key.map(|BlobDecoded(verifying_key)| verifying_key))
+            .map(|record| record.map(|record| (record.verifying_key.into_inner(), record.user_id)))
             .map_err(From::from)
         }
 
@@ -295,14 +296,6 @@ pub(crate) mod persistence {
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
         ) -> Result<Option<Vec<QsClientId>>, StorageError> {
-            Self::load_client_ids(connection, client_id, false).await
-        }
-
-        async fn load_client_ids(
-            connection: impl PgExecutor<'_>,
-            client_id: &QsClientId,
-            filter_self: bool,
-        ) -> Result<Option<Vec<QsClientId>>, StorageError> {
             let rows: Vec<Option<QsClientId>> = sqlx::query_scalar!(
                 r#"SELECT other.client_id AS "client_id?: QsClientId"
                 FROM qs_client_record c
@@ -320,12 +313,7 @@ pub(crate) mod persistence {
                 Ok(None)
             } else {
                 // anchor exists
-                Ok(Some(
-                    rows.into_iter()
-                        .flatten()
-                        .filter(|id| !filter_self || id != client_id)
-                        .collect(),
-                ))
+                Ok(Some(rows.into_iter().flatten().collect()))
             }
         }
 
@@ -445,10 +433,12 @@ pub(crate) mod persistence {
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
 
-            let verifying_key = QsClientRecord::load_verifying_key(&pool, &client_record.client_id)
-                .await?
-                .expect("missing client verifying key");
+            let (verifying_key, user_id) =
+                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
+                    .await?
+                    .expect("missing client verifying key");
             assert_eq!(verifying_key, client_record.auth_key);
+            assert_eq!(user_id, client_record.user_id);
 
             Ok(())
         }
@@ -497,8 +487,9 @@ pub(crate) mod persistence {
             assert_eq!(loaded, None);
 
             let loaded =
-                QsClientRecord::load_verifying_key(&pool, &client_record.client_id).await?;
-            assert_eq!(loaded, None);
+                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
+                    .await?;
+            assert!(loaded.is_none());
 
             let loaded =
                 QsClientRecord::load_user_client_ids(&pool, &client_record.client_id).await?;

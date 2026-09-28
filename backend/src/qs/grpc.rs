@@ -27,13 +27,14 @@ use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::Leaf
 use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
+    errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{
         client_record::QsClientRecord,
-        queue::{Queues, client_state::MAX_ENCRYPTED_CLIENT_STATE_SIZE},
+        queue::{ClientSessionGuard, Queues, client_state::MAX_ENCRYPTED_CLIENT_STATE_SIZE},
         user_record::UserRecord,
     },
     version::VerifiedClientVersion,
@@ -79,16 +80,13 @@ enum ProcessListenQueueRequestError {
     UnexpectedInitRequest,
     /// Received empty request
     EmptyRequest,
-    /// Encrypted client state is too large
-    ClientStateTooLarge,
 }
 
 impl From<ProcessListenQueueRequestError> for Status {
     fn from(error: ProcessListenQueueRequestError) -> Self {
         match error {
             ProcessListenQueueRequestError::UnexpectedInitRequest
-            | ProcessListenQueueRequestError::EmptyRequest
-            | ProcessListenQueueRequestError::ClientStateTooLarge => {
+            | ProcessListenQueueRequestError::EmptyRequest => {
                 Status::invalid_argument(error.to_string())
             }
         }
@@ -496,22 +494,34 @@ impl QueueService for GrpcQs {
             .as_ref()
             .ok_or_missing_field("payload")?
             .encode_to_vec();
-        let InitListenPayload {
-            client_metadata: _,
-            client_id,
-            sequence_number_start,
-        } = self
-            .verify_client_auth(SignedRequest::<_, 1>::new(
+        let (
+            InitListenPayload {
+                client_metadata: _,
+                client_id,
+                sequence_number_start,
+            },
+            user_id,
+        ) = self
+            .verify_client_auth_with_user_id(SignedRequest::<_, 1>::new(
                 init_request,
                 payload_bytes.into(),
             ))
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-        let (session_id, queue_messages) = self
+        let user_id = match user_id {
+            Some(user_id) => user_id,
+            // Legacy clients are not authenticated
+            None => QsClientRecord::load_user_id(&self.qs.db_pool, &client_id)
+                .await
+                .map_err(QueueError::from)?
+                .ok_or(QueueError::ClientNotFound)?,
+        };
+        let (session, queue_messages) = self
             .qs
             .queues
             .listen(
+                user_id,
                 client_id,
                 verified_client_version.version,
                 sequence_number_start,
@@ -539,7 +549,7 @@ impl QueueService for GrpcQs {
         let handler = QueueSessionHandler {
             queues: self.qs.queues.clone(),
             client_id,
-            session_id,
+            session,
         };
         let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
         Ok(Response::new(responses))
@@ -549,7 +559,7 @@ impl QueueService for GrpcQs {
 struct QueueSessionHandler {
     queues: Queues,
     client_id: identifiers::QsClientId,
-    session_id: u64,
+    session: ClientSessionGuard,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
@@ -569,10 +579,14 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
                 encrypted_blob,
             })) => {
                 if encrypted_blob.len() > MAX_ENCRYPTED_CLIENT_STATE_SIZE {
-                    return Err(ProcessListenQueueRequestError::ClientStateTooLarge.into());
+                    warn!(
+                        client_id =? self.client_id,
+                        size = encrypted_blob.len(),
+                        "ignoring too large client state"
+                    );
+                } else {
+                    self.session.update_state(encrypted_blob);
                 }
-                self.queues
-                    .update_client_state(self.client_id, self.session_id, encrypted_blob);
             }
             Some(listen_request::Request::Init(_)) => {
                 return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());
@@ -582,11 +596,6 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             }
         }
         Ok(())
-    }
-
-    async fn finish(&mut self) {
-        self.queues
-            .end_client_session(self.client_id, self.session_id);
     }
 }
 

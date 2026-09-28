@@ -359,9 +359,10 @@ message SiblingClientState {
 // The sibling updated its state
 message SiblingClientStateUpdated {
   QsClientId client_id = 1;
-  // Server-assigned counter, increasing per client id.
+  // Server-assigned, increasing per client id, also across reconnects and
+  // server restarts.
   uint64 epoch = 2;
-  // Time since the server received this blob, at the moment of sending.
+  // How old this update is. Clients should decide whether an old state is worth discard.
   uint32 age_ms = 3;
   SiblingClientStateEncryptedBlob blob = 4;
 }
@@ -369,10 +370,9 @@ message SiblingClientStateUpdated {
 // The sibling stopped listening or was deleted
 message SiblingClientStateRemoved {
   QsClientId client_id = 1;
-  // Server-assigned counter, increasing per client id.
+  // Server-assigned, increasing per client id, also across reconnects and
+  // server restarts.
   uint64 epoch = 2;
-  // Time since the server received this blob, at the moment of sending.
-  common.v1.Timestamp updated_at = 3;
 }
 
 message SiblingClientStateEncryptedBlob {
