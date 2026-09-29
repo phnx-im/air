@@ -647,7 +647,7 @@ impl CoreUser {
                         );
                     }
                     Some(ResyncStatus::Failed) => {
-                        debug!(
+                        warn!(
                             %chat_id, ?group_id, %reason,
                             "Group is out of sync; earlier resync failed permanently, not scheduling"
                         );
@@ -911,6 +911,7 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, None, None)
                     .await?;
+                log_processed_commit(&group, &sender, &sender_user_id);
                 HandledMessages {
                     new_messages,
                     ..Default::default()
@@ -931,6 +932,7 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, Some(ds_timestamp), pq_updated_at)
                     .await?;
+                log_processed_commit(&group, &sender, &sender_user_id);
                 self.finalize_own_commit(
                     &mut *txn,
                     &group,
@@ -1785,6 +1787,23 @@ fn own_commit_key_package_batch(
         return Ok(None);
     };
     Ok(commit_data.key_package_uploads().next().map(From::from))
+}
+
+/// Logs a merged commit. `group` must already be in the new epoch.
+fn log_processed_commit(group: &VerifiedGroup, sender: &Sender, sender_user_id: &UserId) {
+    let group = group.group();
+    let sender_index = match sender {
+        Sender::Member(index) => Some(index.u32()),
+        _ => None,
+    };
+    info!(
+        group_id = ?group.group_id(),
+        epoch = group.mls_group().epoch().as_u64(),
+        pq_epoch = group.pq().map(|pq| pq.mls_group.epoch().as_u64()),
+        sender_index,
+        ?sender_user_id,
+        "processed commit"
+    );
 }
 
 #[cfg(test)]

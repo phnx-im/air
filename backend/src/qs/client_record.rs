@@ -554,6 +554,7 @@ impl QsClientRecord {
     ///
     /// Returns a QS client record if a push notification should be sent to the client, otherwise
     /// `None`.
+    #[tracing::instrument(level = "info", skip_all, fields(qs_client_id = %client_id))]
     pub(crate) async fn enqueue(
         txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
@@ -595,6 +596,7 @@ impl QsClientRecord {
     /// If the token is invalid, the push notification token stored for the client is deleted.
     ///
     /// The operation is infallible, all errors are handled inside and logged.
+    #[tracing::instrument(level = "info", skip_all, fields(qs_client_id = %self.client_id))]
     pub(crate) async fn send_push_notification(
         &self,
         pool: &PgPool,
