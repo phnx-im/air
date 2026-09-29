@@ -664,7 +664,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession dco_decode_admission_session(dynamic raw);
 
   @protected
-  AirComponent dco_decode_air_component(dynamic raw);
+  AirComponentDebugInfo dco_decode_air_component_debug_info(dynamic raw);
 
   @protected
   AirFeatures dco_decode_air_features(dynamic raw);
@@ -714,7 +714,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession dco_decode_box_autoadd_admission_session(dynamic raw);
 
   @protected
-  AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
+  AirComponentDebugInfo dco_decode_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  );
 
   @protected
   AirFeatures dco_decode_box_autoadd_air_features(dynamic raw);
@@ -855,6 +857,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
+
+  @protected
+  UiUnlinkReason dco_decode_box_autoadd_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
@@ -1152,7 +1157,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
   @protected
-  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
+  AirComponentDebugInfo? dco_decode_opt_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  );
 
   @protected
   AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw);
@@ -1262,6 +1269,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
+
+  @protected
+  UiUnlinkReason? dco_decode_opt_box_autoadd_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
@@ -1457,6 +1467,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
+
+  @protected
+  UiUnlinkReason dco_decode_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId dco_decode_ui_user_id(dynamic raw);
@@ -2015,7 +2028,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession sse_decode_admission_session(SseDeserializer deserializer);
 
   @protected
-  AirComponent sse_decode_air_component(SseDeserializer deserializer);
+  AirComponentDebugInfo sse_decode_air_component_debug_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   AirFeatures sse_decode_air_features(SseDeserializer deserializer);
@@ -2067,7 +2082,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponent sse_decode_box_autoadd_air_component(
+  AirComponentDebugInfo sse_decode_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2272,6 +2287,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage sse_decode_box_autoadd_ui_system_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiUnlinkReason sse_decode_box_autoadd_ui_unlink_reason(
     SseDeserializer deserializer,
   );
 
@@ -2643,7 +2663,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponent? sse_decode_opt_box_autoadd_air_component(
+  AirComponentDebugInfo? sse_decode_opt_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2795,6 +2815,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiUnlinkReason? sse_decode_opt_box_autoadd_ui_unlink_reason(
     SseDeserializer deserializer,
   );
 
@@ -3018,6 +3043,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
+
+  @protected
+  UiUnlinkReason sse_decode_ui_unlink_reason(SseDeserializer deserializer);
 
   @protected
   UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
@@ -3691,7 +3719,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_air_component(AirComponent self, SseSerializer serializer);
+  void sse_encode_air_component_debug_info(
+    AirComponentDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_air_features(AirFeatures self, SseSerializer serializer);
@@ -3754,8 +3785,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_air_component(
-    AirComponent self,
+  void sse_encode_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo self,
     SseSerializer serializer,
   );
 
@@ -4002,6 +4033,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_system_message(
     UiSystemMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason self,
     SseSerializer serializer,
   );
 
@@ -4477,8 +4514,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_air_component(
-    AirComponent? self,
+  void sse_encode_opt_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo? self,
     SseSerializer serializer,
   );
 
@@ -4653,6 +4690,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_message_draft(
     UiMessageDraft? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason? self,
     SseSerializer serializer,
   );
 
@@ -4959,6 +5002,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_system_message(
     UiSystemMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_unlink_reason(
+    UiUnlinkReason self,
     SseSerializer serializer,
   );
 

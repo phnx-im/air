@@ -28,14 +28,6 @@ enum AddUsernameContactError {
 }
 
 @freezed
-sealed class AirComponent with _$AirComponent {
-  const factory AirComponent({
-    required AirFeatures features,
-    required bool isSelfGroup,
-  }) = _AirComponent;
-}
-
-@freezed
 sealed class AirFeatures with _$AirFeatures {
   const factory AirFeatures({
     required bool encryptedGroupProfiles,

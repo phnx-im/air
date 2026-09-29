@@ -6,17 +6,19 @@ import 'dart:async';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('UnlinkedDeviceListener');
 
-/// Tears this device down once another device of the user unlinks it.
+/// Tears this device down once another device of the user unlinks it or
+/// deletes the account.
 ///
 /// Deletes the local client database and drops the loaded user, which lands the
-/// app back on the welcome screen. Nothing is registered or re-created: the
-/// account still exists and lives on the user's remaining devices.
+/// app back on the welcome screen. Nothing is registered or re-created. After
+/// an account deletion, a notice tells the user why the device was reset.
 class UnlinkedDeviceHandler extends StatefulWidget {
   const UnlinkedDeviceHandler({super.key, required this.child});
 
@@ -32,8 +34,9 @@ class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (context.read<UserCubit>().state.accountUnlinked) {
-      _startTearDown(context.read<CoreClient>());
+    final reason = context.read<UserCubit>().state.unlinkReason;
+    if (reason != null) {
+      _startTearDown(context.read<CoreClient>(), reason);
     }
   }
 
@@ -41,22 +44,27 @@ class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
   Widget build(BuildContext context) {
     return BlocListener<UserCubit, UiUser>(
       // The stream can catch up between the dependency check and listener
-      // initialization. The teardown guard makes repeated true states safe.
-      listenWhen: (_, current) => current.accountUnlinked,
-      listener: (context, _) => _startTearDown(context.read<CoreClient>()),
+      // initialization. The teardown guard makes repeated states safe.
+      listenWhen: (_, current) => current.unlinkReason != null,
+      listener: (context, state) {
+        final reason = state.unlinkReason;
+        if (reason != null) {
+          _startTearDown(context.read<CoreClient>(), reason);
+        }
+      },
       child: widget.child,
     );
   }
 
-  void _startTearDown(CoreClient coreClient) {
+  void _startTearDown(CoreClient coreClient, UiUnlinkReason reason) {
     if (_tearDownStarted) {
       return;
     }
     _tearDownStarted = true;
-    unawaited(_tearDown(coreClient));
+    unawaited(_tearDown(coreClient, reason));
   }
 
-  Future<void> _tearDown(CoreClient coreClient) async {
+  Future<void> _tearDown(CoreClient coreClient, UiUnlinkReason reason) async {
     try {
       await coreClient.deleteCurrentDatabase();
     } catch (error, stackTrace) {
@@ -68,6 +76,12 @@ class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
       // Drop the user anyway: staying signed in on a device the user unlinked
       // is worse than leaving data behind.
       coreClient.logout();
+    }
+    switch (reason) {
+      case UiUnlinkReason.unlinked:
+        break;
+      case UiUnlinkReason.accountDeleted:
+        showErrorBannerStandalone((loc) => loc.unlinkedDevice_accountDeleted);
     }
   }
 }

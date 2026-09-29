@@ -93,6 +93,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   2: TokenSeed
 ///   3: BlockedContactsUpdate
 ///   4: DeletedChat
+///   5: AccountDeleted
 ///   6: ConnectionRequestsUpdate
 /// }
 /// ```
@@ -106,6 +107,8 @@ pub enum SelfGroupMessage {
     BlockedContactsUpdate(BlockedContactsUpdate),
     #[tag(4)]
     DeletedChat(DeletedChat),
+    #[tag(5)]
+    AccountDeleted(AccountDeleted),
     #[tag(6)]
     ConnectionRequestsUpdate(ConnectionRequestsUpdate),
     /// A message kind this client does not understand; skipped on receive.
@@ -476,6 +479,16 @@ pub struct DeletedChat {
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
 }
+
+/// The sender is deleting the account. Receivers reset themselves.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// AccountDeleted = {}
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct AccountDeleted {}
 
 /// Update to a connection request. This is a diff and not a snapshot.
 ///
@@ -1258,6 +1271,91 @@ mod test {
                 .unwrap();
         let decoded: ConnectionRequestSource = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(decoded, ConnectionRequestSource::Unknown);
+    }
+
+    // 1f. `AccountDeleted` encode/decode and wire shape.
+
+    #[test]
+    fn account_deleted_roundtrip_and_wire_shape() {
+        let message = SelfGroupMessage::AccountDeleted(AccountDeleted {});
+        let bytes = PersistenceCodec::to_vec(&message).unwrap();
+        let decoded: SelfGroupMessage = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(message, decoded);
+        // `{5: {}}`: map(1), key 5, map(0).
+        assert_eq!(&bytes[1..], &[0xA1, 0x05, 0xA0]);
+    }
+
+    #[test]
+    fn account_deleted_stability() {
+        let message = SelfGroupMessage::AccountDeleted(AccountDeleted {});
+        let bytes = PersistenceCodec::to_vec(&message).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn account_deleted_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::AccountDeleted(AccountDeleted {})]);
+        let key = message_key_from([13u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// The encoding of `[AccountDeleted {}, SettingsUpdate { send_read_receipts:
+    /// Some(true) }]` as a [`SelfGroupMessages`] payload.
+    const ACCOUNT_DELETED_MESSAGES_FIXTURE: &[u8] = &[
+        0x01, // persistence codec version
+        0x82, // array(2)
+        0xA1, 0x05, 0xA0, // {5: {}}
+        0xA1, 0x01, 0xA1, 0x01, 0xF5, // {1: {1: true}}
+    ];
+
+    #[test]
+    fn account_deleted_messages_match_the_fixture() {
+        let messages = SelfGroupMessages(vec![
+            SelfGroupMessage::AccountDeleted(AccountDeleted {}),
+            SelfGroupMessage::SettingsUpdate(SettingsUpdate {
+                send_read_receipts: Some(true),
+                linked_devices: None,
+            }),
+        ]);
+        assert_eq!(
+            PersistenceCodec::to_vec(&messages).unwrap(),
+            ACCOUNT_DELETED_MESSAGES_FIXTURE
+        );
+    }
+
+    /// A client that predates tag 5 skips the deletion instead of failing, and
+    /// still reads the settings update next to it.
+    #[test]
+    fn account_deleted_is_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageNoAccountDeleted {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(2)]
+            TokenSeed(TokenSeed),
+            #[tag(3)]
+            BlockedContactsUpdate(BlockedContactsUpdate),
+            #[tag(4)]
+            DeletedChat(DeletedChat),
+            #[unknown]
+            Unknown,
+        }
+
+        let decoded: Vec<SelfGroupMessageNoAccountDeleted> =
+            PersistenceCodec::from_slice(ACCOUNT_DELETED_MESSAGES_FIXTURE).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageNoAccountDeleted::Unknown,
+                SelfGroupMessageNoAccountDeleted::SettingsUpdate(SettingsUpdate {
+                    send_read_receipts: Some(true),
+                    linked_devices: None,
+                }),
+            ]
+        );
     }
 
     // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
