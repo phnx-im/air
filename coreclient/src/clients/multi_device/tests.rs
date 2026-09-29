@@ -324,7 +324,10 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
 #[test]
 fn a_wrong_code_fails_the_welcome() -> anyhow::Result<()> {
     let new_code = LinkingCode::generate("417")?;
-    let mistyped = LinkingCode::generate("417")?;
+    let mut digits = new_code.to_digits().into_bytes();
+    let last = digits.len() - 1;
+    digits[last] = if digits[last] == b'0' { b'1' } else { b'0' };
+    let mistyped = LinkingCode::parse(&String::from_utf8(digits)?)?;
     let handshake = handshake(&new_code, &mistyped);
 
     // The PSK ID comes from public values, so it matches even here. Only the

@@ -108,8 +108,8 @@ pub enum MultiDeviceProvisionStep {
 pub enum MultiDeviceLinkClientError {
     #[error("session ID not found")]
     SessionNotFound,
-    /// The code was too short or its check digit did not match, so the relay
-    /// was never contacted and no session was burned.
+    /// The code was too short, so the relay was never contacted and no
+    /// session was burned.
     #[error("the linking code is malformed")]
     InvalidCode,
     #[error("device limit reached: max = {max_devices}")]
@@ -127,8 +127,8 @@ pub enum MultiDeviceProvisionClientError {
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum LinkingError {
     /// The pairing group's Welcome did not open, so the two devices derived
-    /// different PSKs. Either the code was mistyped past the check digit, or
-    /// somebody tried to intercept the linking.
+    /// different PSKs. Either the code was mistyped, or somebody tried to
+    /// intercept the linking.
     #[error("authentication failed, the linking code was wrong or the session was intercepted")]
     AuthenticationFailed,
     #[error("linking protocol error")]
@@ -513,8 +513,8 @@ impl CoreUser {
         connected_tx: oneshot::Sender<()>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
-        // The check digit is verified before the relay is contacted. A
-        // mistyped code would otherwise burn the session for good.
+        // A too-short code is rejected before the relay is contacted. Any
+        // other typo reaches the relay and fails authentication.
         let code = match LinkingCode::parse(&code) {
             Ok(code) => code,
             Err(error) => {

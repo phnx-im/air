@@ -193,6 +193,7 @@ pub fn respond(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::mdl::code::LinkingCode;
 
     const SID: &[u8] = b"0123456789abcdef";
     const KEY_PACKAGE: &[u8] = b"a serialized key package";
@@ -237,12 +238,8 @@ mod tests {
 
     #[test]
     fn a_wrong_password_keeps_the_psk_id_but_not_the_secret() {
-        let (a, b) = exchange(
-            &LinkingPassword::generate(),
-            &LinkingPassword::generate(),
-            b"ci",
-            b"ci",
-        );
+        let password = |code| LinkingCode::parse(code).unwrap().password().clone();
+        let (a, b) = exchange(&password("41712345"), &password("41712346"), b"ci", b"ci");
         assert_eq!(a.id(), b.id());
         assert_ne!(a.secret(), b.secret());
     }

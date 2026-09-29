@@ -6,7 +6,7 @@ use std::{assert_matches, collections::HashSet};
 
 use aircommon::{
     credentials::LeafCredential,
-    crypto::mdl::code::LinkingCode,
+    crypto::mdl::code::{LinkingCode, MIN_CODE_DIGITS, PASSWORD_DIGITS},
     identifiers::{UserId, Username},
 };
 use aircoreclient::{
@@ -534,8 +534,7 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    // A well-formed code, check digit and all, for a session that was never
-    // opened.
+    // A well-formed code for a session that was never opened.
     let fake_code = LinkingCode::generate("999").unwrap().to_digits();
     let result = setup
         .get_user(&alice)
@@ -3084,37 +3083,23 @@ async fn multi_device_both_devices_leave_before_the_commit() {
 
 /// The digits of the rendezvous ID a code was issued for.
 fn rendezvous_id_of(code: &str) -> &str {
-    &code[..code.len() - PASSWORD_AND_CHECK_DIGITS]
+    &code[..code.len() - PASSWORD_DIGITS]
 }
 
-/// A code for the same session with a different password, carrying a check
-/// digit that makes it pass the existing device's local check.
+/// A code for the same session with a different password.
 ///
-/// This is the typo the Damm digit cannot catch, and the only way to reach
-/// the protocol's authentication check.
+/// The existing device cannot tell it from the real code, so it reaches the
+/// protocol's authentication check.
 fn code_with_a_wrong_password(code: &str) -> String {
     let mut digits = code.as_bytes().to_vec();
-    let password_start = digits.len() - PASSWORD_AND_CHECK_DIGITS;
+    let password_start = digits.len() - PASSWORD_DIGITS;
     digits[password_start] = if digits[password_start] == b'0' {
         b'1'
     } else {
         b'0'
     };
-
-    let check = digits.len() - 1;
-    for candidate in b'0'..=b'9' {
-        digits[check] = candidate;
-        let candidate = String::from_utf8(digits.clone()).unwrap();
-        if LinkingCode::parse(&candidate).is_ok() {
-            return candidate;
-        }
-    }
-    panic!("no check digit makes the altered code well formed");
+    String::from_utf8(digits).unwrap()
 }
-
-/// Digits of the password plus the check digit, which is what the split from
-/// the end of a code has to skip.
-const PASSWORD_AND_CHECK_DIGITS: usize = 17;
 
 /// Spawns a provisioning device and hands back its linking code together
 /// with the task, so a test can drive the existing device's half itself.
@@ -3178,26 +3163,21 @@ async fn multi_device_wrong_password_fails_authentication() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a mistyped code is caught locally", skip_all)]
-async fn multi_device_mistyped_code_does_not_burn_the_session() {
+#[tracing::instrument(name = "Test a short code is caught locally", skip_all)]
+async fn multi_device_short_code_does_not_burn_the_session() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
     let (code, new_device_task, _session_rx) = provision_device(&setup).await;
 
-    // Swapping two adjacent digits is exactly what the Damm digit catches.
-    let mut typo = code.as_bytes().to_vec();
-    let position = typo
-        .windows(2)
-        .position(|pair| pair[0] != pair[1])
-        .expect("the code cannot consist of one repeated digit");
-    typo.swap(position, position + 1);
-    let typo = String::from_utf8(typo).unwrap();
+    // Cut to below the minimum rather than dropping one digit, because a
+    // longer rendezvous ID would make the shortened code still parse.
+    let short = code[..MIN_CODE_DIGITS - 1].to_owned();
 
     let rejected = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(typo, ignore_connected(), auto_confirm())
+        .multi_device_link_client(short, ignore_connected(), auto_confirm())
         .await;
     assert!(matches!(
         rejected,
