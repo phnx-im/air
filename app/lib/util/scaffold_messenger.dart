@@ -61,6 +61,25 @@ void showErrorBannerStandalone(
   );
 }
 
+/// The global messenger's only root [Scaffold].
+///
+/// It should be installed directly above the navigator so snackbars show above
+/// every route, including modals and dialogs.
+class RootScaffold extends StatelessWidget {
+  const RootScaffold({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
+      body: child,
+    );
+  }
+}
+
 /// Shows a snackbar in the global scaffold messenger.
 ///
 /// This function does not require a [BuildContext] to show a snackbar.
@@ -98,9 +117,18 @@ SnackBar _asPill(SnackBar source, SnackbarTone tone) {
     // The carrier hands its content the full width, so center the pill in it
     // rather than letting it stretch. The height factor keeps the carrier
     // wrapped around the pill instead of the viewport.
-    content: Align(
-      heightFactor: 1,
-      child: Snackbar(label: label, tone: tone),
+    content: Builder(
+      builder: (context) => Padding(
+        // RootScaffold does not resize to avoid the bottom inset, so the pill
+        // needs to be offset by it.
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Align(
+          heightFactor: 1,
+          child: Snackbar(label: label, tone: tone),
+        ),
+      ),
     ),
     duration: source.duration,
     backgroundColor: Colors.transparent,
