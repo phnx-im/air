@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM qs_client_record c\n                USING qs_user_record u\n                WHERE c.user_id = $1\n                    AND u.user_id = c.user_id\n                    AND u.deleted_at IS NOT NULL\n                    AND NOT EXISTS (\n                        SELECT 1 FROM qs_queues q WHERE q.queue_id = c.client_id\n                    )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "15c32ab827532f3dbed3bfd2e64cf11642e79e06a2302a7930f87abaae44b898"
+}

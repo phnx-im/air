@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM qs_queues\n                WHERE queue_id IN (\n                    SELECT client_id FROM qs_client_record WHERE user_id = $1\n                )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "af4459a97f9491deabff39cc07012114f656f0021c93115ce450916436334c24"
+}

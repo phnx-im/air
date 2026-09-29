@@ -53,9 +53,41 @@ impl GrpcQs {
     }
 
     /// Verifies request with QS client authentication.
+    ///
+    /// Fails for clients of deleted users.
     pub(super) async fn verify_client_auth<R, P, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
+    ) -> Result<P, Status>
+    where
+        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
+    {
+        self.verify_client_auth_with(request, ClientAuthScope::ActiveUser)
+            .await
+    }
+
+    /// Verifies request with QS client authentication for accessing the
+    /// client's own queue.
+    ///
+    /// Succeeds for clients of deleted users, so that they can still read the
+    /// messages left in their queue.
+    pub(super) async fn verify_queue_client_auth<R, P, const TAG: u32>(
+        &self,
+        request: SignedRequest<R, TAG>,
+    ) -> Result<P, Status>
+    where
+        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
+    {
+        self.verify_client_auth_with(request, ClientAuthScope::Queue)
+            .await
+    }
+
+    async fn verify_client_auth_with<R, P, const TAG: u32>(
+        &self,
+        request: SignedRequest<R, TAG>,
+        scope: ClientAuthScope,
     ) -> Result<P, Status>
     where
         R: WithQsClientId<Payload = P> + VerifiableRequest,
@@ -65,14 +97,21 @@ impl GrpcQs {
             // Support for legacy clients which don't use authentication.
             None => Ok(request.into_inner().into_unverified_payload()),
             Some(client_id) => {
-                let verifying_key =
-                    QsClientRecord::load_verifying_key(&self.qs.db_pool, &client_id?)
-                        .await
-                        .map_err(|error| {
-                            error!(%error, "failed to load client verifying key");
-                            Status::internal("database error")
-                        })?
-                        .ok_or_else(|| Status::not_found("unknown QS client"))?;
+                let client_id = client_id?;
+                let pool = &self.qs.db_pool;
+                let verifying_key = match scope {
+                    ClientAuthScope::Queue => {
+                        QsClientRecord::load_verifying_key(pool, &client_id).await
+                    }
+                    ClientAuthScope::ActiveUser => {
+                        QsClientRecord::load_verifying_key_of_active_user(pool, &client_id).await
+                    }
+                }
+                .map_err(|error| {
+                    error!(%error, "failed to load client verifying key");
+                    Status::internal("database error")
+                })?
+                .ok_or_else(|| Status::not_found("unknown QS client"))?;
                 self.verify_request(request, &verifying_key)
             }
         }
@@ -94,6 +133,13 @@ impl GrpcQs {
             SignatureVerificationError::LibraryError(_) => Status::internal("unrecoverable error"),
         })
     }
+}
+
+enum ClientAuthScope {
+    /// The client's user may be deleted.
+    Queue,
+    /// The client's user must not be deleted.
+    ActiveUser,
 }
 
 /// QS requests that contain a user id.

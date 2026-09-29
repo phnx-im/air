@@ -75,6 +75,63 @@ impl CoreUser {
         self.inner.qs_client_id
     }
 
+    /// Deletes the QS user record without touching anything else.
+    pub async fn qs_delete_user(&self) -> Result<(), QsRequestError> {
+        self.inner
+            .api_clients
+            .default_client()
+            .map_err(|_| QsRequestError::LibraryError)?
+            .qs_delete_user(
+                self.inner.qs_user_id,
+                &self.inner.key_store.qs_user_signing_key,
+            )
+            .await
+    }
+
+    /// Publishes an empty list of key packages for this client.
+    pub async fn qs_publish_empty_key_packages(&self) -> Result<(), QsRequestError> {
+        self.inner
+            .api_clients
+            .default_client()
+            .map_err(|_| QsRequestError::LibraryError)?
+            .qs_publish_key_packages(
+                self.inner.qs_client_id,
+                Vec::new(),
+                &self.inner.key_store.qs_client_signing_key,
+            )
+            .await
+    }
+
+    /// Creates a fresh QS client under this user.
+    pub async fn qs_create_client(
+        &self,
+    ) -> Result<aircommon::identifiers::QsClientId, QsRequestError> {
+        use aircommon::crypto::{
+            RatchetDecryptionKey, kdf::keys::RatchetSecret, signatures::keys::QsClientSigningKey,
+        };
+
+        let signing_key =
+            QsClientSigningKey::generate().map_err(|_| QsRequestError::LibraryError)?;
+        let decryption_key =
+            RatchetDecryptionKey::generate().map_err(|_| QsRequestError::LibraryError)?;
+        let ratchet_secret = RatchetSecret::random().map_err(|_| QsRequestError::LibraryError)?;
+        let response = self
+            .inner
+            .api_clients
+            .default_client()
+            .map_err(|_| QsRequestError::LibraryError)?
+            .qs_create_client(
+                self.inner.qs_user_id,
+                signing_key.verifying_key().clone(),
+                decryption_key.encryption_key().clone(),
+                None,
+                ratchet_secret,
+                &self.inner.key_store.qs_user_signing_key,
+            )
+            .await?;
+        Ok(response.qs_client_id)
+    }
+
     pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
         Ok(SelfGroup::load(self.db().read().await?).await?)
     }

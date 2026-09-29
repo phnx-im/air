@@ -17,7 +17,7 @@ use airbackend::{
 };
 use aircommon::{
     DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, UserId, Username},
+    identifiers::{Fqdn, MimiId, QsUserId, UserId, Username},
     registration::RegistrationChallenge,
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
@@ -28,6 +28,7 @@ use mimi_content::{
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
+use sqlx::{Connection, PgConnection};
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet, spawn_blocking},
@@ -186,6 +187,8 @@ pub struct TestBackend {
     listener_control_handle: Option<ControlHandle>,
     /// Present only if we spawned a local server.
     max_devices: Option<[MaxDevices; 2]>,
+    /// Present only if we spawned a local server.
+    qs_database_url: Option<String>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -274,6 +277,7 @@ impl TestBackend {
             invitation_codes,
             sent_challenges,
             max_devices,
+            qs_database_url,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -287,6 +291,7 @@ impl TestBackend {
                 SentChallenges::default(),
                 None,
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -297,6 +302,7 @@ impl TestBackend {
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
             let max_devices = app.max_devices.clone();
+            let qs_database_url = app.qs_database_url();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -306,6 +312,7 @@ impl TestBackend {
                 codes,
                 sent_challenges,
                 Some(max_devices),
+                Some(qs_database_url),
                 Some(cleanup),
             )
         };
@@ -327,6 +334,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             max_devices,
+            qs_database_url,
             invitation_codes,
             sent_challenges,
             apq_groups,
@@ -344,6 +352,21 @@ impl TestBackend {
         for handle in handles {
             handle.set(max_devices);
         }
+    }
+
+    /// Returns whether the QS stores a user record for `user_id`, deleted or
+    /// not.
+    pub async fn qs_user_record_exists(&self, user_id: QsUserId) -> bool {
+        let url = self
+            .qs_database_url
+            .as_ref()
+            .expect("the QS database is only reachable on a spawned server");
+        let mut connection = PgConnection::connect(url).await.unwrap();
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM qs_user_record WHERE user_id = $1)")
+            .bind(user_id.as_uuid())
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
     }
 
     pub fn listener_control_handle(&self) -> &ControlHandle {
