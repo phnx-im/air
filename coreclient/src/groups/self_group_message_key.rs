@@ -34,17 +34,21 @@ use aircommon::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
+    time::TimeStamp,
 };
 use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage, SelfGroupMessages,
-        SettingsUpdate, TokenSeed,
+        AccountDeleted, AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage,
+        SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
-use anyhow::{Result, anyhow, ensure};
-use openmls::prelude::{AppEphemeralProposal, Proposal, StagedCommit, tls_codec::Serialize as _};
+use anyhow::{Context as _, Result, anyhow, ensure};
+use openmls::{
+    component::ComponentData,
+    prelude::{AppEphemeralProposal, Proposal, StagedCommit, tls_codec::Serialize as _},
+};
 use openmls_traits::OpenMlsProvider;
 use tracing::{debug, warn};
 
@@ -183,9 +187,27 @@ impl Group {
         signer: &SelfGroupSigningKey,
         messages: Vec<SelfGroupMessage>,
     ) -> Result<ApqGroupOperationParamsOut> {
+        let deletes_account = messages
+            .iter()
+            .any(|message| matches!(message, SelfGroupMessage::AccountDeleted(_)));
+        let app_data_update = deletes_account
+            .then(|| self.deleted_air_component(TimeStamp::now()))
+            .transpose()?;
         let proposal = self.self_group_messages_proposal(txn, messages).await?;
-        self.stage_self_group_message_commit(txn, signer, proposal)
+        self.stage_self_group_message_commit(txn, signer, proposal, app_data_update)
             .await
+    }
+
+    /// The Air component of the group context, marked as deleted at
+    /// `deleted_at`.
+    fn deleted_air_component(&self, deleted_at: TimeStamp) -> Result<ComponentData> {
+        let mut component = GroupAppData::air_component(self.mls_group.extensions())
+            .context("no Air component in the group context")?;
+        component.deleted = Some(deleted_at);
+        Ok(ComponentData::from_parts(
+            AIR_COMPONENT_ID,
+            component.to_bytes()?.into(),
+        ))
     }
 
     /// Stages a self-group commit that publishes token seeds to the siblings.
@@ -205,12 +227,12 @@ impl Group {
             .map(SelfGroupMessage::TokenSeed)
             .collect();
         let proposal = self.self_group_messages_proposal(txn, messages).await?;
-        self.stage_self_group_message_commit(txn, signer, proposal)
+        self.stage_self_group_message_commit(txn, signer, proposal, None)
             .await
     }
 
-    /// Stages a self-group commit whose only payload is an `AppEphemeral`
-    /// proposal.
+    /// Stages a self-group commit whose payload is an `AppEphemeral` proposal
+    /// and, optionally, an update of a component in the T group context.
     ///
     /// The proposal travels on a forced self-update. The commit shape mirrors
     /// `stage_apq_invite` minus the invitees, so it carries no welcome or
@@ -220,6 +242,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
         proposal: Proposal,
+        app_data_update: Option<ComponentData>,
     ) -> Result<ApqGroupOperationParamsOut> {
         // Set the AAD for a group operation without any added users.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -231,11 +254,15 @@ impl Group {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .add_t_proposal(proposal)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .add_t_proposal(proposal)
+                .create_group_info(true);
+        if let Some(component) = app_data_update {
+            builder = builder.add_t_app_data_update(component);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -330,6 +357,9 @@ impl Group {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
                     SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
+                    SelfGroupMessage::AccountDeleted(AccountDeleted {}) => {
+                        extracted.account_deleted = true;
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -351,6 +381,8 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
     /// Chats the sender deleted.
     pub(crate) deleted_chats: Vec<DeletedChat>,
+    /// Whether the sender is deleting the account.
+    pub(crate) account_deleted: bool,
 }
 
 impl SelfGroupPayload {
@@ -359,6 +391,7 @@ impl SelfGroupPayload {
             && self.token_seeds.is_empty()
             && self.blocked_contacts.is_empty()
             && self.deleted_chats.is_empty()
+            && !self.account_deleted
     }
 }
 
@@ -516,11 +549,11 @@ mod derivation_tests {
     };
     use airprotos::client::{
         app_data::GroupAppData,
-        component::AIR_COMPONENT_ID,
+        component::{AIR_COMPONENT_ID, AirComponent},
         group::GroupData,
         self_group::{
-            AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
-            SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
+            AccountDeleted, AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate,
+            ContactBlocked, SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
         },
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
@@ -810,6 +843,7 @@ mod derivation_tests {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                deleted: None,
             }
             .to_extension()
             .unwrap(),
@@ -876,6 +910,61 @@ mod derivation_tests {
 
         assert_eq!(extracted.updates, vec![update]);
         assert!(extracted.token_seeds.is_empty());
+        assert!(!extracted.account_deleted);
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_account_deleted() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (sg_signer, signer) = self_group_signer()?;
+        let user_id = UserId::random("example.com".parse()?);
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
+
+        group
+            .stage_self_group_messages(
+                &mut txn,
+                &sg_signer,
+                vec![SelfGroupMessage::AccountDeleted(AccountDeleted {})],
+            )
+            .await?;
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
+
+        assert!(extracted.account_deleted);
+        assert!(!extracted.is_empty());
+        assert!(extracted.updates.is_empty());
+
+        // The commit marks the group as deleted, nothing else of the Air
+        // component changes.
+        let before = GroupAppData::air_component(group.mls_group().extensions())
+            .expect("self group has an Air component");
+        assert_eq!(before.deleted, None);
+        let after = GroupAppData::air_component(staged.group_context().extensions())
+            .expect("self group has an Air component");
+        assert!(after.deleted.is_some());
+        assert_eq!(
+            AirComponent {
+                deleted: None,
+                ..after
+            },
+            before
+        );
 
         txn.commit().await?;
         Ok(())
@@ -906,7 +995,7 @@ mod derivation_tests {
             )
             .await?;
         group
-            .stage_self_group_message_commit(&mut txn, &sg_signer, proposal)
+            .stage_self_group_message_commit(&mut txn, &sg_signer, proposal, None)
             .await?;
 
         let mut receiver = Group::load(&mut txn, group.group_id())

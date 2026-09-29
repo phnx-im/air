@@ -8,7 +8,7 @@ use aircommon::{crypto::errors::EncryptionError, identifiers::UserId};
 use airprotos::{
     client::{
         group::{EncryptedGroupTitle, GroupData, GroupProfile},
-        self_group::LinkedDevice,
+        self_group::{LinkedDevice, SelfGroupMessage},
     },
     delivery_service::v1::StorageObjectType,
 };
@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
+    clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
@@ -39,6 +40,8 @@ enum ChatOperationType {
     Delete,
     Update(Option<ChatAttributes>, DerivationEpoch),
     ApqUpdate(DerivationEpoch),
+    /// Sends messages to the siblings on a self-group commit.
+    SelfGroupMessages(Vec<SelfGroupMessage>),
 }
 
 /// Whether a self-update commit also opens a new virtual-client derivation
@@ -202,6 +205,14 @@ impl ChatOperation {
         }
     }
 
+    /// Sends the messages on a commit to the self group with the given chat id.
+    pub(crate) fn self_group_messages(chat_id: ChatId, messages: Vec<SelfGroupMessage>) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::SelfGroupMessages(messages),
+        }
+    }
+
     /// Check whether the operation is still valid given the current state of
     /// the group. If the operation is partially valid (e.g. one of the users to
     /// add is already a member), refine the operation to only include the valid
@@ -230,7 +241,8 @@ impl ChatOperation {
             | ChatOperationType::Leave
             | ChatOperationType::Delete
             | ChatOperationType::Update(..)
-            | ChatOperationType::ApqUpdate(_) => {}
+            | ChatOperationType::ApqUpdate(_)
+            | ChatOperationType::SelfGroupMessages(_) => {}
         }
         Ok(())
     }
@@ -271,6 +283,9 @@ impl ChatOperation {
             ChatOperationType::ApqUpdate(derivation_epoch) => {
                 self.execute_apq_self_update(context, derivation_epoch)
                     .await
+            }
+            ChatOperationType::SelfGroupMessages(messages) => {
+                self.execute_self_group_messages(context, messages).await
             }
         }
     }
@@ -501,6 +516,30 @@ impl ChatOperation {
                     derivation_epoch,
                 )
                 .await
+            })
+            .await?;
+        job.execute(context).await
+    }
+
+    async fn execute_self_group_messages(
+        self,
+        context: &mut JobContext<'_, '_>,
+        messages: Vec<SelfGroupMessage>,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let job = context
+            .db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                let signer = OwnClientInfo::load(&mut *txn)
+                    .await?
+                    .self_group_signing_key
+                    .context("self-group signer was not initialized")?;
+                let group = Group::load_verified_with_chat_id(&mut *txn, self.chat_id)
+                    .await?
+                    .with_context(|| format!("No group with chat id {}", self.chat_id))?;
+                PendingChatOperation::create_self_group_messages(txn, &signer, group, messages)
+                    .await
             })
             .await?;
         job.execute(context).await

@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
+    component::ComponentData,
     group::{
         CommitBuilder as MlsGroupCommitBuilder, CommitBuilderStageError, CommitMessageBundle,
         CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, GroupId, Initial, MlsGroup,
         QueuedProposal,
     },
     prelude::{
-        InvalidExtensionError, LeafNodeIndex, LeafNodeParameters, PreSharedKeyProposal, Proposal,
-        ProposalType,
+        AppDataUpdateProposal, InvalidExtensionError, LeafNodeIndex, LeafNodeParameters,
+        PreSharedKeyProposal, Proposal, ProposalType,
     },
     storage::OpenMlsProvider,
 };
@@ -111,6 +112,7 @@ struct ConfigValues {
     consume_proposal_store: Option<bool>,
     force_self_update: Option<bool>,
     t_proposals: Vec<Proposal>,
+    t_app_data_updates: Vec<ComponentData>,
     t_leaf_node_parameters: Option<LeafNodeParameters>,
     pq_leaf_node_parameters: Option<LeafNodeParameters>,
     proposed_adds: Vec<ApqKeyPackage>,
@@ -233,6 +235,13 @@ impl<'a> CommitBuilder<'a> {
             p.proposal_type() != ProposalType::Add && p.proposal_type() != ProposalType::Remove
         });
         self.values.t_proposals.extend(iter);
+        self
+    }
+
+    /// Sets a component in the app data dictionary of the traditional group's
+    /// context.
+    pub fn add_t_app_data_update(mut self, component: ComponentData) -> Self {
+        self.values.t_app_data_updates.push(component);
         self
     }
 
@@ -366,13 +375,23 @@ impl<'a> CommitBuilder<'a> {
             }
             None => t_builder,
         };
+        let t_app_data_update_proposals = self.values.t_app_data_updates.iter().map(|component| {
+            Proposal::AppDataUpdate(Box::new(AppDataUpdateProposal::update(
+                component.id(),
+                component.data().to_vec(),
+            )))
+        });
         let mut t_builder = t_builder
             .add_proposal(psk_proposal)
             .add_proposal(Proposal::AppDataUpdate(Box::new(app_data_update_proposal)))
+            .add_proposals(t_app_data_update_proposals)
             .load_psks(provider.storage())?
             .create_group_info(self.values.create_group_info);
         let mut updater = t_builder.app_data_dictionary_updater();
         updater.set(apq_info_component_data);
+        for component in self.values.t_app_data_updates {
+            updater.set(component);
+        }
         let changes = updater.changes();
         t_builder.with_app_data_dictionary_updates(changes);
         let t_result = t_builder

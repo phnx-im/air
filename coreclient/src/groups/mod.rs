@@ -2763,6 +2763,7 @@ impl NewGroupContext {
             is_self_group,
             safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
             profile: None,
+            deleted: None,
         }
     }
 

@@ -41,6 +41,7 @@ use crate::{
     clients::{
         api_clients::ApiClients,
         block_contact,
+        own_client_info::{OwnClientInfo, UnlinkReason},
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -104,6 +105,13 @@ async fn apply_self_group_payload(
         chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
     } else {
         chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats).await?;
+    }
+
+    // On our own echo there is nothing to do. The client that runs this will tears itself down
+    // after the announcement.
+    if payload.account_deleted && !own_echo {
+        error!("the account was deleted by another device of this user");
+        OwnClientInfo::mark_account_unlinked(&mut *txn, UnlinkReason::AccountDeleted).await?;
     }
 
     Ok(())

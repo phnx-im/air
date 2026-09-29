@@ -45,6 +45,7 @@ pub use crate::{
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersResult,
         linked_devices::{LinkedDevicesSetting, current_platform},
+        own_client_info::UnlinkReason,
         safety_code::SafetyCode,
         user_settings::{
             DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
@@ -52,7 +53,7 @@ pub use crate::{
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },

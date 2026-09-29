@@ -378,6 +378,7 @@
   "deleteAccountScreen_confirmationInputLabel": "Введіть 'delete' для підтвердження.",
   "deleteAccountScreen_confirmButtonText": "Видалити",
   "deleteAccountScreen_deleteAccountError": "Зачекайте трохи й спробуйте ще раз.",
+  "unlinkedDevice_accountDeleted": "Ваш обліковий запис Air було видалено на іншому пристрої. Цей пристрій скинуто.",
   "appOutdatedScreen_title": "Потрібне оновлення застосунку",
   "appOutdatedScreen_message": "Оновіть Air, щоб і далі ним користуватися",
   "appOutdatedScreen_descriptionAppStore": "Відкрийте App Store і оновіть Air.",

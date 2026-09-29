@@ -131,9 +131,30 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
+class AirComponentDebugInfo {
+  final AirFeatures features;
+  final bool isSelfGroup;
+
+  const AirComponentDebugInfo({
+    required this.features,
+    required this.isSelfGroup,
+  });
+
+  @override
+  int get hashCode => features.hashCode ^ isSelfGroup.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AirComponentDebugInfo &&
+          runtimeType == other.runtimeType &&
+          features == other.features &&
+          isSelfGroup == other.isSelfGroup;
+}
+
 class AppDataDebugInfo {
   final List<String> components;
-  final AirComponent? airComponent;
+  final AirComponentDebugInfo? airComponent;
 
   const AppDataDebugInfo({required this.components, this.airComponent});
 

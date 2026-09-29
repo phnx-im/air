@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT unlink_reason AS \"unlink_reason: UnlinkReason\" FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "unlink_reason: UnlinkReason",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "unlink_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "e4285d0b2a039d31b1083cfc8f69afc75a7464d1ed03450cce58483b2b2b25cc"
+}

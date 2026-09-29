@@ -393,6 +393,7 @@
   "deleteAccountScreen_confirmationInputLabel": "Skriv 'delete' för att bekräfta.",
   "deleteAccountScreen_confirmButtonText": "Radera Air-konto",
   "deleteAccountScreen_deleteAccountError": "Vänta en stund och försök igen.",
+  "unlinkedDevice_accountDeleted": "Ditt Air-konto raderades från en annan enhet. Den här enheten har återställts.",
   "appOutdatedScreen_title": "Programuppdatering krävs",
   "appOutdatedScreen_message": "Uppdatera för att fortsätta använda Air",
   "appOutdatedScreen_descriptionAppStore": "Öppna App Store och uppdatera Air.",

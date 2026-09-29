@@ -1973,6 +1973,10 @@
   "@deleteAccountScreen_deleteAccountError": {
     "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
   },
+  "unlinkedDevice_accountDeleted": "Your Air account was deleted from another device. This device has been reset.",
+  "@unlinkedDevice_accountDeleted": {
+    "description": "Notice shown after this device reset itself because the account was deleted on another of the user's devices."
+  },
 
   "appOutdatedScreen_title": "Software update required",
   "@appOutdatedScreen_title": {

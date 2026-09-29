@@ -228,6 +228,8 @@ async fn complete_sent_messages(
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.
             SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
+            // Nothing to persist
+            SelfGroupMessage::AccountDeleted(_) => {}
         }
     }
     Ok(())

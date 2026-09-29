@@ -378,6 +378,7 @@
   "deleteAccountScreen_confirmationInputLabel": "输入 'delete' 以确认。",
   "deleteAccountScreen_confirmButtonText": "删除",
   "deleteAccountScreen_deleteAccountError": "请稍等片刻，然后重试。",
+  "unlinkedDevice_accountDeleted": "你的 Air 账号已在另一台设备上被删除。此设备已重置。",
   "appOutdatedScreen_title": "需要更新软件",
   "appOutdatedScreen_message": "请更新以继续使用 Air",
   "appOutdatedScreen_descriptionAppStore": "打开 App Store，然后更新 Air。",
