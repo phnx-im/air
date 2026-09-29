@@ -12,7 +12,6 @@ import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -564,8 +563,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         );
       case SignUpErrorCode.challengeRejected:
         _goTo(_Step.invitationCode);
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.invitationCodeScreen_error_invalid,
+          tone: .danger,
         );
       case SignUpErrorCode.internal:
         showErrorDialog(
@@ -629,8 +629,8 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       if (!mounted || !reportFailure) return false;
       setState(() => _isAddingUsername = false);
       showSnackBarStandalone(
-        (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
-        tone: SnackbarTone.danger,
+        (loc) => loc.usernameOnboarding_error,
+        tone: .danger,
       );
       return false;
     }

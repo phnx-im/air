@@ -57,8 +57,7 @@ void main() {
       ),
     );
 
-    void showLabel() =>
-        showSnackBarStandalone((_) => const SnackBar(content: Text(label)));
+    void showLabel() => showSnackBarStandalone((_) => label, tone: .success);
 
     setUp(() {
       scaffoldMessengerKey.currentState?.clearSnackBars();

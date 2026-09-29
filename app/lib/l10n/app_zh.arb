@@ -383,7 +383,6 @@
   "contactRequestDialog_confirm": "接受",
   "contactRequestDialog_error_fatal": "接受联系请求失败",
   "contactRequestDialog_error_incompatibleClient": "接受联系请求失败。请将 Air 更新到最新版本后重试。",
-  "errorBanner_ok": "确定",
   "errorDialog_title": "出了点问题",
   "errorDialog_confirm": "好",
   "memberSelectionList_client_not_supported": "此联系人的应用版本过旧，需要更新。",

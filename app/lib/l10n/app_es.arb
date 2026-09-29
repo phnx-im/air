@@ -398,7 +398,6 @@
   "contactRequestDialog_confirm": "Aceptar",
   "contactRequestDialog_error_fatal": "No se pudo aceptar la solicitud de contacto",
   "contactRequestDialog_error_incompatibleClient": "No se pudo aceptar la solicitud de contacto. Actualiza Air a la última versión y vuelve a intentarlo.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Algo ha salido mal",
   "errorDialog_confirm": "De acuerdo",
   "memberSelectionList_client_not_supported": "Este contacto tiene una versión antigua de la app que necesita actualizarse.",

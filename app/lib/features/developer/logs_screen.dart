@@ -21,7 +21,7 @@ import 'package:air/platform/method_channel.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart'
-    show CircularProgressIndicator, MaterialPageRoute, SelectableText, SnackBar;
+    show CircularProgressIndicator, MaterialPageRoute, SelectableText;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -623,10 +623,9 @@ class _TextCard extends StatelessWidget {
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: text));
                 showSnackBarStandalone(
-                  (loc) => SnackBar(
-                    content: Text('Copied $caption'),
-                    duration: const Duration(seconds: 2),
-                  ),
+                  (_) => 'Copied $caption',
+                  tone: .success,
+                  duration: const Duration(seconds: 2),
                 );
               },
             ),

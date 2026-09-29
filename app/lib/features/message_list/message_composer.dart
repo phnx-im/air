@@ -16,7 +16,6 @@ import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
-import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -195,10 +194,8 @@ class _MessageComposerState extends State<MessageComposer>
     _navigationCubit.shareConsumed();
     if (share.droppedAttachments > 0) {
       showSnackBarStandalone(
-        (loc) => SnackBar(
-          content: Text(loc.shareScreen_droppedItems(share.droppedAttachments)),
-        ),
-        tone: SnackbarTone.danger,
+        (loc) => loc.shareScreen_droppedItems(share.droppedAttachments),
+        tone: .danger,
       );
     }
     final text = share.text;
@@ -459,8 +456,8 @@ class _MessageComposerState extends State<MessageComposer>
     } catch (e, stackTrace) {
       _log.severe("Failed to send message", e, stackTrace);
       showSnackBarStandalone(
-        (loc) => SnackBar(content: Text(loc.composer_error_sendMessage)),
-        tone: SnackbarTone.danger,
+        (loc) => loc.composer_error_sendMessage,
+        tone: .danger,
       );
       // Restore the text unless the user has started typing a new message.
       if (mounted && _inputController.text.trim().isEmpty) {
@@ -642,21 +639,17 @@ class _MessageComposerState extends State<MessageComposer>
                   :final actualSizeBytes,
                 ):
                   showSnackBarStandalone(
-                    (loc) => SnackBar(
-                      content: Text(
-                        loc.composer_error_attachment_too_large(
-                          loc.bytesToHumanReadable(actualSizeBytes.toInt()),
-                          loc.bytesToHumanReadable(maxSizeBytes.toInt()),
-                        ),
-                      ),
+                    (loc) => loc.composer_error_attachment_too_large(
+                      loc.bytesToHumanReadable(actualSizeBytes.toInt()),
+                      loc.bytesToHumanReadable(maxSizeBytes.toInt()),
                     ),
+                    tone: .danger,
                   );
                   break;
                 case UploadAttachmentError_DecodingError():
                   showSnackBarStandalone(
-                    (loc) => SnackBar(
-                      content: Text(loc.composer_error_attachment_decoding),
-                    ),
+                    (loc) => loc.composer_error_attachment_decoding,
+                    tone: .danger,
                   );
                   break;
                 case null:
@@ -668,7 +661,10 @@ class _MessageComposerState extends State<MessageComposer>
               }
             } catch (e) {
               _log.severe("Failed to upload attachment: $e", e);
-              showErrorBannerStandalone((loc) => loc.composer_error_attachment);
+              showSnackBarStandalone(
+                (loc) => loc.composer_error_attachment,
+                tone: .danger,
+              );
             } finally {
               if (isTempFile) {
                 await _deleteTempFile(file.path);

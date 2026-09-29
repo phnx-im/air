@@ -398,7 +398,6 @@
   "contactRequestDialog_confirm": "Acceptera",
   "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan",
   "contactRequestDialog_error_incompatibleClient": "Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Något gick fel",
   "errorDialog_confirm": "Okay",
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",

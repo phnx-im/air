@@ -45,4 +45,6 @@ abstract final class SnackbarTokens {
     right: S.s16,
     bottom: S.s96,
   );
+
+  static const Duration duration = Duration(seconds: 4);
 }

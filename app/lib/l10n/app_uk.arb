@@ -383,7 +383,6 @@
   "contactRequestDialog_confirm": "Прийняти",
   "contactRequestDialog_error_fatal": "Не вдалося прийняти запит на контакт",
   "contactRequestDialog_error_incompatibleClient": "Не вдалося прийняти запит на контакт. Оновіть Air до найновішої версії й спробуйте ще раз.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Щось пішло не так",
   "errorDialog_confirm": "OK",
   "memberSelectionList_client_not_supported": "У цього контакту застаріла версія застосунку, її потрібно оновити.",

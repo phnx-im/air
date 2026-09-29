@@ -279,8 +279,9 @@ class _SubmitHandler {
     } catch (e) {
       // fatal error
       _log.severe("Failed to create connection: $e", e);
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.newConnectionDialog_error(username.plaintext),
+        tone: .danger,
       );
     } finally {
       isSubmitting.value = false;
