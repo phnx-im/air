@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::pin::Pin;
+use std::{ops::ControlFlow, pin::Pin};
 
 use airprotos::{
     common::v1::ClientMetadata,
@@ -27,15 +27,14 @@ use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::Leaf
 use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{
-        client_record::QsClientRecord,
-        queue::{Queues, user_clients::ClientSession},
-        user_record::UserRecord,
+        client_api::queues::AckOutcome, client_record::QsClientRecord,
+        queue::user_clients::ClientSession, user_record::UserRecord,
     },
     version::VerifiedClientVersion,
 };
@@ -505,7 +504,7 @@ impl QueueService for GrpcQs {
             },
             user_id,
         ) = self
-            .verify_client_auth_with_user_id(SignedRequest::<_, 1>::new(
+            .verify_queue_client_auth_with_user_id(SignedRequest::<_, 1>::new(
                 init_request,
                 payload_bytes.into(),
             ))
@@ -550,7 +549,7 @@ impl QueueService for GrpcQs {
             .ok();
 
         let handler = QueueSessionHandler {
-            queues: self.qs.queues.clone(),
+            qs: self.qs.clone(),
             client_id,
             session,
         };
@@ -560,23 +559,29 @@ impl QueueService for GrpcQs {
 }
 
 struct QueueSessionHandler {
-    queues: Queues,
+    qs: Qs,
     client_id: identifiers::QsClientId,
     session: ClientSession,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
-    async fn handle(&mut self, request: ListenRequest) -> Result<(), Status> {
+    async fn handle(&mut self, request: ListenRequest) -> Result<ControlFlow<()>, Status> {
         match request.request {
             Some(listen_request::Request::Ack(AckListenRequest {
                 up_to_sequence_number,
-            })) => {
-                self.queues
-                    .ack(self.client_id, up_to_sequence_number)
-                    .await?;
-            }
+            })) => match self
+                .qs
+                .ack_queue(self.client_id, up_to_sequence_number)
+                .await?
+            {
+                AckOutcome::ClientKept => {}
+                AckOutcome::ClientDeleted => {
+                    debug!(client_id = ?self.client_id, "client record is gone, ending listen session");
+                    return Ok(ControlFlow::Break(()));
+                }
+            },
             Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
-                self.queues.trigger_fetch(self.client_id).await?;
+                self.qs.queues.trigger_fetch(self.client_id).await?;
             }
             Some(listen_request::Request::ClientState(ReportClientStateListenRequest {
                 encrypted_blob,
@@ -598,7 +603,7 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
                 return Err(ProcessListenQueueRequestError::EmptyRequest.into());
             }
         }
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 }
 

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt;
+use std::{fmt, ops::ControlFlow};
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
@@ -821,7 +821,7 @@ struct UsernameSessionHandler {
 }
 
 impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
-    async fn handle(&mut self, request: ListenUsernameRequest) -> Result<(), Status> {
+    async fn handle(&mut self, request: ListenUsernameRequest) -> Result<ControlFlow<()>, Status> {
         let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
         };
@@ -829,7 +829,7 @@ impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
             return Err(ListenHandleProtocolViolation::MissingMessageId.into());
         };
         self.queues.ack(message_id.into()).await?;
-        Ok(())
+        Ok(ControlFlow::Continue(()))
     }
 }
 

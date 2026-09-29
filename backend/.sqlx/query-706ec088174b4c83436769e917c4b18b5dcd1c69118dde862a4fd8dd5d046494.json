@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    c.user_id as \"user_id: QsUserId\"\n                FROM\n                    qs_client_record c\n                JOIN qs_user_record u ON u.user_id = c.user_id\n                WHERE\n                    c.client_id = $1\n                    AND c.deleted_at IS NULL\n                    AND u.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: QsUserId",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "qs_client_record",
+            "name": "user_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "706ec088174b4c83436769e917c4b18b5dcd1c69118dde862a4fd8dd5d046494"
+}
