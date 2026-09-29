@@ -7,6 +7,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
@@ -521,8 +522,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       _goTo(_Step.profile);
       return;
     }
-    showErrorBannerStandalone(
-      (loc) => switch (error.code) {
+    showErrorDialog(
+      context,
+      message: (loc) => switch (error.code) {
         .missing => loc.invitationCodeScreen_error_missing,
         .invalid => loc.invitationCodeScreen_error_invalid,
         .internal => loc.invitationCodeScreen_error_internal(
@@ -556,8 +558,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       case SignUpErrorCode.challengeRequired:
         final steps = _steps(context.read<RegistrationCubit>().state);
         _goTo(steps.first);
-        showErrorBannerStandalone(
-          (loc) => loc.signUpScreen_error_challengeRequired,
+        showErrorDialog(
+          context,
+          message: (loc) => loc.signUpScreen_error_challengeRequired,
         );
       case SignUpErrorCode.challengeRejected:
         _goTo(_Step.invitationCode);
@@ -565,8 +568,10 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
           (loc) => loc.invitationCodeScreen_error_invalid,
         );
       case SignUpErrorCode.internal:
-        showErrorBannerStandalone(
-          (loc) => loc.signUpScreen_error_register(error.message ?? ""),
+        showErrorDialog(
+          context,
+          message: (loc) =>
+              loc.signUpScreen_error_register(error.message ?? ""),
         );
     }
   }

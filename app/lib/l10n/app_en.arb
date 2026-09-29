@@ -792,10 +792,6 @@
       }
     }
   },
-  "linkedDevicesScreen_errorDialog_confirm": "Okay",
-  "@linkedDevicesScreen_errorDialog_confirm": {
-    "description": "Button that acknowledges and closes a device error dialog."
-  },
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "description": "Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.",
@@ -1927,9 +1923,9 @@
   "@deleteAccountScreen_confirmButtonText": {
     "description": "Confirming button of the delete account dialog."
   },
-  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
+  "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Error shown when deleting the account fails on the server."
+    "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
   },
 
   "appOutdatedScreen_title": "Software update required",
@@ -1986,6 +1982,15 @@
   "errorBanner_ok": "OK",
   "@errorBanner_ok": {
     "description": "Button that dismisses the error banner at the top of the screen."
+  },
+
+  "errorDialog_title": "Something went wrong",
+  "@errorDialog_title": {
+    "description": "Default title of the modal dialog that reports a failed action."
+  },
+  "errorDialog_confirm": "Okay",
+  "@errorDialog_confirm": {
+    "description": "Button that acknowledges and closes an error dialog."
   },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",

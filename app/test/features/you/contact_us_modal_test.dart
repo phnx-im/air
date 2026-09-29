@@ -93,6 +93,22 @@ void main() {
         ),
       ).called(1);
     });
+
+    testWidgets('a failing launcher is reported in a dialog', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(initialSubject: "Other", initialBody: "Fire! Fire! Fire!"),
+      );
+      await tester.pumpAndSettle();
+
+      when(() => launcher.launchUrl(any())).thenThrow(Exception('no client'));
+
+      await tester.tap(find.byType(Button));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text("Couldn't launch email client"), findsOneWidget);
+    });
   });
 
   group('showContactUs', () {

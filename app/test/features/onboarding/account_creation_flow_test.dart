@@ -157,6 +157,11 @@ void main() {
       await submit(tester, 'Join Air');
 
       expect(find.text('Enter invite code'), findsOneWidget);
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(
+        find.text('Invalid invite code. Check your code, then try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a short code never reaches the server', (tester) async {
@@ -390,6 +395,30 @@ void main() {
         await submit(tester, 'Create');
 
         expect(find.text('Enter invite code'), findsOneWidget);
+        expect(find.text('Something went wrong'), findsOneWidget);
+        expect(
+          find.text(
+            'This server now asks for an invite code. Enter one to carry on.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an internal sign up error is reported in a dialog', (
+        tester,
+      ) async {
+        when(() => registrationCubit.signUp()).thenAnswer(
+          (_) async => const SignUpError(code: .internal, message: 'boom'),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        await submit(tester, 'Create');
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Something went wrong'), findsOneWidget);
+        expect(find.textContaining('boom'), findsOneWidget);
       });
     });
 
