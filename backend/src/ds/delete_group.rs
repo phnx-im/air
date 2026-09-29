@@ -48,9 +48,9 @@ impl DsGroupState {
 
         self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
 
-        // Everything seems to be okay.
-        // No need to do anything else here, since the group is getting deleted
-        // anyway.
+        // Nobody is left to process the commit of a group's only member, so we
+        // delete the group.
+        self.deleted = self.member_profiles.len() == 1;
 
         Ok(processed_assisted_message_plus.serialized_mls_message)
     }
@@ -98,9 +98,12 @@ impl DsGroupState {
             MembershipCheck::RatchetTree,
         )?;
 
-        // Everything seems to be okay.
-        // No need to do anything else here, since the group is getting deleted
-        // anyway.
+        // The T leg of the group is the source of truth for the DS member
+        // profiles, so we only mark the group as deleted if the T leg is the
+        // only member left.
+        let sole_member = t_group_state.member_profiles.len() == 1;
+        t_group_state.deleted = sole_member;
+        pq_group_state.deleted = sole_member;
 
         Ok(SerializedMlsMessage::combine_apq(
             t_serialized_message,
@@ -165,5 +168,289 @@ impl DsGroupState {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use aircommon::{
+        crypto::aead::keys::EncryptedUserProfileKey,
+        identifiers::{QsReference, SealedClientReference},
+        time::TimeStamp,
+    };
+    use apqmls::{
+        ApqCiphersuite, ApqMlsGroup,
+        authentication::{
+            ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme, ApqSigner,
+        },
+        messages::{ApqKeyPackage, ApqMlsMessageOut},
+    };
+    use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
+    use mls_assist::{
+        group::Group,
+        messages::AssistedMessageOut,
+        openmls::prelude::{
+            Ciphersuite, HpkeCiphertext, KeyPackage, LeafNodeIndex, MlsGroup, MlsMessageBodyIn,
+            MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
+        },
+        openmls_rust_crypto::OpenMlsRustCrypto,
+        openmls_traits::signatures::Signer,
+    };
+    use tls_codec::{Deserialize, DeserializeBytes, Serialize};
+
+    use crate::ds::{group_state::MemberProfile, process::Provider};
+
+    use super::*;
+
+    const T_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
+
+    /// Both legs sign with Ed25519, since ML-DSA key generation would overflow
+    /// the test stack.
+    fn apq_ciphersuite() -> ApqCiphersuite {
+        ApqCiphersuite::new(
+            T_CIPHERSUITE,
+            Ciphersuite::MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519,
+        )
+    }
+
+    struct Client {
+        provider: OpenMlsRustCrypto,
+        signer: ApqSignatureKeyPair,
+        credential: ApqCredentialWithKey,
+    }
+
+    impl Client {
+        fn new() -> Self {
+            let signer =
+                ApqSignatureKeyPair::new(ApqSignatureScheme::from(apq_ciphersuite())).unwrap();
+            let credential = ApqCredentialWithKey::new(b"client", &signer);
+            Self {
+                provider: OpenMlsRustCrypto::default(),
+                signer,
+                credential,
+            }
+        }
+    }
+
+    fn qs_reference() -> QsReference {
+        QsReference {
+            client_homeserver_domain: "example.com".parse().unwrap(),
+            sealed_reference: SealedClientReference::from(HpkeCiphertext {
+                kem_output: vec![1, 2, 3].into(),
+                ciphertext: vec![4, 5, 6].into(),
+            }),
+        }
+    }
+
+    /// Returns the DS state of `group` as its creation leaves it, i.e. with
+    /// the creator's member profile only.
+    fn ds_group_state(creator: &Client, group: &MlsGroup, signer: &impl Signer) -> DsGroupState {
+        let group_info = group
+            .export_group_info(creator.provider.crypto(), signer, false)
+            .unwrap()
+            .tls_serialize_detached()
+            .unwrap();
+        let MlsMessageBodyIn::GroupInfo(group_info) =
+            MlsMessageIn::tls_deserialize_exact(group_info)
+                .unwrap()
+                .extract()
+        else {
+            panic!("expected a group info");
+        };
+        let provider = Provider::default();
+        let ds_group =
+            Group::new(&provider, group_info, group.export_ratchet_tree().into()).unwrap();
+        let room_state =
+            VerifiedRoomState::new(b"creator".to_vec(), RoomPolicy::default_trusted_private())
+                .unwrap();
+        DsGroupState::new(
+            provider,
+            ds_group,
+            EncryptedUserProfileKey::dummy(),
+            qs_reference(),
+            room_state,
+        )
+    }
+
+    /// Adds the member profiles the DS records when members join.
+    fn add_joiner_profiles(state: &mut DsGroupState) {
+        let epoch = state.group().epoch();
+        let joiners: Vec<_> = state
+            .group()
+            .members()
+            .map(|member| member.index)
+            .filter(|index| !state.member_profiles.contains_key(index))
+            .collect();
+        for leaf_index in joiners {
+            let profile = MemberProfile {
+                leaf_index,
+                client_queue_config: qs_reference(),
+                activity_time: TimeStamp::now(),
+                activity_epoch: epoch,
+                encrypted_user_profile_key: EncryptedUserProfileKey::dummy(),
+            };
+            state.member_profiles.insert(leaf_index, profile);
+        }
+    }
+
+    fn others(group: &MlsGroup) -> Vec<LeafNodeIndex> {
+        group
+            .members()
+            .map(|member| member.index)
+            .filter(|index| *index != group.own_leaf_index())
+            .collect()
+    }
+
+    /// Stages a commit of the creator and returns it with the new group info.
+    fn t_commit(
+        creator: &Client,
+        group: &mut MlsGroup,
+        adds: Vec<KeyPackage>,
+        removals: Vec<LeafNodeIndex>,
+    ) -> (MlsMessageOut, MlsMessageOut) {
+        let (commit, _welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .propose_adds(adds)
+            .propose_removals(removals)
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+        (commit, group_info.unwrap().into())
+    }
+
+    fn assisted(message: MlsMessageOut, group_info: MlsMessageOut) -> AssistedMessageIn {
+        let bytes = AssistedMessageOut::new(message, Some(group_info))
+            .tls_serialize_detached()
+            .unwrap();
+        AssistedMessageIn::tls_deserialize_exact_bytes(&bytes).unwrap()
+    }
+
+    /// Deletes a group of `size` members as its creator and returns whether
+    /// the DS marks the group state as deleted.
+    fn delete_t_group(size: usize) -> bool {
+        let creator = Client::new();
+        let mut group = MlsGroup::builder()
+            .ciphersuite(T_CIPHERSUITE)
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .build(
+                &creator.provider,
+                creator.signer.t_signer(),
+                creator.credential.t_credential.clone(),
+            )
+            .unwrap();
+        let key_packages: Vec<_> = (1..size)
+            .map(|_| {
+                let joiner = Client::new();
+                KeyPackage::builder()
+                    .build(
+                        T_CIPHERSUITE,
+                        &joiner.provider,
+                        joiner.signer.t_signer(),
+                        joiner.credential.t_credential,
+                    )
+                    .unwrap()
+                    .key_package()
+                    .clone()
+            })
+            .collect();
+        if !key_packages.is_empty() {
+            t_commit(&creator, &mut group, key_packages, Vec::new());
+            group.merge_pending_commit(&creator.provider).unwrap();
+        }
+
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        add_joiner_profiles(&mut state);
+
+        let removed = others(&group);
+        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed);
+        state.delete_group(assisted(commit, group_info)).unwrap();
+
+        state.is_deleted()
+    }
+
+    /// The APQ counterpart of [`delete_t_group`]. Returns the marker of the T
+    /// and the PQ leg state.
+    fn delete_apq_group(size: usize) -> (bool, bool) {
+        let creator = Client::new();
+        let mut group = ApqMlsGroup::builder()
+            .with_ciphersuite(apq_ciphersuite())
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .build(
+                &creator.provider,
+                &creator.signer,
+                creator.credential.clone(),
+            )
+            .unwrap();
+        let key_packages: Vec<_> = (1..size)
+            .map(|_| {
+                let joiner = Client::new();
+                ApqKeyPackage::builder()
+                    .build(
+                        &joiner.provider,
+                        apq_ciphersuite(),
+                        &joiner.signer,
+                        joiner.credential,
+                    )
+                    .unwrap()
+                    .into_key_package()
+            })
+            .collect();
+        if !key_packages.is_empty() {
+            group
+                .commit_builder()
+                .propose_adds(key_packages)
+                .finalize(&creator.provider, &creator.signer, |_| true, |_| true)
+                .unwrap();
+            group.merge_pending_commit(&creator.provider).unwrap();
+        }
+
+        // The DS records joiners on the T leg only.
+        let mut t_state = ds_group_state(&creator, &group.t_group, creator.signer.t_signer());
+        add_joiner_profiles(&mut t_state);
+        let mut pq_state = ds_group_state(&creator, group.pq_group(), creator.signer.pq_signer());
+
+        let removed = others(&group.t_group);
+        let bundle = group
+            .commit_builder()
+            .force_self_update(true)
+            .propose_removals(removed)
+            .create_group_info(true)
+            .finalize(&creator.provider, &creator.signer, |_| true, |_| true)
+            .unwrap();
+        let (t_commit, pq_commit) = bundle.commit.split();
+        let (t_group_info, pq_group_info) =
+            ApqMlsMessageOut::from(bundle.group_info.unwrap()).split();
+        DsGroupState::delete_apq_group(
+            &mut t_state,
+            &mut pq_state,
+            assisted(t_commit, t_group_info),
+            assisted(pq_commit, pq_group_info),
+        )
+        .unwrap();
+
+        (t_state.is_deleted(), pq_state.is_deleted())
+    }
+
+    #[test]
+    fn a_delete_by_the_only_member_deletes_the_group_state() {
+        assert!(delete_t_group(1));
+        assert_eq!(delete_apq_group(1), (true, true));
+    }
+
+    #[test]
+    fn a_delete_that_removes_other_members_keeps_the_group_state() {
+        assert!(!delete_t_group(2));
+        assert_eq!(delete_apq_group(2), (false, false));
     }
 }

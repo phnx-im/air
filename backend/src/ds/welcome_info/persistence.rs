@@ -210,7 +210,7 @@ mod test {
         .await?;
 
         let qgid = QualifiedGroupId::new(group_id, ds.own_domain.clone());
-        StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
+        StorableDsGroupData::<true>::delete(&pool, qgid.group_uuid()).await?;
 
         assert!(DsWelcomeInfo::load(&pool, group_id, epoch).await?.is_none());
 
