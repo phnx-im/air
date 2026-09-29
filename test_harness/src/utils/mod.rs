@@ -97,7 +97,7 @@ pub struct SpawnedApp {
     pub control_handle: ControlHandle,
     pub codes: Vec<String>,
     pub sent_challenges: SentChallenges,
-    pub max_devices: [MaxDevices; 2],
+    pub max_devices: [MaxDevices; 3],
     db_settings: DatabaseSettings,
     db_names: DbNames,
     stop: CancellationToken,
@@ -289,7 +289,11 @@ pub(crate) async fn spawn_app(
     .await
     .expect("Failed to connect to database.");
 
-    let max_devices = [ds.max_devices_handle(), qs.max_devices_handle()];
+    let max_devices = [
+        ds.max_devices_handle(),
+        auth_service.max_devices_handle(),
+        qs.max_devices_handle(),
+    ];
 
     let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
 

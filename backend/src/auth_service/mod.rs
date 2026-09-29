@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 use usernames::UsernameQueues;
 
 use crate::{
-    air_service::{BackendService, ServiceCreationError},
+    air_service::{BackendService, MaxDevices, ServiceCreationError},
     auth_service::{
         admission::{ChallengeSender, load_or_generate_endpoint_bucket_key},
         client_record::ClientRecord,
@@ -133,10 +133,12 @@ impl BackendService for AuthService {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
-        _max_devices: u32,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
-        let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
+        let username_queues =
+            UsernameQueues::new(db_pool.clone(), MaxDevices::new(max_devices), stop.clone())
+                .await?;
         let bucket_key = load_or_generate_ip_bucket_key(&db_pool).await?;
         let endpoint_bucket_key = load_or_generate_endpoint_bucket_key(&db_pool).await?;
         let auth_service = Self {
@@ -190,6 +192,11 @@ impl AuthService {
     /// Returns a reference to the database pool for spawning background tasks.
     pub fn db_pool(&self) -> &PgPool {
         &self.db_pool
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub fn max_devices_handle(&self) -> MaxDevices {
+        self.username_queues.max_devices_handle()
     }
 }
 

@@ -1551,7 +1551,11 @@ async fn listen_queue_version_status_expiring() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Listen stream eviction", skip_all)]
 async fn listen_stream_eviction() {
-    let mut setup = TestBackend::single().await;
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        max_devices: Some(2),
+        ..Default::default()
+    })
+    .await;
     let alice = setup.add_user().await;
 
     let alice_test_user = setup.get_user_mut(&alice);
@@ -1559,7 +1563,8 @@ async fn listen_stream_eviction() {
 
     let alice_user = alice_test_user.user.clone();
 
-    // Username messages stream is evicted when another stream is opened
+    // Every device of the user listens to the same username, so username
+    // message streams run side by side up to the device limit.
     let (mut stream_a, _responder_a) = alice_user.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_a.next().await,
@@ -1574,6 +1579,23 @@ async fn listen_stream_eviction() {
         "should receive empty message"
     );
 
+    for (label, stream) in [("first", &mut stream_a), ("second", &mut stream_b)] {
+        assert!(
+            timeout(Duration::from_millis(100), stream.next())
+                .await
+                .is_err(),
+            "{label} stream is still open"
+        );
+    }
+
+    // Beyond the device limit, the oldest username stream is evicted.
+    let (mut stream_c, _responder_c) = alice_user.listen_username(&username_record).await.unwrap();
+    assert_matches!(
+        stream_c.next().await,
+        Some(None),
+        "should receive empty message"
+    );
+
     assert!(
         timeout(Duration::from_millis(100), stream_a.next())
             .await
@@ -1581,12 +1603,14 @@ async fn listen_stream_eviction() {
             .is_none(),
         "first stream is closed"
     );
-    assert!(
-        timeout(Duration::from_millis(100), stream_b.next())
-            .await
-            .is_err(),
-        "second stream is still open"
-    );
+    for (label, stream) in [("second", &mut stream_b), ("third", &mut stream_c)] {
+        assert!(
+            timeout(Duration::from_millis(100), stream.next())
+                .await
+                .is_err(),
+            "{label} stream is still open"
+        );
+    }
 
     // QS events stream is evicted when another stream is opened
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
