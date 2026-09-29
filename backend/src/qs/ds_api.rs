@@ -236,8 +236,13 @@ mod tests {
         air_service::BackendService,
         messages::intra_backend::DsFanOutPayload,
         qs::{
-            PushNotificationError, client_record::persistence::tests::store_random_client_record,
-            queue::Queue, user_record::persistence::tests::store_random_user_record,
+            PushNotificationError,
+            client_record::persistence::tests::store_random_client_record,
+            queue::{
+                Queue,
+                tests::{enqueue_test_messages, queue_len},
+            },
+            user_record::{UserRecord, persistence::tests::store_random_user_record},
         },
     };
 
@@ -329,6 +334,66 @@ mod tests {
             assert_eq!(payload.payload, expected_payload);
             assert_eq!(payload.message_type, QsQueueMessageType::WelcomeBundle);
         }
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_skips_deleted_user(pool: PgPool) -> anyhow::Result<()> {
+        let domain: Fqdn = "example.com".parse()?;
+        let qs = Qs::initialize(
+            pool.clone(),
+            domain.clone(),
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+        // A pending message keeps the client record after the delete.
+        enqueue_test_messages(&pool, client.client_id, 1).await?;
+        UserRecord::soft_delete(&mut *pool.acquire().await?, user.user_id).await?;
+
+        let decryption_key = StorableClientIdDecryptionKey::load(&pool)
+            .await?
+            .expect("missing QS decryption key");
+        let sealed_reference =
+            decryption_key
+                .encryption_key()
+                .seal_client_config(ClientConfig {
+                    client_id: client.client_id,
+                    push_token_ear_key: None,
+                })?;
+        let payload = DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::WelcomeBundle,
+            payload: b"direct fan-out test".to_vec(),
+        });
+        let message = DsFanOutMessage {
+            payload: payload.clone(),
+            client_reference: QsReference {
+                client_homeserver_domain: domain,
+                sealed_reference,
+            },
+            suppress_notifications: false.into(),
+            broadcast_to_all_client_queues: false.into(),
+            virtual_client_hint: None,
+        };
+
+        let result = qs
+            .enqueue_in_own_transaction(client.client_id, &payload)
+            .await;
+        assert!(matches!(result, Err(EnqueueError::ClientNotFound)));
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        assert_eq!(queue_len(&pool, client.client_id).await?, 1);
 
         Ok(())
     }

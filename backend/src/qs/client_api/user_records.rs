@@ -97,7 +97,7 @@ impl Qs {
         Ok(())
     }
 
-    /// Delete a user record.
+    /// Marks a user record as deleted.
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_delete_user_record(
         &self,
@@ -105,7 +105,11 @@ impl Qs {
     ) -> Result<(), QsDeleteUserError> {
         let DeleteUserRecordParams { sender } = params;
 
-        UserRecord::delete(&self.db_pool, sender)
+        let mut connection = self.db_pool.acquire().await.map_err(|e| {
+            tracing::error!("Error acquiring connection: {:?}", e);
+            QsDeleteUserError::StorageError
+        })?;
+        UserRecord::soft_delete(&mut connection, sender)
             .await
             .map_err(|e| {
                 tracing::error!("Error deleting user record: {:?}", e);

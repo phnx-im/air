@@ -171,13 +171,19 @@ impl Queues {
         Ok(is_listening)
     }
 
+    /// Deletes the messages below `up_to_sequence_number` from the queue.
+    ///
+    /// Returns whether the queue is empty afterwards.
     pub(crate) async fn ack(
         &self,
         queue_id: QsClientId,
         up_to_sequence_number: u64,
-    ) -> Result<(), QueueError> {
-        Queue::delete(&self.pool, queue_id, up_to_sequence_number).await?;
-        Ok(())
+    ) -> Result<bool, QueueError> {
+        let mut txn = self.pool.begin().await?;
+        Queue::delete(txn.as_mut(), queue_id, up_to_sequence_number).await?;
+        let is_empty = Queue::is_empty(txn.as_mut(), queue_id).await?;
+        txn.commit().await?;
+        Ok(is_empty)
     }
 
     pub(crate) async fn trigger_fetch(&self, queue_id: QsClientId) -> Result<(), QueueError> {
@@ -529,5 +535,82 @@ pub(crate) mod persistence {
             .await?;
             Ok(())
         }
+
+        pub(super) async fn is_empty(
+            executor: impl PgExecutor<'_>,
+            queue_id: QsClientId,
+        ) -> sqlx::Result<bool> {
+            query_scalar!(
+                r#"SELECT NOT EXISTS (
+                    SELECT 1 FROM qs_queues WHERE queue_id = $1
+                ) AS "is_empty!""#,
+                queue_id as QsClientId,
+            )
+            .fetch_one(executor)
+            .await
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use sqlx::PgPool;
+
+    use crate::qs::{
+        client_record::persistence::tests::store_random_client_record,
+        user_record::{
+            UserRecord,
+            persistence::tests::{count_rows, store_random_user_record},
+        },
+    };
+
+    use super::*;
+
+    /// Puts messages with the sequence numbers `0..n` into the queue.
+    pub(crate) async fn enqueue_test_messages(
+        pool: &PgPool,
+        queue_id: QsClientId,
+        n: u64,
+    ) -> anyhow::Result<()> {
+        for sequence_number in 0..n {
+            let message = QueueMessage {
+                sequence_number,
+                ..Default::default()
+            };
+            Queue::enqueue(pool, queue_id, &message).await?;
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn queue_len(pool: &PgPool, queue_id: QsClientId) -> sqlx::Result<i64> {
+        sqlx::query_scalar("SELECT COUNT(*) FROM qs_queues WHERE queue_id = $1")
+            .bind(queue_id)
+            .fetch_one(pool)
+            .await
+    }
+
+    #[sqlx::test]
+    async fn ack(pool: PgPool) -> anyhow::Result<()> {
+        let queues = Queues::new(pool.clone(), CancellationToken::new()).await?;
+        let user = store_random_user_record(&pool).await?;
+        let user_id = user.user_id;
+        let client = store_random_client_record(&pool, user_id).await?;
+        let other_client = store_random_client_record(&pool, user_id).await?;
+        enqueue_test_messages(&pool, client.client_id, 2).await?;
+        enqueue_test_messages(&pool, other_client.client_id, 1).await?;
+        // The cleanup of a deleted user's records is not part of the ack.
+        UserRecord::soft_delete(&mut *pool.acquire().await?, user_id).await?;
+
+        assert!(!queues.ack(client.client_id, 1).await?);
+        assert_eq!(queue_len(&pool, client.client_id).await?, 1);
+
+        assert!(queues.ack(client.client_id, 2).await?);
+        assert_eq!(queue_len(&pool, client.client_id).await?, 0);
+
+        assert_eq!(queue_len(&pool, other_client.client_id).await?, 1);
+        assert_eq!(count_rows(&pool, "qs_client_record", user_id).await?, 2);
+        assert_eq!(count_rows(&pool, "qs_user_record", user_id).await?, 1);
+
+        Ok(())
     }
 }
