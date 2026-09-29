@@ -173,7 +173,7 @@ impl Chat {
     /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let title = self.attributes().map(|attrs| attrs.title());
-        info!(id =% self.id, ?title, "Storing chat");
+        info!(id =% self.id, "Storing chat");
         let title = title.unwrap_or_default();
         let picture = self
             .attributes()
