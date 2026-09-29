@@ -34,7 +34,7 @@ use crate::{
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{
         client_record::QsClientRecord,
-        queue::{ClientSessionGuard, Queues, client_state::MAX_ENCRYPTED_CLIENT_STATE_SIZE},
+        queue::{Queues, user_clients::ClientSession},
         user_record::UserRecord,
     },
     version::VerifiedClientVersion,
@@ -42,6 +42,9 @@ use crate::{
 
 /// Maximum number of key packages per batch to upload in one request.
 const MAX_KEY_PACKAGES_PER_BATCH: usize = 512;
+
+/// Maximum size in bytes of the encrypted client state payload.
+const MAX_ENCRYPTED_CLIENT_STATE_SIZE_BYTES: usize = 256;
 
 use super::Qs;
 
@@ -310,7 +313,7 @@ impl QueueService for GrpcQs {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
         };
         self.qs.qs_delete_client_record(&params).await?;
-        self.qs.queues.clear_client_state(params.sender);
+        self.qs.queues.disconnect(params.sender);
         Ok(Response::new(DeleteClientResponse {}))
     }
 
@@ -534,7 +537,7 @@ impl QueueService for GrpcQs {
             },
         });
         // Always sent first, so that the client knows its siblings' states.
-        let sibling_client_states = self.qs.queues.sibling_client_states(client_id);
+        let sibling_client_states = self.qs.queues.user_states(user_id, client_id);
         let events = tokio_stream::once(version_status)
             .chain(tokio_stream::iter(sibling_client_states))
             .chain(events);
@@ -559,7 +562,7 @@ impl QueueService for GrpcQs {
 struct QueueSessionHandler {
     queues: Queues,
     client_id: identifiers::QsClientId,
-    session: ClientSessionGuard,
+    session: ClientSession,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
@@ -578,7 +581,7 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             Some(listen_request::Request::ClientState(ReportClientStateListenRequest {
                 encrypted_blob,
             })) => {
-                if encrypted_blob.len() > MAX_ENCRYPTED_CLIENT_STATE_SIZE {
+                if encrypted_blob.len() > MAX_ENCRYPTED_CLIENT_STATE_SIZE_BYTES {
                     warn!(
                         client_id =? self.client_id,
                         size = encrypted_blob.len(),

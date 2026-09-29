@@ -359,8 +359,7 @@ message SiblingClientState {
 // The sibling updated its state
 message SiblingClientStateUpdated {
   QsClientId client_id = 1;
-  // Server-assigned, increasing per client id, also across reconnects and
-  // server restarts.
+  // Server-assigned, increasing per client ID as long as its session lives.
   uint64 epoch = 2;
   // How old this update is. Clients should decide whether an old state is worth discard.
   uint32 age_ms = 3;
