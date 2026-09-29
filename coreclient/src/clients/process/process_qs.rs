@@ -52,7 +52,7 @@ use crate::{
     clients::{
         attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
-        own_client_info::OwnClientInfo,
+        own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::update_chat_title,
@@ -1450,7 +1450,7 @@ impl CoreUser {
             // Record it so the app can act on it, this launch or a later one.
             if group.group().is_self_group() {
                 error!("this device was unlinked by another device of this user");
-                OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
+                OwnClientInfo::mark_account_unlinked(&mut *txn, UnlinkReason::Unlinked).await?;
             }
         }
         let (messages_from_commit, group_data) = group

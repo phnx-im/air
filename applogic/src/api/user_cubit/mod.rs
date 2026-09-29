@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 use aircoreclient::clients::StorageObjectType;
-use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
+use aircoreclient::{Asset, ChatId, ContactType, PartialContact, UnlinkReason, clients::CoreUser};
 use anyhow::ensure;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
@@ -65,8 +65,8 @@ struct UiUserInner {
     usernames: Vec<Username>,
     /// Status of the version of the client communicated by the server.
     version_status: VersionStatus,
-    /// Another device of this user removed this one from the self group.
-    account_unlinked: bool,
+    /// Why this device must reset itself, if it must.
+    unlink_reason: Option<UiUnlinkReason>,
     /// The maximum number of devices that can be linked.
     ///
     /// Communicated by the server at connection establishment. 0 means unlimited.
@@ -82,6 +82,24 @@ pub enum VersionStatus {
     Unsupported,
     /// The server announced that the version stops being accepted at this time.
     ExpiresAt(DateTime<Utc>),
+}
+
+/// Why this device must reset itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiUnlinkReason {
+    /// Another device of this user removed this one from the self group.
+    Unlinked,
+    /// Another device of this user deleted the account.
+    AccountDeleted,
+}
+
+impl From<UnlinkReason> for UiUnlinkReason {
+    fn from(reason: UnlinkReason) -> Self {
+        match reason {
+            UnlinkReason::Unlinked => Self::Unlinked,
+            UnlinkReason::AccountDeleted => Self::AccountDeleted,
+        }
+    }
 }
 
 impl UiUser {
@@ -104,9 +122,9 @@ impl UiUser {
                 }
             }
 
-            // The flag is durable, so a device that was unlinked while it was
+            // The reason is durable, so a device that was unlinked while it was
             // not running still reports it on the next launch.
-            Self::reload_account_unlinked(&state_tx, &core_user).await;
+            Self::reload_unlink_reason(&state_tx, &core_user).await;
 
             // Load the max_devices from local storage.
             match core_user.max_devices().await {
@@ -126,24 +144,25 @@ impl UiUser {
         });
     }
 
-    /// Re-reads the unlinked flag and emits it if it flipped.
+    /// Re-reads the unlink reason and emits it if it changed.
     #[frb(ignore)]
-    pub(crate) async fn reload_account_unlinked(
+    pub(crate) async fn reload_unlink_reason(
         state_tx: &watch::Sender<UiUser>,
         core_user: &CoreUser,
     ) {
-        match core_user.is_account_unlinked().await {
-            Ok(unlinked) => {
+        match core_user.account_unlink_reason().await {
+            Ok(reason) => {
+                let reason = reason.map(UiUnlinkReason::from);
                 state_tx.send_if_modified(|state| {
-                    if state.inner.account_unlinked == unlinked {
+                    if state.inner.unlink_reason == reason {
                         return false;
                     }
                     let inner = Arc::make_mut(&mut state.inner);
-                    inner.account_unlinked = unlinked;
+                    inner.unlink_reason = reason;
                     true
                 });
             }
-            Err(error) => error!(%error, "failed to read the account-unlinked flag"),
+            Err(error) => error!(%error, "failed to read the unlink reason"),
         }
     }
 
@@ -168,9 +187,10 @@ impl UiUser {
         self.inner.version_status
     }
 
+    /// Why this device must reset itself, if it must.
     #[frb(getter, sync)]
-    pub fn account_unlinked(&self) -> bool {
-        self.inner.account_unlinked
+    pub fn unlink_reason(&self) -> Option<UiUnlinkReason> {
+        self.inner.unlink_reason
     }
 
     #[frb(getter, sync)]
@@ -214,7 +234,7 @@ impl UserCubitBase {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
             version_status: VersionStatus::Supported,
-            account_unlinked: false,
+            unlink_reason: None,
             max_devices: 0,
         })));
 

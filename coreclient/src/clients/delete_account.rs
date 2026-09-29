@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::ApiClient;
+use airprotos::client::self_group::{AccountDeleted, SelfGroupMessage};
 use anyhow::Context;
 use mimi_room_policy::RoleIndex;
 use tracing::{error, info, warn};
@@ -11,20 +12,25 @@ use crate::{
     UsernameRecord,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     delete_client_database,
-    groups::Group,
+    groups::{Group, self_group::SelfGroup},
+    job::{JobError, chat_operation::ChatOperation},
     privacy_pass,
 };
 
 impl CoreUser {
     /// Deletes the account on the server and locally.
     ///
-    /// 1. Delete QS queue (mandatory for success)
-    /// 2. Delete usernames
-    /// 3. Batch self-remove from groups as a single transaction
-    /// 4. Delete AS identity
+    /// 1. Announce the deletion to linked devices (mandatory for success)
+    /// 2. Delete QS queue (mandatory for success)
+    /// 3. Delete usernames
+    /// 4. Batch self-remove from groups as a single transaction
+    /// 5. Delete QS user
+    /// 6. Delete AS identity
     ///
     /// Finally, the client database is deleted if a `db_path` is provided.
     pub async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()> {
+        self.announce_deletion_to_siblings().await?;
+
         let client = self.api_client()?;
 
         let client_id = self.inner.qs_client_id;
@@ -48,6 +54,45 @@ impl CoreUser {
         }
 
         Ok(())
+    }
+
+    /// Tells the linked devices through the self group that the account is
+    /// being deleted, so that they reset themselves.
+    ///
+    /// Must run before the QS queue is deleted: a sibling commit that wins the
+    /// epoch can only be caught up on while this device can still read its
+    /// queue.
+    async fn announce_deletion_to_siblings(&self) -> anyhow::Result<()> {
+        const MAX_ATTEMPTS: usize = 3;
+
+        if !SelfGroup::has_linked_devices(self.db().read().await?).await? {
+            return Ok(());
+        }
+        let Some(chat_id) = self.self_chat_id().await? else {
+            return Ok(());
+        };
+        info!("Announcing the account deletion to linked devices");
+
+        let mut attempt = 1;
+        loop {
+            let operation = ChatOperation::self_group_messages(
+                chat_id,
+                vec![SelfGroupMessage::AccountDeleted(AccountDeleted {})],
+            );
+            match self.execute_job(operation).await {
+                Ok(_) => return Ok(()),
+                // A sibling commit won the epoch. Catch up on it and try again.
+                Err(JobError::Blocked) if attempt < MAX_ATTEMPTS => {
+                    warn!(attempt, "Deletion announcement lost the epoch, retrying");
+                    let processed = self.drain_and_process_qs_queue().await?;
+                    if let Some(error) = processed.errors.first() {
+                        warn!(%error, "Failed to process queued messages before retrying");
+                    }
+                    attempt += 1;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
     }
 
     async fn delete_qs_identity(&self, client: &ApiClient) {

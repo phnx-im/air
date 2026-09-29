@@ -159,9 +159,9 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 self.cubit_context
                     .show_notifications_for_processed_qs_messages(processed)
                     .await;
-                // A commit in this batch may have removed this device from the
-                // self group, which the app has to act on.
-                UiUser::reload_account_unlinked(
+                // A commit in this batch may have unlinked this device or
+                // announced the account deletion, which the app has to act on.
+                UiUser::reload_unlink_reason(
                     &self.cubit_context.state_tx,
                     &self.cubit_context.core_user,
                 )

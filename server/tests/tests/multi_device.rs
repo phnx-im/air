@@ -4,13 +4,15 @@
 
 use std::{assert_matches, collections::HashSet};
 
+use airapiclient::qs_api::QsRequestError;
 use aircommon::{
     credentials::LeafCredential,
     identifiers::{UserId, Username},
+    messages::QueueMessage,
 };
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
-    UserProfile,
+    UnlinkReason, UserProfile,
     clients::{
         CoreUser, MarkChatAsRead,
         multi_device::{
@@ -19,13 +21,18 @@ use aircoreclient::{
         store::ClientRecord,
     },
 };
-use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
+use airprotos::{
+    auth_service::v1::OperationType,
+    queue_service::v1::{ListenResponse, listen_response},
+    relay_service::v1::LinkingSessionId,
+};
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
+use tokio_stream::{Stream, StreamExt};
 use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
@@ -1903,18 +1910,138 @@ async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
     drain_queue(&new_device).await;
 
     let b_id = new_device.own_client_id().await?;
-    assert!(!new_device.is_account_unlinked().await?);
+    assert_eq!(new_device.account_unlink_reason().await?, None);
 
     old_device.unlink_device(b_id).await?;
     drain_queue(&new_device).await;
 
-    assert!(
-        new_device.is_account_unlinked().await?,
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::Unlinked),
         "the removed device must know it was unlinked"
     );
-    assert!(
-        !old_device.is_account_unlinked().await?,
+    assert_eq!(
+        old_device.account_unlink_reason().await?,
+        None,
         "the remover must not flag itself"
+    );
+
+    Ok(())
+}
+
+/// Reads the listen stream up to the next queue message.
+async fn next_queue_message(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) -> anyhow::Result<Option<QueueMessage>> {
+    while let Some(response) = stream.next().await {
+        match response?.event {
+            Some(listen_response::Event::Message(message)) => return Ok(Some(message.try_into()?)),
+            Some(listen_response::Event::Empty(_)) => return Ok(None),
+            Some(listen_response::Event::Payload(_))
+            | Some(listen_response::Event::VersionStatus(_))
+            | None => {}
+        }
+    }
+    anyhow::bail!("listen stream ended")
+}
+
+fn assert_not_found(result: Result<(), QsRequestError>) {
+    assert_matches!(
+        result,
+        Err(QsRequestError::Tonic(status)) if status.code() == tonic::Code::NotFound
+    );
+}
+
+/// A sibling that is online while the account is deleted receives the
+/// announcement on its open listen stream and flags itself.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_tears_down_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let (mut stream, _responder) = new_device.listen_queue().await?;
+    while next_queue_message(&mut stream).await?.is_some() {}
+
+    old_device.delete_account(None).await?;
+
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while new_device.account_unlink_reason().await?.is_none() {
+            let Some(message) = next_queue_message(&mut stream).await? else {
+                continue;
+            };
+            new_device.fully_process_qs_messages(vec![message]).await;
+        }
+        anyhow::Ok(())
+    })
+    .await??;
+
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    assert_not_found(new_device.qs_publish_empty_key_packages().await);
+
+    Ok(())
+}
+
+/// A sibling that is offline until the deletion has finished, including the
+/// QS and AS user deletion, still finds the announcement in its queue.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_reaches_offline_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    old_device.delete_account(None).await?;
+
+    // Not `drain_queue_ok`: the deleting device also self-removes from the self
+    // group, and the sibling cannot process a self-remove of a self-group leaf.
+    drain_queue(&new_device).await;
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    assert_not_found(new_device.qs_publish_empty_key_packages().await);
+
+    Ok(())
+}
+
+/// The deleting device loses the epoch to a sibling commit it has not fetched
+/// yet. It catches up and announces the deletion on the next attempt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_announce_retries_after_sibling_commit() -> anyhow::Result<()>
+{
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    new_device
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    new_device.outbound_service().run_once().await;
+    assert!(
+        new_device.self_group_epochs().await? > old_device.self_group_epochs().await?,
+        "the sibling commit must be ahead of the deleting device"
+    );
+
+    old_device.delete_account(None).await?;
+
+    // Not `drain_queue_ok`: the deleting device also self-removes from the self
+    // group, and the sibling cannot process a self-remove of a self-group leaf.
+    drain_queue(&new_device).await;
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
     );
 
     Ok(())

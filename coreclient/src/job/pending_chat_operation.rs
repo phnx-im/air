@@ -228,6 +228,9 @@ async fn complete_sent_messages(
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.
             SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
+            // Nothing is parked for a deletion. The job that sends it waits
+            // for the commit to land.
+            SelfGroupMessage::AccountDeleted(_) => {}
         }
     }
     Ok(())

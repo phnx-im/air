@@ -39,8 +39,8 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage, SelfGroupMessages,
-        SettingsUpdate, TokenSeed,
+        AccountDeleted, AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage,
+        SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -330,6 +330,9 @@ impl Group {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
                     SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
+                    SelfGroupMessage::AccountDeleted(AccountDeleted {}) => {
+                        extracted.account_deleted = true;
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -351,6 +354,8 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
     /// Chats the sender deleted.
     pub(crate) deleted_chats: Vec<DeletedChat>,
+    /// Whether the sender is deleting the account.
+    pub(crate) account_deleted: bool,
 }
 
 impl SelfGroupPayload {
@@ -359,6 +364,7 @@ impl SelfGroupPayload {
             && self.token_seeds.is_empty()
             && self.blocked_contacts.is_empty()
             && self.deleted_chats.is_empty()
+            && !self.account_deleted
     }
 }
 
@@ -505,8 +511,8 @@ mod derivation_tests {
         component::AIR_COMPONENT_ID,
         group::GroupData,
         self_group::{
-            AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
-            SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
+            AccountDeleted, AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate,
+            ContactBlocked, SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
         },
     };
     use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
@@ -862,6 +868,45 @@ mod derivation_tests {
 
         assert_eq!(extracted.updates, vec![update]);
         assert!(extracted.token_seeds.is_empty());
+        assert!(!extracted.account_deleted);
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_account_deleted() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (sg_signer, signer) = self_group_signer()?;
+        let user_id = UserId::random("example.com".parse()?);
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
+
+        group
+            .stage_self_group_messages(
+                &mut txn,
+                &sg_signer,
+                vec![SelfGroupMessage::AccountDeleted(AccountDeleted {})],
+            )
+            .await?;
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_self_group_messages(&mut txn, staged).await;
+
+        assert!(extracted.account_deleted);
+        assert!(!extracted.is_empty());
+        assert!(extracted.updates.is_empty());
 
         txn.commit().await?;
         Ok(())

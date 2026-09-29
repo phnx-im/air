@@ -7,7 +7,10 @@ use aircommon::{
     identifiers::{Fqdn, QsClientId, QsUserId, UserId},
 };
 use openmls::group::GroupId;
-use sqlx::{query, query_scalar};
+use sqlx::{
+    Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query,
+    query_scalar, sqlite::SqliteTypeInfo,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -15,7 +18,7 @@ use crate::{
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::OwnClientInfo;
+use super::{OwnClientInfo, UnlinkReason};
 
 impl OwnClientInfo {
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
@@ -177,26 +180,63 @@ impl OwnClientInfo {
         Ok(())
     }
 
-    /// Records that a sibling device removed this device from the self group.
+    /// Records that this device must reset itself, and why.
     pub(crate) async fn mark_account_unlinked(
         mut write: impl WriteConnection,
+        reason: UnlinkReason,
     ) -> anyhow::Result<()> {
-        sqlx::query!("UPDATE own_client_info SET unlinked = TRUE")
+        sqlx::query!("UPDATE own_client_info SET unlink_reason = ?", reason)
             .execute(write.as_mut())
             .await?;
         Ok(())
     }
 
-    /// Whether a sibling device removed this device from the self group.
+    /// Why this device must reset itself, or `None` if it must not.
     ///
     /// `own_client_info` is a singleton row, created once at account setup, so a
-    /// missing row (`None`) can only mean this ran before that -- treated as not
+    /// missing row can only mean this ran before that. It is treated as not
     /// unlinked, since there is nothing to be unlinked from yet.
-    pub async fn is_account_unlinked(mut read: impl ReadConnection) -> anyhow::Result<bool> {
-        let row = sqlx::query_scalar!("SELECT unlinked FROM own_client_info")
-            .fetch_optional(read.as_mut())
-            .await?;
-        Ok(row.unwrap_or(false))
+    pub async fn account_unlink_reason(
+        mut read: impl ReadConnection,
+    ) -> anyhow::Result<Option<UnlinkReason>> {
+        let row = sqlx::query_scalar!(
+            r#"SELECT unlink_reason AS "unlink_reason: UnlinkReason" FROM own_client_info"#
+        )
+        .fetch_optional(read.as_mut())
+        .await?;
+        Ok(row.flatten())
+    }
+}
+
+impl Type<Sqlite> for UnlinkReason {
+    fn type_info() -> SqliteTypeInfo {
+        <&str as Type<Sqlite>>::type_info()
+    }
+}
+
+impl<'q> Encode<'q, Sqlite> for UnlinkReason {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
+    ) -> Result<IsNull, BoxDynError> {
+        Encode::<Sqlite>::encode(self.as_str(), buf)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid UnlinkReason: {reason}")]
+struct InvalidUnlinkReason {
+    reason: String,
+}
+
+impl<'r> Decode<'r, Sqlite> for UnlinkReason {
+    fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
+        let reason: &str = Decode::<Sqlite>::decode(value)?;
+        Self::from_str(reason).ok_or_else(|| -> BoxDynError {
+            Box::new(InvalidUnlinkReason {
+                reason: reason.to_owned(),
+            })
+        })
     }
 }
 
@@ -207,7 +247,7 @@ mod tests {
         identifiers::{QsClientId, QsUserId, UserId},
     };
     use openmls::group::GroupId;
-    use sqlx::SqlitePool;
+    use sqlx::{SqlitePool, migrate::Migrate};
     use uuid::Uuid;
 
     use crate::db::access::DbAccess;
@@ -241,7 +281,7 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn account_unlinked_flag(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn account_unlink_reason(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let mut rng = rand::rng();
         OwnClientInfo {
@@ -255,14 +295,64 @@ mod tests {
         .store(pool.write().await?)
         .await?;
 
-        assert!(
-            !OwnClientInfo::is_account_unlinked(pool.read().await?).await?,
+        assert_eq!(
+            OwnClientInfo::account_unlink_reason(pool.read().await?).await?,
+            None,
             "a freshly created client must not report itself as unlinked"
         );
 
-        OwnClientInfo::mark_account_unlinked(pool.write().await?).await?;
+        for reason in [UnlinkReason::Unlinked, UnlinkReason::AccountDeleted] {
+            OwnClientInfo::mark_account_unlinked(pool.write().await?, reason).await?;
+            assert_eq!(
+                OwnClientInfo::account_unlink_reason(pool.read().await?).await?,
+                Some(reason)
+            );
+        }
 
-        assert!(OwnClientInfo::is_account_unlinked(pool.read().await?).await?);
+        Ok(())
+    }
+
+    #[sqlx::test(migrations = false)]
+    async fn unlink_reason_migration_keeps_unlinked_devices(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        const UNLINK_REASON_MIGRATION: i64 = 20260929130000;
+        const TABLE: &str = "_sqlx_migrations";
+
+        let migrator = sqlx::migrate!();
+        let mut connection = pool.acquire().await?;
+        connection.ensure_migrations_table(TABLE).await?;
+        let (before, after): (Vec<_>, Vec<_>) = migrator
+            .iter()
+            .filter(|migration| !migration.migration_type.is_down_migration())
+            .partition(|migration| migration.version < UNLINK_REASON_MIGRATION);
+        for migration in before {
+            connection.apply(TABLE, migration).await?;
+        }
+
+        let mut rng = rand::rng();
+        sqlx::query(
+            "INSERT INTO own_client_info
+                (qs_user_id, qs_client_id, user_uuid, user_domain, unlinked)
+            VALUES (?, ?, ?, ?, TRUE)",
+        )
+        .bind(QsUserId::random())
+        .bind(QsClientId::random(&mut rng))
+        .bind(Uuid::new_v4())
+        .bind("localhost")
+        .execute(&mut *connection)
+        .await?;
+
+        for migration in after {
+            connection.apply(TABLE, migration).await?;
+        }
+        drop(connection);
+
+        let pool = DbAccess::for_tests(pool);
+        assert_eq!(
+            OwnClientInfo::account_unlink_reason(pool.read().await?).await?,
+            Some(UnlinkReason::Unlinked)
+        );
 
         Ok(())
     }

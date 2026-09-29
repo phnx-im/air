@@ -388,6 +388,7 @@
   "deleteAccountScreen_confirmationInputLabel": "Escribe 'delete' para confirmar.",
   "deleteAccountScreen_confirmButtonText": "Eliminar",
   "deleteAccountScreen_deleteAccountError": "Algo ha fallado por nuestra parte. Espera un momento y vuelve a intentarlo.",
+  "unlinkedDevice_accountDeleted": "Tu cuenta de Air se eliminó desde otro dispositivo. Este dispositivo se ha restablecido.",
   "appOutdatedScreen_title": "Actualización necesaria",
   "appOutdatedScreen_message": "Actualiza para seguir usando Air",
   "appOutdatedScreen_description": "Abre App Store en iOS o Google Play en Android y actualiza Air.",
