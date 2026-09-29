@@ -15,6 +15,9 @@ pub(crate) enum QsCreateClientRecordError {
     /// Unrecoverable implementation error
     #[error("Library Error")]
     LibraryError,
+    /// User not found
+    #[error("User not found")]
+    UnknownUser,
     /// Error creating client record
     #[error("Error creating user record")]
     StorageError,
@@ -24,6 +27,7 @@ impl From<QsCreateClientRecordError> for Status {
     fn from(e: QsCreateClientRecordError) -> Self {
         let msg = e.to_string();
         match e {
+            QsCreateClientRecordError::UnknownUser => Status::not_found(msg),
             QsCreateClientRecordError::LibraryError | QsCreateClientRecordError::StorageError => {
                 Status::internal(msg)
             }
