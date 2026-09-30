@@ -68,6 +68,8 @@ impl TestUser {
             .unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
+        user.user.ensure_self_group().await.unwrap();
+
         user
     }
 
@@ -107,6 +109,7 @@ impl TestUser {
         )
         .await
         .unwrap();
+        user.ensure_self_group().await.unwrap();
         Self {
             user,
             db_dir: Some(db_dir.to_owned()),

@@ -248,7 +248,7 @@
   "messageBubble_read": "Leído",
   "chatList_newContact": "Nuevo contacto de Air",
   "chatList_newGroup": "Nuevo chat de grupo",
-  "chatList_emptyMessage": "Añade tu primer contacto de Air para empezar",
+  "chatList_noChats": "Usa el botón Escribir para añadir tu primer contacto y empezar a chatear.",
   "chatList_draft": "Borrador",
   "chatList_you": "Tú",
   "chatList_imageEmoji": "🖼️",

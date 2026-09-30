@@ -248,7 +248,7 @@
   "messageBubble_read": "Lu",
   "chatList_newContact": "Nouveau contact Air",
   "chatList_newGroup": "Nouveau groupe",
-  "chatList_emptyMessage": "Ajoutez votre premier contact Air pour commencer",
+  "chatList_noChats": "Utilisez le bouton Composer pour ajouter votre premier contact et commencer à discuter.",
   "chatList_draft": "Brouillon",
   "chatList_you": "Vous",
   "chatList_imageEmoji": "🖼️",

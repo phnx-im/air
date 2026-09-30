@@ -248,7 +248,7 @@
   "messageBubble_read": "Lida",
   "chatList_newContact": "Novo contato do Air",
   "chatList_newGroup": "Novo chat em grupo",
-  "chatList_emptyMessage": "Adicione seu primeiro contato do Air para começar",
+  "chatList_noChats": "Use o botão Escrever para adicionar seu primeiro contato e começar a conversar.",
   "chatList_draft": "Rascunho",
   "chatList_you": "Você",
   "chatList_imageEmoji": "🖼️",

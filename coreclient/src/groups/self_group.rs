@@ -29,7 +29,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -45,8 +45,10 @@ use crate::{
     },
 };
 
-/// Title of the per-user "self group" chat, as shown in the UI.
-pub(crate) const SELF_CHAT_TITLE: &str = "Notes to self";
+/// This linked client has not processed the Welcome to its self group yet.
+#[derive(Debug, thiserror::Error)]
+#[error("self group not joined yet")]
+pub(crate) struct SelfGroupNotJoined;
 
 #[derive(Debug)]
 pub struct SelfGroup {
@@ -128,8 +130,8 @@ impl SelfGroup {
             .collect()
     }
 
-    /// Whether other devices share this self group. The self group outlives
-    /// its siblings, so its existence alone says nothing about them.
+    /// Whether other devices share this self group. Every user has a self
+    /// group, so its existence alone says nothing about linked devices.
     pub(crate) fn has_linked_devices(&self) -> bool {
         self.group.mls_group().members().nth(1).is_some()
     }
@@ -253,50 +255,40 @@ impl SelfGroup {
 }
 
 impl CoreUser {
+    /// Creates the self group if this client never had one. A client that is
+    /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
-        let self_group = match SelfGroup::load(self.db().read().await?).await? {
-            Some(self_group) => self_group,
-            None => SelfGroup {
-                group: self.create_self_group().await?,
+        let _guard = self.inner.self_group_creation.lock().await;
+        let self_group = match SelfGroupState::load(self.db().read().await?).await? {
+            None => match self.create_self_group().await? {
+                Some(group) => SelfGroup { group },
+                None => SelfGroup::load(self.db().read().await?)
+                    .await?
+                    .context("self group created by another process is missing")?,
             },
+            Some(SelfGroupState::Joined(self_group)) => *self_group,
+            Some(SelfGroupState::NotJoined) => return Err(SelfGroupNotJoined.into()),
         };
-        self.ensure_self_chat(self_group.group_id()).await?;
+
+        // Make sure we surface the chat in the app
+        let self_group_id = self_group.group_id();
+        if ChatId::load_from_group_id(self.db().read().await?, self_group_id)
+            .await?
+            .is_none()
+        {
+            self.db()
+                .with_write_transaction(async |txn| {
+                    self.create_self_chat(txn, self_group_id.clone()).await
+                })
+                .await?;
+        }
+
         Ok(self_group)
     }
 
-    /// Creates the "Notes to self" chat of the self group if it is missing, so
-    /// the group shows in the UI.
-    ///
-    /// Clients whose self group predates that chat only have the group, so
-    /// their self chat has to be backfilled here.
-    async fn ensure_self_chat(&self, group_id: &GroupId) -> anyhow::Result<()> {
-        self.db()
-            .with_write_transaction(async |txn| -> sqlx::Result<()> {
-                if ChatId::load_from_group_id(&mut *txn, group_id)
-                    .await?
-                    .is_some()
-                {
-                    return Ok(());
-                }
-
-                let chat = Chat::new_group_chat(
-                    group_id.clone(),
-                    ChatAttributes {
-                        title: SELF_CHAT_TITLE.to_owned(),
-                        picture: None,
-                    },
-                );
-                chat.store(&mut *txn).await?;
-                debug!("Created the missing self chat");
-
-                Ok(())
-            })
-            .await?;
-
-        Ok(())
-    }
-
-    async fn create_self_group(&self) -> anyhow::Result<Group> {
+    /// Returns `None` if another process loading this client created the self
+    /// group first.
+    async fn create_self_group(&self) -> anyhow::Result<Option<Group>> {
         let api_client = self.api_client()?;
 
         // Request group IDs
@@ -308,7 +300,7 @@ impl CoreUser {
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        // The self chat's title is the local constant, so the group carries no profile.
+        // The self chat's title is constant, so the group carries no profile.
         let group_data = GroupData::empty();
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
@@ -368,15 +360,50 @@ impl CoreUser {
             return Err(error.into());
         }
 
-        // Update the local reference
-        OwnClientInfo::set_self_group(
-            self.db().write().await?,
-            group.group_id(),
-            &self_group_signing_key,
-        )
-        .await?;
+        let claimed = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<bool> {
+                if OwnClientInfo::claim_self_group(
+                    &mut *txn,
+                    group.group_id(),
+                    &self_group_signing_key,
+                )
+                .await?
+                {
+                    return Ok(true);
+                }
+                Group::delete_from_db(&mut *txn, group.group_id()).await?;
+                Ok(false)
+            })
+            .await?;
+        if !claimed {
+            // The group stays on the DS with only our leaf.
+            warn!(
+                group_id = ?group.group_id(),
+                "another process created the self group first, discarding ours"
+            );
+            return Ok(None);
+        }
 
-        Ok(group)
+        Ok(Some(group))
+    }
+
+    pub(crate) async fn create_self_chat(
+        &self,
+        mut connection: impl WriteConnection,
+        group_id: GroupId,
+    ) -> anyhow::Result<ChatId> {
+        let chat = Chat::new_group_chat(
+            group_id,
+            ChatAttributes {
+                title: "Notes to self".to_owned(),
+                picture: None,
+            },
+        );
+        chat.store(&mut connection).await?;
+        debug!("Created the missing self chat");
+
+        Ok(chat.id())
     }
 }
 
