@@ -11683,6 +11683,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_DeviceLinked(dco_decode_Uuid(raw[1]));
       case 13:
         return UiSystemMessage_DeviceUnlinked(dco_decode_Uuid(raw[1]));
+      case 14:
+        return UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+          sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          username: dco_decode_box_autoadd_ui_username(raw[2]),
+        );
+      case 15:
+        return UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+          sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          chatName: dco_decode_String(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -15835,6 +15845,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 13:
         var var_field0 = sse_decode_Uuid(deserializer);
         return UiSystemMessage_DeviceUnlinked(var_field0);
+      case 14:
+        var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_username = sse_decode_box_autoadd_ui_username(deserializer);
+        return UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+          sender: var_sender,
+          username: var_username,
+        );
+      case 15:
+        var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_chatName = sse_decode_String(deserializer);
+        return UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+          sender: var_sender,
+          chatName: var_chatName,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -20050,6 +20074,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_DeviceUnlinked(field0: final field0):
         sse_encode_i_32(13, serializer);
         sse_encode_Uuid(field0, serializer);
+      case UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+        sender: final sender,
+        username: final username,
+      ):
+        sse_encode_i_32(14, serializer);
+        sse_encode_box_autoadd_ui_user_id(sender, serializer);
+        sse_encode_box_autoadd_ui_username(username, serializer);
+      case UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+        sender: final sender,
+        chatName: final chatName,
+      ):
+        sse_encode_i_32(15, serializer);
+        sse_encode_box_autoadd_ui_user_id(sender, serializer);
+        sse_encode_String(chatName, serializer);
     }
   }
 

@@ -3480,6 +3480,155 @@ as UuidValue,
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_ReceivedAdditionalHandleConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_ReceivedAdditionalHandleConnectionRequest({required this.sender, required this.username}): super._();
+  
+
+ final  UiUserId sender;
+ final  UiUsername username;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalHandleConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalHandleConnectionRequest>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalHandleConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,sender,username);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.receivedAdditionalHandleConnectionRequest(sender: $sender, username: $username)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId sender, UiUsername username
+});
+
+
+$UiUsernameCopyWith<$Res> get username;
+
+}
+/// @nodoc
+class _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ReceivedAdditionalHandleConnectionRequest _self;
+  final $Res Function(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? username = null,}) {
+  return _then(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,username: null == username ? _self.username : username // ignore: cast_nullable_to_non_nullable
+as UiUsername,
+  ));
+}
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiUsernameCopyWith<$Res> get username {
+  
+  return $UiUsernameCopyWith<$Res>(_self.username, (value) {
+    return _then(_self.copyWith(username: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_ReceivedAdditionalDirectConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_ReceivedAdditionalDirectConnectionRequest({required this.sender, required this.chatName}): super._();
+  
+
+ final  UiUserId sender;
+ final  String chatName;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalDirectConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalDirectConnectionRequest>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,sender,chatName);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.receivedAdditionalDirectConnectionRequest(sender: $sender, chatName: $chatName)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId sender, String chatName
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ReceivedAdditionalDirectConnectionRequest _self;
+  final $Res Function(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? chatName = null,}) {
+  return _then(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,chatName: null == chatName ? _self.chatName : chatName // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

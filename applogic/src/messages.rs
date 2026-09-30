@@ -4,7 +4,7 @@
 
 use aircommon::messages::QueueMessage;
 use aircoreclient::{
-    ChatId,
+    ChatId, StoredRequest,
     clients::{ListenQueueError, listen_response, process::process_qs::ProcessedQsMessages},
 };
 use anyhow::Result;
@@ -27,7 +27,7 @@ pub(crate) struct ProcessedMessages {
 
 impl User {
     /// Fetch and process AS messages
-    async fn fetch_and_process_as_messages(&self) -> Result<Vec<ChatId>> {
+    async fn fetch_and_process_as_messages(&self) -> Result<Vec<StoredRequest>> {
         self.user.fetch_and_process_username_messages().await
     }
 
@@ -106,6 +106,7 @@ impl User {
             mut new_connections,
             reaction_notifications,
             chats_with_changed_notifications,
+            removed_chats,
         } = Box::pin(self.fetch_and_process_qs_messages())
             .await
             .map_err(|error| {
@@ -119,7 +120,7 @@ impl User {
             .await;
         let ChatNotificationsBatch {
             additions,
-            empty_chats,
+            mut empty_chats,
         } = self
             .message_and_reaction_notifications(
                 &new_messages,
@@ -128,6 +129,7 @@ impl User {
             )
             .await;
         notifications.extend(additions);
+        empty_chats.extend(removed_chats);
 
         // Fetch AS connection requests
         debug!("fetch AS messages");
@@ -135,7 +137,10 @@ impl User {
             .fetch_and_process_as_messages()
             .await
             .map_err(FetchAndProcessAllMessagesError::Fatal)?;
-        new_connections.extend(new_handle_connections);
+        for stored in new_handle_connections {
+            new_connections.push(stored.chat_id);
+            empty_chats.extend(stored.moved_from);
+        }
 
         self.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;

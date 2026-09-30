@@ -37,7 +37,10 @@ async fn link_sibling(setup: &TestBackend, user_id: &UserId) -> (CoreUser, CoreU
 }
 
 /// Drains `device`'s queue and asserts that every message was processed.
-async fn drain_expecting_success(device: &CoreUser, context: &str) -> ProcessedQsMessages {
+pub(crate) async fn drain_expecting_success(
+    device: &CoreUser,
+    context: &str,
+) -> ProcessedQsMessages {
     let queued = device.qs_fetch_messages().await.unwrap();
     let processed = device.fully_process_qs_messages(queued).await;
     assert!(
@@ -50,13 +53,13 @@ async fn drain_expecting_success(device: &CoreUser, context: &str) -> ProcessedQ
 
 /// Registers a username for `user_id`, which a peer can then request a
 /// connection to.
-async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> UsernameRecord {
+pub(crate) async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> UsernameRecord {
     setup.get_user_mut(user_id).add_username().await.unwrap()
 }
 
 /// Drains the username queue of `record` and returns the pending chat the
 /// connection offer in it created.
-async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
+pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
     let (mut stream, responder) = user.listen_username(record).await.unwrap();
     let mut chat_id = None;
     while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
@@ -64,11 +67,12 @@ async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> C
         .unwrap()
     {
         let message_id = message.message_id.unwrap();
-        chat_id = Some(
-            user.process_username_queue_message(record.username.clone(), message)
-                .await
-                .unwrap(),
-        );
+        chat_id = user
+            .process_username_queue_message(record.username.clone(), message)
+            .await
+            .unwrap()
+            .map(|stored| stored.chat_id)
+            .or(chat_id);
         responder.ack(message_id.into()).await;
     }
     chat_id.expect("the connection offer should have created a pending chat")

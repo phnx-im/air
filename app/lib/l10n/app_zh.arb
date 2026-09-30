@@ -218,6 +218,8 @@
   "systemMessage_newDirectConnectionChat": "你已向 {displayName} 发送联系请求。对方可能不会立即收到通知。",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} 通过你的用户名 {username} 向你发送了联系请求。",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} 通过群聊 {groupName} 向你发送了联系请求。",
+  "systemMessage_receivedAdditionalHandleConnectionRequest": "{displayName} 还通过你的用户名 {username} 向你发送了联系请求。",
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} 还通过群聊 {groupName} 向你发送了联系请求。",
   "systemMessage_userChangedPicture": "{user} 更改了群组图片",
   "systemMessage_userCreatedGroup": "{user} 创建了群组",
   "systemMessage_onboarded": "此客户端在关联后已加入此聊天。",

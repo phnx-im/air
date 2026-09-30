@@ -13198,6 +13198,16 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::DeviceUnlinked(var_field0);
             }
+            14 => {
+                let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_username = <crate::api::types::UiUsername>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest{sender: var_sender, username: var_username};
+            }
+            15 => {
+                let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_chatName = <String>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest{sender: var_sender, chat_name: var_chatName};
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16448,6 +16458,24 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest {
+                sender,
+                username,
+            } => [
+                14.into_dart(),
+                sender.into_into_dart().into_dart(),
+                username.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                sender,
+                chat_name,
+            } => [
+                15.into_dart(),
+                sender.into_into_dart().into_dart(),
+                chat_name.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19714,6 +19742,22 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 <i32>::sse_encode(13, serializer);
                 <uuid::Uuid>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest {
+                sender,
+                username,
+            } => {
+                <i32>::sse_encode(14, serializer);
+                <crate::api::types::UiUserId>::sse_encode(sender, serializer);
+                <crate::api::types::UiUsername>::sse_encode(username, serializer);
+            }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                sender,
+                chat_name,
+            } => {
+                <i32>::sse_encode(15, serializer);
+                <crate::api::types::UiUserId>::sse_encode(sender, serializer);
+                <String>::sse_encode(chat_name, serializer);
             }
             _ => {
                 unimplemented!("");

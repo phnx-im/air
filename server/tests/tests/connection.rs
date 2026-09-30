@@ -628,8 +628,9 @@ async fn connection_request_has_server_timestamp() {
         let chat_id = bob_user
             .process_username_queue_message(bob_username_record.username.clone(), message)
             .await
-            .unwrap();
-        bob_chat_id = Some(chat_id);
+            .unwrap()
+            .map(|stored| stored.chat_id);
+        bob_chat_id = chat_id.or(bob_chat_id);
         responder.ack(message_id.into()).await;
     }
 
