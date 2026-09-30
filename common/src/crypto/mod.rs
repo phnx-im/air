@@ -35,6 +35,7 @@ pub mod hash;
 pub mod hpke;
 pub mod indexed_aead;
 pub mod kdf;
+pub mod mdl;
 pub mod ratchet;
 pub mod secrets;
 pub mod signatures;
