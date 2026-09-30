@@ -133,11 +133,11 @@ impl User {
 
         // Fetch AS connection requests
         debug!("fetch AS messages");
-        let new_handle_connections = self
+        let new_username_connections = self
             .fetch_and_process_as_messages()
             .await
             .map_err(FetchAndProcessAllMessagesError::Fatal)?;
-        for stored in new_handle_connections {
+        for stored in new_username_connections {
             new_connections.push(stored.chat_id);
             empty_chats.extend(stored.moved_from);
         }

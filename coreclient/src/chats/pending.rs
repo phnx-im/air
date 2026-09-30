@@ -48,7 +48,7 @@ pub(crate) struct PendingConnectionRequest {
     pub(crate) received_at: TimeStamp,
     pub(crate) connection_info: ConnectionInfo,
     /// The username a request via a username went to.
-    pub(crate) handle: Option<Username>,
+    pub(crate) username: Option<Username>,
     pub(crate) connection_offer_hash: Option<ConnectionOfferHash>,
     pub(crate) connection_package_hash: Option<ConnectionPackageHash>,
     /// The group chat a request via a group went through, if it still exists.
@@ -94,7 +94,7 @@ impl CoreUser {
             created_at: _,
             received_at: _,
             connection_info,
-            handle,
+            username,
             connection_offer_hash,
             connection_package_hash,
             origin_chat_id: _,
@@ -291,7 +291,7 @@ impl CoreUser {
                 let accepted_message = TimestampedMessage::system_message(
                     SystemMessage::AcceptedConnectionRequest {
                         contact: sender_user_id.clone(),
-                        user_handle: handle,
+                        user_handle: username,
                     },
                     TimeStamp::now(),
                 );
@@ -372,7 +372,7 @@ mod persistence {
                     created_at AS "created_at: TimeStamp",
                     received_at AS "received_at: TimeStamp",
                     connection_info AS "connection_info: ConnectionInfo",
-                    handle AS "handle: _",
+                    username AS "username: _",
                     connection_offer_hash AS "connection_offer_hash: _",
                     connection_package_hash AS "connection_package_hash: _",
                     origin_chat_id AS "origin_chat_id: ChatId"
@@ -397,7 +397,7 @@ mod persistence {
                     created_at AS "created_at: TimeStamp",
                     received_at AS "received_at: TimeStamp",
                     connection_info AS "connection_info: ConnectionInfo",
-                    handle AS "handle: _",
+                    username AS "username: _",
                     connection_offer_hash AS "connection_offer_hash: _",
                     connection_package_hash AS "connection_package_hash: _",
                     origin_chat_id AS "origin_chat_id: ChatId"
@@ -435,24 +435,33 @@ mod persistence {
 
         pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
-                "INSERT OR REPLACE INTO pending_connection_request (
+                "INSERT INTO pending_connection_request (
                     request_id,
                     chat_id,
                     created_at,
                     received_at,
                     connection_info,
-                    handle,
+                    username,
                     connection_offer_hash,
                     connection_package_hash,
                     origin_chat_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (request_id) DO UPDATE SET
+                    chat_id = excluded.chat_id,
+                    created_at = excluded.created_at,
+                    received_at = excluded.received_at,
+                    connection_info = excluded.connection_info,
+                    username = excluded.username,
+                    connection_offer_hash = excluded.connection_offer_hash,
+                    connection_package_hash = excluded.connection_package_hash,
+                    origin_chat_id = excluded.origin_chat_id",
                 self.request_id,
                 self.chat_id,
                 self.created_at,
                 self.received_at,
                 self.connection_info,
-                self.handle,
+                self.username,
                 self.connection_offer_hash,
                 self.connection_package_hash,
                 self.origin_chat_id,
@@ -588,7 +597,7 @@ mod tests {
     async fn store_legacy_request(
         txn: &mut crate::db::access::WriteDbTransaction<'_>,
         sender: &UserId,
-        handle: Option<&Username>,
+        username: Option<&Username>,
         created_at: TimeStamp,
     ) -> anyhow::Result<ChatId> {
         let group_id = group_id();
@@ -603,7 +612,7 @@ mod tests {
         .bind(chat.id())
         .bind(created_at)
         .bind(&connection_info)
-        .bind(handle)
+        .bind(username)
         .execute(txn.as_mut())
         .await?;
         Ok(chat.id())
@@ -677,7 +686,7 @@ mod tests {
                 .await?
                 .unwrap();
             assert_eq!(request.chat_id, via_username);
-            assert_eq!(request.handle, Some(username.clone()));
+            assert_eq!(request.username, Some(username.clone()));
             assert_eq!(
                 request.received_at,
                 at(60),

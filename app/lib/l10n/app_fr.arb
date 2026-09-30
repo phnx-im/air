@@ -229,7 +229,7 @@
   "systemMessage_newDirectConnectionChat": "Vous avez envoyé une demande de contact à {displayName}. Il se peut que la personne ne soit pas avertie immédiatement.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} vous a envoyé une demande de contact via votre nom d'utilisateur {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} vous a envoyé une demande de contact via la discussion de groupe {groupName}.",
-  "systemMessage_receivedAdditionalHandleConnectionRequest": "{displayName} vous a aussi envoyé une demande de contact via votre nom d'utilisateur {username}.",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} vous a aussi envoyé une demande de contact via votre nom d'utilisateur {username}.",
   "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} vous a aussi envoyé une demande de contact via la discussion de groupe {groupName}.",
   "systemMessage_userChangedPicture": "{user} a modifié l'image du groupe",
   "systemMessage_userCreatedGroup": "{user} a créé le groupe",

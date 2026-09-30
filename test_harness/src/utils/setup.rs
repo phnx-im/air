@@ -2067,12 +2067,12 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::DeviceUnlinked(uuid) => {
                         Some(format!("You unlinked a device with UUID {uuid}"))
                     }
-                    SystemMessage::ReceivedAdditionalHandleConnectionRequest {
+                    SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
                         sender,
-                        user_handle,
+                        username,
                     } => Some(format!(
-                        "User {sender:?} requested another connection to your handle {}",
-                        user_handle.plaintext()
+                        "User {sender:?} requested another connection to your username {}",
+                        username.plaintext()
                     )),
                     SystemMessage::ReceivedAdditionalDirectConnectionRequest {
                         sender,

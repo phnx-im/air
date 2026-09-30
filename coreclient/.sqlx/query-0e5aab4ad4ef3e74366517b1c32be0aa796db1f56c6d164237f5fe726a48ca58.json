@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    received_at AS \"received_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    handle AS \"handle: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\",\n                    origin_chat_id AS \"origin_chat_id: ChatId\"\n                FROM pending_connection_request\n                WHERE chat_id = ?\n                ORDER BY received_at DESC, request_id DESC",
+  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    received_at AS \"received_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    username AS \"username: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\",\n                    origin_chat_id AS \"origin_chat_id: ChatId\"\n                FROM pending_connection_request\n                WHERE chat_id = ?\n                ORDER BY received_at DESC, request_id DESC",
   "describe": {
     "columns": [
       {
@@ -59,13 +59,13 @@
         }
       },
       {
-        "name": "handle: _",
+        "name": "username: _",
         "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "pending_connection_request",
-            "name": "handle"
+            "name": "username"
           }
         }
       },
@@ -118,5 +118,5 @@
       true
     ]
   },
-  "hash": "24db5c558791d72c8b608c0ac46dd932e411bd43aa6b6f18979b608e8ecec659"
+  "hash": "0e5aab4ad4ef3e74366517b1c32be0aa796db1f56c6d164237f5fe726a48ca58"
 }

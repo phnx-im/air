@@ -14,7 +14,7 @@ CREATE TABLE pending_connection_request(
     received_at text NOT NULL,
     connection_info BLOB NOT NULL,
     -- The username a request via a username went to
-    handle text,
+    username text,
     connection_offer_hash BLOB,
     connection_package_hash BLOB,
     -- The group chat a request via a group went through, if it still exists
@@ -25,7 +25,7 @@ CREATE TABLE pending_connection_request(
 
 CREATE INDEX idx_pending_connection_request_chat_id ON pending_connection_request(chat_id);
 
-INSERT INTO pending_connection_request(request_id, chat_id, created_at, received_at, connection_info, handle, connection_offer_hash, connection_package_hash)
+INSERT INTO pending_connection_request(request_id, chat_id, created_at, received_at, connection_info, username, connection_offer_hash, connection_package_hash)
 SELECT
     p.chat_id,
     p.chat_id,

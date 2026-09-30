@@ -13201,7 +13201,7 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             14 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_username = <crate::api::types::UiUsername>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest{sender: var_sender, username: var_username};
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest{sender: var_sender, username: var_username};
             }
             15 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
@@ -16458,7 +16458,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest {
+            crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
                 sender,
                 username,
             } => [
@@ -19743,7 +19743,7 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <i32>::sse_encode(13, serializer);
                 <uuid::Uuid>::sse_encode(field0, serializer);
             }
-            crate::api::types::UiSystemMessage::ReceivedAdditionalHandleConnectionRequest {
+            crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
                 sender,
                 username,
             } => {

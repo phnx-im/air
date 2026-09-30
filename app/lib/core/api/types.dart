@@ -497,10 +497,10 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_DeviceLinked;
   const factory UiSystemMessage.deviceUnlinked(UuidValue field0) =
       UiSystemMessage_DeviceUnlinked;
-  const factory UiSystemMessage.receivedAdditionalHandleConnectionRequest({
+  const factory UiSystemMessage.receivedAdditionalUsernameConnectionRequest({
     required UiUserId sender,
     required UiUsername username,
-  }) = UiSystemMessage_ReceivedAdditionalHandleConnectionRequest;
+  }) = UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest;
   const factory UiSystemMessage.receivedAdditionalDirectConnectionRequest({
     required UiUserId sender,
     required String chatName,

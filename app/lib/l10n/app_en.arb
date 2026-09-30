@@ -1124,8 +1124,8 @@
       }
     }
   },
-  "systemMessage_receivedAdditionalHandleConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
-  "@systemMessage_receivedAdditionalHandleConnectionRequest": {
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
+  "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
     "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
     "placeholders": {
       "displayName": {

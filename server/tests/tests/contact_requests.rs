@@ -91,12 +91,12 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
             user_handle: first.username.clone(),
         })
     );
-    assert!(
-        messages.contains(&SystemMessage::ReceivedAdditionalHandleConnectionRequest {
+    assert!(messages.contains(
+        &SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
             sender: alice.clone(),
-            user_handle: second.username.clone(),
-        })
-    );
+            username: second.username.clone(),
+        }
+    ));
 
     bob_user
         .accept_contact_request(chat_id)

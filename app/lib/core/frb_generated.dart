@@ -11684,7 +11684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 13:
         return UiSystemMessage_DeviceUnlinked(dco_decode_Uuid(raw[1]));
       case 14:
-        return UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+        return UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
           username: dco_decode_box_autoadd_ui_username(raw[2]),
         );
@@ -15848,7 +15848,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 14:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_username = sse_decode_box_autoadd_ui_username(deserializer);
-        return UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+        return UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
           sender: var_sender,
           username: var_username,
         );
@@ -20074,7 +20074,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_DeviceUnlinked(field0: final field0):
         sse_encode_i_32(13, serializer);
         sse_encode_Uuid(field0, serializer);
-      case UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+      case UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
         sender: final sender,
         username: final username,
       ):

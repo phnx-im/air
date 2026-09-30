@@ -218,7 +218,7 @@
   "systemMessage_newDirectConnectionChat": "你已向 {displayName} 傳送聯絡請求。對方可能不會立即收到通知。",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} 透過你的使用者名稱 {username} 向你傳送了聯絡請求。",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} 透過群組聊天 {groupName} 向你傳送了聯絡請求。",
-  "systemMessage_receivedAdditionalHandleConnectionRequest": "{displayName} 也透過你的使用者名稱 {username} 向你傳送了聯絡請求。",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} 也透過你的使用者名稱 {username} 向你傳送了聯絡請求。",
   "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} 也透過群組聊天 {groupName} 向你傳送了聯絡請求。",
   "systemMessage_userChangedPicture": "{user} 變更了群組圖片",
   "systemMessage_userCreatedGroup": "{user} 建立了群組",

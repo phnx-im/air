@@ -256,10 +256,10 @@ impl CoreUser {
                 // reaches every sibling, so this client may already hold the
                 // pending requests the acting client settled. They are shown
                 // in another chat if this device knows a newer request. The
-                // handle of a username offer is only in that pending state.
+                // username an offer went to is only in that pending state.
                 let request_id = chat.id();
                 let accepted = PendingConnectionRequest::load(&mut *txn, request_id).await?;
-                let user_handle = accepted.and_then(|request| request.handle);
+                let user_handle = accepted.and_then(|request| request.username);
                 let host = PendingConnectionRequest::chat_of_sender(&mut *txn, user_id).await?;
                 if let Some(host) = host {
                     connection_requests::settle_accepted(txn, host).await?;

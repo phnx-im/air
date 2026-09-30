@@ -264,12 +264,12 @@ TextSpan buildSystemMessageText(
     UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
-    UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+    UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
       :final sender,
       :final username,
     ) =>
       TextSpan(
-        text: loc.systemMessage_receivedAdditionalHandleConnectionRequest(
+        text: loc.systemMessage_receivedAdditionalUsernameConnectionRequest(
           nameOf(sender),
           username.plaintext,
         ),

@@ -632,9 +632,9 @@ pub enum SystemMessage {
     DeviceUnlinked(Uuid),
     /// We received another connection request through one of our usernames
     /// while an earlier one of the same sender is pending.
-    ReceivedAdditionalHandleConnectionRequest {
+    ReceivedAdditionalUsernameConnectionRequest {
         sender: UserId,
-        user_handle: Username,
+        username: Username,
     },
     /// We received another connection request through a group chat while an
     /// earlier one of the same sender is pending. The String is the name of
@@ -659,20 +659,17 @@ impl SystemMessage {
     /// The message announcing a request we received through one of our
     /// usernames. An `additional` request joins the pending ones of its
     /// sender.
-    pub(crate) fn received_handle_connection_request(
+    pub(crate) fn received_username_connection_request(
         sender: UserId,
-        user_handle: Username,
+        username: Username,
         additional: bool,
     ) -> Self {
         if additional {
-            SystemMessage::ReceivedAdditionalHandleConnectionRequest {
-                sender,
-                user_handle,
-            }
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username }
         } else {
             SystemMessage::ReceivedHandleConnectionRequest {
                 sender,
-                user_handle,
+                user_handle: username,
             }
         }
     }
@@ -707,7 +704,7 @@ impl SystemMessage {
             | SystemMessage::Onboarded
             | SystemMessage::DeviceLinked(_)
             | SystemMessage::DeviceUnlinked(_)
-            | SystemMessage::ReceivedAdditionalHandleConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalUsernameConnectionRequest { .. }
             | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. } => None,
         }
     }
@@ -790,12 +787,9 @@ impl SystemMessage {
                 let display_name = core_user.user_profile(user_id).await.display_name;
                 format!("You requested a connection with {display_name}")
             }
-            SystemMessage::ReceivedAdditionalHandleConnectionRequest {
-                sender,
-                user_handle,
-            } => {
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username } => {
                 let display_name = core_user.user_profile(sender).await.display_name;
-                let username = user_handle.plaintext();
+                let username = username.plaintext();
                 format!(
                     "{display_name} also sent you a contact request through your \
                     username {username}."

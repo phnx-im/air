@@ -3482,8 +3482,8 @@ as UuidValue,
 /// @nodoc
 
 
-class UiSystemMessage_ReceivedAdditionalHandleConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_ReceivedAdditionalHandleConnectionRequest({required this.sender, required this.username}): super._();
+class UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest({required this.sender, required this.username}): super._();
   
 
  final  UiUserId sender;
@@ -3493,13 +3493,13 @@ class UiSystemMessage_ReceivedAdditionalHandleConnectionRequest extends UiSystem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalHandleConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalHandleConnectionRequest>(this, _$identity);
+$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalHandleConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
 }
 
 
@@ -3510,15 +3510,15 @@ int get hashCode {
 
 @override
 String toString() {
-    return 'UiSystemMessage.receivedAdditionalHandleConnectionRequest(sender: $sender, username: $username)';
+    return 'UiSystemMessage.receivedAdditionalUsernameConnectionRequest(sender: $sender, username: $username)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
-  factory $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl;
+abstract mixin class $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
  UiUserId sender, UiUsername username
@@ -3529,17 +3529,17 @@ $UiUsernameCopyWith<$Res> get username;
 
 }
 /// @nodoc
-class _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl<$Res>
-    implements $UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWith<$Res> {
-  _$UiSystemMessage_ReceivedAdditionalHandleConnectionRequestCopyWithImpl(this._self, this._then);
+class _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl(this._self, this._then);
 
-  final UiSystemMessage_ReceivedAdditionalHandleConnectionRequest _self;
-  final $Res Function(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest) _then;
+  final UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest _self;
+  final $Res Function(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest) _then;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? username = null,}) {
-  return _then(UiSystemMessage_ReceivedAdditionalHandleConnectionRequest(
+  return _then(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
 as UiUserId,username: null == username ? _self.username : username // ignore: cast_nullable_to_non_nullable
 as UiUsername,

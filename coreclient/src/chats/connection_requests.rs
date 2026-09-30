@@ -77,13 +77,13 @@ impl IncomingRequest {
         let existing_chat = PendingConnectionRequest::chat_of_sender(&mut *txn, &sender).await?;
         let is_additional = existing_chat.is_some();
 
-        let (announcement, handle, offer_hash, package_hash, origin_chat_id) = match source {
+        let (announcement, username, offer_hash, package_hash, origin_chat_id) = match source {
             IncomingRequestSource::Username {
                 username,
                 connection_offer_hash,
                 connection_package_hash,
             } => (
-                SystemMessage::received_handle_connection_request(
+                SystemMessage::received_username_connection_request(
                     sender.clone(),
                     username.clone(),
                     is_additional,
@@ -126,7 +126,7 @@ impl IncomingRequest {
             created_at: TimeStamp::now(),
             received_at,
             connection_info,
-            handle,
+            username,
             connection_offer_hash: offer_hash,
             connection_package_hash: package_hash,
             origin_chat_id,
@@ -384,9 +384,9 @@ mod tests {
                         sender: sender.clone(),
                         user_handle: Username::new("ellie-03".to_owned())?,
                     },
-                    SystemMessage::ReceivedAdditionalHandleConnectionRequest {
+                    SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
                         sender: sender.clone(),
-                        user_handle: Username::new("ellie-04".to_owned())?,
+                        username: Username::new("ellie-04".to_owned())?,
                     },
                 ]
             );
