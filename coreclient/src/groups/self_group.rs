@@ -437,16 +437,8 @@ impl CoreUser {
         Ok(Some(group))
     }
 
-    /// Resets the self group and its chat from the local database only. The
-    /// server and linked devices are not told.
+    /// Resets the self group and its chat from the local database only.
     pub async fn danger_reset_self_group(&self) -> anyhow::Result<()> {
-        if SelfGroup::load(self.db().read().await?)
-            .await?
-            .is_some_and(|state| state.has_linked_devices())
-        {
-            anyhow::bail!("You can only delete a self-group if you have no linked devices!");
-        }
-
         self.db()
             .with_write_transaction(async |txn| -> sqlx::Result<()> {
                 let Some(group_id) = OwnClientInfo::load_self_group_id(&mut *txn).await? else {
