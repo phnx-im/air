@@ -89,7 +89,7 @@ void showSnackBarStandalone(
 
 final _clearanceWidgets = ValueNotifier<int>(0);
 
-/// Keeps the snackbar's full buttom clearance while the keyboard is up.
+/// Keeps the snackbar's full bottom clearance while the keyboard is up.
 ///
 /// With the keyboard up, the snackbar sits [SnackbarTokens.keyboardGap] above
 /// it. While this widget is mounted on the current route, it keeps
