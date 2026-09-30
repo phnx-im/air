@@ -144,7 +144,6 @@ async fn store_three_tokens(
     Ok(tokens)
 }
 
-/// Stores the `own_client_info` row `SelfGroup::has_linked_devices` reads.
 async fn store_own_client_info(
     db: &DbAccess,
     self_group_id: Option<GroupId>,

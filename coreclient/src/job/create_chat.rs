@@ -154,7 +154,9 @@ impl CreateChat {
             .write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
-                let self_group = SelfGroup::load(&mut *txn).await?;
+                let self_group = SelfGroup::load(&mut *txn)
+                    .await?
+                    .filter(SelfGroup::has_linked_devices);
                 let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
                 let (group, partial_params) = if is_apq {

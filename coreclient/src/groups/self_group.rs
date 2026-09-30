@@ -29,7 +29,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::{debug, warn};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -53,6 +53,35 @@ pub struct SelfGroup {
     group: Group,
 }
 
+/// The self group as seen by account-level questions, which unlike operations
+/// on the group also care about a self group that is not joined yet.
+#[derive(Debug)]
+pub(crate) enum SelfGroupState {
+    /// Assigned by linking, but the Welcome was not processed yet.
+    NotJoined,
+    Joined(Box<SelfGroup>),
+}
+
+impl SelfGroupState {
+    pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
+            return Ok(None);
+        };
+        Ok(Some(match Group::load(connection, &group_id).await? {
+            Some(group) => Self::Joined(Box::new(SelfGroup { group })),
+            None => Self::NotJoined,
+        }))
+    }
+
+    pub(crate) async fn has_linked_devices(connection: impl ReadConnection) -> sqlx::Result<bool> {
+        Ok(match Self::load(connection).await? {
+            None => false,
+            Some(Self::NotJoined) => true,
+            Some(Self::Joined(self_group)) => self_group.has_linked_devices(),
+        })
+    }
+}
+
 impl SelfGroup {
     #[cfg(test)]
     pub(crate) fn new_for_test(group: Group) -> Self {
@@ -74,36 +103,11 @@ impl SelfGroup {
     pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
         if let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? {
             match Group::load(connection, &group_id).await? {
-                Some(group) => {
-                    debug!("Self-group found");
-                    Ok(Some(SelfGroup { group }))
-                }
+                Some(group) => Ok(Some(SelfGroup { group })),
                 None => Ok(None),
             }
         } else {
             Ok(None)
-        }
-    }
-
-    pub(crate) async fn has_linked_devices(
-        mut connection: impl ReadConnection,
-    ) -> sqlx::Result<bool> {
-        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
-            return Ok(false);
-        };
-        let Some(group) = Group::load(connection, &group_id).await? else {
-            debug!("self group not joined yet, assuming linked devices");
-            return Ok(true);
-        };
-        let self_group = Self { group };
-        match self_group.client_ids() {
-            Ok(client_ids) => Ok(client_ids.len() > 1),
-            Err(error) => {
-                // Since there is a self group, there is a channel to other
-                // devices, so assume there are some.
-                warn!(%error, "cannot count linked devices, assuming there are some");
-                Ok(true)
-            }
         }
     }
 
@@ -133,6 +137,12 @@ impl SelfGroup {
                 },
             )
             .collect()
+    }
+
+    /// Whether other devices share this self group. The self group outlives
+    /// its siblings, so its existence alone says nothing about them.
+    pub(crate) fn has_linked_devices(&self) -> bool {
+        self.group.mls_group().members().nth(1).is_some()
     }
 
     /// The parsed leaf credentials of the self-group members, in member order.
