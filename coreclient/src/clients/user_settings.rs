@@ -440,8 +440,9 @@ pub(crate) struct UserSettingRecord {}
 
 pub(crate) mod persistence {
     use crate::{
-        clients::{own_client_info::OwnClientInfo, user_settings::SyncedUserSetting},
+        clients::user_settings::SyncedUserSetting,
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+        groups::self_group::SelfGroupState,
     };
 
     use super::{SettingChanges, UserSettingRecord};
@@ -485,16 +486,17 @@ pub(crate) mod persistence {
     /// Records a synced setting change inside an existing transaction.
     ///
     /// Returns whether anything was enqueued for synchronization, i.e. whether the
-    /// caller should notify the outbound service. A single-device client that was
-    /// never linked has no self-group to sync through, so the value is only stored
-    /// locally and `false` is returned.
+    /// caller should notify the outbound service. Without linked devices there is
+    /// nobody to sync to, so the value is only stored locally and `false` is
+    /// returned.
     pub(crate) async fn set_synced_setting<T: SyncedUserSetting>(
         txn: &mut WriteDbTransaction<'_>,
         value: &T,
     ) -> anyhow::Result<bool> {
-        let info = OwnClientInfo::load(&mut *txn).await?;
-        if info.self_group_id.is_none() {
-            // Single device, never linked: store locally, nothing to sync to.
+        if !SelfGroupState::load(&mut *txn)
+            .await?
+            .is_some_and(|state| state.has_linked_devices())
+        {
             UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;
             return Ok(false);
         }

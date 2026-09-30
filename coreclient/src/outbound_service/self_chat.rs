@@ -5,7 +5,9 @@
 use tracing::debug;
 
 use crate::{
-    Chat, groups::self_group::SelfGroup, job::pending_chat_operation::PendingChatOperation,
+    Chat,
+    groups::self_group::{SelfGroup, SelfGroupState},
+    job::pending_chat_operation::PendingChatOperation,
     outbound_service::resync::Resync,
 };
 
@@ -22,7 +24,10 @@ pub(super) enum SelfChatReadiness {
 
 impl OutboundServiceContext {
     pub(super) async fn self_chat_for_app_message(&self) -> anyhow::Result<SelfChatReadiness> {
-        if !SelfGroup::has_linked_devices(self.db.read().await?).await? {
+        if !SelfGroupState::load(self.db.read().await?)
+            .await?
+            .is_some_and(|state| state.has_linked_devices())
+        {
             return Ok(SelfChatReadiness::NoSiblings);
         }
 

@@ -30,7 +30,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::{debug, warn};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -59,6 +59,35 @@ pub struct SelfGroup {
     group: Group,
 }
 
+/// The self group as seen by account-level questions, which unlike operations
+/// on the group also care about a self group that is not joined yet.
+#[derive(Debug)]
+pub(crate) enum SelfGroupState {
+    /// Assigned by linking, but the Welcome was not processed yet.
+    NotJoined,
+    Joined(Box<SelfGroup>),
+}
+
+impl SelfGroupState {
+    pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
+            return Ok(None);
+        };
+        Ok(Some(match Group::load(connection, &group_id).await? {
+            Some(group) => Self::Joined(Box::new(SelfGroup { group })),
+            None => Self::NotJoined,
+        }))
+    }
+
+    /// A self group that is not joined yet has siblings by design (a part of the linking process).
+    pub(crate) fn has_linked_devices(&self) -> bool {
+        match self {
+            Self::NotJoined => true,
+            Self::Joined(self_group) => self_group.has_linked_devices(),
+        }
+    }
+}
+
 impl SelfGroup {
     #[cfg(test)]
     pub(crate) fn new_for_test(group: Group) -> Self {
@@ -80,36 +109,11 @@ impl SelfGroup {
     pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
         if let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? {
             match Group::load(connection, &group_id).await? {
-                Some(group) => {
-                    debug!("Self-group found");
-                    Ok(Some(SelfGroup { group }))
-                }
+                Some(group) => Ok(Some(SelfGroup { group })),
                 None => Ok(None),
             }
         } else {
             Ok(None)
-        }
-    }
-
-    pub(crate) async fn has_linked_devices(
-        mut connection: impl ReadConnection,
-    ) -> sqlx::Result<bool> {
-        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
-            return Ok(false);
-        };
-        let Some(group) = Group::load(connection, &group_id).await? else {
-            debug!("self group not joined yet, assuming linked devices");
-            return Ok(true);
-        };
-        let self_group = Self { group };
-        match self_group.client_ids() {
-            Ok(client_ids) => Ok(client_ids.len() > 1),
-            Err(error) => {
-                // Since there is a self group, there is a channel to other
-                // devices, so assume there are some.
-                warn!(%error, "cannot count linked devices, assuming there are some");
-                Ok(true)
-            }
         }
     }
 
@@ -139,6 +143,12 @@ impl SelfGroup {
                 },
             )
             .collect()
+    }
+
+    /// Whether other devices share this self group. Every user has a self
+    /// group, so its existence alone says nothing about linked devices.
+    pub(crate) fn has_linked_devices(&self) -> bool {
+        self.group.mls_group().members().nth(1).is_some()
     }
 
     /// The parsed leaf credentials of the self-group members, in member order.
@@ -264,25 +274,21 @@ impl CoreUser {
     /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
         let _guard = self.inner.self_group_creation.lock().await;
-        let self_group = match SelfGroup::load(self.db().read().await?).await? {
-            Some(self_group) => self_group,
-            None => {
-                if OwnClientInfo::load_self_group_id(self.db().read().await?)
-                    .await?
-                    .is_some()
-                {
-                    return Err(SelfGroupNotJoined.into());
-                }
-                SelfGroup {
-                    group: self.create_self_group().await?,
-                }
-            }
+        let self_group = match SelfGroupState::load(self.db().read().await?).await? {
+            None => SelfGroup {
+                group: self.create_self_group().await?,
+            },
+            Some(SelfGroupState::Joined(self_group)) => *self_group,
+            Some(SelfGroupState::NotJoined) => return Err(SelfGroupNotJoined.into()),
         };
+
+        // Make sure we surface the chat in the app
         self.db()
             .with_write_transaction(async |txn| {
                 self.ensure_self_chat(txn, self_group.group_id()).await
             })
             .await?;
+
         Ok(self_group)
     }
 
@@ -407,7 +413,10 @@ impl CoreUser {
     /// Resets the self group and its chat from the local database only. The
     /// server and linked devices are not told.
     pub async fn danger_reset_self_group(&self) -> anyhow::Result<()> {
-        if SelfGroup::has_linked_devices(self.db().read().await?).await? {
+        if SelfGroupState::load(self.db().read().await?)
+            .await?
+            .is_some_and(|state| state.has_linked_devices())
+        {
             anyhow::bail!("You can only delete a self-group if you have no linked devices!");
         }
 
