@@ -39,7 +39,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     db::access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::self_group::SelfGroupState,
+    groups::self_group::SelfGroup,
 };
 
 use self::derivation::SEED_LEN;
@@ -429,7 +429,7 @@ async fn resolve_seed(
             // Alone there is nobody left to disagree, so the proposal is the
             // seed and waiting for a commit round would only withhold tokens.
             SeedState::Proposed
-                if !SelfGroupState::has_linked_devices(db.read().await?).await? =>
+                if !SelfGroup::load_and_check_if_has_linked_device(db.read().await?).await? =>
             {
                 persistence::mark_seed_committed(
                     db.write().await?,
@@ -452,7 +452,7 @@ async fn resolve_seed(
 
     // Alone there is nobody to agree with, and a device linked later receives
     // the seed in its provisioning package.
-    let state = if SelfGroupState::has_linked_devices(db.read().await?).await? {
+    let state = if SelfGroup::load_and_check_if_has_linked_device(db.read().await?).await? {
         SeedState::Proposed
     } else {
         SeedState::Committed

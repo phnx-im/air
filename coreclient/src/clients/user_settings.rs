@@ -442,7 +442,7 @@ pub(crate) mod persistence {
     use crate::{
         clients::user_settings::SyncedUserSetting,
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-        groups::self_group::SelfGroupState,
+        groups::self_group::SelfGroup,
     };
 
     use super::{SettingChanges, UserSettingRecord};
@@ -493,7 +493,7 @@ pub(crate) mod persistence {
         txn: &mut WriteDbTransaction<'_>,
         value: &T,
     ) -> anyhow::Result<bool> {
-        if !SelfGroupState::has_linked_devices(&mut *txn).await? {
+        if !SelfGroup::load_and_check_if_has_linked_device(&mut *txn).await? {
             UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;
             return Ok(false);
         }

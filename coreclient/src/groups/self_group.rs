@@ -53,35 +53,6 @@ pub struct SelfGroup {
     group: Group,
 }
 
-/// The self group as seen by account-level questions, which unlike operations
-/// on the group also care about a self group that is not joined yet.
-#[derive(Debug)]
-pub(crate) enum SelfGroupState {
-    /// Assigned by linking, but the Welcome was not processed yet.
-    NotJoined,
-    Joined(Box<SelfGroup>),
-}
-
-impl SelfGroupState {
-    pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
-        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
-            return Ok(None);
-        };
-        Ok(Some(match Group::load(connection, &group_id).await? {
-            Some(group) => Self::Joined(Box::new(SelfGroup { group })),
-            None => Self::NotJoined,
-        }))
-    }
-
-    pub(crate) async fn has_linked_devices(connection: impl ReadConnection) -> sqlx::Result<bool> {
-        Ok(match Self::load(connection).await? {
-            None => false,
-            Some(Self::NotJoined) => true,
-            Some(Self::Joined(self_group)) => self_group.has_linked_devices(),
-        })
-    }
-}
-
 impl SelfGroup {
     #[cfg(test)]
     pub(crate) fn new_for_test(group: Group) -> Self {
@@ -108,6 +79,24 @@ impl SelfGroup {
             }
         } else {
             Ok(None)
+        }
+    }
+
+    /// Load the self-group and checks whether devices are linked.
+    ///
+    /// The logic differs slightly from `SelfGroup::load` and covers an extra use-case where a self-group ID
+    /// is registered in `OwnClientInfo` but the MLS group doesn't exist yet. This only happens during linking
+    /// when the Welcome hasn't been received or processed yet.
+    pub(crate) async fn load_and_check_if_has_linked_device(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<bool> {
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
+            return Ok(false);
+        };
+
+        match Group::load(connection, &group_id).await? {
+            None => Ok(true), // Welcome not processed yet, assuming multiple devices.
+            Some(group) => Ok(Self { group }.has_linked_devices()),
         }
     }
 
