@@ -82,7 +82,7 @@ impl Queues {
         client_version: Option<Version>,
         sequence_number_start: u64,
     ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
-        let notifications = self.pg_listener_task_handle.subscribe(client_id);
+        let notifications = self.pg_listener_task_handle.subscribe(client_id).await?;
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
         let cancel = self.track_listener(client_id, client_version.as_ref(), payload_tx);
@@ -93,6 +93,7 @@ impl Queues {
             client_version,
             sequence_number: sequence_number_start,
             cancel,
+            listeners: self.listeners.clone(),
             buffer: VecDeque::with_capacity(MAX_BUFFER_SIZE),
             state: FetchState::Init,
         };
@@ -177,24 +178,11 @@ impl Queues {
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<QueueEventPayload>,
     ) -> CancellationToken {
-        // Clean up cancelled listeners
-        self.listeners.retain(|id, context| {
-            if context.cancel.is_cancelled() {
-                self.pg_listener_task_handle.unlisten(*id);
-                false
-            } else {
-                true
-            }
-        });
-
         let cancel = CancellationToken::new();
         let context = ListenerContext::new(cancel.clone(), client_version, payload_tx);
         if let Some(prev_listener) = self.listeners.insert(client_id, context) {
             prev_listener.cancel.cancel();
-        } else {
-            self.pg_listener_task_handle.listen(client_id);
         }
-
         cancel
     }
 }
@@ -217,6 +205,7 @@ struct QueueStreamContext<S> {
     client_version: Option<Version>,
     sequence_number: u64,
     cancel: CancellationToken,
+    listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     /// Buffer for already fetched messages
     ///
     /// Invariant: the messages are stored in ascending order by sequence number.
@@ -227,6 +216,9 @@ struct QueueStreamContext<S> {
 impl<S> Drop for QueueStreamContext<S> {
     fn drop(&mut self) {
         self.cancel.cancel();
+        // Takes a shard lock on the map, never drop a context while holding a guard into it.
+        self.listeners
+            .remove_if(&self.client_id, |_, context| context.cancel.is_cancelled());
         let client_version_label = client_version_label(self.client_version.as_ref());
         gauge!(
             METRIC_AIR_ACTIVE_USERS,

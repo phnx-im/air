@@ -2,13 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::Arc;
 
 use aircommon::identifiers::UsernameHash;
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+use dashmap::DashMap;
 use displaydoc::Display;
 use futures_util::stream;
 use sqlx::PgPool;
@@ -38,15 +36,9 @@ pub(crate) struct UsernameQueues {
     /// Handle to a task that listens and multiplexes Postgres notifications
     pg_listener_task_handle: PgListenerTaskHandle<UsernameHash>,
     /// The live streams per queue, oldest first.
-    listeners: Arc<Mutex<HashMap<UsernameHash, Vec<Listener>>>>,
+    listeners: Arc<DashMap<UsernameHash, Vec<CancellationToken>>>,
     /// Upper bound on the live streams of one queue.
     max_devices: MaxDevices,
-}
-
-#[derive(Debug)]
-struct Listener {
-    id: Uuid,
-    cancel: CancellationToken,
 }
 
 impl UsernameQueues {
@@ -84,22 +76,17 @@ impl UsernameQueues {
         &self,
         hash: UsernameHash,
     ) -> Result<impl Stream<Item = Option<UsernameQueueMessage>> + use<>, UsernameQueueError> {
-        let notifications = self.pg_listener_task_handle.subscribe(hash);
-        let id = Uuid::new_v4();
-        let cancel = self.track_listener(hash, id);
+        let notifications = self.pg_listener_task_handle.subscribe(hash).await?;
+        let cancel = self.track_listener(hash);
         let context = QueueStreamContext {
-            id,
+            id: Uuid::new_v4(),
             pool: self.pool.clone(),
             notifications,
             hash,
             cancel,
+            listeners: self.listeners.clone(),
             buffer: Vec::with_capacity(MAX_BUFFER_SIZE),
             state: FetchState::Fetch,
-            _registration: ListenerRegistration {
-                queues: self.clone(),
-                hash,
-                id,
-            },
         };
         Ok(context.into_stream())
     }
@@ -143,58 +130,19 @@ impl UsernameQueues {
         Ok(())
     }
 
-    fn track_listener(&self, hash: UsernameHash, id: Uuid) -> CancellationToken {
-        let mut listeners = self.lock_listeners();
-        let queue_listeners = listeners.entry(hash).or_default();
-        if queue_listeners.is_empty() {
-            self.pg_listener_task_handle.listen(hash);
-        }
-        let max_devices = self.max_devices.get();
-        if max_devices > 0 {
-            let max = usize::try_from(max_devices).unwrap_or(usize::MAX);
-            let excess = (queue_listeners.len() + 1).saturating_sub(max);
-            for evicted in queue_listeners.drain(..excess) {
-                evicted.cancel.cancel();
+    fn track_listener(&self, hash: UsernameHash) -> CancellationToken {
+        // Note: Locks the entry in the map until the end of the function.
+        let mut tokens = self.listeners.entry(hash).or_default();
+        let max = usize::try_from(self.max_devices.get()).unwrap_or(usize::MAX);
+        if max > 0 {
+            let excess = (tokens.len() + 1).saturating_sub(max);
+            for evicted in tokens.drain(..excess) {
+                evicted.cancel();
             }
         }
         let cancel = CancellationToken::new();
-        queue_listeners.push(Listener {
-            id,
-            cancel: cancel.clone(),
-        });
+        tokens.push(cancel.clone());
         cancel
-    }
-
-    fn untrack_listener(&self, hash: UsernameHash, id: Uuid) {
-        let mut listeners = self.lock_listeners();
-        let Some(queue_listeners) = listeners.get_mut(&hash) else {
-            return;
-        };
-        queue_listeners.retain(|listener| listener.id != id);
-        if queue_listeners.is_empty() {
-            listeners.remove(&hash);
-            self.pg_listener_task_handle.unlisten(hash);
-        }
-    }
-
-    fn lock_listeners(&self) -> std::sync::MutexGuard<'_, HashMap<UsernameHash, Vec<Listener>>> {
-        // Panicking doesn't really poison the map
-        self.listeners
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-    }
-}
-
-/// Removes a listener from [`UsernameQueues`] when its stream is dropped.
-struct ListenerRegistration {
-    queues: UsernameQueues,
-    hash: UsernameHash,
-    id: Uuid,
-}
-
-impl Drop for ListenerRegistration {
-    fn drop(&mut self) {
-        self.queues.untrack_listener(self.hash, self.id);
     }
 }
 
@@ -243,12 +191,24 @@ struct QueueStreamContext<S> {
     notifications: S,
     hash: UsernameHash,
     cancel: CancellationToken,
+    listeners: Arc<DashMap<UsernameHash, Vec<CancellationToken>>>,
     /// Buffer for already fetched messages
     ///
     /// Note: the messages are stored in descending order.
     buffer: Vec<UsernameQueueMessage>,
     state: FetchState,
-    _registration: ListenerRegistration,
+}
+
+// QueueStreamContext *must not* be dropped while holding a guard into the listeners map. Otherwise,
+// it would deadlock.
+impl<S> Drop for QueueStreamContext<S> {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+        self.listeners.remove_if_mut(&self.hash, |_, tokens| {
+            tokens.retain(|token| !token.is_cancelled());
+            tokens.is_empty()
+        });
+    }
 }
 
 enum FetchState {
@@ -733,6 +693,41 @@ mod test {
     }
 
     #[sqlx::test]
+    async fn dropped_listener_keeps_others_notified(pool: PgPool) {
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
+
+        let mut stream1 = Box::pin(queues.listen(hash).await.unwrap());
+        let mut stream2 = pin!(queues.listen(hash).await.unwrap());
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, stream1.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, stream2.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+
+        drop(stream1);
+        // Commands are processed in order, but unlisten is done once this returns.
+        let _flush = queues
+            .pg_listener_task_handle
+            .subscribe(UsernameHash::new([2; 32]))
+            .await
+            .unwrap();
+
+        let payload = new_payload("msg1");
+        let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
+
+        let received = timeout(STREAM_NEXT_TIMEOUT, stream2.next())
+            .await
+            .expect("Timeout waiting for message")
+            .expect("Stream ended prematurely")
+            .expect("Expected Some(QueueMessage), got None");
+        assert_msg_eq(&received, &msg(msg1_id, payload));
+    }
+
+    #[sqlx::test]
     async fn oldest_listener_is_evicted_beyond_the_limit(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
@@ -762,7 +757,7 @@ mod test {
             "oldest listener should have been evicted, got {evicted:?}"
         );
         assert_eq!(
-            queues.lock_listeners().get(&hash).map(Vec::len),
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
             Some(MAX_DEVICES as usize)
         );
     }
@@ -788,7 +783,7 @@ mod test {
             .await
             .expect_err("oldest listener should still be waiting");
         assert_eq!(
-            queues.lock_listeners().get(&hash).map(Vec::len),
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
             Some(MAX_DEVICES as usize + 1)
         );
     }
@@ -804,13 +799,19 @@ mod test {
 
         let stream1 = queues.listen(hash).await.unwrap();
         let stream2 = queues.listen(hash).await.unwrap();
-        assert_eq!(queues.lock_listeners().get(&hash).map(Vec::len), Some(2));
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(2)
+        );
 
         drop(stream1);
-        assert_eq!(queues.lock_listeners().get(&hash).map(Vec::len), Some(1));
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(1)
+        );
 
         drop(stream2);
-        assert!(!queues.lock_listeners().contains_key(&hash));
+        assert!(!queues.listeners.contains_key(&hash));
     }
 
     #[sqlx::test]
