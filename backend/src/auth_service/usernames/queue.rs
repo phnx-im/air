@@ -2,15 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use aircommon::identifiers::UsernameHash;
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+use dashmap::DashMap;
 use displaydoc::Display;
 use futures_util::stream;
 use sqlx::PgPool;
 use thiserror::Error;
-use tokio::sync::Mutex;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
@@ -19,7 +19,10 @@ use uuid::Uuid;
 
 use persistence::UsernameQueue;
 
-use crate::pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task};
+use crate::{
+    air_service::MaxDevices,
+    pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
+};
 
 /// Maximum number of messages to fetch at once.
 const MAX_BUFFER_SIZE: usize = 32;
@@ -32,18 +35,30 @@ pub(crate) struct UsernameQueues {
     pool: PgPool,
     /// Handle to a task that listens and multiplexes Postgres notifications
     pg_listener_task_handle: PgListenerTaskHandle<UsernameHash>,
-    /// Ensures that we have only a single stream per queue.
-    listeners: Arc<Mutex<HashMap<UsernameHash, CancellationToken>>>,
+    /// The live streams per queue, oldest first.
+    listeners: Arc<DashMap<UsernameHash, Vec<CancellationToken>>>,
+    /// Upper bound on the live streams of one queue.
+    max_devices: MaxDevices,
 }
 
 impl UsernameQueues {
-    pub(crate) async fn new(pool: PgPool, stop: CancellationToken) -> sqlx::Result<Self> {
+    pub(crate) async fn new(
+        pool: PgPool,
+        max_devices: MaxDevices,
+        stop: CancellationToken,
+    ) -> sqlx::Result<Self> {
         let pg_listener_task_handle = spawn_pg_listener_task(pool.clone(), stop).await?;
         Ok(Self {
             pool,
             pg_listener_task_handle,
             listeners: Default::default(),
+            max_devices,
         })
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub(crate) fn max_devices_handle(&self) -> MaxDevices {
+        self.max_devices.clone()
     }
 
     /// Returns a stream of messages from the queue specified by a username.
@@ -54,21 +69,22 @@ impl UsernameQueues {
     /// Messages are identified by UUIDs. Messages are only removed from the queue once they are
     /// acknowledged.
     ///
-    /// If another listener is already active for the same `hash`, that existing listener is
-    /// cancelled before this new stream is returned. All messages that are not acknowledged will
-    /// be emitted to the new listener.
+    /// Several listeners of the same `hash` run side by side, one per device of the user. All
+    /// messages that are not acknowledged are emitted to every new listener. Beyond the device
+    /// limit, the oldest listeners are cancelled.
     pub(crate) async fn listen(
         &self,
         hash: UsernameHash,
     ) -> Result<impl Stream<Item = Option<UsernameQueueMessage>> + use<>, UsernameQueueError> {
-        let notifications = self.pg_listener_task_handle.subscribe(hash);
-        let cancel = self.track_listener(hash).await?;
+        let notifications = self.pg_listener_task_handle.subscribe(hash).await?;
+        let cancel = self.track_listener(hash);
         let context = QueueStreamContext {
             id: Uuid::new_v4(),
             pool: self.pool.clone(),
             notifications,
             hash,
             cancel,
+            listeners: self.listeners.clone(),
             buffer: Vec::with_capacity(MAX_BUFFER_SIZE),
             state: FetchState::Fetch,
         };
@@ -114,18 +130,19 @@ impl UsernameQueues {
         Ok(())
     }
 
-    async fn track_listener(&self, hash: UsernameHash) -> sqlx::Result<CancellationToken> {
-        let mut listeners = self.listeners.lock().await;
-        for (hash, _) in listeners.extract_if(|_, cancel| cancel.is_cancelled()) {
-            self.pg_listener_task_handle.unlisten(hash);
+    fn track_listener(&self, hash: UsernameHash) -> CancellationToken {
+        // Note: Locks the entry in the map until the end of the function.
+        let mut tokens = self.listeners.entry(hash).or_default();
+        let max = usize::try_from(self.max_devices.get()).unwrap_or(usize::MAX);
+        if max > 0 {
+            let excess = (tokens.len() + 1).saturating_sub(max);
+            for evicted in tokens.drain(..excess) {
+                evicted.cancel();
+            }
         }
         let cancel = CancellationToken::new();
-        if let Some(prev_cancel) = listeners.insert(hash, cancel.clone()) {
-            prev_cancel.cancel();
-        } else {
-            self.pg_listener_task_handle.listen(hash);
-        }
-        Ok(cancel)
+        tokens.push(cancel.clone());
+        cancel
     }
 }
 
@@ -174,11 +191,24 @@ struct QueueStreamContext<S> {
     notifications: S,
     hash: UsernameHash,
     cancel: CancellationToken,
+    listeners: Arc<DashMap<UsernameHash, Vec<CancellationToken>>>,
     /// Buffer for already fetched messages
     ///
     /// Note: the messages are stored in descending order.
     buffer: Vec<UsernameQueueMessage>,
     state: FetchState,
+}
+
+// QueueStreamContext *must not* be dropped while holding a guard into the listeners map. Otherwise,
+// it would deadlock.
+impl<S> Drop for QueueStreamContext<S> {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+        self.listeners.remove_if_mut(&self.hash, |_, tokens| {
+            tokens.retain(|token| !token.is_cancelled());
+            tokens.is_empty()
+        });
+    }
 }
 
 enum FetchState {
@@ -390,6 +420,7 @@ mod test {
     use super::*;
 
     const STREAM_NEXT_TIMEOUT: time::Duration = time::Duration::from_secs(1);
+    const MAX_DEVICES: u32 = 3;
 
     fn new_payload(payload_str: &str) -> Payload {
         Payload::ConnectionOffer(ConnectionOfferMessage {
@@ -513,9 +544,10 @@ mod test {
     async fn enqueue_and_listen_single_message(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
 
         let payload = new_payload("hello");
         let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
@@ -543,9 +575,10 @@ mod test {
     async fn listen_again_refetches_messages(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -592,9 +625,10 @@ mod test {
     async fn ack_removes_messages(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -630,50 +664,164 @@ mod test {
     }
 
     #[sqlx::test]
-    async fn new_listener_cancels_previous_one(pool: PgPool) {
+    async fn concurrent_listeners_all_receive_messages(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
-
-        let payload1 = new_payload("msg1");
-
-        let msg1_id = queues.enqueue(&hash, payload1.clone()).await.unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
 
         let mut stream1 = pin!(queues.listen(hash).await.unwrap());
-
-        // First listener gets the first message
-        let received_msg1_listener1 = timeout(STREAM_NEXT_TIMEOUT, stream1.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        assert_msg_eq(&received_msg1_listener1, &msg(msg1_id, payload1));
-
-        // Start a new listener for the same queue
-        let _stream2 = queues.listen(hash).await.unwrap();
-
-        // Try to get another message from stream1.
-        // It should be cancelled, so it should yield None and then end.
-        let cancellation_signal = timeout(STREAM_NEXT_TIMEOUT, stream1.next()).await;
-
-        match cancellation_signal {
-            Ok(None) => { /* Expected cancellation signal */ }
-            Ok(Some(m)) => {
-                panic!("Stream1 should have been cancelled, but received message: {m:?}")
-            }
-            Err(_) => panic!("Timeout waiting for stream1 to be cancelled"),
+        let mut stream2 = pin!(queues.listen(hash).await.unwrap());
+        for stream in [&mut stream1, &mut stream2] {
+            let initially_empty = timeout(STREAM_NEXT_TIMEOUT, stream.next()).await.unwrap();
+            assert_eq!(initially_empty, Some(None));
         }
+
+        let payload = new_payload("msg1");
+        let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
+
+        for stream in [&mut stream1, &mut stream2] {
+            let received = timeout(STREAM_NEXT_TIMEOUT, stream.next())
+                .await
+                .expect("Timeout waiting for message")
+                .expect("Stream ended prematurely")
+                .expect("Expected Some(QueueMessage), got None");
+            assert_msg_eq(&received, &msg(msg1_id, payload.clone()));
+        }
+    }
+
+    #[sqlx::test]
+    async fn dropped_listener_keeps_others_notified(pool: PgPool) {
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
+
+        let mut stream1 = Box::pin(queues.listen(hash).await.unwrap());
+        let mut stream2 = pin!(queues.listen(hash).await.unwrap());
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, stream1.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, stream2.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+
+        drop(stream1);
+        // Commands are processed in order, but unlisten is done once this returns.
+        let _flush = queues
+            .pg_listener_task_handle
+            .subscribe(UsernameHash::new([2; 32]))
+            .await
+            .unwrap();
+
+        let payload = new_payload("msg1");
+        let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
+
+        let received = timeout(STREAM_NEXT_TIMEOUT, stream2.next())
+            .await
+            .expect("Timeout waiting for message")
+            .expect("Stream ended prematurely")
+            .expect("Expected Some(QueueMessage), got None");
+        assert_msg_eq(&received, &msg(msg1_id, payload));
+    }
+
+    #[sqlx::test]
+    async fn oldest_listener_is_evicted_beyond_the_limit(pool: PgPool) {
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
+
+        let mut oldest = pin!(queues.listen(hash).await.unwrap());
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, oldest.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+
+        let mut others = Vec::new();
+        for _ in 1..MAX_DEVICES {
+            others.push(queues.listen(hash).await.unwrap());
+        }
+        // At the limit, the oldest keeps waiting.
+        timeout(time::Duration::from_millis(50), oldest.next())
+            .await
+            .expect_err("oldest listener should still be waiting");
+
+        let _newest = queues.listen(hash).await.unwrap();
+
+        let evicted = timeout(STREAM_NEXT_TIMEOUT, oldest.next()).await;
+        assert!(
+            matches!(evicted, Ok(None)),
+            "oldest listener should have been evicted, got {evicted:?}"
+        );
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(MAX_DEVICES as usize)
+        );
+    }
+
+    #[sqlx::test]
+    async fn no_listener_is_evicted_without_a_device_limit(pool: PgPool) {
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let no_limit = MaxDevices::new(0);
+        let queues = UsernameQueues::new(pool, no_limit, CancellationToken::new())
+            .await
+            .unwrap();
+
+        let mut oldest = pin!(queues.listen(hash).await.unwrap());
+        let initially_empty = timeout(STREAM_NEXT_TIMEOUT, oldest.next()).await.unwrap();
+        assert_eq!(initially_empty, Some(None));
+
+        let mut others = Vec::new();
+        for _ in 0..MAX_DEVICES {
+            others.push(queues.listen(hash).await.unwrap());
+        }
+        timeout(time::Duration::from_millis(50), oldest.next())
+            .await
+            .expect_err("oldest listener should still be waiting");
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(MAX_DEVICES as usize + 1)
+        );
+    }
+
+    #[sqlx::test]
+    async fn dropped_listeners_are_untracked(pool: PgPool) {
+        let hash = UsernameHash::new([1; 32]);
+        store_username(&pool, hash).await.unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
+
+        let stream1 = queues.listen(hash).await.unwrap();
+        let stream2 = queues.listen(hash).await.unwrap();
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(2)
+        );
+
+        drop(stream1);
+        assert_eq!(
+            queues.listeners.get(&hash).map(|tokens| tokens.len()),
+            Some(1)
+        );
+
+        drop(stream2);
+        assert!(!queues.listeners.contains_key(&hash));
     }
 
     #[sqlx::test]
     async fn listen_emits_none_when_empty_and_waits(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
 
         let mut stream = pin!(queues.listen(hash).await.unwrap());
 
@@ -717,18 +865,20 @@ mod test {
 
     #[sqlx::test]
     async fn ack_non_existent_message(pool: PgPool) {
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
         let result = queues.ack(Uuid::new_v4()).await;
         assert!(result.is_ok());
     }
 
     #[sqlx::test]
     async fn enqueue_non_existent_queue(pool: PgPool) {
-        let queues = UsernameQueues::new(pool, CancellationToken::new())
-            .await
-            .unwrap();
+        let queues =
+            UsernameQueues::new(pool, MaxDevices::new(MAX_DEVICES), CancellationToken::new())
+                .await
+                .unwrap();
         let hash = UsernameHash::new([1; 32]);
 
         let payload = new_payload("msg");

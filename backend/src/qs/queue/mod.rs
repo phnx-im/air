@@ -118,7 +118,7 @@ impl Queues {
         ),
         QueueError,
     > {
-        let notifications = self.pg_listener_task_handle.subscribe(client_id);
+        let notifications = self.pg_listener_task_handle.subscribe(client_id).await?;
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
         let (session, cancel) =
@@ -130,6 +130,7 @@ impl Queues {
             client_version,
             sequence_number: sequence_number_start,
             cancel,
+            listeners: self.listeners.clone(),
             buffer: VecDeque::with_capacity(MAX_BUFFER_SIZE),
             state: FetchState::Init,
         };
@@ -224,11 +225,7 @@ impl Queues {
 
     /// Ends the listener of `client_id`
     pub(crate) fn disconnect(&self, client_id: QsClientId) {
-        // Holding the entry orders the unlisten before the listen of a newer listener.
-        if let Entry::Occupied(entry) = self.listeners.entry(client_id) {
-            self.pg_listener_task_handle.unlisten(client_id);
-            entry.remove();
-        }
+        self.listeners.remove(&client_id);
     }
 
     /// Registers the listener of `client_id`, replacing a previous one.
@@ -241,18 +238,7 @@ impl Queues {
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
     ) -> (ClientSession, CancellationToken) {
-        // FIXME(gabriel): Cleanup in a different place (not on new connections)1
-        // Clean up cancelled listeners (before taking the entry below, since `retain` write-locks
-        // each shard)
-        self.listeners.retain(|id, context| {
-            if context.cancel.is_cancelled() {
-                self.pg_listener_task_handle.unlisten(*id);
-                false
-            } else {
-                true
-            }
-        });
-        // After the listeners, which might hold the last references
+        // FIXME(gabriel): Cleanup in a different place (not on new connections)
         self.user_clients
             .retain(|_, user_clients| user_clients.strong_count() > 0);
 
@@ -277,7 +263,6 @@ impl Queues {
             }
             Entry::Vacant(entry) => {
                 entry.insert(context);
-                self.pg_listener_task_handle.listen(client_id);
             }
         };
 
@@ -314,6 +299,7 @@ struct QueueStreamContext<S> {
     client_version: Option<Version>,
     sequence_number: u64,
     cancel: CancellationToken,
+    listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     /// Buffer for already fetched messages
     ///
     /// Invariant: the messages are stored in ascending order by sequence number.
@@ -324,6 +310,9 @@ struct QueueStreamContext<S> {
 impl<S> Drop for QueueStreamContext<S> {
     fn drop(&mut self) {
         self.cancel.cancel();
+        // Takes a shard lock on the map, never drop a context while holding a guard into it.
+        self.listeners
+            .remove_if(&self.client_id, |_, context| context.cancel.is_cancelled());
         let client_version_label = client_version_label(self.client_version.as_ref());
         gauge!(
             METRIC_AIR_ACTIVE_USERS,

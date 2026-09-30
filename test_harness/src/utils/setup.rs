@@ -185,7 +185,7 @@ pub struct TestBackend {
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
     /// Present only if we spawned a local server.
-    max_devices: Option<[MaxDevices; 2]>,
+    max_devices: Option<[MaxDevices; 3]>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
