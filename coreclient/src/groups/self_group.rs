@@ -79,17 +79,12 @@ impl SelfGroupState {
         }))
     }
 
-    /// A self group that is not joined yet has siblings by design (a part of the linking process).
-    pub(crate) fn has_linked_devices(&self) -> bool {
-        match self {
-            Self::NotJoined => {
-                debug!(
-                    "self-group hasn't been joined yet by client, assuming it has linked devices."
-                );
-                true
-            }
-            Self::Joined(self_group) => self_group.has_linked_devices(),
-        }
+    pub(crate) async fn has_linked_devices(connection: impl ReadConnection) -> sqlx::Result<bool> {
+        Ok(match Self::load(connection).await? {
+            None => false,
+            Some(Self::NotJoined) => true,
+            Some(Self::Joined(self_group)) => self_group.has_linked_devices(),
+        })
     }
 }
 
@@ -291,11 +286,7 @@ impl CoreUser {
         };
 
         // Make sure we surface the chat in the app
-        self.db()
-            .with_write_transaction(async |txn| {
-                self.ensure_self_chat(txn, self_group.group_id()).await
-            })
-            .await?;
+        self.ensure_self_chat(self_group.group_id()).await?;
 
         Ok(self_group)
     }
@@ -309,30 +300,18 @@ impl CoreUser {
     /// Returns the ID of the self-chat and system messages if they were created.
     pub(crate) async fn ensure_self_chat(
         &self,
-        txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> anyhow::Result<(ChatId, Vec<ChatMessage>)> {
-        if let Some(chat_id) = ChatId::load_from_group_id(&mut *txn, group_id).await? {
-            return Ok((chat_id, Vec::new()));
+        if let Some(chat_id) = ChatId::load_from_group_id(self.db().read().await?, group_id).await?
+        {
+            Ok((chat_id, Vec::new()))
+        } else {
+            self.db()
+                .with_write_transaction(async |txn| {
+                    self.create_self_chat(txn, group_id.clone()).await
+                })
+                .await
         }
-
-        let chat = Chat::new_group_chat(
-            group_id.clone(),
-            ChatAttributes {
-                title: "Notes to self".to_owned(),
-                picture: None,
-            },
-        );
-        chat.store(&mut *txn).await?;
-        let system_message = ChatMessage::new_system_message(
-            chat.id(),
-            TimeStamp::now(),
-            SystemMessage::SelfChatCreated,
-        );
-        system_message.store(&mut *txn).await?;
-        debug!("Created the missing self chat");
-
-        Ok((chat.id(), vec![system_message]))
     }
 
     /// Returns `None` if another process loading this client created the self
@@ -349,7 +328,7 @@ impl CoreUser {
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        // The self chat's title is the local constant, so the group carries no profile.
+        // The self chat's title is constant, so the group carries no profile.
         let group_data = GroupData::empty();
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
@@ -435,6 +414,30 @@ impl CoreUser {
         }
 
         Ok(Some(group))
+    }
+
+    pub(crate) async fn create_self_chat(
+        &self,
+        mut connection: impl WriteConnection,
+        group_id: GroupId,
+    ) -> anyhow::Result<(ChatId, Vec<ChatMessage>)> {
+        let chat = Chat::new_group_chat(
+            group_id,
+            ChatAttributes {
+                title: "Notes to self".to_owned(),
+                picture: None,
+            },
+        );
+        chat.store(&mut connection).await?;
+        let system_message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::SelfChatCreated,
+        );
+        system_message.store(&mut connection).await?;
+        debug!("Created the missing self chat");
+
+        Ok((chat.id(), vec![system_message]))
     }
 
     /// Resets the self group and its chat from the local database only.

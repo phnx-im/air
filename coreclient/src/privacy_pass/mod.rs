@@ -429,9 +429,7 @@ async fn resolve_seed(
             // Alone there is nobody left to disagree, so the proposal is the
             // seed and waiting for a commit round would only withhold tokens.
             SeedState::Proposed
-                if !SelfGroupState::load(db.read().await?)
-                    .await?
-                    .is_some_and(|state| state.has_linked_devices()) =>
+                if !SelfGroupState::has_linked_devices(db.read().await?).await? =>
             {
                 persistence::mark_seed_committed(
                     db.write().await?,
@@ -454,10 +452,7 @@ async fn resolve_seed(
 
     // Alone there is nobody to agree with, and a device linked later receives
     // the seed in its provisioning package.
-    let state = if SelfGroupState::load(db.read().await?)
-        .await?
-        .is_some_and(|state| state.has_linked_devices())
-    {
+    let state = if SelfGroupState::has_linked_devices(db.read().await?).await? {
         SeedState::Proposed
     } else {
         SeedState::Committed

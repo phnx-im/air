@@ -368,7 +368,7 @@ impl ChatType {
 ///
 /// This type is only an in-memory representation of the chat attributes. It is not used to be
 /// communicated with other clients. For that, see its counterpart [`GroupData`].
-#[derive(Debug, Default, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
     pub title: String,
     pub picture: Option<Vec<u8>>,

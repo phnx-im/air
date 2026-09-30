@@ -24,10 +24,7 @@ pub(super) enum SelfChatReadiness {
 
 impl OutboundServiceContext {
     pub(super) async fn self_chat_for_app_message(&self) -> anyhow::Result<SelfChatReadiness> {
-        if !SelfGroupState::load(self.db.read().await?)
-            .await?
-            .is_some_and(|state| state.has_linked_devices())
-        {
+        if !SelfGroupState::has_linked_devices(self.db.read().await?).await? {
             return Ok(SelfChatReadiness::NoSiblings);
         }
 

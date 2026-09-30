@@ -493,10 +493,7 @@ pub(crate) mod persistence {
         txn: &mut WriteDbTransaction<'_>,
         value: &T,
     ) -> anyhow::Result<bool> {
-        if !SelfGroupState::load(&mut *txn)
-            .await?
-            .is_some_and(|state| state.has_linked_devices())
-        {
+        if !SelfGroupState::has_linked_devices(&mut *txn).await? {
             UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;
             return Ok(false);
         }
