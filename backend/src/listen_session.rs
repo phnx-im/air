@@ -46,7 +46,7 @@ enum Event<Req, Resp> {
 /// - `stop` is cancelled: the client is told an UNAVAILABLE status.
 /// - `handler` fails: its error is terminal status.
 ///
-/// `name` identifies the session in logs.
+/// `name` identifies the session in logs. `handler` is dropped when the session ends.
 pub(crate) fn spawn_listen_session<Req, Resp>(
     mut requests: Streaming<Req>,
     responses: impl Stream<Item = Resp> + Send + 'static,
