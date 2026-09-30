@@ -241,6 +241,7 @@
   "systemMessage_deviceUnlinked": "Você desvinculou o dispositivo {device} da sua conta. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Você desvinculou um dispositivo da sua conta. {tapToView}",
   "systemMessage_devicesTapToView": "Toque para ver seus dispositivos.",
+  "systemMessage_selfChatCreated": "Use este chat como seu bloco de notas pessoal. As mensagens são sincronizadas em todos os dispositivos vinculados à sua conta.",
   "timestamp_now": "Agora",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Hoje",

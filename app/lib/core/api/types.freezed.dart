@@ -3629,6 +3629,38 @@ as String,
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_SelfChatCreated extends UiSystemMessage {
+  const UiSystemMessage_SelfChatCreated(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_SelfChatCreated);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSystemMessage.selfChatCreated()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;
