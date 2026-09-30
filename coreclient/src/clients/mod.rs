@@ -53,7 +53,7 @@ use crate::{
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
-    groups::{Group, self_group::SelfGroupNotJoined},
+    groups::{Group, self_group::SelfGroupNotJoinedYet},
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::{OutboundService, resync::Resync},
@@ -325,7 +325,7 @@ impl CoreUser {
             };
             match result {
                 Ok(_) => {}
-                Err(error) if error.is::<SelfGroupNotJoined>() => {
+                Err(error) if error.is::<SelfGroupNotJoinedYet>() => {
                     debug!("self group not joined yet, skipping its creation");
                 }
                 Err(error) => {

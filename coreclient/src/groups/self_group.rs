@@ -45,15 +45,14 @@ use crate::{
     },
 };
 
-/// This linked client has not processed the Welcome to its self group yet.
-#[derive(Debug, thiserror::Error)]
-#[error("self group not joined yet")]
-pub(crate) struct SelfGroupNotJoined;
-
 #[derive(Debug)]
 pub struct SelfGroup {
     group: Group,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("self group not joined yet")]
+pub(crate) struct SelfGroupNotJoinedYet;
 
 impl SelfGroup {
     #[cfg(test)]
@@ -259,15 +258,22 @@ impl CoreUser {
     /// still joining one (linked, Welcome not processed yet) is left alone.
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
         let _guard = self.inner.self_group_creation.lock().await;
-        let self_group = match SelfGroupState::load(self.db().read().await?).await? {
-            None => match self.create_self_group().await? {
+
+        // Only create a new self-group if we don't have one and don't expect one (from the linking phase).
+        let self_group = if let Some(group_id) =
+            OwnClientInfo::load_self_group_id(self.db().read().await?).await?
+        {
+            match Group::load(self.db().read().await?, &group_id).await? {
+                Some(group) => SelfGroup { group },
+                None => return Err(SelfGroupNotJoinedYet.into()),
+            }
+        } else {
+            match self.create_self_group().await? {
                 Some(group) => SelfGroup { group },
                 None => SelfGroup::load(self.db().read().await?)
                     .await?
                     .context("self group created by another process is missing")?,
-            },
-            Some(SelfGroupState::Joined(self_group)) => *self_group,
-            Some(SelfGroupState::NotJoined) => return Err(SelfGroupNotJoined.into()),
+            }
         };
 
         // Make sure we surface the chat in the app
