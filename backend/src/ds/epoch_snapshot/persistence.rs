@@ -253,7 +253,7 @@ mod test {
         .await?;
 
         let qgid = QualifiedGroupId::new(group_id, ds.own_domain.clone());
-        StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
+        StorableDsGroupData::<true>::delete(&pool, qgid.group_uuid()).await?;
 
         assert!(
             DsEpochSnapshot::load(&pool, group_id, epoch, KEEP_ALL)
