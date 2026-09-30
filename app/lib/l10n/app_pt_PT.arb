@@ -12,6 +12,7 @@
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Se estiver ativado, os GIFs são reproduzidos 3 vezes ao serem visualizados e depois podem ser reproduzidos novamente manualmente.",
   "userSettingsScreen_readReceipts": "Confirmações de leitura",
   "userSettingsScreen_readReceiptsDescription": "Se estiver ativado, os outros veem se leste as mensagens deles e tu vês se eles leram as tuas.",
+  "userSettingsScreen_languageSettingsDescription": "As traduções podem conter erros.",
   "userSettingsScreen_displayNameLabel": "Nome a apresentar",
   "userSettingsScreen_usernamesSection": "Nomes de utilizador",
   "userSettingsScreen_helpSection": "Ajuda",

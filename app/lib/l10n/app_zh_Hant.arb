@@ -12,6 +12,7 @@
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "開啟後，GIF 在檢視時會循環播放 3 次，之後可以手動重播。",
   "userSettingsScreen_readReceipts": "已讀回條",
   "userSettingsScreen_readReceiptsDescription": "開啟後，對方能看到你是否已讀他們的訊息，你也能看到對方是否已讀你的訊息。",
+  "userSettingsScreen_languageSettingsDescription": "翻譯可能有錯誤。",
   "userSettingsScreen_displayNameLabel": "顯示名稱",
   "userSettingsScreen_usernamesSection": "使用者名稱",
   "userSettingsScreen_helpSection": "說明",

@@ -364,6 +364,8 @@ class PreferencesSection extends HookWidget {
       spacing: S.s12,
       children: [
         const _LanguageSettings(),
+        FieldLabel(loc.userSettingsScreen_languageSettingsDescription),
+
         SwitchField(
           onSubmit: (value) async {
             try {
@@ -398,8 +400,6 @@ class _LanguageSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
@@ -412,6 +412,7 @@ class _LanguageSettings extends StatelessWidget {
         );
       },
       childBuilder: (context, option, onTap) {
+        final palette = SemanticPalette.of(context);
         return FieldContainer(
           onTap: onTap,
           child: Row(
