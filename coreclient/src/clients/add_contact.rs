@@ -367,7 +367,9 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     ) -> anyhow::Result<(Group, PartialCreateGroupParams, Option<SelfGroup>)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
-        let self_group = SelfGroup::load(&mut *txn).await?;
+        let self_group = SelfGroup::load(&mut *txn)
+            .await?
+            .filter(SelfGroup::has_linked_devices);
         let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
         let (group, partial_params) = if let Some(pq_group_id) = &self.pq_group_id {

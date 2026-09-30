@@ -29,7 +29,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::{debug, warn};
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -74,10 +74,7 @@ impl SelfGroup {
     pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
         if let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? {
             match Group::load(connection, &group_id).await? {
-                Some(group) => {
-                    debug!("Self-group found");
-                    Ok(Some(SelfGroup { group }))
-                }
+                Some(group) => Ok(Some(SelfGroup { group })),
                 None => Ok(None),
             }
         } else {
@@ -85,25 +82,21 @@ impl SelfGroup {
         }
     }
 
-    pub(crate) async fn has_linked_devices(
+    /// Load the self-group and checks whether devices are linked.
+    ///
+    /// The logic differs slightly from `SelfGroup::load` and covers an extra use-case where a self-group ID
+    /// is registered in `OwnClientInfo` but the MLS group doesn't exist yet. This only happens during linking
+    /// when the Welcome hasn't been received or processed yet.
+    pub(crate) async fn load_and_check_if_has_linked_device(
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<bool> {
         let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? else {
             return Ok(false);
         };
-        let Some(group) = Group::load(connection, &group_id).await? else {
-            debug!("self group not joined yet, assuming linked devices");
-            return Ok(true);
-        };
-        let self_group = Self { group };
-        match self_group.client_ids() {
-            Ok(client_ids) => Ok(client_ids.len() > 1),
-            Err(error) => {
-                // Since there is a self group, there is a channel to other
-                // devices, so assume there are some.
-                warn!(%error, "cannot count linked devices, assuming there are some");
-                Ok(true)
-            }
+
+        match Group::load(connection, &group_id).await? {
+            None => Ok(true), // Welcome not processed yet, assuming multiple devices.
+            Some(group) => Ok(Self { group }.has_linked_devices()),
         }
     }
 
@@ -133,6 +126,12 @@ impl SelfGroup {
                 },
             )
             .collect()
+    }
+
+    /// Whether other devices share this self group. The self group outlives
+    /// its siblings, so its existence alone says nothing about them.
+    pub(crate) fn has_linked_devices(&self) -> bool {
+        self.group.mls_group().members().nth(1).is_some()
     }
 
     /// The parsed leaf credentials of the self-group members, in member order.
