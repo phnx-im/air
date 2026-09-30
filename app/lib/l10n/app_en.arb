@@ -1257,9 +1257,9 @@
   "@chatList_newGroup": {
     "description": "Menu item in the chat list header that starts creating a group chat."
   },
-  "chatList_emptyMessage": "Add your first Air contact to get started",
-  "@chatList_emptyMessage": {
-    "description": "Empty state of the chat list, shown before the user has any contacts."
+  "chatList_noChats": "Use the compose button to add your first contact and start chatting.",
+  "@chatList_noChats": {
+    "description": "Initial state of the chat list, shown before the user has any contacts."
   },
 
   "chatList_draft": "Draft",

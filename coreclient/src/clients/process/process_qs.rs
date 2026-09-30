@@ -1838,7 +1838,10 @@ mod tests {
                     None,
                 )?;
                 group.store(&mut *txn).await?;
-                OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
+                assert!(
+                    OwnClientInfo::claim_self_group(&mut *txn, group.group_id(), &signing_key)
+                        .await?
+                );
 
                 let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self-group")?;
                 // Creating the self group registers its initial derivation epoch.

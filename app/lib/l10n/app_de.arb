@@ -249,7 +249,7 @@
   "messageBubble_read": "Gelesen",
   "chatList_newContact": "Neuer Air-Kontakt",
   "chatList_newGroup": "Neue Gruppe",
-  "chatList_emptyMessage": "Füge deinen ersten Air-Kontakt hinzu, um loszulegen",
+  "chatList_noChats": "Nutze die Schaltfläche „Verfassen“, um deinen ersten Kontakt hinzuzufügen und mit dem Chatten zu beginnen.",
   "chatList_draft": "Entwurf",
   "chatList_you": "Du",
   "chatList_imageEmoji": "🖼️",

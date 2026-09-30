@@ -30,7 +30,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -82,7 +82,12 @@ impl SelfGroupState {
     /// A self group that is not joined yet has siblings by design (a part of the linking process).
     pub(crate) fn has_linked_devices(&self) -> bool {
         match self {
-            Self::NotJoined => true,
+            Self::NotJoined => {
+                debug!(
+                    "self-group hasn't been joined yet by client, assuming it has linked devices."
+                );
+                true
+            }
             Self::Joined(self_group) => self_group.has_linked_devices(),
         }
     }
@@ -275,8 +280,11 @@ impl CoreUser {
     pub async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
         let _guard = self.inner.self_group_creation.lock().await;
         let self_group = match SelfGroupState::load(self.db().read().await?).await? {
-            None => SelfGroup {
-                group: self.create_self_group().await?,
+            None => match self.create_self_group().await? {
+                Some(group) => SelfGroup { group },
+                None => SelfGroup::load(self.db().read().await?)
+                    .await?
+                    .context("self group created by another process is missing")?,
             },
             Some(SelfGroupState::Joined(self_group)) => *self_group,
             Some(SelfGroupState::NotJoined) => return Err(SelfGroupNotJoined.into()),
@@ -327,7 +335,9 @@ impl CoreUser {
         Ok((chat.id(), vec![system_message]))
     }
 
-    async fn create_self_group(&self) -> anyhow::Result<Group> {
+    /// Returns `None` if another process loading this client created the self
+    /// group first.
+    async fn create_self_group(&self) -> anyhow::Result<Option<Group>> {
         let api_client = self.api_client()?;
 
         // Request group IDs
@@ -399,21 +409,38 @@ impl CoreUser {
             return Err(error.into());
         }
 
-        // Update the local reference
-        OwnClientInfo::set_self_group(
-            self.db().write().await?,
-            group.group_id(),
-            &self_group_signing_key,
-        )
-        .await?;
+        let claimed = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<bool> {
+                if OwnClientInfo::claim_self_group(
+                    &mut *txn,
+                    group.group_id(),
+                    &self_group_signing_key,
+                )
+                .await?
+                {
+                    return Ok(true);
+                }
+                Group::delete_from_db(&mut *txn, group.group_id()).await?;
+                Ok(false)
+            })
+            .await?;
+        if !claimed {
+            // The group stays on the DS with only our leaf.
+            warn!(
+                group_id = ?group.group_id(),
+                "another process created the self group first, discarding ours"
+            );
+            return Ok(None);
+        }
 
-        Ok(group)
+        Ok(Some(group))
     }
 
     /// Resets the self group and its chat from the local database only. The
     /// server and linked devices are not told.
     pub async fn danger_reset_self_group(&self) -> anyhow::Result<()> {
-        if SelfGroupState::load(self.db().read().await?)
+        if SelfGroup::load(self.db().read().await?)
             .await?
             .is_some_and(|state| state.has_linked_devices())
         {
