@@ -50,7 +50,7 @@ impl DsGroupState {
 
         // Nobody is left to process the commit of a group's only member, so we
         // delete the group.
-        self.deleted = self.member_profiles.len() == 1;
+        self.marked_for_deletion = self.member_profiles.len() == 1;
 
         Ok(processed_assisted_message_plus.serialized_mls_message)
     }
@@ -99,11 +99,11 @@ impl DsGroupState {
         )?;
 
         // The T leg of the group is the source of truth for the DS member
-        // profiles, so we only mark the group as deleted if the T leg is the
+        // profiles, so we only mark the group for deletion if the T leg is the
         // only member left.
         let sole_member = t_group_state.member_profiles.len() == 1;
-        t_group_state.deleted = sole_member;
-        pq_group_state.deleted = sole_member;
+        t_group_state.marked_for_deletion = sole_member;
+        pq_group_state.marked_for_deletion = sole_member;
 
         Ok(SerializedMlsMessage::combine_apq(
             t_serialized_message,
@@ -337,7 +337,7 @@ mod test {
     }
 
     /// Deletes a group of `size` members as its creator and returns whether
-    /// the DS marks the group state as deleted.
+    /// the DS marks the group state for deletion.
     fn delete_t_group(size: usize) -> bool {
         let creator = Client::new();
         let mut group = MlsGroup::builder()
@@ -376,7 +376,7 @@ mod test {
         let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed);
         state.delete_group(assisted(commit, group_info)).unwrap();
 
-        state.is_deleted()
+        state.is_marked_for_deletion()
     }
 
     /// The APQ counterpart of [`delete_t_group`]. Returns the marker of the T
@@ -439,7 +439,10 @@ mod test {
         )
         .unwrap();
 
-        (t_state.is_deleted(), pq_state.is_deleted())
+        (
+            t_state.is_marked_for_deletion(),
+            pq_state.is_marked_for_deletion(),
+        )
     }
 
     #[test]

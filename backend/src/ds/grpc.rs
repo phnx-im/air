@@ -295,7 +295,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> Result<(), Status> {
         let group_id = group_data.group_uuid();
 
-        if group_state.is_deleted() {
+        if group_state.is_marked_for_deletion() {
             StorableDsGroupData::<true>::delete(txn.as_mut(), group_id)
                 .await
                 .map_err(|error| {

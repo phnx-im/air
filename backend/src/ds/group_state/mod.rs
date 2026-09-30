@@ -83,7 +83,7 @@ pub(crate) struct DsGroupState {
 
     /// Transient marker that the group's only member deleted it, so the state
     /// is removed instead of persisted.
-    pub(super) deleted: bool,
+    pub(super) marked_for_deletion: bool,
 }
 
 /// What a joiner needs about one epoch, as V3 stored it.
@@ -121,7 +121,7 @@ impl DsGroupState {
             proposals: Vec::new(),
             welcome_info_outbox: WelcomeInfoOutbox::default(),
             epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
-            deleted: false,
+            marked_for_deletion: false,
         }
     }
 
@@ -266,8 +266,8 @@ impl DsGroupState {
 
     /// When a delete commit of the group's only member was processed, this
     /// returns true.
-    pub(crate) fn is_deleted(&self) -> bool {
-        self.deleted
+    pub(crate) fn is_marked_for_deletion(&self) -> bool {
+        self.marked_for_deletion
     }
 
     pub(super) fn external_commit_info(&self) -> ExternalCommitInfo {
@@ -642,7 +642,7 @@ impl DecodedDsGroupState {
             proposals: state.proposals,
             welcome_info_outbox: staged_welcome_info,
             epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
-            deleted: false,
+            marked_for_deletion: false,
         })
     }
 }
