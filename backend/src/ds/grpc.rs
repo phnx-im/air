@@ -295,6 +295,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> Result<(), Status> {
         let group_id = group_data.group_uuid();
 
+        if group_state.is_marked_for_deletion() {
+            StorableDsGroupData::<true>::delete(txn.as_mut(), group_id)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to delete group state");
+                    Status::internal("Failed to delete group state")
+                })?;
+            return Ok(());
+        }
+
         group_state
             .write_staged_welcome_infos(txn, group_id, ear_key)
             .await?;

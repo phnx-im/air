@@ -10,6 +10,7 @@ use sqlx::{
     PgConnection, PgExecutor, query,
     types::chrono::{DateTime, Utc},
 };
+use uuid::Uuid;
 
 use crate::{ds::group_state::EncryptedDsGroupState, errors::StorageError};
 
@@ -94,17 +95,16 @@ impl<const LOADED_FOR_UPDATE: bool> StorableDsGroupData<LOADED_FOR_UPDATE> {
         }
     }
 
-    #[allow(unused)]
     pub(crate) async fn delete(
         connection: impl PgExecutor<'_>,
-        qgid: &QualifiedGroupId,
+        group_id: Uuid,
     ) -> Result<(), StorageError> {
         query!(
             "DELETE FROM
                 encrypted_group
             WHERE
                 group_id = $1",
-            qgid.group_uuid()
+            group_id
         )
         .execute(connection)
         .await?;
@@ -310,7 +310,7 @@ mod test {
         let loaded = StorableDsGroupData::load(&mut connection, &qgid).await?;
         assert_eq!(loaded.unwrap(), group);
 
-        StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
+        StorableDsGroupData::<true>::delete(&pool, qgid.group_uuid()).await?;
 
         let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
         assert!(loaded.is_none());
