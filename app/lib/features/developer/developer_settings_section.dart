@@ -19,7 +19,8 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/method_channel.dart';
-import 'package:flutter/material.dart' show Slider;
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:flutter/material.dart' show SnackBar, Slider;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -359,6 +360,14 @@ class _DangerZoneCard extends StatelessWidget {
       children: [
         if (user != null)
           DeveloperDangerRow(
+            label: 'Reset self-group',
+            icon: AppIconType.trash,
+            confirmMessage: 'Are you sure you want to reset the self-group?',
+            confirmLabel: 'Reset',
+            onConfirm: () => _resetSelfGroup(user),
+          ),
+        if (user != null)
+          DeveloperDangerRow(
             label: 'Erase this database',
             sublabel: profile?.displayName ?? user.userId.uuid.toString(),
             icon: AppIconType.trash,
@@ -378,6 +387,25 @@ class _DangerZoneCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _resetSelfGroup(User user) async {
+    try {
+      await user.dangerResetSelfGroup();
+      showSnackBarStandalone(
+        (loc) => const SnackBar(
+          content: Text('Reset self-group'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Failed to reset self-group: $error'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 }
 
