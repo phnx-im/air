@@ -229,6 +229,8 @@
   "systemMessage_newDirectConnectionChat": "Du skickade en kontaktförfrågan till {displayName}. Personen kanske inte får någon avisering direkt.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} skickade en kontaktförfrågan till dig via ditt användarnamn {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} skickade en kontaktförfrågan till dig via gruppchatten {groupName}.",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} skickade också en kontaktförfrågan till dig via ditt användarnamn {username}.",
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} skickade också en kontaktförfrågan till dig via gruppchatten {groupName}.",
   "systemMessage_userChangedPicture": "{user} ändrade gruppbilden",
   "systemMessage_userCreatedGroup": "{user} skapade gruppen",
   "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",

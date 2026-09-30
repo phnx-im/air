@@ -218,6 +218,8 @@
   "systemMessage_newDirectConnectionChat": "Вы отправили запрос на контакт пользователю {displayName}. Уведомление о запросе может прийти не сразу.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} отправил(а) вам запрос на контакт через ваше имя пользователя {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} отправил(а) вам запрос на контакт через групповой чат {groupName}.",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} также отправил(а) вам запрос на контакт через ваше имя пользователя {username}.",
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} также отправил(а) вам запрос на контакт через групповой чат {groupName}.",
   "systemMessage_userChangedPicture": "{user} изменил(а) фото группы",
   "systemMessage_userCreatedGroup": "{user} создал(а) группу",
   "systemMessage_onboarded": "Этот клиент подключился к чату после привязки.",

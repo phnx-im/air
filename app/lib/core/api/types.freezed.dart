@@ -3480,6 +3480,155 @@ as UuidValue,
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest({required this.sender, required this.username}): super._();
+  
+
+ final  UiUserId sender;
+ final  UiUsername username;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.username, username) || other.username == username));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,sender,username);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.receivedAdditionalUsernameConnectionRequest(sender: $sender, username: $username)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId sender, UiUsername username
+});
+
+
+$UiUsernameCopyWith<$Res> get username;
+
+}
+/// @nodoc
+class _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_ReceivedAdditionalUsernameConnectionRequestCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest _self;
+  final $Res Function(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? username = null,}) {
+  return _then(UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,username: null == username ? _self.username : username // ignore: cast_nullable_to_non_nullable
+as UiUsername,
+  ));
+}
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiUsernameCopyWith<$Res> get username {
+  
+  return $UiUsernameCopyWith<$Res>(_self.username, (value) {
+    return _then(_self.copyWith(username: value));
+  });
+}
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_ReceivedAdditionalDirectConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_ReceivedAdditionalDirectConnectionRequest({required this.sender, required this.chatName}): super._();
+  
+
+ final  UiUserId sender;
+ final  String chatName;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<UiSystemMessage_ReceivedAdditionalDirectConnectionRequest> get copyWith => _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl<UiSystemMessage_ReceivedAdditionalDirectConnectionRequest>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,sender,chatName);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.receivedAdditionalDirectConnectionRequest(sender: $sender, chatName: $chatName)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId sender, String chatName
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ReceivedAdditionalDirectConnectionRequest _self;
+  final $Res Function(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? chatName = null,}) {
+  return _then(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
+as UiUserId,chatName: null == chatName ? _self.chatName : chatName // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

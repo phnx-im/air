@@ -1124,6 +1124,30 @@
       }
     }
   },
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
+  "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} also sent you a contact request through the group chat {groupName}.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through a group both people are in. It joins the request that is already there. {groupName} is the title of that group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
 
   "systemMessage_userChangedPicture": "{user} changed the group picture",
   "@systemMessage_userChangedPicture": {

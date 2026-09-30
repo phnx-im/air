@@ -630,6 +630,19 @@ pub enum SystemMessage {
     DeviceLinked(Uuid),
     /// A device, identified by its client id, was unlinked.
     DeviceUnlinked(Uuid),
+    /// We received another connection request through one of our usernames
+    /// while an earlier one of the same sender is pending.
+    ReceivedAdditionalUsernameConnectionRequest {
+        sender: UserId,
+        username: Username,
+    },
+    /// We received another connection request through a group chat while an
+    /// earlier one of the same sender is pending. The String is the name of
+    /// the group chat.
+    ReceivedAdditionalDirectConnectionRequest {
+        sender: UserId,
+        chat_name: String,
+    },
 }
 
 impl EventMessage {
@@ -643,6 +656,38 @@ impl EventMessage {
 }
 
 impl SystemMessage {
+    /// The message announcing a request we received through one of our
+    /// usernames. An `additional` request joins the pending ones of its
+    /// sender.
+    pub(crate) fn received_username_connection_request(
+        sender: UserId,
+        username: Username,
+        additional: bool,
+    ) -> Self {
+        if additional {
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username }
+        } else {
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle: username,
+            }
+        }
+    }
+
+    /// The message announcing a request we received through a group chat. An
+    /// `additional` request joins the pending ones of its sender.
+    pub(crate) fn received_direct_connection_request(
+        sender: UserId,
+        chat_name: String,
+        additional: bool,
+    ) -> Self {
+        if additional {
+            SystemMessage::ReceivedAdditionalDirectConnectionRequest { sender, chat_name }
+        } else {
+            SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name }
+        }
+    }
+
     /// The user who performed the group operation this message reports.
     pub fn actor(&self) -> Option<&UserId> {
         match self {
@@ -658,7 +703,9 @@ impl SystemMessage {
             | SystemMessage::NewDirectConnectionChat(_)
             | SystemMessage::Onboarded
             | SystemMessage::DeviceLinked(_)
-            | SystemMessage::DeviceUnlinked(_) => None,
+            | SystemMessage::DeviceUnlinked(_)
+            | SystemMessage::ReceivedAdditionalUsernameConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. } => None,
         }
     }
 
@@ -739,6 +786,21 @@ impl SystemMessage {
             SystemMessage::NewDirectConnectionChat(user_id) => {
                 let display_name = core_user.user_profile(user_id).await.display_name;
                 format!("You requested a connection with {display_name}")
+            }
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                let username = username.plaintext();
+                format!(
+                    "{display_name} also sent you a contact request through your \
+                    username {username}."
+                )
+            }
+            SystemMessage::ReceivedAdditionalDirectConnectionRequest { sender, chat_name } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                format!(
+                    "{display_name} also sent you a contact request through the group \
+                    chat {chat_name}."
+                )
             }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;

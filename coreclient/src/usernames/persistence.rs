@@ -109,7 +109,7 @@ impl UsernameRecord {
         .await
     }
 
-    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let signing_key = BlobEncoded(&self.signing_key);
         let created_at = Utc::now();
         let refreshed_at = created_at;

@@ -166,25 +166,6 @@ impl UsernameContact {
         .await
     }
 
-    pub(crate) async fn load_by_chat_id(
-        mut connection: impl ReadConnection,
-        chat_id: ChatId,
-    ) -> sqlx::Result<Option<Self>> {
-        query_as!(
-            Self,
-            r#"SELECT
-                username AS "username: _",
-                chat_id AS "chat_id: _",
-                friendship_package_ear_key AS "friendship_package_ear_key: _",
-                connection_offer_hash AS "connection_offer_hash: _"
-            FROM username_contact
-            WHERE chat_id = ?"#,
-            chat_id,
-        )
-        .fetch_optional(connection.as_mut())
-        .await
-    }
-
     pub(crate) async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
         query_as!(
             Self,
@@ -354,15 +335,6 @@ impl TargetedMessageContact {
 }
 
 impl PartialContact {
-    pub(crate) async fn upsert(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
-        match self {
-            PartialContact::Username(username_contact) => username_contact.upsert(connection).await,
-            PartialContact::TargetedMessage(targeted_message_contact) => {
-                targeted_message_contact.upsert(connection).await
-            }
-        }
-    }
-
     pub(crate) async fn load(
         connection: impl ReadConnection,
         contact_type: &PartialContactType,
@@ -572,56 +544,6 @@ mod tests {
             .await?
             .unwrap();
         assert_eq!(loaded, username_contact);
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn username_contact_multiple_senders_same_username(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-
-        // Create two chats
-        let chat_a = test_chat();
-        let chat_b = test_chat();
-        chat_a.store(pool.write().await?).await?;
-        chat_b.store(pool.write().await?).await?;
-
-        let username = Username::new("alice".to_owned()).unwrap();
-
-        // Sender A sends connection request to username "alice"
-        let contact_a = UsernameContact {
-            username: username.clone(),
-            chat_id: chat_a.id(),
-            friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
-            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
-        };
-        contact_a.upsert(pool.write().await?).await?;
-
-        // Verify A's UsernameContact exists
-        let loaded_a = UsernameContact::load(pool.read().await?, &username)
-            .await?
-            .unwrap();
-        assert_eq!(loaded_a.chat_id, chat_a.id());
-
-        // Sender B sends connection request to same username "alice"
-        let contact_b = UsernameContact {
-            username: username.clone(),
-            chat_id: chat_b.id(),
-            friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
-            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![4, 5, 6]),
-        };
-        contact_b.upsert(pool.write().await?).await?;
-
-        // Both contacts should exist (each has unique chat_id)
-        let loaded_a_by_chat =
-            UsernameContact::load_by_chat_id(pool.read().await?, chat_a.id()).await?;
-        assert!(loaded_a_by_chat.is_some());
-
-        let loaded_b_by_chat =
-            UsernameContact::load_by_chat_id(pool.read().await?, chat_b.id()).await?;
-        assert!(loaded_b_by_chat.is_some());
 
         Ok(())
     }

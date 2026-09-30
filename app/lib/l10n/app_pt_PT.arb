@@ -229,6 +229,8 @@
   "systemMessage_newDirectConnectionChat": "Enviaste um pedido de contacto para {displayName}. Pode ser que a pessoa não seja avisada de imediato.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} enviou-te um pedido de contacto para o teu nome de utilizador {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} enviou-te um pedido de contacto através do chat de grupo {groupName}.",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} também te enviou um pedido de contacto para o teu nome de utilizador {username}.",
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} também te enviou um pedido de contacto através do chat de grupo {groupName}.",
   "systemMessage_userChangedPicture": "{user} alterou a fotografia do grupo",
   "systemMessage_userCreatedGroup": "{user} criou o grupo",
   "systemMessage_onboarded": "Este cliente entrou no chat depois da associação.",

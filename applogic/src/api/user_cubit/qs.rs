@@ -40,6 +40,7 @@ impl CubitContext {
             new_connections,
             reaction_notifications,
             chats_with_changed_notifications,
+            removed_chats,
         }: ProcessedQsMessages,
     ) {
         let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
@@ -58,9 +59,11 @@ impl CubitContext {
             .await;
         self.show_notifications(notifications).await;
 
-        if !chat_notifications.empty_chats.is_empty() {
+        let mut stale_chats = chat_notifications.empty_chats;
+        stale_chats.extend(removed_chats);
+        if !stale_chats.is_empty() {
             self.notification_service
-                .cancel_chat_notifications(chat_notifications.empty_chats)
+                .cancel_chat_notifications(stale_chats)
                 .await;
         }
     }

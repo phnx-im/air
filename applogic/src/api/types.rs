@@ -584,6 +584,14 @@ pub enum UiSystemMessage {
     Onboarded,
     DeviceLinked(Uuid),
     DeviceUnlinked(Uuid),
+    ReceivedAdditionalUsernameConnectionRequest {
+        sender: UiUserId,
+        username: UiUsername,
+    },
+    ReceivedAdditionalDirectConnectionRequest {
+        sender: UiUserId,
+        chat_name: String,
+    },
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -638,6 +646,18 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
             SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
             SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username } => {
+                UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                    sender: sender.into(),
+                    username: username.into(),
+                }
+            }
+            SystemMessage::ReceivedAdditionalDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                    sender: sender.into(),
+                    chat_name,
+                }
+            }
         }
     }
 }

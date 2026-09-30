@@ -49,7 +49,7 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::{
-    Asset, ChatMuted, PartialContact, UsernameRecord,
+    Asset, ChatMuted, PartialContact, StoredRequest, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
@@ -471,9 +471,9 @@ impl CoreUser {
 
     /// Fetch and process messages from all username queues.
     ///
-    /// Returns the list of [`ChatId`]s of any newly created chats.
-    pub async fn fetch_and_process_username_messages(&self) -> Result<Vec<ChatId>> {
-        let mut chat_ids = Vec::new();
+    /// Returns where the new contact requests were stored.
+    pub async fn fetch_and_process_username_messages(&self) -> Result<Vec<StoredRequest>> {
+        let mut stored_requests = Vec::new();
         Self::drain_username_messages(self, async |record, responder, message| {
             let Some(message_id) = message.message_id else {
                 error!("no message id in username queue message");
@@ -483,8 +483,8 @@ impl CoreUser {
                 .process_username_queue_message(record.username.clone(), message)
                 .await
             {
-                Ok(chat_id) => {
-                    chat_ids.push(chat_id);
+                Ok(stored) => {
+                    stored_requests.extend(stored);
                 }
                 Err(error) => {
                     error!(%error, "failed to process username queue message");
@@ -495,7 +495,7 @@ impl CoreUser {
             true
         })
         .await?;
-        Ok(chat_ids)
+        Ok(stored_requests)
     }
 
     /// Fetches all messages from all username queues and returns them.

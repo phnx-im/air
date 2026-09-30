@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    received_at AS \"received_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    username AS \"username: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\",\n                    origin_chat_id AS \"origin_chat_id: ChatId\"\n                FROM pending_connection_request\n                WHERE chat_id = ?\n                ORDER BY received_at DESC, request_id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "request_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "request_id"
+          }
+        }
+      },
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "created_at: TimeStamp",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "received_at: TimeStamp",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "received_at"
+          }
+        }
+      },
+      {
+        "name": "connection_info: ConnectionInfo",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "connection_info"
+          }
+        }
+      },
+      {
+        "name": "username: _",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "name": "connection_offer_hash: _",
+        "ordinal": 6,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "connection_offer_hash"
+          }
+        }
+      },
+      {
+        "name": "connection_package_hash: _",
+        "ordinal": 7,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "connection_package_hash"
+          }
+        }
+      },
+      {
+        "name": "origin_chat_id: ChatId",
+        "ordinal": 8,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "origin_chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0e5aab4ad4ef3e74366517b1c32be0aa796db1f56c6d164237f5fe726a48ca58"
+}

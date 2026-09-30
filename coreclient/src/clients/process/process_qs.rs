@@ -40,9 +40,9 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
+    ChatAttributes, ChatMessage, ChatStatus, Message, StoredRequest, SystemMessage,
     chats::{
-        GroupDataExt, StatusRecord,
+        GroupDataExt, StatusRecord, connection_requests,
         messages::{
             edit::{MessageEdit, handle_message_edit},
             persistence::apply_deleted_messages,
@@ -87,6 +87,7 @@ pub struct QsMessageOutcome {
     new_messages: Vec<ChatMessage>,
     reaction_notifications: Vec<ReactionNotification>,
     changed_chats: Vec<ChatId>,
+    removed_chats: Vec<ChatId>,
 }
 
 impl QsMessageOutcome {
@@ -102,9 +103,10 @@ impl QsMessageOutcome {
         }
     }
 
-    fn new_connection(chat_id: ChatId) -> QsMessageOutcome {
+    fn new_connection(stored: StoredRequest) -> QsMessageOutcome {
         Self {
-            new_connection: Some(chat_id),
+            new_connection: Some(stored.chat_id),
+            removed_chats: stored.moved_from.into_iter().collect(),
             ..Self::empty()
         }
     }
@@ -143,6 +145,9 @@ pub struct ProcessedQsMessages {
     // For example, a message edit, remote delete, or a reaction retraction on one of our own
     // messages is such a change.
     pub chats_with_changed_notifications: Vec<ChatId>,
+    /// Chats whose notifications are stale, because a newer contact request
+    /// moved them.
+    pub removed_chats: Vec<ChatId>,
 }
 
 /// A reaction by another user on a message we sent.
@@ -165,6 +170,7 @@ impl ProcessedQsMessages {
             && self.new_connections.is_empty()
             && self.reaction_notifications.is_empty()
             && self.chats_with_changed_notifications.is_empty()
+            && self.removed_chats.is_empty()
     }
 
     fn merge(
@@ -175,6 +181,7 @@ impl ProcessedQsMessages {
             new_messages,
             reaction_notifications,
             changed_chats,
+            removed_chats,
         }: QsMessageOutcome,
     ) {
         self.new_chats.extend(new_chat);
@@ -182,6 +189,7 @@ impl ProcessedQsMessages {
         self.new_messages.extend(new_messages);
         self.reaction_notifications.extend(reaction_notifications);
         self.chats_with_changed_notifications.extend(changed_chats);
+        self.removed_chats.extend(removed_chats);
     }
 }
 
@@ -719,10 +727,10 @@ impl CoreUser {
             qs_client_id: &self.inner.qs_client_id,
         };
 
-        let chat_id =
+        let stored =
             CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
 
-        Ok(QsMessageOutcome::new_connection(chat_id))
+        Ok(stored.map_or_else(QsMessageOutcome::empty, QsMessageOutcome::new_connection))
     }
 
     async fn handle_mls_message(
@@ -1564,7 +1572,10 @@ impl CoreUser {
         // We do that now, because we didn't know that user id when we created the room.
         group.room_state_change_role(self.user_id(), sender_user_id, RoleIndex::Regular)?;
 
-        chat.confirm(txn, contact.user_id).await?;
+        chat.confirm(&mut *txn, contact.user_id).await?;
+
+        // Requests the new contact sent us meanwhile are redundant now.
+        connection_requests::discard_requests_from(txn, sender_user_id).await?;
 
         let user_handle = if let PartialContactType::Handle(handle) = contact_type {
             Some(handle.clone())

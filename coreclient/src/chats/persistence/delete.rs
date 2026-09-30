@@ -14,7 +14,7 @@ use tracing::{error, warn};
 
 use crate::{
     ChatType,
-    chats::{Chat, PendingConnectionInfo},
+    chats::{Chat, PendingConnectionRequest},
     clients::self_group_outbox::{self, OutboxKind},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::Group,
@@ -22,12 +22,17 @@ use crate::{
 
 /// Erases the chat together with its group.
 pub(crate) async fn erase(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyhow::Result<()> {
-    if let ChatType::PendingConnection(_) = chat.chat_type()
-        && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat.id()).await?
-        && let Some(hash) = info.connection_offer_hash
-        && let Err(error) = Group::delete_connection_offer_psk(&mut *txn, hash)
-    {
-        error!(%error, "failed to delete connection offer PSK, proceeding with chat deletion.");
+    if let ChatType::PendingConnection(_) = chat.chat_type() {
+        for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat.id()).await? {
+            if let Some(hash) = request.connection_offer_hash
+                && let Err(error) = Group::delete_connection_offer_psk(&mut *txn, hash)
+            {
+                error!(
+                    %error,
+                    "failed to delete connection offer PSK, proceeding with chat deletion."
+                );
+            }
+        }
     }
 
     if let Err(error) = Group::delete_from_db(txn, chat.group_id()).await {

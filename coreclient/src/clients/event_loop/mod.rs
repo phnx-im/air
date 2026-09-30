@@ -128,10 +128,10 @@ impl EventLoop {
                         info!("Core user dropped; exit event loop");
                         return;
                     };
-                    let chat_id = core_user
+                    let stored = core_user
                         .process_username_queue_message_event_loop(username, message)
                         .await;
-                    responder.send(chat_id.map_err(ResponderError::Fatal));
+                    responder.send(stored.map_err(ResponderError::Fatal));
                 }
 
                 Incoming::Client(ClientOperation::ReplaceQsListenResponder(responder)) => {

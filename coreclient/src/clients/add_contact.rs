@@ -35,6 +35,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     Chat, ChatId, ChatMessage, SystemMessage,
+    chats::PendingConnectionRequest,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -199,7 +200,8 @@ impl CoreUser {
     /// Create a connection with a new user via an existing group chat.
     ///
     /// The group chat must contain the user to connect to. Returns the [`ChatId`] of the newly
-    /// created connection chat.
+    /// created connection chat. If the user already sent us a request that is pending, no
+    /// request is sent and the chat of theirs is returned.
     pub async fn add_contact_from_group(
         &self,
         chat_id: ChatId,
@@ -212,6 +214,13 @@ impl CoreUser {
         // Check whether we already have this user as a contact
         if self.contact(&user_id).await.is_some() {
             bail!("User is already a contact");
+        }
+
+        // Their request is answered rather than crossed with a new one.
+        if let Some(pending_chat_id) =
+            PendingConnectionRequest::chat_of_sender(self.db().read().await?, &user_id).await?
+        {
+            return Ok(pending_chat_id);
         }
 
         // Check whether we already have a pending connection request to this user

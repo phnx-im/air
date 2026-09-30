@@ -218,6 +218,8 @@
   "systemMessage_newDirectConnectionChat": "Ви надіслали запит на контакт користувачу {displayName}. Сповіщення про запит може надійти не одразу.",
   "systemMessage_receivedHandleConnectionRequest": "{displayName} надіслав(-ла) вам запит на контакт через ваше ім’я користувача {username}.",
   "systemMessage_receivedDirectConnectionRequest": "{displayName} надіслав(-ла) вам запит на контакт через груповий чат {groupName}.",
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} також надіслав(-ла) вам запит на контакт через ваше ім’я користувача {username}.",
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} також надіслав(-ла) вам запит на контакт через груповий чат {groupName}.",
   "systemMessage_userChangedPicture": "{user} змінив(-ла) фото групи",
   "systemMessage_userCreatedGroup": "{user} створив(-ла) групу",
   "systemMessage_onboarded": "Цей клієнт приєднався до чату після прив’язки.",

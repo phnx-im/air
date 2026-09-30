@@ -23,8 +23,9 @@ use crate::{
 };
 
 pub use draft::MessageDraft;
-pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
+pub(crate) use {pending::PendingConnectionRequest, status::StatusRecord};
 
+pub(crate) mod connection_requests;
 mod draft;
 pub(crate) mod messages;
 pub(crate) mod notification_rebuild;
