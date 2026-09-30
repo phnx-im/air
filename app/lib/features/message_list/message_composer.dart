@@ -295,46 +295,48 @@ class _MessageComposerState extends State<MessageComposer>
     final isEditing = editingId != null;
     final controller = widget.scrollToBottomController;
 
-    return ListenableBuilder(
-      listenable: _scrollBackState,
-      builder: (context, _) => MessageInput(
-        tokens: MessageInputTokens.current,
-        // Cancel the edit when editing, attach otherwise.
-        leadingIcon: isEditing ? AppIconType.x : AppIconType.plus,
-        onLeading: isEditing
-            ? (_) {
-                context.read<ChatDetailsCubit>().resetDraft();
-                _inputController.clear();
-              }
-            : isConfirmedChat
-            ? (buttonContext) =>
-                  _openAttachMenu(buttonContext, chatTitle: chatTitle)
-            : null,
-        sendIcon: isEditing ? AppIconType.check : AppIconType.arrowUp,
-        // An edit keeps its confirm button whatever the field holds, so the way
-        // out of an edit is in the same place the way in was. Send is never
-        // shown disabled: the slot simply stays closed until there is something
-        // to send.
-        showSend: (isEditing || !_inputIsEmpty) && isConfirmedChat,
-        onSend: () => _submitMessage(context.read()),
-        showScrollBack: controller?.showButton.value ?? false,
-        scrollBackUnread: hasUnread,
-        onScrollBack: () => controller?.scrollToBottom(),
-        aboveField: [
-          if (isEditing) const _EditBanner(),
-          if (inReplyToId != null) const _ReplyPreview(),
-        ],
-        field: _ComposerField(
-          focusNode: _focusNode,
-          controller: _inputController,
-          chatTitle: chatTitle,
-          layerLink: _inputFieldLink,
-          inputKey: _inputFieldKey,
-          onSubmitMessage: () =>
-              _submitMessage(context.read<ChatDetailsCubit>()),
-          onImagePasted: _handleImagePaste,
-          onFilePasted: _handleFilePaste,
-          onContentInserted: _handleContentInserted,
+    return SnackBarClearance(
+      child: ListenableBuilder(
+        listenable: _scrollBackState,
+        builder: (context, _) => MessageInput(
+          tokens: MessageInputTokens.current,
+          // Cancel the edit when editing, attach otherwise.
+          leadingIcon: isEditing ? AppIconType.x : AppIconType.plus,
+          onLeading: isEditing
+              ? (_) {
+                  context.read<ChatDetailsCubit>().resetDraft();
+                  _inputController.clear();
+                }
+              : isConfirmedChat
+              ? (buttonContext) =>
+                    _openAttachMenu(buttonContext, chatTitle: chatTitle)
+              : null,
+          sendIcon: isEditing ? AppIconType.check : AppIconType.arrowUp,
+          // An edit keeps its confirm button whatever the field holds, so the way
+          // out of an edit is in the same place the way in was. Send is never
+          // shown disabled: the slot simply stays closed until there is something
+          // to send.
+          showSend: (isEditing || !_inputIsEmpty) && isConfirmedChat,
+          onSend: () => _submitMessage(context.read()),
+          showScrollBack: controller?.showButton.value ?? false,
+          scrollBackUnread: hasUnread,
+          onScrollBack: () => controller?.scrollToBottom(),
+          aboveField: [
+            if (isEditing) const _EditBanner(),
+            if (inReplyToId != null) const _ReplyPreview(),
+          ],
+          field: _ComposerField(
+            focusNode: _focusNode,
+            controller: _inputController,
+            chatTitle: chatTitle,
+            layerLink: _inputFieldLink,
+            inputKey: _inputFieldKey,
+            onSubmitMessage: () =>
+                _submitMessage(context.read<ChatDetailsCubit>()),
+            onImagePasted: _handleImagePaste,
+            onFilePasted: _handleFilePaste,
+            onContentInserted: _handleContentInserted,
+          ),
         ),
       ),
     );

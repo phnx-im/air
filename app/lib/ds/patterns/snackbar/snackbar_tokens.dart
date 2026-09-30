@@ -37,6 +37,10 @@ abstract final class SnackbarTokens {
 
   static const Elevation elevation = Elevation.small;
 
+  /// Clearance above the keyboard while no [SnackBarClearance] is on the
+  /// current route.
+  static const double keyboardGap = S.s16;
+
   /// Where the pill sits relative to the viewport edges. The bottom clearance
   /// carries the message composer, so a pill raised from a chat never lands on
   /// top of the input.
