@@ -68,7 +68,7 @@ impl TestUser {
             .unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
-        user.ensure_self_group().await.unwrap();
+        user.user.ensure_self_group().await.unwrap();
 
         user
     }

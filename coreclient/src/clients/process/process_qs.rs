@@ -465,14 +465,19 @@ impl CoreUser {
         ))
         .await?;
 
-        if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
+        let group_id = group.group_id();
+        if own_client_info.self_group_id.as_ref() == Some(group_id) {
             debug!("joined self group as a linked device");
-            let (self_chat_id, self_chat_messages) =
-                self.ensure_self_chat(txn, group.group_id()).await?;
+            let self_chat_id = match ChatId::load_from_group_id(&mut *txn, group_id).await? {
+                Some(chat_id) => chat_id,
+                None => self.create_self_chat(&mut *txn, group_id.clone()).await?,
+            };
+            // The self chat's system message is not news, so it is not
+            // reported where it could raise a notification.
             return Ok(QsMessageOutcome::new_chat(
                 self_chat_id,
                 sender_user_id,
-                self_chat_messages,
+                Vec::new(),
             ));
         }
 

@@ -286,32 +286,19 @@ impl CoreUser {
         };
 
         // Make sure we surface the chat in the app
-        self.ensure_self_chat(self_group.group_id()).await?;
-
-        Ok(self_group)
-    }
-
-    /// Creates the "Notes to self" chat of the self group if it is missing, so
-    /// the group shows in the UI.
-    ///
-    /// Clients whose self group predates that chat only have the group, so
-    /// their self chat has to be backfilled here.
-    ///
-    /// Returns the ID of the self-chat and system messages if they were created.
-    pub(crate) async fn ensure_self_chat(
-        &self,
-        group_id: &GroupId,
-    ) -> anyhow::Result<(ChatId, Vec<ChatMessage>)> {
-        if let Some(chat_id) = ChatId::load_from_group_id(self.db().read().await?, group_id).await?
+        let self_group_id = self_group.group_id();
+        if ChatId::load_from_group_id(self.db().read().await?, self_group_id)
+            .await?
+            .is_none()
         {
-            Ok((chat_id, Vec::new()))
-        } else {
             self.db()
                 .with_write_transaction(async |txn| {
-                    self.create_self_chat(txn, group_id.clone()).await
+                    self.create_self_chat(txn, self_group_id.clone()).await
                 })
-                .await
+                .await?;
         }
+
+        Ok(self_group)
     }
 
     /// Returns `None` if another process loading this client created the self
@@ -420,7 +407,7 @@ impl CoreUser {
         &self,
         mut connection: impl WriteConnection,
         group_id: GroupId,
-    ) -> anyhow::Result<(ChatId, Vec<ChatMessage>)> {
+    ) -> anyhow::Result<ChatId> {
         let chat = Chat::new_group_chat(
             group_id,
             ChatAttributes {
@@ -437,7 +424,7 @@ impl CoreUser {
         system_message.store(&mut connection).await?;
         debug!("Created the missing self chat");
 
-        Ok((chat.id(), vec![system_message]))
+        Ok(chat.id())
     }
 
     /// Resets the self group and its chat from the local database only.

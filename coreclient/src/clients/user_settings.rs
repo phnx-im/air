@@ -485,10 +485,10 @@ pub(crate) mod persistence {
 
     /// Records a synced setting change inside an existing transaction.
     ///
-    /// Returns whether anything was enqueued for synchronization, i.e. whether the
-    /// caller should notify the outbound service. Without linked devices there is
-    /// nobody to sync to, so the value is only stored locally and `false` is
-    /// returned.
+    /// Returns whether anything was enqueued for synchronization, i.e. whether
+    /// the caller should notify the outbound service. Without linked devices
+    /// there is nobody to sync to, so the value is only stored locally and
+    /// `false` is returned.
     pub(crate) async fn set_synced_setting<T: SyncedUserSetting>(
         txn: &mut WriteDbTransaction<'_>,
         value: &T,

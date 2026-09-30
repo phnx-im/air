@@ -314,8 +314,16 @@ impl CoreUser {
     /// Not awaited, so an offline start doesn't wait for the DS.
     fn spawn_ensure_self_group(&self) {
         let self_user = self.clone();
+        let cancel = self.inner.event_loop_cancel.token().clone();
         tokio::spawn(async move {
-            match Box::pin(self_user.ensure_self_group()).await {
+            let result = tokio::select! {
+                result = Box::pin(self_user.ensure_self_group()) => result,
+                _ = cancel.cancelled() => {
+                    debug!("user closed, skipping the self group creation");
+                    return;
+                }
+            };
+            match result {
                 Ok(_) => {}
                 Err(error) if error.is::<SelfGroupNotJoined>() => {
                     debug!("self group not joined yet, skipping its creation");
