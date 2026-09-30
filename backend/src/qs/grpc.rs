@@ -27,16 +27,24 @@ use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::Leaf
 use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
+    errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
-    qs::{client_record::QsClientRecord, queue::Queues, user_record::UserRecord},
+    qs::{
+        client_record::QsClientRecord,
+        queue::{Queues, user_clients::ClientSession},
+        user_record::UserRecord,
+    },
     version::VerifiedClientVersion,
 };
 
 /// Maximum number of key packages per batch to upload in one request.
 const MAX_KEY_PACKAGES_PER_BATCH: usize = 512;
+
+/// Maximum size in bytes of the encrypted client state payload.
+const MAX_ENCRYPTED_CLIENT_STATE_SIZE_BYTES: usize = 256;
 
 use super::Qs;
 
@@ -304,7 +312,8 @@ impl QueueService for GrpcQs {
         let params = DeleteClientRecordParams {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
         };
-        self.qs.qs_delete_client_record(params).await?;
+        self.qs.qs_delete_client_record(&params).await?;
+        self.qs.queues.disconnect(params.sender);
         Ok(Response::new(DeleteClientResponse {}))
     }
 
@@ -488,23 +497,34 @@ impl QueueService for GrpcQs {
             .as_ref()
             .ok_or_missing_field("payload")?
             .encode_to_vec();
-        let InitListenPayload {
-            client_metadata: _,
-            client_id,
-            sequence_number_start,
-        } = self
-            .verify_client_auth(SignedRequest::<_, 1>::new(
+        let (
+            InitListenPayload {
+                client_metadata: _,
+                client_id,
+                sequence_number_start,
+            },
+            user_id,
+        ) = self
+            .verify_client_auth_with_user_id(SignedRequest::<_, 1>::new(
                 init_request,
                 payload_bytes.into(),
             ))
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-
-        let queue_messages = self
+        let user_id = match user_id {
+            Some(user_id) => user_id,
+            // Legacy clients are not authenticated
+            None => QsClientRecord::load_user_id(&self.qs.db_pool, &client_id)
+                .await
+                .map_err(QueueError::from)?
+                .ok_or(QueueError::ClientNotFound)?,
+        };
+        let (session, queue_messages) = self
             .qs
             .queues
             .listen(
+                user_id,
                 client_id,
                 verified_client_version.version,
                 sequence_number_start,
@@ -516,7 +536,11 @@ impl QueueService for GrpcQs {
                 event: Some(listen_response::Event::Empty(QueueEmpty {})),
             },
         });
-        let events = tokio_stream::once(version_status).chain(events);
+        // Always sent first, so that the client knows its siblings' states.
+        let sibling_client_states = self.qs.queues.user_states(user_id, client_id);
+        let events = tokio_stream::once(version_status)
+            .chain(tokio_stream::iter(sibling_client_states))
+            .chain(events);
 
         self.update_client_activity_and_report_metrics(client_id)
             .await
@@ -528,6 +552,7 @@ impl QueueService for GrpcQs {
         let handler = QueueSessionHandler {
             queues: self.qs.queues.clone(),
             client_id,
+            session,
         };
         let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
         Ok(Response::new(responses))
@@ -537,6 +562,7 @@ impl QueueService for GrpcQs {
 struct QueueSessionHandler {
     queues: Queues,
     client_id: identifiers::QsClientId,
+    session: ClientSession,
 }
 
 impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
@@ -551,6 +577,19 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             }
             Some(listen_request::Request::Fetch(FetchListenRequest {})) => {
                 self.queues.trigger_fetch(self.client_id).await?;
+            }
+            Some(listen_request::Request::ClientState(ReportClientStateListenRequest {
+                encrypted_blob,
+            })) => {
+                if encrypted_blob.len() > MAX_ENCRYPTED_CLIENT_STATE_SIZE_BYTES {
+                    warn!(
+                        client_id =? self.client_id,
+                        size = encrypted_blob.len(),
+                        "ignoring too large client state"
+                    );
+                } else {
+                    self.session.update_state(encrypted_blob);
+                }
             }
             Some(listen_request::Request::Init(_)) => {
                 return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());

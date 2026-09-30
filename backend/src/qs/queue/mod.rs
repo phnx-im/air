@@ -2,13 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{borrow::Cow, collections::VecDeque, sync::Arc};
+pub(crate) mod user_clients;
 
-use aircommon::identifiers::QsClientId;
+use std::{
+    borrow::Cow,
+    collections::VecDeque,
+    sync::{Arc, Weak},
+};
+
+use aircommon::identifiers::{QsClientId, QsUserId};
 use airprotos::queue_service::v1::{
     ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
 };
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use futures_util::{Stream, stream};
 use metrics::gauge;
 use semver::Version;
@@ -22,7 +28,10 @@ use uuid::Uuid;
 use crate::{
     errors::QueueError,
     pg_listen::{PgChannelName, PgListenerTaskHandle, spawn_pg_listener_task},
-    qs::METRIC_AIR_ACTIVE_USERS,
+    qs::{
+        METRIC_AIR_ACTIVE_USERS,
+        queue::user_clients::{ClientSession, SessionId, UserClients},
+    },
 };
 
 /// Maximum number of messages to fetch at once.
@@ -33,6 +42,8 @@ pub(crate) struct Queues {
     pool: PgPool,
     listeners: Arc<DashMap<QsClientId, ListenerContext>>,
     pg_listener_task_handle: PgListenerTaskHandle<QsClientId>,
+    /// Client states per user, owned by the listeners
+    user_clients: Arc<DashMap<QsUserId, Weak<UserClients>>>,
 }
 
 /// Context for a queue listener
@@ -40,15 +51,22 @@ pub(crate) struct Queues {
 /// Cancels background tasks when dropped.
 #[derive(Debug)]
 struct ListenerContext {
+    client_id: QsClientId,
+    session_id: SessionId,
     cancel: CancellationToken,
-    payload_tx: mpsc::Sender<QueueEventPayload>,
+    payload_tx: mpsc::Sender<ListenResponse>,
+    /// Clients of the same user, kept alive while one of them listens
+    user_clients: Arc<UserClients>,
 }
 
 impl ListenerContext {
     fn new(
+        client_id: QsClientId,
+        session_id: SessionId,
         cancel: CancellationToken,
         client_version: Option<&Version>,
-        payload_tx: mpsc::Sender<QueueEventPayload>,
+        payload_tx: mpsc::Sender<ListenResponse>,
+        user_clients: Arc<UserClients>,
     ) -> Self {
         let client_version_label = client_version_label(client_version);
         gauge!(
@@ -56,13 +74,20 @@ impl ListenerContext {
             "client_version" => client_version_label,
         )
         .increment(1);
-        Self { cancel, payload_tx }
+        Self {
+            client_id,
+            session_id,
+            cancel,
+            payload_tx,
+            user_clients,
+        }
     }
 }
 
 impl Drop for ListenerContext {
     fn drop(&mut self) {
         self.cancel.cancel();
+        self.user_clients.remove(self.client_id, self.session_id);
     }
 }
 
@@ -73,19 +98,31 @@ impl Queues {
             pool,
             listeners: Default::default(),
             pg_listener_task_handle,
+            user_clients: Default::default(),
         })
     }
 
+    /// Starts a listen session of `client_id`, replacing a previous one.
+    ///
+    /// Returns the session, ended when dropped, and its events.
     pub(crate) async fn listen(
         &self,
+        user_id: QsUserId,
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
-    ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
+    ) -> Result<
+        (
+            ClientSession,
+            impl Stream<Item = Option<ListenResponse>> + use<>,
+        ),
+        QueueError,
+    > {
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let cancel = self.track_listener(client_id, client_version.as_ref(), payload_tx);
+        let (session, cancel) =
+            self.track_listener(user_id, client_id, client_version.as_ref(), payload_tx);
         let context = QueueStreamContext {
             pool: self.pool.clone(),
             notifications,
@@ -106,16 +143,11 @@ impl Queues {
             }),
         });
 
-        let payload_stream =
-            tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(|payload| {
-                Some(ListenResponse {
-                    event: Some(listen_response::Event::Payload(payload)),
-                })
-            });
+        let payload_stream = tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(Some);
 
         let event_stream = stream::select(message_stream, payload_stream);
 
-        Ok(event_stream)
+        Ok((session, event_stream))
     }
 
     pub(crate) async fn enqueue(
@@ -167,17 +199,51 @@ impl Queues {
         else {
             return Ok(false);
         };
-        tx.send(payload).await?;
+        tx.send(ListenResponse {
+            event: Some(listen_response::Event::Payload(payload)),
+        })
+        .await?;
         Ok(true)
     }
 
+    pub(crate) fn user_states(
+        &self,
+        user_id: QsUserId,
+        own_client_id: QsClientId,
+    ) -> Vec<ListenResponse> {
+        let Some(user_clients) = self
+            .user_clients
+            .get(&user_id)
+            .and_then(|uc| uc.clone().upgrade())
+        else {
+            return Vec::new();
+        };
+
+        user_clients.states(own_client_id)
+    }
+
+    /// Ends the listener of `client_id`
+    pub(crate) fn disconnect(&self, client_id: QsClientId) {
+        // Holding the entry orders the unlisten before the listen of a newer listener.
+        if let Entry::Occupied(entry) = self.listeners.entry(client_id) {
+            self.pg_listener_task_handle.unlisten(client_id);
+            entry.remove();
+        }
+    }
+
+    /// Registers the listener of `client_id`, replacing a previous one.
+    ///
+    /// Returns the new session and the cancellation token of the listener.
     fn track_listener(
         &self,
+        user_id: QsUserId,
         client_id: QsClientId,
         client_version: Option<&Version>,
-        payload_tx: mpsc::Sender<QueueEventPayload>,
-    ) -> CancellationToken {
-        // Clean up cancelled listeners
+        payload_tx: mpsc::Sender<ListenResponse>,
+    ) -> (ClientSession, CancellationToken) {
+        // FIXME(gabriel): Cleanup in a different place (not on new connections)1
+        // Clean up cancelled listeners (before taking the entry below, since `retain` write-locks
+        // each shard)
         self.listeners.retain(|id, context| {
             if context.cancel.is_cancelled() {
                 self.pg_listener_task_handle.unlisten(*id);
@@ -186,16 +252,47 @@ impl Queues {
                 true
             }
         });
+        // After the listeners, which might hold the last references
+        self.user_clients
+            .retain(|_, user_clients| user_clients.strong_count() > 0);
 
+        let user_clients = self.user_clients_of(user_id);
         let cancel = CancellationToken::new();
-        let context = ListenerContext::new(cancel.clone(), client_version, payload_tx);
-        if let Some(prev_listener) = self.listeners.insert(client_id, context) {
-            prev_listener.cancel.cancel();
-        } else {
-            self.pg_listener_task_handle.listen(client_id);
-        }
 
-        cancel
+        // Holding the entry keeps the session in line with the listener when
+        // the same client listens concurrently.
+        let entry = self.listeners.entry(client_id);
+        let session = user_clients.clone().join(client_id, payload_tx.clone());
+        let context = ListenerContext::new(
+            client_id,
+            session.session_id,
+            cancel.clone(),
+            client_version,
+            payload_tx,
+            user_clients,
+        );
+        match entry {
+            Entry::Occupied(mut entry) => {
+                entry.insert(context).cancel.cancel();
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(context);
+                self.pg_listener_task_handle.listen(client_id);
+            }
+        };
+
+        (session, cancel)
+    }
+
+    /// Returns the clients of `user_id`, creating them if no listener holds
+    /// them.
+    fn user_clients_of(&self, user_id: QsUserId) -> Arc<UserClients> {
+        let mut entry = self.user_clients.entry(user_id).or_default();
+        entry.upgrade().unwrap_or_else(|| {
+            let user_clients = Arc::new(UserClients::default());
+            *entry = Arc::downgrade(&user_clients);
+            user_clients
+        })
     }
 }
 
