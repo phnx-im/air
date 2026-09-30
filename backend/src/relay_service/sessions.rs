@@ -15,6 +15,7 @@ use std::{
 use aircommon::identifiers::QsUserId;
 use airprotos::relay_service::v1::RelayFrame;
 use chrono::TimeDelta;
+use rand::RngExt;
 use tokio::{
     sync::{mpsc, oneshot},
     time::Instant,
@@ -48,6 +49,9 @@ const INITIAL_WIDTH: u32 = 3;
 /// else is wrong.
 const MAX_WIDTH: u32 = 9;
 
+/// Random draws at one width before giving up on it and widening.
+const MAX_DRAWS_PER_WIDTH: u32 = 32;
+
 /// The reaper sweeps a few times per session lifetime, so an idle session
 /// is torn down at most a fraction of its lifetime late. The lower bound
 /// only keeps a degenerate lifetime from turning the sweep into a busy loop.
@@ -79,15 +83,20 @@ struct Table {
     /// Ended IDs and the instant they may be assigned again. A user typing a
     /// stale code must not consume an unrelated fresh session.
     quarantine: HashMap<SessionId, Instant>,
-    /// Digits currently being assigned. It only ever grows, and clients never
-    /// parse structure out of an ID.
+    /// Digits of the IDs currently being drawn. It only ever grows, and
+    /// clients never parse structure out of an ID.
     width: u32,
 }
 
 impl Table {
-    /// The lowest ID at the current width that is neither live nor
+    /// A random ID at the current width that is neither live nor
     /// quarantined, widening when the current width is more than half full.
+    ///
+    /// IDs are drawn at random so that an outsider cannot enumerate them to
+    /// target a live session. At most half the width is taken, so each draw
+    /// succeeds with probability at least one half.
     fn assign(&mut self) -> Option<SessionId> {
+        let mut rng = rand::rng();
         while self.width <= MAX_WIDTH {
             let capacity = 10u64.pow(self.width);
             if self.occupancy() * 2 > capacity {
@@ -95,7 +104,8 @@ impl Table {
                 continue;
             }
             let width = self.width as usize;
-            for n in 0..capacity {
+            for _ in 0..MAX_DRAWS_PER_WIDTH {
+                let n = rng.random_range(0..capacity);
                 let candidate = format!("{n:0width$}");
                 if !self.live.contains_key(&candidate) && !self.quarantine.contains_key(&candidate)
                 {
@@ -344,6 +354,8 @@ impl Rs {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     /// A relay whose deadlines are short enough for a test to wait them out.
@@ -382,11 +394,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ids_start_at_three_digits_and_count_up() {
+    async fn fresh_ids_are_distinct_three_digit_numbers() {
         let rs = relay(long(), long());
         let sessions: Vec<Opened> = (0..3).map(|_| open(&rs)).collect();
-        let ids: Vec<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
-        assert_eq!(ids, vec!["000", "001", "002"]);
+        let ids: HashSet<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids.len(), 3, "ids must be pairwise distinct: {ids:?}");
+        for id in ids {
+            assert_eq!(id.len(), 3, "{id}");
+            assert!(id.bytes().all(|b| b.is_ascii_digit()), "{id}");
+        }
     }
 
     /// Moves the paused clock past `deadline` and lets the reaper sweep.
@@ -403,14 +419,16 @@ mod tests {
     async fn an_ended_id_is_reused_only_after_quarantine() {
         let rs = relay(long(), long());
         let first = open(&rs);
-        assert_eq!(first.id, "000");
 
         rs.end(&first.id);
         assert!(!rs.is_live(&first.id));
         assert!(rs.is_quarantined(&first.id));
 
         let second = open(&rs);
-        assert_eq!(second.id, "001", "a quarantined id must not be handed out");
+        assert_ne!(
+            second.id, first.id,
+            "a quarantined id must not be handed out"
+        );
 
         advance_past(long()).await;
         assert!(!rs.is_quarantined(&first.id));
@@ -427,6 +445,30 @@ mod tests {
             }
         }
         assert_eq!(open(&rs).id.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn a_dense_table_never_hands_out_a_taken_id() {
+        let rs = relay(long(), long());
+        let quarantined: HashSet<SessionId> =
+            (0..900).step_by(2).map(|n| format!("{n:03}")).collect();
+        {
+            let mut table = rs.lock();
+            let until = Instant::now() + long();
+            for id in &quarantined {
+                table.quarantine.insert(id.clone(), until);
+            }
+        }
+
+        // Together with the quarantine this fills the width to exactly half,
+        // which is the densest table that still assigns three digits.
+        let sessions: Vec<Opened> = (0..50).map(|_| open(&rs)).collect();
+        let ids: HashSet<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids.len(), sessions.len(), "a live id was handed out twice");
+        for id in ids {
+            assert_eq!(id.len(), 3, "{id}");
+            assert!(!quarantined.contains(id), "{id} is quarantined");
+        }
     }
 
     #[tokio::test]
